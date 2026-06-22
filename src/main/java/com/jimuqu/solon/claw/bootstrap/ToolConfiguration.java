@@ -279,6 +279,7 @@ public class ToolConfiguration {
      * @param runtimeSettingsService 运行时Settings服务依赖。
      * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
      * @param securityPolicyService 安全策略服务依赖。
+     * @param dangerousCommandApprovalService 危险或外部操作审批服务依赖。
      * @param processRegistry 进程注册表依赖组件。
      * @param mcpRuntimeService MCP运行时服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
@@ -305,6 +306,7 @@ public class ToolConfiguration {
             RuntimeSettingsService runtimeSettingsService,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService dangerousCommandApprovalService,
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService,
             BrowserRuntimeService browserRuntimeService,
@@ -328,6 +330,7 @@ public class ToolConfiguration {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
+                dangerousCommandApprovalService,
                 processRegistry,
                 mcpRuntimeService,
                 browserRuntimeService,

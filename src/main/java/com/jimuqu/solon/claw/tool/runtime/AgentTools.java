@@ -29,7 +29,7 @@ public class AgentTools {
     @ToolMapping(
             name = "agent_manage",
             description =
-                    "Manage named Agents with slash-command compatible args: list, use <name>, create <name> [role], show <name>, model/tools/skills/memory <name> ..., delete <name>. The built-in default Agent cannot be edited or deleted.")
+                    "Manage named Agents with slash-command style args: list, use <name>, create <name> [role], show <name>, model/tools/skills/memory <name> ..., delete <name>. The built-in default Agent cannot be edited or deleted.")
     public String agentManage(
             @Param(
                             name = "args",

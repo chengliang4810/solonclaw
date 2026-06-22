@@ -110,8 +110,9 @@ public class McpPackageSecurityServiceTest {
                 .doesNotContain("ghp_mcppackage12345");
     }
 
+    /** 验证OSV请求异常会失败关闭，避免网络或探测失败时静默允许MCP包。 */
     @Test
-    void shouldFailOpenWhenOsvRequestFails() throws Exception {
+    void shouldFailClosedWhenOsvRequestFails() throws Exception {
         FakeOsvHttpClient http = new FakeOsvHttpClient(null);
         http.throwOnPost = true;
         McpPackageSecurityService service =
@@ -120,8 +121,59 @@ public class McpPackageSecurityServiceTest {
         McpPackageSecurityService.SecurityVerdict verdict =
                 service.check("uvx", Arrays.asList("demo-mcp==0.1.0"));
 
-        assertThat(verdict.isAllowed()).isTrue();
-        assertThat(verdict.getReason()).isEqualTo("allow");
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getReason()).isEqualTo("scan_error");
+        assertThat(verdict.getMessage()).contains("MCP package security check failed");
+        assertThat(verdict.getMessage()).contains("demo-mcp");
+        assertThat(verdict.getMessage()).contains("network down");
+    }
+
+    /** 验证OSV响应结构异常会失败关闭，避免畸形响应被当成无漏洞结果。 */
+    @Test
+    void shouldFailClosedWhenOsvResponseIsMalformed() throws Exception {
+        FakeOsvHttpClient http = new FakeOsvHttpClient("[]");
+        McpPackageSecurityService service =
+                new McpPackageSecurityService(http, "https://osv.test/query");
+
+        McpPackageSecurityService.SecurityVerdict verdict =
+                service.check("npx", Arrays.asList("-y", "demo-mcp-server"));
+
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.getReason()).isEqualTo("scan_error");
+        assertThat(verdict.getMessage()).contains("OSV response is not a JSON object");
+    }
+
+    /** 验证控制台MCP保存与检查流程会把包安全探测异常落成blocked状态。 */
+    @Test
+    void shouldPersistBlockedStatusWhenOsvRequestFails() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FakeOsvHttpClient http = new FakeOsvHttpClient(null);
+        http.throwOnPost = true;
+        DashboardMcpService service =
+                new DashboardMcpService(
+                        env.appConfig,
+                        env.sqliteDatabase,
+                        new McpPackageSecurityService(http, "https://osv.test/query"));
+
+        Map<String, Object> body = new LinkedHashMap<String, Object>();
+        body.put("serverId", "mcp-scan-error");
+        body.put("name", "MCP Scan Error");
+        body.put("transport", "stdio");
+        body.put("command", "npx");
+        body.put("args", Arrays.asList("-y", "scan-error-server"));
+        body.put("tools", Arrays.asList(tool("scan_error_tool")));
+
+        Map<String, Object> saved = service.save(body);
+        Map<String, Object> checked = service.check("mcp-scan-error");
+        Map<String, Object> listed = service.list();
+
+        assertThat(String.valueOf(saved.get("security"))).contains("allowed=false");
+        assertThat(String.valueOf(saved.get("security"))).contains("reason=scan_error");
+        assertThat(checked.get("status")).isEqualTo("blocked");
+        assertThat(String.valueOf(checked.get("security"))).contains("reason=scan_error");
+        assertThat(String.valueOf(listed.get("servers"))).contains("blocked");
+        assertThat(String.valueOf(listed.get("servers")))
+                .contains("MCP package security check failed");
     }
 
     @Test
@@ -224,15 +276,16 @@ public class McpPackageSecurityServiceTest {
 
         assertThat(summary)
                 .containsEntry("malwareBlocksSaveAndCheck", Boolean.TRUE)
-                .containsEntry("requestFailureFailsOpen", Boolean.TRUE)
+                .containsEntry("requestFailureFailsOpen", Boolean.FALSE)
+                .containsEntry("requestFailureFailsClosed", Boolean.TRUE)
                 .containsEntry("messageRedacted", Boolean.TRUE)
                 .containsEntry("npxPackageOptionParsed", Boolean.TRUE)
                 .containsEntry("pipxRunSubcommandSkipped", Boolean.TRUE)
                 .containsEntry("pypiSourceOptionParsed", Boolean.TRUE);
+        assertThat(String.valueOf(summary.get("structuredReasons"))).contains("scan_error");
         assertThat(summary.get("endpointOverrideEnvironment")).isEqualTo("SOLONCLAW_OSV_ENDPOINT");
         assertThat(summary.get("projectEndpointOverrideEnvironment"))
                 .isEqualTo("SOLONCLAW_OSV_ENDPOINT");
-        assertThat(summary).doesNotContainKey("legacyEndpointOverrideEnvironment");
         assertThat(String.valueOf(summary.get("checkedLaunchers")))
                 .contains("npx")
                 .contains("uvx")

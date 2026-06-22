@@ -23,9 +23,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 仓库更新观测采集器，用于发现用户已关注仓库的首次状态或后续变化。 */
 public class RepositoryUpdateCollector implements ProactiveObservationCollector {
+    /** 采集器内部日志，仅记录输入源和异常类型，避免暴露记忆、会话或定时任务正文。 */
+    private static final Logger log = LoggerFactory.getLogger(RepositoryUpdateCollector.class);
+
     /** 采集器稳定名称，用于观测来源、排障和候选生成识别。 */
     public static final String COLLECTOR_NAME = "repository_update";
 
@@ -186,7 +191,8 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
             references.addAll(referenceExtractor.extract("memory", "USER.md", snapshot.getUserText()));
             references.addAll(
                     referenceExtractor.extract("memory", "TODAY_MEMORY", snapshot.getDailyMemoryText()));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logSourceReadFailure("memory", e);
         }
         return references;
     }
@@ -220,7 +226,8 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
                                 StrUtil.blankToDefault(session.getSessionId(), "unknown"),
                                 sessionText(session)));
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logSourceReadFailure("session", e);
         }
         return references;
     }
@@ -253,7 +260,8 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
                                 StrUtil.blankToDefault(job.getJobId(), "unknown"),
                                 cronText(job)));
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logSourceReadFailure("cron", e);
         }
         return references;
     }
@@ -289,7 +297,8 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
                     append(builder, message.getContent());
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logSourceReadFailure("session_message", e);
             append(builder, session.getNdjson());
         }
         return builder.toString();
@@ -493,5 +502,32 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
      */
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
+    }
+
+    /**
+     * 记录输入源读取失败的安全摘要，主动收集继续使用其它来源或降级文本。
+     *
+     * @param sourceType 输入源类型。
+     * @param error 读取失败异常。
+     */
+    private void logSourceReadFailure(String sourceType, Exception error) {
+        log.debug(
+                "仓库更新采集输入源读取失败，跳过该来源或使用降级文本继续: source={}, error={}",
+                StrUtil.blankToDefault(sourceType, "unknown"),
+                exceptionSummary(error));
+    }
+
+    /**
+     * 生成不包含异常消息正文的摘要，避免日志暴露仓库路径之外的上下文内容。
+     *
+     * @param error 读取失败异常。
+     * @return 返回异常类型名称。
+     */
+    private String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String simpleName = error.getClass().getSimpleName();
+        return StrUtil.blankToDefault(simpleName, error.getClass().getName());
     }
 }

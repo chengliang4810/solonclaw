@@ -32,10 +32,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.RequiredArgsConstructor;
 import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 主回复后的异步学习闭环服务。 */
 @RequiredArgsConstructor
 public class AsyncSkillLearningService implements SkillLearningService {
+    /** 记录异步技能学习关键路径中的可恢复异常，便于诊断学习闭环降级原因。 */
+    private static final Logger log = LoggerFactory.getLogger(AsyncSkillLearningService.class);
+
     /** 注入应用配置，用于异步技能Learning。 */
     private final AppConfig appConfig;
 
@@ -135,8 +140,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
                                 return;
                             }
                             runLearning(session, message, toolMessages, hasRecentCheckpoint);
-                        } catch (Exception ignored) {
-                            // 学习失败不影响主回复。
+                        } catch (Exception e) {
+                            log.warn(
+                                    "Post-reply skill learning failed: sessionId={}, sourceKey={}, error={}",
+                                    session == null ? null : session.getSessionId(),
+                                    message == null ? null : message.sourceKey(),
+                                    e.toString());
                         }
                     }
                 });
@@ -266,7 +275,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
                     return candidate;
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "Skill improvement classification failed, using fallback decision: sessionId={}, hasRecentCheckpoint={}, error={}",
+                    session == null ? null : session.getSessionId(),
+                    Boolean.valueOf(hasRecentCheckpoint),
+                    e.toString());
         }
         return hasRecentCheckpoint ? "update_existing_skill" : "new_skill";
     }
@@ -286,7 +300,11 @@ public class AsyncSkillLearningService implements SkillLearningService {
                     count++;
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "Failed to count tool messages for learning threshold, using zero: sessionId={}, error={}",
+                    session == null ? null : session.getSessionId(),
+                    e.toString());
             return 0;
         }
         return count;
@@ -550,7 +568,11 @@ public class AsyncSkillLearningService implements SkillLearningService {
                                     description));
             String raw = extractAssistantText(result);
             return normalizeModelSkillContent(raw, skillName, description);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "Model skill summarization failed, using fallback skill content: sessionId={}, error={}",
+                    session == null ? null : session.getSessionId(),
+                    e.toString());
             return null;
         }
     }
@@ -813,7 +835,13 @@ public class AsyncSkillLearningService implements SkillLearningService {
                                     + "-"
                                     + StrUtil.blankToDefault(skillName, "memory")
                                     + ".json"));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to write skill improvement report: sessionId={}, skillName={}, action={}, error={}",
+                    session == null ? null : session.getSessionId(),
+                    skillName,
+                    action,
+                    e.toString());
         }
     }
 
@@ -846,12 +874,22 @@ public class AsyncSkillLearningService implements SkillLearningService {
             statement.setLong(10, asLong(report.get("createdAt")));
             statement.executeUpdate();
             statement.close();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to save skill improvement report into database: sessionId={}, skillName={}, action={}, error={}",
+                    asString(report.get("sessionId")),
+                    asString(report.get("skillName")),
+                    asString(report.get("action")),
+                    e.toString());
         } finally {
             if (connection != null) {
                 try {
                     connection.close();
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    log.debug(
+                            "Failed to close skill improvement database connection: sessionId={}, error={}",
+                            asString(report.get("sessionId")),
+                            e.toString());
                 }
             }
         }

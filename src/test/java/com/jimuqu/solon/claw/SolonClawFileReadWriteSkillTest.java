@@ -42,25 +42,23 @@ public class SolonClawFileReadWriteSkillTest {
         ONode result = ONode.ofJson(skill.write("runtime/scripts/loop-probe.py", "print('ok')\n"));
         Path expected = dir.resolve("scripts/loop-probe.py");
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(result.get("resolved_path").getString())
                 .isEqualTo(expected.toRealPath().toString());
         assertThat(expected).exists();
         assertThat(dir.resolve("runtime/scripts/loop-probe.py")).doesNotExist();
     }
 
-    /**
-     * 验证对标行为读取工具能够兼容内置文件工具常用的fileName参数名，避免模型重试浪费工具调用次数。
-     */
+    /** 验证 read_file 当前入口只使用 path 参数读取文件。 */
     @Test
-    void shouldAcceptFileNameAliasForReadFileTool() throws Exception {
-        Path dir = tempDir("file-read-alias");
+    void shouldReadFileWithCurrentPathParameter() throws Exception {
+        Path dir = tempDir("file-read-path");
         writeUtf8(dir.resolve("state.json"), "{\"ok\":true}\n");
         SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
 
-        ONode result = ONode.ofJson(skill.readFile(null, "state.json", 1, 5));
+        ONode result = ONode.ofJson(skill.readFile("state.json", 1, 5));
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(result.get("path").getString()).isEqualTo("state.json");
         assertThat(result.get("content").getString()).contains("1|{\"ok\":true}");
     }
@@ -76,7 +74,7 @@ public class SolonClawFileReadWriteSkillTest {
         SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
         String result = skill.write("target.txt", "after\n");
 
-        assertThat(result).contains("\"success\":true");
+        assertThat(ONode.ofJson(result).get("status").getString()).isEqualTo("success");
         assertThat(readUtf8(file)).isEqualTo("after\n");
         assertThat(Files.getAttribute(file, "unix:ino")).isNotEqualTo(beforeKey);
         try (Stream<Path> files = Files.list(dir)) {
@@ -89,6 +87,58 @@ public class SolonClawFileReadWriteSkillTest {
                                     .count())
                     .isZero();
         }
+    }
+
+    /** 验证对话式整文件写入不会把已存在真实密钥覆盖成读取结果里的脱敏占位符。 */
+    @Test
+    void shouldRejectPlaceholderSecretDowngradeWhenWritingConfigFile() throws Exception {
+        Path dir = tempDir("file-write-config-secret");
+        Path file = dir.resolve("config.yml");
+        writeUtf8(
+                file,
+                "providers:\n"
+                        + "  default:\n"
+                        + "    apiKey: sk-original-config-secret-12345\n"
+                        + "    defaultModel: gpt-5\n");
+        SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
+
+        ONode rejected =
+                ONode.ofJson(
+                        skill.write(
+                                "config.yml",
+                                "providers:\n"
+                                        + "  default:\n"
+                                        + "    apiKey: ***\n"
+                                        + "    defaultModel: gpt-5.1\n"));
+
+        assertThat(rejected.get("status").getString()).isEqualTo("error");
+        assertThat(rejected.get("error").getString())
+                .contains("配置密钥占位符")
+                .contains("config_set_secret")
+                .doesNotContain("sk-original-config-secret-12345");
+        assertThat(readUtf8(file))
+                .contains("apiKey: sk-original-config-secret-12345")
+                .contains("defaultModel: gpt-5\n");
+    }
+
+    /** 验证用户提供真实新密钥时仍允许通过文件写入完成配置更新。 */
+    @Test
+    void shouldAllowRealSecretReplacementWhenWritingConfigFile() throws Exception {
+        Path dir = tempDir("file-write-config-secret-real");
+        Path file = dir.resolve("config.yml");
+        writeUtf8(file, "providers:\n  default:\n    apiKey: sk-old-real-secret-12345\n");
+        SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
+
+        ONode result =
+                ONode.ofJson(
+                        skill.write(
+                                "config.yml",
+                                "providers:\n"
+                                        + "  default:\n"
+                                        + "    apiKey: sk-new-real-secret-67890\n"));
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(readUtf8(file)).contains("apiKey: sk-new-real-secret-67890");
     }
 
     @Test
@@ -107,7 +157,7 @@ public class SolonClawFileReadWriteSkillTest {
         SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(dir.toString(), null);
         String result = skill.write("mode.txt", "after\n");
 
-        assertThat(result).contains("\"success\":true");
+        assertThat(ONode.ofJson(result).get("status").getString()).isEqualTo("success");
         assertThat(Files.getPosixFilePermissions(file))
                 .containsExactlyInAnyOrder(
                         java.nio.file.attribute.PosixFilePermission.OWNER_READ,

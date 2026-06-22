@@ -23,6 +23,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.noear.snack4.ONode;
 import org.noear.solon.core.Props;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 /** 应用级配置对象，负责承接 Solon 配置并做外部 config.yml 覆盖与路径标准化。 */
@@ -30,8 +32,14 @@ import org.yaml.snakeyaml.Yaml;
 @Setter
 @NoArgsConstructor
 public class AppConfig {
+    /** 配置加载日志，异常摘要只记录类型，避免把配置值或密钥写入日志。 */
+    private static final Logger log = LoggerFactory.getLogger(AppConfig.class);
+
     /** 运行时目录配置。 */
     private RuntimeConfig runtime = new RuntimeConfig();
+
+    /** Agent 工作区配置。 */
+    private WorkspaceConfig workspace = new WorkspaceConfig();
 
     /** 大模型接入配置。 */
     private LlmConfig llm = new LlmConfig();
@@ -155,6 +163,14 @@ public class AppConfig {
                 .setLogsDir(
                         runtimeChildPath(
                                 config.getRuntime().getHome(), RuntimePathConstants.LOGS_DIR_NAME));
+        config.getWorkspace()
+                .setDir(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.workspace",
+                                        RuntimePathConstants.DEFAULT_WORKSPACE)));
 
         config.getLlm()
                 .setStream(
@@ -184,16 +200,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "solonclaw.llm.maxTokens",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "model.maxTokens",
-                                                        readInt(
-                                                                props,
-                                                                overrides,
-                                                                "model.max_tokens",
-                                                                RuntimePathConstants
-                                                                        .DEFAULT_MAX_TOKENS)))),
+                                                RuntimePathConstants.DEFAULT_MAX_TOKENS)),
                                 RuntimePathConstants.DEFAULT_MAX_TOKENS));
         config.getLlm()
                 .setContextWindowTokens(
@@ -272,14 +279,6 @@ public class AppConfig {
                                                 "solonclaw.scheduler.inactivityTimeoutSeconds",
                                                 600)),
                                 600));
-        config.getScheduler()
-                .setCronApprovalMode(
-                        resolveConfigString(
-                                readString(
-                                        props,
-                                        overrides,
-                                        "solonclaw.scheduler.cronApprovalMode",
-                                        "deny")));
         config.getScheduler()
                 .setEnabledToolsets(
                         resolveList(
@@ -1348,11 +1347,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.react.toolLoopWarningsEnabled",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "tool_loop_guardrails.warnings_enabled",
-                                                true))));
+                                        true)));
         config.getReact()
                 .setToolLoopHardStopEnabled(
                         resolveBoolean(
@@ -1360,11 +1355,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.react.toolLoopHardStopEnabled",
-                                        readBoolean(
-                                                props,
-                                                overrides,
-                                                "tool_loop_guardrails.hard_stop_enabled",
-                                                false))));
+                                        false)));
         config.getReact()
                 .setToolLoopExactFailureWarnAfter(
                         resolveInt(
@@ -1372,15 +1363,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.react.toolLoopExactFailureWarnAfter",
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "tool_loop_guardrails.warn_after.exact_failure",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_loop_guardrails.exact_failure_warn_after",
-                                                        2)))));
+                                        2)));
         config.getReact()
                 .setToolLoopExactFailureBlockAfter(
                         resolveInt(
@@ -1388,15 +1371,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.react.toolLoopExactFailureBlockAfter",
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "tool_loop_guardrails.hard_stop_after.exact_failure",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_loop_guardrails.exact_failure_block_after",
-                                                        5)))));
+                                        5)));
         config.getReact()
                 .setToolLoopSameToolFailureWarnAfter(
                         resolveInt(
@@ -1404,15 +1379,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.react.toolLoopSameToolFailureWarnAfter",
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "tool_loop_guardrails.warn_after.same_tool_failure",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_loop_guardrails.same_tool_failure_warn_after",
-                                                        3)))));
+                                        3)));
         config.getReact()
                 .setToolLoopSameToolFailureHaltAfter(
                         resolveInt(
@@ -1420,15 +1387,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.react.toolLoopSameToolFailureHaltAfter",
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "tool_loop_guardrails.hard_stop_after.same_tool_failure",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_loop_guardrails.same_tool_failure_halt_after",
-                                                        8)))));
+                                        8)));
         config.getReact()
                 .setToolLoopNoProgressWarnAfter(
                         resolveInt(
@@ -1436,15 +1395,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.react.toolLoopNoProgressWarnAfter",
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "tool_loop_guardrails.warn_after.idempotent_no_progress",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_loop_guardrails.no_progress_warn_after",
-                                                        2)))));
+                                        2)));
         config.getReact()
                 .setToolLoopNoProgressBlockAfter(
                         resolveInt(
@@ -1452,15 +1403,7 @@ public class AppConfig {
                                         props,
                                         overrides,
                                         "solonclaw.react.toolLoopNoProgressBlockAfter",
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "tool_loop_guardrails.hard_stop_after.idempotent_no_progress",
-                                                readInt(
-                                                        props,
-                                                        overrides,
-                                                        "tool_loop_guardrails.no_progress_block_after",
-                                                        5)))));
+                                        5)));
         config.getTrace()
                 .setRetentionDays(
                         resolveInt(readInt(props, overrides, "solonclaw.trace.retentionDays", 14)));
@@ -1618,7 +1561,7 @@ public class AppConfig {
         config.getSecurity()
                 .setTirithFailOpen(
                         resolveBoolean(
-                                readBoolean(props, overrides, "security.tirithFailOpen", true)));
+                                readBoolean(props, overrides, "security.tirithFailOpen", false)));
         config.getSecurity()
                 .setFileGuardrailMode(
                         normalizeBinaryGuardrailMode(
@@ -1627,7 +1570,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "security.fileGuardrailMode",
-                                                "bypass"))));
+                                                "strict"))));
         config.getSecurity()
                 .setUrlGuardrailMode(
                         normalizeBinaryGuardrailMode(
@@ -1636,7 +1579,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "security.urlGuardrailMode",
-                                                "bypass"))));
+                                                "strict"))));
         config.getSecurity()
                 .setGuardrailMode(
                         normalizeGuardrailMode(
@@ -1645,7 +1588,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "security.guardrailMode",
-                                                "bypass"))));
+                                                "approval"))));
         config.getSecurity()
                 .setGuardrailCronMode(
                         normalizeGuardrailCronMode(
@@ -1654,7 +1597,7 @@ public class AppConfig {
                                                 props,
                                                 overrides,
                                                 "security.guardrailCronMode",
-                                                config.getSecurity().getGuardrailMode()))));
+                                                "strict"))));
         config.getSecurity()
                 .setGuardrailCronScope(
                         normalizeGuardrailCronScope(
@@ -1672,16 +1615,6 @@ public class AppConfig {
                                         overrides,
                                         "security.hardlineAllowlist",
                                         defaultHardlineAllowlist())));
-        config.getApprovals()
-                .setMode(
-                        normalizeApprovalMode(
-                                resolveConfigString(
-                                        guardrailApprovalMode(
-                                                config.getSecurity().getGuardrailMode()))));
-        config.getApprovals()
-                .setCronMode(
-                        normalizeGuardrailCronMode(
-                                resolveConfigString(config.getSecurity().getGuardrailCronMode())));
         config.getApprovals()
                 .setSubagentAutoApprove(
                         resolveBoolean(
@@ -1758,7 +1691,7 @@ public class AppConfig {
                                         true)));
         config.getTerminal()
                 .setSudoPassword(
-                        resolveConfigString(
+                        blankToNullSecret(
                                 readString(
                                         props,
                                         overrides,
@@ -1818,7 +1751,7 @@ public class AppConfig {
         return config;
     }
 
-    /** 标准化运行时路径，确保所有路径都转换为基于 `user.dir` 的绝对路径。 */
+    /** 标准化运行时路径与工作区路径，运行时基于进程目录，工作区相对运行 Jar 所在目录。 */
     public void normalizePaths() {
         File userDir = new File(System.getProperty("user.dir"));
         File runtimeHome =
@@ -1843,6 +1776,14 @@ public class AppConfig {
                 new File(runtimeHome, RuntimePathConstants.CONFIG_FILE_NAME).getAbsolutePath());
         runtime.setLogsDir(
                 new File(runtimeHome, RuntimePathConstants.LOGS_DIR_NAME).getAbsolutePath());
+        File workspaceBase = jarBaseDir(userDir);
+        File workspaceDir =
+                asAbsolute(
+                        new File(
+                                StrUtil.blankToDefault(
+                                        workspace.getDir(), RuntimePathConstants.DEFAULT_WORKSPACE)),
+                        workspaceBase);
+        workspace.setDir(workspaceDir.getAbsolutePath());
     }
 
     /** 用新的配置快照覆盖当前实例，保留对象引用稳定。 */
@@ -1851,6 +1792,7 @@ public class AppConfig {
             return;
         }
         copyRuntime(other.getRuntime());
+        copyWorkspace(other.getWorkspace());
         copyLlm(other.getLlm());
         copyProviders(other.getProviders());
         copyModel(other.getModel());
@@ -1906,6 +1848,19 @@ public class AppConfig {
         this.runtime.setStateDb(other.getStateDb());
         this.runtime.setConfigFile(other.getConfigFile());
         this.runtime.setLogsDir(other.getLogsDir());
+    }
+
+    /**
+     * 复制工作区配置。
+     *
+     * @param other 待复制的工作区配置。
+     */
+    private void copyWorkspace(WorkspaceConfig other) {
+        if (other == null) {
+            this.workspace.setDir(null);
+            return;
+        }
+        this.workspace.setDir(other.getDir());
     }
 
     /**
@@ -2015,7 +1970,6 @@ public class AppConfig {
         this.scheduler.setWrapResponse(other.isWrapResponse());
         this.scheduler.setScriptTimeoutSeconds(other.getScriptTimeoutSeconds());
         this.scheduler.setInactivityTimeoutSeconds(other.getInactivityTimeoutSeconds());
-        this.scheduler.setCronApprovalMode(other.getCronApprovalMode());
         this.scheduler.setEnabledToolsets(new ArrayList<String>(other.getEnabledToolsets()));
     }
 
@@ -2224,8 +2178,6 @@ public class AppConfig {
      * @param other 待比较对象。
      */
     private void copyApprovals(ApprovalsConfig other) {
-        this.approvals.setMode(other.getMode());
-        this.approvals.setCronMode(other.getCronMode());
         this.approvals.setSubagentAutoApprove(other.isSubagentAutoApprove());
         this.approvals.setTimeoutSeconds(other.getTimeoutSeconds());
         this.approvals.setGatewayTimeoutSeconds(other.getGatewayTimeoutSeconds());
@@ -2439,16 +2391,18 @@ public class AppConfig {
                                 props,
                                 overrides,
                                 "solonclaw.channels." + channelName + ".allowedChats",
-                                readRaw(
-                                        props,
-                                        overrides,
-                                        "solonclaw.channels." + channelName + ".allowed_chats",
-                                        ""))));
+                                "")));
     }
 
     /** 优先从配置文件解析密钥。 */
     private static String resolveSecret(String fallback) {
         return StrUtil.nullToEmpty(fallback).trim();
+    }
+
+    /** 将空白密钥归一为空值，避免安全判断把空字符串当作已配置凭据。 */
+    private static String blankToNullSecret(String fallback) {
+        String value = resolveSecret(fallback);
+        return StrUtil.isBlank(value) ? null : value;
     }
 
     /** 优先从配置文件解析普通字符串配置。 */
@@ -2554,7 +2508,7 @@ public class AppConfig {
      * @return 返回默认Hardline Allowlist结果。
      */
     private static List<String> defaultHardlineAllowlist() {
-        return Arrays.asList("hardline_shutdown", "hardline_windows_shutdown");
+        return Collections.emptyList();
     }
 
     /** 统一收敛未授权私聊用户的处理行为。 */
@@ -2570,119 +2524,64 @@ public class AppConfig {
     }
 
     /**
-     * 规范化审批模式。
-     *
-     * @param raw 原始输入值。
-     * @return 返回审批模式结果。
-     */
-    private static String normalizeApprovalMode(String raw) {
-        String value = StrUtil.blankToDefault(raw, "on").trim().toLowerCase();
-        if ("false".equals(value)) {
-            return "off";
-        }
-        if ("true".equals(value)) {
-            return "on";
-        }
-        if ("off".equals(value) || "smart".equals(value)) {
-            return value;
-        }
-        return "on";
-    }
-
-    /**
-     * 规范化防护模式。
+     * 规范化防护模式，只接受当前配置枚举，避免历史值或拼写错误静默生效。
      *
      * @param raw 原始输入值。
      * @return 返回防护模式结果。
      */
     private static String normalizeGuardrailMode(String raw) {
-        String value = StrUtil.blankToDefault(raw, "bypass").trim().toLowerCase();
-        if ("false".equals(value)
-                || "off".equals(value)
-                || "none".equals(value)
-                || "skip".equals(value)
-                || "ignore".equals(value)
+        String value = StrUtil.blankToDefault(raw, "approval").trim().toLowerCase();
+        if ("approval".equals(value)
+                || "strict".equals(value)
                 || "bypass".equals(value)
-                || "permissive".equals(value)
-                || "yolo".equals(value)) {
-            return "bypass";
+                || "smart".equals(value)) {
+            return value;
         }
-        if ("strict".equals(value)
-                || "block".equals(value)
-                || "deny".equals(value)
-                || "enforce".equals(value)
-                || "enforced".equals(value)) {
-            return "strict";
-        }
-        if ("smart".equals(value)) {
-            return "smart";
-        }
-        return "approval";
+        throw new IllegalStateException(
+                "security.guardrailMode 只支持 approval、strict、bypass、smart，当前值：" + raw);
     }
 
     /**
-     * 规范化防护定时任务模式。
+     * 规范化定时任务防护模式，只接受当前配置枚举。
      *
      * @param raw 原始输入值。
      * @return 返回防护定时任务模式结果。
      */
     private static String normalizeGuardrailCronMode(String raw) {
-        String value = StrUtil.blankToDefault(raw, "bypass").trim().toLowerCase();
-        if ("approve".equals(value) || "allow".equals(value) || "yes".equals(value)) {
-            return "approve";
+        String value = StrUtil.blankToDefault(raw, "strict").trim().toLowerCase();
+        if ("approval".equals(value)
+                || "strict".equals(value)
+                || "bypass".equals(value)
+                || "approve".equals(value)) {
+            return value;
         }
-        String mode = normalizeGuardrailMode(value);
-        return "smart".equals(mode) ? "approval" : mode;
+        throw new IllegalStateException(
+                "security.guardrailCronMode 只支持 approval、strict、bypass、approve，当前值：" + raw);
     }
 
     /**
-     * 规范化防护定时任务范围。
+     * 规范化定时任务审批记忆范围，只接受当前配置枚举。
      *
      * @param raw 原始输入值。
      * @return 返回防护定时任务范围结果。
      */
     private static String normalizeGuardrailCronScope(String raw) {
         String value = StrUtil.blankToDefault(raw, "job").trim().toLowerCase();
-        if ("global".equals(value) || "always".equals(value) || "permanent".equals(value)) {
-            return "global";
+        if ("job".equals(value) || "session".equals(value) || "global".equals(value)) {
+            return value;
         }
-        if ("session".equals(value)) {
-            return "session";
-        }
-        return "job";
+        throw new IllegalStateException(
+                "security.guardrailCronScope 只支持 job、session、global，当前值：" + raw);
     }
 
-    /** 规范化只有严格和跳过两种结果的安全预检模式。 */
+    /** 规范化只有严格和跳过两种结果的安全预检模式，只接受当前配置枚举。 */
     private static String normalizeBinaryGuardrailMode(String raw) {
-        String value = StrUtil.blankToDefault(raw, "bypass").trim().toLowerCase();
-        if ("false".equals(value)
-                || "off".equals(value)
-                || "none".equals(value)
-                || "skip".equals(value)
-                || "ignore".equals(value)
-                || "bypass".equals(value)
-                || "permissive".equals(value)
-                || "yolo".equals(value)) {
-            return "bypass";
+        String value = StrUtil.blankToDefault(raw, "strict").trim().toLowerCase();
+        if ("bypass".equals(value) || "strict".equals(value)) {
+            return value;
         }
-        return "strict";
-    }
-
-    /**
-     * 执行防护审批模式相关逻辑。
-     *
-     * @param guardrailMode 护栏模式参数。
-     * @return 返回防护审批模式结果。
-     */
-    private static String guardrailApprovalMode(String guardrailMode) {
-        String mode = normalizeGuardrailMode(guardrailMode);
-        if ("bypass".equals(mode)) {
-            return "off";
-        }
-        if ("smart".equals(mode)) {
-            return "smart";
-        }
-        return "on";
+        throw new IllegalStateException(
+                "security.fileGuardrailMode/security.urlGuardrailMode 只支持 strict、bypass，当前值：" + raw);
     }
 
     /** 统一解析访问策略值。 */
@@ -3034,7 +2933,8 @@ public class AppConfig {
         }
         try {
             return Long.valueOf(Math.max(0L, Long.parseLong(String.valueOf(value).trim())));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("模型价格长整型配置解析失败，使用 0 作为兜底值: {}", exceptionSummary(e));
             return Long.valueOf(0L);
         }
     }
@@ -3295,7 +3195,8 @@ public class AppConfig {
         if (override != null) {
             try {
                 return Integer.parseInt(String.valueOf(override).trim());
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("整型覆盖配置解析失败，使用默认值: key={}, error={}", key, exceptionSummary(e));
                 return defaultValue;
             }
         }
@@ -3317,7 +3218,8 @@ public class AppConfig {
         if (override != null) {
             try {
                 return Double.parseDouble(String.valueOf(override).trim());
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("浮点覆盖配置解析失败，使用默认值: key={}, error={}", key, exceptionSummary(e));
                 return defaultValue;
             }
         }
@@ -3357,7 +3259,7 @@ public class AppConfig {
         if (env.length() > 0) {
             return parseBooleanText(env, false);
         }
-        return readBoolean(props, overrides, "security.allowPrivateUrls", true);
+        return readBoolean(props, overrides, "security.allowPrivateUrls", false);
     }
 
     /**
@@ -3733,7 +3635,8 @@ public class AppConfig {
                 return Collections.emptyMap();
             }
             return sanitizeStructuredMap((Map<?, ?>) parsed);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("运行时结构化配置读取失败，忽略 config.yml 覆盖: error={}", exceptionSummary(e));
             return Collections.emptyMap();
         }
     }
@@ -3804,7 +3707,8 @@ public class AppConfig {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             flatten("", (Map<?, ?>) parsed, result);
             return result;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("运行时扁平配置读取失败，忽略 config.yml 覆盖: error={}", exceptionSummary(e));
             return Collections.emptyMap();
         }
     }
@@ -3849,6 +3753,30 @@ public class AppConfig {
     }
 
     /**
+     * 解析运行 Jar 所在目录；测试或解包运行时回退到当前进程目录。
+     *
+     * @param fallbackBase 无法识别 Jar 路径时使用的目录。
+     * @return 返回用于解析工作区相对路径的基准目录。
+     */
+    private static File jarBaseDir(File fallbackBase) {
+        try {
+            java.net.URL location =
+                    AppConfig.class.getProtectionDomain().getCodeSource().getLocation();
+            if (location == null) {
+                return fallbackBase;
+            }
+            File file = new File(location.toURI()).getAbsoluteFile();
+            if (file.isFile()) {
+                File parent = file.getParentFile();
+                return parent == null ? fallbackBase : parent;
+            }
+        } catch (Exception e) {
+            log.debug("运行 Jar 目录解析失败，回退到启动目录: {}", exceptionSummary(e));
+        }
+        return fallbackBase;
+    }
+
+    /**
      * 解析Initial运行时主渠道。
      *
      * @param props props 参数。
@@ -3872,8 +3800,8 @@ public class AppConfig {
         try {
             FileUtil.mkParentDirs(configFile);
             FileUtil.writeUtf8String(defaultRuntimeConfigContent(), configFile);
-        } catch (Exception ignored) {
-            // 运行配置初始化失败时继续启动；后续权限检查和 Dashboard 保存路径仍可提示用户修复。
+        } catch (Exception e) {
+            log.warn("运行配置初始化失败，后续保存配置时仍会提示用户修复权限: error={}", exceptionSummary(e));
         }
     }
 
@@ -3900,8 +3828,11 @@ public class AppConfig {
                 + "fallbackProviders: []\n"
                 + "\n"
                 + "solonclaw:\n"
+                + "  # Agent 默认工作区；相对路径按运行 Jar 所在目录解析。\n"
+                + "  workspace: ./workspace\n"
                 + "  dashboard:\n"
-                + "    accessToken: \"admin\"\n";
+                + "    # Dashboard 访问令牌必须由部署方设置；留空时拒绝非公开 API 鉴权。\n"
+                + "    accessToken: \"\"\n";
     }
 
     /**
@@ -3923,9 +3854,19 @@ public class AppConfig {
                             RuntimePathConstants.CONFIG_EXAMPLE_FILE_NAME);
             FileUtil.mkParentDirs(target);
             Files.copy(stream, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
-        } catch (Exception ignored) {
-            // 示例配置只用于 Agent 参考，启动不应因同步失败而中断。
+        } catch (Exception e) {
+            log.debug("运行时示例配置同步失败，跳过非关键参考文件写入: {}", exceptionSummary(e));
         }
+    }
+
+    /**
+     * 生成配置异常摘要；只返回异常类型，避免解析错误中携带的配置值或密钥进入日志。
+     *
+     * @param error 配置读取或转换时捕获的异常。
+     * @return 可写入日志的异常类型摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getName();
     }
 
     /**
@@ -3979,6 +3920,15 @@ public class AppConfig {
 
         /** runtime/logs 目录。 */
         private String logsDir;
+    }
+
+    /** Agent 工作区配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class WorkspaceConfig {
+        /** Agent 文件读写、普通命令和项目上下文默认执行的目录。 */
+        private String dir = RuntimePathConstants.DEFAULT_WORKSPACE;
     }
 
     /** 大模型接入配置。 */
@@ -4132,9 +4082,6 @@ public class AppConfig {
 
         /** cron Agent 无活动超时时间，单位秒；0 表示不限制。 */
         private int inactivityTimeoutSeconds = 600;
-
-        /** 兼容旧配置项；无人值守 cron 遇到可审批危险命令时的策略。 */
-        private String cronApprovalMode = "approval";
 
         /** 未设置 job.enabled_toolsets 时，cron 平台默认启用的工具集；空列表表示沿用全部默认工具。 */
         private List<String> enabledToolsets = new ArrayList<String>();
@@ -4543,7 +4490,7 @@ public class AppConfig {
         /** 用于 sudo -S 改写的 sudo 密码。 */
         private String sudoPassword;
 
-        /** 写入安全根；为空表示不限制工作区写入根。 */
+        /** 本地文件写入安全根目录；配置后写入必须限制在该目录内。 */
         private String writeSafeRoot;
 
         /** 前台 terminal 最大超时时间，单位秒。 */
@@ -4585,8 +4532,8 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class SecurityConfig {
-        /** 是否允许 URL 工具访问内网/私有地址；云元数据地址始终阻断。 */
-        private boolean allowPrivateUrls = true;
+        /** 是否允许 URL 工具访问内网/私有地址；默认关闭，云元数据地址始终阻断。 */
+        private boolean allowPrivateUrls = false;
 
         /** 容器内浏览器访问宿主机服务时，是否改写页面导航里的 loopback 地址。 */
         private boolean rewriteBrowserLoopbackUrls = false;
@@ -4603,20 +4550,20 @@ public class AppConfig {
         /** Tirith 单次扫描超时时间，单位秒。 */
         private int tirithTimeoutSeconds = 5;
 
-        /** Tirith 不可用或超时时是否放行。 */
-        private boolean tirithFailOpen = true;
+        /** Tirith 不可用或超时时是否放行；默认 fail-closed，避免扫描缺失时静默放行。 */
+        private boolean tirithFailOpen = false;
 
-        /** 文件路径安全预检模式：strict / bypass。默认 bypass，避免可信联调任务被软策略打断。 */
-        private String fileGuardrailMode = "bypass";
+        /** 文件路径安全预检模式：strict / bypass。默认 strict，先阻断敏感系统或凭据路径。 */
+        private String fileGuardrailMode = "strict";
 
-        /** URL 安全预检模式：strict / bypass。默认 bypass，metadata 等 hardline 仍由硬策略兜底。 */
-        private String urlGuardrailMode = "bypass";
+        /** URL 安全预检模式：strict / bypass。默认 strict，先阻断 metadata 与敏感 URL 参数。 */
+        private String urlGuardrailMode = "strict";
 
-        /** Agent 工具安全策略模式：approval / strict / bypass / smart。默认 bypass，用户可显式收紧。 */
-        private String guardrailMode = "bypass";
+        /** Agent 工具安全策略模式：approval / strict / bypass / smart。默认 approval，危险行为必须审批。 */
+        private String guardrailMode = "approval";
 
-        /** Cron 工具安全策略模式：approval / strict / bypass / approve。默认 bypass，避免无人值守任务卡住。 */
-        private String guardrailCronMode = "bypass";
+        /** Cron 工具安全策略模式：approval / strict / bypass / approve。默认 strict，避免无人值守自动放行。 */
+        private String guardrailCronMode = "strict";
 
         /** Cron 审批记忆范围：job / session / global。 */
         private String guardrailCronScope = "job";
@@ -4660,12 +4607,6 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class ApprovalsConfig {
-        /** 危险命令审批模式：on / off / smart。smart 会先由辅助模型判定低风险命令。 */
-        private String mode = "on";
-
-        /** cron 遇到可审批危险命令时的模式。 */
-        private String cronMode = "approval";
-
         /** 子 Agent 遇到危险命令时是否自动批准一次，默认拒绝。 */
         private boolean subagentAutoApprove = false;
 

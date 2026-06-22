@@ -60,22 +60,6 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     private static final Logger log =
             LoggerFactory.getLogger(DefaultConversationOrchestrator.class);
 
-    /** 当模型只完成工具调用却未生成最终文字答复时，补发的恢复提示。 */
-    private static final String EMPTY_REPLY_RECOVERY_PROMPT =
-            "你刚刚已经完成了工具调用，但没有输出最终答复。请基于当前会话中的最新工具结果，直接用中文给出简洁最终答复，不要再次调用工具。";
-
-    /** 当恢复仍失败时返回给用户的兜底文案。 */
-    private static final String EMPTY_REPLY_FALLBACK =
-            "本轮已完成工具调用，但模型没有返回可读结论。请使用 /retry 重试，或继续给出下一步指令。";
-
-    /** 当 ReAct 步数耗尽时，要求模型基于现有轨迹做一次无工具收敛总结。 */
-    private static final String MAX_STEPS_RECOVERY_PROMPT =
-            "你刚刚因为最大推理步数限制而停止。不要再次调用工具。请基于当前会话中已经完成的分析、工具结果、文件修改和观察，直接输出中文收敛答复：优先给出已经完成的结果；若任务仍未彻底完成，明确说明还差什么、最推荐的下一步是什么。";
-
-    /** 当步数耗尽后的收敛恢复仍失败时，返回给用户的兜底文案。 */
-    private static final String MAX_STEPS_RECOVERY_FALLBACK =
-            "本轮执行已达到最大步骤限制，已保留当前进展。请继续给出更聚焦的下一步，或使用 /retry 继续。";
-
     /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
 
@@ -533,7 +517,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                             null);
             String finalReply =
                     sanitizeFinalReply(
-                            StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
+                            StrUtil.blankToDefault(
+                                    outcome.getFinalReply(),
+                                    AgentRecoveryPromptConstants.EMPTY_REPLY_FALLBACK));
             finalReply = decorateFinalReply(finalReply, feedbackTarget.getPlatform(), outcome);
             feedbackSink.onFinalReply(finalReply);
             eventSink.onRunCompleted(session.getSessionId(), finalReply, outcome.getResult());
@@ -808,7 +794,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             shouldDrainQueue = true;
             String finalReply =
                     sanitizeFinalReply(
-                            StrUtil.blankToDefault(outcome.getFinalReply(), EMPTY_REPLY_FALLBACK));
+                            StrUtil.blankToDefault(
+                                    outcome.getFinalReply(),
+                                    AgentRecoveryPromptConstants.EMPTY_REPLY_FALLBACK));
             if (MessageDeliveryTracker.consumeDuplicateFinalReply(
                     message.sourceKey(), finalReply)) {
                 finalReply = "";
@@ -1008,7 +996,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      */
     private String sanitizeFinalReply(String finalReply) {
         String sanitized = MemoryContextBoundary.scrubVisibleText(finalReply);
-        return StrUtil.blankToDefault(sanitized, EMPTY_REPLY_FALLBACK);
+        return StrUtil.blankToDefault(sanitized, AgentRecoveryPromptConstants.EMPTY_REPLY_FALLBACK);
     }
 
     /**
@@ -1342,7 +1330,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                     return false;
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Failed to inspect recent tool activity for empty-reply recovery", e);
             return false;
         }
         return false;
@@ -1352,8 +1341,15 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     private LlmResult tryRecoverEmptyReply(SessionRecord session, String systemPrompt) {
         try {
             return llmGateway.chat(
-                    session, systemPrompt, EMPTY_REPLY_RECOVERY_PROMPT, Collections.emptyList());
-        } catch (Exception ignored) {
+                    session,
+                    systemPrompt,
+                    AgentRecoveryPromptConstants.EMPTY_REPLY_RECOVERY_PROMPT,
+                    Collections.emptyList());
+        } catch (Exception e) {
+            log.debug(
+                    "Empty-reply recovery chat failed for session {}",
+                    session == null ? "" : session.getSessionId(),
+                    e);
             return null;
         }
     }
@@ -1362,8 +1358,15 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     private LlmResult tryRecoverMaxStepsReply(SessionRecord session, String systemPrompt) {
         try {
             return llmGateway.chat(
-                    session, systemPrompt, MAX_STEPS_RECOVERY_PROMPT, Collections.emptyList());
-        } catch (Exception ignored) {
+                    session,
+                    systemPrompt,
+                    AgentRecoveryPromptConstants.MAX_STEPS_RECOVERY_PROMPT,
+                    Collections.emptyList());
+        } catch (Exception e) {
+            log.debug(
+                    "Max-steps recovery chat failed for session {}",
+                    session == null ? "" : session.getSessionId(),
+                    e);
             return null;
         }
     }

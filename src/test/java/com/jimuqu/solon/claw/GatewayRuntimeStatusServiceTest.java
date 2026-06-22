@@ -10,7 +10,6 @@ import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.noear.snack4.ONode;
@@ -41,12 +40,12 @@ public class GatewayRuntimeStatusServiceTest {
     }
 
     @Test
-    void shouldKeepCompatibilityWithLegacyNumericPidFile(@TempDir Path runtimeHome) {
+    void shouldRejectNumericPidFileWithoutGatewayMetadata(@TempDir Path runtimeHome) {
         File pidFile = runtimeHome.resolve("gateway.pid").toFile();
         FileUtil.writeString(String.valueOf(currentPid()), pidFile, StandardCharsets.UTF_8);
         GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(runtimeHome));
 
-        assertThat(service.isRunning()).isTrue();
+        assertThat(service.isRunning()).isFalse();
     }
 
     @Test
@@ -71,26 +70,6 @@ public class GatewayRuntimeStatusServiceTest {
         GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(runtimeHome));
 
         assertThat(service.isRunning()).isFalse();
-    }
-
-    @Test
-    void shouldRejectLegacyNumericPidWhenLiveProcessIsNotThisGateway(@TempDir Path runtimeHome)
-            throws Exception {
-        Assumptions.assumeFalse(System.getProperty("os.name", "").toLowerCase().contains("win"));
-        Process process = new ProcessBuilder("sleep", "30").start();
-        try {
-            FileUtil.writeString(
-                    String.valueOf(processPid(process)),
-                    runtimeHome.resolve("gateway.pid").toFile(),
-                    StandardCharsets.UTF_8);
-            GatewayRuntimeStatusService service =
-                    new GatewayRuntimeStatusService(config(runtimeHome));
-
-            assertThat(service.isRunning()).isFalse();
-        } finally {
-            process.destroyForcibly();
-            process.waitFor();
-        }
     }
 
     @Test
@@ -148,13 +127,4 @@ public class GatewayRuntimeStatusServiceTest {
         return Long.parseLong(String.valueOf(value));
     }
 
-    private long processPid(Process process) throws Exception {
-        try {
-            return ((Number) Process.class.getMethod("pid").invoke(process)).longValue();
-        } catch (NoSuchMethodException ignored) {
-            java.lang.reflect.Field field = process.getClass().getDeclaredField("pid");
-            field.setAccessible(true);
-            return ((Number) field.get(process)).longValue();
-        }
-    }
 }

@@ -399,6 +399,9 @@ public class DashboardConfigService {
                         "react.toolLoopNoProgressBlockAfter", "number", "security", "只读工具无进展硬停阈值"));
         addField(
                 new FieldDefinition(
+                        "workspace", "string", "security", "Agent 工作区目录，支持相对运行 Jar 的相对路径"));
+        addField(
+                new FieldDefinition(
                         "agent.personalities.helpful.description",
                         "string",
                         "agent",

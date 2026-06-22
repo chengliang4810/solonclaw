@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 public class HealthControllerTest {
     @Test
-    void shouldKeepLegacyHealthPayloadCompatible() {
+    void shouldExposeMinimalHealthPayload() {
         HealthController controller = new HealthController();
 
         Map<String, Object> response = controller.health();

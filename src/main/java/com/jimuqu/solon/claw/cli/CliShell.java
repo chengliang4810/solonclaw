@@ -20,9 +20,14 @@ import org.jline.reader.UserInterruptException;
 import org.jline.reader.impl.completer.StringsCompleter;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 呈现Cli交互视图，封装终端侧输入输出细节。 */
 public class CliShell {
+    /** CLI 交互层的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(CliShell.class);
+
     /** 提示词的统一常量值。 */
     private static final String PROMPT = "\u001B[36mjimuqu>\u001B[0m ";
 
@@ -622,8 +627,13 @@ public class CliShell {
         try {
             Process process = new ProcessBuilder("cmd", "/c", "chcp", "65001").start();
             process.waitFor();
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.debug("Windows 终端代码页切换被中断，继续使用当前代码页");
+        } catch (Exception e) {
+            log.debug(
+                    "Windows 终端代码页切换失败，继续使用当前代码页 error={}",
+                    e.getClass().getSimpleName());
         }
     }
 

@@ -284,8 +284,8 @@ public class AppUpdateService {
                     clearLastError();
                     return ReleaseInfo.fromNode(node.get("release"));
                 }
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                setLastError("加载更新缓存失败，已忽略过期或损坏缓存: " + safeError(e));
             }
         }
         return null;
@@ -308,8 +308,8 @@ public class AppUpdateService {
             node.set("release", releaseInfo.toNode());
             FileUtil.mkParentDirs(cacheFile());
             FileUtil.writeUtf8String(node.toJson(), cacheFile());
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            setLastError("写入更新缓存失败: " + safeError(e));
         }
         return releaseInfo;
     }

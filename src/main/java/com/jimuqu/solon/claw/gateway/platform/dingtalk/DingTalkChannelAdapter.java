@@ -257,13 +257,18 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (isBlank(config.getClientSecret())) {
             missing.add("solonclaw.channels.dingtalk.clientSecret");
         }
+        if (isBlank(config.getRobotCode())) {
+            missing.add("solonclaw.channels.dingtalk.robotCode");
+        }
         if (!missing.isEmpty()) {
             setSetupState("missing_config");
             setMissingConfig(missing);
-            setLastError("dingtalk_missing_credentials", "missing clientId/clientSecret");
+            setLastError("dingtalk_missing_credentials", "missing clientId/clientSecret/robotCode");
         }
-        if (isBlank(config.getClientId()) || isBlank(config.getClientSecret())) {
-            setDetail("missing clientId/clientSecret");
+        if (isBlank(config.getClientId())
+                || isBlank(config.getClientSecret())
+                || isBlank(config.getRobotCode())) {
+            setDetail("missing clientId/clientSecret/robotCode");
             log.warn("[DINGTALK] connect aborted: {}", detail());
             return false;
         }
@@ -495,7 +500,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                                         conversationId,
                                         STATE_LAST_UNION_ID,
                                         StrUtil.nullToEmpty(message.getSenderId()));
-                            } catch (Exception ignored) {
+                            } catch (Exception e) {
+                                logRecoverableChannelFailure("remember_inbound_sender", e);
                             }
                             log.info(
                                     "[DINGTALK-INBOUND] conversationId={}, senderId={}, senderStaffId={}, type={}, text={}",
@@ -583,9 +589,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         accessTokenExpireAt = now + (body.getExpireIn() * 1000L);
     }
 
-    /** 返回钉钉 SDK 调用实际使用的机器人编码；扫码授权未返回时复用客户端 ID。 */
+    /** 返回钉钉 SDK 调用实际使用的当前机器人编码。 */
     protected String effectiveRobotCode() {
-        return StrUtil.blankToDefault(config.getRobotCode(), config.getClientId());
+        return StrUtil.nullToEmpty(config.getRobotCode()).trim();
     }
 
     /** 发送或撤回钉钉处理状态自定义表情，失败只记录日志，不阻断主消息回复。 */
@@ -1242,7 +1248,39 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                     chatId,
                     STATE_SESSION_WEBHOOK_EXPIRES_AT,
                     String.valueOf(expiresAt));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableChannelFailure("remember_session_webhook", e);
+        }
+    }
+
+    /**
+     * 记录钉钉渠道可降级失败，只输出平台、阶段和异常类型，避免泄露消息正文或凭据。
+     *
+     * @param stage 失败发生的内部阶段。
+     * @param error 捕获到的异常。
+     */
+    private void logRecoverableChannelFailure(String stage, Exception error) {
+        restoreInterruptedStatus(error);
+        log.debug(
+                "[DINGTALK] recoverable channel failure: platform={}, stage={}, errorType={}",
+                PlatformType.DINGTALK,
+                stage,
+                errorType(error));
+    }
+
+    /**
+     * 异常链中包含中断异常时恢复线程中断标记，避免静默吞掉取消信号。
+     *
+     * @param error 捕获到的异常。
+     */
+    private void restoreInterruptedStatus(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            current = current.getCause();
         }
     }
 

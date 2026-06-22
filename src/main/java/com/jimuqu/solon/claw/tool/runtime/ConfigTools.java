@@ -318,7 +318,7 @@ public class ConfigTools {
     /** 提供配置Get工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class ConfigGetTool {
-        /** 复用外层配置工具实现，避免别名工具重复配置读写逻辑。 */
+        /** 复用外层配置工具实现，保持公开读取入口共享同一套配置校验。 */
         private final ConfigTools delegate;
 
         /**
@@ -332,21 +332,6 @@ public class ConfigTools {
                 description =
                         "Read a whitelisted runtime config key, such as llm.model or channels.weixin.enabled.")
         public String configGet(@Param(name = "key", description = "配置键，例如 llm.model") String key) {
-            return delegate.configGet(key);
-        }
-
-        /**
-         * config_get 的兼容别名。
-         *
-         * @param key 配置键或映射键。
-         * @return 外层 configGet 生成的工具结果 JSON。
-         */
-        @ToolMapping(
-                name = "config_read",
-                description =
-                        "Alias of config_get. Read a whitelisted runtime config key with secret redaction.")
-        public String configRead(
-                @Param(name = "key", description = "配置键，例如 llm.model") String key) {
             return delegate.configGet(key);
         }
 
@@ -370,7 +355,7 @@ public class ConfigTools {
     /** 提供配置Set工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class ConfigSetTool {
-        /** 复用外层配置工具实现，保证别名工具共享同一套校验策略。 */
+        /** 复用外层配置工具实现，保证公开写入入口共享同一套校验策略。 */
         private final ConfigTools delegate;
 
         /**
@@ -391,29 +376,12 @@ public class ConfigTools {
             return delegate.configSet(key, value);
         }
 
-        /**
-         * config_set 的兼容别名。
-         *
-         * @param key 配置键或映射键。
-         * @param value 新配置值。
-         * @return 外层 configSet 生成的工具结果 JSON。
-         */
-        @ToolMapping(
-                name = "config_write",
-                description =
-                        "Alias of config_set. Update a whitelisted non-secret runtime config key.")
-        public String configWrite(
-                @Param(name = "key", description = "配置键，例如 llm.model 或 channels.weixin.enabled")
-                        String key,
-                @Param(name = "value", description = "新的配置值，列表键使用逗号分隔") String value) {
-            return delegate.configSet(key, value);
-        }
     }
 
     /** 提供配置Set密钥工具能力，供 Agent 运行时按安全策略调用。 */
     @RequiredArgsConstructor
     public static class ConfigSetSecretTool {
-        /** 复用外层密钥配置写入逻辑，避免别名工具遗漏脱敏处理。 */
+        /** 复用外层密钥配置写入逻辑，保证密钥写入只走当前公开入口。 */
         private final ConfigTools delegate;
 
         /**
@@ -433,22 +401,6 @@ public class ConfigTools {
             return delegate.configSetSecret(key, value);
         }
 
-        /**
-         * config_set_secret 的兼容别名。
-         *
-         * @param key 配置键或映射键。
-         * @param value 新密钥值。
-         * @return 外层 configSetSecret 生成的工具结果 JSON。
-         */
-        @ToolMapping(
-                name = "config_update_secret",
-                description =
-                        "Alias of config_set_secret. Update a whitelisted runtime secret key.")
-        public String configUpdateSecret(
-                @Param(name = "key", description = "配置键，例如 providers.default.apiKey") String key,
-                @Param(name = "value", description = "新的密钥值") String value) {
-            return delegate.configSetSecret(key, value);
-        }
     }
 
     /** 提供配置刷新工具能力，供 Agent 运行时按安全策略调用。 */

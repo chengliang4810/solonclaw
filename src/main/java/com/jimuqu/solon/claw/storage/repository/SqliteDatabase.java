@@ -11,9 +11,14 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.concurrent.locks.ReentrantLock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** SqliteDatabase 实现。 */
 public class SqliteDatabase {
+    /** 记录存储层迁移和降级路径的日志。 */
+    private static final Logger log = LoggerFactory.getLogger(SqliteDatabase.class);
+
     /** 记录SQLite数据库中的jdbcURL。 */
     private final String jdbcUrl;
 
@@ -152,7 +157,8 @@ public class SqliteDatabase {
         }
         try {
             connection.close();
-        } catch (Exception ignored) {
+        } catch (SQLException | RuntimeException e) {
+            log.debug("SQLite connection close failed; cleanup continues: error={}", errorSummary(e));
         }
     }
 
@@ -202,148 +208,49 @@ public class SqliteDatabase {
                             + "created_at integer not null,"
                             + "updated_at integer not null"
                             + ")");
-            try {
-                statement.execute("alter table sessions add column branch_name text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table sessions add column parent_session_id text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table sessions add column model_override text");
-            } catch (Exception ignored) {
-            }
+            addColumn(statement, "sessions", "branch_name text");
+            addColumn(statement, "sessions", "parent_session_id text");
+            addColumn(statement, "sessions", "model_override text");
             addColumn(statement, "sessions", "service_tier_override text");
             addColumn(statement, "sessions", "reasoning_effort_override text");
-            try {
-                statement.execute("alter table sessions add column active_agent_name text");
-            } catch (Exception ignored) {
-            }
+            addColumn(statement, "sessions", "active_agent_name text");
             addColumn(statement, "sessions", "platform_message_id text");
             addColumn(statement, "sessions", "metadata_json text");
-            try {
-                statement.execute("alter table sessions add column ndjson text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table sessions add column title text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table sessions add column compressed_summary text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table sessions add column system_prompt_snapshot text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table sessions add column agent_snapshot_json text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table sessions add column goal_state_json text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_learning_at integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_compression_at integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_compression_input_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column compression_failure_count integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_compression_failed_at integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_input_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_output_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_reasoning_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_cache_read_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_cache_write_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_total_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column cumulative_input_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column cumulative_output_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column cumulative_reasoning_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column cumulative_cache_read_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column cumulative_cache_write_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column cumulative_total_tokens integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table sessions add column last_usage_at integer not null default 0");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table sessions add column last_resolved_provider text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table sessions add column last_resolved_model text");
-            } catch (Exception ignored) {
-            }
+            addColumn(statement, "sessions", "ndjson text");
+            addColumn(statement, "sessions", "title text");
+            addColumn(statement, "sessions", "compressed_summary text");
+            addColumn(statement, "sessions", "system_prompt_snapshot text");
+            addColumn(statement, "sessions", "agent_snapshot_json text");
+            addColumn(statement, "sessions", "goal_state_json text");
+            addColumn(statement, "sessions", "last_learning_at integer not null default 0");
+            addColumn(statement, "sessions", "last_compression_at integer not null default 0");
+            addColumn(
+                    statement,
+                    "sessions",
+                    "last_compression_input_tokens integer not null default 0");
+            addColumn(statement, "sessions", "compression_failure_count integer not null default 0");
+            addColumn(
+                    statement, "sessions", "last_compression_failed_at integer not null default 0");
+            addColumn(statement, "sessions", "last_input_tokens integer not null default 0");
+            addColumn(statement, "sessions", "last_output_tokens integer not null default 0");
+            addColumn(statement, "sessions", "last_reasoning_tokens integer not null default 0");
+            addColumn(statement, "sessions", "last_cache_read_tokens integer not null default 0");
+            addColumn(statement, "sessions", "last_cache_write_tokens integer not null default 0");
+            addColumn(statement, "sessions", "last_total_tokens integer not null default 0");
+            addColumn(statement, "sessions", "cumulative_input_tokens integer not null default 0");
+            addColumn(statement, "sessions", "cumulative_output_tokens integer not null default 0");
+            addColumn(
+                    statement, "sessions", "cumulative_reasoning_tokens integer not null default 0");
+            addColumn(
+                    statement, "sessions", "cumulative_cache_read_tokens integer not null default 0");
+            addColumn(
+                    statement,
+                    "sessions",
+                    "cumulative_cache_write_tokens integer not null default 0");
+            addColumn(statement, "sessions", "cumulative_total_tokens integer not null default 0");
+            addColumn(statement, "sessions", "last_usage_at integer not null default 0");
+            addColumn(statement, "sessions", "last_resolved_provider text");
+            addColumn(statement, "sessions", "last_resolved_model text");
             statement.execute(
                     "create index if not exists idx_sessions_source on sessions(source_key)");
             statement.execute(
@@ -557,14 +464,8 @@ public class SqliteDatabase {
                             + ")");
             addColumn(statement, "agent_runs", "run_kind text");
             addColumn(statement, "agent_runs", "parent_run_id text");
-            try {
-                statement.execute("alter table agent_runs add column agent_name text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table agent_runs add column agent_snapshot_json text");
-            } catch (Exception ignored) {
-            }
+            addColumn(statement, "agent_runs", "agent_name text");
+            addColumn(statement, "agent_runs", "agent_snapshot_json text");
             addColumn(statement, "agent_runs", "phase text");
             addColumn(statement, "agent_runs", "busy_policy text");
             addColumn(statement, "agent_runs", "backgrounded integer not null default 0");
@@ -960,32 +861,18 @@ public class SqliteDatabase {
                             + "created_at integer not null,"
                             + "updated_at integer not null"
                             + ")");
-            try {
-                statement.execute("alter table agent_profiles add column display_name text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table agent_profiles add column description text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute("alter table agent_profiles add column default_model text");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table agent_profiles add column enabled integer not null default 1");
-            } catch (Exception ignored) {
-            }
-            try {
-                statement.execute(
-                        "alter table agent_profiles add column last_used_at integer not null default 0");
-            } catch (Exception ignored) {
-            }
+            addColumn(statement, "agent_profiles", "display_name text");
+            addColumn(statement, "agent_profiles", "description text");
+            addColumn(statement, "agent_profiles", "default_model text");
+            addColumn(statement, "agent_profiles", "enabled integer not null default 1");
+            addColumn(statement, "agent_profiles", "last_used_at integer not null default 0");
             try {
                 statement.execute(
                         "update agent_profiles set default_model = model where (default_model is null or default_model = '') and model is not null");
-            } catch (Exception ignored) {
+            } catch (SQLException | RuntimeException e) {
+                log.debug(
+                        "SQLite agent profile default model backfill skipped: error={}",
+                        errorSummary(e));
             }
             statement.execute("drop table if exists project_events");
             statement.execute("drop table if exists project_questions");
@@ -1012,7 +899,10 @@ public class SqliteDatabase {
             }
             try {
                 resultSet.close();
-            } catch (Exception ignored) {
+            } catch (SQLException | RuntimeException e) {
+                log.debug(
+                        "SQLite result set close failed; cleanup continues: error={}",
+                        errorSummary(e));
             }
         }
     }
@@ -1026,10 +916,16 @@ public class SqliteDatabase {
         try {
             ResultSetMetaSupport.close(
                     statement.executeQuery("select tool_names from sessions_fts limit 1"));
-        } catch (Exception ignored) {
+        } catch (SQLException | RuntimeException e) {
+            log.debug(
+                    "SQLite session search index probe failed; rebuilding FTS table: error={}",
+                    errorSummary(e));
             try {
                 statement.execute("drop table if exists sessions_fts");
-            } catch (Exception ignoredDrop) {
+            } catch (SQLException | RuntimeException dropException) {
+                log.warn(
+                        "SQLite session search index drop failed; startup continues: error={}",
+                        errorSummary(dropException));
             }
         }
         try {
@@ -1039,8 +935,11 @@ public class SqliteDatabase {
                     "insert into sessions_fts (session_id, title, compressed_summary, ndjson, tool_names, tool_calls) "
                             + "select s.session_id, s.title, s.compressed_summary, s.ndjson, '', '' from sessions s "
                             + "where not exists (select 1 from sessions_fts f where f.session_id = s.session_id)");
-        } catch (Exception ignored) {
-            // 这里保留兜底路径，避免兼容输入导致主流程中断。
+        } catch (SQLException | RuntimeException e) {
+            log.warn(
+                    "SQLite session search index initialization failed; search fallback remains active: error={}",
+                    errorSummary(e));
+            // FTS 初始化失败时不阻断主库启动，搜索能力由后续健康检查暴露。
         }
     }
 
@@ -1053,7 +952,10 @@ public class SqliteDatabase {
         try {
             statement.execute(
                     "create virtual table if not exists agent_run_events_fts using fts5(run_id, session_id, source_key, event_type, summary, metadata_json)");
-        } catch (Exception ignored) {
+        } catch (SQLException | RuntimeException e) {
+            log.warn(
+                    "SQLite agent run event search index initialization failed: error={}",
+                    errorSummary(e));
             // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
     }
@@ -1068,7 +970,48 @@ public class SqliteDatabase {
     private void addColumn(Statement statement, String tableName, String columnDefinition) {
         try {
             statement.execute("alter table " + tableName + " add column " + columnDefinition);
-        } catch (Exception ignored) {
+        } catch (SQLException | RuntimeException e) {
+            if (isDuplicateColumnException(e)) {
+                log.trace(
+                        "SQLite add column skipped: table={}, columnDefinition={}, error={}",
+                        tableName,
+                        columnDefinition,
+                        errorSummary(e));
+            } else {
+                log.warn(
+                        "SQLite add column failed: table={}, columnDefinition={}, error={}",
+                        tableName,
+                        columnDefinition,
+                        errorSummary(e));
+            }
         }
+    }
+
+    /**
+     * 判断列迁移失败是否属于已存在列的幂等场景。
+     *
+     * @param error 追加列时捕获的异常。
+     * @return 已存在列返回true，其他异常返回false。
+     */
+    private static boolean isDuplicateColumnException(Throwable error) {
+        String message = error == null ? null : error.getMessage();
+        return message != null && message.toLowerCase().contains("duplicate column name");
+    }
+
+    /**
+     * 生成存储迁移日志中的短异常信息，避免幂等迁移路径输出大量堆栈。
+     *
+     * @param error 迁移或清理过程捕获的异常。
+     * @return 返回包含异常类型和信息的简短描述。
+     */
+    private static String errorSummary(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        if (message == null || message.isBlank()) {
+            return error.getClass().getSimpleName();
+        }
+        return error.getClass().getSimpleName() + ": " + message;
     }
 }

@@ -5,9 +5,14 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 单次 LLM 调用的 token 使用量快照。 */
 public class LlmUsage {
+    /** 记录用量解析中的降级原因，避免静默丢失 provider 返回结构问题。 */
+    private static final Logger log = LoggerFactory.getLogger(LlmUsage.class);
+
     /** 记录大模型用量中的提示词 token。 */
     private final long promptTokens;
 
@@ -403,7 +408,8 @@ public class LlmUsage {
                 }
                 value = ONode.deserialize(text, Object.class);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("LLM 用量列表解析失败，按空列表降级: error={}", exceptionSummary(e));
             return java.util.Collections.emptyList();
         }
         if (value instanceof java.util.List) {
@@ -434,7 +440,8 @@ public class LlmUsage {
                 }
                 value = ONode.deserialize(text, Object.class);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("LLM 用量映射解析失败，按空映射降级: error={}", exceptionSummary(e));
             return new LinkedHashMap<String, Object>();
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -536,7 +543,8 @@ public class LlmUsage {
         }
         try {
             return Math.max(0L, Long.parseLong(String.valueOf(value).trim()));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("LLM 用量数值解析失败，按 0 降级: key={}, error={}", key, exceptionSummary(e));
             return 0L;
         }
     }
@@ -577,9 +585,23 @@ public class LlmUsage {
                 return text.length() == 0 ? null : text;
             }
             return ONode.serialize(rawUsage);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("LLM 原始用量序列化失败，使用对象摘要降级: error={}", exceptionSummary(e));
             return String.valueOf(rawUsage);
         }
+    }
+
+    /**
+     * 生成不含原始 usage 内容的异常摘要，避免日志泄露 provider 响应中的敏感片段。
+     *
+     * @param error 解析或序列化异常。
+     * @return 返回异常类型与安全消息摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return error.getClass().getSimpleName();
     }
 
     /**

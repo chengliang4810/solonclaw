@@ -165,9 +165,9 @@ public class MediaSpeechServiceTest {
         Map<String, Object> ttsResult =
                 ONode.deserialize(tools.textToSpeech("你好", "zh-CN", null), Map.class);
 
-        assertThat(imageResult.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(imageResult.get("status")).isEqualTo("success");
         assertThat(imageResult.get("mediaReference")).asString().startsWith("media://");
-        assertThat(ttsResult.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(ttsResult.get("status")).isEqualTo("success");
         assertThat(ttsResult.get("kind")).isEqualTo("voice");
     }
 
@@ -191,7 +191,7 @@ public class MediaSpeechServiceTest {
                         tools.transcribeSpeech(rawAudio.getAbsolutePath(), "audio/wav", null),
                         Map.class);
 
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(result.get("error")).asString().contains("media://");
         assertThat(transcriptionProvider.calls.get()).isZero();
     }

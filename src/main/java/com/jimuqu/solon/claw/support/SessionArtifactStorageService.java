@@ -9,11 +9,11 @@ import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TimeZone;
 import org.noear.snack4.ONode;
 
 /** 提供会话Artifact Storage相关业务能力，封装调用方不需要感知的运行细节。 */
@@ -23,6 +23,10 @@ public class SessionArtifactStorageService {
 
     /** TRAJECTORYFAILED文件的统一常量值。 */
     private static final String TRAJECTORY_FAILED_FILE = "failed_trajectories.jsonl";
+
+    /** 会话轨迹产物使用UTC毫秒时间戳，保持原有 JSONL 字段格式。 */
+    private static final DateTimeFormatter UTC_TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
 
     /** 记录会话ArtifactStorage中的artifacts目录。 */
     private final File artifactsDir;
@@ -124,8 +128,6 @@ public class SessionArtifactStorageService {
      * @return 返回utc时间戳结果。
      */
     private String utcTimestamp() {
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
-        format.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return format.format(new Date());
+        return UTC_TIMESTAMP_FORMATTER.format(Instant.now());
     }
 }

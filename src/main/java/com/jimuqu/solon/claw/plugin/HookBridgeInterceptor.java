@@ -1,12 +1,18 @@
 package com.jimuqu.solon.claw.plugin;
 
 import com.jimuqu.solon.claw.plugin.hook.HookResult;
+import com.jimuqu.solon.claw.tool.runtime.ReActToolObservationSupport;
 import java.util.HashMap;
 import java.util.Map;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.agent.react.ReActTrace;
-import org.noear.solon.ai.chat.ChatRequestDesc;
+import org.noear.solon.ai.agent.react.task.ToolExchanger;
+import org.noear.solon.ai.chat.ChatRequest;
 import org.noear.solon.ai.chat.ChatResponse;
+import org.noear.solon.ai.chat.interceptor.CallChain;
+import org.noear.solon.ai.chat.interceptor.StreamChain;
+import org.noear.solon.ai.chat.message.ChatMessage;
+import reactor.core.publisher.Flux;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,11 +37,12 @@ public class HookBridgeInterceptor implements ReActInterceptor {
      * 在工具调用前触发 pre_tool_call 钩子。
      *
      * @param trace ReAct 执行轨迹。
-     * @param toolName 工具名称。
-     * @param args 工具或命令参数。
+     * @param exchanger 工具交换对象，承载工具名称、参数和结果。
      */
     @Override
-    public void onAction(ReActTrace trace, String toolName, Map<String, Object> args) {
+    public void onAction(ReActTrace trace, ToolExchanger exchanger) {
+        String toolName = exchanger == null ? null : exchanger.getToolName();
+        Map<String, Object> args = exchanger == null ? null : exchanger.getArgs();
         Map<String, Object> hookArgs = new HashMap<>();
         hookArgs.put("tool_name", toolName);
         hookArgs.put("args", args);
@@ -50,15 +57,22 @@ public class HookBridgeInterceptor implements ReActInterceptor {
      * 在工具调用返回观察结果后触发 post_tool_call 钩子。
      *
      * @param trace ReAct 执行轨迹。
-     * @param toolName 工具名称。
-     * @param result 结果响应或执行结果。
+     * @param exchanger 工具交换对象，承载工具名称、参数和结果。
+     * @param message 工具消息。
+     * @param error 工具执行异常。
      * @param durationMs 工具执行耗时，单位毫秒。
      */
     @Override
-    public void onObservation(ReActTrace trace, String toolName, String result, long durationMs) {
+    public void onObservation(
+            ReActTrace trace,
+            ToolExchanger exchanger,
+            ChatMessage message,
+            Throwable error,
+            long durationMs) {
         Map<String, Object> hookArgs = new HashMap<>();
+        String toolName = exchanger == null ? null : exchanger.getToolName();
         hookArgs.put("tool_name", toolName);
-        hookArgs.put("result", result);
+        hookArgs.put("result", ReActToolObservationSupport.get(trace, exchanger));
         hookArgs.put("duration_ms", durationMs);
         hookArgs.put("session_id", sessionId(trace));
         hookRegistry.invoke(AgentHookName.POST_TOOL_CALL, hookArgs);
@@ -67,31 +81,37 @@ public class HookBridgeInterceptor implements ReActInterceptor {
     /**
      * 在模型请求前触发 pre_api_request 钩子。
      *
-     * @param trace ReAct 执行轨迹。
-     * @param req Solon AI 模型请求描述。
+     * @param request 模型请求。
+     * @param chain 后续模型调用链。
+     * @return 返回模型响应。
      */
     @Override
-    public void onModelStart(ReActTrace trace, ChatRequestDesc req) {
-        Map<String, Object> hookArgs = new HashMap<>();
-        hookArgs.put("session_id", sessionId(trace));
-        hookArgs.put("agent_name", trace.getAgentName());
-        hookArgs.put("step_count", trace.getStepCount());
-        hookRegistry.invoke(AgentHookName.PRE_API_REQUEST, hookArgs);
+    public ChatResponse interceptCall(ChatRequest request, CallChain chain) throws java.io.IOException {
+        invokeApiHook(AgentHookName.PRE_API_REQUEST);
+        try {
+            return chain.doIntercept(request);
+        } finally {
+            invokeApiHook(AgentHookName.POST_API_REQUEST);
+        }
     }
 
     /**
-     * 在模型响应后触发 post_api_request 钩子。
+     * 在流式模型请求前后触发 API 请求钩子。
      *
-     * @param trace ReAct 执行轨迹。
-     * @param resp Solon AI 模型响应。
+     * @param request 模型请求。
+     * @param chain 后续流式调用链。
+     * @return 返回流式模型响应。
      */
     @Override
-    public void onModelEnd(ReActTrace trace, ChatResponse resp) {
+    public Flux<ChatResponse> interceptStream(ChatRequest request, StreamChain chain) {
+        invokeApiHook(AgentHookName.PRE_API_REQUEST);
+        return chain.doIntercept(request).doFinally(signal -> invokeApiHook(AgentHookName.POST_API_REQUEST));
+    }
+
+    /** 触发不依赖 trace 的模型请求钩子。 */
+    private void invokeApiHook(String hookName) {
         Map<String, Object> hookArgs = new HashMap<>();
-        hookArgs.put("session_id", sessionId(trace));
-        hookArgs.put("agent_name", trace.getAgentName());
-        hookArgs.put("step_count", trace.getStepCount());
-        hookRegistry.invoke(AgentHookName.POST_API_REQUEST, hookArgs);
+        hookRegistry.invoke(hookName, hookArgs);
     }
 
     /**

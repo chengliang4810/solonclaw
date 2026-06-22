@@ -126,11 +126,11 @@ public class MediaSpeechTools {
      * 构造媒体工具统一返回结构。
      *
      * @param error 错误参数。
-     * @return 包含 success 字段的有序 Map；失败时附加 error。
+     * @return 包含当前 status 字段的有序 Map；失败时附加 error。
      */
     private Map<String, Object> base(boolean success, String error) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("success", Boolean.valueOf(success));
+        result.put("status", success ? "success" : "error");
         if (!success) {
             result.put("error", error);
         }

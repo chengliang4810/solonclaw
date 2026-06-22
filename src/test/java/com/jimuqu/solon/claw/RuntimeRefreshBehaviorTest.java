@@ -182,7 +182,11 @@ public class RuntimeRefreshBehaviorTest {
         assertThat(blocked.isAllowed()).isFalse();
         assertThat(blocked.getMessage()).contains("blocked.example").doesNotContain("secret");
         assertThat(policy.checkUrl("https://pixel.tracking.example/p.gif").isAllowed()).isFalse();
-        assertThat(policy.checkUrl("https://tracking.example/p.gif").isAllowed()).isTrue();
+        SecurityPolicyService.UrlVerdict bareDomain =
+                policy.checkUrl("https://tracking.example/p.gif");
+        assertThat(bareDomain.isAllowed()).isFalse();
+        assertThat(bareDomain.isApprovalRequired()).isTrue();
+        assertThat(bareDomain.getPolicyKey()).isEqualTo("network_external_operation");
         assertThat(policy.websitePolicySummary().get("enabled")).isEqualTo(Boolean.TRUE);
         assertThat(policy.websitePolicySummary().get("configuredDomainCount")).isEqualTo(2);
         assertThat(adapter.disconnectCount).isZero();
@@ -349,21 +353,19 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldWriteTerminalRuntimeKeysAtRootWithoutReconnectingChannels() throws Exception {
+    void shouldWriteWorkspaceRuntimeKeyWithoutReconnectingChannels() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
         RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
 
-        runtimeSettingsService.setConfigValue(
-                "solonclaw.terminal.writeSafeRoot", "D:/workspace/solonclaw-safe");
+        runtimeSettingsService.setConfigValue("solonclaw.workspace", "./workspace");
 
         String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
-        assertThat(env.appConfig.getTerminal().getWriteSafeRoot())
-                .isEqualTo("D:/workspace/solonclaw-safe");
+        assertThat(env.appConfig.getWorkspace().getDir()).endsWith("/workspace");
         assertThat(config)
                 .contains("solonclaw:")
-                .contains("terminal:")
-                .contains("writeSafeRoot: D:/workspace/solonclaw-safe");
+                .contains("workspace: ./workspace")
+                .doesNotContain("writeSafeRoot");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
@@ -556,7 +558,7 @@ public class RuntimeRefreshBehaviorTest {
                         new LlmProviderService(config),
                         new SecurityPolicyService(config) {
                             @Override
-                            public UrlVerdict checkUrl(String url) {
+                            public UrlVerdict checkAlwaysBlockedUrl(String url) {
                                 return UrlVerdict.block(url, "blocked-by-test");
                             }
                         });
@@ -567,7 +569,7 @@ public class RuntimeRefreshBehaviorTest {
 
         assertThatThrownBy(() -> providerService.listRemoteModels(body))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Provider model list URL blocked")
+                .hasMessageContaining("provider.baseUrl 被 URL 安全底线阻止")
                 .hasMessageContaining("blocked-by-test");
     }
 

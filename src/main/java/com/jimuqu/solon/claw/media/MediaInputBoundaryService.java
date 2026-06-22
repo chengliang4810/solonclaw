@@ -343,7 +343,12 @@ public class MediaInputBoundaryService {
     private boolean isUnderCacheRoot(File file) {
         try {
             return isUnderPath(file.getCanonicalFile(), cacheRoot.getCanonicalFile());
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "媒体缓存路径规范化失败，按绝对路径兜底 path={}, error={}",
+                    SecretRedactor.redactSensitivePaths(
+                            SecretRedactor.redact(file == null ? "" : file.getPath(), 400)),
+                    e.getClass().getSimpleName());
         }
         return isUnderPath(file.getAbsoluteFile(), cacheRoot.getAbsoluteFile());
     }

@@ -1,78 +1,239 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.goal.GoalDecision;
-import com.jimuqu.solon.claw.goal.GoalJudge;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.goal.GoalVerdict;
-import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.goal.HeuristicGoalJudge;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
+/** 验证目标状态、启发式判定和目标服务的持续运行语义。 */
 public class GoalServiceTest {
     @Test
-    void shouldPersistGoalStateAndResumeBySession() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        GoalService service = new GoalService(env.sessionRepository);
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:goal:user");
+    void shouldRoundTripGoalStateJsonWithDefaultsAndVerdictMetadata() {
+        GoalState state = new GoalState();
+        state.setGoal("完成浏览器回归测试");
+        state.setTurnsUsed(3);
+        state.setMaxTurns(5);
+        state.setCreatedAt(1782126000000L);
+        state.setLastTurnAt(1782126060000L);
+        state.setLastVerdict(GoalVerdict.CONTINUE);
+        state.setLastReason("still running");
+        state.setPausedReason("waiting for user");
 
-        GoalState state = service.set(session, "完成发布流程", 3);
+        GoalState parsed = GoalState.fromJson(state.toJson());
 
-        assertThat(state.getStatus()).isEqualTo("active");
-        SessionRecord loaded = env.sessionRepository.findById(session.getSessionId());
-        assertThat(service.statusLine(loaded)).contains("完成发布流程").contains("0/3");
+        assertThat(parsed.getGoal()).isEqualTo("完成浏览器回归测试");
+        assertThat(parsed.getStatus()).isEqualTo(GoalState.STATUS_ACTIVE);
+        assertThat(parsed.getTurnsUsed()).isEqualTo(3);
+        assertThat(parsed.getMaxTurns()).isEqualTo(5);
+        assertThat(parsed.getCreatedAt()).isEqualTo(1782126000000L);
+        assertThat(parsed.getLastTurnAt()).isEqualTo(1782126060000L);
+        assertThat(parsed.getLastVerdict()).isEqualTo(GoalVerdict.CONTINUE);
+        assertThat(parsed.getLastReason()).isEqualTo("still running");
+        assertThat(parsed.getPausedReason()).isEqualTo("waiting for user");
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "'', 'done', skipped",
+        "'修复问题', '', continue",
+        "'修复问题', 'The goal complete path is verified', done",
+        "'修复问题', '已经完成，等待最终验证', done",
+        "'修复问题', '继续执行下一步', continue"
+    })
+    void shouldClassifyGoalVerdictsFromResponseSignals(
+            String goal, String response, String expectedVerdict) {
+        HeuristicGoalJudge judge = new HeuristicGoalJudge();
+
+        GoalVerdict verdict = judge.judge(goal, response);
+
+        assertThat(verdict.getVerdict()).isEqualTo(expectedVerdict);
+        if (GoalVerdict.CONTINUE.equals(expectedVerdict)) {
+            assertThat(verdict.getReason()).isNotBlank();
+        }
     }
 
     @Test
-    void shouldEvaluateContinueDoneAndBudgetPause() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        GoalService service =
-                new GoalService(
-                        env.sessionRepository,
-                        new QueueJudge(
-                                GoalVerdict.continueGoal("not yet"),
-                                GoalVerdict.continueGoal("still not"),
-                                GoalVerdict.done("done")),
-                        2);
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:goal-budget:user");
-        service.set(session, "做完任务", 2);
+    void shouldPersistGoalAndContinueUntilExplicitCompletion() throws Exception {
+        InMemorySessionRepository repository = new InMemorySessionRepository();
+        SessionRecord session = session("s-goal-1");
+        repository.save(session);
+        GoalService service = new GoalService(repository);
 
-        GoalDecision first = service.evaluateAfterTurn(session, "处理中");
+        GoalState state = service.set(session, "修复安全默认配置", 3);
+        GoalDecision first = service.evaluateAfterTurn(session, "第一步仍在验证中，还要继续跑测试");
+
+        assertThat(state.getGoal()).isEqualTo("修复安全默认配置");
         assertThat(first.isShouldContinue()).isTrue();
-        assertThat(first.getContinuationPrompt()).contains("做完任务");
+        assertThat(first.getStatus()).isEqualTo(GoalState.STATUS_ACTIVE);
+        assertThat(first.getContinuationPrompt()).contains("修复安全默认配置");
+        assertThat(service.statusLine(session)).contains("active, 1/3 turns");
+        assertThat(repository.findById("s-goal-1").getGoalStateJson()).contains("turns_used");
 
-        SessionRecord afterFirst = env.sessionRepository.findById(session.getSessionId());
-        GoalDecision second = service.evaluateAfterTurn(afterFirst, "继续处理中");
-        assertThat(second.isShouldContinue()).isFalse();
-        assertThat(second.getStatus()).isEqualTo("paused");
-        assertThat(service.statusLine(env.sessionRepository.findById(session.getSessionId())))
-                .contains("paused")
-                .contains("2/2");
+        GoalDecision done = service.evaluateAfterTurn(session, "Goal achieved after verification");
 
-        service.resume(env.sessionRepository.findById(session.getSessionId()), true);
-        GoalDecision done =
-                service.evaluateAfterTurn(
-                        env.sessionRepository.findById(session.getSessionId()), "已完成");
-        assertThat(done.getStatus()).isEqualTo("done");
+        assertThat(done.isShouldContinue()).isFalse();
+        assertThat(done.getStatus()).isEqualTo(GoalState.STATUS_DONE);
         assertThat(done.getMessage()).contains("Goal achieved");
+        assertThat(service.nextContinuationPrompt(session)).isNull();
     }
 
-    private static class QueueJudge implements GoalJudge {
-        private final GoalVerdict[] verdicts;
-        private int index;
+    @Test
+    void shouldPauseGoalWhenTurnBudgetIsExhaustedAndSupportResumeAndClear() throws Exception {
+        InMemorySessionRepository repository = new InMemorySessionRepository();
+        SessionRecord session = session("s-goal-2");
+        repository.save(session);
+        GoalService service = new GoalService(repository);
 
-        private QueueJudge(GoalVerdict... verdicts) {
-            this.verdicts = verdicts;
+        service.set(session, "跑完剩余测试", 1);
+        GoalDecision decision = service.evaluateAfterTurn(session, "测试仍在执行");
+
+        assertThat(decision.getStatus()).isEqualTo(GoalState.STATUS_PAUSED);
+        assertThat(decision.getMessage()).contains("Goal paused");
+        assertThat(service.statusLine(session)).contains("paused, 1/1 turns");
+
+        GoalState resumed = service.resume(session, true);
+        assertThat(resumed.getStatus()).isEqualTo(GoalState.STATUS_ACTIVE);
+        assertThat(resumed.getTurnsUsed()).isZero();
+        assertThat(resumed.getPausedReason()).isNull();
+
+        assertThat(service.clear(session)).isTrue();
+        assertThat(service.statusLine(session)).contains("No active goal");
+    }
+
+    @Test
+    void shouldRejectBlankGoalAndMissingSession() {
+        GoalService service = new GoalService(new InMemorySessionRepository());
+
+        assertThatThrownBy(() -> service.set(session("s-goal-3"), "   ", 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("goal text is empty");
+        assertThatThrownBy(() -> service.set(new SessionRecord(), "有效目标", 0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("session is required");
+    }
+
+    private static SessionRecord session(String sessionId) {
+        SessionRecord session = new SessionRecord();
+        session.setSessionId(sessionId);
+        return session;
+    }
+
+    /** 测试内使用的最小会话仓储，只覆盖目标状态持久化所需接口。 */
+    private static class InMemorySessionRepository implements SessionRepository {
+        private final Map<String, SessionRecord> sessions = new LinkedHashMap<String, SessionRecord>();
+
+        @Override
+        public SessionRecord getBoundSession(String sourceKey) {
+            return null;
         }
 
         @Override
-        public GoalVerdict judge(String goal, String lastResponse) {
-            if (index >= verdicts.length) {
-                return verdicts[verdicts.length - 1];
+        public SessionRecord bindNewSession(String sourceKey) {
+            throw unsupported();
+        }
+
+        @Override
+        public void bindSource(String sourceKey, String sessionId) {}
+
+        @Override
+        public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName) {
+            throw unsupported();
+        }
+
+        @Override
+        public SessionRecord findById(String sessionId) {
+            return sessions.get(sessionId);
+        }
+
+        @Override
+        public SessionRecord findBySourceAndBranch(String sourceKey, String branchName) {
+            return null;
+        }
+
+        @Override
+        public List<SessionRecord> findResumeCandidates(String reference, int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public void save(SessionRecord sessionRecord) {
+            sessions.put(sessionRecord.getSessionId(), sessionRecord);
+        }
+
+        @Override
+        public List<SessionRecord> search(String keyword, int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<SessionRecord> listRecent(int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<SessionRecord> listRecent(int limit, int offset) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<SessionRecord> listPendingAgentSessions(long updatedAfterMillis, int limit) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public int countAll() {
+            return sessions.size();
+        }
+
+        @Override
+        public void delete(String sessionId) {
+            sessions.remove(sessionId);
+        }
+
+        @Override
+        public void setModelOverride(String sessionId, String modelOverride) {}
+
+        @Override
+        public void setServiceTierOverride(String sessionId, String serviceTierOverride) {}
+
+        @Override
+        public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
+
+        @Override
+        public void setActiveAgentName(String sessionId, String agentName) {}
+
+        @Override
+        public void clearActiveAgentName(String agentName) {}
+
+        @Override
+        public void setGoalState(String sessionId, String goalStateJson) {
+            SessionRecord session = sessions.get(sessionId);
+            if (session == null) {
+                session = session(sessionId);
+                sessions.put(sessionId, session);
             }
-            return verdicts[index++];
+            session.setGoalStateJson(goalStateJson);
+        }
+
+        @Override
+        public void setLastLearningAt(String sessionId, long lastLearningAt) {}
+
+        /** 明确标记测试未覆盖的仓储能力，避免误用时静默成功。 */
+        private UnsupportedOperationException unsupported() {
+            return new UnsupportedOperationException("not needed by goal service tests");
         }
     }
 }

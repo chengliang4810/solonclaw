@@ -42,9 +42,14 @@ import org.noear.solon.ai.chat.tool.FunctionToolDesc;
 import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.ai.mcp.client.McpClientProvider;
 import org.noear.solon.ai.util.ParamDesc;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供MCP运行时相关业务能力，封装调用方不需要感知的运行细节。 */
 public class McpRuntimeService implements Closeable {
+    /** 记录MCP运行时非关键失败，日志必须避免输出密钥或完整配置内容。 */
+    private static final Logger log = LoggerFactory.getLogger(McpRuntimeService.class);
+
     /** 默认连接超时毫秒数的统一常量值。 */
     private static final long DEFAULT_CONNECT_TIMEOUT_MILLIS = 60000L;
 
@@ -481,8 +486,8 @@ public class McpRuntimeService implements Closeable {
         for (McpClientProvider provider : providers.values()) {
             try {
                 provider.close();
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                log.debug("MCP提供方关闭失败，继续释放其他运行资源: {}", exceptionSummary(e));
             }
         }
         providers.clear();
@@ -584,8 +589,11 @@ public class McpRuntimeService implements Closeable {
         if (provider != null) {
             try {
                 provider.close();
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                log.debug(
+                        "MCP提供方关闭失败，后续会按需重新建立连接: serverId={}, error={}",
+                        sanitizeLogToken(serverId),
+                        exceptionSummary(e));
             }
         }
     }
@@ -612,7 +620,8 @@ public class McpRuntimeService implements Closeable {
                 resultSet.close();
                 statement.close();
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("MCP启用服务端列表读取失败，回退为空列表: error={}", exceptionSummary(e));
             return Collections.emptyList();
         } finally {
             close(connection);
@@ -769,8 +778,12 @@ public class McpRuntimeService implements Closeable {
             statement.setString(index, serverId);
             statement.executeUpdate();
             statement.close();
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            log.warn(
+                    "MCP服务端状态写回失败，保留原状态继续运行: serverId={}, status={}, error={}",
+                    sanitizeLogToken(serverId),
+                    StrUtil.blankToDefault(status, "ready"),
+                    exceptionSummary(e));
         } finally {
             close(connection);
         }
@@ -1360,6 +1373,54 @@ public class McpRuntimeService implements Closeable {
     }
 
     /**
+     * 生成单行脱敏异常摘要，避免MCP日志输出密钥、Token或完整配置值。
+     *
+     * @param error 捕获到的异常。
+     * @return 可写入日志的异常类型与脱敏消息摘要。
+     */
+    private static String exceptionSummary(Throwable error) {
+        restoreInterruptIfNeeded(error);
+        if (error == null) {
+            return "unknown";
+        }
+        String message = SecretRedactor.redact(StrUtil.nullToEmpty(error.getMessage()), 300);
+        message = message.replace('\r', ' ').replace('\n', ' ').trim();
+        if (StrUtil.isBlank(message)) {
+            return error.getClass().getName();
+        }
+        return error.getClass().getName() + ": " + message;
+    }
+
+    /**
+     * 捕获链中出现中断异常时恢复当前线程中断标记，避免上层并发控制丢失取消信号。
+     *
+     * @param error 捕获到的异常。
+     */
+    private static void restoreInterruptIfNeeded(Throwable error) {
+        Throwable current = error;
+        int depth = 0;
+        while (current != null && depth < 16) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            current = current.getCause();
+            depth++;
+        }
+    }
+
+    /**
+     * 生成适合日志展示的短标识，避免换行或疑似敏感片段进入日志字段。
+     *
+     * @param value 服务端标识或状态字段。
+     * @return 脱敏后的单行短文本。
+     */
+    private static String sanitizeLogToken(String value) {
+        String text = SecretRedactor.redact(StrUtil.nullToEmpty(value), 120);
+        return text.replace('\r', ' ').replace('\n', ' ').trim();
+    }
+
+    /**
      * 执行诊断错误相关逻辑。
      *
      * @param e 捕获到的异常。
@@ -1414,8 +1475,8 @@ public class McpRuntimeService implements Closeable {
         if (connection != null) {
             try {
                 connection.close();
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                log.debug("MCP数据库连接关闭失败，连接池或驱动将继续处理回收: {}", exceptionSummary(e));
             }
         }
     }
@@ -2139,7 +2200,7 @@ public class McpRuntimeService implements Closeable {
         private boolean advertisedCapabilityEnabled(String name) {
             Map<String, Object> capabilities = config.getCapabilities();
             if (capabilities == null || capabilities.isEmpty()) {
-                return true;
+                return false;
             }
             Object capability;
             if (capabilities.containsKey(name)) {
@@ -2840,7 +2901,6 @@ public class McpRuntimeService implements Closeable {
          */
         private String authFailureJson(String operation, Throwable error) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
-            result.put("success", Boolean.FALSE);
             result.put("status", "error");
             result.put("needs_reauth", Boolean.TRUE);
             result.put("server", config.getServerId());

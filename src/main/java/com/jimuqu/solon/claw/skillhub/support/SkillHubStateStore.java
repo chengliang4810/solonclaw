@@ -194,7 +194,7 @@ public class SkillHubStateStore {
                 validateRecord(record);
                 safeInstalled.put(record.getName(), record);
             } catch (IllegalStateException e) {
-                // 兼容历史或手工编辑过的脏记录：新安全校验不应拖垮整个 Hub 状态。
+                // 忽略手工编辑过的脏记录：单条状态异常不应拖垮整个 Hub 状态。
             }
         }
         return safeInstalled;

@@ -101,8 +101,6 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
-                    "web_search",
-                    "web_extract",
                     ToolNameConstants.IMAGE_GENERATE,
                     ToolNameConstants.TEXT_TO_SPEECH,
                     ToolNameConstants.SPEECH_TRANSCRIBE,
@@ -529,7 +527,8 @@ public class DefaultDelegationService implements DelegationService {
 
     /** 判断父会话是否允许某个工具。 */
     private boolean isParentToolEnabled(String parentSourceKey, String toolName) throws Exception {
-        return preferenceStore.isToolEnabled(parentSourceKey, toolName);
+        String normalized = StrUtil.nullToEmpty(toolName).trim();
+        return preferenceStore.isToolEnabled(parentSourceKey, normalized);
     }
 
     /** 预先创建子会话并写入父会话关系。 */
@@ -590,6 +589,19 @@ public class DefaultDelegationService implements DelegationService {
         }
         return SecretRedactor.redact(
                 StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()), 1000);
+    }
+
+    /**
+     * 生成仅用于日志的异常摘要，只保留异常类型，避免把会话内容或凭据信息写入日志。
+     *
+     * @param error 异常对象。
+     * @return 返回不含业务明文的异常摘要。
+     */
+    private String exceptionLogSummary(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return StrUtil.blankToDefault(error.getClass().getSimpleName(), error.getClass().getName());
     }
 
     /**
@@ -705,7 +717,8 @@ public class DefaultDelegationService implements DelegationService {
             if (parent != null && "subagent".equals(parent.getRunKind())) {
                 return 2;
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("resolveDepth failed; using default depth. error={}", exceptionLogSummary(e));
         }
         return 1;
     }
@@ -726,7 +739,10 @@ public class DefaultDelegationService implements DelegationService {
                 parent.setLastActivityAt(System.currentTimeMillis());
                 agentRunRepository.saveRun(parent);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "incrementSubtaskCount failed; continuing delegation. error={}",
+                    exceptionLogSummary(e));
         }
     }
 
@@ -752,7 +768,10 @@ public class DefaultDelegationService implements DelegationService {
                     return bySession.get(0).getRunId();
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "resolveLatestRunId failed; child run id unavailable. error={}",
+                    exceptionLogSummary(e));
         }
         return null;
     }
@@ -768,7 +787,10 @@ public class DefaultDelegationService implements DelegationService {
         }
         try {
             agentRunRepository.saveSubagentRun(record);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "saveSubagent failed; keeping in-memory delegation state. error={}",
+                    exceptionLogSummary(e));
         }
     }
 

@@ -17,9 +17,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Agent 运行状态观测采集器，用于发现失败、可恢复、验证失败和排队等待的运行记录。 */
 public class RunStateCollector implements ProactiveObservationCollector {
+    /** 采集器内部日志，仅记录阶段和异常类型，避免暴露运行输入、工具参数或结果内容。 */
+    private static final Logger log = LoggerFactory.getLogger(RunStateCollector.class);
+
     /** 采集器稳定名称，用于观测来源、排障和后续候选生成识别。 */
     public static final String COLLECTOR_NAME = "run_state";
 
@@ -356,7 +361,8 @@ public class RunStateCollector implements ProactiveObservationCollector {
                     return result;
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableCollectionFailure("list_failed_tool_calls", e);
             return result;
         }
         return result;
@@ -440,7 +446,8 @@ public class RunStateCollector implements ProactiveObservationCollector {
         }
         try {
             return Math.max(0, agentRunRepository.countQueuedMessages(run.getSourceKey(), run.getSessionId()));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableCollectionFailure("count_queued_messages", e);
             return 0;
         }
     }
@@ -621,5 +628,38 @@ public class RunStateCollector implements ProactiveObservationCollector {
      */
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
+    }
+
+    /**
+     * 记录运行状态采集的可恢复失败；日志只写阶段和异常类型，不输出运行输入、工具内容或异常消息。
+     *
+     * @param stage 失败阶段。
+     * @param error 原始异常。
+     */
+    private void logRecoverableCollectionFailure(String stage, Exception error) {
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "run state collector fallback: stage={}, errorType={}",
+                    stage,
+                    exceptionType(error));
+        }
+    }
+
+    /**
+     * 提取异常类型；如果异常链包含中断异常，恢复线程中断标记。
+     *
+     * @param error 原始异常。
+     * @return 异常类名。
+     */
+    private String exceptionType(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            current = current.getCause();
+        }
+        return error == null ? "UnknownException" : error.getClass().getSimpleName();
     }
 }

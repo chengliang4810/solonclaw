@@ -6,10 +6,15 @@ import java.util.Collections;
 import java.util.List;
 import lombok.Getter;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载记忆Turn上下文相关状态和辅助逻辑。 */
 @Getter
 public class MemoryTurnContext {
+    /** 记忆 Turn 上下文的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(MemoryTurnContext.class);
+
     /** 记录记忆Turn上下文中的来源键。 */
     private final String sourceKey;
 
@@ -100,7 +105,11 @@ public class MemoryTurnContext {
         if ((value == null || value.isEmpty()) && conversationNdjson != null) {
             try {
                 value = MessageSupport.loadMessages(conversationNdjson);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug(
+                        "记忆 Turn 会话 NDJSON 解析失败，按空消息列表兜底 length={}, error={}",
+                        conversationNdjson.length(),
+                        e.getClass().getSimpleName());
                 value = Collections.emptyList();
             }
         }

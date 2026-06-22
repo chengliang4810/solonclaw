@@ -45,6 +45,26 @@ public class RuntimeSetupServiceTest {
     }
 
     @Test
+    void shouldRejectPlaceholderModelSecretBeforeAnySetupWrite() throws Exception {
+        Path runtimeHome = Files.createTempDirectory("solonclaw-runtime-setup-placeholder");
+        RuntimeSetupService service = new RuntimeSetupService(config(runtimeHome));
+
+        RuntimeSetupService.ModelSetupRequest request =
+                new RuntimeSetupService.ModelSetupRequest();
+        request.setProviderKey("local-openai");
+        request.setProviderName("Local OpenAI");
+        request.setBaseUrl("http://127.0.0.1:9999/v1");
+        request.setApiKey("configured");
+        request.setModel("mimo-v2.5-pro");
+        request.setDialect("openai");
+        RuntimeSetupService.SetupResult result = service.configureModel(request);
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getMessage()).isEqualTo("placeholder_secret");
+        assertThat(runtimeHome.resolve("config.yml")).doesNotExist();
+    }
+
+    @Test
     void shouldPersistDomesticChannelThroughSharedSetupService() throws Exception {
         Path runtimeHome = Files.createTempDirectory("solonclaw-runtime-setup-channel");
         RuntimeSetupService service = new RuntimeSetupService(config(runtimeHome));
@@ -69,6 +89,22 @@ public class RuntimeSetupServiceTest {
                 .contains("enabled: 'true'")
                 .contains("appId: cli_test_app")
                 .contains("appSecret: Sk-Test-SharedFeishuSecret123");
+    }
+
+    @Test
+    void shouldRejectPlaceholderChannelSecretBeforeAnySetupWrite() throws Exception {
+        Path runtimeHome = Files.createTempDirectory("solonclaw-runtime-setup-channel-placeholder");
+        RuntimeSetupService service = new RuntimeSetupService(config(runtimeHome));
+        Map<String, String> values = new LinkedHashMap<String, String>();
+        values.put("enabled", "true");
+        values.put("appId", "cli_test_app");
+        values.put("appSecret", "[REDACTED_PATH]");
+
+        RuntimeSetupService.SetupResult result = service.configureGatewayChannel("feishu", values);
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getMessage()).isEqualTo("placeholder_secret");
+        assertThat(runtimeHome.resolve("config.yml")).doesNotExist();
     }
 
     private AppConfig config(Path runtimeHome) {

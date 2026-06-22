@@ -62,23 +62,6 @@ public class AgentRunSupervisor implements AgentRunControlService {
     /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(AgentRunSupervisor.class);
 
-    /** EMPTY回复恢复提示词的统一常量值。 */
-    private static final String EMPTY_REPLY_RECOVERY_PROMPT =
-            "你刚刚已经完成了工具调用，但没有输出最终答复。请基于当前会话中的最新工具结果，直接用中文给出简洁最终答复，不要再次调用工具。";
-
-    /** EMPTY回复兜底的统一常量值。 */
-    private static final String EMPTY_REPLY_FALLBACK =
-            "本轮已完成工具调用，但模型没有返回可读结论。请使用 /retry 重试，或继续给出下一步指令。";
-
-    /** 最大STEPS恢复提示词的统一常量值。 */
-    private static final String MAX_STEPS_RECOVERY_PROMPT =
-            "你刚刚因为最大推理步数限制而停止。不要再次调用工具。请基于当前会话中已经完成的分析、工具结果、文件修改和观察，直接输出中文收敛答复：优先给出已经完成的结果；若任务仍未彻底完成，明确说明还差什么、最推荐的下一步是什么。"
-                    + "如果历史里已经有 tool 角色消息，必须承认这些工具已经执行并以工具返回内容为事实依据，禁止声称工具没有调用或没有执行。";
-
-    /** 最大STEPS恢复兜底的统一常量值。 */
-    private static final String MAX_STEPS_RECOVERY_FALLBACK =
-            "本轮执行已达到最大步骤限制，已保留当前进展。请继续给出更聚焦的下一步，或使用 /retry 继续。";
-
     /** 排队运行标识键的统一常量值。 */
     private static final String QUEUED_RUN_ID_KEY = "__queuedRunId";
 
@@ -587,7 +570,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 return instruction == null ? payload : String.valueOf(instruction);
             }
             return payload;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("consume steer instruction failed: runId={}, error={}", runId, safeError(e));
             return null;
         }
     }
@@ -748,7 +732,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             agentScope.setAgentName(
                     AgentRuntimeScope.normalizeName(
                             session == null ? null : session.getActiveAgentName()));
-            agentScope.setWorkspaceDir(appConfig.getRuntime().getHome());
+            agentScope.setWorkspaceDir(appConfig.getWorkspace().getDir());
             agentScope.setSkillsDir(appConfig.getRuntime().getSkillsDir());
             agentScope.setCacheDir(appConfig.getRuntime().getCacheDir());
         }
@@ -907,7 +891,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                     recover(
                                             session,
                                             systemPrompt,
-                                            EMPTY_REPLY_RECOVERY_PROMPT,
+                                            AgentRecoveryPromptConstants
+                                                    .EMPTY_REPLY_RECOVERY_PROMPT,
                                             resolved,
                                             feedbackSink,
                                             eventSink,
@@ -932,7 +917,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                     recover(
                                             session,
                                             systemPrompt,
-                                            MAX_STEPS_RECOVERY_PROMPT,
+                                            AgentRecoveryPromptConstants
+                                                    .MAX_STEPS_TOOL_AWARE_RECOVERY_PROMPT,
                                             resolved,
                                             feedbackSink,
                                             eventSink,
@@ -945,14 +931,18 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                 result = recovered;
                                 currentReply = extractText(recovered.getAssistantMessage());
                             } else {
-                                currentReply = MAX_STEPS_RECOVERY_FALLBACK;
+                                currentReply =
+                                        AgentRecoveryPromptConstants.MAX_STEPS_RECOVERY_FALLBACK;
                             }
                         }
 
                         validateRequiredTools(runRecord, runContext, requiredToolNames);
                         if (StrUtil.isNotBlank(currentReply) || hasVisibleContent(result)) {
                             finalResult = result;
-                            replyText = StrUtil.blankToDefault(currentReply, EMPTY_REPLY_FALLBACK);
+                            replyText =
+                                    StrUtil.blankToDefault(
+                                            currentReply,
+                                            AgentRecoveryPromptConstants.EMPTY_REPLY_FALLBACK);
                             eventSink.onAttemptCompleted(
                                     runRecord.getRunId(), attemptNo, "success", "");
                             runContext.event("attempt.success", "第 " + attemptNo + " 次尝试成功");
@@ -1445,7 +1435,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
                     return false;
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("detect recent tool activity failed: error={}", safeError(e));
             return false;
         }
         return false;
@@ -2107,7 +2098,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
                     message.setTimestamp(((Number) timestamp).longValue());
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn(
+                    "deserialize queued message failed: queueId={}, error={}",
+                    queued == null ? null : queued.getQueueId(),
+                    safeError(e));
             message.setText(queued.getMessageText());
             message.setSourceKeyOverride(queued.getSourceKey());
         }
@@ -2178,7 +2173,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             "failed",
                             System.currentTimeMillis(),
                             safeError(e));
-                } catch (Exception ignored) {
+                } catch (Exception markFailedError) {
+                    log.warn(
+                            "mark queued message failed status failed: queueId={}, error={}",
+                            queued.getQueueId(),
+                            safeError(markFailedError));
                 }
                 markQueuedRunFinished(queued, "failed", null, safeError(e));
                 log.warn(
@@ -2325,7 +2324,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
             event.setMetadataJson(StructuredMetadataSupport.redactJson(metadataJson));
             event.setCreatedAt(System.currentTimeMillis());
             agentRunRepository.appendEvent(event);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "append run event failed: runId={}, eventType={}, error={}",
+                    record.getRunId(),
+                    eventType,
+                    safeError(e));
         }
     }
 
@@ -2487,7 +2491,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
         try {
             agentRunRepository.pruneBefore(
                     System.currentTimeMillis() - days * 24L * 60L * 60L * 1000L);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("prune old runs failed: error={}", safeError(e));
         }
     }
 }

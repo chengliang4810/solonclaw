@@ -27,12 +27,17 @@ import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.rag.Document;
-import org.noear.solon.ai.skills.sys.NodejsSkill;
-import org.noear.solon.ai.skills.sys.PythonSkill;
+import org.noear.solon.ai.talents.sys.NodejsTalent;
+import org.noear.solon.ai.talents.sys.PythonTalent;
 import org.noear.solon.annotation.Param;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载Solon项目CodeExecution技能相关状态和辅助逻辑。 */
 public class SolonClawCodeExecutionSkills {
+    /** 记录代码执行工具的清理、RPC 与进程读取异常，避免关键路径静默吞错。 */
+    private static final Logger log = LoggerFactory.getLogger(SolonClawCodeExecutionSkills.class);
+
     /** 默认执行CODE超时时间秒数的统一常量值。 */
     private static final int DEFAULT_EXECUTE_CODE_TIMEOUT_SECONDS = 300;
 
@@ -48,8 +53,6 @@ public class SolonClawCodeExecutionSkills {
                     Arrays.asList(
                             "websearch",
                             "webfetch",
-                            "web_search",
-                            "web_extract",
                             "file_read",
                             "file_write",
                             "read_file",
@@ -198,7 +201,7 @@ public class SolonClawCodeExecutionSkills {
                     websearchTool == null
                             ? new SolonClawWebTools.SafeWebsearchTool(
                                     securityPolicyService,
-                                    org.noear.solon.ai.skills.web.WebsearchTool.getInstance(),
+                                    new org.noear.solon.ai.talents.web.WebsearchTalent(),
                                     appConfig)
                             : websearchTool;
             this.webfetchTool =
@@ -217,7 +220,7 @@ public class SolonClawCodeExecutionSkills {
         @ToolMapping(
                 name = "execute_code",
                 description =
-                        "Run a Python script and return a structured JSON result. The solonclaw_tools module exposes websearch/web_search, webfetch/web_extract, file_read/read_file, file_write/write_file, search_files, patch and terminal for multi-step local processing.")
+                        "Run a Python script and return a structured JSON result. The solonclaw_tools module exposes websearch, webfetch, file_read/read_file, file_write/write_file, search_files, patch and terminal for multi-step local processing.")
         public String executeCode(
                 @Param(
                                 name = "code",
@@ -282,7 +285,8 @@ public class SolonClawCodeExecutionSkills {
                     rpcAccepting.set(false);
                     try {
                         rpcFuture.get(3, TimeUnit.SECONDS);
-                    } catch (Exception ignored) {
+                    } catch (Exception e) {
+                        log.debug("execute_code RPC loop did not stop cleanly", e);
                     }
                     String stdoutText =
                             cleanOutput(stdout.get(3, TimeUnit.SECONDS), maxStdoutChars());
@@ -503,12 +507,10 @@ public class SolonClawCodeExecutionSkills {
                             + "    raise TimeoutError('Timed out waiting for ' + tool_name + ' response')\n"
                             + "\n"
                             + "def _unavailable(name):\n"
-                            + "    raise RuntimeError(name + ' is not available in jimuqu-agent execute_code yet. Use normal tool calls instead.')\n"
+                            + "    raise RuntimeError(name + ' is not available in solon-claw execute_code yet. Use normal tool calls instead.')\n"
                             + "\n"
                             + "def websearch(query, limit=5): return _call('websearch', {'query': query, 'limit': limit})\n"
-                            + "def web_search(query, limit=5): return _call('web_search', {'query': query, 'limit': limit})\n"
                             + "def webfetch(url, format='markdown', timeout=120): return _call('webfetch', {'url': url, 'format': format, 'timeout': timeout})\n"
-                            + "def web_extract(urls, format='markdown', timeout=120): return _call('web_extract', {'urls': urls, 'format': format, 'timeout': timeout})\n"
                             + "def file_read(path, offset=1, limit=500): return _call('file_read', {'path': path, 'offset': offset, 'limit': limit})\n"
                             + "def read_file(path, offset=1, limit=500): return _call('read_file', {'path': path, 'offset': offset, 'limit': limit})\n"
                             + "def file_write(path, content): return _call('file_write', {'path': path, 'content': content})\n"
@@ -540,10 +542,11 @@ public class SolonClawCodeExecutionSkills {
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;
-                } catch (Exception ignored) {
+                } catch (Exception ex) {
+                    log.debug("execute_code RPC loop iteration failed", ex);
                     try {
                         Thread.sleep(50L);
-                    } catch (InterruptedException e) {
+                    } catch (InterruptedException interrupted) {
                         Thread.currentThread().interrupt();
                         return;
                     }
@@ -591,7 +594,11 @@ public class SolonClawCodeExecutionSkills {
                 Files.write(temp, response.getBytes(StandardCharsets.UTF_8));
                 Files.move(temp, result, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 Files.deleteIfExists(request);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.warn(
+                        "execute_code RPC response write failed for request {}",
+                        request == null ? "<null>" : request.getFileName(),
+                        e);
             }
         }
 
@@ -639,10 +646,10 @@ public class SolonClawCodeExecutionSkills {
                 if ("search_files".equals(toolName)) {
                     return rpcJson(searchFiles(args));
                 }
-                if ("websearch".equals(toolName) || "web_search".equals(toolName)) {
+                if ("websearch".equals(toolName)) {
                     return rpcJson(webSearch(args));
                 }
-                if ("webfetch".equals(toolName) || "web_extract".equals(toolName)) {
+                if ("webfetch".equals(toolName)) {
                     return rpcJson(webFetch(args));
                 }
                 return rpcJson(
@@ -674,13 +681,13 @@ public class SolonClawCodeExecutionSkills {
                 if (parsed instanceof List) {
                     return rpcJson(parsed);
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("execute_code RPC tool result is not structured JSON; wrapping as text", e);
             }
             Map<String, Object> wrapped = new LinkedHashMap<String, Object>();
             wrapped.put("output", value);
             wrapped.put("result", value);
             wrapped.put("status", "success");
-            wrapped.put("success", Boolean.TRUE);
             return rpcJson(wrapped);
         }
 
@@ -822,7 +829,6 @@ public class SolonClawCodeExecutionSkills {
                             Integer.valueOf(maxStdoutChars()));
             Map<String, Object> result = normalizeWebSearchDocument(doc, query, limit);
             result.put("status", "success");
-            result.put("success", Boolean.TRUE);
             return result;
         }
 
@@ -853,13 +859,11 @@ public class SolonClawCodeExecutionSkills {
                 result.put("content", doc == null ? "" : StrUtil.nullToEmpty(doc.getContent()));
                 result.put("error", null);
                 result.put("status", "success");
-                result.put("success", Boolean.TRUE);
             } catch (Exception e) {
                 result.put("title", url);
                 result.put("content", "");
                 result.put("error", safeErrorText(e));
                 result.put("status", "error");
-                result.put("success", Boolean.FALSE);
             }
             return result;
         }
@@ -884,7 +888,8 @@ public class SolonClawCodeExecutionSkills {
                         return webSearchResult(web);
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("execute_code websearch document is not structured JSON; using fallback item", e);
             }
             List<Map<String, Object>> web = new ArrayList<Map<String, Object>>();
             Map<String, Object> item = new LinkedHashMap<String, Object>();
@@ -1120,19 +1125,9 @@ public class SolonClawCodeExecutionSkills {
             if (map == null || map.containsKey("status")) {
                 return;
             }
-            Object success = map.get("success");
-            if (Boolean.TRUE.equals(success)) {
-                map.put("status", "success");
-                return;
-            }
-            if (Boolean.FALSE.equals(success)) {
-                map.put("status", "error");
-                return;
-            }
             Object error = map.get("error");
             if (error != null && StrUtil.isNotBlank(String.valueOf(error))) {
                 map.put("status", "error");
-                map.put("success", Boolean.FALSE);
             }
         }
 
@@ -1217,7 +1212,6 @@ public class SolonClawCodeExecutionSkills {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("error", safeText(StrUtil.blankToDefault(error, "Tool execution failed")));
             result.put("status", "error");
-            result.put("success", Boolean.FALSE);
             return result;
         }
 
@@ -1370,20 +1364,22 @@ public class SolonClawCodeExecutionSkills {
             }
             try {
                 if (Files.isDirectory(path)) {
-                    Files.list(path)
-                            .forEach(
-                                    child -> {
-                                        deleteQuietly(child);
-                                    });
+                    try (java.util.stream.Stream<Path> children = Files.list(path)) {
+                        children.forEach(
+                                child -> {
+                                    deleteQuietly(child);
+                                });
+                    }
                 }
                 Files.deleteIfExists(path);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("execute_code staging cleanup failed for {}", path, e);
             }
         }
     }
 
     /** 承载安全Python技能相关状态和辅助逻辑。 */
-    public static class SafePythonSkill extends PythonSkill {
+    public static class SafePythonSkill extends PythonTalent {
         /** 注入安全策略服务，用于调用对应业务能力。 */
         private final SecurityPolicyService securityPolicyService;
 
@@ -1423,7 +1419,7 @@ public class SolonClawCodeExecutionSkills {
     }
 
     /** 承载安全Nodejs技能相关状态和辅助逻辑。 */
-    public static class SafeNodejsSkill extends NodejsSkill {
+    public static class SafeNodejsSkill extends NodejsTalent {
         /** 注入安全策略服务，用于调用对应业务能力。 */
         private final SecurityPolicyService securityPolicyService;
 
@@ -1537,6 +1533,14 @@ public class SolonClawCodeExecutionSkills {
                 SecurityPolicyService.FileVerdict fileVerdict =
                         securityPolicyService.checkCommandPaths(code);
                 if (!fileVerdict.isAllowed()) {
+                    if (fileVerdict.isApprovalRequired()) {
+                        throw new IllegalArgumentException(
+                                "APPROVAL_REQUIRED: "
+                                        + fileVerdict.getMessage()
+                                        + " path="
+                                        + redactPath(fileVerdict.getPath(), 400)
+                                        + "。请先在对话审批该单次操作。");
+                    }
                     throw new IllegalArgumentException(
                             blockedFileMessage(approvalToolName, fileVerdict));
                 }
@@ -1545,6 +1549,14 @@ public class SolonClawCodeExecutionSkills {
                 SecurityPolicyService.UrlVerdict urlVerdict =
                         securityPolicyService.checkCommandUrls(code);
                 if (!urlVerdict.isAllowed()) {
+                    if (urlVerdict.isApprovalRequired()) {
+                        throw new IllegalArgumentException(
+                                "APPROVAL_REQUIRED: "
+                                        + urlVerdict.getMessage()
+                                        + " url="
+                                        + SecretRedactor.maskUrl(urlVerdict.getUrl())
+                                        + "。请先在对话审批该单次操作。");
+                    }
                     throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
                 }
             }
@@ -1671,8 +1683,19 @@ public class SolonClawCodeExecutionSkills {
                 + "\n工具："
                 + toolName
                 + "\n路径："
-                + SecretRedactor.redact(verdict.getPath(), 400)
+                + redactPath(verdict.getPath(), 400)
                 + "\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。";
+    }
+
+    /**
+     * 脱敏代码执行安全拒绝消息中的敏感路径。
+     *
+     * @param path 原始路径。
+     * @param maxLength 最大展示长度。
+     * @return 返回脱敏后的路径。
+     */
+    private static String redactPath(String path, int maxLength) {
+        return SecretRedactor.redactSensitivePaths(SecretRedactor.redact(path, maxLength));
     }
 
     /**
@@ -1724,7 +1747,7 @@ public class SolonClawCodeExecutionSkills {
     /** 判断全局工具安全策略是否允许跳过可审批危险规则；hardline 和前台保护仍在此前执行。 */
     private static boolean isSoftDangerousRuleBypassEnabled(
             DangerousCommandApprovalService approvalService) {
-        return approvalService != null && "off".equals(approvalService.approvalMode());
+        return approvalService != null && "bypass".equals(approvalService.guardrailMode());
     }
 
     /**
@@ -1735,8 +1758,8 @@ public class SolonClawCodeExecutionSkills {
      * @return 返回读取到的进程Text。
      */
     private static String readProcessText(java.io.InputStream inputStream, int maxChars) {
-        try {
-            InputStreamReader reader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+        try (InputStreamReader reader =
+                new InputStreamReader(inputStream, StandardCharsets.UTF_8)) {
             StringBuilder buffer = new StringBuilder();
             int maxReadChars = Math.max(1024, maxChars * 2);
             char[] chars = new char[4096];

@@ -5,20 +5,24 @@ import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 
 /** Dashboard 定时任务管理服务。 */
 public class DashboardCronService {
     /** API最大名称LENGTH的统一常量值。 */
     private static final int API_MAX_NAME_LENGTH = 200;
+
+    /** 定时任务接口时间格式，保持原有本地时区偏移输出。 */
+    private static final DateTimeFormatter ISO_OFFSET_SECONDS_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX").withZone(ZoneId.systemDefault());
 
     /** API最大提示词LENGTH的统一常量值。 */
     private static final int API_MAX_PROMPT_LENGTH = 5000;
@@ -558,9 +562,7 @@ public class DashboardCronService {
      * @return 返回iso结果。
      */
     private String iso(long epochMillis) {
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-        format.setTimeZone(TimeZone.getDefault());
-        return format.format(new Date(epochMillis));
+        return ISO_OFFSET_SECONDS_FORMATTER.format(Instant.ofEpochMilli(epochMillis));
     }
 
     /**

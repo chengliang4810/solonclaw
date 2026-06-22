@@ -67,7 +67,7 @@ public class AgentRuntimeService {
     }
 
     /**
-     * 构建默认 Agent 运行范围，直接映射 runtime 根目录。
+     * 构建默认 Agent 运行范围，默认工作区来自 solonclaw.workspace。
      *
      * @return 返回默认 Agent 的运行范围快照。
      */
@@ -75,10 +75,10 @@ public class AgentRuntimeService {
         AgentRuntimeScope scope = new AgentRuntimeScope();
         scope.setAgentName(AgentRuntimeScope.DEFAULT_AGENT);
         scope.setDisplayName("默认 Agent");
-        scope.setDescription("映射 runtime 根目录的默认行为");
+        scope.setDescription("映射默认工作区的行为");
         scope.setDefaultAgent(true);
         scope.setAgentHomeDir(appConfig.getRuntime().getHome());
-        scope.setWorkspaceDir(appConfig.getRuntime().getHome());
+        scope.setWorkspaceDir(appConfig.getWorkspace().getDir());
         scope.setSkillsDir(appConfig.getRuntime().getSkillsDir());
         scope.setCacheDir(appConfig.getRuntime().getCacheDir());
         scope.setAllowedToolsJson("[]");

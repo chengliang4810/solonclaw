@@ -153,7 +153,7 @@ public class AgentMechanismTest {
 
         assertThat(names).containsExactly("read_file", "skills_list");
         assertThat(joinedTools).contains("SolonClawFileReadWriteSkill", "SkillsListTool");
-        assertThat(joinedTools).doesNotContain("ShellSkill", "WebsearchTool", "TodoTools");
+        assertThat(joinedTools).doesNotContain("ShellTalent", "WebsearchTalent", "TodoTools");
     }
 
     @Test
@@ -292,7 +292,7 @@ public class AgentMechanismTest {
         String response = tools.agentManage("show missing-ghp_1234567890abcdef");
 
         assertThat(response)
-                .contains("\"success\":false")
+                .contains("\"status\":\"error\"")
                 .contains("missing-ghp_***")
                 .doesNotContain("ghp_1234567890abcdef");
     }
@@ -375,14 +375,14 @@ public class AgentMechanismTest {
 
             InMemoryChatSession chatSession = new InMemoryChatSession(session.getSessionId());
             if (StrUtil.isNotBlank(session.getNdjson())) {
-                chatSession.loadNdjson(session.getNdjson());
+                chatSession.addMessage(ChatMessage.fromNdjson(session.getNdjson()));
             }
             chatSession.addMessage(ChatMessage.ofUser(userMessage));
             chatSession.addMessage(ChatMessage.ofAssistant("model=" + resolved.getModel()));
 
             LlmResult result = new LlmResult();
             result.setAssistantMessage(new AssistantMessage("model=" + resolved.getModel()));
-            result.setNdjson(chatSession.toNdjson());
+            result.setNdjson(ChatMessage.toNdjson(chatSession.getMessages()));
             result.setRawResponse("fake");
             result.setProvider(resolved.getProvider());
             result.setModel(resolved.getModel());

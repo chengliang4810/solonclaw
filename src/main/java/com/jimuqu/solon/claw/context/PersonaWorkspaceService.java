@@ -36,7 +36,7 @@ public class PersonaWorkspaceService {
      * @param appConfig 应用运行配置。
      */
     public PersonaWorkspaceService(AppConfig appConfig) {
-        this.workspaceDir = FileUtil.file(appConfig.getRuntime().getHome());
+        this.workspaceDir = FileUtil.file(appConfig.getWorkspace().getDir());
         this.memoryDir = FileUtil.file(this.workspaceDir, ContextFileConstants.MEMORY_DIR);
         mkdirIfPossible(this.workspaceDir, "persona workspace");
         mkdirIfPossible(this.memoryDir, "persona memory");

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -178,8 +179,8 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
         assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approve");
         assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("global");
-        assertThat(config.getApprovals().getMode()).isEqualTo("off");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("approve");
+        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approve");
         assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(45);
         assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(120);
         assertThat(config.getCompression().isEnabled()).isFalse();
@@ -212,55 +213,6 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldIgnoreLegacyRuntimeConfigKeys() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-legacy-config").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "jimuqu:\n"
-                        + "  terminal:\n"
-                        + "    credentialFiles:\n"
-                        + "      - credentials/legacy.json\n"
-                        + "    envPassthrough:\n"
-                        + "      - LEGACY_TOKEN\n"
-                        + "    sudoPassword: legacy-pass\n"
-                        + "    writeSafeRoot: /legacy/root\n"
-                        + "  security:\n"
-                        + "    allowPrivateUrls: false\n"
-                        + "  approvals:\n"
-                        + "    mode: off\n"
-                        + "tool_output:\n"
-                        + "  max_bytes: 9\n"
-                        + "  turn_budget_bytes: 10\n"
-                        + "  max_lines: 11\n"
-                        + "  max_line_length: 12\n"
-                        + "browser:\n"
-                        + "  rewrite_loopback_urls: true\n"
-                        + "  loopback_host_alias: legacy.host\n"
-                        + "web:\n"
-                        + "  search_backend: ddgs\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getTerminal().getCredentialFiles()).isEmpty();
-        assertThat(config.getTerminal().getEnvPassthrough()).isEmpty();
-        assertThat(config.getTerminal().getSudoPassword()).isBlank();
-        assertThat(config.getTerminal().getWriteSafeRoot()).isBlank();
-        assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(50000);
-        assertThat(config.getTask().getToolOutputTurnBudget()).isEqualTo(200000);
-        assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(2000);
-        assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(2000);
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
-        assertThat(config.getSecurity().isRewriteBrowserLoopbackUrls()).isFalse();
-        assertThat(config.getSecurity().getBrowserLoopbackHostAlias())
-                .isEqualTo("host.docker.internal");
-        assertThat(config.getWeb().getSearchBackend()).isEqualTo("solon-ai");
-        assertThat(config.getApprovals().getMode()).isEqualTo("off");
-    }
-
-    @Test
     void shouldFallbackInvalidWeixinTextBatchDelaysToDefaults() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-weixin-text-batch").toFile();
         File configFile = new File(runtimeHome, "config.yml");
@@ -283,29 +235,6 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldIgnoreLegacyToolOutputAliases() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "tool_output:\n"
-                        + "  max_bytes: 12345\n"
-                        + "  turn_budget_bytes: 67890\n"
-                        + "  max_lines: 2345\n"
-                        + "  max_line_length: 3456\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(50000);
-        assertThat(config.getTask().getToolOutputTurnBudget()).isEqualTo(200000);
-        assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(2000);
-        assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(2000);
-    }
-
-    @Test
     void shouldExcludeEnvrcFromDefaultRollbackCheckpoints() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-rollback-defaults").toFile();
 
@@ -315,20 +244,6 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getRollback().getExcludePatterns()).contains(".env", ".envrc", ".env.*");
-    }
-
-    @Test
-    void shouldIgnoreLegacyWebSearchBackendConfigKey() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-web-ddgs").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String("web:\n  search_backend: ddgs\n", configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getWeb().getSearchBackend()).isEqualTo("solon-ai");
     }
 
     @Test
@@ -394,22 +309,6 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldIgnoreLegacyToolOutputSectionWhenItIsNotMap() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-section").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String("tool_output: nonsense\n", configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(50000);
-        assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(2000);
-        assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(2000);
-    }
-
-    @Test
     void shouldLoadCanonicalTerminalCredentialFiles() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-terminal-config").toFile();
         File configFile = new File(runtimeHome, "config.yml");
@@ -433,44 +332,18 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldIgnoreScopedJimuquTerminalAliases() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-terminal-config").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "jimuqu:\n"
-                        + "  terminal:\n"
-                        + "    credential_files:\n"
-                        + "      - credentials/jimuqu-token.json\n"
-                        + "    env_passthrough:\n"
-                        + "      - TENOR_API_KEY\n"
-                        + "    sudo_password: Jimuqu-pass\n"
-                        + "    write_safe_root: D:/workspace/jimuqu-safe\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getTerminal().getCredentialFiles()).isEmpty();
-        assertThat(config.getTerminal().getEnvPassthrough()).isEmpty();
-        assertThat(config.getTerminal().getSudoPassword()).isBlank();
-        assertThat(config.getTerminal().getWriteSafeRoot()).isBlank();
-    }
-
-    @Test
     void shouldLoadCanonicalScopedTerminalKeys() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-legacy-terminal-config").toFile();
+        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-current-config").toFile();
         File configFile = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  terminal:\n"
                         + "    credentialFiles:\n"
-                        + "      - credentials/legacy-token.json\n"
+                        + "      - credentials/team-token.json\n"
                         + "    envPassthrough:\n"
-                        + "      - LEGACY_API_KEY\n"
-                        + "    sudoPassword: legacy-pass\n"
-                        + "    writeSafeRoot: D:/workspace/legacy-safe\n",
+                        + "      - TENOR_API_KEY\n"
+                        + "    sudoPassword: current-pass\n"
+                        + "    writeSafeRoot: D:/workspace/current-safe\n",
                 configFile);
 
         Props props = new Props();
@@ -479,10 +352,10 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getTerminal().getCredentialFiles())
-                .containsExactly("credentials/legacy-token.json");
-        assertThat(config.getTerminal().getEnvPassthrough()).containsExactly("LEGACY_API_KEY");
-        assertThat(config.getTerminal().getSudoPassword()).isEqualTo("legacy-pass");
-        assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/legacy-safe");
+                .containsExactly("credentials/team-token.json");
+        assertThat(config.getTerminal().getEnvPassthrough()).containsExactly("TENOR_API_KEY");
+        assertThat(config.getTerminal().getSudoPassword()).isEqualTo("current-pass");
+        assertThat(config.getTerminal().getWriteSafeRoot()).isEqualTo("D:/workspace/current-safe");
     }
 
     @Test
@@ -509,21 +382,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldIgnoreApprovalsModeCompatibilityValue() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-approvals-mode").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String("approvals:\n" + "  mode: false\n", configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getApprovals().getMode()).isEqualTo("off");
-    }
-
-    @Test
-    void shouldDefaultGuardrailModesToBypass() throws Exception {
+    void shouldDefaultSecurityModesToStrictAndApproval() throws Exception {
         File runtimeHome = Files.createTempDirectory("solon-claw-guardrail-defaults").toFile();
 
         Props props = new Props();
@@ -531,12 +390,12 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("bypass");
-        assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("bypass");
-        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
-        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("bypass");
-        assertThat(config.getApprovals().getMode()).isEqualTo("off");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
+        assertThat(config.getSecurity().isTirithFailOpen()).isFalse();
+        assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("strict");
+        assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("strict");
+        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("approval");
+        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("strict");
     }
 
     @Test
@@ -555,8 +414,28 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
         assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approval");
         assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("job");
-        assertThat(config.getApprovals().getMode()).isEqualTo("off");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("approval");
+        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approval");
+    }
+
+    @Test
+    void shouldRejectUnsupportedGuardrailModeValues() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-guardrail-invalid").toFile();
+        File configFile = new File(runtimeHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "security:\n"
+                        + "  fileGuardrailMode: loose\n"
+                        + "  guardrailMode: supervise\n"
+                        + "  guardrailCronMode: queue\n"
+                        + "  guardrailCronScope: forever\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+
+        assertThatThrownBy(() -> AppConfig.load(props))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("security.fileGuardrailMode/security.urlGuardrailMode");
     }
 
     @Test
@@ -577,62 +456,6 @@ public class CoreConfigOverrideLoadTest {
 
         assertThat(config.getSecurity().getHardlineAllowlist())
                 .containsExactly("hardline_shutdown", "hardline_windows_shutdown");
-    }
-
-    @Test
-    void shouldIgnoreScopedJimuquApprovalsAliases() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-approvals").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "jimuqu:\n"
-                        + "  approvals:\n"
-                        + "    mode: off\n"
-                        + "    cron_mode: approve\n"
-                        + "    subagent_auto_approve: true\n"
-                        + "    timeout: 45\n"
-                        + "    gateway_timeout: 120\n"
-                        + "    mcp_reload_confirm: false\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getApprovals().getMode()).isEqualTo("off");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("bypass");
-        assertThat(config.getApprovals().isSubagentAutoApprove()).isFalse();
-        assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
-        assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);
-        assertThat(config.getApprovals().isMcpReloadConfirm()).isTrue();
-    }
-
-    @Test
-    void shouldIgnoreLegacyScopedApprovalsAliases() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-legacy-approvals").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "solonclaw:\n"
-                        + "  approvals:\n"
-                        + "    mode: off\n"
-                        + "    cron_mode: approve\n"
-                        + "    subagent_auto_approve: true\n"
-                        + "    timeout: 45\n"
-                        + "    gateway_timeout: 120\n"
-                        + "    mcp_reload_confirm: false\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getApprovals().getMode()).isEqualTo("off");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("bypass");
-        assertThat(config.getApprovals().isSubagentAutoApprove()).isFalse();
-        assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
-        assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);
-        assertThat(config.getApprovals().isMcpReloadConfirm()).isTrue();
     }
 
     @Test
@@ -779,73 +602,8 @@ public class CoreConfigOverrideLoadTest {
         assertThat(policy.checkUrl("http://127.0.0.1:8080/status").isAllowed()).isTrue();
         assertThat(policy.checkUrl("https://docs.blocked.example/page").isAllowed()).isFalse();
         assertThat(policy.checkUrl("https://a.tracking.example/pixel").isAllowed()).isFalse();
-        assertThat(policy.checkUrl("https://tracking.example/pixel").isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldIgnoreScopedJimuquSecurityPolicyAliases() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-jimuqu-security-policy").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "jimuqu:\n"
-                        + "  security:\n"
-                        + "    tirith_enabled: false\n"
-                        + "    tirith_path: D:/tools/tirith.exe\n"
-                        + "    tirith_timeout: 9\n"
-                        + "    tirith_fail_open: false\n"
-                        + "    website_blocklist:\n"
-                        + "      enabled: true\n"
-                        + "      domains:\n"
-                        + "        - blocked.example\n"
-                        + "      shared_files:\n"
-                        + "        - team-blocklist.txt\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().isTirithEnabled()).isTrue();
-        assertThat(config.getSecurity().getTirithPath()).isEqualTo("tirith");
-        assertThat(config.getSecurity().getTirithTimeoutSeconds()).isEqualTo(5);
-        assertThat(config.getSecurity().isTirithFailOpen()).isTrue();
-        assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isFalse();
-        assertThat(config.getSecurity().getWebsiteBlocklist().getDomains()).isEmpty();
-        assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles()).isEmpty();
-    }
-
-    @Test
-    void shouldIgnoreLegacyScopedSecurityPolicyAliases() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-legacy-security-policy").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "solonclaw:\n"
-                        + "  security:\n"
-                        + "    tirithEnabled: false\n"
-                        + "    tirithPath: D:/tools/legacy-tirith.exe\n"
-                        + "    tirithTimeoutSeconds: 9\n"
-                        + "    tirithFailOpen: false\n"
-                        + "    websiteBlocklist:\n"
-                        + "      enabled: true\n"
-                        + "      domains:\n"
-                        + "        - legacy.example\n"
-                        + "      sharedFiles:\n"
-                        + "        - legacy-blocklist.txt\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().isTirithEnabled()).isTrue();
-        assertThat(config.getSecurity().getTirithPath()).isEqualTo("tirith");
-        assertThat(config.getSecurity().getTirithTimeoutSeconds()).isEqualTo(5);
-        assertThat(config.getSecurity().isTirithFailOpen()).isTrue();
-        assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isFalse();
-        assertThat(config.getSecurity().getWebsiteBlocklist().getDomains()).isEmpty();
-        assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles()).isEmpty();
+        assertUrlApprovalRequired(
+                policy.checkUrl("https://tracking.example/pixel"), "network_external_operation");
     }
 
     @Test
@@ -860,71 +618,6 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
-    }
-
-    @Test
-    void shouldIgnoreScopedJimuquAllowPrivateUrlsAlias() throws Exception {
-        File runtimeHome =
-                Files.createTempDirectory("solon-claw-jimuqu-private-url-policy").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "jimuqu:\n" + "  security:\n" + "    allow_private_urls: true\n", configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
-    }
-
-    @Test
-    void shouldIgnoreLegacyScopedAllowPrivateUrlsAlias() throws Exception {
-        File runtimeHome =
-                Files.createTempDirectory("solon-claw-legacy-private-url-policy").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "solonclaw:\n" + "  security:\n" + "    allow_private_urls: false\n", configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
-    }
-
-    @Test
-    void shouldIgnoreBrowserAllowPrivateUrlsFallback() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-browser-private-url").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String("browser:\n" + "  allow_private_urls: true\n", configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
-    }
-
-    @Test
-    void shouldIgnoreLegacySecurityAllowPrivateUrlsSnakeCaseAndBrowserFallback() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-private-url-precedence").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "security:\n"
-                        + "  allow_private_urls: false\n"
-                        + "browser:\n"
-                        + "  allow_private_urls: true\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
     }
 
     @Test
@@ -953,5 +646,12 @@ public class CoreConfigOverrideLoadTest {
         protected InetAddress[] resolveHost(String host) throws Exception {
             return new InetAddress[] {InetAddress.getByName(ip)};
         }
+    }
+
+    private static void assertUrlApprovalRequired(
+            SecurityPolicyService.UrlVerdict verdict, String policyKey) {
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.isApprovalRequired()).isTrue();
+        assertThat(verdict.getPolicyKey()).isEqualTo(policyKey);
     }
 }

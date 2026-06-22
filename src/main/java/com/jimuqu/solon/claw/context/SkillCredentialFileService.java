@@ -13,9 +13,14 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /** 提供技能凭据文件相关业务能力，封装调用方不需要感知的运行细节。 */
 public class SkillCredentialFileService {
+    /** 技能凭据文件服务的低敏日志记录器。 */
+    private static final Logger LOG =
+            Logger.getLogger(SkillCredentialFileService.class.getName());
+
     /** 默认CONTAINER基础的统一常量值。 */
     private static final String DEFAULT_CONTAINER_BASE = "/root/.solon-claw";
 
@@ -524,7 +529,12 @@ public class SkillCredentialFileService {
         try {
             Path path = file.toPath();
             return Files.isSymbolicLink(path);
-        } catch (Exception ignored) {
+        } catch (RuntimeException e) {
+            LOG.fine(
+                    "技能凭据文件符号链接检测失败，已按普通文件处理：file="
+                            + file.getName()
+                            + ", errorType="
+                            + e.getClass().getSimpleName());
             return false;
         }
     }
@@ -1051,7 +1061,8 @@ public class SkillCredentialFileService {
                     "path",
                     "registered".equals(status)
                             ? relativePath
-                            : SecretRedactor.redact(relativePath, 400));
+                            : SecretRedactor.redactSensitivePaths(
+                                    SecretRedactor.redact(relativePath, 400)));
             map.put("container_path", containerPath);
             map.put("status", status);
             map.put("reason", reason);

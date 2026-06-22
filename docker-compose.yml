@@ -10,6 +10,16 @@ services:
     environment:
       # 标记官方镜像运行环境，保持 Docker root guard 与诊断输出一致。
       SOLONCLAW_OFFICIAL_DOCKER_IMAGE: "1"
+    security_opt:
+      # 禁止容器内进程通过 setuid 等路径获得额外权限。
+      - no-new-privileges:true
+    cap_drop:
+      # 默认丢弃 Linux capabilities，降低工具执行被利用后的容器逃逸风险。
+      - ALL
+    read_only: true
+    tmpfs:
+      # 只读根文件系统下为 JVM、脚本工具和临时文件处理提供受限临时目录。
+      - /tmp
     volumes:
       # runtime 目录持久化保存配置、SQLite 数据、日志、缓存、技能和上下文文件。
       - ./runtime:/app/runtime

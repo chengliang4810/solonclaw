@@ -11,12 +11,24 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.noear.snack4.ONode;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.net.websocket.WebSocket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Dashboard 访问控制与 token 注入服务。 */
 public class DashboardAuthService {
+    /** 记录 Dashboard 鉴权安全日志。 */
+    private static final Logger log = LoggerFactory.getLogger(DashboardAuthService.class);
+
+    /** 默认弱口令常量，仅用于诊断告警，不能作为空配置回退令牌。 */
+    private static final String DEFAULT_WEAK_TOKEN = "admin";
+
+    /** 避免默认弱口令告警在测试或热刷新时刷屏。 */
+    private static final AtomicBoolean WEAK_TOKEN_WARNING_LOGGED = new AtomicBoolean(false);
+
     /** 公开API路径列表的统一常量值。 */
     private static final List<String> PUBLIC_API_PATHS =
             Collections.unmodifiableList(
@@ -40,6 +52,7 @@ public class DashboardAuthService {
      */
     public DashboardAuthService(AppConfig appConfig) {
         this.appConfig = appConfig;
+        warnWeakDefaultTokenIfNeeded();
     }
 
     /**
@@ -156,22 +169,13 @@ public class DashboardAuthService {
     }
 
     /**
-     * 执行injecttoken相关逻辑。
+     * 返回原始页面内容，避免把 Dashboard 访问令牌注入到浏览器全局变量。
      *
-     * @param html html 参数。
-     * @return 返回inject token结果。
+     * @param html Dashboard 前端页面内容。
+     * @return 返回未携带访问令牌的页面内容。
      */
     public String injectToken(String html) {
-        String token = accessToken();
-        if (StrUtil.isBlank(token)) {
-            return html;
-        }
-        String script =
-                "<script>window.__APP_SESSION_TOKEN__=\"" + escapeJs(token) + "\";</script>";
-        if (html.contains("</head>")) {
-            return html.replace("</head>", script + "</head>");
-        }
-        return script + html;
+        return html;
     }
 
     /**
@@ -225,6 +229,23 @@ public class DashboardAuthService {
             }
             revealTimestamps.add(now);
             return true;
+        }
+    }
+
+    /**
+     * 判断 Dashboard 是否配置了默认弱令牌。
+     *
+     * @return 若令牌仍为 admin 则返回 true，调用方应展示明显安全告警。
+     */
+    public boolean hasWeakDefaultToken() {
+        return DEFAULT_WEAK_TOKEN.equals(accessToken());
+    }
+
+    /** 对显式配置的 Dashboard 默认弱口令输出一次明显告警。 */
+    private void warnWeakDefaultTokenIfNeeded() {
+        if (hasWeakDefaultToken() && WEAK_TOKEN_WARNING_LOGGED.compareAndSet(false, true)) {
+            log.warn(
+                    "Dashboard access token is the default weak value 'admin'; set solonclaw.dashboard.accessToken to a high-entropy secret before remote exposure.");
         }
     }
 
@@ -352,7 +373,7 @@ public class DashboardAuthService {
                 appConfig == null || appConfig.getDashboard() == null
                         ? ""
                         : StrUtil.nullToEmpty(appConfig.getDashboard().getAccessToken());
-        return StrUtil.isBlank(configured) ? "admin" : configured;
+        return configured.trim();
     }
 
     /** 按大小写不敏感方式读取 WebSocket 握手参数或请求头。 */
@@ -387,16 +408,4 @@ public class DashboardAuthService {
         }
     }
 
-    /**
-     * 转义Js。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回escape Js结果。
-     */
-    private String escapeJs(String value) {
-        return StrUtil.nullToEmpty(value)
-                .replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("<", "\\u003c");
-    }
 }

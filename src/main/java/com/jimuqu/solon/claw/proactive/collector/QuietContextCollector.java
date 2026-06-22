@@ -18,9 +18,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /** 静默上下文观测采集器，用于为主动协作决策提供 home channel、静默时间和活跃运行门控信号。 */
 public class QuietContextCollector implements ProactiveObservationCollector {
+    /** 静默上下文采集器的低敏日志记录器。 */
+    private static final Logger LOG = Logger.getLogger(QuietContextCollector.class.getName());
+
     /** 采集器稳定名称，用于观测来源、排障和后续硬门控识别。 */
     public static final String COLLECTOR_NAME = "quiet_context";
 
@@ -108,7 +112,10 @@ public class QuietContextCollector implements ProactiveObservationCollector {
                     break;
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOG.fine(
+                    "主动协作活跃运行读取失败，已按无活跃运行继续：errorType="
+                            + e.getClass().getSimpleName());
             return result;
         }
         return result;

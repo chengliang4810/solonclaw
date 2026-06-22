@@ -24,6 +24,7 @@ import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -34,16 +35,21 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import org.noear.solon.ai.chat.prompt.Prompt;
-import org.noear.solon.ai.chat.skill.Skill;
+import org.noear.solon.ai.chat.talent.Talent;
 import org.noear.solon.ai.chat.tool.FunctionTool;
 import org.noear.solon.ai.chat.tool.FunctionToolDesc;
 import org.noear.solon.ai.chat.tool.ToolProvider;
-import org.noear.solon.ai.skills.sys.ShellSkill;
-import org.noear.solon.ai.skills.sys.SystemClockSkill;
-import org.noear.solon.ai.skills.toolgateway.ToolGatewaySkill;
+import org.noear.solon.ai.talents.sys.ShellTalent;
+import org.noear.solon.ai.talents.sys.SystemClockTalent;
+import org.noear.solon.ai.talents.gateway.ToolGatewayTalent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 默认工具注册表。 */
 public class DefaultToolRegistry implements ToolRegistry {
+    /** 记录工具偏好写入失败的低敏诊断日志，不输出来源正文或配置内容。 */
+    private static final Logger log = LoggerFactory.getLogger(DefaultToolRegistry.class);
+
     /** 默认内置工具清单。 */
     private static final List<String> TOOL_NAMES =
             Arrays.asList(
@@ -90,8 +96,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
-                    "web_search",
-                    "web_extract",
                     ToolNameConstants.IMAGE_GENERATE,
                     ToolNameConstants.TEXT_TO_SPEECH,
                     ToolNameConstants.SPEECH_TRANSCRIBE,
@@ -146,6 +150,9 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** 文件/URL 安全策略。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 危险或外部操作审批服务。 */
+    private final DangerousCommandApprovalService approvalService;
 
     /** MCP 运行时工具发现服务。 */
     private final McpRuntimeService mcpRuntimeService;
@@ -216,13 +223,14 @@ public class DefaultToolRegistry implements ToolRegistry {
                 attachmentCacheService,
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
+                (SecurityPolicyService) null,
+                (DangerousCommandApprovalService) null,
+                (ProcessRegistry) null,
+                (McpRuntimeService) null,
+                (BrowserRuntimeService) null,
+                (ImageGenerationService) null,
+                (SpeechService) null,
+                (List<ToolRegistration>) null);
     }
 
     /**
@@ -279,12 +287,13 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
+                (DangerousCommandApprovalService) null,
+                (ProcessRegistry) null,
+                (McpRuntimeService) null,
+                (BrowserRuntimeService) null,
+                (ImageGenerationService) null,
+                (SpeechService) null,
+                (List<ToolRegistration>) null);
     }
 
     /**
@@ -343,12 +352,13 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                null,
+                (DangerousCommandApprovalService) null,
+                (ProcessRegistry) null,
                 mcpRuntimeService,
-                null,
-                null,
-                null,
-                null);
+                (BrowserRuntimeService) null,
+                (ImageGenerationService) null,
+                (SpeechService) null,
+                (List<ToolRegistration>) null);
     }
 
     /**
@@ -409,12 +419,13 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
+                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
-                null,
-                null,
-                null,
-                null);
+                (BrowserRuntimeService) null,
+                (ImageGenerationService) null,
+                (SpeechService) null,
+                (List<ToolRegistration>) null);
     }
 
     /**
@@ -479,12 +490,13 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
+                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
-                null,
+                (BrowserRuntimeService) null,
                 imageGenerationService,
                 speechService,
-                null);
+                (List<ToolRegistration>) null);
     }
 
     /**
@@ -547,12 +559,13 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
+                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
                 browserRuntimeService,
-                null,
-                null,
-                null);
+                (ImageGenerationService) null,
+                (SpeechService) null,
+                (List<ToolRegistration>) null);
     }
 
     /**
@@ -615,11 +628,12 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
+                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
-                null,
-                null,
-                null,
+                (BrowserRuntimeService) null,
+                (ImageGenerationService) null,
+                (SpeechService) null,
                 pluginTools);
     }
 
@@ -687,12 +701,13 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
+                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
-                null);
+                (List<ToolRegistration>) null);
     }
 
     /**
@@ -738,6 +753,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             RuntimeSettingsService runtimeSettingsService,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService approvalService,
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService,
             BrowserRuntimeService browserRuntimeService,
@@ -760,6 +776,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.runtimeSettingsService = runtimeSettingsService;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.securityPolicyService = securityPolicyService;
+        this.approvalService = approvalService;
         this.mcpRuntimeService = mcpRuntimeService;
         this.processRegistry = processRegistry;
         this.browserRuntimeService =
@@ -775,6 +792,9 @@ public class DefaultToolRegistry implements ToolRegistry {
                 pluginTools == null
                         ? Collections.<ToolRegistration>emptyList()
                         : new ArrayList<ToolRegistration>(pluginTools);
+        if (this.approvalService != null) {
+            this.approvalService.setExternalNetworkPluginTools(pluginToolNames());
+        }
     }
 
     /**
@@ -845,7 +865,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         SolonClawPatchTools patchTools =
                 new SolonClawPatchTools(sysWorkDir, securityPolicyService, fileStateTracker);
         ProcessRegistry activeProcessRegistry = resolveProcessRegistry();
-        ShellSkill shellSkill =
+        ShellTalent shellSkill =
                 new SolonClawShellSkill(
                         sysWorkDir, appConfig, securityPolicyService, activeProcessRegistry);
         ProcessTools processTools =
@@ -859,11 +879,11 @@ public class DefaultToolRegistry implements ToolRegistry {
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCodeTool =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
                         sysWorkDir, defaultPythonCommand(), securityPolicyService, appConfig);
-        SystemClockSkill systemClockSkill = new SystemClockSkill();
+        SystemClockTalent systemClockSkill = new SystemClockTalent();
         SolonClawWebTools.SafeWebsearchTool websearchTool =
                 new SolonClawWebTools.SafeWebsearchTool(
                         securityPolicyService,
-                        org.noear.solon.ai.skills.web.WebsearchTool.getInstance(),
+                        new org.noear.solon.ai.talents.web.WebsearchTalent(),
                         appConfig);
         SolonClawWebTools.SafeWebfetchTool webfetchTool =
                 new SolonClawWebTools.SafeWebfetchTool(securityPolicyService);
@@ -970,12 +990,12 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(agentTools);
             } else if (ToolNameConstants.DELEGATE_TASK.equals(toolName)) {
                 tools.add(delegateTools);
-            } else if (ToolNameConstants.WEBSEARCH.equals(toolName) || "web_search".equals(toolName)) {
+            } else if (ToolNameConstants.WEBSEARCH.equals(toolName)) {
                 if (!websearchToolAdded) {
                     tools.add(websearchTool);
                     websearchToolAdded = true;
                 }
-            } else if (ToolNameConstants.WEBFETCH.equals(toolName) || "web_extract".equals(toolName)) {
+            } else if (ToolNameConstants.WEBFETCH.equals(toolName)) {
                 if (!webfetchToolAdded) {
                     tools.add(webfetchTool);
                     webfetchToolAdded = true;
@@ -1001,7 +1021,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         }
         if (isGatewayEnabled(sourceKey, agentScope)) {
             gatewayCandidates.addAll(tools);
-            ToolGatewaySkill gatewaySkill = buildToolGateway(gatewayCandidates);
+            ToolGatewayTalent gatewaySkill = buildToolGateway(gatewayCandidates);
             if (gatewaySkill != null) {
                 tools.add(gatewaySkill);
             }
@@ -1033,19 +1053,19 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param candidates candidates标识或键值。
      * @return 返回创建好的工具消息网关。
      */
-    private ToolGatewaySkill buildToolGateway(List<Object> candidates) {
-        ToolGatewaySkill gateway =
-                new ToolGatewaySkill().dynamicThreshold(0).listThreshold(40).searchThreshold(100);
+    private ToolGatewayTalent buildToolGateway(List<Object> candidates) {
+        ToolGatewayTalent gateway =
+                new ToolGatewayTalent().dynamicThreshold(0).listThreshold(40).searchThreshold(100);
         boolean added = false;
         for (Object candidate : candidates) {
-            if (candidate == null || candidate instanceof ToolGatewaySkill) {
+            if (candidate == null || candidate instanceof ToolGatewayTalent) {
                 continue;
             }
             if (candidate instanceof ToolProvider) {
                 gateway.addTool((ToolProvider) candidate);
                 added = true;
-            } else if (candidate instanceof Skill) {
-                for (FunctionTool tool : ((Skill) candidate).getTools(Prompt.of(""))) {
+            } else if (candidate instanceof Talent) {
+                for (FunctionTool tool : ((Talent) candidate).getTools(Prompt.of(""))) {
                     gateway.addTool(tool);
                     added = true;
                 }
@@ -1193,8 +1213,12 @@ public class DefaultToolRegistry implements ToolRegistry {
     private void setToolEnabled(String sourceKey, String toolName, boolean enabled) {
         try {
             preferenceStore.setToolEnabled(sourceKey, toolName, enabled);
-        } catch (SQLException ignored) {
-            // V1 忽略偏好写入失败。
+        } catch (SQLException e) {
+            log.warn("工具启用偏好写入失败 source={} tool={} enabled={} error={}",
+                    SecretRedactor.redact(sourceKey, 120),
+                    SecretRedactor.redact(toolName, 120),
+                    Boolean.valueOf(enabled),
+                    e.getClass().getSimpleName());
         }
     }
 
@@ -1217,7 +1241,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         if (agentScope != null && StrUtil.isNotBlank(agentScope.getWorkspaceDir())) {
             return agentScope.getWorkspaceDir();
         }
-        return appConfig.getRuntime().getHome();
+        return appConfig.getWorkspace().getDir();
     }
 
     /**

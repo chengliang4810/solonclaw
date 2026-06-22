@@ -49,7 +49,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     private final ExecutorService promptExecutor;
     /** 复用本地终端运行时执行会话命令与用户输入。 */
     private final CliRuntime runtime;
-    /** 构造原 TUI 兼容 RPC 响应的服务。 */
+    /** 构造终端 UI RPC 响应的服务。 */
     private final TerminalUiRpcService rpcService;
     /** 复用本地终端 setup/config/doctor 命令，避免这些命令落入模型运行时。 */
     private final TerminalSetupCommands setupCommands;
@@ -262,7 +262,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
     }
 
-    /** 处理原 TUI GatewayClient 使用的 JSON-RPC 请求帧。 */
+    /** 处理终端 UI GatewayClient 使用的 JSON-RPC 请求帧。 */
     private void handleRpc(WebSocket socket, ONode node) throws Exception {
         String id = node.get("id").getString();
         String method = node.get("method").getString();
@@ -294,7 +294,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
     }
 
-    /** 将原 TUI 的 prompt.submit RPC 交给后台线程，避免阻塞同一 WebSocket 上的配置与补全 RPC。 */
+    /** 将终端 UI 的 prompt.submit RPC 交给后台线程，避免阻塞同一 WebSocket 上的配置与补全 RPC。 */
     private void handlePromptSubmit(WebSocket socket, String id, ONode params) throws Exception {
         String sessionId = params.get("session_id").getString();
         bindApprovalObserver(socket, sessionId);
@@ -313,7 +313,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                 });
     }
 
-    /** 在后台线程执行模型请求并持续向原 TUI 推送事件流。 */
+    /** 在后台线程执行模型请求并持续向终端 UI 推送事件流。 */
     private void runPromptSubmit(WebSocket socket, String sessionId, String input) {
         TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
         try {
@@ -333,7 +333,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
     }
 
-    /** 处理配置写入，并补齐原 TUI 对 skin.changed 事件的期待。 */
+    /** 处理配置写入，并补齐终端 UI 对 skin.changed 事件的期待。 */
     private void handleConfigSet(WebSocket socket, String id, ONode params) throws Exception {
         Object result =
                 rpcService.configSet(
@@ -347,7 +347,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
 
-    /** 根据 RPC 方法名生成原 TUI 前端所需的响应载荷。 */
+    /** 根据 RPC 方法名生成终端 UI 前端所需的响应载荷。 */
     private Object rpcResult(String method, ONode params) throws Exception {
         if ("setup.status".equals(method)) {
             return rpcService.setupStatus();
@@ -527,7 +527,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         throw new IllegalArgumentException(method + " is not available in the current backend");
     }
 
-    /** 执行原 TUI 透传到后端的 slash 命令。 */
+    /** 执行终端 UI 透传到后端的 slash 命令。 */
     private Map<String, Object> slashExec(ONode params) throws Exception {
         String normalized = StrUtil.nullToEmpty(params.get("command").getString()).trim();
         String sessionId = params.get("session_id").getString();
@@ -561,7 +561,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         return result;
     }
 
-    /** 将原 TUI 审批弹层选择转换为真实后端 /approve 或 /deny 流程。 */
+    /** 将终端 UI 审批弹层选择转换为真实后端 /approve 或 /deny 流程。 */
     private Map<String, Object> approvalRespond(ONode params) throws Exception {
         String sessionId = params.get("session_id").getString();
         String choice =
@@ -612,7 +612,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
     }
 
-    /** 处理原 TUI 命令分发兜底，优先复用 Java 后端统一命令服务。 */
+    /** 处理终端 UI 命令分发兜底，优先复用 Java 后端统一命令服务。 */
     private Map<String, Object> commandDispatch(ONode params) throws Exception {
         String name = StrUtil.nullToEmpty(params.get("name").getString()).trim();
         String arg = StrUtil.nullToEmpty(params.get("arg").getString()).trim();
@@ -684,13 +684,9 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         return values;
     }
 
-    /** 兼容原 TUI 在不同命令路径中使用的 checkpoint 字段名。 */
+    /** 读取终端 UI rollback RPC 的 checkpoint 标识。 */
     private String checkpointId(ONode params) {
-        String value = params.get("hash").getString();
-        if (StrUtil.isBlank(value)) {
-            value = params.get("checkpoint_id").getString();
-        }
-        return value;
+        return params.get("hash").getString();
     }
 
     /** 生成可展示给 TUI 的错误摘要，避免空异常消息造成协议错误难以诊断。 */

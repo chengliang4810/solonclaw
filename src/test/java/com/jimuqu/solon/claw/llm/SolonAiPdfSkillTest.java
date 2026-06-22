@@ -6,7 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
-import org.noear.solon.ai.skills.pdf.PdfSkill;
+import org.noear.solon.ai.talents.pdf.PdfTalent;
 
 public class SolonAiPdfSkillTest {
     @Test
@@ -16,7 +16,7 @@ public class SolonAiPdfSkillTest {
         config.getRuntime().setCacheDir(runtimeHome.resolve("cache").toAbsolutePath().toString());
 
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
-        PdfSkill pdfSkill = gateway.pdfSkill();
+        PdfTalent pdfSkill = gateway.pdfSkill();
 
         String result = pdfSkill.create("report.pdf", "# Solon PDF Test\n\nHello PDF", "markdown");
         String parsed = pdfSkill.parse("report.pdf");

@@ -106,11 +106,11 @@ public class McpPackageSecurityService {
             return SecurityVerdict.block(packageRef.name, ecosystem, malware);
         } catch (Exception e) {
             log.debug(
-                    "OSV malware check failed for {}/{} (allowing): {}",
+                    "OSV malware check failed for {}/{} (blocking): {}",
                     ecosystem,
                     packageRef.name,
                     e.getMessage());
-            return SecurityVerdict.allow();
+            return SecurityVerdict.scanError(packageRef.name, ecosystem, e);
         }
     }
 
@@ -131,11 +131,13 @@ public class McpPackageSecurityService {
         summary.put("malwareAdvisoryPrefix", "MAL-");
         summary.put("nonMalwareVulnerabilitiesIgnored", Boolean.TRUE);
         summary.put("malwareBlocksSaveAndCheck", Boolean.TRUE);
-        summary.put("requestFailureFailsOpen", Boolean.TRUE);
+        summary.put("requestFailureFailsOpen", Boolean.FALSE);
+        summary.put("requestFailureFailsClosed", Boolean.TRUE);
         summary.put("unsafeEndpointBlocksBeforeNetwork", Boolean.TRUE);
         summary.put(
                 "structuredReasons",
-                java.util.Arrays.asList("allow", "malware_advisory", "unsafe_endpoint", "blocked"));
+                java.util.Arrays.asList(
+                        "allow", "malware_advisory", "unsafe_endpoint", "scan_error", "blocked"));
         summary.put("persistedListReasonExposed", Boolean.TRUE);
         summary.put("packageVersionParsed", Boolean.TRUE);
         summary.put("scopedNpmPackageParsed", Boolean.TRUE);
@@ -149,7 +151,7 @@ public class McpPackageSecurityService {
         summary.put("endpointRedacted", Boolean.TRUE);
         summary.put(
                 "description",
-                "MCP stdio package launchers are checked against OSV malware advisories before save/check; unsafe OSV endpoints are blocked before network access and advisory messages are redacted.");
+                "MCP stdio package launchers are checked against OSV malware advisories before save/check; unsafe OSV endpoints are blocked before network access, OSV scan failures fail closed, and advisory messages are redacted.");
         return summary;
     }
 
@@ -326,7 +328,10 @@ public class McpPackageSecurityService {
                 try {
                     Object parsed = ONode.deserialize(text, Object.class);
                     return normalizeArgs(parsed);
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    log.debug(
+                            "MCP package args JSON parsing failed; falling back to whitespace split: {}",
+                            exceptionSummary(e));
                 }
             }
             for (String item : text.split("\\s+")) {
@@ -431,26 +436,47 @@ public class McpPackageSecurityService {
         }
         Map<String, String> headers = new LinkedHashMap<String, String>();
         headers.put("Content-Type", "application/json");
-        headers.put("User-Agent", "jimuqu-agent-osv-check/1.0");
+        headers.put("User-Agent", "solon-claw-osv-check/1.0");
         String body = httpClient.postJson(endpoint, headers, ONode.serialize(payload));
         Object parsed = ONode.deserialize(StrUtil.nullToEmpty(body), Object.class);
         if (!(parsed instanceof Map)) {
-            return new ArrayList<Map<String, Object>>();
+            throw new IllegalStateException("OSV response is not a JSON object");
         }
         Object vulns = ((Map<?, ?>) parsed).get("vulns");
         List<Map<String, Object>> malware = new ArrayList<Map<String, Object>>();
-        if (vulns instanceof List) {
-            for (Object item : (List<?>) vulns) {
-                if (item instanceof Map) {
-                    Map<String, Object> vuln = (Map<String, Object>) item;
-                    String id = StrUtil.nullToEmpty(String.valueOf(vuln.get("id")));
-                    if (id.startsWith("MAL-")) {
-                        malware.add(vuln);
-                    }
+        if (vulns == null) {
+            return malware;
+        }
+        if (!(vulns instanceof List)) {
+            throw new IllegalStateException("OSV response vulns field is not an array");
+        }
+        for (Object item : (List<?>) vulns) {
+            if (item instanceof Map) {
+                Map<String, Object> vuln = (Map<String, Object>) item;
+                String id = StrUtil.nullToEmpty(String.valueOf(vuln.get("id")));
+                if (id.startsWith("MAL-")) {
+                    malware.add(vuln);
                 }
             }
         }
         return malware;
+    }
+
+    /**
+     * 将 MCP 包参数解析异常压缩成单行脱敏摘要，避免 fallback 日志输出完整栈或敏感参数。
+     *
+     * @param error 参数解析过程中捕获的异常。
+     * @return 返回异常类型与脱敏消息摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "";
+        }
+        String message =
+                SecretRedactor.redact(
+                        StrUtil.blankToDefault(error.getMessage(), error.getClass().getName()),
+                        500);
+        return error.getClass().getSimpleName() + ": " + message;
     }
 
     /** 承载包Ref相关状态和辅助逻辑。 */
@@ -566,6 +592,32 @@ public class McpPackageSecurityService {
                             + reason
                             + ")",
                     "unsafe_endpoint");
+        }
+
+        /**
+         * 构建OSV扫描异常的失败关闭判定，确保包安全探测失败时不会静默放行MCP安装或检查。
+         *
+         * @param packageName MCP启动器解析出的包名。
+         * @param ecosystem OSV查询使用的包生态。
+         * @param error OSV请求或响应解析过程中的异常。
+         * @return 返回阻断安装或检查的扫描异常判定。
+         */
+        public static SecurityVerdict scanError(
+                String packageName, String ecosystem, Exception error) {
+            String detail =
+                    error == null
+                            ? "unknown error"
+                            : StrUtil.blankToDefault(
+                                    error.getMessage(), error.getClass().getSimpleName());
+            return new SecurityVerdict(
+                    false,
+                    "BLOCKED: MCP package security check failed for package '"
+                            + SecretRedactor.redact(packageName, 200)
+                            + "' ("
+                            + ecosystem
+                            + "); installation is blocked until the OSV check succeeds. Error: "
+                            + SecretRedactor.redact(detail, 500),
+                    "scan_error");
         }
 
         /**

@@ -51,7 +51,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("replace", "src/app.txt", "hello", "hi", false, null);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("status")).isEqualTo("success");
         assertThat(String.valueOf(result.get("files_modified")))
                 .contains(file.toRealPath().toString());
         assertThat(readUtf8(file))
@@ -78,7 +78,7 @@ public class SolonClawPatchToolsTest {
                         null);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("status")).isEqualTo("success");
         assertThat(result.get("resolved_path")).isEqualTo(file.toRealPath().toString());
         assertThat(readUtf8(file))
                 .isEqualTo("line_1\nline_2=new\nline_3\n");
@@ -97,7 +97,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("replace", "target.txt", "before", "after", false, null);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("status")).isEqualTo("success");
         assertThat(readUtf8(file))
                 .isEqualTo("after\n");
         assertThat(Files.getAttribute(file, "unix:ino")).isNotEqualTo(beforeKey);
@@ -113,6 +113,96 @@ public class SolonClawPatchToolsTest {
         }
     }
 
+    /** 验证 patch 工具不会把读取结果中的脱敏密钥占位符写回配置文件。 */
+    @Test
+    void shouldRejectPlaceholderSecretDowngradeWhenPatchingConfigFile() throws Exception {
+        Path dir = tempDir("patch-config-secret");
+        Path file = dir.resolve("config.yml");
+        writeUtf8(
+                file,
+                "providers:\n"
+                        + "  default:\n"
+                        + "    apiKey: sk-original-patch-secret-12345\n"
+                        + "    defaultModel: gpt-5\n");
+        SolonClawPatchTools tools = patchTools(dir);
+
+        Map<?, ?> result =
+                parseJsonMap(
+                        tools.patch(
+                                "replace",
+                                "config.yml",
+                                "    apiKey: sk-original-patch-secret-12345\n"
+                                        + "    defaultModel: gpt-5",
+                                "    apiKey: ***\n"
+                                        + "    defaultModel: gpt-5.1",
+                                false,
+                                null));
+
+        assertThat(result.get("status")).isEqualTo("error");
+        assertThat(String.valueOf(result.get("error")))
+                .contains("配置密钥占位符")
+                .contains("config_set_secret")
+                .doesNotContain("sk-original-patch-secret-12345");
+        assertThat(readUtf8(file))
+                .contains("apiKey: sk-original-patch-secret-12345")
+                .contains("defaultModel: gpt-5\n");
+    }
+
+    /** 验证 V4A 多文件补丁在预验证阶段发现配置密钥占位符，不会先写其它文件。 */
+    @Test
+    void shouldRejectPlaceholderSecretDowngradeDuringPatchValidationWithoutPartialWrites()
+            throws Exception {
+        Path dir = tempDir("patch-config-secret-atomic");
+        Path first = dir.resolve("notes.txt");
+        Path config = dir.resolve("config.yml");
+        writeUtf8(first, "before\n");
+        writeUtf8(config, "providers:\n  default:\n    apiKey: sk-original-v4a-secret-12345\n");
+        SolonClawPatchTools tools = patchTools(dir);
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Update File: notes.txt\n"
+                        + "@@ before @@\n"
+                        + "-before\n"
+                        + "+after\n"
+                        + "*** Update File: config.yml\n"
+                        + "@@ apiKey @@\n"
+                        + "-    apiKey: sk-original-v4a-secret-12345\n"
+                        + "+    apiKey: configured\n"
+                        + "*** End Patch";
+
+        Map<?, ?> result = parseJsonMap(tools.patch("patch", null, null, null, null, patch));
+
+        assertThat(result.get("status")).isEqualTo("error");
+        assertThat(String.valueOf(result.get("error")))
+                .contains("Patch validation failed")
+                .contains("配置密钥占位符")
+                .doesNotContain("sk-original-v4a-secret-12345");
+        assertThat(readUtf8(first)).isEqualTo("before\n");
+        assertThat(readUtf8(config)).contains("apiKey: sk-original-v4a-secret-12345");
+    }
+
+    /** 验证 patch 工具仍允许把旧真实密钥替换为用户提供的真实新密钥。 */
+    @Test
+    void shouldAllowRealSecretReplacementWhenPatchingConfigFile() throws Exception {
+        Path dir = tempDir("patch-config-secret-real");
+        Path file = dir.resolve("config.yml");
+        writeUtf8(file, "providers:\n  default:\n    apiKey: sk-old-patch-secret-12345\n");
+        SolonClawPatchTools tools = patchTools(dir);
+
+        Map<?, ?> result =
+                parseJsonMap(
+                        tools.patch(
+                                "replace",
+                                "config.yml",
+                                "apiKey: sk-old-patch-secret-12345",
+                                "apiKey: sk-new-patch-secret-67890",
+                                false,
+                                null));
+
+        assertThat(result.get("status")).isEqualTo("success");
+        assertThat(readUtf8(file)).contains("apiKey: sk-new-patch-secret-67890");
+    }
+
     @Test
     void shouldReportResolvedAbsolutePathForReplaceMode() throws Exception {
         Path dir = tempDir("patch");
@@ -124,7 +214,7 @@ public class SolonClawPatchToolsTest {
 
         Map<?, ?> result = parseJsonMap(json);
         String expected = file.toRealPath().toString();
-        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("status")).isEqualTo("success");
         assertThat(result.get("resolved_path")).isEqualTo(expected);
         assertThat(String.valueOf(result.get("files_modified"))).isEqualTo("[" + expected + "]");
         assertThat(String.valueOf(result.get("diff")))
@@ -152,7 +242,7 @@ public class SolonClawPatchToolsTest {
         Map<?, ?> result = parseJsonMap(tools.patch("patch", null, null, null, null, patch));
         String expected = file.toRealPath().toString();
 
-        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("status")).isEqualTo("success");
         assertThat(result.get("resolved_path")).isEqualTo(expected);
         assertThat(String.valueOf(result.get("files_modified"))).isEqualTo("[" + expected + "]");
         assertThat(readUtf8(file))
@@ -169,7 +259,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("replace", "dup.txt", "x", "y", false, null);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error"))).contains("Found 2 matches");
     }
 
@@ -193,7 +283,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("patch", null, null, null, null, patch);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("status")).isEqualTo("success");
         assertThat(String.valueOf(result.get("diff")))
                 .contains("--- /dev/null")
                 .contains("+++ b/new.txt")
@@ -204,7 +294,7 @@ public class SolonClawPatchToolsTest {
     }
 
     @Test
-    void shouldUseDevNullDiffForDeletedFilesLikeCompatibilityBehavior() throws Exception {
+    void shouldUseDevNullDiffForDeletedFiles() throws Exception {
         Path dir = tempDir("patch");
         Path file = dir.resolve("old.txt");
         writeUtf8(file, "obsolete\n");
@@ -214,7 +304,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("patch", null, null, null, null, patch);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("status")).isEqualTo("success");
         assertThat(String.valueOf(result.get("diff")))
                 .contains("--- a/old.txt")
                 .contains("+++ /dev/null")
@@ -239,7 +329,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("patch", null, null, null, null, patch);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error")))
                 .contains("Patch validation failed")
                 .contains("context hint 'def missing' not found");
@@ -263,7 +353,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("patch", null, null, null, null, patch);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error")))
                 .contains("Patch validation failed")
                 .contains("context hint 'marker' is ambiguous");
@@ -279,7 +369,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("replace", "../outside.txt", "a", "b", false, null);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error"))).contains("越权");
     }
 
@@ -296,7 +386,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("replace", "linked/secret.txt", "old", "new", false, null);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error"))).contains("符号链接").contains("沙箱外部");
         assertThat(readUtf8(outsideFile))
                 .isEqualTo("TOKEN=old\n");
@@ -312,7 +402,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("replace", ".env.production", "old", "new", false, null);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error"))).contains("BLOCKED").contains("敏感");
         assertThat(readUtf8(file))
                 .isEqualTo("TOKEN=old\n");
@@ -331,7 +421,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("patch", null, null, null, null, patch);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error")))
                 .contains("BLOCKED")
                 .contains("[REDACTED_PATH]")
@@ -367,12 +457,12 @@ public class SolonClawPatchToolsTest {
         Map<?, ?> updateMoveResult =
                 parseJsonMap(tools.patch("patch", null, null, null, null, updateMovePatch));
 
-        assertThat(moveFileResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(moveFileResult.get("status")).isEqualTo("error");
         assertThat(String.valueOf(moveFileResult.get("error")))
                 .contains("BLOCKED")
                 .contains("[REDACTED_PATH]")
                 .doesNotContain(".env.local");
-        assertThat(updateMoveResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(updateMoveResult.get("status")).isEqualTo("error");
         assertThat(String.valueOf(updateMoveResult.get("error")))
                 .contains("BLOCKED")
                 .contains("[REDACTED_PATH]")
@@ -394,7 +484,7 @@ public class SolonClawPatchToolsTest {
                         "replace", "missing-ghp_1234567890abcdef.txt", "old", "new", false, null);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error")))
                 .contains("missing-ghp_***")
                 .doesNotContain("ghp_1234567890abcdef");
@@ -414,7 +504,7 @@ public class SolonClawPatchToolsTest {
                         false,
                         null);
         Map<?, ?> replaceResult = parseJsonMap(replaceJson);
-        assertThat(replaceResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(replaceResult.get("status")).isEqualTo("error");
         assertThat(String.valueOf(replaceResult.get("error")))
                 .contains("Cannot read file")
                 .contains("missing.txt")
@@ -429,7 +519,7 @@ public class SolonClawPatchToolsTest {
                         + "+new\n"
                         + "*** End Patch";
         Map<?, ?> patchResult = parseJsonMap(tools.patch("patch", null, null, null, null, patch));
-        assertThat(patchResult.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(patchResult.get("status")).isEqualTo("error");
         assertThat(String.valueOf(patchResult.get("error")))
                 .contains("Patch validation failed")
                 .contains("missing.txt")
@@ -455,7 +545,7 @@ public class SolonClawPatchToolsTest {
                         null);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(result.get("status")).isEqualTo("success");
         assertThat(String.valueOf(result))
                 .contains("secret-ghp_***")
                 .contains("Authorization: Bearer ***")
@@ -480,7 +570,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("patch", null, null, null, null, patch);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error")))
                 .contains("Patch validation failed")
                 .contains("existing.txt")
@@ -501,7 +591,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("patch", null, null, null, null, patch);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error")))
                 .contains("patch rejected")
                 .contains("Begin Patch")
@@ -530,7 +620,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("patch", null, null, null, null, patch);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error")))
                 .contains("Patch validation failed")
                 .contains("destination.txt")
@@ -553,7 +643,7 @@ public class SolonClawPatchToolsTest {
         String json = tools.patch("patch", null, null, null, null, patch);
 
         Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error")))
                 .contains("Patch validation failed")
                 .contains("missing destination path");

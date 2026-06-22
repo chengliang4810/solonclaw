@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,9 +18,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供工具结果Storage相关业务能力，封装调用方不需要感知的运行细节。 */
 public class ToolResultStorageService {
+    /** 记录工具结果落盘与预览解析的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(ToolResultStorageService.class);
+
     /** 工具RESULTS目录的统一常量值。 */
     private static final String TOOL_RESULTS_DIR = "tool-results";
 
@@ -54,7 +60,6 @@ public class ToolResultStorageService {
                                     "bash",
                                     "browser",
                                     "codesearch",
-                                    "code_search",
                                     "execute_code",
                                     "execute_java",
                                     "execute_javascript",
@@ -71,9 +76,6 @@ public class ToolResultStorageService {
                                     "python",
                                     "shell",
                                     "terminal",
-                                    "web_extract",
-                                    "web_fetch",
-                                    "web_search",
                                     "webfetch",
                                     "websearch")));
 
@@ -122,7 +124,7 @@ public class ToolResultStorageService {
                 appConfig == null || appConfig.getRuntime() == null
                         ? null
                         : appConfig.getRuntime().getCacheDir(),
-                workspaceDir,
+                effectiveWorkspaceDir(appConfig, workspaceDir),
                 appConfig == null || appConfig.getTask() == null
                         ? 50000
                         : appConfig.getTask().getToolOutputInlineLimit(),
@@ -307,8 +309,6 @@ public class ToolResultStorageService {
      */
     private List<String> untrustedToolNames() {
         List<String> names = new ArrayList<String>(UNTRUSTED_TOOL_NAMES);
-        names.remove("web_extract");
-        names.remove("web_search");
         Collections.sort(names);
         return names;
     }
@@ -356,8 +356,9 @@ public class ToolResultStorageService {
                 Boolean truncated = node.get("truncated").getBoolean();
                 stored.setTruncated(truncated != null && truncated.booleanValue());
             }
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            restoreInterruptedStatus(e);
+            log.debug("工具结果Envelope解析失败，按原始观察结果兜底 error={}", exceptionSummary(e));
         }
         return stored;
     }
@@ -372,7 +373,7 @@ public class ToolResultStorageService {
         if (node == null || !node.isObject()) {
             return false;
         }
-        if (!node.hasKey("status") && !node.hasKey("success")) {
+        if (!node.hasKey("status")) {
             return false;
         }
         return node.hasKey("truncated") || node.hasKey("result_ref") || node.hasKey("metadata");
@@ -494,7 +495,36 @@ public class ToolResultStorageService {
         if (StrUtil.isBlank(value)) {
             return value;
         }
-        return SecretRedactor.redact(value, 1000);
+        return SecretRedactor.redactSensitivePaths(SecretRedactor.redact(value, 1000));
+    }
+
+    /**
+     * 解析工具结果可写工作区；直接 new AppConfig 时默认相对工作区尚未完成运行时标准化，不应误用为结果引用根目录。
+     *
+     * @param appConfig 应用运行配置。
+     * @param explicitWorkspaceDir 调用方显式传入的工作区目录。
+     * @return 返回可用于结果持久化的工作区目录。
+     */
+    private static String effectiveWorkspaceDir(AppConfig appConfig, String explicitWorkspaceDir) {
+        if (StrUtil.isNotBlank(explicitWorkspaceDir)) {
+            return explicitWorkspaceDir;
+        }
+        if (appConfig == null || appConfig.getWorkspace() == null) {
+            return null;
+        }
+        String configured = appConfig.getWorkspace().getDir();
+        if (StrUtil.isBlank(configured)) {
+            return null;
+        }
+        if (new File(configured).isAbsolute()) {
+            return configured;
+        }
+        if (RuntimePathConstants.DEFAULT_WORKSPACE.equals(configured)
+                && (appConfig.getRuntime() == null
+                        || StrUtil.isBlank(appConfig.getRuntime().getHome()))) {
+            return null;
+        }
+        return configured;
     }
 
     /**
@@ -522,7 +552,9 @@ public class ToolResultStorageService {
         }
         try {
             return Long.valueOf(digits);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            restoreInterruptedStatus(e);
+            log.debug("工具结果大小解析失败，按未知大小兜底 error={}", exceptionSummary(e));
             return null;
         }
     }
@@ -623,7 +655,9 @@ public class ToolResultStorageService {
             }
             Files.write(file.toPath(), bytes);
             return displayRef(file);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            restoreInterruptedStatus(e);
+            log.warn("工具结果落盘失败，按预览结果兜底 error={}", exceptionSummary(e));
             return null;
         }
     }
@@ -687,7 +721,9 @@ public class ToolResultStorageService {
                         + relative.replace(File.separatorChar, '/');
             }
             return runtimeResultRef(canonicalFile);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            restoreInterruptedStatus(e);
+            log.debug("工具结果引用规范化失败，按运行时引用兜底 error={}", exceptionSummary(e));
             return runtimeResultRef(file);
         }
     }
@@ -853,6 +889,45 @@ public class ToolResultStorageService {
      */
     private String normalizeToolName(String toolName) {
         return StrUtil.nullToEmpty(toolName).trim().replace('-', '_').toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * 生成单行脱敏异常摘要，供工具结果日志排障使用，禁止带出工具结果正文或完整路径。
+     *
+     * @param e 需要摘要化的异常对象。
+     * @return 返回单行脱敏异常摘要。
+     */
+    private static String exceptionSummary(Exception e) {
+        if (e == null) {
+            return "unknown";
+        }
+        String type = e.getClass().getSimpleName();
+        String message = StrUtil.nullToEmpty(e.getMessage()).replace('\r', ' ').replace('\n', ' ');
+        message = SecretRedactor.redactSensitivePaths(SecretRedactor.redact(message, 240));
+        if (StrUtil.isBlank(message)) {
+            return type;
+        }
+        return type + ": " + message;
+    }
+
+    /**
+     * 捕获链路中包含中断异常时恢复当前线程中断标记，避免 fallback 逻辑吞掉取消信号。
+     *
+     * @param e 当前捕获的异常对象。
+     */
+    private static void restoreInterruptedStatus(Exception e) {
+        Throwable current = e;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            Throwable next = current.getCause();
+            if (next == current) {
+                return;
+            }
+            current = next;
+        }
     }
 
     /**

@@ -12,11 +12,11 @@ import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URI;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -26,6 +26,10 @@ import org.noear.snack4.ONode;
 public class WeixinQrSetupService {
     /** 默认基础URL的统一常量值。 */
     private static final String DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
+
+    /** 微信二维码接口时间格式，保持原有本地时区偏移输出。 */
+    private static final DateTimeFormatter ISO_OFFSET_SECONDS_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX").withZone(ZoneId.systemDefault());
 
     /** GET机器人二维码ENDPO整型的统一常量值。 */
     private static final String GET_BOT_QR_ENDPOINT = "ilink/bot/get_bot_qrcode?bot_type=3";
@@ -486,9 +490,7 @@ public class WeixinQrSetupService {
         if (epochMillis <= 0) {
             return null;
         }
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-        format.setTimeZone(TimeZone.getDefault());
-        return format.format(new Date(epochMillis));
+        return ISO_OFFSET_SECONDS_FORMATTER.format(Instant.ofEpochMilli(epochMillis));
     }
 
     /** 表示Ticket数据，在服务、仓储和接口之间传递。 */

@@ -84,7 +84,8 @@ public class McpKeepaliveService implements Closeable {
         scheduler.shutdownNow();
         try {
             scheduler.awaitTermination(5, TimeUnit.SECONDS);
-        } catch (InterruptedException ignored) {
+        } catch (InterruptedException e) {
+            LOG.fine("MCP keepalive shutdown interrupted: " + e.getClass().getSimpleName());
             Thread.currentThread().interrupt();
         }
     }

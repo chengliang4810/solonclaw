@@ -114,7 +114,7 @@ public class AppConfigPathNormalizationTest {
         String content = FileUtil.readUtf8String(runtimeExample);
         assertThat(content)
                 .contains("\nsecurity:\n")
-                .contains("  allowPrivateUrls: true")
+                .contains("  allowPrivateUrls: false")
                 .doesNotContain("solonclaw:\n  security:");
     }
 
@@ -134,8 +134,8 @@ public class AppConfigPathNormalizationTest {
                 .contains("baseUrl: https://api.openai.com")
                 .contains("apiKey: \"\"")
                 .contains("dialect: openai")
-                .contains("accessToken: \"admin\"");
-        assertThat(config.getDashboard().getAccessToken()).isEqualTo("admin");
+                .contains("accessToken: \"\"");
+        assertThat(config.getDashboard().getAccessToken()).isEmpty();
         assertThat(config.getLlm().getDialect()).isEqualTo("openai");
         assertThat(config.getLlm().getApiUrl())
                 .isEqualTo("https://api.openai.com/v1/chat/completions");

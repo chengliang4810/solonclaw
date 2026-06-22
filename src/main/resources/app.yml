@@ -12,8 +12,12 @@ solon.logging.logger.root.level: INFO
 # 运行时目录配置
 solonclaw.runtime.home: runtime
 
-# Dashboard 页面与 /api/* 接口共用的访问令牌，生产环境必须改成高强度随机值。
-solonclaw.dashboard.accessToken: admin
+# Agent 默认工作区；相对路径按运行 Jar 所在目录解析。
+solonclaw.workspace: ./workspace
+
+# Dashboard 页面与 /api/* 接口共用的访问令牌；留空时非公开 API 拒绝鉴权。
+# 生产环境必须改成高强度随机值，禁止继续使用 admin 等弱口令。
+solonclaw.dashboard.accessToken:
 
 # 默认大模型配置
 # 默认提供方显示名称，用于 Dashboard 和诊断输出。
@@ -91,8 +95,8 @@ solonclaw.task.toolOutputTurnBudget: 200000
 
 # 终端/沙箱执行
 solonclaw.terminal.credentialFiles:
+# 可选 sudo 密码；仅在显式配置非空值时才会通过 stdin 注入给 sudo -S。
 solonclaw.terminal.sudoPassword:
-solonclaw.terminal.writeSafeRoot:
 solonclaw.terminal.maxForegroundTimeoutSeconds: 600
 solonclaw.terminal.foregroundMaxRetries: 3
 solonclaw.terminal.foregroundRetryBaseDelaySeconds: 2
@@ -104,15 +108,13 @@ security.websiteBlocklist.sharedFiles:
 security.tirithEnabled: true
 security.tirithPath: tirith
 security.tirithTimeoutSeconds: 5
-security.tirithFailOpen: true
-security.fileGuardrailMode: bypass
-security.urlGuardrailMode: bypass
-security.guardrailMode: bypass
-security.guardrailCronMode: bypass
+security.tirithFailOpen: false
+security.fileGuardrailMode: strict
+security.urlGuardrailMode: strict
+security.guardrailMode: approval
+security.guardrailCronMode: strict
 security.guardrailCronScope: job
 security.hardlineAllowlist:
-  - hardline_shutdown
-  - hardline_windows_shutdown
 
 # 审批/确认策略
 # 子 Agent 遇到可审批危险命令时默认拒绝，避免无人值守等待本地交互。

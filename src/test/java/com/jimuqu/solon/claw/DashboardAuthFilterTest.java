@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.web.DashboardAuthFilter;
 import com.jimuqu.solon.claw.web.DashboardAuthService;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.ContextEmpty;
@@ -91,6 +92,50 @@ public class DashboardAuthFilterTest {
                                         }))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("search failed");
+    }
+
+    @Test
+    void shouldRejectUnsafeDashboardWriteFromDisallowedOrigin() throws Throwable {
+        DashboardAuthFilter filter = filter();
+        FakeContext context = new FakeContext("POST", "/api/private");
+        context.requestHeader("Authorization", "Bearer test-token");
+        context.requestHeader("Origin", "https://evil.example.com");
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(
+                context,
+                new FilterChain() {
+                    /** 如果跨站写请求被正确拦截，下游处理链不应被调用。 */
+                    @Override
+                    public void doFilter(Context ctx) {
+                        invoked.set(true);
+                    }
+                });
+
+        assertThat(context.status()).isEqualTo(403);
+        assertThat(invoked).isFalse();
+    }
+
+    @Test
+    void shouldAllowUnsafeDashboardWriteFromLocalOrigin() throws Throwable {
+        DashboardAuthFilter filter = filter();
+        FakeContext context = new FakeContext("POST", "/api/private");
+        context.requestHeader("Authorization", "Bearer test-token");
+        context.requestHeader("Origin", "http://localhost:3000");
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(
+                context,
+                new FilterChain() {
+                    /** 同源或本机开发 Origin 通过 CSRF 预检后仍进入正常 Bearer Token 鉴权流程。 */
+                    @Override
+                    public void doFilter(Context ctx) {
+                        invoked.set(true);
+                    }
+                });
+
+        assertThat(context.status()).isEqualTo(200);
+        assertThat(invoked).isTrue();
     }
 
     /** 创建带固定测试令牌的过滤器实例。 */

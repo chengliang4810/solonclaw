@@ -5,9 +5,14 @@ import java.net.URLDecoder;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载密钥脱敏器相关状态和辅助逻辑。 */
 public final class SecretRedactor {
+    /** 记录脱敏解码失败的低敏诊断日志，不输出待脱敏内容或异常消息。 */
+    private static final Logger log = LoggerFactory.getLogger(SecretRedactor.class);
+
     /** BEARER的统一常量值。 */
     private static final Pattern BEARER =
             Pattern.compile(
@@ -73,21 +78,21 @@ public final class SecretRedactor {
     private static final Pattern SENSITIVE_QUERY =
             Pattern.compile("(?i)([?&;](?:" + SENSITIVE_QUERY_NAMES + ")=)[^&;#\\s]+");
 
-    /** SENSITIVE路径的统一常量值。 */
+    /** 敏感路径识别规则；只隐藏凭据、密钥、令牌等高风险路径，普通项目路径仍可展示。 */
     private static final Pattern SENSITIVE_PATH =
             Pattern.compile(
                     "(?i)(?<![A-Za-z0-9_])("
                             + "(?:[A-Za-z]:)?(?:[\\\\/][^\\s\"'<>|;?#]+)*[\\\\/](?:\\.env(?:\\.[^\\s\"'<>|;?#]+)?|\\.ssh|\\.gnupg|id_(?:rsa|dsa|ecdsa|ed25519)|[^\\s\"'<>|;?#]*(?:credential|secret|token|password|passwd|private[_-]?key)[^\\s\"'<>|;?#]*)(?:[\\\\/][^\\s\"'<>|;?#]+)*"
                             + "|~[\\\\/][^\\s\"'<>|;?#]*(?:\\.ssh|\\.gnupg|credential|secret|token|password|passwd|private[_-]?key)[^\\s\"'<>|;?#]*(?:[\\\\/][^\\s\"'<>|;?#]+)*"
                             + "|(?:^|(?<=[\\s\"'=:]))(?:[^\\s\"'<>|;?#]+[\\\\/])*skills[\\\\/]\\.hub(?:[\\\\/][^\\s\"'<>|;?#]+)*"
-                            + "|(?:^|(?<=[\\s\"'=:]))(?:\\.env(?:\\.[^\\s\"'<>|;?#]+)?|\\.ssh[\\\\/][^\\s\"'<>|;?#]+|credentials|secrets|credentials?[\\\\/][^\\s\"'<>|;?#]+|secrets?[\\\\/][^\\s\"'<>|;?#]+|id_(?:rsa|dsa|ecdsa|ed25519)|\\.credentials\\.json|credentials\\.json|application_default_credentials\\.json)(?![A-Za-z0-9_.-])"
+                            + "|(?:(?<=^)|(?<=[\\s\"'=:()]))(?:\\.env(?:\\.[^\\s\"'<>|;?#)]+)?|\\.ssh[\\\\/][^\\s\"'<>|;?#)]+|credentials?[\\\\/][^\\s\"'<>|;?#)]+|secrets?[\\\\/][^\\s\"'<>|;?#)]+|credentials|secrets|id_(?:rsa|dsa|ecdsa|ed25519)|\\.credentials\\.json|credentials\\.json|application_default_credentials\\.json)(?![A-Za-z0-9_.-])"
                             + ")");
 
     /** ENCODEDSEPARATOR的统一常量值。 */
     private static final String ENCODED_SEPARATOR =
             "(?:_|-|&#95;|&#x5[fF];|&lowbar;|%5[fF]|%255[fF])";
 
-    /** SENSITIVE文件token的统一常量值。 */
+    /** 敏感文件名识别规则；用于隐藏命令输出或诊断文本中的独立凭据文件名。 */
     private static final Pattern SENSITIVE_FILE_TOKEN =
             Pattern.compile(
                     "(?i)(?<![A-Za-z0-9_.-])(?:[^\\s\"'<>|;?#=\\\\/]*?(?:"
@@ -121,6 +126,21 @@ public final class SecretRedactor {
                             + "secret|private"
                             + ENCODED_SEPARATOR
                             + "key|credential|credentials|secret|password|auth|jwt|session|signature)(?:[/:=][^/?#\\s&;]+)+");
+
+    /** 敏感URL文件SEGMENT的统一常量值，用于隐藏 URL 路径中的凭据文件名。 */
+    private static final Pattern SENSITIVE_URL_FILE_SEGMENT =
+            Pattern.compile(
+                    "(?i)/[^/?#\\s&;]*?(?:credential|client"
+                            + ENCODED_SEPARATOR
+                            + "secret|api"
+                            + ENCODED_SEPARATOR
+                            + "key|access"
+                            + ENCODED_SEPARATOR
+                            + "token|refresh"
+                            + ENCODED_SEPARATOR
+                            + "token|private"
+                            + ENCODED_SEPARATOR
+                            + "key)[^/?#\\s&;]*\\.[A-Za-z0-9]{1,12}(?=$|[?#&;])");
 
     /** PREFIX密钥的统一常量值。 */
     private static final Pattern PREFIX_SECRET =
@@ -176,7 +196,7 @@ public final class SecretRedactor {
     private SecretRedactor() {}
 
     /**
-     * 脱敏文本中的密钥、令牌和敏感路径。
+     * 脱敏文本中的密钥、令牌、带凭据的 URL 和敏感凭据路径；普通绝对路径允许保留。
      *
      * @param text 待处理文本。
      * @return 返回redact结果。
@@ -186,7 +206,7 @@ public final class SecretRedactor {
     }
 
     /**
-     * 脱敏文本中的密钥、令牌和敏感路径。
+     * 脱敏文本中的密钥、令牌、带凭据的 URL 和敏感凭据路径；普通绝对路径允许保留。
      *
      * @param text 待处理文本。
      * @param maxLength 最大保留字符数。
@@ -207,13 +227,11 @@ public final class SecretRedactor {
         result = PRIVATE_KEY.matcher(result).replaceAll("[REDACTED PRIVATE KEY]");
         result = DB_CONNSTR.matcher(result).replaceAll("$1***$3");
         result = JWT.matcher(result).replaceAll("***");
-        result = SENSITIVE_URL_USERINFO.matcher(result).replaceAll("[REDACTED_PATH]");
+        result = SENSITIVE_URL_USERINFO.matcher(result).replaceAll("[REDACTED_URL_CREDENTIAL]");
         result = redactUrlUserinfo(result);
         result = redactEncodedSensitiveQuery(result);
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         result = redactEncodedSensitiveQuery(result);
-        result = SENSITIVE_FILE_TOKEN.matcher(result).replaceAll("[REDACTED_PATH]");
-        result = SENSITIVE_PATH.matcher(result).replaceAll("[REDACTED_PATH]");
         int limit = Math.max(128, maxLength);
         if (result.length() > limit) {
             return result.substring(0, limit)
@@ -263,6 +281,20 @@ public final class SecretRedactor {
     }
 
     /**
+     * 脱敏文本中的敏感凭据路径和独立凭据文件名，避免安全拒绝、诊断和工具输出暴露真实位置。
+     *
+     * @param value 待处理文本。
+     * @return 返回隐藏敏感路径后的文本。
+     */
+    public static String redactSensitivePaths(String value) {
+        if (value == null) {
+            return null;
+        }
+        String result = SENSITIVE_PATH.matcher(value).replaceAll("[REDACTED_PATH]");
+        return SENSITIVE_FILE_TOKEN.matcher(result).replaceAll("[REDACTED_PATH]");
+    }
+
+    /**
      * 判断是否包含密钥Liketoken。
      *
      * @param text 待处理文本。
@@ -278,7 +310,8 @@ public final class SecretRedactor {
         try {
             String decoded = URLDecoder.decode(text, "UTF-8");
             return !decoded.equals(text) && PREFIX_SECRET.matcher(decoded).find();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("密钥特征URL解码失败，按未命中兜底 error={}", exceptionSummary(e));
             return false;
         }
     }
@@ -299,9 +332,8 @@ public final class SecretRedactor {
         result = redactEncodedSensitiveQuery(result);
         result = SENSITIVE_QUERY.matcher(result).replaceAll("$1***");
         result = redactEncodedSensitiveQuery(result);
-        result = SENSITIVE_URL_PATH_SEGMENT.matcher(result).replaceAll("/[REDACTED_PATH]");
-        result = SENSITIVE_FILE_TOKEN.matcher(result).replaceAll("[REDACTED_PATH]");
-        result = SENSITIVE_PATH.matcher(result).replaceAll("[REDACTED_PATH]");
+        result = SENSITIVE_URL_PATH_SEGMENT.matcher(result).replaceAll("/[REDACTED_URL_SECRET]");
+        result = SENSITIVE_URL_FILE_SEGMENT.matcher(result).replaceAll("/[REDACTED_URL_SECRET]");
         return PREFIX_SECRET.matcher(result).replaceAll("***");
     }
 
@@ -523,7 +555,8 @@ public final class SecretRedactor {
             String decoded;
             try {
                 decoded = URLDecoder.decode(value, "UTF-8");
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("脱敏URL重复解码失败，保留当前值兜底 error={}", exceptionSummary(e));
                 return value;
             }
             if (decoded.equals(value)) {
@@ -547,5 +580,18 @@ public final class SecretRedactor {
         name = name.toLowerCase(Locale.ROOT);
         name = name.replace('-', '_').replace('.', '_');
         return name.replaceAll("\\s+", "_");
+    }
+
+    /**
+     * 生成异常类型摘要，避免日志携带原始密钥、URL、路径或异常消息。
+     *
+     * @param error 异常对象。
+     * @return 仅包含异常类型的安全摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return error.getClass().getSimpleName();
     }
 }

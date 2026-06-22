@@ -297,11 +297,8 @@ public class DashboardStatusServiceTest {
         config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getLlm().setContextWindowTokens(32000);
         config.getLlm().setMaxTokens(2048);
-        config.getSecurity().setGuardrailMode("bypass");
-        config.getSecurity().setGuardrailCronMode("approval");
-        config.getApprovals().setMode("on");
-        config.getApprovals().setCronMode("approve");
-        config.getScheduler().setCronApprovalMode("approve");
+        config.getSecurity().setGuardrailMode("approval");
+        config.getSecurity().setGuardrailCronMode("approve");
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("gpt-4o");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
@@ -366,14 +363,14 @@ public class DashboardStatusServiceTest {
                 .isGreaterThan(1);
         Map<String, Object> cronCapabilities = (Map<String, Object>) capabilities.get("cron");
         assertThat(cronCapabilities)
-                .containsEntry("approval_mode", "approval")
-                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
+                .containsEntry("guardrail_cron_mode", "approve")
+                .doesNotContainKeys("approval_mode", "cron_approval_mode");
         Map<String, Object> toolSafetyCapabilities =
                 (Map<String, Object>) capabilities.get("tool_safety");
         assertThat(toolSafetyCapabilities)
-                .containsEntry("approval_mode", "bypass")
-                .containsEntry("cron_approval_mode", "approval")
-                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
+                .containsEntry("guardrail_mode", "approval")
+                .containsEntry("guardrail_cron_mode", "approve")
+                .doesNotContainKeys("approval_mode", "cron_approval_mode");
         assertThat(runtimeStatus)
                 .containsEntry("schema_version", Integer.valueOf(1))
                 .containsEntry("service", "solon-claw")
@@ -400,14 +397,14 @@ public class DashboardStatusServiceTest {
                 .isGreaterThan(1);
         Map<String, Object> cronStatus = (Map<String, Object>) runtimeStatus.get("cron");
         assertThat(cronStatus)
-                .containsEntry("approval_mode", "approval")
-                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
+                .containsEntry("guardrail_cron_mode", "approve")
+                .doesNotContainKeys("approval_mode", "cron_approval_mode");
         Map<String, Object> toolSafetyStatus =
                 (Map<String, Object>) runtimeStatus.get("tool_safety");
         assertThat(toolSafetyStatus)
-                .containsEntry("approval_mode", "bypass")
-                .containsEntry("cron_approval_mode", "approval")
-                .doesNotContainKeys("legacy_approval_mode", "legacy_cron_approval_mode");
+                .containsEntry("guardrail_mode", "approval")
+                .containsEntry("guardrail_cron_mode", "approve")
+                .doesNotContainKeys("approval_mode", "cron_approval_mode");
 
         String json = ONode.serialize(status);
         assertThat(json)

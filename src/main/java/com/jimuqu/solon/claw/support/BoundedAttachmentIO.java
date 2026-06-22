@@ -16,9 +16,14 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载受限附件IO相关状态和辅助逻辑。 */
 public final class BoundedAttachmentIO {
+    /** 记录附件下载头解析失败的低敏诊断日志，不输出 URL 或响应正文。 */
+    private static final Logger log = LoggerFactory.getLogger(BoundedAttachmentIO.class);
+
     /** 默认最大字节的统一常量值。 */
     public static final long DEFAULT_MAX_BYTES = 32L * 1024L * 1024L;
 
@@ -632,7 +637,8 @@ public final class BoundedAttachmentIO {
             if (length > maxBytes) {
                 throw new IllegalStateException("Download exceeds max size: " + length);
             }
-        } catch (NumberFormatException ignored) {
+        } catch (NumberFormatException e) {
+            log.debug("附件Content-Length解析失败，跳过头部大小预判 error={}", e.getClass().getSimpleName());
         }
     }
 

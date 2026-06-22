@@ -5,9 +5,14 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 聊天窗口中间态显示设置服务。 */
 public class DisplaySettingsService {
+    /** 记录展示设置读取失败的低敏诊断日志，不输出来源键原文。 */
+    private static final Logger log = LoggerFactory.getLogger(DisplaySettingsService.class);
+
     /** 注入应用配置，用于展示设置。 */
     private final AppConfig appConfig;
 
@@ -46,8 +51,8 @@ public class DisplaySettingsService {
                 if (StrUtil.isNotBlank(stored)) {
                     return parseBoolean(stored, false);
                 }
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                log.debug("读取reasoning展示设置失败，使用配置默认值 error={}", e.getClass().getSimpleName());
             }
         }
         return appConfig.getDisplay().isShowReasoning();

@@ -14,11 +14,15 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import org.noear.snack4.ONode;
 import org.yaml.snakeyaml.Yaml;
 
 /** 负责读取、保存和缓存本地 Skills Hub 技能包清单。 */
 public class SkillBundleLoader {
+    /** 技能包清单加载器的低敏日志记录器。 */
+    private static final Logger LOG = Logger.getLogger(SkillBundleLoader.class.getName());
+
     /** 技能包清单目录，位于运行时 skills 目录下的 bundles 子目录。 */
     private final File bundlesDir;
 
@@ -232,7 +236,12 @@ public class SkillBundleLoader {
                 bundle.setMetadata(new LinkedHashMap<String, Object>((Map<String, Object>) meta));
             }
             return bundle;
-        } catch (Exception ignored) {
+        } catch (RuntimeException e) {
+            LOG.fine(
+                    "技能包清单解析失败，已跳过该清单：file="
+                            + file.getName()
+                            + ", errorType="
+                            + e.getClass().getSimpleName());
             return null;
         }
     }

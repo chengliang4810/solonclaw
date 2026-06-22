@@ -85,17 +85,19 @@ public class BrowserRuntimeServiceTests {
 
     @Test
     void shouldDelegateBrowserActionsToProvider() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(true);
         RecordingProvider provider = new RecordingProvider(true);
         BrowserRuntimeService service =
                 new BrowserRuntimeService(
-                        new AppConfig(),
+                        config,
                         Collections.<BrowserProvider>singletonList(provider),
-                        new SecurityPolicyService(new AppConfig()),
+                        new SecurityPolicyService(config),
                         1);
         BrowserRuntimeService.BrowserResult created = service.create("task-1");
 
         BrowserRuntimeService.BrowserResult navigated =
-                service.navigate(created.getSessionId(), "https://example.com/start", 7);
+                service.navigate(created.getSessionId(), "http://127.0.0.1/start", 7);
         BrowserRuntimeService.BrowserResult clicked =
                 service.click(created.getSessionId(), "#submit", 8);
         BrowserRuntimeService.BrowserResult typed =
@@ -266,7 +268,7 @@ public class BrowserRuntimeServiceTests {
         private final AtomicInteger typeCount = new AtomicInteger();
         private final AtomicInteger screenshotCount = new AtomicInteger();
         private final AtomicInteger extractCount = new AtomicInteger();
-        private String nextUrl = "https://example.com/after-action";
+        private String nextUrl = "http://127.0.0.1/after-action";
         private String lastNavigatedUrl = "";
 
         RecordingProvider(boolean available) {

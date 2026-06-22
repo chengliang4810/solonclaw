@@ -75,6 +75,7 @@ public class TerminalModelPickerTest {
 
     private AppConfig config() {
         AppConfig config = new AppConfig();
+        isolateRuntime(config, "terminal-model-picker");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default Provider");
         provider.setBaseUrl("https://api.openai.com");
@@ -96,5 +97,17 @@ public class TerminalModelPickerTest {
         fallback.setModel("gpt-backup");
         config.getFallbackProviders().add(fallback);
         return config;
+    }
+
+    /**
+     * 为模型选择器测试隔离 runtime 目录，避免读取本机 runtime/config.yml 覆盖内存配置。
+     *
+     * @param config 测试配置。
+     * @param name runtime 目录名称前缀。
+     */
+    private void isolateRuntime(AppConfig config, String name) {
+        String home = "target/test-runtime/" + name + "-" + System.nanoTime();
+        config.getRuntime().setHome(home);
+        config.getRuntime().setConfigFile(home + "/config.yml");
     }
 }

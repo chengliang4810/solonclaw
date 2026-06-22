@@ -701,7 +701,6 @@ public final class SubprocessEnvironmentSanitizer {
                 new String[] {
                     "OPENAI_API_KEY",
                     "OPENAI_BASE_URL",
-                    "OPENAI_API_BASE",
                     "OPENAI_ORG_ID",
                     "OPENAI_ORGANIZATION",
                     "ANTHROPIC_API_KEY",

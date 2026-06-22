@@ -329,7 +329,7 @@ public class SubprocessEnvironmentSanitizerTest {
     void shouldStripToolBackendSecretsAndGatewayRuntimeVars() {
         Map<String, String> env = new LinkedHashMap<String, String>();
         env.put("PATH", "/usr/bin");
-        env.put("OPENAI_API_BASE", "https://legacy.example/v1");
+        env.put("OPENAI_BASE_URL", "https://provider.example/v1");
         env.put("OPENAI_ORGANIZATION", "org-secret");
         env.put("ANTHROPIC_BASE_URL", "https://anthropic-proxy.example");
         env.put("NVIDIA_API_KEY", "nvidia-secret");
@@ -361,7 +361,7 @@ public class SubprocessEnvironmentSanitizerTest {
         assertThat(env).containsEntry("PATH", "/usr/bin");
         assertThat(env)
                 .doesNotContainKeys(
-                        "OPENAI_API_BASE",
+                        "OPENAI_BASE_URL",
                         "OPENAI_ORGANIZATION",
                         "ANTHROPIC_BASE_URL",
                         "NVIDIA_API_KEY",

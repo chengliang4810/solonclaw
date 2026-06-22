@@ -6,18 +6,28 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供技能技能维护相关业务能力，封装调用方不需要感知的运行细节。 */
 @RequiredArgsConstructor
 public class SkillCuratorService {
+    /** 记录技能整理过程中的非关键读取失败，便于排查状态退化。 */
+    private static final Logger log = LoggerFactory.getLogger(SkillCuratorService.class);
+
+    /** 技能整理运行目录时间戳格式，保持原有本地时间命名。 */
+    private static final DateTimeFormatter RUN_DIR_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneId.systemDefault());
+
     /** 注入应用配置，用于技能技能维护。 */
     private final AppConfig appConfig;
 
@@ -264,7 +274,11 @@ public class SkillCuratorService {
             if (content.length() < 300) {
                 flags.add("hollow: content is too short");
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "读取技能内容失败，跳过内容质量标记: skillDir={}, error={}",
+                    descriptor == null ? null : descriptor.getSkillDir(),
+                    e.toString());
         }
         return flags;
     }
@@ -307,7 +321,7 @@ public class SkillCuratorService {
      * @param now 当前时间戳。
      */
     private void writeReport(Map<String, Object> report, long now) {
-        String stamp = new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date(now));
+        String stamp = RUN_DIR_TIME_FORMATTER.format(Instant.ofEpochMilli(now));
         File runDir = FileUtil.file(appConfig.getRuntime().getLogsDir(), "curator", stamp);
         FileUtil.mkdir(runDir);
         FileUtil.writeUtf8String(ONode.serialize(report), FileUtil.file(runDir, "run.json"));
@@ -346,7 +360,8 @@ public class SkillCuratorService {
             if (parsed instanceof Map) {
                 return (Map<String, Object>) parsed;
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("读取技能整理状态失败，使用空状态: file={}, error={}", stateFile, e.toString());
         }
         return new LinkedHashMap<String, Object>();
     }
@@ -453,7 +468,8 @@ public class SkillCuratorService {
         }
         try {
             return Long.parseLong(String.valueOf(value));
-        } catch (Exception ignored) {
+        } catch (NumberFormatException e) {
+            log.debug("技能整理状态数值解析失败，使用0: value={}, error={}", value, e.toString());
             return 0L;
         }
     }

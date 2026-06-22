@@ -19,7 +19,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
     private static final int REASONING_DELTA_BATCH_CHARS = 160;
     /** 后端到终端 UI 的 WebSocket 连接。 */
     private final WebSocket socket;
-    /** 是否使用原 TUI 兼容的 JSON-RPC event 信封。 */
+    /** 是否使用终端 UI JSON-RPC event 信封。 */
     private final boolean rpcEnvelope;
     /** JSON-RPC 模式下待发送的 assistant 小片段缓冲。 */
     private final StringBuilder assistantDeltaBuffer = new StringBuilder();
@@ -62,7 +62,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         send("run.started", pair("session_id", sessionId));
     }
 
-    /** 通知终端 UI 当前模型尝试开始，用原 TUI 的状态栏事件承载运行阶段。 */
+    /** 通知终端 UI 当前模型尝试开始，用状态栏事件承载运行阶段。 */
     @Override
     public void onAttemptStarted(String runId, int attemptNo, String provider, String model) {
         if (rpcEnvelope) {
@@ -126,7 +126,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         }
     }
 
-    /** 通知终端 UI 模型提供方 fallback，保持和原 TUI 活动区的警告语义一致。 */
+    /** 通知终端 UI 模型提供方 fallback，保持活动区的警告语义一致。 */
     @Override
     public void onFallback(String runId, String fromProvider, String toProvider, String reason) {
         if (rpcEnvelope) {
@@ -365,7 +365,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         send("reasoning.delta", payload, activeSessionId);
     }
 
-    /** 发送原 TUI 识别的状态栏事件，并按 kind 决定是否进入活动区。 */
+    /** 发送终端 UI 识别的状态栏事件，并按 kind 决定是否进入活动区。 */
     private void sendStatus(String text, String kind) {
         Map<String, Object> payload = pair("text", text);
         payload.put("kind", kind);
@@ -383,7 +383,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         return "-".equals(safe) ? "" : ": " + safe;
     }
 
-    /** 将模型用量转换为原 TUI 可识别的 usage 结构。 */
+    /** 将模型用量转换为终端 UI 可识别的 usage 结构。 */
     private Map<String, Object> usage(LlmResult result) {
         Map<String, Object> usage = new LinkedHashMap<String, Object>();
         usage.put("calls", Long.valueOf(result == null ? 0L : Math.max(0L, result.getRequestCount())));

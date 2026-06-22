@@ -2,9 +2,14 @@ package com.jimuqu.solon.claw.cli;
 
 import org.jline.terminal.Size;
 import org.jline.terminal.Terminal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 封装终端Dimension辅助逻辑，降低主流程中的重复实现。 */
 public final class TerminalDimensionSupport {
+    /** 终端尺寸修正的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(TerminalDimensionSupport.class);
+
     /** 默认COLUMNS的统一常量值。 */
     public static final int DEFAULT_COLUMNS = 80;
 
@@ -85,8 +90,10 @@ public final class TerminalDimensionSupport {
                 || current.getRows() != sanitized.getRows()) {
             try {
                 terminal.setSize(sanitized);
-            } catch (RuntimeException ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (RuntimeException e) {
+                log.debug(
+                        "终端尺寸修正失败，保留当前终端尺寸 error={}",
+                        e.getClass().getSimpleName());
             }
         }
     }

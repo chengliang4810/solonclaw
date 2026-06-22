@@ -5,7 +5,10 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import java.util.List;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.agent.react.task.ToolExchanger;
+import org.noear.solon.ai.chat.ChatResponse;
 import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** 承载工具结果StorageInterceptor相关状态和辅助逻辑。 */
@@ -44,10 +47,13 @@ public class ToolResultStorageInterceptor implements ReActInterceptor {
      * 响应原因事件。
      *
      * @param trace trace 参数。
+     * @param response 模型响应。
      * @param message 平台消息或错误消息。
+     * @param durationMs 推理耗时。
      */
     @Override
-    public void onReason(ReActTrace trace, AssistantMessage message) {
+    public void onReasonEnd(
+            ReActTrace trace, ChatResponse response, AssistantMessage message, long durationMs) {
         if (storageService != null) {
             storageService.resetTurnBudget();
         }
@@ -58,15 +64,23 @@ public class ToolResultStorageInterceptor implements ReActInterceptor {
      * 响应观察结果事件。
      *
      * @param trace trace 参数。
-     * @param toolName 工具名称。
-     * @param result 结果响应或执行结果。
+     * @param exchanger 工具交换对象。
+     * @param message 工具消息。
+     * @param error 工具异常。
      * @param durationMs durationMs 参数。
      */
     @Override
-    public void onObservation(ReActTrace trace, String toolName, String result, long durationMs) {
+    public void onObservation(
+            ReActTrace trace,
+            ToolExchanger exchanger,
+            ChatMessage message,
+            Throwable error,
+            long durationMs) {
         if (storageService == null || trace == null) {
             return;
         }
+        String toolName = exchanger == null ? null : exchanger.getToolName();
+        String result = ReActToolObservationSupport.get(trace, exchanger);
         String resolvedRunId = runId;
         if (StrUtil.isBlank(resolvedRunId)
                 && trace.getSession() != null
@@ -79,7 +93,7 @@ public class ToolResultStorageInterceptor implements ReActInterceptor {
         String callId = resolveToolCallId(trace, toolName);
         ToolResultStorageService.StoredResult stored =
                 storageService.observe(toolName, result, resolvedRunId, callId);
-        trace.setLastObservation(stored.getObservation());
+        ReActToolObservationSupport.set(trace, exchanger, stored.getObservation());
     }
 
     /**

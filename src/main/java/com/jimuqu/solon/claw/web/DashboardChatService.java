@@ -1198,7 +1198,7 @@ public class DashboardChatService {
         private final ChatRunRequest request;
 
         /**
-         * 创建不绑定原始请求的状态实例，仅供事件单元测试或兼容旧反射路径使用。
+         * 创建不绑定原始请求的状态实例，仅供事件单元测试使用。
          *
          * @param runId 运行标识。
          * @param sessionId 当前会话标识。
@@ -1386,7 +1386,9 @@ public class DashboardChatService {
                 try {
                     int value = Integer.parseInt(raw.trim());
                     return value > 0 ? Integer.valueOf(value) : null;
-                } catch (Exception ignored) {
+                } catch (Exception parseError) {
+                    log.debug("Dashboard运行策略正整数解析失败，忽略该次数限制 error={}",
+                            parseError.getClass().getSimpleName());
                     return null;
                 }
             }

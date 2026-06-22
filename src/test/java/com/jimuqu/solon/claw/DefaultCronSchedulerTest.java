@@ -973,7 +973,7 @@ public class DefaultCronSchedulerTest {
                         java.util.Collections.<String>emptyList(),
                         null);
 
-        assertThat(result).contains("\"success\":true");
+        assertThat(result).contains("\"status\":\"success\"");
         assertThat(deliveryService.requests).hasSize(1);
         DeliveryRequest request = deliveryService.requests.get(0);
         assertThat(request.getChatId()).isEqualTo("thread-room");
@@ -1658,7 +1658,6 @@ public class DefaultCronSchedulerTest {
     void shouldBlockDangerousNoAgentCronScriptWhenCronApprovalModeDenies() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailCronMode("strict");
-        env.appConfig.getApprovals().setCronMode("strict");
         env.send("admin-dm", "admin-user", "hello");
         env.send("admin-dm", "admin-user", "/pairing claim-admin");
         env.gatewayService.handle(
@@ -1701,7 +1700,6 @@ public class DefaultCronSchedulerTest {
     void shouldPauseDangerousCronScriptForApprovalAndRememberSameJobBehavior() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailCronMode("approval");
-        env.appConfig.getApprovals().setCronMode("approval");
         env.send("admin-dm", "admin-user", "hello");
         env.send("admin-dm", "admin-user", "/pairing claim-admin");
 
@@ -1801,7 +1799,7 @@ public class DefaultCronSchedulerTest {
     @Test
     void shouldAlwaysBlockHardlineCronScriptEvenWhenCronApprovalModeApproves() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getApprovals().setCronMode("approve");
+        env.appConfig.getSecurity().setGuardrailCronMode("approve");
         env.send("admin-dm", "admin-user", "hello");
         env.send("admin-dm", "admin-user", "/pairing claim-admin");
         env.gatewayService.handle(
@@ -1849,7 +1847,7 @@ public class DefaultCronSchedulerTest {
     @Test
     void shouldBlockGatewayLifecycleCronScriptEvenWhenCronApprovalModeApproves() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getApprovals().setCronMode("approve");
+        env.appConfig.getSecurity().setGuardrailCronMode("approve");
         env.send("admin-dm", "admin-user", "hello");
         env.send("admin-dm", "admin-user", "/pairing claim-admin");
         env.gatewayService.handle(
@@ -1894,7 +1892,7 @@ public class DefaultCronSchedulerTest {
     @Test
     void shouldAllowDangerousCronScriptWhenJimuquCronApprovalModeApproves() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getApprovals().setCronMode("approve");
+        env.appConfig.getSecurity().setGuardrailCronMode("approve");
         env.send("admin-dm", "admin-user", "hello");
         env.send("admin-dm", "admin-user", "/pairing claim-admin");
         env.gatewayService.handle(
@@ -2959,7 +2957,7 @@ public class DefaultCronSchedulerTest {
                                                 null,
                                                 null))
                                 .toData();
-        assertThat(missingJob.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(missingJob.get("status")).isEqualTo("error");
         assertThat(missingJob.get("error")).asString().contains("Job not found");
 
         Map<String, Object> toolModel = new LinkedHashMap<String, Object>();
@@ -3046,7 +3044,7 @@ public class DefaultCronSchedulerTest {
                                                 null,
                                                 null))
                                 .toData();
-        assertThat(emptyUpdate.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(emptyUpdate.get("status")).isEqualTo("error");
         assertThat(emptyUpdate.get("error")).isEqualTo("未提供任何更新内容。");
     }
 
@@ -3084,7 +3082,7 @@ public class DefaultCronSchedulerTest {
                                                 null))
                                 .toData();
 
-        assertThat(payload.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(payload.get("status")).isEqualTo("success");
         assertThat(payload.get("no_agent")).isEqualTo(Boolean.FALSE);
         assertThat(payload.get("script")).isNull();
         Map<?, ?> jobView = (Map<?, ?>) payload.get("job");
@@ -3149,7 +3147,7 @@ public class DefaultCronSchedulerTest {
         assertThat(listed.get("paused")).isEqualTo(Integer.valueOf(1));
         assertThat(listed.get("completed")).isEqualTo(Integer.valueOf(1));
         assertThat(listed.get("due")).isEqualTo(Integer.valueOf(1));
-        Map<?, ?> status = (Map<?, ?>) listed.get("status");
+        Map<?, ?> status = (Map<?, ?>) listed.get("cron_status");
         assertThat(status.get("total")).isEqualTo(Integer.valueOf(3));
         assertThat(status.get("active")).isEqualTo(Integer.valueOf(1));
         assertThat(status.get("due")).isEqualTo(Integer.valueOf(1));
@@ -4120,7 +4118,7 @@ public class DefaultCronSchedulerTest {
                                                 null,
                                                 Integer.valueOf(10)))
                                 .toData();
-        Map<?, ?> overview = (Map<?, ?>) status.get("status");
+        Map<?, ?> overview = (Map<?, ?>) status.get("cron_status");
         assertThat(overview.get("total")).isEqualTo(Integer.valueOf(3));
         assertThat(overview.get("active")).isEqualTo(Integer.valueOf(2));
         assertThat(overview.get("paused")).isEqualTo(Integer.valueOf(1));
@@ -4395,9 +4393,9 @@ public class DefaultCronSchedulerTest {
         scheduler.tick();
 
         assertThat(gateway.toolObjectsText)
-                .contains("WebsearchTool")
-                .contains("WebfetchTool")
-                .contains("CodeSearchTool")
+                .contains("SafeWebsearchTool")
+                .contains("SafeWebfetchTool")
+                .contains("SafeCodeSearchTool")
                 .doesNotContain("SolonClawShellSkill")
                 .doesNotContain("CronjobTools")
                 .doesNotContain("SolonClawFileReadWriteSkill");
@@ -4506,9 +4504,9 @@ public class DefaultCronSchedulerTest {
         scheduler.tick();
 
         assertThat(gateway.toolObjectsText)
-                .contains("WebsearchTool")
-                .contains("WebfetchTool")
-                .contains("CodeSearchTool")
+                .contains("SafeWebsearchTool")
+                .contains("SafeWebfetchTool")
+                .contains("SafeCodeSearchTool")
                 .doesNotContain("SolonClawShellSkill")
                 .doesNotContain("CronjobTools")
                 .doesNotContain("MessagingTools")
@@ -4840,7 +4838,7 @@ public class DefaultCronSchedulerTest {
         FileUtil.writeString(
                 "请使用项目规则。", FileUtil.file(projectDir, "AGENTS.md"), StandardCharsets.UTF_8);
         FileUtil.writeString(
-                "legacy rule", FileUtil.file(projectDir, ".cursorrules"), StandardCharsets.UTF_8);
+                "current rule", FileUtil.file(projectDir, ".cursorrules"), StandardCharsets.UTF_8);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -5147,15 +5145,15 @@ public class DefaultCronSchedulerTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
-        CronJobRecord legacy =
-                service.create("MEMORY:cron:user", cronBody("legacy-job", "legacy,keep,stale"));
+        CronJobRecord sourceJob =
+                service.create("MEMORY:cron:user", cronBody("source-job", "source,keep,stale"));
         CronJobRecord dedupe =
-                service.create("MEMORY:cron:user", cronBody("dedupe-job", "umbrella,legacy"));
+                service.create("MEMORY:cron:user", cronBody("dedupe-job", "umbrella,source"));
         CronJobRecord untouched =
                 service.create("MEMORY:cron:user", cronBody("untouched-job", "other"));
 
         Map<String, String> consolidated = new LinkedHashMap<String, String>();
-        consolidated.put("legacy", "umbrella");
+        consolidated.put("source", "umbrella");
         Map<String, Object> report =
                 service.rewriteSkillRefs(
                         consolidated, java.util.Collections.singletonList("stale"));
@@ -5163,18 +5161,18 @@ public class DefaultCronSchedulerTest {
         assertThat(report.get("jobs_updated")).isEqualTo(Integer.valueOf(2));
         assertThat(report.get("jobs_scanned")).isEqualTo(Integer.valueOf(3));
         assertThat(String.valueOf(report.get("rewrites")))
-                .contains(legacy.getJobId())
+                .contains(sourceJob.getJobId())
                 .contains(dedupe.getJobId())
-                .contains("mapped={legacy=umbrella}")
+                .contains("mapped={source=umbrella}")
                 .contains("dropped=[stale]")
                 .doesNotContain(untouched.getJobId());
-        assertThat(service.toView(env.cronJobRepository.findById(legacy.getJobId())).get("skills"))
+        assertThat(service.toView(env.cronJobRepository.findById(sourceJob.getJobId())).get("skills"))
                 .asList()
                 .containsExactly("umbrella", "keep");
         assertThat(service.toView(env.cronJobRepository.findById(dedupe.getJobId())).get("skills"))
                 .asList()
                 .containsExactly("umbrella");
-        assertThat(service.toView(env.cronJobRepository.findById(legacy.getJobId())).get("skill"))
+        assertThat(service.toView(env.cronJobRepository.findById(sourceJob.getJobId())).get("skill"))
                 .isEqualTo("umbrella");
 
         Map<String, Object> noop =

@@ -22,6 +22,14 @@ public final class SecretValueGuard {
                             "placeholder",
                             "example",
                             "dummy",
+                            "configured",
+                            "missing",
+                            "redacted",
+                            "[redacted]",
+                            "[redacted_path]",
+                            "[redacted private key]",
+                            "已设置",
+                            "未配置",
                             "null",
                             "none"));
 

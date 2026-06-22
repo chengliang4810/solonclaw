@@ -4,10 +4,14 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.util.List;
+import java.util.logging.Logger;
 
 /** 承载定时任务审批ResumeObserver相关状态和辅助逻辑。 */
 public class CronApprovalResumeObserver
         implements DangerousCommandApprovalService.ApprovalObserver {
+    /** 定时任务审批恢复观察器的低敏日志记录器。 */
+    private static final Logger LOG = Logger.getLogger(CronApprovalResumeObserver.class.getName());
+
     /** 定时任务任务PREFIX的统一常量值。 */
     private static final String CRON_JOB_PREFIX = "cron-job:";
 
@@ -59,8 +63,12 @@ public class CronApprovalResumeObserver
                 return;
             }
             cronJobService.resume(jobId);
-        } catch (Exception ignored) {
-            // 这里的失败不应影响主流程或安全关键路径。
+        } catch (Exception e) {
+            LOG.fine(
+                    "定时任务审批恢复失败，已保持审批主流程继续：jobId="
+                            + jobId
+                            + ", errorType="
+                            + e.getClass().getSimpleName());
         }
     }
 

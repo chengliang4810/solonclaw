@@ -12,9 +12,15 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 public class SecurityPolicyServiceTest {
+    @AfterEach
+    void clearThreadPolicyApprovals() {
+        SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+    }
+
     @Test
     void shouldExposeAlwaysBlockedUrlFloorForCloudMetadataTargets() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
@@ -60,7 +66,7 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
-    void shouldAllowPrivateUrlsByDefaultButKeepMetadataBlocked() {
+    void shouldBlockPrivateUrlsByDefaultAndKeepMetadataBlocked() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 
         SecurityPolicyService.UrlVerdict localhost =
@@ -70,9 +76,11 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict metadata =
                 policy.checkUrl("http://169.254.169.254/latest/meta-data/");
 
-        assertThat(localhost.isAllowed()).isTrue();
-        assertThat(loopback.isAllowed()).isTrue();
+        assertThat(localhost.isAllowed()).isFalse();
+        assertThat(loopback.isAllowed()).isFalse();
         assertThat(metadata.isAllowed()).isFalse();
+        assertThat(localhost.getMessage()).contains("内网");
+        assertThat(loopback.getMessage()).contains("内网");
         assertThat(metadata.getMessage()).contains("元数据");
     }
 
@@ -90,10 +98,15 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
-    void shouldNotClaimDnsFailuresOrMalformedInputAreAlwaysBlocked() {
+    void shouldFailClosedForDnsFailuresOnAlwaysBlockedUrlFloor() {
         SecurityPolicyService policy = new FailingDnsSecurityPolicyService(new AppConfig());
 
-        assertThat(policy.isAlwaysBlockedUrl("https://nonexistent.example/")).isFalse();
+        SecurityPolicyService.UrlVerdict dnsFailure =
+                policy.checkAlwaysBlockedUrl("https://nonexistent.example/");
+
+        assertThat(dnsFailure.isAllowed()).isFalse();
+        assertThat(dnsFailure.getMessage()).contains("DNS 解析失败");
+        assertThat(policy.isAlwaysBlockedUrl("https://nonexistent.example/")).isTrue();
         assertThat(policy.isAlwaysBlockedUrl("")).isFalse();
         assertThat(policy.isAlwaysBlockedUrl("not a url at all")).isFalse();
         assertThat(policy.isAlwaysBlockedUrl("ftp://169.254.169.254/file")).isTrue();
@@ -135,7 +148,7 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict privateUrl = policy.checkUrl("http://router.example/");
         SecurityPolicyService.UrlVerdict metadata = policy.checkUrl("http://169.254.169.254/");
 
-        assertThat(privateUrl.isAllowed()).isTrue();
+        assertUrlApprovalRequired(privateUrl, "network_external_operation");
         assertThat(metadata.isAllowed()).isFalse();
         assertThat(metadata.getMessage()).contains("元数据");
     }
@@ -381,7 +394,8 @@ public class SecurityPolicyServiceTest {
 
     @Test
     void shouldBlockPercentEncodedMetadataHostsBeforeDnsResolution() {
-        SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
 
         SecurityPolicyService.UrlVerdict direct =
                 policy.checkAlwaysBlockedUrl("http://%31%36%39.254.169.254/latest/meta-data/");
@@ -483,7 +497,7 @@ public class SecurityPolicyServiceTest {
         assertThat(privateVerdict.isAllowed()).isFalse();
         assertThat(privateVerdict.getMessage()).contains("内网");
         assertThat(metadataVerdict.isAllowed()).isFalse();
-        assertThat(metadataVerdict.getMessage()).contains("元数据");
+        assertThat(metadataVerdict.getMessage()).containsAnyOf("元数据", "内网");
     }
 
     @Test
@@ -519,7 +533,7 @@ public class SecurityPolicyServiceTest {
         assertThat(direct.getMessage()).contains("userinfo");
         assertThat(command.isAllowed()).isFalse();
         assertThat(command.getMessage()).contains("userinfo");
-        assertThat(safe.isAllowed()).isTrue();
+        assertUrlApprovalRequired(safe, "network_external_operation");
     }
 
     @Test
@@ -576,7 +590,7 @@ public class SecurityPolicyServiceTest {
         assertThat(privateToolArg.getMessage()).contains("内网");
         assertThat(userInfoCommand.isAllowed()).isFalse();
         assertThat(userInfoCommand.getMessage()).contains("userinfo");
-        assertThat(publicCommand.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicCommand, "network_external_operation");
     }
 
     @Test
@@ -602,7 +616,7 @@ public class SecurityPolicyServiceTest {
         assertThat(metadataCommand.getMessage()).contains("元数据");
         assertThat(userInfoCommand.isAllowed()).isFalse();
         assertThat(userInfoCommand.getMessage()).contains("userinfo");
-        assertThat(publicCommand.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicCommand, "network_external_operation");
     }
 
     @Test
@@ -700,7 +714,7 @@ public class SecurityPolicyServiceTest {
         assertThat(setEnvironmentVariable.getMessage()).contains("元数据");
         assertThat(setxProxy.isAllowed()).isFalse();
         assertThat(setxProxy.getMessage()).contains("内网");
-        assertThat(publicProxy.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicProxy, "network_external_operation");
     }
 
     @Test
@@ -749,7 +763,7 @@ public class SecurityPolicyServiceTest {
         assertThat(powershellSetNoProxyOnly.getMessage()).contains("元数据");
         assertThat(setxNoProxy.isAllowed()).isFalse();
         assertThat(setxNoProxy.getMessage()).contains("元数据");
-        assertThat(publicBypass.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicBypass, "network_external_operation");
     }
 
     @Test
@@ -791,7 +805,7 @@ public class SecurityPolicyServiceTest {
         assertThat(powershellNpmNoProxy.getMessage()).contains("元数据");
         assertThat(powershellNpmNoProxyOnly.isAllowed()).isFalse();
         assertThat(powershellNpmNoProxyOnly.getMessage()).contains("元数据");
-        assertThat(publicNoProxy.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicNoProxy, "network_external_operation");
     }
 
     @Test
@@ -846,7 +860,7 @@ public class SecurityPolicyServiceTest {
         assertThat(assignedNpmNoProxy.getMessage()).contains("内网");
         assertThat(assignedPipProxy.isAllowed()).isFalse();
         assertThat(assignedPipProxy.getMessage()).contains("元数据");
-        assertThat(publicProxy.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicProxy, "network_external_operation");
     }
 
     @Test
@@ -889,7 +903,7 @@ public class SecurityPolicyServiceTest {
         assertThat(macosProxy.getMessage()).contains("内网");
         assertThat(macosSocksProxy.isAllowed()).isFalse();
         assertThat(macosSocksProxy.getMessage()).contains("元数据");
-        assertThat(publicProxy.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicProxy, "network_external_operation");
     }
 
     @Test
@@ -929,7 +943,7 @@ public class SecurityPolicyServiceTest {
         assertThat(netshDns.getMessage()).contains("内网");
         assertThat(nmcliDns.isAllowed()).isFalse();
         assertThat(nmcliDns.getMessage()).contains("元数据");
-        assertThat(publicDns.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicDns, "network_external_operation");
     }
 
     @Test
@@ -970,7 +984,7 @@ public class SecurityPolicyServiceTest {
         assertThat(proxyOverride.getMessage()).contains("内网");
         assertThat(inlineProxyServer.isAllowed()).isFalse();
         assertThat(inlineProxyServer.getMessage()).contains("内网");
-        assertThat(publicProxy.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicProxy, "network_external_operation");
     }
 
     @Test
@@ -1022,7 +1036,7 @@ public class SecurityPolicyServiceTest {
         assertThat(addNoProxy.getMessage()).contains("元数据");
         assertThat(replaceAllProxy.isAllowed()).isFalse();
         assertThat(replaceAllProxy.getMessage()).contains("内网");
-        assertThat(publicProxy.isAllowed()).isTrue();
+        assertUrlApprovalRequired(publicProxy, "network_external_operation");
         assertThat(readOnly.isAllowed()).isTrue();
     }
 
@@ -1060,7 +1074,7 @@ public class SecurityPolicyServiceTest {
         assertThat(encodedCommand.getMessage()).contains("敏感凭据参数");
         assertThat(toolArg.isAllowed()).isFalse();
         assertThat(toolArg.getMessage()).contains("敏感凭据参数");
-        assertThat(safe.isAllowed()).isTrue();
+        assertUrlApprovalRequired(safe, "network_external_operation");
     }
 
     @Test
@@ -1107,7 +1121,7 @@ public class SecurityPolicyServiceTest {
         assertThat(dottedName.getMessage()).contains("敏感凭据参数");
         assertThat(spacedName.isAllowed()).isFalse();
         assertThat(spacedName.getMessage()).contains("敏感凭据参数");
-        assertThat(safe.isAllowed()).isTrue();
+        assertUrlApprovalRequired(safe, "network_external_operation");
     }
 
     @Test
@@ -1125,7 +1139,7 @@ public class SecurityPolicyServiceTest {
                 policy.checkCommandUrls(
                         "curl \"https://bucket.example.com/file?AWSAccessKeyId=ak&Signature=sig&Expires=9999999999\"");
         SecurityPolicyService.UrlVerdict safe =
-                policy.checkUrl("https://example.com/search?signature=public-docs&page=1");
+                policy.checkReturnedUrl("https://example.com/search?signature=public-docs&page=1");
 
         assertThat(objectStorage.isAllowed()).isFalse();
         assertThat(objectStorage.getMessage()).contains("敏感凭据参数");
@@ -1190,7 +1204,7 @@ public class SecurityPolicyServiceTest {
         assertThat(schemeless.getMessage()).contains("blocked.example");
         assertThat(wildcard.isAllowed()).isFalse();
         assertThat(wildcard.getMessage()).contains("wild.example");
-        assertThat(bareWildcard.isAllowed()).isTrue();
+        assertUrlApprovalRequired(bareWildcard, "network_external_operation");
     }
 
     @Test
@@ -1236,7 +1250,7 @@ public class SecurityPolicyServiceTest {
         assertThat(sharedUrlRule.getMessage()).contains("evil.test");
         assertThat(wildcardChild.isAllowed()).isFalse();
         assertThat(wildcardChild.getMessage()).contains("tracking.example");
-        assertThat(wildcardBare.isAllowed()).isTrue();
+        assertUrlApprovalRequired(wildcardBare, "network_external_operation");
     }
 
     @Test
@@ -1275,8 +1289,10 @@ public class SecurityPolicyServiceTest {
                 .setSharedFiles(Arrays.asList("missing-blocklist.txt", "../outside-blocklist.txt"));
         SecurityPolicyService policy = new FixedDnsSecurityPolicyService(config, "8.8.8.8");
 
-        assertThat(policy.checkUrl("https://allowed.example/").isAllowed()).isTrue();
-        assertThat(policy.checkUrl("https://blocked-outside.example/").isAllowed()).isTrue();
+        assertUrlApprovalRequired(
+                policy.checkUrl("https://allowed.example/"), "network_external_operation");
+        assertUrlApprovalRequired(
+                policy.checkUrl("https://blocked-outside.example/"), "network_external_operation");
     }
 
     @Test
@@ -1393,7 +1409,7 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
-    void shouldDenyWritesToSensitiveSystemAndCredentialPathsLikeJimuquPolicy() {
+    void shouldDenyWritesToSensitiveSystemAndCredentialPathsLikeJimuquPolicy() throws Exception {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
         String home = System.getProperty("user.home");
 
@@ -1430,9 +1446,26 @@ public class SecurityPolicyServiceTest {
         assertWriteDenied(policy, "service-account.json");
         assertWriteDenied(policy, "private-api-key.pem");
 
-        assertThat(policy.checkPath("/tmp/safe_file.txt", true).isAllowed()).isTrue();
-        assertThat(policy.checkPath("/home/user/project/main.py", true).isAllowed()).isTrue();
-        assertThat(policy.checkPath(home + "/.jimuqu/config.yml", true).isAllowed()).isTrue();
+        File workspaceParent =
+                new File("target/workspace-boundary-test/path-policy-" + System.nanoTime())
+                        .getCanonicalFile();
+        File workspace = new File(workspaceParent, "workspace").getCanonicalFile();
+        File outside = new File(workspaceParent, "outside/main.py").getCanonicalFile();
+        FileUtil.mkdir(workspace);
+        FileUtil.mkdir(outside.getParentFile());
+        AppConfig boundaryConfig = new AppConfig();
+        boundaryConfig.getWorkspace().setDir(workspace.getAbsolutePath());
+        SecurityPolicyService boundaryPolicy = new SecurityPolicyService(boundaryConfig);
+
+        assertFileApprovalRequired(
+                boundaryPolicy.checkPath(outside.getAbsolutePath(), true),
+                "workspace_outside_write");
+        SecurityPolicyService.FileVerdict workspaceWrite =
+                boundaryPolicy.checkPath(new File(workspace, "main.py").getAbsolutePath(), true);
+        assertThat(workspaceWrite.isAllowed()).isTrue();
+        SecurityPolicyService.FileVerdict oldRuntimeConfigWrite =
+                policy.checkPath(home + "/.jimuqu/config.yml", true);
+        assertFileApprovalRequired(oldRuntimeConfigWrite, "workspace_outside_write");
         assertThat(policy.checkPath(".env.example", true).isAllowed()).isTrue();
         assertThat(policy.checkPath(".envrc.example", true).isAllowed()).isTrue();
     }
@@ -1699,9 +1732,8 @@ public class SecurityPolicyServiceTest {
         assertThat(String.valueOf(summary.get("fileNameSamples"))).contains(".env", ".netrc");
         assertThat(String.valueOf(summary.get("pathSuffixSamples"))).contains(".credentials.json");
         assertThat(String.valueOf(summary.get("configuredCredentialFileSamples")))
-                .contains("[REDACTED_PATH]")
+                .contains("credentials/oauth.json")
                 .contains("secret-sk-***")
-                .doesNotContain("credentials/oauth.json")
                 .doesNotContain("1234567890abcdef");
         assertThat(summary.get("envExampleFilesAllowed")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("projectEnvFileReadBlocked")).isEqualTo(Boolean.TRUE);
@@ -1715,9 +1747,8 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
-    void shouldExposePathPolicySummaryWithoutLeakingSafeRootSecrets() {
+    void shouldExposePathPolicySummaryWithWorkspaceBoundary() {
         AppConfig config = new AppConfig();
-        config.getTerminal().setWriteSafeRoot("/tmp/workspace-sk-1234567890abcdef");
         SecurityPolicyService policy = new SecurityPolicyService(config);
 
         Map<String, Object> summary = policy.pathPolicySummary();
@@ -1734,10 +1765,11 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("skillsHubInternalReadBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("skillsHubInternalWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("localManagementSocketEnvironmentBlocked")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("writeSafeRootConfigured")).isEqualTo(Boolean.TRUE);
-        assertThat(String.valueOf(summary.get("writeSafeRoot")))
-                .contains("workspace-sk-***")
-                .doesNotContain("1234567890abcdef");
+        assertThat(summary.get("workspaceWriteFree")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("outsideWorkspaceReadFree")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("outsideWorkspaceWriteApprovalRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.containsKey("writeSafeRoot")).isFalse();
+        assertThat(summary.containsKey("writeSafeRootConfigured")).isFalse();
         assertThat(((Integer) summary.get("writeDeniedExactPathCount")).intValue())
                 .isGreaterThan(0);
         assertThat(((Integer) summary.get("writeDeniedPrefixCount")).intValue()).isGreaterThan(0);
@@ -1893,7 +1925,7 @@ public class SecurityPolicyServiceTest {
         assertThat(String.valueOf(summary.get("writeIntentSamples")))
                 .contains("write", "delete", "patch");
         assertThat(String.valueOf(summary.get("patchIntentSamples")))
-                .contains("apply_patch", "diff_apply");
+                .contains("patch");
         assertThat(String.valueOf(summary.get("patchTextKeySamples"))).contains("patch", "diff");
         assertThat(String.valueOf(summary.get("writeLikeToolSamples")))
                 .contains("write_file", "patch");
@@ -1961,6 +1993,20 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.FileVerdict verdict = policy.checkPath(path, true);
         assertThat(verdict.isAllowed()).as(path).isFalse();
         assertThat(verdict.getMessage()).as(path).contains("敏感");
+    }
+
+    private static void assertFileApprovalRequired(
+            SecurityPolicyService.FileVerdict verdict, String policyKey) {
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.isApprovalRequired()).isTrue();
+        assertThat(verdict.getPolicyKey()).isEqualTo(policyKey);
+    }
+
+    private static void assertUrlApprovalRequired(
+            SecurityPolicyService.UrlVerdict verdict, String policyKey) {
+        assertThat(verdict.isAllowed()).isFalse();
+        assertThat(verdict.isApprovalRequired()).isTrue();
+        assertThat(verdict.getPolicyKey()).isEqualTo(policyKey);
     }
 
     private static void assertCommandPathDenied(

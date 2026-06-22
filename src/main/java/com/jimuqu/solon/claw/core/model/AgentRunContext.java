@@ -14,9 +14,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 当前 Agent run 的线程级追踪上下文，集中记录审计事件、工具策略和本轮临时上下文。 */
 public class AgentRunContext {
+    /** Agent run 上下文持久化 fallback 的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(AgentRunContext.class);
+
     /** 当前线程正在执行的 Agent run，上层编排器进入和退出运行时负责写入与清理。 */
     private static final ThreadLocal<AgentRunContext> CURRENT = new ThreadLocal<AgentRunContext>();
 
@@ -402,7 +407,11 @@ public class AgentRunContext {
             event.setMetadataJson(StructuredMetadataSupport.serializeRedacted(metadata));
             event.setCreatedAt(System.currentTimeMillis());
             repository.appendEvent(event);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "Agent run 事件持久化失败，跳过事件 eventType={}, error={}",
+                    safe(eventType, 120),
+                    e.getClass().getSimpleName());
         }
     }
 
@@ -445,7 +454,12 @@ public class AgentRunContext {
         }
         try {
             repository.saveToolCall(record);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "Agent run 工具调用持久化失败，跳过工具审计 toolName={}, status={}, error={}",
+                    safe(record.getToolName(), 200),
+                    safe(record.getStatus(), 80),
+                    e.getClass().getSimpleName());
         }
     }
 

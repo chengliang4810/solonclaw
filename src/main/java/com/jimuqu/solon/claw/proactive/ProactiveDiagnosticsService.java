@@ -16,9 +16,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /** 主动协作 Dashboard 与 doctor 只读诊断服务。 */
 public class ProactiveDiagnosticsService {
+    /** 主动协作诊断服务的低敏日志记录器。 */
+    private static final Logger LOG = Logger.getLogger(ProactiveDiagnosticsService.class.getName());
+
     /** 应用配置快照，用于展示主动协作频率和硬门控。 */
     private final AppConfig appConfig;
 
@@ -219,7 +223,12 @@ public class ProactiveDiagnosticsService {
                 item.put("chat_name", safeText(record.getChatName(), 160));
                 item.put("updated_at", millisOrNull(Long.valueOf(record.getUpdatedAt())));
                 channels.add(item);
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                LOG.fine(
+                        "主动协作 home channel 诊断读取失败，已跳过该平台：platform="
+                                + platform.name().toLowerCase(Locale.ROOT)
+                                + ", errorType="
+                                + e.getClass().getSimpleName());
             }
         }
         return channels;

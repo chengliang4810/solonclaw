@@ -26,7 +26,7 @@ public class TerminalUiApprovalObserver
         }
     }
 
-    /** 收到危险命令审批请求时，推送原 TUI 已支持的 approval.request 事件。 */
+    /** 收到危险命令审批请求时，推送终端 UI 的 approval.request 事件。 */
     @Override
     public void onApprovalRequest(DangerousCommandApprovalService.ApprovalRequestEvent event) {
         if (event == null || !matchesSession(event.getSessionId())) {

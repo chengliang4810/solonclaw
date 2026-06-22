@@ -19,7 +19,6 @@ public final class CliModeParser {
                     "secrets",
                     "proxy",
                     "mcp",
-                    "migrate",
                     "send",
                     "hooks",
                     "dump",
@@ -120,10 +119,7 @@ public final class CliModeParser {
                             || "configure".equalsIgnoreCase(args[1]))) {
                 return localSlashCommand("/model", args, 1);
             }
-            if (args.length > 1) {
-                return localSlashCommand("/model", args, 1);
-            }
-            return new CliMode(CliMode.Kind.CLI, "/setup model", null);
+            return args.length == 1 ? new CliMode(CliMode.Kind.CLI, "/setup model", null) : null;
         }
         if ("models".equals(first)) {
             return new CliMode(CliMode.Kind.CLI, "/models", null);

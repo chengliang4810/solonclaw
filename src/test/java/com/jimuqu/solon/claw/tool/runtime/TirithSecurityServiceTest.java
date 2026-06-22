@@ -3,6 +3,8 @@ package com.jimuqu.solon.claw.tool.runtime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import java.io.ByteArrayInputStream;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +14,20 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class TirithSecurityServiceTest {
+    @Test
+    void shouldCloseTirithOutputStreamAfterUtf8Read() throws Exception {
+        CloseAwareInputStream inputStream =
+                new CloseAwareInputStream("第一行\nsecond line".getBytes(StandardCharsets.UTF_8));
+        Method readUtf8 =
+                TirithSecurityService.class.getDeclaredMethod("readUtf8", java.io.InputStream.class);
+        readUtf8.setAccessible(true);
+
+        String content = (String) readUtf8.invoke(null, inputStream);
+
+        assertThat(content).isEqualTo("第一行\nsecond line");
+        assertThat(inputStream.isClosed()).isTrue();
+    }
+
     @Test
     void shouldMapTirithExitCodesLikeJimuqu() throws Exception {
         TirithSecurityService.ScanResult allow =
@@ -154,6 +170,17 @@ public class TirithSecurityServiceTest {
         assertThat(closed.getAction()).isEqualTo("block");
         assertThat(closed.getSummary()).contains("fail-closed");
         assertThat(closed.getSummary()).contains("***").doesNotContain(token);
+    }
+
+    @Test
+    void shouldFailClosedWhenConfigIsMissing() {
+        TirithSecurityService service = new TirithSecurityService(null);
+
+        TirithSecurityService.Diagnostic diagnostic = service.diagnose();
+
+        assertThat(diagnostic.isFailOpen()).isFalse();
+        assertThat(diagnostic.getFailureMode()).isEqualTo("fail-closed");
+        assertThat(diagnostic.getFailureBehavior()).isEqualTo("block_on_operational_failure");
     }
 
     @Test
@@ -528,5 +555,35 @@ public class TirithSecurityServiceTest {
             builder.append(value);
         }
         return builder.toString();
+    }
+
+    /** 记录读取结束时是否关闭输入流的测试流。 */
+    private static class CloseAwareInputStream extends ByteArrayInputStream {
+        /** 标记测试流是否已关闭。 */
+        private boolean closed;
+
+        /**
+         * 创建可观测关闭状态的输入流。
+         *
+         * @param buf UTF-8 测试内容。
+         */
+        private CloseAwareInputStream(byte[] buf) {
+            super(buf);
+        }
+
+        /** 关闭输入流并记录关闭状态。 */
+        @Override
+        public void close() {
+            closed = true;
+        }
+
+        /**
+         * 读取输入流关闭状态。
+         *
+         * @return 返回是否已关闭。
+         */
+        private boolean isClosed() {
+            return closed;
+        }
     }
 }

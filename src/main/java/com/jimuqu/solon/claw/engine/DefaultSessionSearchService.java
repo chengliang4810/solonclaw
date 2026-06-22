@@ -25,9 +25,14 @@ import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 默认会话搜索服务。 */
 public class DefaultSessionSearchService implements SessionSearchService {
+    /** 会话搜索内部日志，仅记录增强召回阶段和异常类型，避免暴露会话正文或模型输入。 */
+    private static final Logger log = LoggerFactory.getLogger(DefaultSessionSearchService.class);
+
     /** 默认限制的统一常量值。 */
     private static final int DEFAULT_LIMIT = 3;
 
@@ -802,8 +807,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
                                 null, null, null, null, null, 0L, 0L, searchLimit);
                 appendScoredToolCallResults(globalRecent, query, results);
             }
-        } catch (Exception ignored) {
-            // 工具调用检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
+        } catch (Exception e) {
+            logRecoverableSearchFailure("tool_call_search", e);
         }
     }
 
@@ -877,8 +882,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
                     results.add(entry);
                 }
             }
-        } catch (Exception ignored) {
-            // 运行记录检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
+        } catch (Exception e) {
+            logRecoverableSearchFailure("run_search", e);
         }
     }
 
@@ -911,8 +916,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
                     results.add(entry);
                 }
             }
-        } catch (Exception ignored) {
-            // 运行事件检索是会话搜索的增强来源，失败时不影响历史会话搜索主路径。
+        } catch (Exception e) {
+            logRecoverableSearchFailure("run_event_search", e);
         }
     }
 
@@ -1661,6 +1666,33 @@ public class DefaultSessionSearchService implements SessionSearchService {
             return normalized;
         }
         return normalized.substring(0, maxLength) + "...";
+    }
+
+    /**
+     * 记录增强搜索来源的可恢复失败，继续返回其它可用搜索结果。
+     *
+     * @param stage 增强搜索阶段。
+     * @param error 失败异常。
+     */
+    private void logRecoverableSearchFailure(String stage, Exception error) {
+        log.debug(
+                "会话搜索增强来源失败，继续使用其它搜索结果: stage={}, error={}",
+                StrUtil.blankToDefault(stage, "unknown"),
+                exceptionSummary(error));
+    }
+
+    /**
+     * 生成不包含异常消息正文的安全摘要，避免日志暴露会话、prompt、token 或工具参数。
+     *
+     * @param error 失败异常。
+     * @return 返回异常类型名称。
+     */
+    private String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String simpleName = error.getClass().getSimpleName();
+        return StrUtil.blankToDefault(simpleName, error.getClass().getName());
     }
 
     /** 承载搜索Candidate相关状态和辅助逻辑。 */

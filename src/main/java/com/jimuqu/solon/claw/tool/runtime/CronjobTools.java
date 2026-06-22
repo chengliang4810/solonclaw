@@ -7,15 +7,15 @@ import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -24,6 +24,10 @@ import org.noear.solon.annotation.Param;
 /** 提供Cronjob工具能力，供 Agent 运行时按安全策略调用。 */
 @RequiredArgsConstructor
 public class CronjobTools {
+    /** 工具视图中的本地 ISO 时间格式，保持原有 yyyy-MM-dd'T'HH:mm:ssXXX 展示。 */
+    private static final DateTimeFormatter ISO_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
+
     /** 注入定时任务任务服务，用于调用对应业务能力。 */
     private final CronJobService cronJobService;
 
@@ -243,7 +247,7 @@ public class CronjobTools {
                                 includeDisabled == null || includeDisabled.booleanValue());
                 Map<String, Object> status = statusView(jobs, limit == null ? 5 : limit.intValue());
                 return ToolResultEnvelope.ok("Cronjob 状态")
-                        .data("status", status)
+                        .data("cron_status", status)
                         .data("count", status.get("total"))
                         .data("next", status.get("next"))
                         .data("recent_failures", status.get("recent_failures"))
@@ -258,7 +262,7 @@ public class CronjobTools {
                 Map<String, Object> status = statusView(jobs, limit == null ? 5 : limit.intValue());
                 return ToolResultEnvelope.ok("已列出定时任务")
                         .data("count", status.get("total"))
-                        .data("status", status)
+                        .data("cron_status", status)
                         .data("total", status.get("total"))
                         .data("active", status.get("active"))
                         .data("paused", status.get("paused"))
@@ -1560,9 +1564,7 @@ public class CronjobTools {
         if (millis <= 0L) {
             return null;
         }
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-        format.setTimeZone(TimeZone.getDefault());
-        return format.format(new Date(millis));
+        return ISO_TIME_FORMATTER.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()));
     }
 
     /**

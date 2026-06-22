@@ -20,9 +20,14 @@ import org.noear.solon.ai.chat.message.UserMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 import org.noear.solon.flow.FlowContext;
 import org.noear.solon.flow.FlowContextInternal;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 基于现有 SessionRecord / SQLite 的 AgentSession 适配层。 */
 public class SqliteAgentSession implements AgentSession {
+    /** 记录会话快照恢复降级的低敏诊断日志，不输出会话内容或快照 JSON。 */
+    private static final Logger log = LoggerFactory.getLogger(SqliteAgentSession.class);
+
     /** META待恢复的统一常量值。 */
     private static final String META_PENDING = "_agent_pending_";
 
@@ -107,6 +112,30 @@ public class SqliteAgentSession implements AgentSession {
     @Override
     public List<ChatMessage> getLatestMessages(int windowSize) {
         return cache.getLatestMessages(windowSize);
+    }
+
+    /**
+     * 删除最近的若干条消息，供 Solon AI 4 在 retry/回滚模型输出时同步收缩 SQLite 会话历史。
+     *
+     * @param count 需要从尾部移除的消息数量。
+     */
+    @Override
+    public void removeLatestMessage(int count) {
+        if (count <= 0) {
+            return;
+        }
+        List<ChatMessage> messages = cache.getMessages();
+        if (messages == null || messages.isEmpty()) {
+            return;
+        }
+        int removed = 0;
+        while (removed < count && !messages.isEmpty()) {
+            messages.remove(messages.size() - 1);
+            removed++;
+        }
+        if (removed > 0) {
+            syncRecord(false);
+        }
     }
 
     /**
@@ -302,7 +331,7 @@ public class SqliteAgentSession implements AgentSession {
             if (StrUtil.isNotBlank(sessionRecord.getNdjson())) {
                 List<ChatMessage> messages = MessageSupport.loadMessages(sessionRecord.getNdjson());
                 int repairs =
-                        MessageSupport.dropHistoricalSummaryArtifacts(
+                        MessageSupport.dropCurrentSummaryArtifacts(
                                 messages, sessionRecord.getCompressedSummary());
                 repairs += MessageSupport.repairMessageSequence(messages, isPending());
                 cache.addMessage(messages);
@@ -336,8 +365,10 @@ public class SqliteAgentSession implements AgentSession {
                 }
                 return context;
             }
-        } catch (Throwable ignored) {
-            // 这里保留兜底路径，避免兼容输入导致主流程中断。
+        } catch (Throwable e) {
+            log.warn("Agent会话快照恢复失败，重建空上下文 sessionId={} error={}",
+                    safeSessionId(sessionRecord),
+                    e.getClass().getSimpleName());
         }
         return FlowContext.of(sessionRecord.getSessionId());
     }
@@ -510,9 +541,21 @@ public class SqliteAgentSession implements AgentSession {
         }
         try {
             return Math.max(0L, Long.parseLong(String.valueOf(value).trim()));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("会话快照数值字段解析失败，使用0兜底 error={}", e.getClass().getSimpleName());
             return 0L;
         }
+    }
+
+    /**
+     * 生成安全展示用会话标识，避免日志中出现过长或异常文本。
+     *
+     * @param sessionRecord 会话记录参数。
+     * @return 返回截断后的会话标识。
+     */
+    private String safeSessionId(SessionRecord sessionRecord) {
+        String sessionId = sessionRecord == null ? "" : StrUtil.nullToEmpty(sessionRecord.getSessionId());
+        return sessionId.length() > 64 ? sessionId.substring(0, 64) : sessionId;
     }
 
     /**

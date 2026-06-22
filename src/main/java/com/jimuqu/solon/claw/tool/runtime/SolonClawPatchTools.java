@@ -19,9 +19,14 @@ import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供Solon项目Patch工具能力，供 Agent 运行时按安全策略调用。 */
 public class SolonClawPatchTools {
+    /** 记录补丁工具中的可降级异常，日志不输出路径、补丁正文或文件内容。 */
+    private static final Logger log = LoggerFactory.getLogger(SolonClawPatchTools.class);
+
     /** UTF8BOM的统一常量值。 */
     private static final String UTF8_BOM = "\ufeff";
 
@@ -75,7 +80,8 @@ public class SolonClawPatchTools {
                 fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
         try {
             Files.createDirectories(this.rootPath);
-        } catch (IOException ignored) {
+        } catch (IOException e) {
+            logRecoverableFailure("create-root-directory", e);
         }
     }
 
@@ -430,6 +436,13 @@ public class SolonClawPatchTools {
                 ApplyResult applied = applyHunks(simulated, operation.hunks);
                 if (!applied.success) {
                     errors.add(safePath(operation.filePath) + ": " + applied.error);
+                } else {
+                    Path writeTarget =
+                            StrUtil.isBlank(operation.newPath)
+                                    ? target
+                                    : resolvePath(operation.newPath);
+                    addPlaceholderSecretDowngradeError(
+                            errors, writeTarget, simulated, applied.content);
                 }
                 if (StrUtil.isNotBlank(operation.newPath)) {
                     Path destination = resolvePath(operation.newPath);
@@ -461,10 +474,31 @@ public class SolonClawPatchTools {
                     errors.add(
                             safePath(operation.filePath)
                                     + ": file already exists - add would overwrite");
+                } else {
+                    addPlaceholderSecretDowngradeError(
+                            errors, target, "", collectAddContent(operation));
                 }
             }
         }
         return errors;
+    }
+
+    /**
+     * 在 V4A 预验证阶段执行密钥占位符降级检查，避免后续多文件写入出现部分成功。
+     *
+     * @param errors 验证错误列表。
+     * @param target 目标文件。
+     * @param oldContent 原始内容。
+     * @param newContent 预期写入内容。
+     */
+    private void addPlaceholderSecretDowngradeError(
+            List<String> errors, Path target, String oldContent, String newContent) {
+        try {
+            ConfigSecretWriteGuard.assertNoPlaceholderSecretDowngrade(
+                    target, oldContent, newContent);
+        } catch (IllegalArgumentException e) {
+            errors.add(SecretRedactor.redact(e.getMessage(), 1000));
+        }
     }
 
     /**
@@ -506,11 +540,30 @@ public class SolonClawPatchTools {
         if (verdict.isAllowed()) {
             return null;
         }
+        if (verdict.isApprovalRequired()) {
+            return PatchResult.error(
+                    "APPROVAL_REQUIRED: "
+                            + verdict.getMessage()
+                            + " path="
+                            + redactPath(verdict.getPath(), 400)
+                            + "。请先在对话审批该单次操作。");
+        }
         return PatchResult.error(
                 "BLOCKED: 文件安全策略阻止访问："
                         + verdict.getMessage()
                         + " path="
-                        + SecretRedactor.redact(verdict.getPath(), 400));
+                        + redactPath(verdict.getPath(), 400));
+    }
+
+    /**
+     * 脱敏补丁安全拒绝消息中的敏感路径。
+     *
+     * @param path 原始路径。
+     * @param maxLength 最大展示长度。
+     * @return 返回脱敏后的路径。
+     */
+    private static String redactPath(String path, int maxLength) {
+        return SecretRedactor.redactSensitivePaths(SecretRedactor.redact(path, maxLength));
     }
 
     /**
@@ -978,6 +1031,9 @@ public class SolonClawPatchTools {
      */
     private void write(Path target, String content) throws IOException {
         String value = StrUtil.nullToEmpty(content);
+        String oldContent =
+                Files.exists(target) && !Files.isDirectory(target) ? read(target) : "";
+        ConfigSecretWriteGuard.assertNoPlaceholderSecretDowngrade(target, oldContent, value);
         if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
             value = UTF8_BOM + value;
         }
@@ -1003,9 +1059,32 @@ public class SolonClawPatchTools {
                     && (bytes[0] & 0xFF) == 0xEF
                     && (bytes[1] & 0xFF) == 0xBB
                     && (bytes[2] & 0xFF) == 0xBF;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableFailure("detect-leading-bom", e);
             return false;
         }
+    }
+
+    /**
+     * 记录可恢复补丁异常，只写阶段和异常类型，避免泄露文件路径或补丁内容。
+     *
+     * @param stage 降级阶段。
+     * @param error 异常对象。
+     */
+    private static void logRecoverableFailure(String stage, Exception error) {
+        if (log.isDebugEnabled()) {
+            log.debug("patch tool fallback. stage={} error={}", stage, exceptionSummary(error));
+        }
+    }
+
+    /**
+     * 生成低敏异常摘要，仅保留异常类型。
+     *
+     * @param error 异常对象。
+     * @return 返回异常类型摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getName();
     }
 
     /**
@@ -1112,8 +1191,8 @@ public class SolonClawPatchTools {
 
     /** 表示补丁结果，携带调用方后续判断所需信息。 */
     public static class PatchResult {
-        /** 是否启用success。 */
-        public boolean success;
+        /** 记录补丁工具对外返回的当前执行状态。 */
+        public String status;
 
         /** 记录补丁中的错误。 */
         public String error;
@@ -1149,13 +1228,13 @@ public class SolonClawPatchTools {
         private final List<String> filesDeleted = files_deleted;
 
         /**
-         * 执行success相关逻辑。
+         * 创建补丁成功结果。
          *
-         * @return 返回success结果。
+         * @return 返回成功状态结果。
          */
         public static PatchResult success() {
             PatchResult result = new PatchResult();
-            result.success = true;
+            result.status = "success";
             return result;
         }
 
@@ -1167,7 +1246,7 @@ public class SolonClawPatchTools {
          */
         public static PatchResult error(String error) {
             PatchResult result = new PatchResult();
-            result.success = false;
+            result.status = "error";
             result.error =
                     SecretRedactor.redact(StrUtil.blankToDefault(error, "patch failed"), 1000);
             return result;

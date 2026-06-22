@@ -39,7 +39,12 @@ public class SelfUpdateLauncher {
                         StandardCopyOption.ATOMIC_MOVE);
                 replaced = true;
                 break;
-            } catch (Exception ignored) {
+            } catch (Exception moveError) {
+                append(
+                        logFile,
+                        "SelfUpdateLauncher atomic replace failed: "
+                                + moveError.getClass().getSimpleName()
+                                + "\n");
                 try {
                     Files.copy(
                             downloadedJar.toPath(),
@@ -48,7 +53,12 @@ public class SelfUpdateLauncher {
                     Files.deleteIfExists(downloadedJar.toPath());
                     replaced = true;
                     break;
-                } catch (Exception innerIgnored) {
+                } catch (Exception copyError) {
+                    append(
+                            logFile,
+                            "SelfUpdateLauncher copy replace failed: "
+                                    + copyError.getClass().getSimpleName()
+                                    + "\n");
                     Thread.sleep(1000L);
                 }
             }
@@ -97,7 +107,8 @@ public class SelfUpdateLauncher {
     private static void append(File file, String text) {
         try {
             FileUtil.appendUtf8String(text, file);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            System.err.println("SelfUpdateLauncher append failed: " + e.getClass().getSimpleName());
         }
     }
 }

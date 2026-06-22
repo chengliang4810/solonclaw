@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
 import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
@@ -210,6 +211,29 @@ public class SolonAiLlmGatewayConfigTest {
         assertLoggingDialect(
                 "gemini", "https://generativelanguage.googleapis.com/v1beta", "gemini-pro");
         assertLoggingDialect("anthropic", "https://api.anthropic.com/v1/messages", "claude-sonnet");
+    }
+
+    @Test
+    void shouldFallbackForPlainSmartApprovalResponses() throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
+        Method parse =
+                SolonAiLlmGateway.class.getDeclaredMethod("parseSmartApprovalResponse", String.class);
+        parse.setAccessible(true);
+        Object[][] cases =
+                new Object[][] {
+                    {"approve low risk read only", Boolean.TRUE, Boolean.FALSE},
+                    {"deny destructive command", Boolean.FALSE, Boolean.TRUE},
+                    {"uncertain command needs human review", Boolean.FALSE, Boolean.FALSE}
+                };
+
+        for (Object[] item : cases) {
+            String raw = (String) item[0];
+            SmartApprovalDecision decision = (SmartApprovalDecision) parse.invoke(gateway, raw);
+
+            assertThat(decision.isApproved()).as(raw).isEqualTo(item[1]);
+            assertThat(decision.isDenied()).as(raw).isEqualTo(item[2]);
+            assertThat(decision.getReason()).as(raw).isEqualTo(raw);
+        }
     }
 
     @Test

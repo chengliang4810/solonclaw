@@ -137,9 +137,6 @@ public interface GatewayCommandConstants {
     /** 命令STOP的统一常量值。 */
     String COMMAND_STOP = "stop";
 
-    /** 命令YOLO的统一常量值。 */
-    String COMMAND_YOLO = "yolo";
-
     /** 命令PERSONALITY的统一常量值。 */
     String COMMAND_PERSONALITY = "personality";
 
@@ -209,9 +206,6 @@ public interface GatewayCommandConstants {
     /** 命令配对的统一常量值。 */
     String COMMAND_PAIRING = "pairing";
 
-    /** 命令压缩的统一常量值。 */
-    String COMMAND_COMPRESS = "compress";
-
     /** 命令紧凑的统一常量值。 */
     String COMMAND_COMPACT = "compact";
 
@@ -232,9 +226,6 @@ public interface GatewayCommandConstants {
 
     /** 命令DENY的统一常量值。 */
     String COMMAND_DENY = "deny";
-
-    /** 命令ALWAYS的统一常量值。 */
-    String COMMAND_ALWAYS = "always";
 
     /** 命令CANCEL的统一常量值。 */
     String COMMAND_CANCEL = "cancel";
@@ -295,9 +286,6 @@ public interface GatewayCommandConstants {
 
     /** 斜杠命令STOP的统一常量值。 */
     String SLASH_STOP = COMMAND_PREFIX + COMMAND_STOP;
-
-    /** 斜杠命令YOLO的统一常量值。 */
-    String SLASH_YOLO = COMMAND_PREFIX + COMMAND_YOLO;
 
     /** 斜杠命令PERSONALITY的统一常量值。 */
     String SLASH_PERSONALITY = COMMAND_PREFIX + COMMAND_PERSONALITY;
@@ -368,9 +356,6 @@ public interface GatewayCommandConstants {
     /** 斜杠命令配对的统一常量值。 */
     String SLASH_PAIRING = COMMAND_PREFIX + COMMAND_PAIRING;
 
-    /** 斜杠命令压缩的统一常量值。 */
-    String SLASH_COMPRESS = COMMAND_PREFIX + COMMAND_COMPRESS;
-
     /** 斜杠命令紧凑的统一常量值。 */
     String SLASH_COMPACT = COMMAND_PREFIX + COMMAND_COMPACT;
 
@@ -391,9 +376,6 @@ public interface GatewayCommandConstants {
 
     /** 斜杠命令DENY的统一常量值。 */
     String SLASH_DENY = COMMAND_PREFIX + COMMAND_DENY;
-
-    /** 斜杠命令ALWAYS的统一常量值。 */
-    String SLASH_ALWAYS = COMMAND_PREFIX + COMMAND_ALWAYS;
 
     /** 斜杠命令CANCEL的统一常量值。 */
     String SLASH_CANCEL = COMMAND_PREFIX + COMMAND_CANCEL;

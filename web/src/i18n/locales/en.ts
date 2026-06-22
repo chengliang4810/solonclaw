@@ -85,7 +85,7 @@ export default {
     accessTokenRevealFailed: 'Failed to read access token',
     revealAccessToken: 'Show current value',
     clearAccessToken: 'Clear token',
-    clearAccessTokenConfirm: 'Clear solonclaw.dashboard.accessToken? The service will fall back to the default token admin.',
+    clearAccessTokenConfirm: 'Clear solonclaw.dashboard.accessToken? Remote Dashboard requests will be rejected until a new token is set.',
     currentValue: 'Current value',
   },
 

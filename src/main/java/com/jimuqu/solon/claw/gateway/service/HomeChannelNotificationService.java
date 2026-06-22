@@ -13,9 +13,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 维护 home channel 列表，并向已登记的国内消息渠道推送运行通知。 */
 public class HomeChannelNotificationService {
+    /** 服务日志器，只记录通知投递的阶段与异常类型，不写通知正文。 */
+    private static final Logger log = LoggerFactory.getLogger(HomeChannelNotificationService.class);
+
     /** 应用配置引用，保留给后续按配置控制通知类型使用。 */
     private final AppConfig appConfig;
 
@@ -174,9 +179,51 @@ public class HomeChannelNotificationService {
         for (HomeChannelRecord channel : homeChannels) {
             try {
                 deliveryService.deliver(notificationRequest(channel, formatted));
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                logRecoverableNotificationFailure(channel, e);
             }
         }
+    }
+
+    /**
+     * 记录 home channel 通知投递失败，保留广播降级行为并避免输出通知正文或凭据。
+     *
+     * @param channel 失败的 home channel 记录。
+     * @param error 捕获到的异常。
+     */
+    private void logRecoverableNotificationFailure(HomeChannelRecord channel, Exception error) {
+        restoreInterruptedStatus(error);
+        log.debug(
+                "[HOME-CHANNEL] recoverable notification failure: platform={}, stage={}, errorType={}",
+                channel == null ? "unknown" : channel.getPlatform(),
+                "notify",
+                exceptionType(error));
+    }
+
+    /**
+     * 异常链中包含中断异常时恢复线程中断标记，避免静默吞掉取消信号。
+     *
+     * @param error 捕获到的异常。
+     */
+    private void restoreInterruptedStatus(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            current = current.getCause();
+        }
+    }
+
+    /**
+     * 提取异常类型名称，避免把完整异常消息写入日志。
+     *
+     * @param error 捕获到的异常。
+     * @return 异常类名；异常为空时返回通用 Throwable。
+     */
+    private String exceptionType(Throwable error) {
+        return error == null ? "Throwable" : error.getClass().getSimpleName();
     }
 
     /**

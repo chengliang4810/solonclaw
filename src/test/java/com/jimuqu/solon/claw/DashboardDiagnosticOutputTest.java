@@ -1071,7 +1071,6 @@ public class DashboardDiagnosticOutputTest {
         assertThat(mcpPackagePolicy.get("pypiSourceOptionParsed")).isEqualTo(Boolean.TRUE);
         assertThat(mcpPackagePolicy.get("projectEndpointOverrideEnvironment"))
                 .isEqualTo("SOLONCLAW_OSV_ENDPOINT");
-        assertThat(mcpPackagePolicy).doesNotContainKey("legacyEndpointOverrideEnvironment");
         assertThat(coverage.get("toolResultStorage")).isEqualTo(Boolean.TRUE);
         Map<String, Object> storagePolicy =
                 (Map<String, Object>) coverage.get("toolResultStoragePolicy");
@@ -1566,9 +1565,9 @@ public class DashboardDiagnosticOutputTest {
                 findProbe(items, "sensitive_http_header_send");
         Map<String, Object> cliAccessTokenRead = findProbe(items, "cli_access_token_read");
         Map<String, Object> kubernetesCredentialConfigRead =
-                findProbe(items, "kubernetes_credential_config_read");
+                findProbe(items, "kubernetes_credential_file_read");
         Map<String, Object> cloudCliCredentialConfigRead =
-                findProbe(items, "cloud_cli_credential_config_read");
+                findProbe(items, "cloud_cli_credential_file_read");
         Map<String, Object> cloudCliCredentialConfigChange =
                 findProbe(items, "cloud_cli_credential_config_change");
         Map<String, Object> sshAddPrivateKey = findProbe(items, "ssh_add_private_key");
@@ -1966,8 +1965,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hardlineRedirectDevice.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineRedirectDevice)).contains("/dev/sdb");
         assertThat(hardlineShutdown.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineShutdown.get("allowed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineShutdown.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlineShutdown.get("allowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlineShutdown.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardlineShutdown.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineShutdown)).contains("reboot");
         assertThat(hardlineKillAll.get("passed")).isEqualTo(Boolean.TRUE);
@@ -2007,8 +2006,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hardlineWindowsSystemDir.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineWindowsSystemDir)).contains("C:\\Windows\\*");
         assertThat(hardlineWindowsShutdown.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsShutdown.get("allowed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsShutdown.get("blocked")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlineWindowsShutdown.get("allowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlineWindowsShutdown.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardlineWindowsShutdown.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineWindowsShutdown)).contains("shutdown.exe");
         assertThat(sudoRewrite.get("passed")).isEqualTo(Boolean.TRUE);
@@ -2137,7 +2136,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(sensitivePathSegmentUrl.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(sensitivePathSegmentUrl.get("skipped")).isNull();
         assertThat(String.valueOf(sensitivePathSegmentUrl))
-                .contains("[REDACTED_PATH]")
+                .contains("[REDACTED_URL_SECRET]")
                 .doesNotContain("secret123");
         assertThat(schemelessSensitiveQuery.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(schemelessSensitiveQuery.get("blocked")).isEqualTo(Boolean.TRUE);
@@ -2149,7 +2148,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(schemelessSensitivePath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(schemelessSensitivePath.get("skipped")).isNull();
         assertThat(String.valueOf(schemelessSensitivePath))
-                .contains("[REDACTED_PATH]")
+                .contains("[REDACTED_URL_SECRET]")
                 .doesNotContain("schemeless-path-secret");
         assertThat(encodedSeparatorSensitiveQuery.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(encodedSeparatorSensitiveQuery.get("blocked")).isEqualTo(Boolean.TRUE);
@@ -2193,13 +2192,13 @@ public class DashboardDiagnosticOutputTest {
         assertThat(rawBlockDeviceWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(rawBlockDeviceWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(rawBlockDeviceWrite.get("skipped")).isNull();
-        assertThat(String.valueOf(rawBlockDeviceWrite)).contains("/dev/sda");
+        assertThat(String.valueOf(rawBlockDeviceWrite))
+                .contains("/dev/sda");
         assertThat(skillsHubInternalPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(skillsHubInternalPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(skillsHubInternalPath.get("skipped")).isNull();
         assertThat(String.valueOf(skillsHubInternalPath))
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("skills/.hub");
+                .contains("skills/.hub/index.json");
         assertThat(commandUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandUrlPolicy.get("skipped")).isNull();
@@ -2275,7 +2274,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandUserinfoUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandUserinfoUrlPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandUserinfoUrlPolicy))
-                .contains("[REDACTED_PATH]")
+                .contains("[REDACTED_URL_CREDENTIAL]")
                 .doesNotContain("dashboard-password");
         assertThat(commandSchemelessUserinfoUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandSchemelessUserinfoUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
@@ -2584,26 +2583,22 @@ public class DashboardDiagnosticOutputTest {
         assertThat(patchToolCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(patchToolCredentialPath))
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".env");
+                .contains(".env");
         assertThat(patchToolUnifiedCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolUnifiedCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolUnifiedCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(patchToolUnifiedCredentialPath))
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".ssh/authorized_keys");
+                .contains(".ssh/authorized_keys");
         assertThat(patchToolMoveCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolMoveCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolMoveCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(patchToolMoveCredentialPath))
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".env.local");
+                .contains(".env.local");
         assertThat(patchToolUnifiedAddCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolUnifiedAddCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(patchToolUnifiedAddCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(patchToolUnifiedAddCredentialPath))
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".env");
+                .contains(".env");
         assertThat(commandDownloadOutputPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandDownloadOutputPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandDownloadOutputPath.get("skipped")).isNull();
@@ -2670,7 +2665,9 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandEncodedPathTraversal.get("skipped")).isNull();
         assertThat(String.valueOf(commandEncodedPathTraversal))
                 .contains("cat")
-                .contains("%252e%252e");
+                .contains("[REDACTED_PATH]")
+                .contains("路径遍历")
+                .doesNotContain("%252e%252e");
         assertThat(commandHostsFileWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandHostsFileWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandHostsFileWrite.get("skipped")).isNull();
@@ -2851,13 +2848,15 @@ public class DashboardDiagnosticOutputTest {
         assertThat(commandDevicePathRead.get("skipped")).isNull();
         assertThat(String.valueOf(commandDevicePathRead.get("target")))
                 .contains("cat")
-                .contains("/dev/zero");
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/dev/zero");
         assertThat(commandRawBlockDeviceWrite.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandRawBlockDeviceWrite.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandRawBlockDeviceWrite.get("skipped")).isNull();
         assertThat(String.valueOf(commandRawBlockDeviceWrite.get("target")))
                 .contains("dd")
-                .contains("/dev/sda");
+                .contains("[REDACTED_PATH]")
+                .doesNotContain("/dev/sda");
         assertThat(commandBarePackedIpv4Metadata.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandBarePackedIpv4Metadata.get("skipped")).isNull();
@@ -4373,7 +4372,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(hardlinePolicy.get("slashApproveBypassAllowed")).isEqualTo(Boolean.FALSE);
         assertThat(hardlinePolicy.get("sessionApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
         assertThat(hardlinePolicy.get("alwaysApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
-        assertThat(hardlinePolicy.get("yoloBypassAllowed")).isEqualTo(Boolean.FALSE);
+        assertThat(hardlinePolicy.get("sessionAutoApprovalBypassAllowed"))
+                .isEqualTo(Boolean.FALSE);
         assertThat(hardlinePolicy.get("smartApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
         assertThat(hardlinePolicy.get("approvalRequired")).isEqualTo(Boolean.FALSE);
         assertThat(hardlinePolicy.get("blockingDecision")).isEqualTo("block");
@@ -5056,15 +5056,15 @@ public class DashboardDiagnosticOutputTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void shouldUseOpaqueSelectorForLegacyApprovalWithoutApprovalId() throws Exception {
+    void shouldUseOpaqueSelectorForQueuedApprovalWithoutApprovalId() throws Exception {
         AppConfig config = new AppConfig();
         DangerousCommandApprovalService approvalService =
                 new DangerousCommandApprovalService(
                         null, config, new SecurityPolicyService(config));
         SessionRecord record = new SessionRecord();
-        record.setSessionId("session-legacy-approval");
-        record.setSourceKey("source-legacy-approval");
-        record.setTitle("旧审批会话");
+        record.setSessionId("session-queued-approval");
+        record.setSourceKey("source-queued-approval");
+        record.setTitle("队列审批会话");
 
         SqliteAgentSession session = new SqliteAgentSession(record);
         approvalService.storePendingApproval(
@@ -5076,20 +5076,19 @@ public class DashboardDiagnosticOutputTest {
         DangerousCommandApprovalService.PendingApproval pending =
                 approvalService.getPendingApproval(session);
         String approvalKey = pending.approvalKey();
-        Map<String, Object> legacy = new LinkedHashMap<String, Object>();
-        legacy.put("toolName", pending.getToolName());
-        legacy.put("patternKey", pending.getPatternKey());
-        legacy.put("patternKeys", pending.effectivePatternKeys());
-        legacy.put("description", pending.getDescription());
-        legacy.put("command", pending.getCommand());
-        legacy.put("commandHash", pending.getCommandHash());
-        legacy.put("approvalKey", approvalKey);
-        legacy.put("createdAt", Long.valueOf(pending.getCreatedAt()));
-        legacy.put("expiresAt", Long.valueOf(pending.getExpiresAt()));
+        Map<String, Object> queued = new LinkedHashMap<String, Object>();
+        queued.put("toolName", pending.getToolName());
+        queued.put("patternKey", pending.getPatternKey());
+        queued.put("patternKeys", pending.effectivePatternKeys());
+        queued.put("description", pending.getDescription());
+        queued.put("command", pending.getCommand());
+        queued.put("commandHash", pending.getCommandHash());
+        queued.put("approvalKey", approvalKey);
+        queued.put("createdAt", Long.valueOf(pending.getCreatedAt()));
+        queued.put("expiresAt", Long.valueOf(pending.getExpiresAt()));
         List<Map<String, Object>> queue = new ArrayList<Map<String, Object>>();
-        queue.add(legacy);
+        queue.add(queued);
         session.getContext().put("_dangerous_command_pending_queue_", queue);
-        session.getContext().put("_dangerous_command_pending_", legacy);
         session.updateSnapshot();
 
         DashboardDiagnosticsService diagnosticsService =
@@ -5118,7 +5117,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(item).doesNotContainKey("approval_key");
 
         Map<String, Object> body = new LinkedHashMap<String, Object>();
-        body.put("sessionId", "session-legacy\u202E-approval");
+        body.put("sessionId", "session-queued\u202E-approval");
         body.put("approvalId", selector.substring(0, 8) + "\u202E" + selector.substring(8));
         body.put("action", "deny");
         body.put("resume", Boolean.FALSE);

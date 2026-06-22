@@ -5,6 +5,9 @@ public interface RuntimePathConstants {
     /** 运行时主渠道的统一常量值。 */
     String RUNTIME_HOME = "runtime";
 
+    /** 默认 Agent 工作区目录，按运行 Jar 所在目录解析。 */
+    String DEFAULT_WORKSPACE = "./workspace";
+
     /** 上下文目录名称的统一常量值。 */
     String CONTEXT_DIR_NAME = "context";
 

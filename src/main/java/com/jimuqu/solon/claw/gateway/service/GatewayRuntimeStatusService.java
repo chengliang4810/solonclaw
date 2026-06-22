@@ -8,21 +8,31 @@ import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
 import java.time.Instant;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供消息网关运行时状态相关业务能力，封装调用方不需要感知的运行细节。 */
 public class GatewayRuntimeStatusService {
+    /** 网关运行状态日志，避免诊断文件和进程探测失败时静默丢失上下文。 */
+    private static final Logger log = LoggerFactory.getLogger(GatewayRuntimeStatusService.class);
+
     /** 消息网关KIND的统一常量值。 */
     private static final String GATEWAY_KIND = "solon-claw-gateway";
 
     /** UTF8的统一常量值。 */
     private static final Charset UTF_8 = StandardCharsets.UTF_8;
+
+    /** 解析 ps lstart 输出的英文时间格式，保持原有 EEE MMM d HH:mm:ss yyyy 兼容。 */
+    private static final DateTimeFormatter PROCESS_START_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("EEE MMM d HH:mm:ss yyyy", Locale.ENGLISH);
 
     /** 记录消息网关运行时状态中的进程ID文件。 */
     private final File pidFile;
@@ -54,7 +64,8 @@ public class GatewayRuntimeStatusService {
         try {
             FileUtil.mkParentDirs(pidFile);
             FileUtil.writeString(ONode.serialize(buildRuntimeRecord()), pidFile, UTF_8);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("消息网关 PID 文件写入失败，运行状态可能无法被外部进程识别: error={}", exceptionSummary(e));
         }
     }
 
@@ -63,13 +74,12 @@ public class GatewayRuntimeStatusService {
         try {
             if (pidFile.isFile()) {
                 Map<String, Object> record = readPidRecord();
-                if (record == null
-                        || matchesCurrentProcess(
-                                record, Boolean.TRUE.equals(record.get("legacy")))) {
+                if (record == null || matchesCurrentProcess(record)) {
                     pidFile.delete();
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("消息网关 PID 文件清理失败，跳过本次清理: {}", exceptionSummary(e));
         }
     }
 
@@ -92,7 +102,8 @@ public class GatewayRuntimeStatusService {
             }
             FileUtil.mkParentDirs(stateFile);
             FileUtil.writeString(ONode.serialize(state), stateFile, UTF_8);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn("消息网关状态文件写入失败，Dashboard 状态可能短暂不准确: error={}", exceptionSummary(e));
         }
     }
 
@@ -130,7 +141,8 @@ public class GatewayRuntimeStatusService {
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("消息网关状态文件读取失败，返回空状态: {}", exceptionSummary(e));
         }
         return new LinkedHashMap<String, Object>();
     }
@@ -185,30 +197,10 @@ public class GatewayRuntimeStatusService {
             if (parsed instanceof Map) {
                 return (Map<String, Object>) parsed;
             }
-            Long pid = asLong(parsed);
-            if (pid != null) {
-                return legacyPidRecord(pid.longValue());
-            }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("消息网关 PID 文件解析失败，忽略过期或损坏记录: {}", exceptionSummary(e));
         }
-        Long pid = asLong(raw);
-        if (pid == null) {
-            return null;
-        }
-        return legacyPidRecord(pid.longValue());
-    }
-
-    /**
-     * 执行legacy进程ID记录相关逻辑。
-     *
-     * @param pid 系统进程标识。
-     * @return 返回legacy Pid记录结果。
-     */
-    private Map<String, Object> legacyPidRecord(long pid) {
-        Map<String, Object> record = new LinkedHashMap<String, Object>();
-        record.put("pid", Long.valueOf(pid));
-        record.put("legacy", Boolean.TRUE);
-        return record;
+        return null;
     }
 
     /**
@@ -226,45 +218,42 @@ public class GatewayRuntimeStatusService {
             return false;
         }
 
-        boolean legacy = Boolean.TRUE.equals(record.get("legacy"));
         String kind = safeText(record.get("kind"));
-        if (!legacy && !GATEWAY_KIND.equals(kind)) {
+        if (!GATEWAY_KIND.equals(kind)) {
             return false;
         }
 
         long currentPid = getCurrentPid();
         if (pid.longValue() == currentPid) {
-            return matchesCurrentProcess(record, legacy);
+            return matchesCurrentProcess(record);
         }
 
-        return matchesOtherProcess(record, legacy, pid.longValue());
+        return matchesOtherProcess(record, pid.longValue());
     }
 
     /**
      * 判断状态记录是否匹配当前网关进程。
      *
      * @param record 记录参数。
-     * @param legacy legacy 参数。
      * @return 返回matches当前进程结果。
      */
-    private boolean matchesCurrentProcess(Map<String, Object> record, boolean legacy) {
+    private boolean matchesCurrentProcess(Map<String, Object> record) {
         Long recordedStartTime = asLong(record.get("startTime"));
         if (recordedStartTime != null
                 && recordedStartTime.longValue() != getCurrentJvmStartTime()) {
             return false;
         }
-        return legacy || GATEWAY_KIND.equals(safeText(record.get("kind")));
+        return GATEWAY_KIND.equals(safeText(record.get("kind")));
     }
 
     /**
      * 判断状态记录是否匹配另一个仍存活的网关进程。
      *
      * @param record 记录参数。
-     * @param legacy legacy 参数。
      * @param pid 系统进程标识。
      * @return 返回matches Other进程结果。
      */
-    private boolean matchesOtherProcess(Map<String, Object> record, boolean legacy, long pid) {
+    private boolean matchesOtherProcess(Map<String, Object> record, long pid) {
         Long recordedStartTime = asLong(record.get("startTime"));
         Long processStartTime = readProcessStartTime(pid);
         if (recordedStartTime != null
@@ -276,9 +265,6 @@ public class GatewayRuntimeStatusService {
         String liveCommand = readProcessCommand(pid);
         if (StrUtil.isNotBlank(liveCommand)) {
             return looksLikeGatewayCommand(liveCommand);
-        }
-        if (legacy) {
-            return false;
         }
         return looksLikeGatewayCommand(safeText(record.get("command")));
     }
@@ -295,11 +281,12 @@ public class GatewayRuntimeStatusService {
             return null;
         }
         try {
-            SimpleDateFormat format =
-                    new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy", Locale.ENGLISH);
-            Date date = format.parse(output.trim().replaceAll("\\s+", " "));
-            return date == null ? null : Long.valueOf(date.getTime());
-        } catch (Exception ignored) {
+            LocalDateTime dateTime =
+                    LocalDateTime.parse(
+                            output.trim().replaceAll("\\s+", " "), PROCESS_START_TIME_FORMATTER);
+            return Long.valueOf(dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli());
+        } catch (Exception e) {
+            log.debug("系统进程启动时间解析失败，跳过跨进程时间校验: {}", exceptionSummary(e));
             return null;
         }
     }
@@ -318,7 +305,8 @@ public class GatewayRuntimeStatusService {
                 if (bytes.length > 0) {
                     return new String(bytes, UTF_8).replace('\0', ' ').trim();
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("读取 /proc cmdline 失败，回退到 ps 命令探测: {}", exceptionSummary(e));
             }
         }
         return runCommand(new String[] {"ps", "-p", String.valueOf(pid), "-o", "command="});
@@ -392,7 +380,9 @@ public class GatewayRuntimeStatusService {
                 return "";
             }
             return StrUtil.nullToEmpty(stdout).trim();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            restoreInterruptIfNeeded(e);
+            log.debug("网关运行状态系统命令执行失败，返回空输出: {}", exceptionSummary(e));
             return "";
         }
     }
@@ -427,9 +417,31 @@ public class GatewayRuntimeStatusService {
         }
         try {
             return Long.valueOf(text);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("消息网关状态长整型字段解析失败，忽略该字段: {}", exceptionSummary(e));
             return null;
         }
+    }
+
+    /**
+     * 在进程探测等待被中断时恢复中断标记，避免上层调度逻辑误判线程状态。
+     *
+     * @param error 进程探测捕获到的异常。
+     */
+    private static void restoreInterruptIfNeeded(Exception error) {
+        if (error instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * 生成运行状态异常摘要；只记录异常类型，避免状态文件中的细节被带入日志。
+     *
+     * @param error 运行状态读取、写入或系统探测异常。
+     * @return 可写入日志的异常摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getName();
     }
 
     /**

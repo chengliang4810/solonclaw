@@ -11,9 +11,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Agent 运行时工具与技能选择策略，负责把角色配置冻结成单轮可执行的白名单。 */
 public final class AgentRuntimePolicy {
+    /** Agent 运行时策略的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(AgentRuntimePolicy.class);
+
     /** 内置工具名全集，支持 Agent 配置中的 all / * 选择器展开。 */
     private static final List<String> KNOWN_TOOL_NAMES =
             Arrays.asList(
@@ -165,7 +170,7 @@ public final class AgentRuntimePolicy {
     }
 
     /**
-     * 解析配置项中的字符串列表，兼容 JSON 数组、JSON 字符串和逗号分隔文本。
+     * 解析配置项中的字符串列表，支持 JSON 数组、JSON 字符串和逗号分隔文本。
      *
      * @param raw Agent 配置中的原始列表文本。
      * @return 返回去掉空白项后的字符串列表。
@@ -189,8 +194,11 @@ public final class AgentRuntimePolicy {
                 addCsv(result, String.valueOf(parsed));
                 return result;
             }
-        } catch (Exception ignored) {
-            // 为了兼容对话内斜杠命令，这里回退解析逗号分隔输入。
+        } catch (Exception e) {
+            log.debug(
+                    "Agent 列表配置不是 JSON，按逗号分隔文本兜底 length={}, error={}",
+                    value.length(),
+                    e.getClass().getSimpleName());
         }
 
         addCsv(result, value);
@@ -290,8 +298,6 @@ public final class AgentRuntimePolicy {
         if ("web".equals(key) || "search".equals(key)) {
             output.add(ToolNameConstants.WEBSEARCH);
             output.add(ToolNameConstants.WEBFETCH);
-            output.add("web_search");
-            output.add("web_extract");
             output.add(ToolNameConstants.CODESEARCH);
             return;
         }

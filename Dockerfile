@@ -22,7 +22,7 @@ COPY --from=frontend /workspace/web/dist /workspace/web/dist
 RUN mvn -DskipTests -Dskip.web.build=true package \
     && cp "$(find target -maxdepth 1 -type f -name 'solon-claw-*.jar' ! -name 'original-*' | head -n 1)" /tmp/solon-claw.jar
 
-FROM eclipse-temurin:17-jdk
+FROM eclipse-temurin:17-jre
 
 # 运行阶段保留常用诊断工具，服务仍按单实例 java -jar 方式启动。
 WORKDIR /app
@@ -77,6 +77,10 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# 官方镜像使用固定 UID 的非 root 用户运行，避免 Agent 工具获得容器 root 权限。
+RUN groupadd --system --gid 10001 solonclaw \
+    && useradd --system --uid 10001 --gid solonclaw --home-dir /app --shell /usr/sbin/nologin solonclaw
+
 COPY --from=builder /tmp/solon-claw.jar /app/solon-claw.jar
 COPY docker/entrypoint.sh /app/docker-entrypoint.sh
 
@@ -84,9 +88,11 @@ COPY docker/entrypoint.sh /app/docker-entrypoint.sh
 RUN mkdir -p /app/runtime \
     && sed -i 's/\r$//' /app/docker-entrypoint.sh \
     && chmod 755 /app/docker-entrypoint.sh \
-    && chmod -R a+rX /app
+    && chown -R solonclaw:solonclaw /app \
+    && chmod -R u+rwX,go-rwx /app
 
 EXPOSE 8080
 
 # tini 负责转发信号和回收子进程，入口脚本再启动 SolonClaw。
+USER solonclaw
 ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/app/docker-entrypoint.sh"]

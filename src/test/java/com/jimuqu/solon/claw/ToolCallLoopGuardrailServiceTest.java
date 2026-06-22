@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.tool.runtime.ReActToolObservationSupport;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import java.io.File;
 import java.util.Arrays;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.ai.agent.Agent;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.agent.react.task.ToolExchanger;
 import org.noear.solon.core.Props;
 
 public class ToolCallLoopGuardrailServiceTest {
@@ -30,8 +32,8 @@ public class ToolCallLoopGuardrailServiceTest {
         runFailedCall(interceptor, trace, "websearch", args);
         runFailedCall(interceptor, trace, "websearch", args);
 
-        assertThat(trace.getLastObservation()).contains("工具循环提醒");
-        assertThat(trace.getLastObservation()).contains("repeated_exact_failure_warning");
+        assertThat(observation(trace)).contains("工具循环提醒");
+        assertThat(observation(trace)).contains("repeated_exact_failure_warning");
         assertThat(trace.getRoute()).isNotEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).isNull();
     }
@@ -48,11 +50,11 @@ public class ToolCallLoopGuardrailServiceTest {
 
         runFailedCall(interceptor, trace, "websearch", args);
         runFailedCall(interceptor, trace, "websearch", args);
-        interceptor.onAction(trace, "websearch", args);
+        interceptor.onAction(trace, exchange("websearch", args));
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
-        assertThat(trace.getLastObservation()).contains("repeated_exact_failure_block");
+        assertThat(observation(trace)).contains("repeated_exact_failure_block");
         Object haltDecision = trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
         assertThat(haltDecision).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
@@ -77,8 +79,8 @@ public class ToolCallLoopGuardrailServiceTest {
         runFailedCall(interceptor, trace, "terminal", args("command", "git status --branch"));
         runFailedCall(interceptor, trace, "terminal", args("command", "git status --porcelain"));
 
-        assertThat(trace.getLastObservation()).contains("工具循环提醒");
-        assertThat(trace.getLastObservation()).contains("same_tool_failure_warning");
+        assertThat(observation(trace)).contains("工具循环提醒");
+        assertThat(observation(trace)).contains("same_tool_failure_warning");
         assertThat(trace.getRoute()).isNotEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).isNull();
     }
@@ -100,7 +102,7 @@ public class ToolCallLoopGuardrailServiceTest {
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
-        assertThat(trace.getLastObservation()).contains("same_tool_failure_halt");
+        assertThat(observation(trace)).contains("same_tool_failure_halt");
         Object haltDecision = trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
         assertThat(haltDecision).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
@@ -125,14 +127,14 @@ public class ToolCallLoopGuardrailServiceTest {
 
         runFailedCall(interceptor, trace, "websearch", firstArgs);
         runFailedCall(interceptor, trace, "websearch", reorderedArgs);
-        interceptor.onAction(trace, "websearch", reorderedArgs);
+        interceptor.onAction(trace, exchange("websearch", reorderedArgs));
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getLastObservation())
+        assertThat(observation(trace))
                 .contains("args_hash")
                 .contains("repeated_exact_failure_block");
-        assertThat(trace.getLastObservation()).contains("\"message\"");
-        assertThat(trace.getLastObservation())
+        assertThat(observation(trace)).contains("\"message\"");
+        assertThat(observation(trace))
                 .doesNotContain("secret-token-value")
                 .doesNotContain("☤")
                 .doesNotContain("β");
@@ -163,8 +165,8 @@ public class ToolCallLoopGuardrailServiceTest {
                 args,
                 "{\"content\":\"same\",\"status\":\"success\"}");
 
-        assertThat(trace.getLastObservation()).contains("工具循环提醒");
-        assertThat(trace.getLastObservation()).contains("idempotent_no_progress_warning");
+        assertThat(observation(trace)).contains("工具循环提醒");
+        assertThat(observation(trace)).contains("idempotent_no_progress_warning");
     }
 
     @Test
@@ -189,11 +191,11 @@ public class ToolCallLoopGuardrailServiceTest {
                 "read_file",
                 args,
                 "{\"content\":\"same\",\"status\":\"success\"}");
-        interceptor.onAction(trace, "read_file", args);
+        interceptor.onAction(trace, exchange("read_file", args));
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer()).contains("已停止重复工具调用");
-        assertThat(trace.getLastObservation()).contains("idempotent_no_progress_block");
+        assertThat(observation(trace)).contains("idempotent_no_progress_block");
         Object haltDecision = trace.getExtra(ToolCallLoopGuardrailService.HALT_DECISION_EXTRA_KEY);
         assertThat(haltDecision).isInstanceOf(Map.class);
         @SuppressWarnings("unchecked")
@@ -216,7 +218,7 @@ public class ToolCallLoopGuardrailServiceTest {
         runSuccessfulCall(interceptor, trace, "write_file", args, "{\"status\":\"success\"}");
         runSuccessfulCall(interceptor, trace, "write_file", args, "{\"status\":\"success\"}");
 
-        assertThat(trace.getLastObservation()).doesNotContain("工具循环提醒");
+        assertThat(observation(trace)).doesNotContain("工具循环提醒");
     }
 
     @Test
@@ -238,7 +240,7 @@ public class ToolCallLoopGuardrailServiceTest {
                 "browser_snapshot",
                 args("ref", "page"),
                 "{\"snapshot\":\"same\",\"status\":\"success\"}");
-        assertThat(trace.getLastObservation()).contains("idempotent_no_progress_warning");
+        assertThat(observation(trace)).contains("idempotent_no_progress_warning");
 
         ReActTrace mutatingTrace = newTrace();
         runSuccessfulCall(
@@ -253,7 +255,7 @@ public class ToolCallLoopGuardrailServiceTest {
                 "browser_click",
                 args("ref", "button"),
                 "{\"status\":\"success\"}");
-        assertThat(mutatingTrace.getLastObservation()).doesNotContain("工具循环提醒");
+        assertThat(observation(mutatingTrace)).doesNotContain("工具循环提醒");
     }
 
     @Test
@@ -268,25 +270,24 @@ public class ToolCallLoopGuardrailServiceTest {
         runSuccessfulCall(interceptor, trace, "websearch", args, "{\"status\":\"success\"}");
         runFailedCall(interceptor, trace, "websearch", args);
 
-        assertThat(trace.getLastObservation()).doesNotContain("repeated_exact_failure_warning");
+        assertThat(observation(trace)).doesNotContain("repeated_exact_failure_warning");
     }
 
     @Test
-    void shouldLoadJimuquToolLoopGuardrailConfigKeys() {
+    void shouldLoadSolonClawReactToolLoopGuardrailConfigKeys() {
         File runtimeHome = FileUtil.file(tempDir, "runtime");
         FileUtil.mkdir(runtimeHome);
         FileUtil.writeUtf8String(
-                "tool_loop_guardrails:\n"
-                        + "  warnings_enabled: false\n"
-                        + "  hard_stop_enabled: true\n"
-                        + "  warn_after:\n"
-                        + "    exact_failure: 4\n"
-                        + "    same_tool_failure: 5\n"
-                        + "    idempotent_no_progress: 6\n"
-                        + "  hard_stop_after:\n"
-                        + "    exact_failure: 7\n"
-                        + "    same_tool_failure: 8\n"
-                        + "    idempotent_no_progress: 9\n",
+                "solonclaw:\n"
+                        + "  react:\n"
+                        + "    toolLoopWarningsEnabled: false\n"
+                        + "    toolLoopHardStopEnabled: true\n"
+                        + "    toolLoopExactFailureWarnAfter: 4\n"
+                        + "    toolLoopSameToolFailureWarnAfter: 5\n"
+                        + "    toolLoopNoProgressWarnAfter: 6\n"
+                        + "    toolLoopExactFailureBlockAfter: 7\n"
+                        + "    toolLoopSameToolFailureHaltAfter: 8\n"
+                        + "    toolLoopNoProgressBlockAfter: 9\n",
                 FileUtil.file(runtimeHome, "config.yml"));
         Props props = new Props();
         props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
@@ -318,9 +319,10 @@ public class ToolCallLoopGuardrailServiceTest {
             String toolName,
             Map<String, Object> args,
             String result) {
-        interceptor.onAction(trace, toolName, args);
-        trace.setLastObservation(result);
-        interceptor.onObservation(trace, toolName, result, 3L);
+        ToolExchanger exchanger = exchange(toolName, args);
+        interceptor.onAction(trace, exchanger);
+        ReActToolObservationSupport.set(trace, exchanger, result);
+        interceptor.onObservation(trace, exchanger, null, null, 3L);
     }
 
     private Map<String, Object> args(String key, Object value) {
@@ -364,5 +366,13 @@ public class ToolCallLoopGuardrailServiceTest {
                 return route == null ? null : String.valueOf(route);
             }
         };
+    }
+
+    private ToolExchanger exchange(String toolName, Map<String, Object> args) {
+        return new ToolExchanger(toolName, args);
+    }
+
+    private String observation(ReActTrace trace) {
+        return ReActToolObservationSupport.get(trace, null);
     }
 }

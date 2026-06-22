@@ -10,9 +10,14 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 默认仓库探测服务，封装本地 Git 和显式远程 URL 的只读探测命令。 */
 public class DefaultRepositoryProbeService implements RepositoryProbeService {
+    /** 仓库探测内部日志，只记录阶段和异常类型，避免泄露仓库地址或命令输出。 */
+    private static final Logger log = LoggerFactory.getLogger(DefaultRepositoryProbeService.class);
+
     /** Git 只读命令超时时间，避免主动协作 tick 被网络或坏仓库长时间阻塞。 */
     private static final int COMMAND_TIMEOUT_SECONDS = 8;
 
@@ -114,7 +119,8 @@ public class DefaultRepositoryProbeService implements RepositoryProbeService {
                                 public void run() {
                                     try {
                                         readBounded(process.getInputStream(), output);
-                                    } catch (Exception ignored) {
+                                    } catch (Exception e) {
+                                        logRecoverableProbeFailure("read_git_output", e);
                                     }
                                 }
                             },
@@ -132,7 +138,8 @@ public class DefaultRepositoryProbeService implements RepositoryProbeService {
                 return "";
             }
             return SecretRedactor.redact(output.toString(StandardCharsets.UTF_8.name()), 4000).trim();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableProbeFailure("run_git_command", e);
             return "";
         }
     }
@@ -252,6 +259,39 @@ public class DefaultRepositoryProbeService implements RepositoryProbeService {
      */
     private String stateHash(String commitHash, String extra) {
         return StrUtil.nullToEmpty(commitHash) + ":" + StrUtil.nullToEmpty(extra);
+    }
+
+    /**
+     * 记录仓库探测可恢复失败；只输出阶段和异常类型，避免日志携带仓库内容、URL 或密钥。
+     *
+     * @param stage 失败阶段。
+     * @param error 原始异常。
+     */
+    private void logRecoverableProbeFailure(String stage, Exception error) {
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "proactive repository probe fallback: stage={}, errorType={}",
+                    stage,
+                    exceptionType(error));
+        }
+    }
+
+    /**
+     * 提取异常类型；检测到中断异常时恢复线程中断标记，保留原有降级语义。
+     *
+     * @param error 原始异常。
+     * @return 异常类名。
+     */
+    private String exceptionType(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            current = current.getCause();
+        }
+        return error == null ? "UnknownException" : error.getClass().getSimpleName();
     }
 
     /** 远程分支头解析结果。 */

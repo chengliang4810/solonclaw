@@ -75,8 +75,6 @@ docker compose up -d
 
 默认 Compose 会将本地 `./runtime` 挂载到容器内 `/app/runtime`，方便持久化运行数据。镜像内服务默认以 root 用户运行，`/app/docker-entrypoint.sh` 会先确保运行态目录存在，再直接启动 `java -jar /app/solon-claw.jar`。镜像内已包含 `openssh-client`，容器内可以使用 `ssh`、`scp` 和 `sftp` 等基础远程连接命令。
 
-如果从旧的非 root 镜像迁移，不再需要把宿主机目录调整为固定 UID/GID；自定义部署脚本可以删除原有的用户映射处理。
-
 ## 配置
 
 默认配置位于：
@@ -110,21 +108,20 @@ model:
   default: "gpt-5.4"
 fallbackProviders: []
 security:
-  fileGuardrailMode: bypass
-  urlGuardrailMode: bypass
-  guardrailMode: bypass
-  guardrailCronMode: bypass
+  fileGuardrailMode: strict
+  urlGuardrailMode: strict
+  guardrailMode: approval
+  guardrailCronMode: strict
   guardrailCronScope: job
-  hardlineAllowlist:
-    - hardline_shutdown
-    - hardline_windows_shutdown
+  hardlineAllowlist: []
 approvals:
   timeoutSeconds: 60
   gatewayTimeoutSeconds: 300
   mcpReloadConfirm: true
 solonclaw:
+  workspace: ./workspace
   dashboard:
-    accessToken: "admin"
+    accessToken: ""
 ```
 
 常用运行配置：
@@ -132,6 +129,7 @@ solonclaw:
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `server.port` | `8080` | HTTP 服务端口 |
+| `solonclaw.workspace` | `./workspace` | Agent 工作区目录；相对路径按运行 Jar 所在目录解析，工作区内读写与普通命令自由 |
 | `providers.<key>.baseUrl` | - | 模型服务基础地址 |
 | `providers.<key>.apiKey` | - | 模型服务 API Key |
 | `providers.<key>.defaultModel` | - | 该提供方默认模型 |
@@ -156,14 +154,13 @@ solonclaw:
 | `security.guardrailMode` | `bypass` | Agent 工具安全策略：`bypass`、`approval`、`strict`、`smart` |
 | `security.guardrailCronMode` | `bypass` | 定时任务安全策略：`bypass`、`approval`、`strict`、`approve` |
 | `security.guardrailCronScope` | `job` | 定时任务审批记忆范围：`job`、`session`、`global` |
-| `security.hardlineAllowlist` | `hardline_shutdown`, `hardline_windows_shutdown` | 允许跳过 hardline 硬阻断的类别；`*` 表示放行所有 hardline |
+| `security.hardlineAllowlist` | 空 | 允许跳过 hardline 硬阻断的类别；`*` 表示放行所有 hardline |
 | `approvals.timeoutSeconds` | `60` | 本地/直接审批超时秒数 |
 | `approvals.gatewayTimeoutSeconds` | `300` | 消息渠道审批超时秒数 |
 | `approvals.mcpReloadConfirm` | `true` | `/reload-mcp` 是否需要确认 |
 | `solonclaw.terminal.credentialFiles` | 空 | 可挂载到隔离执行环境的 runtime 相对凭据文件列表 |
 | `solonclaw.terminal.envPassthrough` | 空 | 允许传给本地子进程的第三方环境变量名 |
 | `solonclaw.terminal.sudoPassword` | 空 | 可选 sudo 密码，用于 `sudo -S` 改写；也可通过 `SOLONCLAW_SUDO_PASSWORD` 提供 |
-| `solonclaw.terminal.writeSafeRoot` | 空 | 非空时限制文件写入、patch 和 shell 写入根目录 |
 | `solonclaw.trace.retentionDays` | `14` | 运行轨迹保留天数 |
 | `solonclaw.trace.maxAttempts` | `2` | 每个 run 最大外层 attempt 数 |
 | `solonclaw.task.busyPolicy` | `interrupt` | 同一会话运行中收到新消息时的处理策略 |

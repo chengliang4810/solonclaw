@@ -3,9 +3,10 @@ package com.jimuqu.solon.claw.cli;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.PrintWriter;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -13,11 +14,20 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 驱动本地终端任务运行流程，连接命令入口与业务服务。 */
 public class LocalTerminalTaskRunner implements AutoCloseable {
+    /** 记录终端后台任务清理阶段的非关键异常，避免取消流程静默失败。 */
+    private static final Logger log = LoggerFactory.getLogger(LocalTerminalTaskRunner.class);
+
     /** 最大RECENTTASKS的统一常量值。 */
     private static final int MAX_RECENT_TASKS = 20;
+
+    /** 终端后台任务展示时间格式，使用系统时区保持本地终端显示语义。 */
+    private static final DateTimeFormatter TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
 
     /** 记录本地终端任务中的writer。 */
     private final PrintWriter writer;
@@ -203,8 +213,8 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
         if (cancelActiveRun != null && hasRunning()) {
             try {
                 cancelActiveRun.run();
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                log.debug("终端后台任务取消回调执行失败，继续关闭本地执行器: {}", e.toString());
             }
         }
         executorService.shutdownNow();
@@ -295,7 +305,7 @@ public class LocalTerminalTaskRunner implements AutoCloseable {
         if (millis <= 0L) {
             return "-";
         }
-        return new SimpleDateFormat("HH:mm:ss").format(new Date(millis));
+        return TIME_FORMATTER.format(Instant.ofEpochMilli(millis));
     }
 
     /**

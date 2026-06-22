@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -34,9 +35,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供本地技能相关业务能力，封装调用方不需要感知的运行细节。 */
 public class LocalSkillService implements SkillCatalogService {
+    /** 本地技能服务日志器，用于记录技能加载、导入和文件维护的降级信息。 */
+    private static final Logger log = LoggerFactory.getLogger(LocalSkillService.class);
+
     /** 技能名允许字符。 */
     private static final String VALID_NAME_PATTERN = "^[a-z0-9][a-z0-9._-]*$";
 
@@ -523,15 +529,18 @@ public class LocalSkillService implements SkillCatalogService {
             if (process != null) {
                 try {
                     process.getInputStream().close();
-                } catch (Exception ignored) {
+                } catch (IOException e) {
+                    log.debug("Inline skill shell stdout cleanup failed.", e);
                 }
                 try {
                     process.getErrorStream().close();
-                } catch (Exception ignored) {
+                } catch (IOException e) {
+                    log.debug("Inline skill shell stderr cleanup failed.", e);
                 }
                 try {
                     process.getOutputStream().close();
-                } catch (Exception ignored) {
+                } catch (IOException e) {
+                    log.debug("Inline skill shell stdin cleanup failed.", e);
                 }
             }
         }
@@ -561,7 +570,11 @@ public class LocalSkillService implements SkillCatalogService {
     private String canonicalSkillDir(SkillDescriptor descriptor) {
         try {
             return FileUtil.file(descriptor.getSkillDir()).getCanonicalPath();
-        } catch (Exception ignored) {
+        } catch (IOException e) {
+            log.debug(
+                    "Skill directory canonical path resolution failed, using absolute path: {}",
+                    safeDescriptorName(descriptor),
+                    e);
             return FileUtil.file(descriptor.getSkillDir()).getAbsolutePath();
         }
     }
@@ -598,8 +611,8 @@ public class LocalSkillService implements SkillCatalogService {
             state.put("skills", skills);
             FileUtil.mkParentDirs(stateFile);
             FileUtil.writeUtf8String(ONode.serialize(state), stateFile);
-        } catch (Exception ignored) {
-            // 技能用量计数只服务于后台维护决策，不能影响正常技能加载。
+        } catch (Exception e) {
+            log.debug("Skill usage counter update failed; normal skill loading continues.", e);
         }
     }
 
@@ -1047,7 +1060,11 @@ public class LocalSkillService implements SkillCatalogService {
             if (parsed instanceof Map) {
                 return (Map<String, Object>) parsed;
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn(
+                    "Skill state file could not be parsed and will be ignored: {}",
+                    safeFileName(file),
+                    e);
         }
         return new LinkedHashMap<String, Object>();
     }
@@ -1064,7 +1081,8 @@ public class LocalSkillService implements SkillCatalogService {
         }
         try {
             return Long.parseLong(String.valueOf(value));
-        } catch (Exception ignored) {
+        } catch (NumberFormatException e) {
+            log.debug("Skill numeric state parse failed; defaulting to zero.", e);
             return 0L;
         }
     }
@@ -1144,9 +1162,40 @@ public class LocalSkillService implements SkillCatalogService {
                                 .replace(File.separatorChar, '/');
                 value = descriptor.canonicalName() + "/" + relative;
             }
-        } catch (Exception ignored) {
+        } catch (IOException e) {
+            log.debug(
+                    "Skill file display path canonicalization failed: {}",
+                    safeDescriptorName(descriptor),
+                    e);
         }
         return SecretRedactor.redact(value, 400);
+    }
+
+    /**
+     * 生成安全展示用的技能标识，避免日志暴露完整技能路径或敏感片段。
+     *
+     * @param descriptor 技能描述对象。
+     * @return 返回脱敏后的技能标识。
+     */
+    private String safeDescriptorName(SkillDescriptor descriptor) {
+        if (descriptor == null) {
+            return "unknown";
+        }
+        String value = descriptor.canonicalName();
+        return SecretRedactor.redact(StrUtil.blankToDefault(value, "unknown"), 200);
+    }
+
+    /**
+     * 生成安全展示用的文件名，日志仅保留文件名而不暴露完整本地路径。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回脱敏后的文件名。
+     */
+    private String safeFileName(File file) {
+        if (file == null) {
+            return "unknown";
+        }
+        return SecretRedactor.redact(StrUtil.blankToDefault(file.getName(), "unknown"), 200);
     }
 
     /** 生成规范名。 */
@@ -1234,8 +1283,8 @@ public class LocalSkillService implements SkillCatalogService {
         }
         try {
             skillImportService.processPendingImports(false);
-        } catch (Exception ignored) {
-            // 自动导入失败不能影响正常技能使用。
+        } catch (Exception e) {
+            log.warn("Pending skill import processing failed; using existing local skills.", e);
         }
     }
 
@@ -1415,8 +1464,6 @@ public class LocalSkillService implements SkillCatalogService {
             return java.util.Arrays.asList(
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
-                    "web_search",
-                    "web_extract",
                     ToolNameConstants.CODESEARCH);
         }
         if ("gateway".equalsIgnoreCase(toolset) || "tool_gateway".equalsIgnoreCase(toolset)) {
@@ -1506,7 +1553,11 @@ public class LocalSkillService implements SkillCatalogService {
                         target.toPath(),
                         StandardCopyOption.REPLACE_EXISTING,
                         StandardCopyOption.ATOMIC_MOVE);
-            } catch (Exception ignored) {
+            } catch (IOException e) {
+                log.debug(
+                        "Atomic skill file move failed, retrying with replace move: {}",
+                        SecretRedactor.redact(StrUtil.blankToDefault(displayPath, target.getName()), 400),
+                        e);
                 Files.move(tempFile.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
             } finally {
                 if (tempFile.exists()) {

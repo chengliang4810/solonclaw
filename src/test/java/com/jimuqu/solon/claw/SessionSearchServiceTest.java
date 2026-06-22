@@ -961,7 +961,7 @@ public class SessionSearchServiceTest {
         ONode result =
                 ONode.ofJson(tools.sessionSearch("query-ghp_1234567890abcdef", Integer.valueOf(3)));
 
-        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("status").getString()).isEqualTo("error");
         assertThat(result.get("error").getString())
                 .contains("query-ghp_***")
                 .doesNotContain("ghp_1234567890abcdef");

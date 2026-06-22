@@ -168,7 +168,7 @@ public class StorageRepositoryTest {
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:secure-branch:user");
         SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
         agentSession.getContext().put("ordinary_context", "keep-me");
-        env.dangerousCommandApprovalService.enableSessionYolo(agentSession);
+        env.dangerousCommandApprovalService.enableSessionAutoApproval(agentSession);
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSession,
                 "execute_shell",
@@ -184,7 +184,7 @@ public class StorageRepositoryTest {
         SqliteAgentSession clonedSession = new SqliteAgentSession(clone, env.sessionRepository);
 
         assertThat(clonedSession.getContext().get("ordinary_context")).isEqualTo("keep-me");
-        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(clonedSession))
+        assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(clonedSession))
                 .isFalse();
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(clonedSession)).isNull();
         assertThat(

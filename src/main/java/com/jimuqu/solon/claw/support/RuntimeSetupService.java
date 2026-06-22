@@ -50,6 +50,10 @@ public class RuntimeSetupService {
         }
         String providerKey = normalizeText(request.getProviderKey());
         String model = normalizeText(request.getModel());
+        String apiKey = normalizeText(request.getApiKey());
+        if (SecretValueGuard.isPlaceholderSecret(apiKey)) {
+            return SetupResult.error("placeholder_secret", "apiKey 不能使用示例或占位符密钥。");
+        }
         String providerName =
                 StrUtil.blankToDefault(normalizeText(request.getProviderName()), providerKey);
         RuntimeConfigResolver resolver = configResolver();
@@ -58,14 +62,14 @@ public class RuntimeSetupService {
         resolver.setFileValue("model.default", model);
         resolver.setFileValue(prefix + "name", providerName);
         resolver.setFileValue(prefix + "baseUrl", normalizeText(request.getBaseUrl()));
-        resolver.setFileValue(prefix + "apiKey", normalizeText(request.getApiKey()));
+        resolver.setFileValue(prefix + "apiKey", apiKey);
         resolver.setFileValue(prefix + "defaultModel", model);
         resolver.setFileValue(prefix + "dialect", dialect);
         applyModelSetupToAppConfig(
                 providerKey,
                 providerName,
                 normalizeText(request.getBaseUrl()),
-                normalizeText(request.getApiKey()),
+                apiKey,
                 model,
                 dialect);
 
@@ -106,9 +110,15 @@ public class RuntimeSetupService {
         for (Map.Entry<String, String> entry : values.entrySet()) {
             String key = normalizeText(entry.getKey());
             String value = normalizeText(entry.getValue());
-            resolver.setFileValue(prefix + key, value);
+            if (isSecretSetupKey(key) && SecretValueGuard.isPlaceholderSecret(value)) {
+                return SetupResult.error(
+                        "placeholder_secret", key + " 不能使用示例或占位符密钥。");
+            }
             normalizedValues.put(key, value);
             safeValues.put(key, safeConfigValue(key, value));
+        }
+        for (Map.Entry<String, String> entry : normalizedValues.entrySet()) {
+            resolver.setFileValue(prefix + entry.getKey(), entry.getValue());
         }
         applyGatewayChannelSetupToAppConfig(normalizedChannel, normalizedValues);
         return SetupResult.ok("gateway", safeValues);
@@ -161,7 +171,7 @@ public class RuntimeSetupService {
     }
 
     /**
-     * 将渠道 setup 写入同步到当前进程配置，避免 doctor 和网关状态读取到陈旧配置。
+     * 将渠道 setup 写入同步到当前进程配置，避免 doctor 和网关状态读取到本轮更新前的配置。
      *
      * @param channel 已归一化的渠道标识。
      * @param values 已归一化的字段值。
@@ -373,6 +383,25 @@ public class RuntimeSetupService {
      */
     private String normalizeText(String value) {
         return StrUtil.nullToEmpty(value).trim();
+    }
+
+    /**
+     * 判断 setup 字段是否是凭据类字段，便于批量写入前统一阻止展示态占位值。
+     *
+     * @param key 配置字段名。
+     * @return 凭据类字段返回 true。
+     */
+    private boolean isSecretSetupKey(String key) {
+        String normalized = StrUtil.nullToEmpty(key).toLowerCase(java.util.Locale.ROOT);
+        return normalized.contains("apikey")
+                || normalized.contains("api_key")
+                || normalized.contains("token")
+                || normalized.contains("secret")
+                || normalized.contains("password")
+                || normalized.contains("credential")
+                || normalized.contains("authorization")
+                || normalized.contains("privatekey")
+                || normalized.contains("private_key");
     }
 
     /**

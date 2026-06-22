@@ -13,9 +13,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 聚合模型提供方运行画像，供控制台和运行时诊断读取。 */
 public class ProviderProfileService {
+    /** 记录 Provider 解析降级的低敏诊断日志，不输出密钥或完整地址。 */
+    private static final Logger log = LoggerFactory.getLogger(ProviderProfileService.class);
+
     /** 应用运行配置。 */
     private final AppConfig appConfig;
 
@@ -118,7 +123,10 @@ public class ProviderProfileService {
             String providerKey, AppConfig.ProviderConfig provider) {
         try {
             return llmProviderService.resolveProvider(providerKey, null);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Provider画像解析失败，回落到静态配置 provider={} error={}",
+                    SecretRedactor.redact(providerKey, 120),
+                    e.getClass().getSimpleName());
             LlmProviderService.ResolvedProvider resolved =
                     new LlmProviderService.ResolvedProvider();
             resolved.setProviderKey(providerKey);

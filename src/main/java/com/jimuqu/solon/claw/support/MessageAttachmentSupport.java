@@ -9,9 +9,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 入站附件提示组装辅助类。 */
 public final class MessageAttachmentSupport {
+    /** 记录附件提示解析降级路径的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(MessageAttachmentSupport.class);
+
     /** 图片ESTIMATEDtoken的统一常量值。 */
     private static final int IMAGE_ESTIMATED_TOKENS = 1500;
 
@@ -174,7 +179,8 @@ public final class MessageAttachmentSupport {
             if (end > start) {
                 try {
                     total = safeAdd(total, Integer.parseInt(value.substring(start, end)));
-                } catch (NumberFormatException ignored) {
+                } catch (NumberFormatException e) {
+                    log.debug("附件token估算字段解析失败，跳过当前字段 error={}", exceptionSummary(e));
                 }
             }
             from = Math.max(end, start + 1);
@@ -350,7 +356,8 @@ public final class MessageAttachmentSupport {
             if (file.isFile()) {
                 return file.length();
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("附件本地大小读取失败，按未知大小兜底 error={}", exceptionSummary(e));
         }
         return UNKNOWN_SIZE_BYTES;
     }
@@ -605,5 +612,18 @@ public final class MessageAttachmentSupport {
                 || ".anthropic_oauth.json".equals(name)
                 || "oauth_creds.json".equals(name)
                 || "application_default_credentials.json".equals(name);
+    }
+
+    /**
+     * 生成异常类型摘要，避免日志携带附件路径、正文或异常消息。
+     *
+     * @param error 异常对象。
+     * @return 仅包含异常类型的安全摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return error.getClass().getSimpleName();
     }
 }

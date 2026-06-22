@@ -18,10 +18,16 @@ import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 默认上下文压缩服务。 */
 @RequiredArgsConstructor
 public class DefaultContextCompressionService implements ContextCompressionService {
+    /** 上下文压缩服务的低敏诊断日志。 */
+    private static final Logger log =
+            LoggerFactory.getLogger(DefaultContextCompressionService.class);
+
     /** 应用配置。 */
     private final AppConfig appConfig;
 
@@ -275,7 +281,11 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             Object parsed = ONode.deserialize(raw, Object.class);
             shrinkToolArgumentObject(parsed, headChars);
             return ONode.serialize(parsed);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "工具参数 JSON 裁剪失败，按原始参数字符串兜底 length={}, error={}",
+                    raw.length(),
+                    e.getClass().getSimpleName());
             return raw;
         }
     }
@@ -644,7 +654,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         return MessageAttachmentSupport.estimateAttachmentTokensFromSummary(userMessage);
     }
 
-    /** 去掉旧摘要中再次嵌套的 “Previous Summary” 区块，避免摘要递归膨胀。 */
+    /** 去掉已有摘要中再次嵌套的 “Previous Summary” 区块，避免摘要递归膨胀。 */
     private String normalizePreviousSummary(String previousSummary) {
         String normalized = CompressionConstants.stripSummaryPrefix(previousSummary);
         if (StrUtil.isBlank(normalized)) {
@@ -671,8 +681,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
                     "Progress",
                     "Decisions",
                     "Files",
-                    "Remaining Work",
-                    "Next Steps"
+                    "Remaining Work"
                 };
         for (String header : headers) {
             int newlineIdx = content.indexOf(header + "\n");
@@ -687,7 +696,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         return result;
     }
 
-    /** 已有历史摘要时，不再永久保留最早的普通对话，只保留前导 system 消息。 */
+    /** 已有摘要时，不再永久保留最早的普通对话，只保留前导 system 消息。 */
     private int resolveProtectHeadCount(List<ChatMessage> messages, boolean hasPreviousSummary) {
         int configured =
                 Math.min(appConfig.getCompression().getProtectHeadMessages(), messages.size());

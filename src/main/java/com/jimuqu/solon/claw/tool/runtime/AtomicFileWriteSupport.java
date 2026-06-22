@@ -9,9 +9,14 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 封装原子文件Write辅助逻辑，降低主流程中的重复实现。 */
 final class AtomicFileWriteSupport {
+    /** 记录原子写入中的可降级清理异常，日志不输出目标路径或文件内容。 */
+    private static final Logger log = LoggerFactory.getLogger(AtomicFileWriteSupport.class);
+
     /** 创建原子文件Write辅助实例。 */
     private AtomicFileWriteSupport() {}
 
@@ -45,7 +50,8 @@ final class AtomicFileWriteSupport {
             if (!moved) {
                 try {
                     Files.deleteIfExists(temp);
-                } catch (IOException ignored) {
+                } catch (IOException e) {
+                    logRecoverableFailure("delete-temp-file", e);
                 }
             }
         }
@@ -82,8 +88,30 @@ final class AtomicFileWriteSupport {
         try {
             Set<PosixFilePermission> permissions = Files.getPosixFilePermissions(target);
             Files.setPosixFilePermissions(temp, permissions);
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            logRecoverableFailure("copy-existing-permissions", e);
         }
+    }
+
+    /**
+     * 记录可恢复写入异常，只写阶段和异常类型，避免泄露路径或文件内容。
+     *
+     * @param stage 降级阶段。
+     * @param error 异常对象。
+     */
+    private static void logRecoverableFailure(String stage, Exception error) {
+        if (log.isDebugEnabled()) {
+            log.debug("atomic file write fallback. stage={} error={}", stage, exceptionSummary(error));
+        }
+    }
+
+    /**
+     * 生成低敏异常摘要，仅保留异常类型。
+     *
+     * @param error 异常对象。
+     * @return 返回异常类型摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getName();
     }
 }

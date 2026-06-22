@@ -6,22 +6,32 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载终端会话浏览器相关状态和辅助逻辑。 */
 public class TerminalSessionBrowser {
+    /** 记录终端会话浏览的仓储降级与单条删除失败，便于诊断但不打断交互。 */
+    private static final Logger log = LoggerFactory.getLogger(TerminalSessionBrowser.class);
+
     /** 默认限制的统一常量值。 */
     private static final int DEFAULT_LIMIT = 10;
 
     /** 预览限制的统一常量值。 */
     private static final int PREVIEW_LIMIT = 160;
+
+    /** 会话列表展示时间格式，使用系统时区保持原有本地时间语义。 */
+    private static final DateTimeFormatter SESSION_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.systemDefault());
 
     /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
@@ -300,8 +310,11 @@ public class TerminalSessionBrowser {
             try {
                 sessionRepository.delete(record.getSessionId());
                 removed++;
-            } catch (Exception ignored) {
-                // 单条删除失败不影响其他候选会话，最终结果以成功删除数量为准。
+            } catch (Exception e) {
+                log.debug(
+                        "终端会话裁剪删除单条记录失败，继续处理其他候选: sessionId={}, error={}",
+                        record.getSessionId(),
+                        e.toString());
             }
         }
         return "会话已裁剪\nolder_than_days=" + days + "\nremoved=" + removed;
@@ -429,8 +442,10 @@ public class TerminalSessionBrowser {
                 if (recent != null) {
                     records.addAll(recent);
                 }
-            } catch (Exception ignored) {
-                // 管理命令以空结果退化，避免终端浏览流程被仓储异常打断。
+            } catch (Exception fallbackError) {
+                log.debug(
+                        "终端会话列表降级读取仍失败，管理命令退化为空结果: {}",
+                        fallbackError.toString());
             }
         }
         return records;
@@ -626,16 +641,16 @@ public class TerminalSessionBrowser {
             if (byId != null) {
                 return byId;
             }
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            log.debug("按会话ID解析终端会话失败，继续尝试候选匹配: reference={}, error={}", value, e.toString());
         }
         try {
             List<SessionRecord> candidates = sessionRepository.findResumeCandidates(value, 1);
             if (candidates != null && !candidates.isEmpty()) {
                 return candidates.get(0);
             }
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            log.debug("按会话候选解析终端会话失败，返回空结果: reference={}, error={}", value, e.toString());
         }
         return null;
     }
@@ -685,7 +700,7 @@ public class TerminalSessionBrowser {
         if (millis <= 0L) {
             return "-";
         }
-        return new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date(millis));
+        return SESSION_TIME_FORMATTER.format(Instant.ofEpochMilli(millis));
     }
 
     /**

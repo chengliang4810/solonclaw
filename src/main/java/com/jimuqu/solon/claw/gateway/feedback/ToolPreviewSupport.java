@@ -2,20 +2,22 @@ package com.jimuqu.solon.claw.gateway.feedback;
 
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
-
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
-
-import org.noear.snack4.ONode;
-
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 工具参数预览辅助。 */
 public final class ToolPreviewSupport {
+    /** 记录预览降级原因，日志不包含工具参数正文。 */
+    private static final Logger log = LoggerFactory.getLogger(ToolPreviewSupport.class);
+
     /** 创建工具Preview辅助实例。 */
     private ToolPreviewSupport() {}
 
@@ -67,14 +69,24 @@ public final class ToolPreviewSupport {
             if (serialized.length() <= maxLen) {
                 return serialized;
             }
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            log.debug("Tool argument JSON preview shrink failed; using truncated fallback: {}", exceptionSummary(e));
         }
         Map<String, Object> fallback = new LinkedHashMap<String, Object>();
         fallback.put("truncated", Boolean.TRUE);
         fallback.put(
                 "preview", normalize(ONode.serialize(args)).substring(0, Math.max(0, maxLen - 32)));
         return normalize(ONode.serialize(fallback));
+    }
+
+    /**
+     * 生成低敏异常摘要，避免预览失败日志泄露工具参数内容。
+     *
+     * @param e 异常对象。
+     * @return 仅包含异常类型的摘要文本。
+     */
+    private static String exceptionSummary(Exception e) {
+        return e == null ? "unknown" : e.getClass().getSimpleName();
     }
 
     /**
@@ -161,15 +173,12 @@ public final class ToolPreviewSupport {
                 || "execute_js".equals(toolName)) {
             return new String[] {"command", "code"};
         }
-        if (ToolNameConstants.CONFIG_SET_SECRET.equals(toolName)
-                || "config_update_secret".equals(toolName)) {
+        if (ToolNameConstants.CONFIG_SET_SECRET.equals(toolName)) {
             return new String[] {"key"};
         }
         if (ToolNameConstants.CONFIG_GET.equals(toolName)
                 || ToolNameConstants.CONFIG_SET.equals(toolName)
-                || ToolNameConstants.CONFIG_REFRESH.equals(toolName)
-                || "config_read".equals(toolName)
-                || "config_write".equals(toolName)) {
+                || ToolNameConstants.CONFIG_REFRESH.equals(toolName)) {
             return new String[] {"key", "reconnectChannels"};
         }
         if ("delegate_task".equals(toolName)) {
@@ -180,12 +189,11 @@ public final class ToolPreviewSupport {
         }
         if ("session_search".equals(toolName)
                 || "websearch".equals(toolName)
-                || "web_search".equals(toolName)
                 || "codesearch".equals(toolName)) {
             return new String[] {"query", "q", "keyword"};
         }
-        if ("webfetch".equals(toolName) || "web_extract".equals(toolName)) {
-            return new String[] {"url", "urls"};
+        if ("webfetch".equals(toolName)) {
+            return new String[] {"url"};
         }
         if ("cronjob".equals(toolName)) {
             return new String[] {"action", "name"};
@@ -205,9 +213,7 @@ public final class ToolPreviewSupport {
      */
     private static Map<String, Object> sanitizeArgs(String toolName, Map<String, Object> args) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
-        boolean secretTool =
-                ToolNameConstants.CONFIG_SET_SECRET.equals(toolName)
-                        || "config_update_secret".equals(toolName);
+        boolean secretTool = ToolNameConstants.CONFIG_SET_SECRET.equals(toolName);
         for (Map.Entry<String, Object> entry : args.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();

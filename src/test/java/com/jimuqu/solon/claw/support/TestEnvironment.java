@@ -487,6 +487,7 @@ public class TestEnvironment {
                 .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
         config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        config.getWorkspace().setDir(runtimeHome.getAbsolutePath());
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("DefaultProvider");
         provider.setBaseUrl("https://api.openai.com");

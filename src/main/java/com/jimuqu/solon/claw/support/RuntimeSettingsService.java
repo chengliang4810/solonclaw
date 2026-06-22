@@ -18,14 +18,20 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 运行时设置读取与修改服务。 */
 public class RuntimeSettingsService {
+    /** 记录运行时设置摘要降级路径的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(RuntimeSettingsService.class);
+
     /** 配置键WHITE列表的统一常量值。 */
     private static final List<String> CONFIG_KEY_WHITELIST =
             Arrays.asList(
                     "model.providerKey",
                     "model.default",
+                    "solonclaw.workspace",
                     "providers.default.name",
                     "providers.default.baseUrl",
                     "providers.default.apiKey",
@@ -124,7 +130,6 @@ public class RuntimeSettingsService {
                     "solonclaw.terminal.credentialFiles",
                     "solonclaw.terminal.envPassthrough",
                     "solonclaw.terminal.sudoPassword",
-                    "solonclaw.terminal.writeSafeRoot",
                     "solonclaw.terminal.maxForegroundTimeoutSeconds",
                     "solonclaw.terminal.foregroundMaxRetries",
                     "solonclaw.terminal.foregroundRetryBaseDelaySeconds",
@@ -302,8 +307,8 @@ public class RuntimeSettingsService {
                                 + status.isConnected()
                                 + ")");
             }
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            log.debug("运行时渠道状态读取失败，按空状态列表兜底 error={}", exceptionSummary(e));
         }
 
         String activePersonality = "default";
@@ -315,8 +320,8 @@ public class RuntimeSettingsService {
             if (StrUtil.isNotBlank(stored)) {
                 activePersonality = stored.trim();
             }
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            log.debug("运行时人格设置读取失败，按默认人格兜底 error={}", exceptionSummary(e));
         }
 
         StringBuilder buffer = new StringBuilder();
@@ -335,7 +340,7 @@ public class RuntimeSettingsService {
         buffer.append("agent_workspace=")
                 .append(
                         agentScope == null
-                                ? StrUtil.nullToEmpty(appConfig.getRuntime().getHome())
+                                ? StrUtil.nullToEmpty(appConfig.getWorkspace().getDir())
                                 : StrUtil.nullToEmpty(agentScope.getWorkspaceDir()))
                 .append('\n');
         buffer.append("source_key=").append(StrUtil.nullToEmpty(sourceKey)).append('\n');
@@ -395,9 +400,10 @@ public class RuntimeSettingsService {
         buffer.append("runtime_home=")
                 .append(StrUtil.nullToEmpty(appConfig.getRuntime().getHome()))
                 .append('\n');
+        buffer.append("workspace_policy=workspace_free: 工作区内读写和普通命令自由；工作区外读取自由，写入与网络等外部操作需要审批，可按本次、当前会话或永久同类操作放行；密钥始终脱敏。\n");
         appendShellGuidance(buffer, enabledToolNames);
         buffer.append(
-                "Only change your own configuration through /model, config_set, or config_set_secret. If you edit runtime/config.yml directly, call config_refresh afterward; it validates YAML first and refuses invalid config. Global changes take effect on the next message.");
+                "Only change your own configuration through /model, config_set, or config_set_secret. Secret keys must use config_set_secret and must never be copied from redacted read_file output. If you edit runtime/config.yml directly for non-secret keys, call config_refresh afterward; it validates YAML first and refuses invalid config. Global changes take effect on the next message.");
         return buffer.toString();
     }
 
@@ -681,6 +687,9 @@ public class RuntimeSettingsService {
         if ("model.default".equals(key)) {
             return appConfig.getModel().getDefault();
         }
+        if ("solonclaw.workspace".equals(key)) {
+            return appConfig.getWorkspace().getDir();
+        }
         if (key.startsWith("providers.default.")) {
             AppConfig.ProviderConfig provider = appConfig.getProviders().get("default");
             if (provider == null) {
@@ -888,5 +897,18 @@ public class RuntimeSettingsService {
         public boolean isSessionOverride() {
             return sessionOverride;
         }
+    }
+
+    /**
+     * 生成异常类型摘要，避免日志携带配置值、会话内容或异常消息。
+     *
+     * @param error 异常对象。
+     * @return 仅包含异常类型的安全摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return error.getClass().getSimpleName();
     }
 }

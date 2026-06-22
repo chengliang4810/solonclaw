@@ -202,7 +202,7 @@ public class DelegationServiceTest {
         String notReady =
                 missingService.delegateTask(
                         "single", "ghp_1234567890abcdef", null, null, null, null, null, null);
-        assertThat(notReady).contains("\"success\":false").doesNotContain("ghp_1234567890abcdef");
+        assertThat(notReady).contains("\"status\":\"error\"").doesNotContain("ghp_1234567890abcdef");
 
         DelegateTools failing =
                 new DelegateTools(new FailingDelegationService(), "MEMORY:room-a:user-a");
@@ -218,7 +218,7 @@ public class DelegationServiceTest {
                         null);
 
         assertThat(failed)
-                .contains("\"success\":false")
+                .contains("\"status\":\"error\"")
                 .contains("prompt-ghp_***")
                 .doesNotContain("ghp_1234567890abcdef");
     }

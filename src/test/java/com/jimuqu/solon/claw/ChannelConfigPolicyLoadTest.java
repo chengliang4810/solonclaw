@@ -27,7 +27,7 @@ public class ChannelConfigPolicyLoadTest {
                         + "        - oc_chat_a\n"
                         + "      botName: SolonClaw Bot\n"
                         + "    dingtalk:\n"
-                        + "      allowed_chats: cidLegacy,cidCompat\n"
+                        + "      allowedChats: cidAlpha,cidBeta\n"
                         + "    wecom:\n"
                         + "      groups:\n"
                         + "        room-a:\n"
@@ -51,11 +51,12 @@ public class ChannelConfigPolicyLoadTest {
                 .containsExactly("oc_group_a");
         assertThat(config.getChannels().getFeishu().getAllowedChats()).containsExactly("oc_chat_a");
         assertThat(config.getChannels().getDingtalk().getAllowedChats())
-                .containsExactly("cidLegacy", "cidCompat");
+                .containsExactly("cidAlpha", "cidBeta");
         assertThat(config.getChannels().getFeishu().getBotName()).isEqualTo("SolonClaw Bot");
         assertThat(config.getChannels().getWecom().getGroupMemberAllowedUsers().get("room-a"))
                 .containsExactly("alice", "bob");
         assertThat(config.getChannels().getWecom().getGroupMemberAllowedUsers().get("*"))
                 .isEqualTo(Arrays.asList("admin"));
     }
+
 }

@@ -19,72 +19,9 @@ public class TerminalCommandCatalogTest {
                         "/retry",
                         "/undo",
                         "/model",
-                        "/model set",
                         "/setup",
-                        "/setup --quick",
-                        "/setup --reset",
-                        "/setup --non-interactive",
-                        "/setup gateway feishu",
                         "/config",
-                        "/config env-path",
-                        "/config edit",
-                        "/config migrate",
-                        "/doctor",
-                        "/doctor --fix",
-                        "/doctor --ack",
                         "/version",
-                        "/logout",
-                        "/gateway status",
-                        "/gateway list",
-                        "/gateway run",
-                        "/gateway start",
-                        "/gateway stop",
-                        "/gateway restart",
-                        "/gateway install",
-                        "/gateway uninstall",
-                        "/gateway migrate-legacy",
-                        "/pairing list",
-                        "/pairing clear-pending",
-                        "/postinstall",
-                        "/login",
-                        "/auth",
-                        "/fallback",
-                        "/fallback list",
-                        "/fallback add",
-                        "/fallback remove",
-                        "/fallback clear",
-                        "/secrets",
-                        "/proxy",
-                        "/mcp",
-                        "/mcp list",
-                        "/mcp add",
-                        "/mcp test",
-                        "/migrate",
-                        "/send",
-                        "/hooks",
-                        "/hooks list",
-                        "/dump",
-                        "/backup",
-                        "/checkpoints",
-                        "/checkpoints list",
-                        "/import",
-                        "/bundles",
-                        "/bundles list",
-                        "/memory",
-                        "/memory status",
-                        "/dashboard",
-                        "/dashboard start",
-                        "/logs",
-                        "/prompt-size",
-                        "/setup terminal",
-                        "/setup tools",
-                        "/setup agent",
-                        "/setup tts",
-                        "/sessions stats",
-                        "/sessions export",
-                        "/sessions delete",
-                        "/sessions prune",
-                        "/sessions rename",
                         "/whoami",
                         "/commands",
                         "/insights",
@@ -99,6 +36,7 @@ public class TerminalCommandCatalogTest {
                         "/platform",
                         "/skin",
                         "/fast",
+                        "/reasoning",
                         "/queue",
                         "/steer",
                         "/stop",
@@ -135,8 +73,8 @@ public class TerminalCommandCatalogTest {
         assertThat(CommandRegistry.resolve("/set-home").getName()).isEqualTo("sethome");
 
         CommandDescriptor model = CommandRegistry.get("model");
-        assertThat(model.getAliases()).contains("provider");
-        assertThat(CommandRegistry.resolve("/provider").getName()).isEqualTo("model");
+        assertThat(model.getCategory()).isEqualTo("model");
+        assertThat(CommandRegistry.resolve("/model").getName()).isEqualTo("model");
 
         CommandDescriptor setup = CommandRegistry.get("setup");
         assertThat(setup).isNotNull();
@@ -171,12 +109,12 @@ public class TerminalCommandCatalogTest {
         assertThat(CommandRegistry.resolve("/agents").getName()).isEqualTo("tasks");
 
         CommandDescriptor reloadMcp = CommandRegistry.get("reload-mcp");
-        assertThat(reloadMcp.getAliases()).contains("reload_mcp");
-        assertThat(CommandRegistry.resolve("/reload_mcp").getName()).isEqualTo("reload-mcp");
+        assertThat(reloadMcp.getCategory()).isEqualTo("mcp");
+        assertThat(CommandRegistry.resolve("/reload-mcp").getName()).isEqualTo("reload-mcp");
 
         CommandDescriptor reloadSkills = CommandRegistry.get("reload-skills");
-        assertThat(reloadSkills.getAliases()).contains("reload_skills");
-        assertThat(CommandRegistry.resolve("/reload_skills").getName()).isEqualTo("reload-skills");
+        assertThat(reloadSkills.getCategory()).isEqualTo("skill");
+        assertThat(CommandRegistry.resolve("/reload-skills").getName()).isEqualTo("reload-skills");
 
         CommandDescriptor insights = CommandRegistry.get("insights");
         assertThat(insights).isNotNull();
@@ -232,14 +170,17 @@ public class TerminalCommandCatalogTest {
     }
 
     @Test
-    void shouldKeepLegacySubcommandsInTerminalCatalog() {
+    void shouldExposeOnlyRegisteredSlashCommandNames() {
         assertThat(TerminalCommandCatalog.slashCommands())
-                .contains(
+                .doesNotContain(
                         "/model pick",
                         "/approve all session",
                         "/security terminal-output",
                         "/cron upcoming",
                         "/reload-mcp always",
+                        "/config env-path",
+                        "/config migrate",
+                        "/migrate",
                         "/exit!",
                         "/quit!");
     }

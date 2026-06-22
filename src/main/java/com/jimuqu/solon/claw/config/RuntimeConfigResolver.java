@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.config;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.beans.Introspector;
 import java.beans.PropertyDescriptor;
@@ -19,11 +20,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
 /** 运行时配置解析器，统一处理 runtime/config.yml 中的可写配置项。 */
 public class RuntimeConfigResolver {
+    /** 运行时配置解析日志，日志内容必须保持低敏。 */
+    private static final Logger log = LoggerFactory.getLogger(RuntimeConfigResolver.class);
+
     /** LOCK的统一常量值。 */
     private static final Object LOCK = new Object();
 
@@ -216,6 +222,7 @@ public class RuntimeConfigResolver {
     /** 设置 runtime/config.yml 中的键值。 */
     public synchronized void setFileValue(String key, String value) {
         String path = requirePath(key);
+        validateSecretFileValue(path, value);
         Map<String, Object> root = loadYamlRoot();
         setNestedValue(root, path, StrUtil.nullToEmpty(value));
         write(root);
@@ -355,6 +362,18 @@ public class RuntimeConfigResolver {
             throw new IllegalStateException("Unsupported config key: " + key);
         }
         return path;
+    }
+
+    /**
+     * 校验密钥配置写入值，避免展示态占位符落盘覆盖真实凭据。
+     *
+     * @param path 配置文件中的规范化路径。
+     * @param value 待写入值。
+     */
+    private void validateSecretFileValue(String path, String value) {
+        if (isSecretKey(path) && SecretValueGuard.isPlaceholderSecret(value)) {
+            throw new IllegalArgumentException(path + " 不能使用示例或占位符密钥。");
+        }
     }
 
     /**
@@ -615,7 +634,8 @@ public class RuntimeConfigResolver {
                                 Double.parseDouble(String.valueOf(rawValue).trim()),
                                 Double.parseDouble(String.valueOf(effectiveValue).trim()))
                         == 0;
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                logConfigFallback("compare-number", "diagnostics.effective_diffs", e);
                 return normalizeValueText(rawValue).equals(normalizeValueText(effectiveValue));
             }
         }
@@ -688,9 +708,34 @@ public class RuntimeConfigResolver {
                 String key = prefix.length() == 0 ? name : prefix + "." + name;
                 flattenValue(key, value, output, visited);
             }
-        } catch (Exception ignored) {
-            // 诊断失败不应影响主流程；无法反射的字段会被跳过。
+        } catch (Exception e) {
+            logConfigFallback("flatten-bean", StrUtil.blankToDefault(prefix, "root"), e);
         }
+    }
+
+    /**
+     * 记录配置诊断中的可恢复失败，仅输出阶段、配置键和异常类型，避免配置值或凭据进入日志。
+     *
+     * @param stage 解析或诊断阶段。
+     * @param key 配置键或诊断路径。
+     * @param error 捕获到的异常。
+     */
+    private static void logConfigFallback(String stage, String key, Throwable error) {
+        log.debug(
+                "Runtime config resolver fallback: stage={}, key={}, errorType={}",
+                StrUtil.blankToDefault(stage, "unknown"),
+                StrUtil.blankToDefault(key, "unknown"),
+                exceptionType(error));
+    }
+
+    /**
+     * 提取低敏异常类型，禁止把异常消息或堆栈写入运行时配置解析日志。
+     *
+     * @param error 捕获到的异常。
+     * @return 异常类型名称。
+     */
+    private static String exceptionType(Throwable error) {
+        return error == null ? "unknown" : error.getClass().getSimpleName();
     }
 
     /**
@@ -956,6 +1001,7 @@ public class RuntimeConfigResolver {
         addAll(
                 mappings,
                 "solonclaw.llm.stream",
+                "solonclaw.workspace",
                 "solonclaw.llm.reasoningEffort",
                 "solonclaw.llm.temperature",
                 "solonclaw.llm.maxTokens",
@@ -1071,7 +1117,6 @@ public class RuntimeConfigResolver {
                 "solonclaw.terminal.credentialFiles",
                 "solonclaw.terminal.envPassthrough",
                 "solonclaw.terminal.sudoPassword",
-                "solonclaw.terminal.writeSafeRoot",
                 "solonclaw.terminal.shellInitFiles",
                 "solonclaw.terminal.autoSourceBashrc",
                 "solonclaw.terminal.processWaitTimeoutSeconds",

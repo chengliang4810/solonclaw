@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -21,9 +22,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Tirith 命令安全扫描适配。 */
 public class TirithSecurityService {
+    /** Tirith 安全扫描服务日志器，用于记录扫描降级和清理失败。 */
+    private static final Logger log = LoggerFactory.getLogger(TirithSecurityService.class);
+
     /** 最大FINDINGS的统一常量值。 */
     private static final int MAX_FINDINGS = 50;
 
@@ -76,7 +82,7 @@ public class TirithSecurityService {
                         ? "tirith"
                         : StrUtil.blankToDefault(security.getTirithPath(), "tirith").trim();
         int timeoutSeconds = security == null ? 5 : Math.max(1, security.getTirithTimeoutSeconds());
-        boolean failOpen = security == null || security.isTirithFailOpen();
+        boolean failOpen = security != null && security.isTirithFailOpen();
         String resolvedPath = resolvePath(path);
         if (StrUtil.isBlank(resolvedPath)) {
             return recordAndReturn(
@@ -183,8 +189,8 @@ public class TirithSecurityService {
             if (process != null) {
                 try {
                     process.destroy();
-                } catch (Exception ignored) {
-                    // 当前分支无需额外处理。
+                } catch (Exception e) {
+                    log.debug("Tirith process cleanup failed after scan completion.", e);
                 }
             }
             executor.shutdownNow();
@@ -215,7 +221,7 @@ public class TirithSecurityService {
                         ? "tirith"
                         : StrUtil.blankToDefault(security.getTirithPath(), "tirith").trim();
         int timeoutSeconds = security == null ? 5 : Math.max(1, security.getTirithTimeoutSeconds());
-        boolean failOpen = security == null || security.isTirithFailOpen();
+        boolean failOpen = security != null && security.isTirithFailOpen();
         String resolvedPath = resolvePath(configuredPath);
         boolean configured = StrUtil.isNotBlank(configuredPath);
         boolean available = enabled && isExecutableAvailable(resolvedPath);
@@ -427,8 +433,10 @@ public class TirithSecurityService {
         try {
             lastAuditSummary =
                     AuditSummary.from(command, normalizeShell(shell), result, diagnose());
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            log.warn(
+                    "Tirith audit summary update failed; returning scan result without audit snapshot: {}",
+                    safeMessage(e));
         }
         return result;
     }
@@ -465,13 +473,7 @@ public class TirithSecurityService {
      * @return 如果终端工具满足条件则返回 true，否则返回 false。
      */
     private boolean isTerminalTool(String toolName) {
-        return "execute_shell".equals(toolName)
-                || "terminal".equals(toolName)
-                || "run_terminal".equals(toolName)
-                || "terminal_run".equals(toolName)
-                || "terminal_exec".equals(toolName)
-                || "terminal_execute".equals(toolName)
-                || "executeshell".equals(toolName);
+        return "execute_shell".equals(toolName) || "terminal".equals(toolName);
     }
 
     /**
@@ -682,16 +684,18 @@ public class TirithSecurityService {
      * @return 返回读取到的Utf8。
      */
     private static String readUtf8(InputStream inputStream) throws Exception {
-        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"));
-        StringBuilder buffer = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            if (buffer.length() > 0) {
-                buffer.append('\n');
+        try (BufferedReader reader =
+                new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            StringBuilder buffer = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (buffer.length() > 0) {
+                    buffer.append('\n');
+                }
+                buffer.append(line);
             }
-            buffer.append(line);
+            return buffer.toString();
         }
-        return buffer.toString();
     }
 
     /**
@@ -1068,7 +1072,8 @@ public class TirithSecurityService {
                 MessageDigest digest = MessageDigest.getInstance("SHA-256");
                 byte[] bytes = digest.digest(text.getBytes(StandardCharsets.UTF_8));
                 return "sha256:" + hexPrefix(bytes, 12);
-            } catch (Exception ignored) {
+            } catch (NoSuchAlgorithmException e) {
+                log.debug("SHA-256 command audit hash algorithm is unavailable.", e);
                 return "sha256:unavailable";
             }
         }

@@ -13,10 +13,15 @@ import org.noear.solon.annotation.Mapping;
 import org.noear.solon.annotation.Param;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Dashboard 定时任务接口。 */
 @Controller
 public class DashboardCronController {
+    /** 记录定时任务接口降级处理的低敏诊断日志，不输出完整主机路径。 */
+    private static final Logger log = LoggerFactory.getLogger(DashboardCronController.class);
+
     /** 注入定时任务服务，用于调用对应业务能力。 */
     private final DashboardCronService cronService;
 
@@ -436,7 +441,8 @@ public class DashboardCronController {
             if (!StrUtil.isBlank(canonical)) {
                 message = message.replace(canonical, "[REDACTED_PATH]");
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("定时任务路径脱敏规范化失败，继续使用原始配置值替换 error={}", e.getClass().getSimpleName());
         }
         message = message.replace(home, "[REDACTED_PATH]");
         return message;

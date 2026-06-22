@@ -109,21 +109,20 @@ model:
   default: "gpt-5.4"
 fallbackProviders: []
 security:
-  fileGuardrailMode: bypass
-  urlGuardrailMode: bypass
-  guardrailMode: bypass
-  guardrailCronMode: bypass
+  fileGuardrailMode: strict
+  urlGuardrailMode: strict
+  guardrailMode: approval
+  guardrailCronMode: strict
   guardrailCronScope: job
-  hardlineAllowlist:
-    - hardline_shutdown
-    - hardline_windows_shutdown
+  hardlineAllowlist: []
 approvals:
   timeoutSeconds: 60
   gatewayTimeoutSeconds: 300
   mcpReloadConfirm: true
 solonclaw:
+  workspace: ./workspace
   dashboard:
-    accessToken: "admin"
+    accessToken: ""
 ```
 
 Common runtime settings:
@@ -131,6 +130,7 @@ Common runtime settings:
 | Key | Default | Description |
 | --- | --- | --- |
 | `server.port` | `8080` | HTTP server port |
+| `solonclaw.workspace` | `./workspace` | Agent workspace directory; relative paths resolve from the running Jar directory, and reads, writes, and ordinary commands inside it are free |
 | `providers.<key>.baseUrl` | - | Model service base URL |
 | `providers.<key>.apiKey` | - | Model service API key |
 | `providers.<key>.defaultModel` | - | Default model for the provider |
@@ -150,14 +150,13 @@ Common runtime settings:
 | `security.guardrailMode` | `bypass` | Agent tool safety mode: `bypass`, `approval`, `strict`, `smart` |
 | `security.guardrailCronMode` | `bypass` | Scheduled-job safety mode: `bypass`, `approval`, `strict`, `approve` |
 | `security.guardrailCronScope` | `job` | Scheduled-job approval memory scope: `job`, `session`, `global` |
-| `security.hardlineAllowlist` | `hardline_shutdown`, `hardline_windows_shutdown` | Hardline categories allowed to bypass hard blocking; `*` allows all hardline categories |
+| `security.hardlineAllowlist` | empty | Hardline categories allowed to bypass hard blocking; `*` allows all hardline categories |
 | `approvals.timeoutSeconds` | `60` | Local/direct approval timeout in seconds |
 | `approvals.gatewayTimeoutSeconds` | `300` | Messaging-channel approval timeout in seconds |
 | `approvals.mcpReloadConfirm` | `true` | Whether `/reload-mcp` requires confirmation |
 | `solonclaw.terminal.credentialFiles` | empty | Runtime-relative credential files available to isolated execution |
 | `solonclaw.terminal.envPassthrough` | empty | Third-party environment variables allowed for local subprocesses |
 | `solonclaw.terminal.sudoPassword` | empty | Optional sudo password for `sudo -S` rewriting; can also be supplied with `SOLONCLAW_SUDO_PASSWORD` |
-| `solonclaw.terminal.writeSafeRoot` | empty | When set, constrains file writes, patches, and shell writes to this root |
 | `solonclaw.trace.retentionDays` | `14` | Run trace retention in days |
 | `solonclaw.trace.maxAttempts` | `2` | Maximum outer attempts per run |
 | `solonclaw.task.busyPolicy` | `interrupt` | Policy for new messages while a session is already running |
