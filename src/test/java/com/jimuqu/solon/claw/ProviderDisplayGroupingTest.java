@@ -249,6 +249,7 @@ public class ProviderDisplayGroupingTest {
 
     private AppConfig config() {
         AppConfig config = new AppConfig();
+        isolateRuntime(config, "provider-display-grouping");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default Provider");
         provider.setBaseUrl("https://api.openai.com");
@@ -280,5 +281,17 @@ public class ProviderDisplayGroupingTest {
         cnProvider.setDisplayDescription("China endpoint");
         config.getProviders().put("backup-cn", cnProvider);
         return config;
+    }
+
+    /**
+     * 为 provider 展示测试隔离 runtime 目录，避免本机运行配置污染内存 provider fixture。
+     *
+     * @param config 测试配置。
+     * @param name runtime 目录名称前缀。
+     */
+    private void isolateRuntime(AppConfig config, String name) {
+        String home = "target/test-runtime/" + name + "-" + System.nanoTime();
+        config.getRuntime().setHome(home);
+        config.getRuntime().setConfigFile(home + "/config.yml");
     }
 }

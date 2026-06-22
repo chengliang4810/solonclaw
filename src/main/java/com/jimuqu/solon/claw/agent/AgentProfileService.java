@@ -352,7 +352,7 @@ public class AgentProfileService {
         List<AgentProfile> agents = repository.listAll();
         String active = normalizeName(session == null ? null : session.getActiveAgentName());
         StringBuilder builder = new StringBuilder("Agents：");
-        builder.append("\n- default（内置，runtime 根目录）");
+        builder.append("\n- default（内置，默认工作区）");
         if (AgentRuntimeScope.DEFAULT_AGENT.equals(active)) builder.append(" *当前*");
         if (CollUtil.isNotEmpty(agents)) {
             for (AgentProfile agent : agents) {
@@ -379,7 +379,7 @@ public class AgentProfileService {
      */
     private String formatShow(Object value) {
         if (value instanceof String && AgentRuntimeScope.DEFAULT_AGENT.equals(value)) {
-            return "Agent: default\n类型：内置默认 Agent\n位置：runtime 根目录\n说明：default 不在 runtime/agents 下管理，不允许编辑、删除或克隆。";
+            return "Agent: default\n类型：内置默认 Agent\n位置：默认工作区\n说明：default 不在 runtime/agents 下管理，不允许编辑、删除或克隆。";
         }
         AgentProfile profile = (AgentProfile) value;
         return "Agent: "
@@ -458,7 +458,7 @@ public class AgentProfileService {
      * @return 返回默认变更拒绝结果。
      */
     private String defaultMutationRejected() {
-        return "default 是内置 Agent，映射 runtime 根目录，不允许创建、编辑、删除或克隆。请在根目录上下文或全局设置中调整默认行为。";
+        return "default 是内置 Agent，映射默认工作区，不允许创建、编辑、删除或克隆。请在工作区上下文或全局设置中调整默认行为。";
     }
 
     /**
@@ -496,7 +496,7 @@ public class AgentProfileService {
         }
         if (AgentRuntimeScope.DEFAULT_AGENT.equalsIgnoreCase(
                 AgentRuntimeScope.normalizeName(name))) {
-            throw new IllegalArgumentException("default 是内置 Agent，映射 runtime 根目录，不允许创建、编辑、删除或克隆。");
+            throw new IllegalArgumentException("default 是内置 Agent，映射默认工作区，不允许创建、编辑、删除或克隆。");
         }
     }
 }

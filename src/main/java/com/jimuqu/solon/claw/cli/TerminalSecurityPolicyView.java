@@ -335,8 +335,10 @@ public final class TerminalSecurityPolicyView {
                 .append(value(path, "traversalBlocked"))
                 .append(" devicePath=")
                 .append(value(path, "devicePathBlocked"))
-                .append(" writeSafeRoot=")
-                .append(value(path, "writeSafeRootConfigured"));
+                .append(" workspaceFree=")
+                .append(value(path, "workspaceWriteFree"))
+                .append(" outsideWriteApproval=")
+                .append(value(path, "outsideWorkspaceWriteApprovalRequired"));
         Map<String, Object> toolArgs = securityPolicyService.toolArgsPolicySummary();
         buffer.append('\n')
                 .append("- 工具参数：recursiveUrl=")
@@ -405,9 +407,7 @@ public final class TerminalSecurityPolicyView {
                 .append("- 审批生命周期：approveAll=")
                 .append(value(lifecycle, "approveAllSupported"))
                 .append(" clearAll=")
-                .append(value(lifecycle, "clearAllSupported"))
-                .append(" statusAlias=")
-                .append(value(lifecycle, "statusAliasSupported"));
+                .append(value(lifecycle, "clearAllSupported"));
         Map<String, Object> tirith = new TirithSecurityService(config).policySummary();
         buffer.append('\n')
                 .append("- 安全拦截：enabled=")
@@ -773,10 +773,10 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 确认：slashConfirm=")
                 .append(value(reload, "slashConfirmBacked"))
-                .append(" directAlias=")
-                .append(value(reload, "directRunAlias"))
-                .append(" alwaysAlias=")
-                .append(value(reload, "alwaysConfirmAlias"))
+                .append(" directArgument=")
+                .append(value(reload, "directRunArgument"))
+                .append(" alwaysArgument=")
+                .append(value(reload, "alwaysConfirmArgument"))
                 .append(" persisted=")
                 .append(value(reload, "runtimeConfigPersisted"));
         buffer.append('\n')
@@ -807,8 +807,6 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 查询：list=")
                 .append(value(lifecycle, "listSupported"))
-                .append(" statusAlias=")
-                .append(value(lifecycle, "statusAliasSupported"))
                 .append(" safeSelector=")
                 .append(value(lifecycle, "selectorSupported"));
         buffer.append('\n')
@@ -872,8 +870,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(hardline, "approvalBypassAllowed"))
                 .append(" slash=")
                 .append(value(hardline, "slashApproveBypassAllowed"))
-                .append(" yolo=")
-                .append(value(hardline, "yoloBypassAllowed"));
+                .append(" sessionAutoApproval=")
+                .append(value(hardline, "sessionAutoApprovalBypassAllowed"));
         return buffer.toString();
     }
 
@@ -1284,8 +1282,10 @@ public final class TerminalSecurityPolicyView {
                 .append(" rawBlockWrite=")
                 .append(value(path, "rawBlockDeviceWriteBlocked"));
         buffer.append('\n')
-                .append("- 写入边界：writeSafeRoot=")
-                .append(value(path, "writeSafeRootConfigured"))
+                .append("- 写入边界：workspaceFree=")
+                .append(value(path, "workspaceWriteFree"))
+                .append(" outsideWriteApproval=")
+                .append(value(path, "outsideWorkspaceWriteApprovalRequired"))
                 .append(" exactDenied=")
                 .append(value(path, "writeDeniedExactPathCount"))
                 .append(" prefixDenied=")
@@ -1631,7 +1631,7 @@ public final class TerminalSecurityPolicyView {
                 .append(" topLevelObject=")
                 .append(value(schema, "topLevelObjectRequired"));
         buffer.append('\n')
-                .append("- 兼容性：nullableUnionCollapsed=")
+                .append("- 协议清洗：nullableUnionCollapsed=")
                 .append(value(schema, "nullableUnionCollapsed"))
                 .append(" patternAndFormatStripped=")
                 .append(value(schema, "patternAndFormatStripped"))
@@ -2013,10 +2013,10 @@ public final class TerminalSecurityPolicyView {
      */
     private static void appendApprovalLine(StringBuilder buffer, Map<String, Object> approval) {
         buffer.append('\n')
-                .append("- 审批：mode=")
-                .append(value(approval, "mode"))
+                .append("- 审批：guardrailMode=")
+                .append(value(approval, "guardrailMode"))
                 .append(" cron=")
-                .append(value(approval, "cronMode"))
+                .append(value(approval, "guardrailCronMode"))
                 .append(" dangerousRules=")
                 .append(value(approval, "dangerousRuleCount"))
                 .append(" hardlineRules=")

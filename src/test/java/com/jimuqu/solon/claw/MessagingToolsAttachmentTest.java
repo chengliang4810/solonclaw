@@ -40,7 +40,7 @@ public class MessagingToolsAttachmentTest {
                         null);
 
         Map<?, ?> payload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(result).toData();
-        assertThat(payload.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(payload.get("status")).isEqualTo("success");
         assertThat(payload.get("targets").toString()).contains("current_source").contains("chat-1");
         assertThat(payload.get("current").toString()).contains("thread-1");
         assertThat(payload.get("explicitTargetsAllowed")).isEqualTo(Boolean.FALSE);
@@ -66,7 +66,7 @@ public class MessagingToolsAttachmentTest {
         }
 
         Map<?, ?> payload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(result).toData();
-        assertThat(payload.get("success")).isEqualTo(Boolean.TRUE);
+        assertThat(payload.get("status")).isEqualTo("success");
         assertThat(payload.get("skipped")).isEqualTo(Boolean.TRUE);
         assertThat(payload.get("reason")).isEqualTo("cron_auto_delivery_duplicate_target");
         assertThat(env.memoryChannelAdapter.getLastRequest()).isNull();
@@ -289,7 +289,7 @@ public class MessagingToolsAttachmentTest {
                         null);
 
         Map<?, ?> payload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(result).toData();
-        assertThat(payload.get("success")).isEqualTo(Boolean.FALSE);
+        assertThat(payload.get("status")).isEqualTo("error");
         assertThat(String.valueOf(payload.get("error")))
                 .contains("unknown-ghp_***")
                 .doesNotContain("ghp_1234567890abcdef");

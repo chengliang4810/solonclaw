@@ -6,7 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
-/** 统一工具返回 envelope，兼容旧版 success 字段。 */
+/** 统一工具返回 envelope，使用 status 表达当前工具执行结果。 */
 public class ToolResultEnvelope {
     /** 保存数据映射，便于按键快速查询。 */
     private final Map<String, Object> data = new LinkedHashMap<String, Object>();
@@ -153,7 +153,6 @@ public class ToolResultEnvelope {
     public Map<String, Object> toMap() {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("status", status);
-        map.put("success", Boolean.valueOf("success".equals(status)));
         map.put("summary", summary);
         if (StrUtil.isNotBlank(preview)) {
             map.put("preview", preview);

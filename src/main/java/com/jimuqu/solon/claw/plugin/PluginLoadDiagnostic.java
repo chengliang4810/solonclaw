@@ -2,25 +2,25 @@ package com.jimuqu.solon.claw.plugin;
 
 /** 单个插件发现或加载结果。 */
 public class PluginLoadDiagnostic {
-    /** 记录插件Load诊断中的插件名称。 */
+    /** 插件清单中的唯一名称；清单解析失败时可能为空。 */
     private final String pluginName;
 
-    /** 记录插件Load诊断中的状态。 */
+    /** 本次发现或加载动作的最终状态。 */
     private final PluginLoadStatus status;
 
-    /** 记录插件Load诊断中的原因。 */
+    /** 机器可读的诊断原因，用于 dashboard/API 侧分类展示。 */
     private final String reason;
 
-    /** 记录插件Load诊断中的消息。 */
+    /** 已脱敏的用户可读消息，不能包含插件密钥或环境变量值。 */
     private final String message;
 
     /**
-     * 创建插件Load诊断实例，并注入运行所需依赖。
+     * 创建插件加载诊断记录。
      *
-     * @param pluginName 插件名称参数。
-     * @param status 状态参数。
-     * @param reason 原因参数。
-     * @param message 平台消息或错误消息。
+     * @param pluginName 插件名称。
+     * @param status 加载状态。
+     * @param reason 机器可读原因。
+     * @param message 已脱敏的展示消息。
      */
     public PluginLoadDiagnostic(
             String pluginName, PluginLoadStatus status, String reason, String message) {
@@ -33,34 +33,34 @@ public class PluginLoadDiagnostic {
     /**
      * 读取插件名称。
      *
-     * @return 返回读取到的插件名称。
+     * @return 插件清单中的名称。
      */
     public String getPluginName() {
         return pluginName;
     }
 
     /**
-     * 读取状态。
+     * 读取加载状态。
      *
-     * @return 返回读取到的状态。
+     * @return 加载、跳过或失败状态。
      */
     public PluginLoadStatus getStatus() {
         return status;
     }
 
     /**
-     * 读取Reason。
+     * 读取机器可读原因。
      *
-     * @return 返回读取到的Reason。
+     * @return 诊断原因标识。
      */
     public String getReason() {
         return reason;
     }
 
     /**
-     * 读取消息。
+     * 读取展示消息。
      *
-     * @return 返回读取到的消息。
+     * @return 已脱敏的人类可读诊断消息。
      */
     public String getMessage() {
         return message;

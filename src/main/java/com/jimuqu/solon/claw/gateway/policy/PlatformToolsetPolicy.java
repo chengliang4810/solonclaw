@@ -1,7 +1,10 @@
 package com.jimuqu.solon.claw.gateway.policy;
 
+import cn.hutool.core.collection.CollUtil;
+
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -49,16 +52,16 @@ public final class PlatformToolsetPolicy {
         List<String> enabled = platformConfig.getEnabledToolsets();
         List<String> disabled = platformConfig.getDisabledToolsets();
 
-        // 确定候选列表：enabledToolsets 非空时以其为准，否则使用全局默认
+        // enabledToolsets 非空时收紧到平台白名单，否则沿用全局工具集。
         List<String> candidates;
-        if (enabled != null && !enabled.isEmpty()) {
+        if (CollUtil.isNotEmpty(enabled)) {
             candidates = new ArrayList<String>(enabled);
         } else {
             candidates = safeList(globalToolsets);
         }
 
-        // 移除 disabledToolsets 中的工具集
-        if (disabled != null && !disabled.isEmpty()) {
+        // disabledToolsets 始终覆盖候选列表，避免平台显式禁用项被全局配置重新放开。
+        if (CollUtil.isNotEmpty(disabled)) {
             candidates = new ArrayList<String>(candidates);
             candidates.removeAll(disabled);
         }
@@ -83,10 +86,10 @@ public final class PlatformToolsetPolicy {
     }
 
     /**
-     * 生成安全展示用的列表。
+     * 生成调用方不可变的工具集快照。
      *
-     * @param list 列表参数。
-     * @return 返回safe List结果。
+     * @param list 配置或全局默认传入的工具集列表。
+     * @return 不会反向修改原始配置的不可变列表。
      */
     private static List<String> safeList(List<String> list) {
         if (list == null) {

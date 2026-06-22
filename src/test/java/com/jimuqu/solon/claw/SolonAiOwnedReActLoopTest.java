@@ -746,7 +746,8 @@ public class SolonAiOwnedReActLoopTest {
         config.getReact().setMaxSteps(4);
         config.getLlm().setProvider("openai");
         config.getLlm().setDialect("openai");
-        config.getLlm().setApiUrl("https://example.com/v1/chat/completions");
+        config.getLlm().setApiUrl("http://127.0.0.1:8080/v1/chat/completions");
+        config.getLlm().setApiKey("sk-test-valid-key");
         config.getLlm().setModel("owned-loop-model");
         config.getSecurity().setAllowPrivateUrls(true);
         return config;
@@ -1034,11 +1035,6 @@ public class SolonAiOwnedReActLoopTest {
         private FakeChatModel(String model, FakeMode mode) {
             super(fakeConfig(model));
             this.mode = mode;
-        }
-
-        @Override
-        public ChatRequestDesc prompt(ChatSession session) {
-            return new FakeRequestDesc(this, null, session);
         }
 
         @Override
@@ -1510,7 +1506,7 @@ public class SolonAiOwnedReActLoopTest {
     private static ChatConfig fakeConfig(String model) {
         ChatConfig config = new ChatConfig();
         config.setProvider("openai");
-        config.setApiUrl("https://example.com/v1/chat/completions");
+        config.setApiUrl("http://127.0.0.1:8080/v1/chat/completions");
         config.setModel(model);
         return config;
     }

@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import JobsPanel from '@/components/solonclaw/jobs/JobsPanel.vue'
 import JobFormModal from '@/components/solonclaw/jobs/JobFormModal.vue'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
+import { formatJobTime, jobMapKeysText, jobTokenListText, jobValueList, jobValueText } from '@/shared/jobsDisplay'
 
 const { t } = useI18n()
 const jobsStore = useJobsStore()
@@ -24,11 +25,6 @@ onMounted(() => {
 function openCreateModal() {
   editingJob.value = null
   showModal.value = true
-}
-
-function jobLabel(path: string, fallback: string) {
-  const translated = t(path)
-  return translated === path ? fallback : translated
 }
 
 function openEditModal(jobId: string) {
@@ -55,52 +51,20 @@ async function refreshSchedules() {
   ])
 }
 
-function splitToken(value: string): string[] {
-  return value
-    .split(/[_-]/g)
-    .map(item => item.trim())
-    .filter(Boolean)
-}
-
-function humanizeToken(value: string): string {
-  const normalized = value.trim()
-  if (!normalized) return ''
-  const tokenLabel = jobLabel(`jobs.humanize.${normalized}`, '')
-  if (tokenLabel) return tokenLabel
-  const fieldLabel = jobLabel(`jobs.fieldHumanize.${normalized}`, '')
-  if (fieldLabel) return fieldLabel
-  const actionLabel = jobLabel(`jobs.actionHumanize.${normalized}`, '')
-  if (actionLabel) return actionLabel
-  const parts = splitToken(normalized)
-  const translated = parts.map(part =>
-    jobLabel(`jobs.humanize.${part}`, '') ||
-    jobLabel(`jobs.fieldHumanize.${part}`, '') ||
-    jobLabel(`jobs.actionHumanize.${part}`, '') ||
-    part,
-  )
-  return translated.join(' / ')
-}
-
 function listText(value?: string[]): string {
-  return value?.filter(Boolean).map(item => humanizeToken(item)).join('、') || '—'
+  return jobTokenListText(t, value, { guide: true })
 }
 
 function mapKeys(value?: Record<string, unknown>): string {
-  return value ? Object.keys(value).map(item => humanizeToken(item)).join('、') : '—'
+  return jobMapKeysText(t, value)
 }
 
 function valueText(value: unknown): string {
-  if (Array.isArray(value)) return value.map(item => humanizeToken(String(item))).join('、')
-  if (typeof value === 'boolean') return value ? t('jobs.detail.yes') : t('jobs.detail.no')
-  if (value === null || value === undefined || value === '') return '—'
-  if (typeof value === 'string') return humanizeToken(value)
-  return String(value)
+  return jobValueText(t, value)
 }
 
 function valueList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(item => valueText(item)).filter(item => item && item !== '—')
-  if (typeof value === 'string' && value.trim()) return [value.trim()]
-  return []
+  return jobValueList(t, value)
 }
 
 function policyFlags(): string[] {
@@ -257,7 +221,7 @@ function policyFlags(): string[] {
           <span>{{ t('jobs.pageNextRuns') }}</span>
           <template v-if="jobsStore.status.next.length">
             <code v-for="job in jobsStore.status.next.slice(0, 3)" :key="job.id">
-              {{ job.name }} · {{ job.next_run_at ? new Date(job.next_run_at).toLocaleString() : '—' }}
+              {{ job.name }} · {{ formatJobTime(job.next_run_at) }}
             </code>
           </template>
           <code v-else>—</code>

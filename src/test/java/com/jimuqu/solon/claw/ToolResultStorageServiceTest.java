@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.bootstrap.ToolConfiguration;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.tool.runtime.ReActToolObservationSupport;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageInterceptor;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
@@ -13,6 +14,7 @@ import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.agent.react.task.ToolExchanger;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 
@@ -311,16 +313,16 @@ public class ToolResultStorageServiceTest {
     }
 
     @Test
-    void shouldDescribeLegacyJsonEnvelope() {
+    void shouldDescribeCurrentJsonEnvelope() {
         String json =
-                "{\"status\":\"success\",\"success\":true,\"preview\":\"old api_key=sk-legacy-preview-secret\",\"result_ref\":\"/tmp/result.txt\",\"size\":42,\"truncated\":true}";
+                "{\"status\":\"success\",\"preview\":\"api_key=sk-current-preview-secret\",\"result_ref\":\"/tmp/result.txt\",\"size\":42,\"truncated\":true}";
 
         ToolResultStorageService.StoredResult described =
                 ToolResultStorageService.describeObservation(json);
 
         assertThat(described.getPreview())
                 .contains("api_key=***")
-                .doesNotContain("sk-legacy-preview-secret");
+                .doesNotContain("sk-current-preview-secret");
         assertThat(described.getResultRef()).isEqualTo("/tmp/result.txt");
         assertThat(described.getSizeBytes()).isEqualTo(42L);
         assertThat(described.isTruncated()).isTrue();
@@ -329,13 +331,13 @@ public class ToolResultStorageServiceTest {
     @Test
     void shouldRedactResultRefsWhenDescribingExistingEnvelopes() {
         String sensitivePathRef = "/tmp/output-token=secret123-ghp_1234567890abcdef.txt";
-        String encodedQueryRef = "https://example.test/output?api%255Fkey=legacy-result-secret";
+        String encodedQueryRef = "https://example.test/output?api%255Fkey=current-result-secret";
         String sensitivePathJson =
-                "{\"status\":\"success\",\"success\":true,\"preview\":\"old token=ghp_previewsecret12345\",\"result_ref\":\""
+                "{\"status\":\"success\",\"preview\":\"token=ghp_previewsecret12345\",\"result_ref\":\""
                         + sensitivePathRef
                         + "\",\"size\":42,\"truncated\":true}";
         String encodedQueryJson =
-                "{\"status\":\"success\",\"success\":true,\"preview\":\"old token=ghp_previewsecret12345\",\"result_ref\":\""
+                "{\"status\":\"success\",\"preview\":\"token=ghp_previewsecret12345\",\"result_ref\":\""
                         + encodedQueryRef
                         + "\",\"size\":42,\"truncated\":true}";
         String sensitivePathBlock =
@@ -376,10 +378,10 @@ public class ToolResultStorageServiceTest {
                 .doesNotContain("ghp_1234567890abcdef");
         assertThat(encodedQueryJsonDescribed.getResultRef())
                 .contains("api%255Fkey=***")
-                .doesNotContain("legacy-result-secret");
+                .doesNotContain("current-result-secret");
         assertThat(encodedQueryBlockDescribed.getResultRef())
                 .contains("api%255Fkey=***")
-                .doesNotContain("legacy-result-secret")
+                .doesNotContain("current-result-secret")
                 .doesNotContain("secret123")
                 .doesNotContain("ghp_1234567890abcdef");
         assertThat(sensitivePathJsonDescribed.getPreview())
@@ -415,12 +417,13 @@ public class ToolResultStorageServiceTest {
         ToolResultStorageInterceptor interceptor =
                 new ToolResultStorageInterceptor(service, "run-interceptor");
         ReActTrace trace = new ReActTrace();
-        trace.setLastObservation(repeat("z", 400));
+        ToolExchanger exchanger = exchange("webfetch", repeat("z", 400));
+        ReActToolObservationSupport.set(trace, exchanger, repeat("z", 400));
 
-        interceptor.onObservation(trace, "webfetch", trace.getLastObservation(), 5L);
+        interceptor.onObservation(trace, exchanger, null, null, 5L);
 
         ToolResultStorageService.StoredResult described =
-                ToolResultStorageService.describeObservation(trace.getLastObservation());
+                ToolResultStorageService.describeObservation(observation(trace));
         assertThat(described.isTruncated()).isTrue();
         assertThat(described.getResultRef()).isNotBlank();
     }
@@ -436,12 +439,23 @@ public class ToolResultStorageServiceTest {
         AssistantMessage message =
                 new AssistantMessage("", false, null, null, Arrays.asList(call), null);
 
-        interceptor.onReason(trace, message);
-        interceptor.onObservation(trace, "webfetch", repeat("z", 400), 5L);
+        interceptor.onReasonEnd(trace, null, message, 0L);
+        ToolExchanger exchanger = exchange("webfetch", repeat("z", 400));
+        interceptor.onObservation(trace, exchanger, null, null, 5L);
 
         ToolResultStorageService.StoredResult described =
-                ToolResultStorageService.describeObservation(trace.getLastObservation());
+                ToolResultStorageService.describeObservation(observation(trace));
         assertThat(described.getResultRef()).endsWith("/call-native-123.txt");
+    }
+
+    private ToolExchanger exchange(String toolName, String result) {
+        ToolExchanger exchanger = new ToolExchanger(toolName, null);
+        exchanger.setResult(result);
+        return exchanger;
+    }
+
+    private String observation(ReActTrace trace) {
+        return ReActToolObservationSupport.get(trace, null);
     }
 
     @Test
@@ -456,10 +470,10 @@ public class ToolResultStorageServiceTest {
         assertThat(result.getObservation()).isEqualTo(large);
         assertThat(result.getResultRef()).isNull();
 
-        ToolResultStorageService.StoredResult legacy =
-                service.observe("file_read", large, "run-1", "legacy-read-call");
-        assertThat(legacy.getObservation()).isEqualTo(large);
-        assertThat(legacy.getResultRef()).isNull();
+        ToolResultStorageService.StoredResult fileRead =
+                service.observe("file_read", large, "run-1", "file-read-call");
+        assertThat(fileRead.getObservation()).isEqualTo(large);
+        assertThat(fileRead.getResultRef()).isNull();
         assertThat(result.isTruncated()).isFalse();
     }
 

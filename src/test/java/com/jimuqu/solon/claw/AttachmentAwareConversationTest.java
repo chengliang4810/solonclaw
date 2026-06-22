@@ -385,14 +385,14 @@ public class AttachmentAwareConversationTest {
             lastUserMessage = userMessage;
             InMemoryChatSession chatSession = new InMemoryChatSession(session.getSessionId());
             if (StrUtil.isNotBlank(session.getNdjson())) {
-                chatSession.loadNdjson(session.getNdjson());
+                chatSession.addMessage(ChatMessage.fromNdjson(session.getNdjson()));
             }
             chatSession.addMessage(ChatMessage.ofUser(userMessage));
             chatSession.addMessage(ChatMessage.ofAssistant("ok"));
 
             LlmResult result = new LlmResult();
             result.setAssistantMessage(ChatMessage.ofAssistant("ok"));
-            result.setNdjson(chatSession.toNdjson());
+            result.setNdjson(ChatMessage.toNdjson(chatSession.getMessages()));
             result.setRawResponse("captured");
             result.setStreamed(false);
             return result;

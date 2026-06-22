@@ -8,7 +8,7 @@ import org.noear.snack4.ONode;
 
 public class ToolResultEnvelopeTest {
     @Test
-    void shouldExposeJimuquEnvelopeAndLegacySuccessFlag() {
+    void shouldExposeCurrentToolResultEnvelope() {
         ONode node =
                 ONode.ofJson(
                         ToolResultEnvelope.ok("done")
@@ -21,7 +21,6 @@ public class ToolResultEnvelopeTest {
                                 .toJson());
 
         assertThat(node.get("status").getString()).isEqualTo("success");
-        assertThat(node.get("success").getBoolean()).isTrue();
         assertThat(node.get("summary").getString()).isEqualTo("done");
         assertThat(node.get("preview").getString()).isEqualTo("value=42");
         assertThat(node.get("result_ref").getString()).isEqualTo("/tmp/result.txt");

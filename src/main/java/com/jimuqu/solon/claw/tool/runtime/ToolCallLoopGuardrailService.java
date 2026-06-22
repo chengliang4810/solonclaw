@@ -18,9 +18,16 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.Agent;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.agent.react.task.ToolExchanger;
+import org.noear.solon.ai.chat.message.ChatMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供工具Call循环防护相关业务能力，封装调用方不需要感知的运行细节。 */
 public class ToolCallLoopGuardrailService {
+    /** 记录工具循环防护中的可降级异常，日志不包含工具参数或结果正文。 */
+    private static final Logger log = LoggerFactory.getLogger(ToolCallLoopGuardrailService.class);
+
     /** 状态键的统一常量值。 */
     private static final String STATE_KEY = "solonclaw.tool_loop_guardrail.state";
 
@@ -48,7 +55,6 @@ public class ToolCallLoopGuardrailService {
                                     "browser_console",
                                     "browser_get_images",
                                     ToolNameConstants.CONFIG_GET,
-                                    "config_read",
                                     "config_env_probe",
                                     ToolNameConstants.SECURITY_AUDIT,
                                     "mcp_filesystem_read_file",
@@ -82,9 +88,7 @@ public class ToolCallLoopGuardrailService {
                                     ToolNameConstants.DELEGATE_TASK,
                                     ToolNameConstants.PROCESS,
                                     ToolNameConstants.CONFIG_SET,
-                                    "config_write",
                                     ToolNameConstants.CONFIG_SET_SECRET,
-                                    "config_update_secret",
                                     ToolNameConstants.CONFIG_REFRESH,
                                     "browser_click",
                                     "browser_type",
@@ -152,11 +156,12 @@ public class ToolCallLoopGuardrailService {
          * 响应Action事件。
          *
          * @param trace trace 参数。
-         * @param toolName 工具名称。
-         * @param args 工具或命令参数。
+         * @param exchanger 工具交换对象。
          */
         @Override
-        public void onAction(ReActTrace trace, String toolName, Map<String, Object> args) {
+        public void onAction(ReActTrace trace, ToolExchanger exchanger) {
+            String toolName = exchanger == null ? null : exchanger.getToolName();
+            Map<String, Object> args = exchanger == null ? null : exchanger.getArgs();
             if (trace == null || toolName == null) {
                 return;
             }
@@ -170,7 +175,7 @@ public class ToolCallLoopGuardrailService {
                 return;
             }
             trace.setExtra(HALT_DECISION_EXTRA_KEY, metadata(decision));
-            trace.setLastObservation(syntheticResult(decision));
+            ReActToolObservationSupport.set(trace, exchanger, syntheticResult(decision));
             trace.setRoute(Agent.ID_END);
             trace.setFinalAnswer(haltFinalAnswer(decision), false);
             if (trace.getContext() != null) {
@@ -182,13 +187,19 @@ public class ToolCallLoopGuardrailService {
          * 响应观察结果事件。
          *
          * @param trace trace 参数。
-         * @param toolName 工具名称。
-         * @param result 结果响应或执行结果。
+         * @param exchanger 工具交换对象。
+         * @param message 工具消息。
+         * @param error 工具异常。
          * @param durationMs durationMs 参数。
          */
         @Override
         public void onObservation(
-                ReActTrace trace, String toolName, String result, long durationMs) {
+                ReActTrace trace,
+                ToolExchanger exchanger,
+                ChatMessage message,
+                Throwable error,
+                long durationMs) {
+            String toolName = exchanger == null ? null : exchanger.getToolName();
             if (trace == null || toolName == null) {
                 return;
             }
@@ -197,18 +208,15 @@ public class ToolCallLoopGuardrailService {
             if (signature == null) {
                 signature = signature(toolName, argsFor(trace, toolName));
             }
-            String original = StrUtil.nullToEmpty(trace.getLastObservation());
-            if (StrUtil.isEmpty(original)) {
-                original = StrUtil.nullToEmpty(result);
-            }
+            String original = ReActToolObservationSupport.get(trace, exchanger);
             Decision decision = state.afterCall(toolName, signature, original, config);
             if (decision.shouldWarn()) {
-                trace.setLastObservation(appendGuidance(original, decision));
+                ReActToolObservationSupport.set(trace, exchanger, appendGuidance(original, decision));
             }
             if (decision.shouldHalt()) {
                 String rewritten = appendGuidance(original, decision);
                 trace.setExtra(HALT_DECISION_EXTRA_KEY, metadata(decision));
-                trace.setLastObservation(rewritten);
+                ReActToolObservationSupport.set(trace, exchanger, rewritten);
                 trace.setRoute(Agent.ID_END);
                 trace.setFinalAnswer(haltFinalAnswer(decision), false);
                 if (trace.getContext() != null) {
@@ -691,7 +699,8 @@ public class ToolCallLoopGuardrailService {
             if (parsed instanceof Map || parsed instanceof Iterable) {
                 return ONode.serialize(canonicalValue(parsed));
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableFailure("canonical-result", e);
         }
         return value;
     }
@@ -745,16 +754,13 @@ public class ToolCallLoopGuardrailService {
         Object parsedObject = null;
         try {
             parsedObject = ONode.deserialize(value, Object.class);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableFailure("classify-failure", e);
         }
         if (parsedObject instanceof Map) {
             Map<?, ?> parsed = (Map<?, ?>) parsedObject;
             Object exitCode = parsed.get("exit_code");
             if (exitCode instanceof Number && ((Number) exitCode).intValue() != 0) {
-                return true;
-            }
-            Object success = parsed.get("success");
-            if (success instanceof Boolean && !((Boolean) success).booleanValue()) {
                 return true;
             }
             String status =
@@ -806,10 +812,31 @@ public class ToolCallLoopGuardrailService {
     private static String syntheticResult(Decision decision) {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         map.put("status", "error");
-        map.put("success", Boolean.FALSE);
         map.put("error", decision.message);
         map.put("guardrail", metadata(decision));
         return ONode.serialize(map);
+    }
+
+    /**
+     * 记录可恢复解析失败，避免吞异常同时不泄露工具参数、命令、URL 或结果正文。
+     *
+     * @param stage 降级阶段。
+     * @param error 异常对象。
+     */
+    private static void logRecoverableFailure(String stage, Exception error) {
+        if (log.isDebugEnabled()) {
+            log.debug("tool loop guardrail fallback. stage={} error={}", stage, exceptionSummary(error));
+        }
+    }
+
+    /**
+     * 生成低敏异常摘要，仅保留异常类型供排障定位。
+     *
+     * @param error 异常对象。
+     * @return 返回异常类型摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getName();
     }
 
     /**

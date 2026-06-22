@@ -2,24 +2,33 @@ package com.jimuqu.solon.claw.bootstrap;
 
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import java.lang.management.ManagementFactory;
-import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Inject;
 import org.noear.solon.annotation.Mapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 健康检查控制器。 */
 @Controller
 public class HealthController {
+    /** 记录健康检查状态采集降级原因，接口仍保持可用兜底响应。 */
+    private static final Logger log = LoggerFactory.getLogger(HealthController.class);
+
     /** 服务名称的统一常量值。 */
     private static final String SERVICE_NAME = "solon-claw";
+
+    /** 健康检查时间输出格式，保持原有本地时区偏移语义。 */
+    private static final DateTimeFormatter ISO_OFFSET_SECONDS_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
 
     /** STARTED时间EPOCHMS的统一常量值。 */
     private static final long STARTED_AT_EPOCH_MS = System.currentTimeMillis();
@@ -98,8 +107,8 @@ public class HealthController {
         if (statusService != null) {
             try {
                 return withStableRuntimeStatus(statusService.getHealthRuntimeSnapshot());
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                log.debug("健康检查运行时状态采集失败，使用兜底状态: {}", e.toString());
             }
         }
         return withStableRuntimeStatus(null);
@@ -261,8 +270,6 @@ public class HealthController {
      * @return 返回iso Now结果。
      */
     private String isoNow() {
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-        format.setTimeZone(TimeZone.getDefault());
-        return format.format(new Date());
+        return ZonedDateTime.now(ZoneId.systemDefault()).format(ISO_OFFSET_SECONDS_FORMATTER);
     }
 }

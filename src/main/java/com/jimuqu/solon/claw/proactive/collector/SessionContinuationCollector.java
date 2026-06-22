@@ -18,9 +18,14 @@ import java.util.Locale;
 import java.util.Map;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 会话续接观测采集器，用于从近期会话中发现值得主动恢复处理的目标和未完成事项。 */
 public class SessionContinuationCollector implements ProactiveObservationCollector {
+    /** 采集器内部日志，仅记录阶段和异常类型，避免暴露会话正文、prompt 或目标内容。 */
+    private static final Logger log = LoggerFactory.getLogger(SessionContinuationCollector.class);
+
     /** 采集器稳定名称，同时作为观测类型写入结构化载荷。 */
     public static final String COLLECTOR_NAME = "session_continuation";
 
@@ -257,7 +262,8 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
             signals.messageCount = messages.size();
             signals.searchText = searchableText(session, signals);
             return signals;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableCollectionFailure("read_session_signals", e);
             return null;
         }
     }
@@ -271,7 +277,8 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
     private GoalState parseGoalState(String goalStateJson) {
         try {
             return GoalState.fromJson(goalStateJson);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableCollectionFailure("parse_goal_state", e);
             return null;
         }
     }
@@ -538,6 +545,39 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      */
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
+    }
+
+    /**
+     * 记录会话续接采集的可恢复失败；日志不输出会话正文、目标 JSON、prompt 或异常消息。
+     *
+     * @param stage 失败阶段。
+     * @param error 原始异常。
+     */
+    private void logRecoverableCollectionFailure(String stage, Exception error) {
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "session continuation collector fallback: stage={}, errorType={}",
+                    stage,
+                    exceptionType(error));
+        }
+    }
+
+    /**
+     * 提取异常类型；如果异常链包含中断异常，恢复线程中断标记。
+     *
+     * @param error 原始异常。
+     * @return 异常类名。
+     */
+    private String exceptionType(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            current = current.getCause();
+        }
+        return error == null ? "UnknownException" : error.getClass().getSimpleName();
     }
 
     /** 单个会话解析后的规则判断信号。 */

@@ -22,9 +22,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Solon Claw Cron 任务管理服务。 */
 public class CronJobService {
+    /** 记录定时任务管理服务的低敏运行诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(CronJobService.class);
+
     /** PROTECTED定时任务DISABLEDTOOLSETS的统一常量值。 */
     public static final List<String> PROTECTED_CRON_DISABLED_TOOLSETS =
             Arrays.asList("cronjob", "messaging", "clarify");
@@ -523,7 +528,8 @@ public class CronJobService {
                 return emptyJsonValue(data) ? "" : ONode.serialize(data);
             }
             return ONode.serialize(value);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logCronBestEffortFailure("unknown", "canonical_json", e);
             return String.valueOf(value).trim();
         }
     }
@@ -798,7 +804,7 @@ public class CronJobService {
         result.put("skill", first(parseList(record.getSkillsJson())));
         result.put("repeat", repeat);
         result.put("script", record.getScript());
-        result.put("workdir", workdirReference(record.getWorkdir()));
+        result.put("workdir", workdirReference(record.getJobId(), record.getWorkdir()));
         result.put("no_agent", Boolean.valueOf(record.isNoAgent()));
         List<String> contextFrom = parseList(record.getContextFromJson());
         result.put("context_from", contextFrom);
@@ -1392,7 +1398,7 @@ public class CronJobService {
         result.put(
                 "enabled_toolsets_policy",
                 "受保护的禁用工具集会覆盖任务级和 scheduler enabled_toolsets 配置。");
-        result.put("approval_mode", "触发后的命令和工具调用继续走运行时审批与危险命令策略。");
+        result.put("guardrail_mode", "触发后的命令和工具调用继续走运行时审批与危险命令策略。");
         return result;
     }
 
@@ -1654,7 +1660,7 @@ public class CronJobService {
         if (!textVerdict.isAllowed()) {
             throw new IllegalStateException(
                     "workdir blocked by security policy: "
-                            + SecretRedactor.redact(textVerdict.getPath(), 400)
+                            + redactPath(textVerdict.getPath(), 400)
                             + " - "
                             + textVerdict.getMessage());
         }
@@ -1670,7 +1676,7 @@ public class CronJobService {
             if (!verdict.isAllowed()) {
                 throw new IllegalStateException(
                         "workdir blocked by security policy: "
-                                + SecretRedactor.redact(verdict.getPath(), 400)
+                                + redactPath(verdict.getPath(), 400)
                                 + " - "
                                 + verdict.getMessage());
             }
@@ -1700,12 +1706,23 @@ public class CronJobService {
     }
 
     /**
+     * 脱敏定时任务工作目录安全拒绝消息中的敏感路径。
+     *
+     * @param path 原始路径。
+     * @param maxLength 最大展示长度。
+     * @return 返回脱敏后的路径。
+     */
+    private String redactPath(String path, int maxLength) {
+        return SecretRedactor.redactSensitivePaths(SecretRedactor.redact(path, maxLength));
+    }
+
+    /**
      * 执行workdir引用相关逻辑。
      *
      * @param workdir 命令执行工作目录。
      * @return 返回workdir Reference结果。
      */
-    private String workdirReference(String workdir) {
+    private String workdirReference(String jobId, String workdir) {
         String value = StrUtil.nullToEmpty(workdir).trim();
         if (StrUtil.isBlank(value)) {
             return null;
@@ -1721,8 +1738,8 @@ public class CronJobService {
             if (filePath.startsWith(homePath + File.separator)) {
                 return "runtime://" + filePath.substring(homePath.length() + 1).replace('\\', '/');
             }
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            logCronBestEffortFailure(jobId, "workdir_reference", e);
         }
         String name = FileUtil.file(value).getName();
         if (StrUtil.isBlank(name)) {
@@ -2405,9 +2422,52 @@ public class CronJobService {
         try {
             Object data = ONode.ofJson(text).toData();
             return data instanceof Map ? (Map<?, ?>) data : null;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logCronBestEffortFailure("unknown", "object_map", e);
             return null;
         }
+    }
+
+    /**
+     * 记录定时任务管理中的可恢复失败，日志仅包含任务标识、阶段和异常类型。
+     *
+     * @param jobId 定时任务标识。
+     * @param phase 发生失败的内部阶段。
+     * @param error 捕获到的异常。
+     */
+    private void logCronBestEffortFailure(String jobId, String phase, Exception error) {
+        log.debug(
+                "Cron job best-effort fallback: jobId={}, phase={}, error={}",
+                safeLogJobId(jobId),
+                phase,
+                exceptionType(error));
+    }
+
+    /**
+     * 生成日志用任务标识，避免空值或异常值破坏结构化日志。
+     *
+     * @param jobId 定时任务标识。
+     * @return 可用于日志的任务标识。
+     */
+    private String safeLogJobId(String jobId) {
+        String value = StrUtil.nullToEmpty(jobId).trim();
+        return StrUtil.isBlank(value) ? "unknown" : value;
+    }
+
+    /**
+     * 生成异常类型摘要，避免把异常消息中的 prompt、脚本或密钥写入日志。
+     *
+     * @param error 捕获到的异常。
+     * @return 异常类型名称。
+     */
+    private String exceptionType(Throwable error) {
+        if (error == null) {
+            return "Exception";
+        }
+        if (error instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+        }
+        return error.getClass().getSimpleName();
     }
 
     /**

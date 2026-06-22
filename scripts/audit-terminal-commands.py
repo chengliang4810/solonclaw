@@ -20,10 +20,9 @@ import time
 import urllib.error
 import urllib.request
 import struct
-from pathlib import Path
 
+from guardlib import REPO_ROOT
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_JAR = REPO_ROOT / "target" / "solon-claw-0.0.1.jar"
 
 # 这些命令覆盖用户会直接输入的初始化、模型、渠道、会话、工具、安全和自动化入口。

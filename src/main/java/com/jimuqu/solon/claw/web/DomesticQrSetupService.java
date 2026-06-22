@@ -12,14 +12,14 @@ import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URLEncoder;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -29,6 +29,10 @@ import org.noear.snack4.ONode;
 public class DomesticQrSetupService {
     /** 平台钉钉的统一常量值。 */
     private static final String PLATFORM_DINGTALK = "dingtalk";
+
+    /** 国内渠道二维码接口时间格式，保持原有本地时区偏移输出。 */
+    private static final DateTimeFormatter ISO_OFFSET_SECONDS_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX").withZone(ZoneId.systemDefault());
 
     /** 平台飞书的统一常量值。 */
     private static final String PLATFORM_FEISHU = "feishu";
@@ -616,9 +620,7 @@ public class DomesticQrSetupService {
         if (epochMillis <= 0) {
             return null;
         }
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-        format.setTimeZone(TimeZone.getDefault());
-        return format.format(new Date(epochMillis));
+        return ISO_OFFSET_SECONDS_FORMATTER.format(Instant.ofEpochMilli(epochMillis));
     }
 
     /**

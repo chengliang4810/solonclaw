@@ -19,9 +19,14 @@ import org.jline.reader.UserInterruptException;
 import org.jline.reader.impl.completer.StringsCompleter;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 呈现Tui交互视图，封装终端侧输入输出细节。 */
 public class TuiShell {
+    /** TUI 交互层的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(TuiShell.class);
+
     /** COMMANDS的统一常量值。 */
     private static final String[] COMMANDS = TerminalCommandCatalog.SLASH_COMMANDS;
 
@@ -686,7 +691,14 @@ public class TuiShell {
                     + StrUtil.blankToDefault(activeRunId, "-")
                     + " queue="
                     + StrUtil.blankToDefault(queuePending, "0");
-        } catch (Exception ignored) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.debug("忙碌状态读取被中断，按无状态兜底");
+            return "";
+        } catch (Exception e) {
+            log.debug(
+                    "忙碌状态读取失败，按无状态兜底 error={}",
+                    e.getClass().getSimpleName());
             return "";
         }
     }

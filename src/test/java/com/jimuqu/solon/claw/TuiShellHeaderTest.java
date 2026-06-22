@@ -155,8 +155,7 @@ public class TuiShellHeaderTest {
         assertThat(buffer.toString())
                 .contains("安全策略状态摘要")
                 .contains("supportsActions=command,url,path,tool_args,policy,status")
-                .contains("executesCommand=false")
-                .contains("statusAlias=true");
+                .contains("executesCommand=false");
     }
 
     @Test

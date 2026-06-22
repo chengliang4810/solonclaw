@@ -27,9 +27,14 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供控制台MCP相关业务能力，封装调用方不需要感知的运行细节。 */
 public class DashboardMcpService {
+    /** 记录 MCP 控制台解析降级的低敏诊断日志，不输出 OAuth token 或响应正文。 */
+    private static final Logger log = LoggerFactory.getLogger(DashboardMcpService.class);
+
     /** 最大OAUTHtokenREDIRECTS的统一常量值。 */
     private static final int MAX_OAUTH_TOKEN_REDIRECTS = 5;
 
@@ -1593,8 +1598,9 @@ public class DashboardMcpService {
                 oauth.put(
                         "expires_at",
                         Long.valueOf(System.currentTimeMillis() + Math.max(0L, seconds) * 1000L));
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                log.debug("MCP OAuth expires_in解析失败，保留显式expires_at优先兜底 error={}",
+                        e.getClass().getSimpleName());
             }
         }
         Object expiresAt = firstPresent(tokenResponse, "expires_at", "expiresAt", "expires");

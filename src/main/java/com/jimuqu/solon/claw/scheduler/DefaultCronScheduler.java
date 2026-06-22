@@ -40,10 +40,10 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -105,6 +105,10 @@ public class DefaultCronScheduler {
 
     /** 定时任务提示词阻断PREFIX的统一常量值。 */
     private static final String CRON_PROMPT_BLOCK_PREFIX = "BLOCKED: 定时任务组装提示词";
+
+    /** 定时任务用户提示消息中的本地时间格式，保持原有 yyyy-MM-dd HH:mm:ss 展示。 */
+    private static final DateTimeFormatter USER_MESSAGE_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     /** 定时任务运行时H整型的统一常量值。 */
     private static final String CRON_RUNTIME_HINT =
@@ -994,7 +998,7 @@ public class DefaultCronScheduler {
         return job.getPendingTriggerType();
     }
 
-    /** 构建定时任务专用执行来源键，避免复用用户主会话历史导致旧工具结果污染。 */
+    /** 构建定时任务专用执行来源键，避免复用用户主会话导致工具结果串扰。 */
     private String cronExecutionSourceKey(CronJobRecord job) {
         return "CRON:" + safeJobId(job);
     }
@@ -1202,7 +1206,8 @@ public class DefaultCronScheduler {
             while (true) {
                 try {
                     return future.get(AGENT_TIMEOUT_POLL_MILLIS, TimeUnit.MILLISECONDS);
-                } catch (TimeoutException ignored) {
+                } catch (TimeoutException e) {
+                    logCronBestEffortFailure(job.getJobId(), "agent_poll_wait", e);
                     activity = agentRunControlService.activeRunSummary(synthetic.sourceKey());
                     if (activity == null) {
                         continue;
@@ -2130,7 +2135,7 @@ public class DefaultCronScheduler {
                             + "，输出："
                             + output);
         }
-        return new CronScriptResult(output, parseWakeAgent(output));
+        return new CronScriptResult(output, parseWakeAgent(job.getJobId(), output));
     }
 
     /**
@@ -2181,7 +2186,7 @@ public class DefaultCronScheduler {
      * @param output 命令执行输出文本。
      * @return 返回解析后的Wake Agent。
      */
-    private boolean parseWakeAgent(String output) {
+    private boolean parseWakeAgent(String jobId, String output) {
         if (StrUtil.isBlank(output)) {
             return true;
         }
@@ -2199,7 +2204,8 @@ public class DefaultCronScheduler {
                         return !Boolean.FALSE.equals(map.get("wakeAgent"));
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                logCronBestEffortFailure(jobId, "wake_agent_parse", e);
                 return true;
             }
             return true;
@@ -2245,7 +2251,7 @@ public class DefaultCronScheduler {
      */
     private String blockedPromptFailureMessage(CronJobRecord job, String error) {
         String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
-        String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        String time = USER_MESSAGE_TIME_FORMATTER.format(LocalDateTime.now());
         return "# 定时任务："
                 + safeText(taskName)
                 + "\n\n"
@@ -2273,7 +2279,7 @@ public class DefaultCronScheduler {
     private String noAgentScriptFailureMessage(CronJobRecord job, String error) {
         String taskName = StrUtil.blankToDefault(job.getName(), job.getJobId());
         String message = safeText(StrUtil.blankToDefault(error, "未知错误"));
-        String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        String time = USER_MESSAGE_TIME_FORMATTER.format(LocalDateTime.now());
         return "⚠ 定时任务监控 '"
                 + safeText(taskName)
                 + "' 脚本执行失败\n\n"
@@ -2375,8 +2381,59 @@ public class DefaultCronScheduler {
     private void markDeliveryErrorBestEffort(String jobId, String error) {
         try {
             cronJobRepository.markDeliveryError(jobId, safeText(error));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logCronBestEffortFailure(jobId, "delivery_error_mark", e);
         }
+    }
+
+    /**
+     * 记录定时任务调度中的可恢复失败，日志只包含任务标识、阶段和异常类型。
+     *
+     * @param jobId 定时任务标识。
+     * @param phase 发生失败的内部阶段。
+     * @param error 捕获到的异常。
+     */
+    private void logCronBestEffortFailure(String jobId, String phase, Exception error) {
+        if ("agent_poll_wait".equals(phase)) {
+            log.trace(
+                    "Cron scheduler best-effort fallback: jobId={}, phase={}, error={}",
+                    safeLogJobId(jobId),
+                    phase,
+                    exceptionType(error));
+            return;
+        }
+        log.debug(
+                "Cron scheduler best-effort fallback: jobId={}, phase={}, error={}",
+                safeLogJobId(jobId),
+                phase,
+                exceptionType(error));
+    }
+
+    /**
+     * 生成日志用任务标识，避免空值或异常值破坏结构化日志。
+     *
+     * @param jobId 定时任务标识。
+     * @return 可用于日志的任务标识。
+     */
+    private String safeLogJobId(String jobId) {
+        String value = StrUtil.nullToEmpty(jobId).trim();
+        return StrUtil.isBlank(value) ? "unknown" : value;
+    }
+
+    /**
+     * 生成异常类型摘要，避免把异常消息中的 prompt、脚本或密钥写入日志。
+     *
+     * @param error 捕获到的异常。
+     * @return 异常类型名称。
+     */
+    private String exceptionType(Throwable error) {
+        if (error == null) {
+            return "Exception";
+        }
+        if (error instanceof InterruptedException) {
+            Thread.currentThread().interrupt();
+        }
+        return error.getClass().getSimpleName();
     }
 
     /**
@@ -2498,7 +2555,7 @@ public class DefaultCronScheduler {
                             + dangerous.getDescription()
                             + "。网关生命周期命令不能从定时任务运行。");
         }
-        String mode = dangerousCommandApprovalService.cronApprovalMode();
+        String mode = dangerousCommandApprovalService.guardrailCronMode();
         if ("approve".equals(mode) || "bypass".equals(mode)) {
             return;
         }

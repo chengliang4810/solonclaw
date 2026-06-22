@@ -1,5 +1,6 @@
 FROM node:20-bookworm-slim AS frontend
 
+# 前端阶段只负责编译 Dashboard 静态资源，避免最终镜像携带前端构建缓存。
 WORKDIR /workspace/web
 
 COPY web/package*.json /workspace/web/
@@ -10,6 +11,7 @@ RUN npm run build
 
 FROM maven:3.9.9-eclipse-temurin-17 AS builder
 
+# 后端阶段复用 Maven 镜像打包 fat jar，并接收上一阶段产出的 Dashboard dist。
 WORKDIR /workspace
 
 COPY pom.xml /workspace/pom.xml
@@ -20,8 +22,9 @@ COPY --from=frontend /workspace/web/dist /workspace/web/dist
 RUN mvn -DskipTests -Dskip.web.build=true package \
     && cp "$(find target -maxdepth 1 -type f -name 'solon-claw-*.jar' ! -name 'original-*' | head -n 1)" /tmp/solon-claw.jar
 
-FROM eclipse-temurin:17-jdk
+FROM eclipse-temurin:17-jre
 
+# 运行阶段保留常用诊断工具，服务仍按单实例 java -jar 方式启动。
 WORKDIR /app
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -30,8 +33,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     TZ=Asia/Shanghai \
     PYTHONIOENCODING=UTF-8 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
+# 标记官方 Docker 运行环境，供启动保护和诊断逻辑识别。
 ENV SOLONCLAW_OFFICIAL_DOCKER_IMAGE=1
 
+# 安装国内渠道接入、调试、文件处理、字体渲染和脚本工具所需的最小运行依赖。
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         bash \
@@ -72,14 +77,22 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# 官方镜像使用固定 UID 的非 root 用户运行，避免 Agent 工具获得容器 root 权限。
+RUN groupadd --system --gid 10001 solonclaw \
+    && useradd --system --uid 10001 --gid solonclaw --home-dir /app --shell /usr/sbin/nologin solonclaw
+
 COPY --from=builder /tmp/solon-claw.jar /app/solon-claw.jar
 COPY docker/entrypoint.sh /app/docker-entrypoint.sh
 
+# runtime 是唯一持久化目录；入口脚本只确保目录存在，不改写用户配置。
 RUN mkdir -p /app/runtime \
     && sed -i 's/\r$//' /app/docker-entrypoint.sh \
     && chmod 755 /app/docker-entrypoint.sh \
-    && chmod -R a+rX /app
+    && chown -R solonclaw:solonclaw /app \
+    && chmod -R u+rwX,go-rwx /app
 
 EXPOSE 8080
 
+# tini 负责转发信号和回收子进程，入口脚本再启动 SolonClaw。
+USER solonclaw
 ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/app/docker-entrypoint.sh"]

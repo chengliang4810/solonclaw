@@ -15,9 +15,13 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /** 定时任务跟进观测采集器，用于发现计划任务失败、投递错误、超期未运行和暂停原因。 */
 public class CronFollowupCollector implements ProactiveObservationCollector {
+    /** 定时任务跟进采集器的低敏日志记录器。 */
+    private static final Logger LOG = Logger.getLogger(CronFollowupCollector.class.getName());
+
     /** 采集器稳定名称，用于观测来源、排障和候选生成识别。 */
     public static final String COLLECTOR_NAME = "cron_followup";
 
@@ -157,7 +161,12 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
                     result.add(run);
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOG.fine(
+                    "定时任务执行历史读取失败，已标记历史不可用：jobId="
+                            + safe(jobId, 120)
+                            + ", errorType="
+                            + e.getClass().getSimpleName());
             return new CronRunHistory(result, false);
         }
         return new CronRunHistory(result, true);

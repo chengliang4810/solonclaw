@@ -7,10 +7,14 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.logging.Logger;
 import org.noear.snack4.ONode;
 
 /** 承载技能用量Tracker相关状态和辅助逻辑。 */
 public class SkillUsageTracker {
+    /** 技能用量记录器的低敏日志记录器。 */
+    private static final Logger LOG = Logger.getLogger(SkillUsageTracker.class.getName());
+
     /** 状态ACTIVE的统一常量值。 */
     public static final String STATE_ACTIVE = "active";
 
@@ -245,7 +249,12 @@ public class SkillUsageTracker {
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (RuntimeException e) {
+            LOG.fine(
+                    "技能用量文件读取失败，已回退为空用量：file="
+                            + usageFile.getName()
+                            + ", errorType="
+                            + e.getClass().getSimpleName());
         }
         return new LinkedHashMap<String, Object>();
     }
@@ -260,7 +269,12 @@ public class SkillUsageTracker {
             FileUtil.mkParentDirs(usageFile);
             String json = ONode.serialize(data);
             FileUtil.writeString(json, usageFile, StandardCharsets.UTF_8);
-        } catch (Exception ignored) {
+        } catch (RuntimeException e) {
+            LOG.fine(
+                    "技能用量文件保存失败，已跳过本次写入：file="
+                            + usageFile.getName()
+                            + ", errorType="
+                            + e.getClass().getSimpleName());
         }
     }
 }

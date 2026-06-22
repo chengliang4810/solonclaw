@@ -226,7 +226,7 @@ public class GatewayCommandFlowTest {
                         "Use this skill to verify slash command reload."),
                 StandardCharsets.UTF_8);
 
-        GatewayReply reply = env.send("room-reload-skills", "user-reload-skills", "/reload_skills");
+        GatewayReply reply = env.send("room-reload-skills", "user-reload-skills", "/reload-skills");
 
         assertThat(reply.getContent())
                 .contains("已重新加载本地技能")
@@ -285,7 +285,7 @@ public class GatewayCommandFlowTest {
                 env.sessionRepository.bindNewSession("MEMORY:room-resume-b:user-resume");
         SqliteAgentSession agentSessionA = new SqliteAgentSession(sessionA, env.sessionRepository);
         SqliteAgentSession agentSessionB = new SqliteAgentSession(sessionB, env.sessionRepository);
-        env.dangerousCommandApprovalService.enableSessionYolo(agentSessionA);
+        env.dangerousCommandApprovalService.enableSessionAutoApproval(agentSessionA);
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSessionA,
                 "execute_shell",
@@ -294,7 +294,7 @@ public class GatewayCommandFlowTest {
                 "rm -rf runtime/cache");
         env.dangerousCommandApprovalService.approve(
                 agentSessionA, DangerousCommandApprovalService.ApprovalScope.SESSION, "tester");
-        env.dangerousCommandApprovalService.enableSessionYolo(agentSessionB);
+        env.dangerousCommandApprovalService.enableSessionAutoApproval(agentSessionB);
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSessionB,
                 "execute_shell",
@@ -313,14 +313,14 @@ public class GatewayCommandFlowTest {
                         env.sessionRepository);
 
         assertThat(resumeReply.getSessionId()).isEqualTo(sessionA.getSessionId());
-        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(resumedSession))
+        assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(resumedSession))
                 .isFalse();
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(resumedSession)).isNull();
         assertThat(
                         env.dangerousCommandApprovalService.isSessionApproved(
                                 resumedSession, "recursive_delete"))
                 .isFalse();
-        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(untouchedSession))
+        assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(untouchedSession))
                 .isTrue();
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(untouchedSession))
                 .isNotNull();

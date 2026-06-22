@@ -149,9 +149,9 @@ public class CommandEnhancementTest {
 
         env.checkpointService.createCheckpoint(
                 sourceKey, session.getSessionId(), Collections.singletonList(file));
-        GatewayReply legacyClearReply =
+        GatewayReply confirmedClearReply =
                 env.send("admin-chat", "admin-user", "/rollback clear --confirm");
-        assertThat(legacyClearReply.getContent()).contains("deleted=1").contains("remaining=0");
+        assertThat(confirmedClearReply.getContent()).contains("deleted=1").contains("remaining=0");
 
         GatewayReply afterClear = env.send("admin-chat", "admin-user", "/rollback status");
         assertThat(afterClear.getContent()).contains("checkpoint_count=0");
@@ -1379,7 +1379,7 @@ public class CommandEnhancementTest {
         GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload-mcp");
         assertThat(prompt.getContent())
                 .contains("/approve")
-                .contains("/always")
+                .contains("/approve always")
                 .contains("/cancel")
                 .contains("工具 schema");
 
@@ -1418,22 +1418,6 @@ public class CommandEnhancementTest {
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/reload-mcp [now|always]");
         assertThat(help.getContent()).contains("/approve [确认编号]");
-    }
-
-    @Test
-    void shouldSupportReloadMcpUnderscoreAliasWithConfirmationText() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        bootstrapAdmin(env);
-
-        GatewayReply prompt = env.send("admin-chat", "admin-user", "/reload_mcp");
-        assertThat(prompt.getContent())
-                .contains("/approve")
-                .contains("/always")
-                .contains("/cancel")
-                .contains("工具 schema");
-
-        GatewayReply status = env.send("admin-chat", "admin-user", "/confirm");
-        assertThat(status.getContent()).contains("当前待确认 slash 命令：/reload-mcp");
     }
 
     @Test
@@ -1491,7 +1475,7 @@ public class CommandEnhancementTest {
         assertThat(approvedWithConfirm.getContent()).contains("MCP reload completed");
 
         GatewayReply alwaysPrompt = env.send("admin-chat", "admin-user", "/reload-mcp");
-        assertThat(alwaysPrompt.getContent()).contains("/always");
+        assertThat(alwaysPrompt.getContent()).contains("/approve always");
 
         GatewayReply always =
                 env.send(

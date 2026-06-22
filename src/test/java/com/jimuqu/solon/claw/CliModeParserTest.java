@@ -101,12 +101,12 @@ public class CliModeParserTest {
     }
 
     @Test
-    void shouldPreserveTopLevelModelRefreshArgument() {
+    void shouldNotParseRemovedTopLevelModelRefreshArgument() {
         CliMode mode = CliModeParser.parse(new String[] {"model", "--refresh"});
 
-        assertThat(mode.getKind()).isEqualTo(CliMode.Kind.CLI);
-        assertThat(mode.isConsoleMode()).isTrue();
-        assertThat(mode.getInput()).isEqualTo("/model --refresh");
+        assertThat(mode.getKind()).isEqualTo(CliMode.Kind.SERVER);
+        assertThat(mode.isConsoleMode()).isFalse();
+        assertThat(mode.getInput()).isNull();
     }
 
     @Test
@@ -241,7 +241,6 @@ public class CliModeParserTest {
         CliMode restart = CliModeParser.parse(new String[] {"gateway", "restart"});
         CliMode install = CliModeParser.parse(new String[] {"gateway", "install", "--force"});
         CliMode uninstall = CliModeParser.parse(new String[] {"gateway", "uninstall"});
-        CliMode migrate = CliModeParser.parse(new String[] {"gateway", "migrate-legacy"});
 
         assertThat(defaultStatus.getKind()).isEqualTo(CliMode.Kind.CLI);
         assertThat(defaultStatus.getInput()).isEqualTo("/gateway status");
@@ -261,8 +260,6 @@ public class CliModeParserTest {
         assertThat(install.getInput()).isEqualTo("/gateway install --force");
         assertThat(uninstall.getKind()).isEqualTo(CliMode.Kind.CLI);
         assertThat(uninstall.getInput()).isEqualTo("/gateway uninstall");
-        assertThat(migrate.getKind()).isEqualTo(CliMode.Kind.CLI);
-        assertThat(migrate.getInput()).isEqualTo("/gateway migrate-legacy");
     }
 
     @Test
@@ -293,7 +290,6 @@ public class CliModeParserTest {
                     {"fallback", "list"},
                     {"secrets", "bitwarden"},
                     {"proxy", "status"},
-                    {"migrate", "xai"},
                     {"send", "feishu", "hello"},
                     {"hooks", "list"},
                     {"dump", "--json"},
@@ -344,8 +340,6 @@ public class CliModeParserTest {
         String[][] commands =
                 new String[][] {
                     {"models"},
-                    {"model", "pick"},
-                    {"model", "pick", "1"},
                     {"session", "pick", "1"},
                     {"session", "show", "abc123"},
                     {"session", "inspect", "abc123"},
@@ -356,8 +350,6 @@ public class CliModeParserTest {
         String[] expected =
                 new String[] {
                     "/models",
-                    "/model pick",
-                    "/model pick 1",
                     "/session pick 1",
                     "/session show abc123",
                     "/session inspect abc123",
@@ -427,14 +419,13 @@ public class CliModeParserTest {
     @Test
     void shouldParseSingleArgumentCompositeManagementCommandAsLocalTerminalCommand() {
         CliMode gatewayStatus = CliModeParser.parse(new String[] {"gateway status"});
-        CliMode modelRefresh = CliModeParser.parse(new String[] {"model --refresh"});
         CliMode pairingList = CliModeParser.parse(new String[] {"pairing list"});
 
         assertThat(gatewayStatus.getKind()).isEqualTo(CliMode.Kind.CLI);
         assertThat(gatewayStatus.shouldStartNetworkListeners()).isFalse();
         assertThat(gatewayStatus.getInput()).isEqualTo("/gateway status");
-        assertThat(modelRefresh.getKind()).isEqualTo(CliMode.Kind.CLI);
-        assertThat(modelRefresh.getInput()).isEqualTo("/model --refresh");
+        assertThat(CliModeParser.parse(new String[] {"model --refresh"}).getKind())
+                .isEqualTo(CliMode.Kind.SERVER);
         assertThat(pairingList.getKind()).isEqualTo(CliMode.Kind.CLI);
         assertThat(pairingList.getInput()).isEqualTo("/pairing list");
     }
@@ -453,14 +444,14 @@ public class CliModeParserTest {
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
                 .contains("--session --ask -p")
-                .contains("/reload-mcp now");
+                .contains("/reload-mcp");
         assertThat(zsh)
                 .contains("#compdef solon-claw")
                 .contains("completion:Print shell completion script")
                 .contains("shells=(bash zsh fish)")
                 .contains("_describe 'shell' shells")
                 .contains("Send one prompt or local terminal command")
-                .contains("/reload-mcp always")
+                .contains("/reload-mcp")
                 .doesNotContain("'[Send one prompt]:prompt:'");
         assertThat(fish)
                 .contains("complete -c solon-claw -f")

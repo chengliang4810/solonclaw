@@ -253,7 +253,7 @@ public class ModelMetadataServiceTest {
     }
 
     @Test
-    void shouldKeepKnownVisionModelsStableAcrossLegacyFlagsAndModalities() {
+    void shouldKeepKnownVisionModelsStableAcrossStaticFlagsAndModalities() {
         AppConfig config = new AppConfig();
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setDefaultModel("gpt-4o");

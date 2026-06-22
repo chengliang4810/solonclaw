@@ -402,10 +402,15 @@ public class MessageSequenceRepairTest {
     }
 
     @Test
-    void shouldLoadToolMessageWithEscapedJsonTextBlock() throws Exception {
+    void shouldLoadToolMessageWithEscapedJsonContent() throws Exception {
         String ndjson =
-                "{\"role\":\"USER\",\"blocks\":[{\"@type\":\"org.noear.solon.ai.chat.content.TextBlock\",\"text\":\"创建 todo\"}],\"content\":\"创建 todo\"}\n"
-                        + "{\"role\":\"TOOL\",\"blocks\":[{\"@type\":\"org.noear.solon.ai.chat.content.TextBlock\",\"text\":\"{\\\"status\\\":\\\"success\\\",\\\"preview\\\":\\\"{\\\\\\\"total\\\\\\\":3}\\\"}\"}],\"content\":\"{\\\"status\\\":\\\"success\\\",\\\"preview\\\":\\\"{\\\\\\\"total\\\\\\\":3}\\\"}\",\"name\":\"todo\",\"toolCallId\":\"call_todo\"}\n";
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("创建 todo"),
+                                ChatMessage.ofTool(
+                                        "{\"status\":\"success\",\"preview\":\"{\\\"total\\\":3}\"}",
+                                        "todo",
+                                        "call_todo")));
 
         List<ChatMessage> messages = MessageSupport.loadMessages(ndjson);
 

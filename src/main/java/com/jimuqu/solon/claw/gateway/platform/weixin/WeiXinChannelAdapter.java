@@ -1315,7 +1315,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         PendingTextBatch batch =
                 pendingTextBatches.compute(
                         key,
-                        (ignored, existing) -> {
+                        (batchKey, existing) -> {
                             if (existing == null) {
                                 return new PendingTextBatch(
                                         gatewayMessage, chatType, chatId, contextToken);
@@ -1865,7 +1865,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             channelStateRepository.put(
                     PlatformType.WEIXIN, config.getAccountId(), SYNC_BUF_KEY, syncBuf);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableChannelFailure("save_sync_buf", e);
         }
     }
 
@@ -1880,6 +1881,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     channelStateRepository.get(
                             PlatformType.WEIXIN, config.getAccountId(), SYNC_BUF_KEY));
         } catch (Exception e) {
+            logRecoverableChannelFailure("load_sync_buf", e);
             return "";
         }
     }
@@ -1897,7 +1899,39 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     config.getAccountId() + ":" + chatId,
                     CONTEXT_TOKEN_KEY,
                     contextToken);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableChannelFailure("save_context_token", e);
+        }
+    }
+
+    /**
+     * 记录微信渠道可降级失败，只输出平台、阶段和异常类型，避免泄露消息正文或凭据。
+     *
+     * @param stage 失败发生的内部阶段。
+     * @param error 捕获到的异常。
+     */
+    private void logRecoverableChannelFailure(String stage, Exception error) {
+        restoreInterruptedStatus(error);
+        log.debug(
+                "[WEIXIN] recoverable channel failure: platform={}, stage={}, errorType={}",
+                PlatformType.WEIXIN,
+                stage,
+                errorType(error));
+    }
+
+    /**
+     * 异常链中包含中断异常时恢复线程中断标记，避免静默吞掉取消信号。
+     *
+     * @param error 捕获到的异常。
+     */
+    private void restoreInterruptedStatus(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            current = current.getCause();
         }
     }
 

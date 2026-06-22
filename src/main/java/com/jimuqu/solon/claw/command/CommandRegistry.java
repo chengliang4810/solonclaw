@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.command;
 
+import cn.hutool.core.collection.CollUtil;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -9,20 +10,20 @@ import java.util.Map;
 
 /** 维护命令注册信息，供运行时按需查询和装配。 */
 public final class CommandRegistry {
-    /** 范围CLI的统一常量值。 */
+    /** 命令可在本地 CLI 入口使用。 */
     private static final String SCOPE_CLI = "cli";
 
-    /** 范围消息网关的统一常量值。 */
+    /** 命令可在消息网关入口使用。 */
     private static final String SCOPE_GATEWAY = "gateway";
 
-    /** 范围TUI的统一常量值。 */
+    /** 命令可在独立 TUI 入口使用。 */
     private static final String SCOPE_TUI = "tui";
 
-    /** COMMANDS的统一常量值。 */
+    /** 命令规范名到描述符的注册表，使用 LinkedHashMap 保持帮助输出顺序稳定。 */
     private static final Map<String, CommandDescriptor> COMMANDS =
             new LinkedHashMap<String, CommandDescriptor>();
 
-    /** ALIASES的统一常量值。 */
+    /** 命令别名到规范名的索引，用于让 CLI、TUI、消息网关共享解析结果。 */
     private static final Map<String, String> ALIASES = new LinkedHashMap<String, String>();
 
     static {
@@ -47,14 +48,13 @@ public final class CommandRegistry {
         register(core("steer", "runtime", "向运行中任务注入修正；空闲时按普通提示执行"));
         register(core("restart", "runtime", "等待运行中任务 drain 后重启网关"));
         register(core("stop", "runtime", "停止当前任务和后台进程"));
-        register(core("yolo", "security", "查询或设置当前会话的危险命令自动批准模式"));
         register(core("security", "security", "查看安全策略、审批、审计与终端安全状态"));
         register(core("personality", "agent", "查看或切换人格"));
         register(core("version", "system", "查看版本或执行更新"));
         register(core("update", "system", "执行应用更新"));
         register(core("setup", "configuration", "配置模型、消息渠道与初始化设置"));
         register(core("config", "configuration", "查看或写入本地运行配置"));
-        register(core("model", "model", "查看或切换模型").alias("provider"));
+        register(core("model", "model", "查看或切换模型"));
         register(core("fast", "model", "查看或切换当前会话快速模式"));
         register(core("reasoning", "model", "查看或切换 reasoning 展示"));
         register(core("tools", "tool", "查看或管理工具开关"));
@@ -63,22 +63,20 @@ public final class CommandRegistry {
         register(core("skills", "skill", "管理本地技能与 Skills Hub"));
         register(core("curator", "skill", "管理技能后台维护状态与运行"));
         register(core("plugins", "tool", "查看插件加载状态"));
-        register(core("reload-skills", "skill", "重新扫描本地技能目录").alias("reload_skills"));
-        register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线").alias("reload_mcp"));
+        register(core("reload-skills", "skill", "重新扫描本地技能目录"));
+        register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线"));
         register(core("confirm", "security", "查看当前待确认 slash 命令"));
         register(core("agent", "agent", "切换或管理当前会话 Agent"));
         register(core("cron", "automation", "管理定时任务"));
         register(core("proactive", "automation", "查看、暂停或调节主动协作"));
         register(core("recap", "session", "显示恢复会话用的紧凑历史摘要"));
         register(core("trajectory", "session", "导出会话 trajectory JSON"));
-        register(core("compact", "session", "压缩当前会话上下文").alias("compress"));
-        register(core("compress", "session", "压缩当前会话上下文"));
+        register(core("compact", "session", "压缩当前会话上下文"));
         register(core("rollback", "session", "回滚到指定 checkpoint"));
         register(core("sethome", "gateway", "将当前聊天设为 home channel").alias("set-home"));
         register(core("pairing", "gateway", "管理渠道配对与管理员授权"));
         register(core("approve", "security", "批准待审批危险命令"));
         register(core("deny", "security", "拒绝待审批危险命令"));
-        register(core("always", "security", "永久批准当前待确认 slash 命令"));
         register(core("cancel", "security", "取消当前待确认 slash 命令"));
         register(core("platforms", "gateway", "查看平台连接与授权状态").alias("gateway"));
         register(core("platform", "gateway", "查看平台连接与授权状态"));
@@ -101,20 +99,20 @@ public final class CommandRegistry {
     private CommandRegistry() {}
 
     /**
-     * 获取当前注册项或配置项。
+     * 按规范名读取命令描述符。
      *
-     * @param name 名称参数。
-     * @return 返回get结果。
+     * @param name 命令规范名或带斜杠的命令文本。
+     * @return 已注册描述符；未注册时返回 null。
      */
     public static CommandDescriptor get(String name) {
         return COMMANDS.get(CommandDescriptor.normalize(name));
     }
 
     /**
-     * 解析运行时需要的目标对象。
+     * 按规范名或别名解析命令描述符。
      *
      * @param command 待执行或解析的命令文本。
-     * @return 返回resolve结果。
+     * @return 已注册描述符；未注册时返回 null。
      */
     public static CommandDescriptor resolve(String command) {
         String normalized = CommandDescriptor.normalize(command);
@@ -123,18 +121,18 @@ public final class CommandRegistry {
     }
 
     /**
-     * 执行全部相关逻辑。
+     * 返回全部命令描述符，保持注册顺序。
      *
-     * @return 返回全部结果。
+     * @return 不可变命令集合。
      */
     public static Collection<CommandDescriptor> all() {
         return Collections.unmodifiableCollection(COMMANDS.values());
     }
 
     /**
-     * 执行斜杠命令Commands相关逻辑。
+     * 返回全部用户可输入的斜杠命令名。
      *
-     * @return 返回slash Commands结果。
+     * @return 不可变斜杠命令列表。
      */
     public static List<String> slashCommands() {
         List<String> commands = new ArrayList<String>();
@@ -145,12 +143,11 @@ public final class CommandRegistry {
     }
 
     /**
-     * 执行core相关逻辑。
+     * 创建三端共享的核心命令构建器。
      *
-     * @param name 名称参数。
      * @param category 分类参数。
      * @param description 描述参数。
-     * @return 返回core结果。
+     * @return 默认支持 CLI、消息网关和 TUI 的命令构建器。
      */
     private static CommandDescriptor.Builder core(
             String name, String category, String description) {
@@ -161,35 +158,37 @@ public final class CommandRegistry {
     }
 
     /**
-     * 执行终端相关逻辑。
+     * 创建终端增强命令构建器。
      *
      * @param name 名称参数。
      * @param description 描述参数。
-     * @return 返回终端结果。
+     * @return 归入 terminal 分组的命令构建器。
      */
     private static CommandDescriptor.Builder terminal(String name, String description) {
         return core(name, "terminal", description);
     }
 
     /**
-     * 执行register相关逻辑。
+     * 注册构建器声明的命令。
      *
-     * @param builder 构建器参数。
+     * @param builder 已填充元数据的构建器。
      */
     private static void register(CommandDescriptor.Builder builder) {
         register(builder.build());
     }
 
     /**
-     * 执行register相关逻辑。
+     * 写入命令注册表和别名索引。
      *
-     * @param descriptor descriptor 参数。
+     * @param descriptor 命令描述符。
      */
     private static void register(CommandDescriptor descriptor) {
         COMMANDS.put(descriptor.getName(), descriptor);
         ALIASES.put(descriptor.getName(), descriptor.getName());
-        for (String alias : descriptor.getAliases()) {
-            ALIASES.put(alias, descriptor.getName());
+        if (CollUtil.isNotEmpty(descriptor.getAliases())) {
+            for (String alias : descriptor.getAliases()) {
+                ALIASES.put(alias, descriptor.getName());
+            }
         }
     }
 }

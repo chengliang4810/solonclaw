@@ -1,6 +1,5 @@
 declare global {
   interface Window {
-    __APP_SESSION_TOKEN__?: string
     __LOGIN_TOKEN__?: string
   }
 }
@@ -13,7 +12,7 @@ export function getBaseUrlValue(): string {
 }
 
 export function getInjectedToken(): string {
-  return window.__LOGIN_TOKEN__ || window.__APP_SESSION_TOKEN__ || ''
+  return window.__LOGIN_TOKEN__ || ''
 }
 
 export function getApiKey(): string {

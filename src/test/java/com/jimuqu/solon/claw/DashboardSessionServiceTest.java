@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.web.DashboardSessionService;
 import java.io.File;
 import java.sql.Connection;
@@ -71,21 +72,21 @@ public class DashboardSessionServiceTest {
         assertThat(detailText).doesNotContain("闀挎湡").doesNotContain("�");
     }
 
-    /** 验证 Dashboard 不把已进入独立压缩摘要的历史乱码摘要残留展示为当前对话消息。 */
+    /** 验证 Dashboard 不把已进入独立压缩摘要的当前摘要残留展示为当前对话消息。 */
     @Test
-    void shouldHideHistoricalMojibakeSummaryArtifactsFromMessages() throws Exception {
+    void shouldHideCurrentSummaryArtifactsFromMessages() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:dash-summary-artifact:user");
-        session.setCompressedSummary("摘要：长期回归 Loop 当前目标是验证会话恢复。");
+        session.setCompressedSummary(
+                CompressionConstants.SUMMARY_PREFIX
+                        + "\nGoal\n验证会话恢复。\n\nProgress\n- 已生成当前摘要。");
         session.setNdjson(
                 MessageSupport.toNdjson(
                         Arrays.asList(
                                 ChatMessage.ofAssistant(
-                                        "Focus\n"
-                                                + "闀挎湡鍥炲綊 Loop 会话恢复 marker=web-loop-recovery-20260613\n\n"
-                                                + "Decisions\n"
-                                                + "- 楠岃瘉历史摘要不应继续污染消息列表。"),
+                                        CompressionConstants.SUMMARY_PREFIX
+                                                + "\nGoal\n验证会话恢复。\n\nProgress\n- 已生成当前摘要。"),
                                 ChatMessage.ofUser("继续验证会话恢复"),
                                 ChatMessage.ofAssistant("下一步检查日志。"))));
         env.sessionRepository.save(session);
@@ -98,16 +99,21 @@ public class DashboardSessionServiceTest {
         assertThat(messages).hasSize(2);
         assertThat(messages.get(0).get("content")).isEqualTo("继续验证会话恢复");
         assertThat(messages.get(1).get("content")).isEqualTo("下一步检查日志。");
-        assertThat(String.valueOf(detail)).doesNotContain("闀挎湡").doesNotContain("楠岃瘉");
+        assertThat(String.valueOf(messages)).doesNotContain(CompressionConstants.SUMMARY_PREFIX);
     }
 
     @Test
-    void shouldExposeToolMessagesWithEscapedJsonTextBlocks() throws Exception {
+    void shouldExposeToolMessagesWithEscapedJsonContent() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:dash-tool-json:user");
         session.setNdjson(
-                "{\"role\":\"USER\",\"blocks\":[{\"@type\":\"org.noear.solon.ai.chat.content.TextBlock\",\"text\":\"创建 todo\"}],\"content\":\"创建 todo\"}\n"
-                        + "{\"role\":\"TOOL\",\"blocks\":[{\"@type\":\"org.noear.solon.ai.chat.content.TextBlock\",\"text\":\"{\\\"status\\\":\\\"success\\\",\\\"preview\\\":\\\"{\\\\\\\"total\\\\\\\":3}\\\"}\"}],\"content\":\"{\\\"status\\\":\\\"success\\\",\\\"preview\\\":\\\"{\\\\\\\"total\\\\\\\":3}\\\"}\",\"name\":\"todo\",\"toolCallId\":\"call_todo\"}\n");
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("创建 todo"),
+                                ChatMessage.ofTool(
+                                        "{\"status\":\"success\",\"preview\":\"{\\\"total\\\":3}\"}",
+                                        "todo",
+                                        "call_todo"))));
         env.sessionRepository.save(session);
 
         DashboardSessionService service = new DashboardSessionService(env.sessionRepository);

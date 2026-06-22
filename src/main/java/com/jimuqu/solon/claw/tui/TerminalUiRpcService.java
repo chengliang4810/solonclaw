@@ -52,12 +52,17 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-/** 终端 UI JSON-RPC 响应构造服务，负责把 Java 后端能力映射为原 TUI 前端期望的数据形态。 */
+/** 终端 UI JSON-RPC 响应构造服务，负责把 Java 后端能力映射为终端 UI 前端期望的数据形态。 */
 public class TerminalUiRpcService {
+    /** TUI RPC 降级路径日志，默认只在 debug 下输出，避免污染交互式终端。 */
+    private static final Logger log = LoggerFactory.getLogger(TerminalUiRpcService.class);
+
     /** 应用运行配置，用于读取当前模型、运行目录等展示信息。 */
     private final AppConfig appConfig;
-    /** 会话仓储，用于让原 TUI 的会话生命周期落到 Java 持久化会话上。 */
+    /** 会话仓储，用于让终端 UI 的会话生命周期落到 Java 持久化会话上。 */
     private final SessionRepository sessionRepository;
     /** 本地技能服务，用于驱动 TUI 技能列表、查看和重载动作。 */
     private final LocalSkillService localSkillService;
@@ -71,17 +76,17 @@ public class TerminalUiRpcService {
     private final SqlitePreferenceStore preferenceStore;
     /** 浏览器运行时，用于把 TUI /browser 命令接入内置浏览器自动化。 */
     private final BrowserRuntimeService browserRuntimeService;
-    /** 上下文压缩服务，用于驱动原 TUI /compact 操作。 */
+    /** 上下文压缩服务，用于驱动终端 UI /compact 操作。 */
     private final ContextCompressionService contextCompressionService;
-    /** 终端本地附件解析服务，用于驱动原 TUI 图片/文件 attach 操作。 */
+    /** 终端本地附件解析服务，用于驱动终端 UI 图片/文件 attach 操作。 */
     private final CliAttachmentResolver attachmentResolver;
-    /** 后台进程注册表，用于驱动原 TUI /stop 操作。 */
+    /** 后台进程注册表，用于驱动终端 UI /stop 操作。 */
     private final ProcessRegistry processRegistry;
-    /** MCP 运行时，用于驱动原 TUI /reload-mcp 操作。 */
+    /** MCP 运行时，用于驱动终端 UI /reload-mcp 操作。 */
     private final McpRuntimeService mcpRuntimeService;
-    /** 配置刷新服务，用于驱动原 TUI /reload 操作。 */
+    /** 配置刷新服务，用于驱动终端 UI /reload 操作。 */
     private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
-    /** 子代理委托服务，用于驱动原 TUI /agents 暂停、状态和中断操作。 */
+    /** 子代理委托服务，用于驱动终端 UI /agents 暂停、状态和中断操作。 */
     private final DelegationService delegationService;
     /** Agent run 控制服务，用于驱动 steer 与后台化等运行中控制操作。 */
     private final AgentRunControlService agentRunControlService;
@@ -181,7 +186,7 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 激活指定会话并返回原 TUI 可重放的 transcript。 */
+    /** 激活指定会话并返回终端 UI 可重放的 transcript。 */
     public Map<String, Object> sessionActivate(String sessionId) throws Exception {
         Map<String, Object> result = sessionResume(sessionId);
         result.put("running", Boolean.FALSE);
@@ -207,7 +212,7 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 返回最近一个可恢复会话，供原 TUI 自动恢复入口使用。 */
+    /** 返回最近一个可恢复会话，供终端 UI 自动恢复入口使用。 */
     public Map<String, Object> sessionMostRecent() throws Exception {
         List<SessionRecord> records = listRecentSessions(1);
         if (records.isEmpty()) {
@@ -234,7 +239,7 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 返回可恢复历史会话列表，供原 TUI 的 session switcher 使用。 */
+    /** 返回可恢复历史会话列表，供终端 UI 的 session switcher 使用。 */
     public Map<String, Object> sessionList(int limit) throws Exception {
         List<Map<String, Object>> sessions = new ArrayList<Map<String, Object>>();
         for (SessionRecord record : listRecentSessions(Math.max(1, Math.min(limit, 200)))) {
@@ -252,7 +257,7 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 删除指定持久化会话，匹配原 TUI 历史列表删除动作。 */
+    /** 删除指定持久化会话，匹配终端 UI 历史列表删除动作。 */
     public Map<String, Object> sessionDelete(String sessionId) throws Exception {
         if (sessionRepository != null && StrUtil.isNotBlank(sessionId)) {
             sessionRepository.delete(sessionId);
@@ -262,7 +267,7 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 返回原 TUI 命令目录结构，用于 slash 补全和命令归类展示。 */
+    /** 返回终端 UI 命令目录结构，用于 slash 补全和命令归类展示。 */
     public Map<String, Object> commandsCatalog() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         Map<String, String> canon = new LinkedHashMap<String, String>();
@@ -410,7 +415,7 @@ public class TerminalUiRpcService {
         return usage;
     }
 
-    /** 将持久化会话累计用量转换为原 TUI 可识别的 usage 结构。 */
+    /** 将持久化会话累计用量转换为终端 UI 可识别的 usage 结构。 */
     private Map<String, Object> usage(SessionRecord session) {
         Map<String, Object> usage = usage();
         if (session == null) {
@@ -455,7 +460,7 @@ public class TerminalUiRpcService {
         return runtimeProtocolService.setupStatus();
     }
 
-    /** 返回空的活动会话列表，保持原 TUI sessions overlay 的 RPC 契约。 */
+    /** 返回空的活动会话列表，保持终端 UI sessions overlay 的 RPC 契约。 */
     public Map<String, Object> emptySessions(String key) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put(key, new ArrayList<Object>());
@@ -483,7 +488,7 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 返回单项配置值，保持原 TUI slash 命令读取配置时的轻量响应。 */
+    /** 返回单项配置值，保持终端 UI slash 命令读取配置时的轻量响应。 */
     public Map<String, Object> configValue(String key) {
         String normalized = StrUtil.blankToDefault(key, "");
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -582,7 +587,7 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 强制压缩当前会话并返回原 TUI /compact 期望的 transcript 更新。 */
+    /** 强制压缩当前会话并返回终端 UI /compact 期望的 transcript 更新。 */
     public Map<String, Object> sessionCompress(String sessionId) throws Exception {
         SessionRecord session = findSession(sessionId);
         int beforeMessages = messageCount(session);
@@ -648,7 +653,7 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 解析本地图片/文件路径为后端附件缓存，并返回原 TUI attach 结果。 */
+    /** 解析本地图片/文件路径为后端附件缓存，并返回终端 UI attach 结果。 */
     public Map<String, Object> imageAttach(String path) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         File file = new File(StrUtil.nullToEmpty(path));
@@ -1001,13 +1006,13 @@ public class TerminalUiRpcService {
         return ok();
     }
 
-    /** 返回原 TUI session.usage 需要的当前会话用量结构。 */
+    /** 返回终端 UI session.usage 需要的当前会话用量结构。 */
     public Map<String, Object> sessionUsage(String sessionId) throws Exception {
         SessionRecord session = findSession(sessionId);
         return usage(session);
     }
 
-    /** 更新或读取当前会话标题，保留原 TUI /title 操作的 RPC 契约。 */
+    /** 更新或读取当前会话标题，保留终端 UI /title 操作的 RPC 契约。 */
     public Map<String, Object> sessionTitle(String sessionId, String title) throws Exception {
         SessionRecord session = findSession(sessionId);
         if (session != null && StrUtil.isNotBlank(title)) {
@@ -1087,7 +1092,7 @@ public class TerminalUiRpcService {
         }
     }
 
-    /** 将本地技能按分类组织为原 TUI Skills Hub overlay 期望的 Map。 */
+    /** 将本地技能按分类组织为终端 UI Skills Hub overlay 期望的 Map。 */
     private Map<String, Object> groupedLocalSkills() throws Exception {
         Map<String, Object> grouped = new LinkedHashMap<String, Object>();
         if (localSkillService == null) {
@@ -1117,7 +1122,8 @@ public class TerminalUiRpcService {
                 if (view != null && view.getDescriptor() != null) {
                     return localSkillInfo(view);
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                logRecoverableRpcFailure("local skill inspect", e);
                 // 本地没有命中时继续尝试 Hub inspect。
             }
         }
@@ -1130,7 +1136,7 @@ public class TerminalUiRpcService {
         return new LinkedHashMap<String, Object>();
     }
 
-    /** 将本地技能视图转换为原 TUI 技能详情。 */
+    /** 将本地技能视图转换为终端 UI 技能详情。 */
     private Map<String, Object> localSkillInfo(SkillView view) {
         SkillDescriptor descriptor = view.getDescriptor();
         Map<String, Object> info = new LinkedHashMap<String, Object>();
@@ -1143,7 +1149,7 @@ public class TerminalUiRpcService {
         return info;
     }
 
-    /** 将 Hub 技能元数据转换为原 TUI 技能详情。 */
+    /** 将 Hub 技能元数据转换为终端 UI 技能详情。 */
     private Map<String, Object> skillMetaInfo(SkillMeta meta) {
         Map<String, Object> info = new LinkedHashMap<String, Object>();
         info.put("name", StrUtil.nullToEmpty(meta.getName()));
@@ -1153,7 +1159,7 @@ public class TerminalUiRpcService {
         return info;
     }
 
-    /** 执行 Hub 搜索并转换为原 TUI /skills search 输出形态。 */
+    /** 执行 Hub 搜索并转换为终端 UI /skills search 输出形态。 */
     private List<Map<String, Object>> skillSearch(String query) throws Exception {
         if (skillHubService == null || StrUtil.isBlank(query)) {
             return new ArrayList<Map<String, Object>>();
@@ -1162,7 +1168,7 @@ public class TerminalUiRpcService {
         return skillMetaItems(search.getItems());
     }
 
-    /** 将 Hub 元数据列表转换为原 TUI 表格项。 */
+    /** 将 Hub 元数据列表转换为终端 UI 表格项。 */
     private List<Map<String, Object>> skillMetaItems(List<SkillMeta> items) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         if (items == null) {
@@ -1415,7 +1421,8 @@ public class TerminalUiRpcService {
         }
         try {
             return StrUtil.blankToDefault(globalSettingRepository.get(preferenceKey(key)), fallback);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableRpcFailure("text preference read", e);
             return fallback;
         }
     }
@@ -1509,7 +1516,7 @@ public class TerminalUiRpcService {
         return "collapsed";
     }
 
-    /** 将运行中调度决策转换成原 TUI steer RPC 的响应形态。 */
+    /** 将运行中调度决策转换成终端 UI steer RPC 的响应形态。 */
     private Map<String, Object> runBusyDecision(RunBusyDecision decision) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (decision == null) {
@@ -1709,7 +1716,8 @@ public class TerminalUiRpcService {
                 line.put("isError", Boolean.valueOf(booleanFrom(item.get("is_error"))));
                 output.add(line);
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableRpcFailure("output tail replay parse", e);
             return new ArrayList<Map<String, Object>>();
         }
         return output;
@@ -1780,7 +1788,7 @@ public class TerminalUiRpcService {
         return StrUtil.isBlank(sessionId) ? "" : terminalSourceKey(sessionId);
     }
 
-    /** 将 checkpoint 记录转换为原 TUI rollback 列表项。 */
+    /** 将 checkpoint 记录转换为终端 UI rollback 列表项。 */
     private Map<String, Object> toRollbackCheckpoint(CheckpointRecord record) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("hash", record.getCheckpointId());
@@ -1868,7 +1876,8 @@ public class TerminalUiRpcService {
                         result.put(String.valueOf(name), new ArrayList<String>((List<String>) tools));
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                logRecoverableRpcFailure("dashboard toolsets read", e);
                 return result;
             }
         }
@@ -1982,7 +1991,7 @@ public class TerminalUiRpcService {
         return "solonclaw-" + Long.toString(System.currentTimeMillis(), 36);
     }
 
-    /** 将原 TUI 活动会话 ID 映射到 Java 本地终端 source key。 */
+    /** 将终端 UI 活动会话 ID 映射到 Java 本地终端 source key。 */
     private void bindTerminalSource(String sessionId, String boundSessionId) throws Exception {
         if (sessionRepository == null || StrUtil.isBlank(sessionId) || StrUtil.isBlank(boundSessionId)) {
             return;
@@ -1995,7 +2004,7 @@ public class TerminalUiRpcService {
         return "MEMORY:terminal-ui:" + StrUtil.blankToDefault(sessionId, "terminal-ui");
     }
 
-    /** 转换当前活动会话为原 TUI session.active_list 项。 */
+    /** 转换当前活动会话为终端 UI session.active_list 项。 */
     private Map<String, Object> activeSessionItem(SessionRecord record, boolean current) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("id", record.getSessionId());
@@ -2043,7 +2052,7 @@ public class TerminalUiRpcService {
         return session == null ? System.currentTimeMillis() : session.getCreatedAt();
     }
 
-    /** 转换持久化消息为原 TUI transcript 结构。 */
+    /** 转换持久化消息为终端 UI transcript 结构。 */
     private List<Map<String, Object>> transcript(SessionRecord session) {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         if (session == null || StrUtil.isBlank(session.getNdjson())) {
@@ -2056,7 +2065,8 @@ public class TerminalUiRpcService {
                 item.put("text", messageText(message));
                 result.add(item);
             }
-        } catch (IOException ignored) {
+        } catch (IOException e) {
+            logRecoverableRpcFailure("session transcript parse", e);
             return new ArrayList<Map<String, Object>>();
         }
         return result;
@@ -2101,7 +2111,7 @@ public class TerminalUiRpcService {
                 record.getLastResolvedModel(), StrUtil.blankToDefault(record.getModelOverride(), currentModel()));
     }
 
-    /** 转换 Solon AI 消息角色为原 TUI transcript 角色。 */
+    /** 转换 Solon AI 消息角色为终端 UI transcript 角色。 */
     private String role(ChatMessage message) {
         ChatRole role = message.getRole();
         return role == null ? "system" : role.name().toLowerCase(Locale.ROOT);
@@ -2154,6 +2164,18 @@ public class TerminalUiRpcService {
             prefix = directory.getAbsolutePath() + File.separator;
         }
         return prefix + name;
+    }
+
+    /** 记录 TUI RPC 可恢复降级异常，避免静默吞掉异常，同时不改变前端降级行为。 */
+    private void logRecoverableRpcFailure(String action, Exception error) {
+        if (log.isDebugEnabled()) {
+            log.debug("TUI RPC recoverable failure during {}: {}", action, exceptionSummary(error));
+        }
+    }
+
+    /** 生成不包含请求参数、配置值或异常消息的摘要，避免 debug 日志误带敏感会话内容。 */
+    private String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getSimpleName();
     }
 
     /** 构造命令名与说明二元组。 */

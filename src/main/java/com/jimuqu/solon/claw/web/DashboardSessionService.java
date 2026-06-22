@@ -109,7 +109,7 @@ public class DashboardSessionService {
         }
 
         List<ChatMessage> loadedMessages = MessageSupport.loadMessages(record.getNdjson());
-        MessageSupport.dropHistoricalSummaryArtifacts(
+        MessageSupport.dropCurrentSummaryArtifacts(
                 loadedMessages, record.getCompressedSummary());
         List<Map<String, Object>> messages = new ArrayList<Map<String, Object>>();
         for (ChatMessage message : loadedMessages) {

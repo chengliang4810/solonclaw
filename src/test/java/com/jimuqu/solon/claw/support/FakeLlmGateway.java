@@ -28,14 +28,14 @@ public class FakeLlmGateway implements LlmGateway {
         lastSystemPrompt = systemPrompt;
         InMemoryChatSession chatSession = new InMemoryChatSession(session.getSessionId());
         if (StrUtil.isNotBlank(session.getNdjson())) {
-            chatSession.loadNdjson(session.getNdjson());
+            chatSession.addMessage(ChatMessage.fromNdjson(session.getNdjson()));
         }
         chatSession.addMessage(ChatMessage.ofUser(userMessage));
         chatSession.addMessage(ChatMessage.ofAssistant("echo:" + userMessage));
 
         LlmResult result = new LlmResult();
         result.setAssistantMessage(ChatMessage.ofAssistant("echo:" + userMessage));
-        result.setNdjson(chatSession.toNdjson());
+        result.setNdjson(ChatMessage.toNdjson(chatSession.getMessages()));
         result.setRawResponse("fake");
         result.setStreamed(false);
         result.setProvider("openai-responses");
@@ -98,13 +98,13 @@ public class FakeLlmGateway implements LlmGateway {
         lastSystemPrompt = systemPrompt;
         InMemoryChatSession chatSession = new InMemoryChatSession(session.getSessionId());
         if (StrUtil.isNotBlank(session.getNdjson())) {
-            chatSession.loadNdjson(session.getNdjson());
+            chatSession.addMessage(ChatMessage.fromNdjson(session.getNdjson()));
         }
         chatSession.addMessage(ChatMessage.ofAssistant("echo:resume"));
 
         LlmResult result = new LlmResult();
         result.setAssistantMessage(ChatMessage.ofAssistant("echo:resume"));
-        result.setNdjson(chatSession.toNdjson());
+        result.setNdjson(ChatMessage.toNdjson(chatSession.getMessages()));
         result.setRawResponse("fake-resume");
         result.setStreamed(false);
         result.setProvider("openai-responses");

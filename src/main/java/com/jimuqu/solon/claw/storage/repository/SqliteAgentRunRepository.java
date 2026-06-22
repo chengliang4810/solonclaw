@@ -16,10 +16,15 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** SQLite Agent run 仓储实现。 */
 @RequiredArgsConstructor
 public class SqliteAgentRunRepository implements AgentRunRepository {
+    /** Agent run 仓储日志仅记录可降级维护失败的操作名和异常类型，避免泄露会话内容或工具结果。 */
+    private static final Logger log = LoggerFactory.getLogger(SqliteAgentRunRepository.class);
+
     /** 记录SQLiteAgent运行中的数据库。 */
     private final SqliteDatabase database;
 
@@ -1329,7 +1334,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(6, StructuredMetadataSupport.redactJson(event.getMetadataJson()));
             statement.executeUpdate();
             statement.close();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logBestEffortFailure("agent_run_events_fts_append", e);
         }
     }
 
@@ -1354,7 +1360,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setString(2, record.getRunId());
             statement.executeUpdate();
             statement.close();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logBestEffortFailure("tool_call_count_update", e);
         }
     }
 
@@ -1381,7 +1388,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
                 resultSet.close();
                 statement.close();
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logBestEffortFailure("tool_call_count_read", e);
             return 0;
         }
     }
@@ -1420,8 +1428,32 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
                             + "\"}");
             statement.executeUpdate();
             statement.close();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logBestEffortFailure("tool_result_fts_append", e);
         }
+    }
+
+    /**
+     * 记录可降级的仓储维护失败，不输出运行标识、正文、参数预览或结果摘要。
+     *
+     * @param operation 内部维护操作名。
+     * @param error 维护失败异常。
+     */
+    private static void logBestEffortFailure(String operation, Exception error) {
+        log.debug(
+                "Agent run 仓储可降级维护失败，已跳过非主链更新: operation={}, error={}",
+                operation,
+                exceptionSummary(error));
+    }
+
+    /**
+     * 提取异常类型摘要，避免数据库驱动消息携带 SQL 参数或业务内容。
+     *
+     * @param error 待记录的异常。
+     * @return 返回异常类型摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getSimpleName();
     }
 
     /**
@@ -1445,6 +1477,8 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
      * @return 返回redact结果。
      */
     private String redact(String value, int maxLength) {
-        return value == null ? null : SecretRedactor.redact(value, maxLength);
+        return value == null
+                ? null
+                : SecretRedactor.redactSensitivePaths(SecretRedactor.redact(value, maxLength));
     }
 }

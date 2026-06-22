@@ -15,9 +15,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 附件缓存服务。 */
 public class AttachmentCacheService {
+    /** 记录附件缓存降级路径的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(AttachmentCacheService.class);
+
     /** 最大缓存字节的统一常量值。 */
     private static final long MAX_CACHE_BYTES = 32L * 1024L * 1024L;
 
@@ -518,7 +523,8 @@ public class AttachmentCacheService {
             } finally {
                 input.close();
             }
-        } catch (IOException ignored) {
+        } catch (IOException e) {
+            log.debug("附件头部读取失败，按未知媒体类型兜底 error={}", exceptionSummary(e));
             return null;
         }
     }
@@ -744,7 +750,8 @@ public class AttachmentCacheService {
     private boolean isUnder(File file, File root) {
         try {
             return isUnderPath(file.getCanonicalFile(), root.getCanonicalFile());
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("附件路径规范化失败，按绝对路径兜底 error={}", exceptionSummary(e));
         }
         return isUnderPath(file.getAbsoluteFile(), root.getAbsoluteFile());
     }
@@ -795,5 +802,18 @@ public class AttachmentCacheService {
             }
         }
         return false;
+    }
+
+    /**
+     * 生成异常类型摘要，避免日志携带附件路径、文件名或异常消息。
+     *
+     * @param error 异常对象。
+     * @return 仅包含异常类型的安全摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return error.getClass().getSimpleName();
     }
 }

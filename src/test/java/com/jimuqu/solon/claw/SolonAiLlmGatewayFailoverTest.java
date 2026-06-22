@@ -65,6 +65,7 @@ public class SolonAiLlmGatewayFailoverTest {
 
     private AppConfig config() {
         AppConfig config = new AppConfig();
+        isolateRuntime(config, "llm-failover");
 
         AppConfig.ProviderConfig primary = new AppConfig.ProviderConfig();
         primary.setName("Primary");
@@ -98,6 +99,18 @@ public class SolonAiLlmGatewayFailoverTest {
         config.getLlm().setTemperature(0.2D);
         config.getLlm().setMaxTokens(4096);
         return config;
+    }
+
+    /**
+     * 为 failover 测试隔离 runtime 目录，避免本机 runtime/config.yml 把 providerKey 覆盖成其他值。
+     *
+     * @param config 测试配置。
+     * @param name runtime 目录名称前缀。
+     */
+    private void isolateRuntime(AppConfig config, String name) {
+        String home = "target/test-runtime/" + name + "-" + System.nanoTime();
+        config.getRuntime().setHome(home);
+        config.getRuntime().setConfigFile(home + "/config.yml");
     }
 
     private static class RecordingGateway extends SolonAiLlmGateway {

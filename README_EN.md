@@ -2,7 +2,7 @@
 
 English | [简体中文](README.md)
 
-solon-claw is a single-instance Agent service built with Java, Solon, and Solon AI. The project aims to reproduce the core behavior and capabilities of 参考 Agent in the Java / Solon ecosystem, with a focus on the Agent loop, tool calling, sessions, memory, skills, scheduled tasks, Chinese messaging channels, and a dashboard-first setup and diagnostics experience.
+solon-claw is a single-instance Agent service built with Java, Solon, and Solon AI. The project aims to align with the core behavior and capabilities of an external reference Agent in the Java / Solon ecosystem, with a focus on the Agent loop, tool calling, sessions, memory, skills, scheduled tasks, Chinese messaging channels, and a dashboard-first setup and diagnostics experience.
 
 > The project is under active development. APIs and configuration keys may change as the implementation evolves. Feedback and contributions are welcome.
 
@@ -11,7 +11,7 @@ solon-claw is a single-instance Agent service built with Java, Solon, and Solon 
 - **Agent core loop**: multi-turn sessions, streaming/non-streaming model calls, tool calls, context compression, retry, rollback, and session search.
 - **Model protocols**: supports common interfaces such as `openai`, `openai-responses`, `ollama`, `gemini`, and `anthropic`.
 - **Tool system**: built-in tools for file operations, search, patching, Shell/Python/JavaScript execution, Memory, scheduled jobs, web search/fetch, and message delivery.
-- **Chinese messaging channels**: focuses on Feishu, DingTalk, WeCom, and Weixin; websocket / stream first, with Weixin iLink long-poll retained.
+- **Chinese messaging channels**: focuses on Feishu, DingTalk, WeCom, Weixin, QQBot, and Yuanbao; websocket / stream first, with Weixin iLink long-poll retained.
 - **Dashboard-first operations**: status, sessions, configuration, channel doctor, runtime settings, logs, skills, and scheduled jobs.
 - **Persistence**: SQLite-backed storage for sessions, policies, scheduled jobs, and channel states.
 - **Skills and memory**: local skills, Skills Hub imports, long-term memory, user context, and context file collaboration.
@@ -109,21 +109,20 @@ model:
   default: "gpt-5.4"
 fallbackProviders: []
 security:
-  fileGuardrailMode: bypass
-  urlGuardrailMode: bypass
-  guardrailMode: bypass
-  guardrailCronMode: bypass
+  fileGuardrailMode: strict
+  urlGuardrailMode: strict
+  guardrailMode: approval
+  guardrailCronMode: strict
   guardrailCronScope: job
-  hardlineAllowlist:
-    - hardline_shutdown
-    - hardline_windows_shutdown
+  hardlineAllowlist: []
 approvals:
   timeoutSeconds: 60
   gatewayTimeoutSeconds: 300
   mcpReloadConfirm: true
 solonclaw:
+  workspace: ./workspace
   dashboard:
-    accessToken: "admin"
+    accessToken: ""
 ```
 
 Common runtime settings:
@@ -131,6 +130,7 @@ Common runtime settings:
 | Key | Default | Description |
 | --- | --- | --- |
 | `server.port` | `8080` | HTTP server port |
+| `solonclaw.workspace` | `./workspace` | Agent workspace directory; relative paths resolve from the running Jar directory, and reads, writes, and ordinary commands inside it are free |
 | `providers.<key>.baseUrl` | - | Model service base URL |
 | `providers.<key>.apiKey` | - | Model service API key |
 | `providers.<key>.defaultModel` | - | Default model for the provider |
@@ -150,14 +150,13 @@ Common runtime settings:
 | `security.guardrailMode` | `bypass` | Agent tool safety mode: `bypass`, `approval`, `strict`, `smart` |
 | `security.guardrailCronMode` | `bypass` | Scheduled-job safety mode: `bypass`, `approval`, `strict`, `approve` |
 | `security.guardrailCronScope` | `job` | Scheduled-job approval memory scope: `job`, `session`, `global` |
-| `security.hardlineAllowlist` | `hardline_shutdown`, `hardline_windows_shutdown` | Hardline categories allowed to bypass hard blocking; `*` allows all hardline categories |
+| `security.hardlineAllowlist` | empty | Hardline categories allowed to bypass hard blocking; `*` allows all hardline categories |
 | `approvals.timeoutSeconds` | `60` | Local/direct approval timeout in seconds |
 | `approvals.gatewayTimeoutSeconds` | `300` | Messaging-channel approval timeout in seconds |
 | `approvals.mcpReloadConfirm` | `true` | Whether `/reload-mcp` requires confirmation |
 | `solonclaw.terminal.credentialFiles` | empty | Runtime-relative credential files available to isolated execution |
 | `solonclaw.terminal.envPassthrough` | empty | Third-party environment variables allowed for local subprocesses |
 | `solonclaw.terminal.sudoPassword` | empty | Optional sudo password for `sudo -S` rewriting; can also be supplied with `SOLONCLAW_SUDO_PASSWORD` |
-| `solonclaw.terminal.writeSafeRoot` | empty | When set, constrains file writes, patches, and shell writes to this root |
 | `solonclaw.trace.retentionDays` | `14` | Run trace retention in days |
 | `solonclaw.trace.maxAttempts` | `2` | Maximum outer attempts per run |
 | `solonclaw.task.busyPolicy` | `interrupt` | Policy for new messages while a session is already running |
@@ -241,6 +240,16 @@ src/main/java/com/jimuqu/solon/claw/
 ├── tool/           # Built-in tool registry and implementations
 └── web/            # Dashboard backend services and controllers
 ```
+
+## Release Guardrails
+
+Before normal commits, scan only the current work tree and new commits on the current branch relative to the default branch:
+
+```bash
+python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+```
+
+Scanning all Git refs is only for manual history audits, not for deciding whether the current source tree or release range is clean.
 
 ## Testing
 

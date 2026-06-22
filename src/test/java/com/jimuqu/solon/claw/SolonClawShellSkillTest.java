@@ -40,7 +40,7 @@ public class SolonClawShellSkillTest {
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(result.get("status").getString()).isEqualTo("error");
-        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("status").getString()).isEqualTo("error");
         assertThat(result.get("error").getString().toLowerCase(java.util.Locale.ROOT))
                 .contains("expected string")
                 .contains("nonetype");
@@ -157,8 +157,13 @@ public class SolonClawShellSkillTest {
         assertThat(summary.get("quotedSudoIgnored")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("envAssignmentPrefixSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("compoundCommandSupported")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("requiresActiveGuardrail")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("disabledWhenGuardrailBypass")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("ptyDisabledForStdinPipe")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("missingPasswordHint")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("blankPasswordIgnored")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("requiresExplicitNonBlankSecret")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialStorageRisk").toString()).contains("privileged");
         assertThat(summary.toString()).doesNotContain("testpass");
 
         assertThat(SolonClawShellSkill.sudoRewritePolicySummary(false).get("configured"))
@@ -228,7 +233,7 @@ public class SolonClawShellSkillTest {
     }
 
     @Test
-    void shouldTreatExplicitEmptySudoPasswordAsConfiguredLikeJimuqu() throws Exception {
+    void shouldIgnoreExplicitEmptySudoPasswordForSafety() throws Exception {
         AppConfig config = new AppConfig();
         config.getTerminal().setSudoPassword("");
         SolonClawShellSkill skill =
@@ -237,9 +242,24 @@ public class SolonClawShellSkillTest {
 
         SolonClawShellSkill.SudoTransform transform = skill.transformSudoCommand("sudo true");
 
-        assertThat(transform.isChanged()).isTrue();
-        assertThat(transform.getCommand()).isEqualTo("sudo -S -p '' true");
-        assertThat(transform.getStdin()).isEqualTo("\n");
+        assertThat(transform.isChanged()).isFalse();
+        assertThat(transform.getCommand()).isEqualTo("sudo true");
+        assertThat(transform.getStdin()).isNull();
+    }
+
+    @Test
+    void shouldDisableSudoPasswordRewriteWhenGuardrailIsBypass() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setGuardrailMode("bypass");
+        config.getTerminal().setSudoPassword("testpass");
+        SolonClawShellSkill skill =
+                new SolonClawShellSkill(
+                        Files.createTempDirectory("jimuqu-shell").toString(), config);
+
+        SolonClawShellSkill.SudoTransform transform = skill.transformSudoCommand("sudo true");
+
+        assertThat(transform.isChanged()).isFalse();
+        assertThat(skill.sudoRewritePolicySummary().get("configured")).isEqualTo(Boolean.FALSE);
     }
 
     @Test
@@ -302,14 +322,14 @@ public class SolonClawShellSkillTest {
                                 credentialDir.toString(),
                                 Boolean.FALSE));
 
-        assertThat(foreground.get("success").getBoolean()).isFalse();
+        assertThat(foreground.get("status").getString()).isEqualTo("error");
         assertThat(foreground.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(foreground.get("error").getString())
                 .contains("workdir path")
                 .contains("敏感系统/凭据文件")
                 .doesNotContain(".ssh")
                 .doesNotContain(workdir.toString());
-        assertThat(background.get("success").getBoolean()).isFalse();
+        assertThat(background.get("status").getString()).isEqualTo("error");
         assertThat(background.get("error").getString())
                 .contains("workdir path")
                 .contains("敏感系统/凭据文件")
@@ -557,7 +577,7 @@ public class SolonClawShellSkillTest {
                 .contains("Blocked")
                 .contains("disallowed character")
                 .contains("shell metacharacters");
-        assertThat(background.get("success").getBoolean()).isFalse();
+        assertThat(background.get("status").getString()).isEqualTo("error");
         assertThat(background.get("error").getString())
                 .contains("Blocked")
                 .contains("disallowed character")
@@ -896,8 +916,8 @@ public class SolonClawShellSkillTest {
                                 Boolean.TRUE));
 
         String sessionId = result.get("session_id").getString();
-        assertThat(result.get("success").getBoolean()).isTrue();
-        assertThat(result.get("status").getString()).isEqualTo("running");
+        assertThat(result.get("status").getString()).isNotEqualTo("error");
+        assertThat(result.get("process_status").getString()).isEqualTo("running");
         assertThat(result.get("background").getBoolean()).isTrue();
         assertThat(result.get("notify_on_complete").getBoolean()).isTrue();
         assertThat(sessionId).startsWith("proc_");
@@ -995,7 +1015,7 @@ public class SolonClawShellSkillTest {
                                 Boolean.FALSE));
         String sessionId = result.get("session_id").getString();
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("status").getString()).isNotEqualTo("error");
         assertThat(registry.get(sessionId).getCwd()).isEqualTo(nested.toRealPath().toString());
         assertThat(registry.stop(sessionId)).isTrue();
     }
@@ -1058,7 +1078,7 @@ public class SolonClawShellSkillTest {
                                 watchPatterns));
 
         String sessionId = result.get("session_id").getString();
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("status").getString()).isNotEqualTo("error");
         assertThat(result.get("notify_on_complete").getBoolean()).isFalse();
         assertThat(result.get("watch_patterns").get(0).getString())
                 .isEqualTo("Application startup complete");
@@ -1683,7 +1703,7 @@ public class SolonClawShellSkillTest {
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(result.get("status").getString()).isEqualTo("error");
-        assertThat(result.get("success").getBoolean()).isFalse();
+        assertThat(result.get("status").getString()).isEqualTo("error");
         assertThat(result.get("error").getString()).contains("长驻服务").contains("受管的后台进程能力");
     }
 
@@ -1764,9 +1784,9 @@ public class SolonClawShellSkillTest {
                                 workdir,
                                 Boolean.TRUE));
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("status").getString()).isNotEqualTo("error");
         assertThat(result.get("background").getBoolean()).isTrue();
-        assertThat(result.get("status").getString()).isEqualTo("running");
+        assertThat(result.get("process_status").getString()).isEqualTo("running");
         assertThat(registry.stop(result.get("session_id").getString())).isTrue();
     }
 
@@ -1792,7 +1812,7 @@ public class SolonClawShellSkillTest {
         String sessionId = result.get("session_id").getString();
         ProcessRegistry.ManagedProcess managed = registry.get(sessionId);
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertThat(result.get("status").getString()).isNotEqualTo("error");
         assertThat(result.get("command").getString())
                 .contains("sudo -S -p ''")
                 .doesNotContain("testpass");

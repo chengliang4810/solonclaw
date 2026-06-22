@@ -16,13 +16,10 @@ public class ToolPreviewSupportTest {
 
         String compact = ToolPreviewSupport.buildPreview("config_set_secret", args, 120, false);
         String verbose = ToolPreviewSupport.buildPreview("config_set_secret", args, 120, true);
-        String aliasVerbose =
-                ToolPreviewSupport.buildPreview("config_update_secret", args, 120, true);
 
         assertThat(compact).isEqualTo("key=providers.default.apiKey");
         assertThat(verbose).contains("\"value\":\"***\"");
-        assertThat(aliasVerbose).contains("\"value\":\"***\"");
-        assertThat(compact + verbose + aliasVerbose).doesNotContain("sk-test-preview-secret-12345");
+        assertThat(compact + verbose).doesNotContain("sk-test-preview-secret-12345");
     }
 
     @Test

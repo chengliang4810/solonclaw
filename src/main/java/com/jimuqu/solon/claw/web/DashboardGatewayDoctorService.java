@@ -12,20 +12,24 @@ import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import java.io.File;
-import java.text.SimpleDateFormat;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TimeZone;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Dashboard 网关 doctor 聚合服务。 */
 public class DashboardGatewayDoctorService {
+    /** 记录 doctor 聚合中的可恢复降级事件，避免诊断失败被静默吞掉。 */
+    private static final Logger log = LoggerFactory.getLogger(DashboardGatewayDoctorService.class);
+
     /** GENERICAPI键健康检查CHECKDIALECTS的统一常量值。 */
     private static final Set<String> GENERIC_API_KEY_HEALTH_CHECK_DIALECTS =
             new HashSet<String>(
@@ -36,6 +40,10 @@ public class DashboardGatewayDoctorService {
     private static final Set<String> DEDICATED_HEALTH_CHECK_DIALECTS =
             new HashSet<String>(
                     Arrays.asList(LlmConstants.PROVIDER_GEMINI, LlmConstants.PROVIDER_ANTHROPIC));
+
+    /** Dashboard Doctor 本地 ISO 时间格式，保持原有 yyyy-MM-dd'T'HH:mm:ssXXX 输出。 */
+    private static final DateTimeFormatter ISO_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
 
     /** 注入应用配置，用于控制台消息网关诊断。 */
     private final AppConfig appConfig;
@@ -327,7 +335,6 @@ public class DashboardGatewayDoctorService {
             return;
         }
         int unknown = intValue(config.get("unknown_count"));
-        int legacy = intValue(config.get("legacy_count"));
         int diffs = intValue(config.get("effective_diff_count"));
         if (unknown > 0) {
             addIssue(
@@ -338,16 +345,6 @@ public class DashboardGatewayDoctorService {
                     "runtime_config",
                     "runtime/config.yml 存在未知配置键：" + unknown + " 个。",
                     "查看 config.unknown_keys，移除或迁移未生效的配置键。");
-        }
-        if (legacy > 0) {
-            addIssue(
-                    issues,
-                    "warning",
-                    "config",
-                    "config_legacy_keys",
-                    "runtime_config",
-                    "runtime/config.yml 存在遗留配置键：" + legacy + " 个。",
-                    "查看 config.legacy_keys，将遗留配置迁移到当前配置路径。");
         }
         if (diffs > 0) {
             addIssue(
@@ -509,7 +506,8 @@ public class DashboardGatewayDoctorService {
         }
         try {
             return Integer.parseInt(String.valueOf(value));
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableDoctorFailure("int_value_parse", e);
             return 0;
         }
     }
@@ -675,22 +673,33 @@ public class DashboardGatewayDoctorService {
                 status.getPlatform() == null ? null : status.getPlatform().name().toLowerCase());
         item.put("enabled", status.isEnabled());
         item.put("connected", status.isConnected());
-        item.put("detail", SecretRedactor.redact(status.getDetail(), 1000));
+        item.put("detail", redactSensitivePaths(status.getDetail(), 1000));
         item.put("setup_state", status.getSetupState());
         item.put("connection_mode", status.getConnectionMode());
         item.put("missing_config", status.getMissingConfig());
         item.put("features", status.getFeatures());
         item.put("last_error_code", status.getLastErrorCode());
-        item.put("last_error_message", SecretRedactor.redact(status.getLastErrorMessage(), 1000));
+        item.put("last_error_message", redactSensitivePaths(status.getLastErrorMessage(), 1000));
         item.put("reconnecting", Boolean.valueOf(status.isReconnecting()));
         item.put("reconnect_attempt", Integer.valueOf(status.getReconnectAttempt()));
         item.put("last_reconnect_at", Long.valueOf(status.getLastReconnectAt()));
         item.put("next_reconnect_at", Long.valueOf(status.getNextReconnectAt()));
         item.put(
                 "last_reconnect_error",
-                SecretRedactor.redact(status.getLastReconnectError(), 1000));
+                redactSensitivePaths(status.getLastReconnectError(), 1000));
         item.put("next_step", nextStep(status));
         return item;
+    }
+
+    /**
+     * 脱敏 doctor 输出中的敏感路径和密钥，避免诊断结果暴露本机凭据位置。
+     *
+     * @param value 待展示文本。
+     * @param maxLength 最大展示长度。
+     * @return 返回脱敏后的文本。
+     */
+    private String redactSensitivePaths(String value, int maxLength) {
+        return SecretRedactor.redactSensitivePaths(SecretRedactor.redact(value, maxLength));
     }
 
     /**
@@ -1043,7 +1052,8 @@ public class DashboardGatewayDoctorService {
         try {
             runtimeHome = runtimeHome.getCanonicalFile();
             file = file.getCanonicalFile();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableDoctorFailure("runtime_reference_canonicalize", e);
         }
         String homePath = normalized(runtimeHome);
         String filePath = normalized(file);
@@ -1055,6 +1065,26 @@ public class DashboardGatewayDoctorService {
             return "runtime://" + relative;
         }
         return externalPathReference(text);
+    }
+
+    /**
+     * 记录 Dashboard doctor 的非关键降级，日志只包含阶段和异常类型，避免泄露配置路径或敏感值。
+     *
+     * @param action 当前降级阶段。
+     * @param error 捕获到的异常。
+     */
+    private static void logRecoverableDoctorFailure(String action, Exception error) {
+        log.debug("Gateway doctor fallback: action={}, error={}", action, exceptionSummary(error));
+    }
+
+    /**
+     * 生成低敏异常摘要。
+     *
+     * @param error 捕获到的异常。
+     * @return 返回异常类型名称。
+     */
+    private static String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getSimpleName();
     }
 
     /**
@@ -1091,8 +1121,6 @@ public class DashboardGatewayDoctorService {
      * @return 返回iso Now结果。
      */
     private String isoNow() {
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-        format.setTimeZone(TimeZone.getDefault());
-        return format.format(new Date());
+        return ISO_TIME_FORMATTER.format(ZonedDateTime.now());
     }
 }

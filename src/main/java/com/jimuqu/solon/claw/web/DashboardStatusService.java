@@ -19,16 +19,29 @@ import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import java.io.File;
 import java.lang.management.ManagementFactory;
-import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.TimeZone;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Dashboard 状态聚合服务。 */
 public class DashboardStatusService {
+    /** 记录 Dashboard 状态路径规范化失败的低敏诊断日志，不输出完整路径。 */
+    private static final Logger log = LoggerFactory.getLogger(DashboardStatusService.class);
+
+    /** Dashboard 发布日期展示格式，保持原有 yyyy-MM-dd 输出。 */
+    private static final DateTimeFormatter RELEASE_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
+    /** Dashboard 本地 ISO 时间格式，保持原有 yyyy-MM-dd'T'HH:mm:ssXXX 输出。 */
+    private static final DateTimeFormatter ISO_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
+
     /** 注入应用配置，用于控制台状态。 */
     private final AppConfig appConfig;
 
@@ -236,7 +249,7 @@ public class DashboardStatusService {
             result.put("proactive", proactiveDiagnosticsService.status());
         }
         result.put("latest_config_version", configVersion());
-        result.put("release_date", new SimpleDateFormat("yyyy-MM-dd").format(new Date()));
+        result.put("release_date", RELEASE_DATE_FORMATTER.format(LocalDate.now()));
         AppUpdateService.VersionStatus versionStatus = appUpdateService.getVersionStatus(false);
         result.put("version", appVersionService.currentVersion());
         result.put("version_tag", appVersionService.currentTag());
@@ -363,7 +376,7 @@ public class DashboardStatusService {
             if (status.isConnected()) {
                 anyConnected = true;
             }
-            String detail = redact(status.getDetail(), 1000);
+            String detail = redactSensitivePaths(status.getDetail(), 1000);
             boolean fatal =
                     status.isEnabled()
                             && !status.isConnected()
@@ -390,7 +403,7 @@ public class DashboardStatusService {
             item.put(
                     "error_message",
                     detailed && fatal
-                            ? redact(
+                            ? redactSensitivePaths(
                                     StrUtil.blankToDefault(status.getLastErrorMessage(), detail),
                                     1000)
                             : null);
@@ -536,7 +549,7 @@ public class DashboardStatusService {
         capabilities.put("persistent_jobs", Boolean.TRUE);
         capabilities.put("channel_delivery", Boolean.TRUE);
         capabilities.put("memory_delivery", Boolean.TRUE);
-        capabilities.put("approval_mode", safeText(cronApprovalMode(), 80));
+        capabilities.put("guardrail_cron_mode", safeText(guardrailCronMode(), 80));
         return capabilities;
     }
 
@@ -580,8 +593,8 @@ public class DashboardStatusService {
     private Map<String, Object> toolSafetyCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("dangerous_command_approval", Boolean.TRUE);
-        capabilities.put("approval_mode", safeText(guardrailMode(), 80));
-        capabilities.put("cron_approval_mode", safeText(cronApprovalMode(), 80));
+        capabilities.put("guardrail_mode", safeText(guardrailMode(), 80));
+        capabilities.put("guardrail_cron_mode", safeText(guardrailCronMode(), 80));
         capabilities.put(
                 "subagent_auto_approve",
                 Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
@@ -716,16 +729,16 @@ public class DashboardStatusService {
         status.put(
                 "inactivity_timeout_seconds",
                 Integer.valueOf(appConfig.getScheduler().getInactivityTimeoutSeconds()));
-        status.put("approval_mode", safeText(cronApprovalMode(), 80));
+        status.put("guardrail_cron_mode", safeText(guardrailCronMode(), 80));
         return status;
     }
 
     /**
-     * 执行定时任务审批模式相关逻辑。
+     * 读取定时任务安全护栏模式。
      *
-     * @return 返回定时任务审批模式结果。
+     * @return 返回定时任务安全护栏模式。
      */
-    private String cronApprovalMode() {
+    private String guardrailCronMode() {
         return appConfig.getSecurity() == null
                 ? "approval"
                 : StrUtil.blankToDefault(
@@ -797,8 +810,8 @@ public class DashboardStatusService {
      */
     private Map<String, Object> toolSafetyStatus() {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
-        status.put("approval_mode", safeText(guardrailMode(), 80));
-        status.put("cron_approval_mode", safeText(cronApprovalMode(), 80));
+        status.put("guardrail_mode", safeText(guardrailMode(), 80));
+        status.put("guardrail_cron_mode", safeText(guardrailCronMode(), 80));
         status.put(
                 "subagent_auto_approve",
                 Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
@@ -1065,7 +1078,8 @@ public class DashboardStatusService {
         try {
             runtimeHome = runtimeHome.getCanonicalFile();
             file = file.getCanonicalFile();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("运行时路径引用规范化失败，使用绝对路径脱敏展示 error={}", e.getClass().getSimpleName());
         }
         String homePath = normalized(runtimeHome);
         String filePath = normalized(file);
@@ -1119,6 +1133,17 @@ public class DashboardStatusService {
     }
 
     /**
+     * 脱敏状态输出中的敏感路径和密钥，避免 dashboard 暴露本机凭据位置。
+     *
+     * @param value 待展示文本。
+     * @param maxLength 最大展示长度。
+     * @return 返回脱敏后的文本。
+     */
+    private String redactSensitivePaths(String value, int maxLength) {
+        return SecretRedactor.redactSensitivePaths(SecretRedactor.redact(value, maxLength));
+    }
+
+    /**
      * 生成安全展示用的文本。
      *
      * @param value 待规范化或校验的原始值。
@@ -1148,9 +1173,7 @@ public class DashboardStatusService {
      * @return 返回iso Now结果。
      */
     private String isoNow() {
-        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX");
-        format.setTimeZone(TimeZone.getDefault());
-        return format.format(new Date());
+        return ISO_TIME_FORMATTER.format(ZonedDateTime.now());
     }
 
     /** 承载运行时状态快照相关状态和辅助逻辑。 */

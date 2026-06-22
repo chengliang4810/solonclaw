@@ -25,12 +25,15 @@ public class AppConfigProviderLoadTest {
 
         assertThat(config.getProviders()).containsKeys("default", "local-ollama");
         assertThat(config.getModel().getProviderKey()).isEqualTo("default");
-        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
-        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
+        assertThat(config.getSecurity().isTirithFailOpen()).isFalse();
+        assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("strict");
+        assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("strict");
+        assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("approval");
+        assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("strict");
         assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("job");
-        assertThat(config.getSecurity().getHardlineAllowlist())
-                .containsExactly("hardline_shutdown", "hardline_windows_shutdown");
-        assertThat(config.getApprovals().getCronMode()).isEqualTo("bypass");
+        assertThat(config.getSecurity().getHardlineAllowlist()).isEmpty();
+        assertThat(config.getDashboard().getAccessToken()).isEmpty();
         assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
         assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);
         assertThat(config.getTerminal().getMaxForegroundTimeoutSeconds()).isEqualTo(600);

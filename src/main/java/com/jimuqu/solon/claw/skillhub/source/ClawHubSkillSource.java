@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -404,11 +405,7 @@ public class ClawHubSkillSource implements SkillSource {
                     continue;
                 }
                 byte[] raw = readZipEntry(zip);
-                try {
-                    files.put(safeName, new String(raw, "UTF-8"));
-                } catch (Exception ignored) {
-                    // 保留此处实现约束，避免后续维护时破坏既有行为。
-                }
+                files.put(safeName, new String(raw, StandardCharsets.UTF_8));
             }
         } finally {
             zip.close();

@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.web;
 
+import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -144,7 +145,7 @@ public class DashboardTuiRuntimeController {
         Map<String, Object> response = new LinkedHashMap<String, Object>();
         response.put("jsonrpc", JSON_RPC_VERSION);
         response.put("id", id);
-        response.put("result", result == null ? new LinkedHashMap<String, Object>() : result);
+        response.put("result", MapUtil.emptyIfNull(result));
         return response;
     }
 
@@ -163,14 +164,14 @@ public class DashboardTuiRuntimeController {
 
     /** 安全读取字符串参数。 */
     private String stringParam(Map<String, Object> params, String key) {
-        Object value = params == null ? null : params.get(key);
+        Object value = MapUtil.emptyIfNull(params).get(key);
         return value == null ? "" : String.valueOf(value);
     }
 
     /** 安全读取字符串映射参数，供 TUI 保存渠道配置字段。 */
     @SuppressWarnings("unchecked")
     private Map<String, String> stringMapParam(Map<String, Object> params, String key) {
-        Object value = params == null ? null : params.get(key);
+        Object value = MapUtil.emptyIfNull(params).get(key);
         Map<String, String> result = new LinkedHashMap<String, String>();
         if (value == null) {
             return result;

@@ -7,10 +7,15 @@ import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
 import org.noear.solon.core.handle.MethodType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Dashboard 统一诊断接口。 */
 @Controller
 public class DashboardDiagnosticsController {
+    /** 记录诊断接口请求参数降级的低敏诊断日志，不输出请求载荷。 */
+    private static final Logger log = LoggerFactory.getLogger(DashboardDiagnosticsController.class);
+
     /** 注入诊断服务，用于调用对应业务能力。 */
     private final DashboardDiagnosticsService diagnosticsService;
 
@@ -224,7 +229,8 @@ public class DashboardDiagnosticsController {
     private int limit(String value) {
         try {
             return value == null ? 100 : Integer.parseInt(value.trim());
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("诊断接口limit解析失败，使用默认限制 error={}", e.getClass().getSimpleName());
             return 100;
         }
     }

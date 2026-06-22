@@ -32,13 +32,13 @@ public class ModelCommandTest {
     }
 
     @Test
-    void shouldSetSessionModelWithProviderAlias() throws Exception {
+    void shouldSetSessionModelWithCurrentModelCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.send("provider-chat", "provider-user", "hello");
         env.send("provider-chat", "provider-user", "/pairing claim-admin");
 
         GatewayReply sessionReply =
-                env.send("provider-chat", "provider-user", "/provider default:gpt-5.3");
+                env.send("provider-chat", "provider-user", "/model default:gpt-5.3");
 
         assertThat(sessionReply.getContent()).contains("default:gpt-5.3");
         assertThat(

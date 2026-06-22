@@ -5,9 +5,14 @@ import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 将危险命令审批 request/response 写入审计仓储。 */
 public class ApprovalAuditObserver implements DangerousCommandApprovalService.ApprovalObserver {
+    /** 记录审批审计写入失败的低敏诊断日志，不输出命令正文或描述内容。 */
+    private static final Logger log = LoggerFactory.getLogger(ApprovalAuditObserver.class);
+
     /** 保存仓储依赖，用于访问持久化数据。 */
     private final ApprovalAuditRepository repository;
 
@@ -91,8 +96,12 @@ public class ApprovalAuditObserver implements DangerousCommandApprovalService.Ap
         audit.setApprovalExpiresAt(pending.getExpiresAt());
         try {
             repository.append(audit);
-        } catch (Exception ignored) {
-            // 审计持久化失败不能影响安全关键的审批处理。
+        } catch (Exception e) {
+            log.warn("审批审计写入失败，不影响审批主流程 eventType={} tool={} status={} error={}",
+                    SecretRedactor.redact(eventType, 80),
+                    SecretRedactor.redact(event.getToolName(), 120),
+                    SecretRedactor.redact(status, 80),
+                    e.getClass().getSimpleName());
         }
     }
 }

@@ -43,7 +43,7 @@ public class CompressionCommandTest {
         env.sessionRepository.save(session);
 
         GatewayReply reply =
-                env.gatewayService.handle(env.message("admin-chat", "admin-user", "/compress"));
+                env.gatewayService.handle(env.message("admin-chat", "admin-user", "/compact"));
         assertThat(reply.getContent()).contains("上下文压缩");
 
         SessionRecord updated = env.sessionRepository.findById(session.getSessionId());
@@ -74,7 +74,7 @@ public class CompressionCommandTest {
 
         GatewayReply reply =
                 env.gatewayService.handle(
-                        env.message("admin-chat", "admin-user", "/compress 发布流程"));
+                        env.message("admin-chat", "admin-user", "/compact 发布流程"));
         SessionRecord updated = env.sessionRepository.findById(session.getSessionId());
 
         assertThat(reply.getContent()).contains("关注主题");
@@ -83,7 +83,7 @@ public class CompressionCommandTest {
     }
 
     @Test
-    void shouldCompactCurrentSessionAsJimuquCompatibleAlias() throws Exception {
+    void shouldCompactCurrentSessionWithCurrentCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.send("admin-chat", "admin-user", "hello");

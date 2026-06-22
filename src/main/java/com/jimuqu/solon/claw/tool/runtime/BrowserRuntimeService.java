@@ -16,9 +16,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供浏览器运行时相关业务能力，封装调用方不需要感知的运行细节。 */
 public class BrowserRuntimeService {
+    /** 浏览器运行时内部降级日志，只记录阶段和异常类型，避免泄露页面或凭据信息。 */
+    private static final Logger log = LoggerFactory.getLogger(BrowserRuntimeService.class);
+
     /** 默认最大并发数的统一常量值。 */
     private static final int DEFAULT_MAX_CONCURRENCY = 2;
 
@@ -591,7 +596,8 @@ public class BrowserRuntimeService {
         URI uri;
         try {
             uri = URI.create(StrUtil.nullToEmpty(url).trim());
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableBrowserFailure("loopback_rewrite_parse", e);
             return LoopbackRewrite.none(url);
         }
         String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(java.util.Locale.ROOT);
@@ -642,7 +648,8 @@ public class BrowserRuntimeService {
                 }
             }
             return first == 127;
-        } catch (NumberFormatException ignored) {
+        } catch (NumberFormatException e) {
+            logRecoverableBrowserFailure("loopback_host_parse", e);
             return false;
         }
     }
@@ -683,9 +690,43 @@ public class BrowserRuntimeService {
     private void safeClose(BrowserProvider provider, String providerSessionId) {
         try {
             provider.closeSession(providerSessionId);
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            logRecoverableBrowserFailure("close_session", e);
         }
+    }
+
+    /**
+     * 记录浏览器运行时的可恢复失败，日志内容只包含固定阶段和异常类型。
+     *
+     * @param stage 固定阶段名，禁止拼接 URL、页面文本、token 或会话参数。
+     * @param error 浏览器提供方或运行时解析抛出的异常。
+     */
+    private void logRecoverableBrowserFailure(String stage, Throwable error) {
+        if (log.isDebugEnabled()) {
+            log.debug("浏览器运行时可恢复失败：stage={}, error={}", stage, exceptionSummary(error));
+        }
+    }
+
+    /**
+     * 生成低敏异常摘要，仅暴露异常类型并在发现中断异常时恢复线程中断标记。
+     *
+     * @param error 原始异常。
+     * @return 不含异常消息和堆栈的异常类型摘要。
+     */
+    private String exceptionSummary(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            current = current.getCause();
+        }
+        String name = error.getClass().getSimpleName();
+        return StrUtil.isBlank(name) ? error.getClass().getName() : name;
     }
 
     /** 承载Lease相关状态和辅助逻辑。 */

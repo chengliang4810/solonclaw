@@ -2,6 +2,8 @@ package com.jimuqu.solon.claw.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Locale;
 import org.junit.jupiter.api.Test;
 
@@ -97,15 +99,16 @@ class SecretRedactorTest {
     @Test
     void shouldRedactUrlsPrivateKeysAndDatabasePasswordsLikeJimuqu() {
         String result =
-                SecretRedactor.redact(
-                        "https://user:supersecretpw@host.example.com/path?code=oauth-code&state=ok\n"
-                                + "postgres://admin:dbpass@db.internal:5432/app\n"
-                                + "-----BEGIN RSA PRIVATE KEY-----\n"
-                                + "abcdef\n"
-                                + "-----END RSA PRIVATE KEY-----");
+                SecretRedactor.redactSensitivePaths(
+                        SecretRedactor.redact(
+                                "https://user:supersecretpw@host.example.com/path?code=oauth-code&state=ok\n"
+                                        + "postgres://admin:dbpass@db.internal:5432/app\n"
+                                        + "-----BEGIN RSA PRIVATE KEY-----\n"
+                                        + "abcdef\n"
+                                        + "-----END RSA PRIVATE KEY-----"));
 
         assertThat(result)
-                .contains("[REDACTED_PATH]")
+                .contains("[REDACTED_URL_CREDENTIAL]")
                 .contains("postgres://admin:***@db.internal:5432/app")
                 .contains("[REDACTED PRIVATE KEY]")
                 .doesNotContain("supersecretpw")
@@ -240,13 +243,13 @@ class SecretRedactorTest {
                 SecretRedactor.maskUrl("example.com/oauth/client_secret/schemeless-path-secret");
 
         assertThat(result)
-                .isEqualTo("example.com/oauth/[REDACTED_PATH]")
+                .isEqualTo("example.com/oauth/[REDACTED_URL_SECRET]")
                 .doesNotContain("schemeless-path-secret");
 
         String fileToken = SecretRedactor.maskUrl("example.com/download/client_secret.json");
 
         assertThat(fileToken)
-                .isEqualTo("example.com/download/[REDACTED_PATH]")
+                .isEqualTo("example.com/download/[REDACTED_URL_SECRET]")
                 .doesNotContain("client_secret.json");
     }
 
@@ -359,8 +362,9 @@ class SecretRedactorTest {
     @Test
     void shouldRedactSensitivePathFragments() {
         String result =
-                SecretRedactor.redact(
-                        "blocked path C:\\Users\\dev\\.ssh\\id_ed25519 and ./credentials/oauth.json plus .env and credentials.json and credentials");
+                SecretRedactor.redactSensitivePaths(
+                        SecretRedactor.redact(
+                                "blocked path C:\\Users\\dev\\.ssh\\id_ed25519 and ./credentials/oauth.json plus .env and credentials.json and credentials"));
 
         assertThat(result)
                 .contains("[REDACTED_PATH]")
@@ -375,8 +379,9 @@ class SecretRedactorTest {
     @Test
     void shouldRedactEncodedSensitiveFileTokens() {
         String result =
-                SecretRedactor.redact(
-                        "blocked files client&#95;secret.json api%5Fkey.txt access%255Ftoken.cache private-key.pem");
+                SecretRedactor.redactSensitivePaths(
+                        SecretRedactor.redact(
+                                "blocked files client&#95;secret.json api%5Fkey.txt access%255Ftoken.cache private-key.pem"));
 
         assertThat(result)
                 .contains("[REDACTED_PATH]")
@@ -389,8 +394,9 @@ class SecretRedactorTest {
     @Test
     void shouldRedactSkillsHubInternalCachePaths() {
         String result =
-                SecretRedactor.redact(
-                        "blocked internal path skills/.hub/index-cache/catalog.json and docs/skills/.hub/readme.md");
+                SecretRedactor.redactSensitivePaths(
+                        SecretRedactor.redact(
+                                "blocked internal path skills/.hub/index-cache/catalog.json and docs/skills/.hub/readme.md"));
 
         assertThat(result)
                 .contains("[REDACTED_PATH]")
@@ -398,6 +404,23 @@ class SecretRedactorTest {
                 .doesNotContain("index-cache")
                 .doesNotContain("catalog.json")
                 .doesNotContain("readme.md");
+    }
+
+    @Test
+    void shouldRedactSensitivePathsInStructuredMetadata() {
+        Map<String, Object> metadata = new LinkedHashMap<String, Object>();
+        metadata.put("result_ref", "/tmp/output-token=secret123-ghp_1234567890abcdef.txt");
+        metadata.put("message", "blocked credentials/oauth.json token=ghp_metadata1234567890");
+
+        String result = StructuredMetadataSupport.serializeRedacted(metadata);
+
+        assertThat(result)
+                .contains("\"result_ref\":\"[REDACTED_PATH]\"")
+                .contains("\"message\":\"blocked [REDACTED_PATH] token=***\"")
+                .doesNotContain("secret123")
+                .doesNotContain("ghp_1234567890abcdef")
+                .doesNotContain("ghp_metadata1234567890")
+                .doesNotContain("credentials/oauth.json");
     }
 
     @Test

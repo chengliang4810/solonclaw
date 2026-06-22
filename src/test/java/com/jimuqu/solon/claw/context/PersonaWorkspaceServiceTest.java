@@ -104,6 +104,7 @@ class PersonaWorkspaceServiceTest {
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(blocker.getAbsolutePath());
         config.getRuntime().setContextDir(new File(tempDir.toFile(), "context").getAbsolutePath());
+        config.getWorkspace().setDir(new File(blocker, "workspace").getAbsolutePath());
 
         final PersonaWorkspaceService[] holder = new PersonaWorkspaceService[1];
         assertThatCode(
@@ -125,6 +126,7 @@ class PersonaWorkspaceServiceTest {
         File contextDir = new File(runtimeDir, "context");
         config.getRuntime().setHome(runtimeDir.getAbsolutePath());
         config.getRuntime().setContextDir(contextDir.getAbsolutePath());
+        config.getWorkspace().setDir(new File(tempDir.toFile(), "workspace").getAbsolutePath());
         return config;
     }
 }

@@ -26,13 +26,18 @@ import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.rag.Document;
-import org.noear.solon.ai.skills.web.CodeSearchTool;
-import org.noear.solon.ai.skills.web.WebfetchTool;
-import org.noear.solon.ai.skills.web.WebsearchTool;
+import org.noear.solon.ai.talents.web.CodeSearchTalent;
+import org.noear.solon.ai.talents.web.WebfetchTalent;
+import org.noear.solon.ai.talents.web.WebsearchTalent;
 import org.noear.solon.annotation.Param;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供Solon项目Web工具能力，供 Agent 运行时按安全策略调用。 */
 public class SolonClawWebTools {
+    /** 记录 Web 工具中的可降级异常，日志不输出 URL、查询内容或网页正文。 */
+    private static final Logger log = LoggerFactory.getLogger(SolonClawWebTools.class);
+
     /** BRAVEFREEBACKEND的统一常量值。 */
     private static final String BRAVE_FREE_BACKEND = "brave-free";
 
@@ -87,7 +92,38 @@ public class SolonClawWebTools {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkToolArgs(toolName, args);
         if (!verdict.isAllowed()) {
+            if (verdict.isApprovalRequired()) {
+                throw new IllegalArgumentException(
+                        "APPROVAL_REQUIRED: "
+                                + verdict.getMessage()
+                                + " url="
+                                + SecretRedactor.maskUrl(verdict.getUrl())
+                                + "。请先在对话审批该单次操作。");
+            }
             throw new IllegalArgumentException(blockedMessage(verdict));
+        }
+    }
+
+    /**
+     * 检查无显式 URL 但会发起外部网络请求的工具。
+     *
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param toolName 工具名称。
+     */
+    private static void checkExternalNetworkOperation(
+            SecurityPolicyService securityPolicyService, String toolName) {
+        if (securityPolicyService == null) {
+            return;
+        }
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkExternalNetworkOperation(toolName);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    "APPROVAL_REQUIRED: "
+                            + verdict.getMessage()
+                            + " url="
+                            + SecretRedactor.maskUrl(verdict.getUrl())
+                            + "。请先在对话审批该单次操作。");
         }
     }
 
@@ -101,7 +137,7 @@ public class SolonClawWebTools {
         if (securityPolicyService == null || StrUtil.isBlank(url)) {
             return;
         }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkReturnedUrl(url);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(blockedMessage(verdict));
         }
@@ -118,6 +154,7 @@ public class SolonClawWebTools {
         if (document == null) {
             return;
         }
+        checkReturnedTextUrls(securityPolicyService, document.getContent());
         for (String url : securityPolicyService.extractUrlishValues(document.getMetadata())) {
             checkUrl(securityPolicyService, url);
         }
@@ -162,7 +199,6 @@ public class SolonClawWebTools {
         visited.add(value);
         if (value instanceof Document) {
             checkFinalDocumentUrls(securityPolicyService, (Document) value);
-            checkReturnedUrls(securityPolicyService, ((Document) value).getContent(), visited);
             return;
         }
         if (value instanceof CharSequence) {
@@ -222,7 +258,7 @@ public class SolonClawWebTools {
         private final SecurityPolicyService securityPolicyService;
 
         /** 记录安全Webfetch中的委托。 */
-        private final WebfetchTool delegate;
+        private final WebfetchTalent delegate;
 
         /**
          * 创建Safe Webfetch工具实例，并注入运行所需依赖。
@@ -230,7 +266,7 @@ public class SolonClawWebTools {
          * @param securityPolicyService 安全策略服务依赖。
          */
         public SafeWebfetchTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, WebfetchTool.getInstance());
+            this(securityPolicyService, new WebfetchTalent());
         }
 
         /**
@@ -240,7 +276,7 @@ public class SolonClawWebTools {
          * @param delegate 委派参数。
          */
         public SafeWebfetchTool(
-                SecurityPolicyService securityPolicyService, WebfetchTool delegate) {
+                SecurityPolicyService securityPolicyService, WebfetchTalent delegate) {
             this.securityPolicyService = securityPolicyService;
             this.delegate = delegate;
         }
@@ -269,7 +305,9 @@ public class SolonClawWebTools {
             Map<String, Object> args = new LinkedHashMap<String, Object>();
             args.put("url", url);
             check(securityPolicyService, ToolNameConstants.WEBFETCH, args);
-            Document document = delegate.webfetch(url, format, timeoutSeconds);
+            Document document =
+                    documentFromTalent(
+                            delegate.webfetch(url, format, timeoutSeconds), "Web fetch: " + url);
             checkReturnedUrls(securityPolicyService, document);
             return safeDocument(document);
         }
@@ -282,7 +320,7 @@ public class SolonClawWebTools {
         private final SecurityPolicyService securityPolicyService;
 
         /** 记录安全Websearch中的委托。 */
-        private final WebsearchTool delegate;
+        private final WebsearchTalent delegate;
 
         /** 注入应用配置，用于安全Websearch。 */
         private final AppConfig appConfig;
@@ -296,7 +334,7 @@ public class SolonClawWebTools {
          * @param securityPolicyService 安全策略服务依赖。
          */
         public SafeWebsearchTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, WebsearchTool.getInstance(), null);
+            this(securityPolicyService, new WebsearchTalent(), null);
         }
 
         /**
@@ -306,7 +344,7 @@ public class SolonClawWebTools {
          * @param delegate 委派参数。
          */
         public SafeWebsearchTool(
-                SecurityPolicyService securityPolicyService, WebsearchTool delegate) {
+                SecurityPolicyService securityPolicyService, WebsearchTalent delegate) {
             this(securityPolicyService, delegate, null);
         }
 
@@ -319,7 +357,7 @@ public class SolonClawWebTools {
          */
         public SafeWebsearchTool(
                 SecurityPolicyService securityPolicyService,
-                WebsearchTool delegate,
+                WebsearchTalent delegate,
                 AppConfig appConfig) {
             this.securityPolicyService = securityPolicyService;
             this.delegate = delegate;
@@ -394,8 +432,12 @@ public class SolonClawWebTools {
                 checkReturnedUrls(securityPolicyService, document);
                 return safeDocument(document);
             }
+            checkExternalNetworkOperation(securityPolicyService, ToolNameConstants.WEBSEARCH);
             Document document =
-                    delegate.websearch(query, numResults, livecrawl, type, contextMaxCharacters);
+                    documentFromTalent(
+                            delegate.websearch(
+                                    query, numResults, livecrawl, type, contextMaxCharacters),
+                            "Web search: " + query);
             checkReturnedUrls(securityPolicyService, document);
             return safeDocument(document);
         }
@@ -450,7 +492,7 @@ public class SolonClawWebTools {
             Map<String, Object> data = new LinkedHashMap<String, Object>();
             data.put("web", web);
             Map<String, Object> result = new LinkedHashMap<String, Object>();
-            result.put("success", Boolean.TRUE);
+            result.put("status", "success");
             result.put("data", data);
             result.put("provider", backend);
             return new Document(ONode.serialize(result)).title("Web search: " + query);
@@ -518,7 +560,7 @@ public class SolonClawWebTools {
             Map<String, Object> data = new LinkedHashMap<String, Object>();
             data.put("web", web);
             Map<String, Object> result = new LinkedHashMap<String, Object>();
-            result.put("success", Boolean.TRUE);
+            result.put("status", "success");
             result.put("data", data);
             result.put("provider", BRAVE_FREE_BACKEND);
             return new Document(ONode.serialize(result)).title("Web search: " + query);
@@ -539,7 +581,7 @@ public class SolonClawWebTools {
             Map<String, Object> data = new LinkedHashMap<String, Object>();
             data.put("web", web);
             Map<String, Object> result = new LinkedHashMap<String, Object>();
-            result.put("success", Boolean.TRUE);
+            result.put("status", "success");
             result.put("data", data);
             result.put("provider", DDGS_BACKEND);
             return new Document(ONode.serialize(result)).title("Web search: " + query);
@@ -610,7 +652,8 @@ public class SolonClawWebTools {
                 }
                 try {
                     return URLDecoder.decode(encoded, "UTF-8");
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    logRecoverableFailure("normalize-ddgs-url", e);
                     return encoded;
                 }
             }
@@ -738,7 +781,7 @@ public class SolonClawWebTools {
         private final SecurityPolicyService securityPolicyService;
 
         /** 记录安全Code搜索中的委托。 */
-        private final CodeSearchTool delegate;
+        private final CodeSearchTalent delegate;
 
         /**
          * 创建Safe Code搜索工具实例，并注入运行所需依赖。
@@ -746,7 +789,7 @@ public class SolonClawWebTools {
          * @param securityPolicyService 安全策略服务依赖。
          */
         public SafeCodeSearchTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, CodeSearchTool.getInstance());
+            this(securityPolicyService, new CodeSearchTalent());
         }
 
         /**
@@ -756,7 +799,7 @@ public class SolonClawWebTools {
          * @param delegate 委派参数。
          */
         public SafeCodeSearchTool(
-                SecurityPolicyService securityPolicyService, CodeSearchTool delegate) {
+                SecurityPolicyService securityPolicyService, CodeSearchTalent delegate) {
             this.securityPolicyService = securityPolicyService;
             this.delegate = delegate;
         }
@@ -784,7 +827,8 @@ public class SolonClawWebTools {
             args.put("query", query);
             args.put("tokensNum", tokensNum);
             check(securityPolicyService, ToolNameConstants.CODESEARCH, args);
-            Object result = delegate.handle(query, tokensNum);
+            checkExternalNetworkOperation(securityPolicyService, ToolNameConstants.CODESEARCH);
+            Object result = delegate.codesearch(query, tokensNum);
             checkReturnedUrls(securityPolicyService, result);
             return safeValue(result);
         }
@@ -808,6 +852,17 @@ public class SolonClawWebTools {
                                 document.getScore())
                         .embedding(document.getEmbedding());
         return safe;
+    }
+
+    /**
+     * 将 Solon AI 4 Talent 返回的纯文本包装成项目原有的 Document 结果，保留安全检查和下游展示契约。
+     *
+     * @param content Talent 返回的网页或搜索文本。
+     * @param title 文档标题。
+     * @return 返回可继续执行安全扫描的 Document。
+     */
+    private static Document documentFromTalent(String content, String title) {
+        return new Document(StrUtil.nullToEmpty(content)).title(title);
     }
 
     /**
@@ -905,9 +960,32 @@ public class SolonClawWebTools {
         }
         try {
             return ONode.deserialize(ONode.serialize(value), Object.class);
-        } catch (Throwable ignored) {
+        } catch (Throwable e) {
+            logRecoverableFailure("structure-pojo", e);
             return value;
         }
+    }
+
+    /**
+     * 记录可恢复 Web 工具异常，只写阶段和异常类型，避免泄露 URL、token 或网页内容。
+     *
+     * @param stage 降级阶段。
+     * @param error 异常对象。
+     */
+    private static void logRecoverableFailure(String stage, Throwable error) {
+        if (log.isDebugEnabled()) {
+            log.debug("web tool fallback. stage={} error={}", stage, exceptionSummary(error));
+        }
+    }
+
+    /**
+     * 生成低敏异常摘要，仅保留异常类型。
+     *
+     * @param error 异常对象。
+     * @return 返回异常类型摘要。
+     */
+    private static String exceptionSummary(Throwable error) {
+        return error == null ? "unknown" : error.getClass().getName();
     }
 
     /**

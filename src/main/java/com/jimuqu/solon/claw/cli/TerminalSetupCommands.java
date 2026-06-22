@@ -22,7 +22,7 @@ public class TerminalSetupCommands {
     private static final List<String> DOMESTIC_CHANNELS =
             RuntimeSetupSpec.domesticChannels();
 
-    /** 只提供本地配置说明、不启动服务或外部向导的顶层兼容命令。 */
+    /** 只提供本地配置说明、不启动服务或外部向导的当前管理命令。 */
     private static final List<String> LOCAL_GUIDANCE_COMMANDS =
             Arrays.asList(
                     "postinstall",
@@ -32,7 +32,6 @@ public class TerminalSetupCommands {
                     "secrets",
                     "proxy",
                     "mcp",
-                    "migrate",
                     "send",
                     "hooks",
                     "dump",
@@ -89,7 +88,6 @@ public class TerminalSetupCommands {
                 || "config".equals(value)
                 || value.startsWith("config ")
                 || "model".equals(value)
-                || value.startsWith("model --")
                 || "model set".equals(value)
                 || value.startsWith("model set ")
                 || "model configure".equals(value)
@@ -126,9 +124,6 @@ public class TerminalSetupCommands {
         }
         if ("setup model".equals(value) || "model".equals(value)) {
             return renderModelSetup();
-        }
-        if (value.startsWith("model --")) {
-            return renderModelOptions(rawValue);
         }
         if (value.startsWith("setup model ")
                 || value.startsWith("model set")
@@ -183,26 +178,17 @@ public class TerminalSetupCommands {
         if ("gateway uninstall".equals(value) || value.startsWith("gateway uninstall ")) {
             return renderGatewayUninstall();
         }
-        if ("gateway migrate-legacy".equals(value) || value.startsWith("gateway migrate-legacy ")) {
-            return renderGatewayMigrateLegacy();
-        }
         if ("config".equals(value) || "config show".equals(value)) {
             return renderConfigShow();
         }
         if ("config path".equals(value)) {
             return renderConfigPath();
         }
-        if ("config env-path".equals(value)) {
-            return renderConfigEnvPath();
-        }
         if ("config edit".equals(value)) {
             return renderConfigEdit();
         }
         if ("config check".equals(value)) {
             return renderConfigCheck();
-        }
-        if ("config migrate".equals(value)) {
-            return renderConfigMigrate();
         }
         if (value.startsWith("config set ")) {
             return renderConfigSet(rawValue.substring("config set ".length()).trim());
@@ -227,9 +213,6 @@ public class TerminalSetupCommands {
         }
         if ("mcp".equals(value) || value.startsWith("mcp ")) {
             return renderMcpGuidance(rawValue);
-        }
-        if ("migrate".equals(value) || value.startsWith("migrate ")) {
-            return renderModelMigrationGuidance();
         }
         if ("send".equals(value) || value.startsWith("send ")) {
             return renderSendGuidance();
@@ -271,7 +254,7 @@ public class TerminalSetupCommands {
     }
 
     /**
-     * 判断是否为只在本地终端输出说明的兼容管理命令。
+     * 判断是否为只在本地终端输出说明的当前管理命令。
      *
      * @param value 去掉斜杠后的规范化命令文本。
      * @return 属于本地说明命令返回 true。
@@ -532,24 +515,6 @@ public class TerminalSetupCommands {
     }
 
     /**
-     * 渲染模型顶层参数命令，兼容用户从对标实现习惯输入的刷新模型列表入口。
-     *
-     * @param rawValue 用户输入的 model 命令。
-     * @return 模型参数命令输出。
-     */
-    private String renderModelOptions(String rawValue) {
-        List<String> tokens = shellTokens(rawValue);
-        if (tokens.contains("--refresh")) {
-            RuntimeConfigResolver resolver = configResolver();
-            resolver.reload();
-            return "模型列表刷新\n"
-                    + "runtime/config.yml 已重新读取；当前版本模型候选来自本地 provider 配置。\n"
-                    + renderModelSetup();
-        }
-        return renderModelSetup();
-    }
-
-    /**
      * 写入模型提供方配置，复用原始 runtime/config.yml 配置入口。
      *
      * @param rawValue 用户输入的完整 model set/configure 命令。
@@ -690,15 +655,6 @@ public class TerminalSetupCommands {
         return resolver.configFile().getPath();
     }
 
-    /** 渲染本项目配置入口说明，兼容用户从外部对标仓库习惯输入的 env-path 子命令。 */
-    private String renderConfigEnvPath() {
-        RuntimeConfigResolver resolver = configResolver();
-        return "runtime.config="
-                + resolver.configFile().getPath()
-                + "\n本项目使用 runtime/config.yml 作为本地配置入口。"
-                + "\n可使用：solonclaw config set <key> <value>";
-    }
-
     /** 渲染配置编辑引导，不在 CLI/TUI 自动拉起外部编辑器，避免阻塞本地终端流程。 */
     private String renderConfigEdit() {
         RuntimeConfigResolver resolver = configResolver();
@@ -738,20 +694,6 @@ public class TerminalSetupCommands {
                 + diagnostics.get("unknown_count")
                 + "\neffective_diff_count="
                 + diagnostics.get("effective_diff_count");
-    }
-
-    /** 渲染配置迁移结果，本项目当前以诊断为主，不引入旧式 .env 迁移流程。 */
-    private String renderConfigMigrate() {
-        Map<String, Object> diagnostics = configResolver().diagnostics(appConfig);
-        return "配置迁移\n"
-                + "runtime/config.yml 已按当前版本配置结构读取。\n"
-                + "has_issues="
-                + diagnostics.get("has_issues")
-                + "\nunknown_count="
-                + diagnostics.get("unknown_count")
-                + "\neffective_diff_count="
-                + diagnostics.get("effective_diff_count")
-                + "\nnext=solonclaw config check";
     }
 
     /** 渲染本地 doctor 自检摘要，覆盖初始化后最常见的配置问题。 */
@@ -1035,6 +977,9 @@ public class TerminalSetupCommands {
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return "不支持的 provider dialect：" + request.dialect;
         }
+        if (SecretValueGuard.isPlaceholderSecret(request.apiKey)) {
+            return "apiKey 不能使用示例或占位符密钥。";
+        }
         RuntimeConfigResolver resolver = configResolver();
         String prefix = "providers." + request.providerKey + ".";
         resolver.setFileValue(prefix + "name", request.providerName);
@@ -1250,14 +1195,6 @@ public class TerminalSetupCommands {
                 + "当前版本不提供 OpenAI 兼容 API Server，也不启动独立本地代理。\n"
                 + "本地 UI 可通过 SOLONCLAW_SERVER_URL=http://127.0.0.1:8080 连接已有服务。\n"
                 + "远程服务模式请直接配置后端地址，不通过本命令转发模型请求。";
-    }
-
-    /** 渲染模型迁移说明，只覆盖本项目保留协议范围。 */
-    private String renderModelMigrationGuidance() {
-        return "模型迁移\n"
-                + "当前保留协议：openai、openai-responses、ollama、gemini、anthropic。\n"
-                + "不执行特定海外提供方迁移向导；请用 solonclaw model set 重新写入 provider、baseUrl、model 与 dialect。\n"
-                + "迁移后运行：solonclaw config check && solonclaw doctor";
     }
 
     /** 渲染发送消息说明，引导用户使用内置 send_message 工具与 home channel。 */
@@ -1565,13 +1502,6 @@ public class TerminalSetupCommands {
         return "Gateway Uninstall\n"
                 + "当前版本没有独立后台服务单元需要卸载，也不会自动删除系统服务文件。\n"
                 + "如需停止服务，请结束启动该 jar 的进程或停止对应 Docker 容器。";
-    }
-
-    /** 渲染旧服务迁移说明，本项目不写入旧式服务单元。 */
-    private String renderGatewayMigrateLegacy() {
-        return "Gateway Migrate Legacy\n"
-                + "无需迁移旧式服务单元；本项目不创建旧式网关服务名或多 profile 服务单元。\n"
-                + "请确认实际运行方式为 java -jar 或 Docker，并用 solonclaw gateway status 查看配置。";
     }
 
     /**

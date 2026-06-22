@@ -5,31 +5,31 @@ import java.util.function.Function;
 
 /** 工具注册参数。 */
 public class ToolRegistration {
-    /** 记录工具Registration中的名称。 */
+    /** 工具唯一名称，会暴露给 Agent 工具调用协议。 */
     private final String name;
 
-    /** 记录工具Registration中的工具集。 */
+    /** 工具所属分组，用于 dashboard 或审计日志按能力域展示。 */
     private final String toolset;
 
-    /** 保存结构映射，便于按键快速查询。 */
+    /** 工具入参 schema，保持 Map 结构以兼容 Solon AI 工具描述。 */
     private final Map<String, Object> schema;
 
-    /** 保存handler映射，便于按键快速查询。 */
+    /** 工具执行函数，入参为模型传入的参数 Map，返回 JSON 或文本结果。 */
     private final Function<Map<String, Object>, String> handler;
 
-    /** 记录工具Registration中的描述。 */
+    /** 工具说明文本，给模型和管理界面理解工具用途。 */
     private String description = "";
 
-    /** 记录工具Registration中的emoji。 */
+    /** 可选展示图标，不参与工具协议逻辑。 */
     private String emoji = "";
 
     /**
-     * 创建工具Registration实例，并注入运行所需依赖。
+     * 创建工具注册信息。
      *
-     * @param name 名称参数。
-     * @param toolset 工具集参数。
-     * @param schema schema 参数。
-     * @param handler handler 参数。
+     * @param name 工具唯一名称。
+     * @param toolset 工具所属分组。
+     * @param schema 工具入参 schema。
+     * @param handler 工具执行函数。
      */
     public ToolRegistration(
             String name,
@@ -43,64 +43,63 @@ public class ToolRegistration {
     }
 
     /**
-     * 读取名称。
+     * 读取工具名称。
      *
-     * @return 返回读取到的名称。
+     * @return 工具唯一名称。
      */
     public String getName() {
         return name;
     }
 
     /**
-     * 读取Toolset。
+     * 读取工具所属分组。
      *
-     * @return 返回读取到的Toolset。
+     * @return 工具集名称。
      */
     public String getToolset() {
         return toolset;
     }
 
     /**
-     * 读取结构。
+     * 读取工具 schema。
      *
-     * @return 返回读取到的结构。
+     * @return 工具入参 schema。
      */
     public Map<String, Object> getSchema() {
         return schema;
     }
 
     /**
-     * 读取Handler。
+     * 读取工具执行函数。
      *
-     * @return 返回读取到的Handler。
+     * @return 工具执行函数。
      */
     public Function<Map<String, Object>, String> getHandler() {
         return handler;
     }
 
     /**
-     * 读取Description。
+     * 读取工具说明。
      *
-     * @return 返回读取到的Description。
+     * @return 模型和管理界面可见的工具说明。
      */
     public String getDescription() {
         return description;
     }
 
     /**
-     * 读取Emoji。
+     * 读取展示图标。
      *
-     * @return 返回读取到的Emoji。
+     * @return 可选展示图标。
      */
     public String getEmoji() {
         return emoji;
     }
 
     /**
-     * 执行description相关逻辑。
+     * 设置工具说明文本。
      *
-     * @param description 描述参数。
-     * @return 返回description结果。
+     * @return 当前注册对象，便于链式设置。
      */
     public ToolRegistration description(String description) {
         this.description = description;
@@ -108,10 +107,9 @@ public class ToolRegistration {
     }
 
     /**
-     * 执行emoji相关逻辑。
+     * 设置展示图标。
      *
-     * @param emoji emoji 参数。
-     * @return 返回emoji结果。
+     * @return 当前注册对象，便于链式设置。
      */
     public ToolRegistration emoji(String emoji) {
         this.emoji = emoji;

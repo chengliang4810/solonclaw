@@ -2,58 +2,61 @@ package com.jimuqu.solon.claw.gateway.feedback;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
+
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** 面向消息渠道的中间态反馈 sink。 */
+import java.util.Map;
+
+/** 把 Agent 推理和工具调用中间态转成消息渠道可读的进度反馈。 */
 public class GatewayConversationFeedbackSink implements ConversationFeedbackSink {
-    /** 日志的统一常量值。 */
+    /** 记录进度消息投递失败，避免中间态反馈影响主回复。 */
     private static final Logger log =
             LoggerFactory.getLogger(GatewayConversationFeedbackSink.class);
 
-    /** 记录消息网关对话反馈接收端中的消息。 */
+    /** 当前会话的原始入站消息，用于复用平台、chatId 和 threadId。 */
     private final GatewayMessage message;
 
-    /** 注入投递服务，用于调用对应业务能力。 */
+    /** 渠道投递服务，负责发送文本或钉钉进度卡。 */
     private final DeliveryService deliveryService;
 
-    /** 保存展示设置服务集合，维持调用顺序或去重语义。 */
+    /** 展示设置服务，控制进度可见性、节流和预览长度。 */
     private final DisplaySettingsService displaySettingsService;
 
-    /** 记录消息网关对话反馈接收端中的最近一次工具名称。 */
+    /** 上一次已处理的工具名，用于 new 模式下抑制重复提示。 */
     private String lastToolName;
 
-    /** 记录消息网关对话反馈接收端中的最近一次推理。 */
+    /** 上一次已发送的推理文本，用于去重。 */
     private String lastReasoning;
 
-    /** 记录消息网关对话反馈接收端中的最近一次推理时间。 */
+    /** 上一次推理文本发送时间，用于进度节流。 */
     private long lastReasoningAt;
 
-    /** 记录消息网关对话反馈接收端中的工具Started次数。 */
+    /** 本轮已启动的工具数量，用于最终进度摘要。 */
     private int toolStartedCount;
 
-    /** 记录消息网关对话反馈接收端中的工具Finished次数。 */
+    /** 本轮已完成回填的工具数量，用于最终进度摘要。 */
     private int toolFinishedCount;
 
-    /** 记录消息网关对话反馈接收端中的钉钉卡片Biz标识。 */
+    /** 钉钉进度卡业务标识，同一轮会话内用于更新同一张卡片。 */
     private String dingtalkCardBizId;
 
-    /** 是否启用钉钉卡片Sent。 */
+    /** 当前会话是否已经成功发送过钉钉进度卡。 */
     private boolean dingtalkCardSent;
 
     /**
-     * 创建消息网关对话Feedback接收端实例，并注入运行所需依赖。
+     * 创建面向单条网关消息的反馈接收器。
      *
-     * @param message 平台消息或错误消息。
+     * @param message 平台入站消息。
      * @param deliveryService 投递服务依赖。
-     * @param displaySettingsService 展示Settings服务依赖。
+     * @param displaySettingsService 展示设置服务依赖。
      */
     public GatewayConversationFeedbackSink(
             GatewayMessage message,
@@ -65,10 +68,10 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 响应工具Started事件。
+     * 在工具开始执行时按展示策略发送进度文本或钉钉卡片。
      *
      * @param toolName 工具名称。
-     * @param args 工具或命令参数。
+     * @param args 工具调用参数。
      */
     @Override
     public void onToolStarted(String toolName, Map<String, Object> args) {
@@ -104,11 +107,11 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 响应工具Finished事件。
+     * 记录工具完成数量，最终回复时用于汇总。
      *
      * @param toolName 工具名称。
      * @param result 结果响应或执行结果。
-     * @param durationMs durationMs 参数。
+     * @param durationMs 工具耗时毫秒数。
      */
     @Override
     public void onToolFinished(String toolName, String result, long durationMs) {
@@ -116,9 +119,9 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 响应推理事件。
+     * 按展示设置发送推理中间态，带去重和节流。
      *
-     * @param thought thought 参数。
+     * @param thought 模型推理或思考文本。
      */
     @Override
     public void onReasoning(String thought) {
@@ -128,7 +131,7 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         }
 
         String normalized = normalize(thought);
-        if (normalized.length() == 0 || StrUtil.equals(normalized, lastReasoning)) {
+        if (StrUtil.isEmpty(normalized) || StrUtil.equals(normalized, lastReasoning)) {
             return;
         }
 
@@ -149,9 +152,9 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 响应最终回复事件。
+     * 在最终回复时更新钉钉进度卡为完成态。
      *
-     * @param finalReply 最终回复参数。
+     * @param finalReply 本轮最终回复文本。
      */
     @Override
     public void onFinalReply(String finalReply) {
@@ -171,11 +174,11 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 构建工具Progress Text。
+     * 构建渠道文本版工具进度提示。
      *
      * @param toolName 工具名称。
-     * @param preview 预览参数。
-     * @return 返回创建好的工具Progress Text。
+     * @param preview 已脱敏的参数预览。
+     * @return 可直接发送到渠道的进度文本。
      */
     private String buildToolProgressText(String toolName, String preview) {
         if (StrUtil.isBlank(preview)) {
@@ -185,13 +188,13 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 发送钉钉Progress Card。
+     * 发送或更新钉钉进度卡，默认摘要显示已启动工具数。
      *
-     * @param status 状态参数。
+     * @param status 卡片展示的当前状态。
      * @param toolName 工具名称。
-     * @param preview 预览参数。
-     * @param updateOnly updateOnly 参数。
-     * @return 返回钉钉Progress Card结果。
+     * @param preview 已脱敏的参数预览。
+     * @param updateOnly 是否只更新既有卡片。
+     * @return 发送成功时返回 true。
      */
     private boolean sendDingtalkProgressCard(
             String status, String toolName, String preview, boolean updateOnly) {
@@ -200,14 +203,14 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 发送钉钉Progress Card。
+     * 发送或更新钉钉进度卡。
      *
-     * @param status 状态参数。
+     * @param status 卡片展示的当前状态。
      * @param toolName 工具名称。
-     * @param preview 预览参数。
-     * @param updateOnly updateOnly 参数。
-     * @param summary 摘要参数。
-     * @return 返回钉钉Progress Card结果。
+     * @param preview 已脱敏的参数预览。
+     * @param updateOnly 是否只更新既有卡片。
+     * @param summary 卡片摘要。
+     * @return 发送成功时返回 true。
      */
     private boolean sendDingtalkProgressCard(
             String status, String toolName, String preview, boolean updateOnly, String summary) {
@@ -243,7 +246,7 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 发送Text。
+     * 发送普通文本进度消息，失败只记录日志不打断主流程。
      *
      * @param text 待处理文本。
      */
@@ -266,9 +269,9 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 执行基础请求相关逻辑。
+     * 复制入站消息中的路由字段，构造中间态投递请求。
      *
-     * @return 返回base请求结果。
+     * @return 未设置正文的投递请求。
      */
     private DeliveryRequest baseRequest() {
         DeliveryRequest request = new DeliveryRequest();
@@ -281,9 +284,9 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 确保钉钉Card Biz标识。
+     * 生成并缓存钉钉进度卡业务标识，确保同一轮会话更新同一张卡。
      *
-     * @return 返回钉钉Card Biz标识。
+     * @return 当前会话的卡片业务标识。
      */
     private String ensureDingtalkCardBizId() {
         if (StrUtil.isBlank(dingtalkCardBizId)) {
@@ -301,24 +304,24 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     }
 
     /**
-     * 执行规范化相关逻辑。
+     * 将多行进度文本压成单行，避免中间态消息刷屏。
      *
      * @param text 待处理文本。
-     * @return 返回规范化结果。
+     * @return 单行文本。
      */
     private String normalize(String text) {
         return StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();
     }
 
     /**
-     * 执行truncate相关逻辑。
+     * 截断中间态文本，保留渠道消息的可读性。
      *
      * @param text 待处理文本。
-     * @param limit 最大返回数量。
-     * @return 返回truncate结果。
+     * @param limit 最大字符数。
+     * @return 不超过限制的文本，超出时追加省略号。
      */
     private String truncate(String text, int limit) {
-        if (text == null || text.length() <= limit) {
+        if (StrUtil.isEmpty(text) || text.length() <= limit) {
             return StrUtil.nullToEmpty(text);
         }
         return text.substring(0, Math.max(0, limit - 3)) + "...";
@@ -327,8 +330,8 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
     /**
      * 将异常转换为可展示且不泄漏敏感信息的错误文本。
      *
-     * @param error 错误参数。
-     * @return 返回safe Error结果。
+     * @param error 进度投递过程中捕获到的异常。
+     * @return 可写入日志的脱敏错误摘要。
      */
     private String safeError(Throwable error) {
         if (error == null) {

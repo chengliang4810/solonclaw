@@ -7,14 +7,29 @@ import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供Shutdown Forensics相关业务能力，封装调用方不需要感知的运行细节。 */
 public class ShutdownForensicsService {
+    /** 记录关闭取证持久化失败等诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(ShutdownForensicsService.class);
+
+    /** 关闭取证记录内的 ISO 时间格式，保持旧 yyyy-MM-dd'T'HH:mm:ss.SSSZ 输出。 */
+    private static final DateTimeFormatter SNAPSHOT_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+                    .withZone(ZoneId.systemDefault());
+
+    /** 关闭取证文件名时间格式，保持 shutdown-yyyyMMdd-HHmmss.json 命名。 */
+    private static final DateTimeFormatter FILE_NAME_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneId.systemDefault());
+
     /** 注入应用配置，用于关闭Forensics。 */
     private final AppConfig appConfig;
 
@@ -41,9 +56,7 @@ public class ShutdownForensicsService {
         Map<String, Object> snapshot = new LinkedHashMap<String, Object>();
         long now = System.currentTimeMillis();
         snapshot.put("timestamp", Long.valueOf(now));
-        snapshot.put(
-                "timestampIso",
-                new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date(now)));
+        snapshot.put("timestampIso", SNAPSHOT_TIME_FORMATTER.format(Instant.ofEpochMilli(now)));
         snapshot.put("reason", StrUtil.blankToDefault(reason, "unknown"));
         snapshot.put("uptimeMs", Long.valueOf(now - startedAt));
         snapshot.put("pid", getPid());
@@ -79,13 +92,12 @@ public class ShutdownForensicsService {
             File forensicsDir = new File(appConfig.getRuntime().getHome(), "forensics");
             FileUtil.mkdir(forensicsDir);
             String fileName =
-                    "shutdown-"
-                            + new SimpleDateFormat("yyyyMMdd-HHmmss").format(new Date())
-                            + ".json";
+                    "shutdown-" + FILE_NAME_TIME_FORMATTER.format(Instant.now()) + ".json";
             File file = new File(forensicsDir, fileName);
             FileUtil.writeString(ONode.serialize(snapshot), file, StandardCharsets.UTF_8);
             cleanOldRecords(forensicsDir, 20);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Failed to persist shutdown forensics record: {}", e.toString());
         }
     }
 

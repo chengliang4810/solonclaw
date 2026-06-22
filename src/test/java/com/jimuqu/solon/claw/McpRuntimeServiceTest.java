@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.sun.net.httpserver.HttpServer;
 import java.io.File;
@@ -33,6 +34,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -50,6 +52,11 @@ import org.noear.solon.ai.mcp.client.McpClientProperties;
 import org.noear.solon.ai.mcp.client.McpClientProvider;
 
 public class McpRuntimeServiceTest {
+    @AfterEach
+    void clearPolicyApprovals() {
+        SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+    }
+
     @Test
     void shouldExposeMcpRuntimePolicySummaryWithoutSecrets() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -165,13 +172,7 @@ public class McpRuntimeServiceTest {
         assertThat(provider).isNotNull();
         assertThat(provider.getTools())
                 .extracting(FunctionTool::name)
-                .contains(
-                        "mcp_local-docs_docs_search",
-                        "mcp_local-docs_docs_fetch",
-                        "mcp_local-docs_list_resources",
-                        "mcp_local-docs_read_resource",
-                        "mcp_local-docs_list_prompts",
-                        "mcp_local-docs_get_prompt");
+                .contains("mcp_local-docs_docs_search", "mcp_local-docs_docs_fetch");
     }
 
     @Test
@@ -203,7 +204,7 @@ public class McpRuntimeServiceTest {
     void shouldSanitizeMcpToolSchemasBeforeExposingThemToModel() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getMcp().setEnabled(true);
-        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        saveMcpServer(env.appConfig, env.sqliteDatabase, null, fullMcpCapabilities());
         SchemaEdgeMcpFactory factory = new SchemaEdgeMcpFactory();
         McpRuntimeService mcpRuntimeService =
                 new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
@@ -307,15 +308,11 @@ public class McpRuntimeServiceTest {
     }
 
     @Test
-    void shouldKeepLegacyMcpUtilityToolsWhenCapabilitiesAreUnknown() throws Exception {
+    void shouldNotAddMcpUtilityToolsWhenCapabilitiesAreUnknown() throws Exception {
         assertUtilityToolsForCapabilities(
                 null,
                 "mcp_local-docs_docs_search",
-                "mcp_local-docs_docs_fetch",
-                "mcp_local-docs_list_resources",
-                "mcp_local-docs_read_resource",
-                "mcp_local-docs_list_prompts",
-                "mcp_local-docs_get_prompt");
+                "mcp_local-docs_docs_fetch");
     }
 
     @Test
@@ -336,7 +333,7 @@ public class McpRuntimeServiceTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getMcp().setEnabled(true);
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        saveMcpServer(env.appConfig, env.sqliteDatabase, null, fullMcpCapabilities());
         FakeMcpFactory factory = new FakeMcpFactory();
         McpRuntimeService mcpRuntimeService =
                 new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
@@ -370,20 +367,20 @@ public class McpRuntimeServiceTest {
         assertThatThrownBy(() -> docsFetch.handle(unsafePath))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining(".env");
+                .hasMessageContaining(".env");
 
-        env.appConfig
-                .getTerminal()
-                .setWriteSafeRoot(new File(env.appConfig.getRuntime().getHome()).getAbsolutePath());
+        File workspace = new File(env.appConfig.getRuntime().getHome(), "workspace").getCanonicalFile();
+        File outsideFile =
+                new File(env.appConfig.getRuntime().getHome(), "../outside/generated.txt")
+                        .getCanonicalFile();
+        env.appConfig.getWorkspace().setDir(workspace.getAbsolutePath());
         Map<String, Object> unsafeOutputFile = new LinkedHashMap<String, Object>();
         unsafeOutputFile.put("action", "save");
-        unsafeOutputFile.put("output_file", "D:/outside/generated.txt");
+        unsafeOutputFile.put("output_file", outsideFile.getAbsolutePath());
         assertThatThrownBy(() -> docsFetch.handle(unsafeOutputFile))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("安全写入根")
-                .hasMessageContaining("D:/outside/generated.txt");
+                .hasMessageContaining(outsideFile.getAbsolutePath());
 
         Map<String, Object> nestedUnsafeUrl = new LinkedHashMap<String, Object>();
         Map<String, Object> metadata = new LinkedHashMap<String, Object>();
@@ -430,6 +427,8 @@ public class McpRuntimeServiceTest {
         String remote = String.valueOf(remoteTool.handle(Collections.<String, Object>emptyMap()));
         String resources =
                 String.valueOf(listResources.handle(Collections.<String, Object>emptyMap()));
+        SecurityPolicyService.approveUrlPolicyForCurrentThread(
+                "network_external_operation", "https://example.com/guide");
         String resource = String.valueOf(readResource.handle(resourceArgs));
         String prompts = String.valueOf(listPrompts.handle(Collections.<String, Object>emptyMap()));
         String prompt = String.valueOf(getPrompt.handle(promptArgs));
@@ -924,6 +923,8 @@ public class McpRuntimeServiceTest {
         sse.put("name", "SSE Docs");
         sse.put("transport", "SSE");
         sse.put("endpoint", "https://example.com/sse");
+        SecurityPolicyService.approveUrlPolicyForCurrentThread(
+                "network_external_operation", "https://example.com/sse");
         service.save(sse);
 
         assertThat(readMcpTransport(env.sqliteDatabase, "sse-docs")).isEqualTo("sse");
@@ -933,6 +934,8 @@ public class McpRuntimeServiceTest {
         hyphenated.put("name", "Stateless Docs");
         hyphenated.put("transport", "streamable-stateless");
         hyphenated.put("endpoint", "https://example.com/mcp");
+        SecurityPolicyService.approveUrlPolicyForCurrentThread(
+                "network_external_operation", "https://example.com/mcp");
         service.save(hyphenated);
 
         assertThat(readMcpTransport(env.sqliteDatabase, "stateless-docs"))
@@ -943,6 +946,8 @@ public class McpRuntimeServiceTest {
         httpAlias.put("name", "HTTP Docs");
         httpAlias.put("transport", "http");
         httpAlias.put("endpoint", "https://example.com/http-mcp");
+        SecurityPolicyService.approveUrlPolicyForCurrentThread(
+                "network_external_operation", "https://example.com/http-mcp");
         service.save(httpAlias);
 
         assertThat(readMcpTransport(env.sqliteDatabase, "http-docs")).isEqualTo("streamable");

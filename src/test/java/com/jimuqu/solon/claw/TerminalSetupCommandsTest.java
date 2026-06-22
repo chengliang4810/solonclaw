@@ -138,19 +138,14 @@ public class TerminalSetupCommandsTest {
     }
 
     @Test
-    void shouldRenderModelRefreshAsRuntimeRefreshGuidance() throws Exception {
+    void shouldRejectRemovedModelRefreshOption() throws Exception {
         TerminalSetupCommands commands =
                 commands(config(Files.createTempDirectory("solonclaw-model-refresh")));
 
         String text = commands.render("/model --refresh");
 
-        assertThat(commands.isSetupCommand("/model --refresh")).isTrue();
-        assertThat(text)
-                .contains("模型列表刷新")
-                .contains("runtime/config.yml")
-                .contains("active.provider=default")
-                .contains("/model pick")
-                .doesNotContain("未知 setup/config 命令");
+        assertThat(commands.isSetupCommand("/model --refresh")).isFalse();
+        assertThat(text).contains("未知 setup/config 命令").doesNotContain("模型列表刷新");
     }
 
     @Test
@@ -268,17 +263,15 @@ public class TerminalSetupCommandsTest {
     }
 
     @Test
-    void shouldRenderConfigEnvPathAsRuntimeConfigGuidance() throws Exception {
+    void shouldRejectRemovedConfigEnvPathCommand() throws Exception {
         Path runtimeHome = Files.createTempDirectory("solonclaw-config-env-path");
         TerminalSetupCommands commands = commands(config(runtimeHome));
 
         String text = commands.render("/config env-path");
 
         assertThat(text)
-                .contains("runtime.config=")
-                .contains(runtimeHome.resolve("config.yml").toString())
-                .contains("本项目使用 runtime/config.yml 作为本地配置入口")
-                .doesNotContain("未知 setup/config 命令");
+                .contains("未知 setup/config 命令")
+                .doesNotContain(runtimeHome.resolve("config.yml").toString());
     }
 
     @Test
@@ -296,18 +289,14 @@ public class TerminalSetupCommandsTest {
     }
 
     @Test
-    void shouldRenderConfigMigrateAsNoOpDiagnostics() throws Exception {
+    void shouldRejectRemovedConfigMigrateCommand() throws Exception {
         Path runtimeHome = Files.createTempDirectory("solonclaw-config-migrate");
         AppConfig config = config(runtimeHome);
         TerminalSetupCommands commands = commands(config);
 
         String text = commands.render("/config migrate");
 
-        assertThat(text)
-                .contains("配置迁移")
-                .contains("has_issues=false")
-                .contains("runtime/config.yml")
-                .doesNotContain("未知 setup/config 命令");
+        assertThat(text).contains("未知 setup/config 命令").doesNotContain("配置迁移");
     }
 
     @Test
@@ -459,7 +448,6 @@ public class TerminalSetupCommandsTest {
         String fallback = commands.render("/fallback list");
         String secrets = commands.render("/secrets bitwarden");
         String proxy = commands.render("/proxy status");
-        String migrate = commands.render("/migrate xai");
         String send = commands.render("/send feishu hello");
         String mcp = commands.render("/mcp list");
 
@@ -493,11 +481,8 @@ public class TerminalSetupCommandsTest {
                 .contains("本地代理")
                 .contains("不提供 OpenAI 兼容 API Server")
                 .doesNotContain("未知 setup/config 命令");
-        assertThat(migrate)
-                .contains("模型迁移")
-                .contains("当前保留协议")
-                .contains("openai")
-                .doesNotContain("未知 setup/config 命令");
+        assertThat(commands.isSetupCommand("/migrate xai")).isFalse();
+        assertThat(commands.render("/migrate xai")).contains("未知 setup/config 命令");
         assertThat(send)
                 .contains("发送消息")
                 .contains("send_message")
@@ -773,7 +758,6 @@ public class TerminalSetupCommandsTest {
         String restart = commands.render("/gateway restart");
         String install = commands.render("/gateway install --force");
         String uninstall = commands.render("/gateway uninstall");
-        String migrate = commands.render("/gateway migrate-legacy");
 
         assertThat(commands.isSetupCommand("/gateway status")).isTrue();
         assertThat(status)
@@ -811,10 +795,6 @@ public class TerminalSetupCommandsTest {
         assertThat(uninstall)
                 .contains("Gateway Uninstall")
                 .contains("没有独立后台服务单元需要卸载");
-        assertThat(migrate)
-                .contains("Gateway Migrate Legacy")
-                .contains("无需迁移旧式服务单元")
-                .doesNotContain("未知 setup/config 命令");
     }
 
     @Test

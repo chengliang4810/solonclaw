@@ -12,16 +12,16 @@ import org.noear.solon.annotation.Param;
 
 /** 内置图片生成、TTS 与语音转写工具。 */
 public class MediaSpeechTools {
-    /** 注入图片Generation服务，用于调用对应业务能力。 */
+    /** 图像生成服务，负责 Provider 选择、媒体缓存和用量记录。 */
     private final ImageGenerationService imageGenerationService;
 
-    /** 注入语音服务，用于调用对应业务能力。 */
+    /** 语音服务，负责 TTS 合成、独立语音转写和媒体用量记录。 */
     private final SpeechService speechService;
 
     /**
      * 创建媒体语音工具实例，并注入运行所需依赖。
      *
-     * @param imageGenerationService 图片Generation服务依赖。
+     * @param imageGenerationService 图像生成服务依赖。
      * @param speechService 语音服务依赖。
      */
     public MediaSpeechTools(
@@ -31,12 +31,12 @@ public class MediaSpeechTools {
     }
 
     /**
-     * 执行generate图片相关逻辑。
+     * 根据提示词生成图片，并返回缓存后的媒体引用。
      *
-     * @param prompt 提示词参数。
-     * @param aspectRatio aspectRatio 参数。
-     * @param optionsJson optionsJSON参数。
-     * @return 返回generate图片结果。
+     * @param prompt 图像生成提示词。
+     * @param aspectRatio 可选宽高比，例如 1:1。
+     * @param optionsJson 透传给图像 Provider 的 JSON 选项。
+     * @return JSON 文本，成功时包含 mediaReference、provider、mimeType 和 mediaUsage。
      */
     @ToolMapping(name = "image_generate", description = "Generate an image and save it as media.")
     public String generateImage(
@@ -62,12 +62,12 @@ public class MediaSpeechTools {
     }
 
     /**
-     * 执行文本To语音相关逻辑。
+     * 将文本合成为语音媒体，并返回缓存后的媒体引用。
      *
      * @param text 待处理文本。
-     * @param voice 语音参数。
-     * @param optionsJson optionsJSON参数。
-     * @return 返回text To语音结果。
+     * @param voice 可选语音名称。
+     * @param optionsJson 透传给语音 Provider 的 JSON 选项。
+     * @return JSON 文本，成功时包含 mediaReference、provider、mimeType 和 mediaUsage。
      */
     @ToolMapping(name = "text_to_speech", description = "Synthesize text to speech media.")
     public String textToSpeech(
@@ -89,12 +89,12 @@ public class MediaSpeechTools {
     }
 
     /**
-     * 执行transcribe语音相关逻辑。
+     * 转写缓存中的语音附件。
      *
-     * @param mediaReference 媒体引用参数。
+     * @param mediaReference media:// 形式的缓存媒体引用。
      * @param mimeType MIME 类型参数。
-     * @param optionsJson optionsJSON参数。
-     * @return 返回transcribe语音结果。
+     * @param optionsJson 透传给转写 Provider 的 JSON 选项。
+     * @return JSON 文本，成功时包含转写文本、provider 和 mediaUsage。
      */
     @ToolMapping(name = "speech_transcribe", description = "Transcribe a cached voice attachment.")
     public String transcribeSpeech(
@@ -123,15 +123,14 @@ public class MediaSpeechTools {
     }
 
     /**
-     * 执行基础相关逻辑。
+     * 构造媒体工具统一返回结构。
      *
-     * @param success success 参数。
      * @param error 错误参数。
-     * @return 返回base结果。
+     * @return 包含当前 status 字段的有序 Map；失败时附加 error。
      */
     private Map<String, Object> base(boolean success, String error) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("success", Boolean.valueOf(success));
+        result.put("status", success ? "success" : "error");
         if (!success) {
             result.put("error", error);
         }
@@ -139,14 +138,13 @@ public class MediaSpeechTools {
     }
 
     /**
-     * 解析Options。
+     * 解析 Provider 透传选项。
      *
-     * @param optionsJson optionsJSON参数。
-     * @return 返回解析后的Options。
+     * @return JSON 对象时返回可变 Map，其余情况返回空 Map。
      */
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseOptions(String optionsJson) {
-        if (optionsJson == null || optionsJson.trim().isEmpty()) {
+        if (StrUtil.isBlank(optionsJson)) {
             return new LinkedHashMap<String, Object>();
         }
         Object value = ONode.deserialize(optionsJson, Object.class);

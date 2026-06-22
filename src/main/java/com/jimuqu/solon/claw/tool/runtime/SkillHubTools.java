@@ -171,7 +171,7 @@ public class SkillHubTools {
                     java.util.Collections.singletonMap("message", skillHubService.removeTap(repo)));
         }
         return SecretRedactor.redact(
-                new ONode().set("success", false).set("error", "Unsupported tap action").toJson(),
+                new ONode().set("status", "error").set("error", "Unsupported tap action").toJson(),
                 1000);
     }
 

@@ -1084,9 +1084,9 @@ public class TerminalUiWebSocketListenerTest {
         cases.add(rpc("prompt.submit", "{\"session_id\":" + sid + ",\"text\":\"\"}"));
         cases.add(rpc("reload.env", "{}"));
         cases.add(rpc("reload.mcp", "{}"));
-        cases.add(rpc("rollback.diff", "{\"session_id\":" + sid + ",\"checkpoint_id\":\"cp\"}"));
+        cases.add(rpc("rollback.diff", "{\"session_id\":" + sid + ",\"hash\":\"cp\"}"));
         cases.add(rpc("rollback.list", "{\"session_id\":" + sid + "}"));
-        cases.add(rpc("rollback.restore", "{\"session_id\":" + sid + ",\"checkpoint_id\":\"cp\"}"));
+        cases.add(rpc("rollback.restore", "{\"session_id\":" + sid + ",\"hash\":\"cp\"}"));
         cases.add(rpc("secret.respond", "{\"value\":\"secret\"}"));
         cases.add(rpc("session.activate", "{\"session_id\":" + sid + "}"));
         cases.add(rpc("session.active_list", "{\"current_session_id\":" + sid + "}"));

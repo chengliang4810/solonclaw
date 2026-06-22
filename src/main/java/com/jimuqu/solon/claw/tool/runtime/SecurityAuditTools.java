@@ -12,7 +12,6 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -135,7 +134,7 @@ public class SecurityAuditTools {
             result = auditCommand(toolName, command);
         } else {
             result = new AuditResult(mode);
-            result.success = false;
+            result.status = "error";
             result.decision = "error";
             result.summary = "Unsupported security_audit action: " + StrUtil.nullToEmpty(action);
         }
@@ -152,7 +151,7 @@ public class SecurityAuditTools {
         String action = "status".equals(mode) ? "status" : "policy";
         AuditResult result = new AuditResult(action);
         if (appConfig == null) {
-            result.success = false;
+            result.status = "error";
             result.decision = "error";
             result.summary = "security policy config is unavailable";
             return result;
@@ -160,18 +159,15 @@ public class SecurityAuditTools {
 
         result.policy = new LinkedHashMap<String, Object>();
         Map<String, Object> approvals = new LinkedHashMap<String, Object>();
-        String approvalMode =
+        String guardrailMode = normalizeGuardrailMode(appConfig.getSecurity().getGuardrailMode());
+        String guardrailCronMode =
                 approvalService == null
-                        ? normalizeApprovalMode(appConfig.getApprovals().getMode())
-                        : approvalService.approvalMode();
-        String cronApprovalMode =
-                approvalService == null
-                        ? normalizeCronApprovalMode(fallbackCronApprovalMode())
-                        : approvalService.cronApprovalMode();
-        boolean smartMode = "smart".equals(approvalMode);
+                        ? normalizeCronApprovalMode(appConfig.getSecurity().getGuardrailCronMode())
+                        : approvalService.guardrailCronMode();
+        boolean smartMode = "smart".equals(guardrailMode);
         boolean smartJudgeConfigured =
                 approvalService != null && approvalService.hasSmartApprovalJudge();
-        approvals.put("mode", approvalMode);
+        approvals.put("guardrailMode", guardrailMode);
         approvals.put("smartMode", Boolean.valueOf(smartMode));
         approvals.put("smartJudgeConfigured", Boolean.valueOf(smartJudgeConfigured));
         approvals.put("smartApprovalActive", Boolean.valueOf(smartMode && smartJudgeConfigured));
@@ -179,8 +175,8 @@ public class SecurityAuditTools {
                 "smartCoversTirith",
                 Boolean.valueOf(
                         smartMode && smartJudgeConfigured && tirithSecurityService != null));
-        approvals.put("cronMode", cronApprovalMode);
-        approvals.put("cronAutoApprove", Boolean.valueOf("approve".equals(cronApprovalMode)));
+        approvals.put("guardrailCronMode", guardrailCronMode);
+        approvals.put("cronAutoApprove", Boolean.valueOf("approve".equals(guardrailCronMode)));
         approvals.put(
                 "subagentAutoApprove",
                 Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
@@ -284,9 +280,6 @@ public class SecurityAuditTools {
                 SolonClawShellSkill.sudoRewritePolicySummary(sudoPasswordConfigured));
         terminal.put(
                 "terminalOutputPolicy", SolonClawShellSkill.terminalOutputPolicySummary(appConfig));
-        terminal.put(
-                "writeSafeRootConfigured",
-                Boolean.valueOf(StrUtil.isNotBlank(appConfig.getTerminal().getWriteSafeRoot())));
         if (approvalService != null) {
             terminal.put(
                     "terminalGuardrailPolicy", approvalService.terminalGuardrailPolicySummary());
@@ -493,7 +486,7 @@ public class SecurityAuditTools {
                 SecretRedactor.redact(HtmlUtil.unescape(StrUtil.nullToEmpty(command).trim()), 400);
 
         if (StrUtil.isBlank(command)) {
-            result.success = false;
+            result.status = "error";
             result.decision = "error";
             result.summary = "command is required";
             return result;
@@ -668,11 +661,7 @@ public class SecurityAuditTools {
         if (StrUtil.isBlank(text)) {
             return "";
         }
-        String name = new File(text).getName();
-        if (StrUtil.isBlank(name)) {
-            name = "path";
-        }
-        return "path://" + SecretRedactor.redact(name, 200);
+        return "path://" + SecretRedactor.redact(text, 400);
     }
 
     /**
@@ -695,13 +684,13 @@ public class SecurityAuditTools {
                 if (parsed instanceof Map) {
                     args.putAll((Map<String, Object>) parsed);
                 } else {
-                    result.success = false;
+                    result.status = "error";
                     result.decision = "error";
                     result.summary = "argsJson must be a JSON object";
                     return result;
                 }
             } catch (Exception e) {
-                result.success = false;
+                result.status = "error";
                 result.decision = "error";
                 result.summary =
                         "argsJson parse failed: "
@@ -762,9 +751,46 @@ public class SecurityAuditTools {
      */
     private String filePolicyFindingMessage(SecurityPolicyService.FileVerdict fileVerdict) {
         if (fileVerdict == null) {
-            return "文件安全策略阻断：[REDACTED_PATH]";
+            return "文件安全策略阻断";
         }
-        return StrUtil.blankToDefault(fileVerdict.getMessage(), "文件安全策略阻断") + ": [REDACTED_PATH]";
+        String message = StrUtil.blankToDefault(fileVerdict.getMessage(), "文件安全策略阻断");
+        String rawPath = StrUtil.nullToEmpty(fileVerdict.getPath());
+        String path =
+                shouldRedactSensitivePathReference(rawPath)
+                        ? "[REDACTED_PATH]"
+                        : SecretRedactor.redact(rawPath, 400);
+        return StrUtil.isBlank(path) ? message : message + ": " + path;
+    }
+
+    /**
+     * 判断审计 finding 中的路径是否属于凭据载体；命中时只展示通用占位，避免泄露密钥文件位置。
+     *
+     * @param rawPath 文件或目录路径。
+     * @return 如果路径指向凭据或密钥文件返回 true。
+     */
+    private boolean shouldRedactSensitivePathReference(String rawPath) {
+        String path = StrUtil.nullToEmpty(rawPath).trim().toLowerCase(Locale.ROOT);
+        if (StrUtil.isBlank(path)) {
+            return false;
+        }
+        return ".env".equals(path)
+                || path.startsWith(".env.")
+                || path.contains("/.env")
+                || path.contains("\\.env")
+                || ".ssh".equals(path)
+                || path.contains("/.ssh")
+                || path.contains("\\.ssh")
+                || path.contains("credential")
+                || path.contains("secret")
+                || path.contains("token")
+                || path.contains("password")
+                || path.contains("passwd")
+                || path.contains("private-key")
+                || path.contains("private_key")
+                || path.contains("id_rsa")
+                || path.contains("id_ed25519")
+                || path.endsWith(".pem")
+                || path.endsWith(".key");
     }
 
     /**
@@ -952,21 +978,7 @@ public class SecurityAuditTools {
         String normalized =
                 StrUtil.blankToDefault(toolName, ToolNameConstants.EXECUTE_SHELL).trim();
         String lower = normalized.toLowerCase(Locale.ROOT);
-        if (ToolNameConstants.TERMINAL.equals(lower)
-                || "shell".equals(lower)
-                || "bash".equals(lower)
-                || "exec".equals(lower)
-                || "execute-shell".equals(lower)
-                || "exec_shell".equals(lower)
-                || "execute_shell_command".equals(lower)
-                || "exec_command".equals(lower)
-                || "run_shell".equals(lower)
-                || "run_command".equals(lower)
-                || "exec_cmd".equals(lower)
-                || "run_terminal".equals(lower)
-                || "terminal_run".equals(lower)
-                || "terminal_exec".equals(lower)
-                || "terminal_execute".equals(lower)) {
+        if (ToolNameConstants.TERMINAL.equals(lower)) {
             return ToolNameConstants.EXECUTE_SHELL;
         }
         return normalized;
@@ -1020,8 +1032,8 @@ public class SecurityAuditTools {
         /** 记录审计中的action。 */
         private final String action;
 
-        /** 是否启用success。 */
-        private boolean success = true;
+        /** 记录安全审计工具对外返回的当前执行状态。 */
+        private String status = "success";
 
         /** 记录审计中的决策。 */
         private String decision = "allow";
@@ -1152,7 +1164,7 @@ public class SecurityAuditTools {
          */
         private Map<String, Object> toMap() {
             Map<String, Object> map = new LinkedHashMap<String, Object>();
-            map.put("success", Boolean.valueOf(success));
+            map.put("status", status);
             map.put("action", SecretRedactor.redact(action, 200));
             map.put("decision", SecretRedactor.redact(decision, 100));
             map.put("blocking", Boolean.valueOf(blocking));
@@ -1252,18 +1264,16 @@ public class SecurityAuditTools {
      * @param value 待规范化或校验的原始值。
      * @return 返回审批模式结果。
      */
-    private static String normalizeApprovalMode(String value) {
-        String mode = StrUtil.blankToDefault(value, "on").trim().toLowerCase(Locale.ROOT);
-        if ("false".equals(mode)) {
-            return "off";
-        }
-        if ("true".equals(mode)) {
-            return "on";
-        }
-        if ("off".equals(mode) || "smart".equals(mode)) {
+    private static String normalizeGuardrailMode(String value) {
+        String mode = StrUtil.blankToDefault(value, "bypass").trim().toLowerCase(Locale.ROOT);
+        if ("bypass".equals(mode)
+                || "approval".equals(mode)
+                || "strict".equals(mode)
+                || "smart".equals(mode)) {
             return mode;
         }
-        return "on";
+        throw new IllegalStateException(
+                "security.guardrailMode 只支持 approval、strict、bypass、smart，当前值：" + value);
     }
 
     /**
@@ -1273,48 +1283,15 @@ public class SecurityAuditTools {
      * @return 返回定时任务审批模式结果。
      */
     private static String normalizeCronApprovalMode(String value) {
-        String mode = StrUtil.blankToDefault(value, "approval").trim().toLowerCase(Locale.ROOT);
-        if ("approve".equals(mode) || "allow".equals(mode) || "yes".equals(mode)) {
-            return "approve";
+        String mode = StrUtil.blankToDefault(value, "bypass").trim().toLowerCase(Locale.ROOT);
+        if ("approval".equals(mode)
+                || "strict".equals(mode)
+                || "bypass".equals(mode)
+                || "approve".equals(mode)) {
+            return mode;
         }
-        if ("bypass".equals(mode)
-                || "off".equals(mode)
-                || "none".equals(mode)
-                || "skip".equals(mode)
-                || "ignore".equals(mode)
-                || "permissive".equals(mode)
-                || "yolo".equals(mode)) {
-            return "bypass";
-        }
-        if ("strict".equals(mode)
-                || "block".equals(mode)
-                || "deny".equals(mode)
-                || "enforce".equals(mode)
-                || "false".equals(mode)) {
-            return "strict";
-        }
-        return "approval";
+        throw new IllegalStateException(
+                "security.guardrailCronMode 只支持 approval、strict、bypass、approve，当前值：" + value);
     }
 
-    /**
-     * 执行兜底定时任务审批模式相关逻辑。
-     *
-     * @return 返回兜底定时任务审批模式结果。
-     */
-    private String fallbackCronApprovalMode() {
-        if (appConfig == null) {
-            return "approval";
-        }
-        String mode =
-                appConfig.getSecurity() == null
-                        ? ""
-                        : appConfig.getSecurity().getGuardrailCronMode();
-        if (StrUtil.isBlank(mode) && appConfig.getApprovals() != null) {
-            mode = appConfig.getApprovals().getCronMode();
-        }
-        if (StrUtil.isBlank(mode) && appConfig.getScheduler() != null) {
-            mode = appConfig.getScheduler().getCronApprovalMode();
-        }
-        return mode;
-    }
 }

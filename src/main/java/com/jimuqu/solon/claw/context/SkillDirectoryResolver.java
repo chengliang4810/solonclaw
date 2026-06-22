@@ -4,14 +4,19 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /** 承载技能目录Resolver相关状态和辅助逻辑。 */
 public class SkillDirectoryResolver {
+    /** 技能目录解析器的低敏日志记录器。 */
+    private static final Logger LOG = Logger.getLogger(SkillDirectoryResolver.class.getName());
+
     /** 注入应用配置，用于技能目录Resolver。 */
     private final AppConfig appConfig;
 
@@ -259,7 +264,12 @@ public class SkillDirectoryResolver {
     private File canonicalOrAbsolute(File file) {
         try {
             return file.getCanonicalFile();
-        } catch (Exception ignored) {
+        } catch (IOException | SecurityException e) {
+            LOG.fine(
+                    "技能目录规范路径解析失败，已回退到绝对路径：file="
+                            + file.getName()
+                            + ", errorType="
+                            + e.getClass().getSimpleName());
             return file.getAbsoluteFile();
         }
     }

@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.support;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
@@ -286,24 +287,16 @@ public class TuiRuntimeProtocolService {
                 RuntimeProviderSetupSpec.provider(providerKey);
         String model = providerModel(providerKey, provider, template);
         List<String> models = new ArrayList<String>();
-        if (providerKey.equals(activeProviderKeyFromRuntime())
-                && StrUtil.isNotBlank(activeModelFromRuntime())) {
-            models.add(activeModelFromRuntime());
+        String runtimeModel = activeModelFromRuntime();
+        if (providerKey.equals(activeProviderKeyFromRuntime())) {
+            addModelOption(models, runtimeModel);
         }
-        if (StrUtil.isNotBlank(model)) {
-            if (!models.contains(model)) {
-                models.add(model);
-            }
-        }
+        addModelOption(models, model);
         String configuredDefaultModel = configuredProviderModel(provider);
-        if (StrUtil.isNotBlank(configuredDefaultModel) && !models.contains(configuredDefaultModel)) {
-            models.add(configuredDefaultModel);
-        }
+        addModelOption(models, configuredDefaultModel);
         if (template != null) {
             for (String candidate : template.getModels()) {
-                if (StrUtil.isNotBlank(candidate) && !models.contains(candidate)) {
-                    models.add(candidate);
-                }
+                addModelOption(models, candidate);
             }
         }
         Map<String, Object> item = new LinkedHashMap<String, Object>();
@@ -491,18 +484,16 @@ public class TuiRuntimeProtocolService {
 
     /** 判断渠道是否启用，优先读取 runtime/config.yml 覆盖值。 */
     private boolean channelEnabled(String channel, AppConfig.ChannelConfig config) {
-        String fileValue = configResolver().get("solonclaw.channels." + channel + ".enabled");
+        String fileValue = runtimeValue("solonclaw.channels." + channel + ".enabled");
         if (StrUtil.isNotBlank(fileValue)) {
-            return "true".equalsIgnoreCase(fileValue)
-                    || "1".equals(fileValue)
-                    || "yes".equalsIgnoreCase(fileValue);
+            return isTruthy(fileValue);
         }
         return config != null && config.isEnabled();
     }
 
     /** 读取渠道字段，优先读取 runtime/config.yml 覆盖值。 */
     private String channelFieldValue(String channel, AppConfig.ChannelConfig config, String key) {
-        String fileValue = configResolver().get("solonclaw.channels." + channel + "." + key);
+        String fileValue = runtimeValue("solonclaw.channels." + channel + "." + key);
         if (StrUtil.isNotBlank(fileValue)) {
             return fileValue;
         }
@@ -573,7 +564,7 @@ public class TuiRuntimeProtocolService {
     /** 返回 provider key 列表，包含启动配置与 runtime/config.yml 动态 provider。 */
     private List<String> providerKeys() {
         java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<String>();
-        if (appConfig.getProviders() != null) {
+        if (CollUtil.isNotEmpty(appConfig.getProviders())) {
             keys.addAll(appConfig.getProviders().keySet());
         }
         for (String key : configResolver().fileValues().keySet()) {
@@ -588,7 +579,7 @@ public class TuiRuntimeProtocolService {
         for (RuntimeProviderSetupSpec.ProviderTemplate template : RuntimeProviderSetupSpec.providers()) {
             keys.add(template.getSlug());
         }
-        if (keys.isEmpty()) {
+        if (CollUtil.isEmpty(keys)) {
             keys.add("default");
         }
         return new ArrayList<String>(keys);
@@ -629,8 +620,9 @@ public class TuiRuntimeProtocolService {
         StringBuilder current = new StringBuilder();
         boolean singleQuoted = false;
         boolean doubleQuoted = false;
-        for (int i = 0; i < StrUtil.nullToEmpty(input).length(); i++) {
-            char ch = input.charAt(i);
+        String safeInput = StrUtil.nullToEmpty(input);
+        for (int i = 0; i < safeInput.length(); i++) {
+            char ch = safeInput.charAt(i);
             if (ch == '\'' && !doubleQuoted) {
                 singleQuoted = !singleQuoted;
                 continue;
@@ -656,11 +648,11 @@ public class TuiRuntimeProtocolService {
 
     /** 读取运行时配置布尔值。 */
     private boolean readBoolean(String key, boolean defaultValue) {
-        String value = configResolver().get(key);
+        String value = runtimeValue(key);
         if (StrUtil.isBlank(value)) {
             return defaultValue;
         }
-        return "true".equalsIgnoreCase(value) || "1".equals(value) || "yes".equalsIgnoreCase(value);
+        return isTruthy(value);
     }
 
     /** 返回配置文件修改时间。 */
@@ -677,13 +669,13 @@ public class TuiRuntimeProtocolService {
 
     /** 返回运行时覆盖后的当前 provider key。 */
     private String activeProviderKeyFromRuntime() {
-        String value = configResolver().get("model.providerKey");
+        String value = runtimeValue("model.providerKey");
         return StrUtil.blankToDefault(value, activeProviderKey());
     }
 
     /** 返回运行时覆盖后的当前模型。 */
     private String activeModelFromRuntime() {
-        String value = configResolver().get("model.default");
+        String value = runtimeValue("model.default");
         return StrUtil.blankToDefault(value, activeModel(activeProvider()));
     }
 
@@ -703,7 +695,9 @@ public class TuiRuntimeProtocolService {
 
     /** 返回 provider 配置。 */
     private AppConfig.ProviderConfig provider(String providerKey) {
-        return appConfig.getProviders() == null ? null : appConfig.getProviders().get(providerKey);
+        return CollUtil.isEmpty(appConfig.getProviders())
+                ? null
+                : appConfig.getProviders().get(providerKey);
     }
 
     /** 返回 provider 展示名。 */
@@ -711,7 +705,7 @@ public class TuiRuntimeProtocolService {
             String providerKey,
             AppConfig.ProviderConfig provider,
             RuntimeProviderSetupSpec.ProviderTemplate template) {
-        String fileValue = configResolver().get("providers." + providerKey + ".name");
+        String fileValue = runtimeValue("providers." + providerKey + ".name");
         if (StrUtil.isNotBlank(fileValue)) {
             return fileValue;
         }
@@ -726,7 +720,7 @@ public class TuiRuntimeProtocolService {
             String providerKey,
             AppConfig.ProviderConfig provider,
             RuntimeProviderSetupSpec.ProviderTemplate template) {
-        String fileValue = configResolver().get("providers." + providerKey + ".baseUrl");
+        String fileValue = runtimeValue("providers." + providerKey + ".baseUrl");
         if (StrUtil.isNotBlank(fileValue)) {
             return fileValue;
         }
@@ -741,7 +735,7 @@ public class TuiRuntimeProtocolService {
             String providerKey,
             AppConfig.ProviderConfig provider,
             RuntimeProviderSetupSpec.ProviderTemplate template) {
-        String fileValue = configResolver().get("providers." + providerKey + ".defaultModel");
+        String fileValue = runtimeValue("providers." + providerKey + ".defaultModel");
         if (StrUtil.isNotBlank(fileValue)) {
             return fileValue;
         }
@@ -792,11 +786,47 @@ public class TuiRuntimeProtocolService {
 
     /** 判断 provider 是否已有可用凭据。 */
     private boolean providerConfigured(String providerKey, AppConfig.ProviderConfig provider) {
-        String fileValue = configResolver().get("providers." + providerKey + ".apiKey");
+        String fileValue = runtimeValue("providers." + providerKey + ".apiKey");
         if (SecretValueGuard.hasUsableSecret(fileValue)) {
             return true;
         }
         return provider != null && SecretValueGuard.hasUsableSecret(provider.getApiKey());
+    }
+
+    /**
+     * 向模型候选列表追加非空且未重复的模型名。
+     *
+     * @param models 前端模型候选列表。
+     * @param model 模型名候选。
+     */
+    private void addModelOption(List<String> models, String model) {
+        String normalized = StrUtil.nullToEmpty(model).trim();
+        if (StrUtil.isNotBlank(normalized) && !models.contains(normalized)) {
+            models.add(normalized);
+        }
+    }
+
+    /**
+     * 读取 runtime/config.yml 中的字符串覆盖值。
+     *
+     * @param key 扁平配置键。
+     * @return 配置值；不存在时由 RuntimeConfigResolver 返回空值。
+     */
+    private String runtimeValue(String key) {
+        return configResolver().get(key);
+    }
+
+    /**
+     * 按 runtime 配置约定解析布尔真值。
+     *
+     * @param value 原始配置值。
+     * @return true、1、yes 返回 true，其余返回 false。
+     */
+    private boolean isTruthy(String value) {
+        String normalized = StrUtil.nullToEmpty(value).trim();
+        return "true".equalsIgnoreCase(normalized)
+                || "1".equals(normalized)
+                || "yes".equalsIgnoreCase(normalized);
     }
 
     /** 模型选择请求。 */

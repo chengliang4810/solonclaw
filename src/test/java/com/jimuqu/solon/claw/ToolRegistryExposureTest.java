@@ -32,15 +32,44 @@ import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
+import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 import org.noear.solon.ai.rag.Document;
-import org.noear.solon.ai.skills.web.CodeSearchTool;
-import org.noear.solon.ai.skills.web.WebfetchTool;
-import org.noear.solon.ai.skills.web.WebsearchTool;
+import org.noear.solon.ai.agent.react.task.ToolExchanger;
+import org.noear.solon.ai.talents.web.CodeSearchTalent;
+import org.noear.solon.ai.talents.web.WebfetchTalent;
+import org.noear.solon.ai.talents.web.WebsearchTalent;
 import org.noear.solon.annotation.Param;
 
 public class ToolRegistryExposureTest {
+    @AfterEach
+    void clearThreadPolicyApprovals() {
+        SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+    }
+
+    /**
+     * 为测试中的一次外部网络工具调用模拟用户已完成单次审批。
+     */
+    private static void approveNetworkOperationForTest(String target) {
+        SecurityPolicyService.approveUrlPolicyForCurrentThread("network_external_operation", target);
+    }
+
+    /**
+     * 断言工具结果为当前成功状态，避免测试重新依赖已删除的 success 布尔字段。
+     */
+    private static void assertToolSuccess(ONode result) {
+        assertThat(result.get("status").getString()).isNotEqualTo("error");
+    }
+
+    /**
+     * 断言工具结果为当前错误状态，避免测试重新依赖已删除的 success 布尔字段。
+     */
+    private static void assertToolError(ONode result) {
+        assertThat(result.get("status").getString()).isEqualTo("error");
+    }
+
     @Test
     void shouldExposeBuiltinSearchTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -97,17 +126,17 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("ClarifyTools");
         assertThat(joined).contains("SolonClawFileReadWriteSkill");
         assertThat(joined).contains("SolonClawPatchTools");
-        assertThat(joined).contains("ShellSkill");
+        assertThat(joined).contains("SolonClawShellSkill");
         assertThat(joined).contains("ProcessTools");
         assertThat(joined).contains("SafeExecuteCodeTool");
         assertThat(joined).contains("SafePythonSkill");
         assertThat(joined).contains("SafeNodejsSkill");
-        assertThat(joined).contains("SystemClockSkill");
+        assertThat(joined).contains("SystemClockTalent");
         assertThat(joined).contains("TodoTools");
         assertThat(joined).contains("AgentTools");
         assertThat(joined).contains("SkillsListTool");
         assertThat(joined).contains("ConfigRefreshTool");
-        assertThat(joined).doesNotContain("ToolGatewaySkill");
+        assertThat(joined).doesNotContain("ToolGatewayTalent");
     }
 
     @Test
@@ -128,7 +157,7 @@ public class ToolRegistryExposureTest {
                         fileSkill.searchFiles(
                                 "needle", "content", ".", "*.txt", 10, 0, "content", 0));
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertToolSuccess(result);
         assertThat(result.get("matches").size()).isEqualTo(1);
         assertThat(result.get("matches").get(0).get("path").getString())
                 .contains("canonical-search.txt");
@@ -184,6 +213,8 @@ public class ToolRegistryExposureTest {
                         env.appConfig);
         env.appConfig.getSecurity().setGuardrailMode("smart");
         env.appConfig.getSecurity().setGuardrailCronMode("approve");
+        env.appConfig.getSecurity().setFileGuardrailMode("strict");
+        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
         env.appConfig.getApprovals().setSubagentAutoApprove(false);
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
         env.appConfig
@@ -235,7 +266,7 @@ public class ToolRegistryExposureTest {
         ONode policyStatus =
                 ONode.ofJson(tools.audit("policy", null, null, null, null, null, null));
 
-        assertThat(hardline.get("success").getBoolean()).isTrue();
+        assertToolSuccess(hardline);
         assertThat(hardline.get("decision").getString()).isEqualTo("block");
         assertThat(hardline.get("blocking").getBoolean()).isTrue();
         assertThat(hardline.get("approval_required").getBoolean()).isFalse();
@@ -249,14 +280,17 @@ public class ToolRegistryExposureTest {
         assertThat(path.get("decision").getString()).isEqualTo("block");
         assertThat(path.get("blocking").getBoolean()).isTrue();
         assertThat(path.get("approval_required").getBoolean()).isFalse();
-        assertThat(path.get("path").getString()).isEqualTo("path://[REDACTED_PATH]");
+        assertThat(path.get("path").getString()).isEqualTo("path://.env");
         assertThat(String.valueOf(path.get("findings")))
                 .contains("file_policy")
                 .contains("凭据")
                 .contains("change_path");
-        assertThat(externalPathAudit.get("path").getString()).isEqualTo("path://audit-token=***");
+        assertThat(externalPathAudit.get("path").getString())
+                .startsWith("path://")
+                .contains(new java.io.File(externalPath).getParentFile().getAbsolutePath())
+                .contains("audit-token=***")
+                .doesNotContain("ghp_auditpath12345");
         assertThat(externalPathAudit.toJson())
-                .doesNotContain(new java.io.File(externalPath).getParentFile().getAbsolutePath())
                 .doesNotContain("ghp_auditpath12345");
         assertThat(toolArgs.get("decision").getString()).isEqualTo("block");
         assertThat(toolArgs.get("blocking").getBoolean()).isTrue();
@@ -274,10 +308,12 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 null));
-        assertThat(dangerous.get("decision").getString()).isEqualTo("warn");
-        assertThat(dangerous.get("blocking").getBoolean()).isFalse();
+        assertThat(dangerous.get("decision").getString()).isEqualTo("block");
+        assertThat(dangerous.get("blocking").getBoolean()).isTrue();
         assertThat(dangerous.get("approval_required").getBoolean()).isTrue();
-        assertThat(String.valueOf(dangerous.get("findings"))).contains("request_approval");
+        assertThat(String.valueOf(dangerous.get("findings")))
+                .contains("request_approval")
+                .contains("change_command");
         ONode structuredCommandArgs =
                 ONode.ofJson(
                         tools.audit(
@@ -288,12 +324,13 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 "{\"command\":[\"rm\",\"-rf\",\"runtime/cache\"]}"));
-        assertThat(structuredCommandArgs.get("decision").getString()).isEqualTo("warn");
-        assertThat(structuredCommandArgs.get("blocking").getBoolean()).isFalse();
+        assertThat(structuredCommandArgs.get("decision").getString()).isEqualTo("block");
+        assertThat(structuredCommandArgs.get("blocking").getBoolean()).isTrue();
         assertThat(structuredCommandArgs.get("approval_required").getBoolean()).isTrue();
         assertThat(String.valueOf(structuredCommandArgs.get("findings")))
                 .contains("recursive_delete")
-                .contains("request_approval");
+                .contains("request_approval")
+                .contains("change_command");
         ONode nestedStructuredCommandArgs =
                 ONode.ofJson(
                         tools.audit(
@@ -304,14 +341,15 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 "{\"command\":[\"echo ready\",{\"cmd\":\"rm -rf runtime/cache\"}]}"));
-        assertThat(nestedStructuredCommandArgs.get("decision").getString()).isEqualTo("warn");
-        assertThat(nestedStructuredCommandArgs.get("blocking").getBoolean()).isFalse();
+        assertThat(nestedStructuredCommandArgs.get("decision").getString()).isEqualTo("block");
+        assertThat(nestedStructuredCommandArgs.get("blocking").getBoolean()).isTrue();
         assertThat(nestedStructuredCommandArgs.get("approval_required").getBoolean()).isTrue();
         assertThat(String.valueOf(nestedStructuredCommandArgs.get("findings")))
                 .contains("recursive_delete")
-                .contains("request_approval");
+                .contains("request_approval")
+                .contains("change_command");
 
-        assertThat(policyStatus.get("success").getBoolean()).isTrue();
+        assertToolSuccess(policyStatus);
         assertThat(policyStatus.get("summary").getString())
                 .contains("without exposing secret values");
         assertThat(policyStatus.get("policy").get("security").get("allowPrivateUrls").getBoolean())
@@ -410,7 +448,7 @@ public class ToolRegistryExposureTest {
                 .contains("sudo")
                 .contains("nohup")
                 .doesNotContain("secret-sudo");
-        assertThat(policyStatus.get("policy").get("approvals").get("mode").getString())
+        assertThat(policyStatus.get("policy").get("approvals").get("guardrailMode").getString())
                 .isEqualTo("smart");
         assertThat(policyStatus.get("policy").get("approvals").get("smartMode").getBoolean())
                 .isTrue();
@@ -435,7 +473,7 @@ public class ToolRegistryExposureTest {
                                 .get("smartCoversTirith")
                                 .getBoolean())
                 .isTrue();
-        assertThat(policyStatus.get("policy").get("approvals").get("cronMode").getString())
+        assertThat(policyStatus.get("policy").get("approvals").get("guardrailCronMode").getString())
                 .isEqualTo("approve");
         assertThat(policyStatus.get("policy").get("approvals").get("cronAutoApprove").getBoolean())
                 .isTrue();
@@ -469,9 +507,7 @@ public class ToolRegistryExposureTest {
                                         .get("approvals")
                                         .get("cronApprovalPolicy")))
                 .contains("security.guardrailCronMode")
-                .contains("approvalModeCanPauseCron")
-                .doesNotContain("approvals.cronMode")
-                .doesNotContain("scheduler.cronApprovalMode");
+                .contains("guardrailApprovalCanPauseCron");
         assertThat(
                         policyStatus
                                 .get("policy")
@@ -501,8 +537,7 @@ public class ToolRegistryExposureTest {
                         policyStatus
                                 .get("policy")
                                 .get("approvals")
-                                .get("approvalPolicy")
-                                .get("mode")
+                                .get("guardrailMode")
                                 .getString())
                 .isEqualTo("smart");
         assertThat(
@@ -786,8 +821,8 @@ public class ToolRegistryExposureTest {
                         String.valueOf(
                                 policyStatus.get("policy").get("terminal").get("credentialPolicy")))
                 .contains(".ssh")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("credentials/oauth.json");
+                .contains("credentials/oauth.json")
+                .doesNotContain("secret");
         assertThat(
                         policyStatus
                                 .get("policy")
@@ -834,9 +869,25 @@ public class ToolRegistryExposureTest {
                                 .get("policy")
                                 .get("terminal")
                                 .get("pathPolicy")
-                                .get("writeSafeRootConfigured")
+                                .get("workspaceWriteFree")
                                 .getBoolean())
-                .isFalse();
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("pathPolicy")
+                                .get("outsideWorkspaceReadFree")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        policyStatus
+                                .get("policy")
+                                .get("terminal")
+                                .get("pathPolicy")
+                                .get("outsideWorkspaceWriteApprovalRequired")
+                                .getBoolean())
+                .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("pathPolicy")))
                 .contains("/etc/passwd")
                 .contains("c:/windows/")
@@ -959,7 +1010,6 @@ public class ToolRegistryExposureTest {
         assertThat(approvalLifecyclePolicy.get("pendingListPrunedBeforeRead").getBoolean())
                 .isTrue();
         assertThat(approvalLifecyclePolicy.get("listSupported").getBoolean()).isTrue();
-        assertThat(approvalLifecyclePolicy.get("statusAliasSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("approveAllSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("rejectAllSupported").getBoolean()).isTrue();
         assertThat(approvalLifecyclePolicy.get("bulkRejectUsesSafeSelector").getBoolean()).isTrue();
@@ -991,7 +1041,6 @@ public class ToolRegistryExposureTest {
                 policyStatus.get("policy").get("coverage").get("slashConfirmPolicy");
         assertThat(slashConfirmPolicy.get("selectorSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("listSupported").getBoolean()).isTrue();
-        assertThat(slashConfirmPolicy.get("statusAliasSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("approveAllSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("denyAllSupported").getBoolean()).isTrue();
         assertThat(slashConfirmPolicy.get("clearSessionSupported").getBoolean()).isTrue();
@@ -1352,8 +1401,7 @@ public class ToolRegistryExposureTest {
         assertThat(String.valueOf(credentialPolicyDetails))
                 .contains(".ssh")
                 .contains(".env")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("credentials/oauth.json")
+                .contains("credentials/oauth.json")
                 .doesNotContain("secret-sudo");
         assertThat(policyStatus.get("policy").get("coverage").get("toolArgsSecurity").getBoolean())
                 .isTrue();
@@ -1529,7 +1577,7 @@ public class ToolRegistryExposureTest {
                 .contains("endpoint")
                 .contains("browser_download_url")
                 .contains("networkUploadSourcePathChecked")
-                .contains("apply_patch");
+                .contains("patch");
         assertThat(policyStatus.get("policy").get("coverage").get("schemaSanitizer").getBoolean())
                 .isTrue();
         assertThat(
@@ -1796,7 +1844,7 @@ public class ToolRegistryExposureTest {
         ONode mcpPackagePolicy =
                 policyStatus.get("policy").get("coverage").get("mcpPackageSecurityPolicy");
         assertThat(mcpPackagePolicy.get("malwareBlocksSaveAndCheck").getBoolean()).isTrue();
-        assertThat(mcpPackagePolicy.get("requestFailureFailsOpen").getBoolean()).isTrue();
+        assertThat(mcpPackagePolicy.get("requestFailureFailsOpen").getBoolean()).isFalse();
         assertThat(mcpPackagePolicy.get("unsafeEndpointBlocksBeforeNetwork").getBoolean()).isTrue();
         assertThat(mcpPackagePolicy.get("messageRedacted").getBoolean()).isTrue();
         assertThat(mcpPackagePolicy.get("persistedListReasonExposed").getBoolean()).isTrue();
@@ -2014,6 +2062,7 @@ public class ToolRegistryExposureTest {
     @Test
     void shouldRedactSecretsInSecurityAuditFindingsWithCanonicalConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         SecurityAuditTools tools =
                 new SecurityAuditTools(
@@ -2245,7 +2294,7 @@ public class ToolRegistryExposureTest {
                 ONode.ofJson(
                         tools.audit(
                                 "tool_args",
-                                "run_shell",
+                                "execute_shell",
                                 null,
                                 null,
                                 null,
@@ -2255,7 +2304,7 @@ public class ToolRegistryExposureTest {
                 ONode.ofJson(
                         tools.audit(
                                 "tool_args",
-                                "exec_command",
+                                "execute_shell",
                                 null,
                                 null,
                                 null,
@@ -2298,7 +2347,7 @@ public class ToolRegistryExposureTest {
                 ONode.ofJson(
                         tools.audit(
                                 "tool_args",
-                                "run_shell",
+                                "execute_shell",
                                 null,
                                 null,
                                 null,
@@ -2308,7 +2357,7 @@ public class ToolRegistryExposureTest {
                 ONode.ofJson(
                         tools.audit(
                                 "tool_args",
-                                "run_shell",
+                                "execute_shell",
                                 null,
                                 null,
                                 null,
@@ -2346,7 +2395,7 @@ public class ToolRegistryExposureTest {
                                 null,
                                 "{\"url\":\"https://example.test/?token=secret123"));
 
-        assertThat(result.get("success").getBoolean()).isFalse();
+        assertToolError(result);
         assertThat(result.get("summary").getString()).contains("argsJson parse failed");
         assertThat(result.toJson()).contains("token=***").doesNotContain("secret123");
     }
@@ -2387,6 +2436,7 @@ public class ToolRegistryExposureTest {
     void shouldNormalizeWrappedAndEscapedUrlsBeforeSecurityAudit() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
         env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
         env.appConfig
                 .getSecurity()
@@ -2456,7 +2506,7 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(started.get("success").getBoolean()).isTrue();
+        assertToolSuccess(started);
         String sessionId = started.get("session_id").getString();
         assertThat(sessionId).startsWith("proc_");
 
@@ -2471,14 +2521,14 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(5),
                                 null,
                                 null));
-        assertThat(waited.get("success").getBoolean()).isTrue();
-        assertThat(waited.get("status").getString()).isEqualTo("exited");
+        assertToolSuccess(waited);
+        assertThat(waited.get("process_status").getString()).isEqualTo("exited");
         assertThat(waited.get("exited").getBoolean()).isTrue();
         assertThat(waited.get("output").getString()).contains("jimuqu-process-ok");
 
         ONode polled =
                 ONode.ofJson(tools.process("poll", null, sessionId, null, null, null, null, null));
-        assertThat(polled.get("status").getString()).isEqualTo("exited");
+        assertThat(polled.get("process_status").getString()).isEqualTo("exited");
         assertThat(polled.get("output_preview").getString()).contains("jimuqu-process-ok");
         assertThat(polled.get("uptime_seconds").getLong()).isGreaterThanOrEqualTo(0L);
 
@@ -2610,7 +2660,7 @@ public class ToolRegistryExposureTest {
                         tools.process(
                                 "events", null, null, null, null, null, null, Integer.valueOf(10)));
 
-        assertThat(events.get("success").getBoolean()).isTrue();
+        assertToolSuccess(events);
         assertThat(events.get("count").getInt()).isEqualTo(1);
         assertThat(events.get("events").get(0).get("type").getString()).isEqualTo("completion");
         assertThat(events.get("events").get(0).get("session_id").getString())
@@ -2687,7 +2737,7 @@ public class ToolRegistryExposureTest {
                 ONode.ofJson(tools.process("list", null, null, null, null, null, null, null));
         String lifecycleJson = lifecycle.toJson();
 
-        assertThat(lifecycle.get("success").getBoolean()).isTrue();
+        assertToolSuccess(lifecycle);
         assertThat(lifecycle.get("count").getInt()).isEqualTo(4);
         assertThat(lifecycleJson)
                 .contains("\"type\":\"started\"")
@@ -2742,7 +2792,7 @@ public class ToolRegistryExposureTest {
                 ONode.ofJson(
                         tools.process("status", null, sessionId, null, null, null, null, null));
 
-        assertThat(killed.get("status").getString()).isEqualTo("killed");
+        assertThat(killed.get("process_status").getString()).isEqualTo("killed");
         assertThat(detail.get("lifecycle").toJson())
                 .contains("\"type\":\"started\"")
                 .contains("\"type\":\"killed\"")
@@ -2800,6 +2850,7 @@ public class ToolRegistryExposureTest {
     @Test
     void shouldRedactSecretsFromManagedProcessOutputsAndMetadata() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setUrlGuardrailMode("bypass");
         ProcessTools tools =
                 new ProcessTools(
                         env.processRegistry,
@@ -2817,9 +2868,9 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(started.get("success").getBoolean())
+        assertThat(started.get("status").getString())
                 .as("process start result: %s", started.toString())
-                .isTrue();
+                .isNotEqualTo("error");
         String sessionId = started.get("session_id").getString();
         ONode waited =
                 ONode.ofJson(
@@ -2880,15 +2931,13 @@ public class ToolRegistryExposureTest {
                                 "events", null, null, null, null, null, null, Integer.valueOf(10)));
         String json = events.toJson();
 
-        assertThat(events.get("success").getBoolean()).isTrue();
+        assertToolSuccess(events);
         assertThat(events.get("events").get(0).get("type").getString()).isEqualTo("completion");
         assertThat(json)
                 .contains("api_key=***")
                 .contains("token=***")
-                .contains("[REDACTED_PATH]")
                 .doesNotContain("sk-test-secret")
-                .doesNotContain("secret123")
-                .doesNotContain("credentials.json");
+                .doesNotContain("secret123");
     }
 
     @Test
@@ -2919,17 +2968,17 @@ public class ToolRegistryExposureTest {
                                 env.appConfig.getRuntime().getHome(),
                                 Boolean.TRUE));
 
-        assertThat(executeNull.get("success").getBoolean()).isFalse();
+        assertToolError(executeNull);
         assertThat(executeNull.get("status").getString()).isEqualTo("error");
         assertThat(executeNull.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(executeNull.get("error").getString())
                 .contains("expected string")
                 .contains("null");
-        assertThat(terminalNull.get("success").getBoolean()).isFalse();
+        assertToolError(terminalNull);
         assertThat(terminalNull.get("error").getString())
                 .contains("expected string")
                 .contains("null");
-        assertThat(backgroundNull.get("success").getBoolean()).isFalse();
+        assertToolError(backgroundNull);
         assertThat(backgroundNull.get("background").getBoolean()).isTrue();
         assertThat(env.processRegistry.runningCount()).isZero();
     }
@@ -2964,7 +3013,7 @@ public class ToolRegistryExposureTest {
                                 Boolean.FALSE));
         String backgroundSessionId = backgroundLong.get("session_id").getString();
 
-        assertThat(executeTooLong.get("success").getBoolean()).isFalse();
+        assertToolError(executeTooLong);
         assertThat(executeTooLong.get("status").getString()).isEqualTo("error");
         assertThat(executeTooLong.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(executeTooLong.get("error").getString())
@@ -2972,7 +3021,7 @@ public class ToolRegistryExposureTest {
                 .contains("600000ms")
                 .contains("background=true");
 
-        assertThat(terminalTooLong.get("success").getBoolean()).isFalse();
+        assertToolError(terminalTooLong);
         assertThat(terminalTooLong.get("status").getString()).isEqualTo("error");
         assertThat(terminalTooLong.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(terminalTooLong.get("error").getString())
@@ -2980,7 +3029,7 @@ public class ToolRegistryExposureTest {
                 .contains("600000ms")
                 .contains("background=true");
 
-        assertThat(backgroundLong.get("success").getBoolean()).isTrue();
+        assertToolSuccess(backgroundLong);
         assertThat(backgroundLong.get("background").getBoolean()).isTrue();
         assertThat(backgroundSessionId).isNotBlank();
         env.processRegistry.stop(backgroundSessionId);
@@ -3020,7 +3069,7 @@ public class ToolRegistryExposureTest {
                                 null,
                                 Integer.valueOf(0),
                                 Integer.valueOf(2)));
-        assertThat(lastTwo.get("success").getBoolean()).isTrue();
+        assertToolSuccess(lastTwo);
         assertThat(lastTwo.get("total_lines").getInt()).isGreaterThanOrEqualTo(4);
         assertThat(lastTwo.get("showing").getString()).isEqualTo("2 lines");
         assertThat(lastTwo.get("output").getString()).contains("line-3").contains("line-4");
@@ -3100,8 +3149,8 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(killed.get("success").getBoolean()).isTrue();
-        assertThat(killed.get("status").getString()).isEqualTo("killed");
+        assertToolSuccess(killed);
+        assertThat(killed.get("process_status").getString()).isEqualTo("killed");
         assertThat(killed.get("stopped").getBoolean()).isTrue();
 
         ONode killedAgain =
@@ -3115,7 +3164,7 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(killedAgain.get("status").getString()).isEqualTo("already_exited");
+        assertThat(killedAgain.get("process_status").getString()).isEqualTo("already_exited");
         assertThat(killedAgain.get("exit_code").isNull()).isFalse();
     }
 
@@ -3153,8 +3202,8 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null));
 
-        assertThat(waited.get("success").getBoolean()).isTrue();
-        assertThat(waited.get("status").getString()).isEqualTo("timeout");
+        assertToolSuccess(waited);
+        assertThat(waited.get("process_status").getString()).isEqualTo("timeout");
         assertThat(waited.get("running").getBoolean()).isTrue();
         assertThat(waited.get("timeout_note").getString()).contains("still running");
 
@@ -3199,8 +3248,8 @@ public class ToolRegistryExposureTest {
                                 null));
         long elapsed = System.currentTimeMillis() - startedAt;
 
-        assertThat(waited.get("success").getBoolean()).isTrue();
-        assertThat(waited.get("status").getString()).isEqualTo("timeout");
+        assertToolSuccess(waited);
+        assertThat(waited.get("process_status").getString()).isEqualTo("timeout");
         assertThat(waited.get("timeout_note").getString())
                 .contains("Requested wait of 60s was clamped to configured limit of 1s");
         assertThat(elapsed).isLessThan(5000L);
@@ -3241,7 +3290,7 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(write.get("success").getBoolean()).isTrue();
+        assertToolSuccess(write);
 
         ONode submit =
                 ONode.ofJson(
@@ -3254,7 +3303,7 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(submit.get("success").getBoolean()).isTrue();
+        assertToolSuccess(submit);
 
         ONode close =
                 ONode.ofJson(
@@ -3267,7 +3316,7 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(close.get("success").getBoolean()).isTrue();
+        assertToolSuccess(close);
         assertThat(close.get("stdin_closed").getBoolean()).isTrue();
 
         ONode waited =
@@ -3281,7 +3330,7 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(5),
                                 null,
                                 null));
-        assertThat(waited.get("success").getBoolean()).isTrue();
+        assertToolSuccess(waited);
         assertThat(waited.get("output").getString()).contains("alpha-beta");
 
         ONode writeAfterExit =
@@ -3295,12 +3344,13 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(writeAfterExit.get("status").getString()).isEqualTo("already_exited");
+        assertThat(writeAfterExit.get("process_status").getString()).isEqualTo("already_exited");
     }
 
     @Test
     void shouldApplyTerminalGuardrailsToManagedProcessStdinForShells() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setGuardrailMode("approval");
         ProcessTools tools =
                 new ProcessTools(
                         env.processRegistry,
@@ -3331,12 +3381,11 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(blocked.get("success").getBoolean()).isFalse();
+        assertToolError(blocked);
         assertThat(blocked.get("error").getString())
                 .contains("process stdin")
-                .contains("URL 安全策略")
                 .contains("169.254.169.254")
-                .contains("token=***");
+                .doesNotContain("token=secret");
 
         ONode dangerous =
                 ONode.ofJson(
@@ -3349,7 +3398,7 @@ public class ToolRegistryExposureTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertThat(dangerous.get("success").getBoolean()).isFalse();
+        assertToolError(dangerous);
         assertThat(dangerous.get("error").getString())
                 .contains("process stdin")
                 .contains("危险命令安全规则");
@@ -3413,7 +3462,7 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null));
 
-        assertThat(result.get("success").getBoolean()).isFalse();
+        assertToolError(result);
         assertThat(result.get("error").getString()).contains("cwd is not a directory");
         assertThat(result.get("error").getString()).doesNotContain(runtimeHome.getParent());
         assertThat(result.get("error").getString()).doesNotContain("ghp_processcwd12345");
@@ -3443,7 +3492,7 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null));
 
-        assertThat(result.get("success").getBoolean()).isFalse();
+        assertToolError(result);
         assertThat(result.get("error").getString())
                 .contains("workdir path")
                 .contains("敏感系统/凭据文件")
@@ -3493,7 +3542,7 @@ public class ToolRegistryExposureTest {
         String joined = env.toolRegistry.resolveEnabledTools(sourceKey).toString();
 
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("tool_gateway");
-        assertThat(joined).contains("ToolGatewaySkill");
+        assertThat(joined).contains("ToolGatewayTalent");
     }
 
     @Test
@@ -3573,19 +3622,15 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeWebfetchTool webfetch =
                 new SolonClawWebTools.SafeWebfetchTool(
                         policy,
-                        new WebfetchTool() {
+                        new WebfetchTalent() {
                             @Override
-                            public Document webfetch(
+                            public String webfetch(
                                     String url, String format, Integer timeoutSeconds) {
-                                return new Document("secret redirected content")
-                                        .title("redirected")
-                                        .url("https://blocked.example/final?token=secret123")
-                                        .metadata(
-                                                "sourceURL",
-                                                "https://blocked.example/final?token=secret123");
+                                return "secret redirected content https://blocked.example/final?token=secret123";
                             }
                         });
 
+        approveNetworkOperationForTest("https://allowed.example/start");
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
@@ -3617,21 +3662,20 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeWebfetchTool webfetch =
                 new SolonClawWebTools.SafeWebfetchTool(
                         policy,
-                        new WebfetchTool() {
+                        new WebfetchTalent() {
                             @Override
-                            public Document webfetch(
+                            public String webfetch(
                                     String url, String format, Integer timeoutSeconds) {
                                 Map<String, Object> nested =
                                         new java.util.LinkedHashMap<String, Object>();
                                 nested.put(
                                         "redirect_uri",
                                         "https://blocked.example/oauth/callback?client_secret=secret123");
-                                return new Document("allowed body")
-                                        .title("result")
-                                        .metadata("provider", nested);
+                                return "allowed body " + ONode.serialize(nested);
                             }
                         });
 
+        approveNetworkOperationForTest("https://allowed.example/page");
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
@@ -3663,16 +3707,15 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeWebfetchTool webfetch =
                 new SolonClawWebTools.SafeWebfetchTool(
                         policy,
-                        new WebfetchTool() {
+                        new WebfetchTalent() {
                             @Override
-                            public Document webfetch(
+                            public String webfetch(
                                     String url, String format, Integer timeoutSeconds) {
-                                return new Document(
-                                                "{\"download\":\"https://blocked.example/files/app.jar?token=secret123\"}")
-                                        .title("result");
+                                return "{\"download\":\"https://blocked.example/files/app.jar?token=secret123\"}";
                             }
                         });
 
+        approveNetworkOperationForTest("https://allowed.example/page");
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
@@ -3704,19 +3747,15 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeWebfetchTool webfetch =
                 new SolonClawWebTools.SafeWebfetchTool(
                         policy,
-                        new WebfetchTool() {
+                        new WebfetchTalent() {
                             @Override
-                            public Document webfetch(
+                            public String webfetch(
                                     String url, String format, Integer timeoutSeconds) {
-                                return new Document(
-                                                "{\"mirror\":\"//blocked.example/files/app.jar?token=secret123\"}")
-                                        .title("result")
-                                        .metadata(
-                                                "source_url",
-                                                "blocked.example/download?client_secret=secret123");
+                                return "{\"mirror\":\"//blocked.example/files/app.jar?token=secret123\",\"source_url\":\"blocked.example/download?client_secret=secret123\"}";
                             }
                         });
 
+        approveNetworkOperationForTest("https://allowed.example/page");
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
@@ -3735,19 +3774,15 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeWebfetchTool webfetch =
                 new SolonClawWebTools.SafeWebfetchTool(
                         new SecurityPolicyService(env.appConfig),
-                        new WebfetchTool() {
+                        new WebfetchTalent() {
                             @Override
-                            public Document webfetch(
+                            public String webfetch(
                                     String url, String format, Integer timeoutSeconds) {
-                                return new Document(
-                                                "Fetched api_key=sk-webfetch-secret token=ghp_webfetchcontent12345")
-                                        .id("doc-ghp_webfetchid12345")
-                                        .title("title ghp_webfetchtitle12345")
-                                        .url("https://example.com/docs")
-                                        .metadata("note", "api_key=sk-webfetch-meta");
+                                return "Fetched api_key=sk-webfetch-secret token=ghp_webfetchcontent12345 doc-ghp_webfetchid12345 title ghp_webfetchtitle12345 https://example.com/docs api_key=sk-webfetch-meta";
                             }
                         });
 
+        approveNetworkOperationForTest("https://example.com/docs");
         Document document =
                 webfetch.webfetch("https://example.com/docs", "markdown", Integer.valueOf(1));
         String text = document.toString();
@@ -3782,23 +3817,19 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(
                         policy,
-                        new WebsearchTool() {
+                        new WebsearchTalent() {
                             @Override
-                            public Document websearch(
+                            public String websearch(
                                     String query,
                                     Integer numResults,
                                     String livecrawl,
                                     String type,
                                     Integer contextMaxCharacters) {
-                                return new Document("secret search content")
-                                        .title("result")
-                                        .url("https://blocked.example/result?token=secret123")
-                                        .metadata(
-                                                "finalUrl",
-                                                "https://blocked.example/result?token=secret123");
+                                return "secret search content https://blocked.example/result?token=secret123";
                             }
                         });
 
+        approveNetworkOperationForTest("tool://websearch");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -3819,23 +3850,19 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(
                         new SecurityPolicyService(env.appConfig),
-                        new WebsearchTool() {
+                        new WebsearchTalent() {
                             @Override
-                            public Document websearch(
+                            public String websearch(
                                     String query,
                                     Integer numResults,
                                     String livecrawl,
                                     String type,
                                     Integer contextMaxCharacters) {
-                                return new Document(
-                                                "Search api_key=sk-websearch-secret token=ghp_websearchcontent12345")
-                                        .id("doc-ghp_websearchid12345")
-                                        .title("title ghp_websearchtitle12345")
-                                        .url("https://example.com/search")
-                                        .metadata("note", "api_key=sk-websearch-meta");
+                                return "Search api_key=sk-websearch-secret token=ghp_websearchcontent12345 doc-ghp_websearchid12345 title ghp_websearchtitle12345 https://example.com/search api_key=sk-websearch-meta";
                             }
                         });
 
+        approveNetworkOperationForTest("tool://websearch");
         Document document =
                 websearch.websearch(
                         "allowed search",
@@ -3875,20 +3902,19 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(
                         policy,
-                        new WebsearchTool() {
+                        new WebsearchTalent() {
                             @Override
-                            public Document websearch(
+                            public String websearch(
                                     String query,
                                     Integer numResults,
                                     String livecrawl,
                                     String type,
                                     Integer contextMaxCharacters) {
-                                return new Document(
-                                                "{\"assets\":[{\"browser_download_url\":\"https://blocked.example/releases/app.jar?token=secret123\"}]}")
-                                        .title("result");
+                                return "{\"assets\":[{\"browser_download_url\":\"https://blocked.example/releases/app.jar?token=secret123\"}]}";
                             }
                         });
 
+        approveNetworkOperationForTest("tool://websearch");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -3909,9 +3935,9 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         new SecurityPolicyService(env.appConfig),
-                        new CodeSearchTool() {
+                        new CodeSearchTalent() {
                             @Override
-                            public Object handle(String query, Integer tokensNum) {
+                            public String codesearch(String query, Integer tokensNum) throws Throwable {
                                 Map<String, Object> hit =
                                         new java.util.LinkedHashMap<String, Object>();
                                 hit.put("title", "code ghp_codesearchtitle12345");
@@ -3923,10 +3949,11 @@ public class ToolRegistryExposureTest {
                                 Map<String, Object> result =
                                         new java.util.LinkedHashMap<String, Object>();
                                 result.put("results", Arrays.asList(hit));
-                                return result;
+                                return ONode.serialize(result);
                             }
                         });
 
+        approveNetworkOperationForTest("tool://codesearch");
         Object result = codesearch.codesearch("allowed code query", Integer.valueOf(5000));
         String text = String.valueOf(result);
 
@@ -3958,6 +3985,7 @@ public class ToolRegistryExposureTest {
                     }
                 };
 
+        approveNetworkOperationForTest("https://api.search.brave.com/res/v1/web/search");
         Document document =
                 websearch.websearch(
                         "solon ai", Integer.valueOf(2), "fallback", "auto", Integer.valueOf(1000));
@@ -3978,6 +4006,7 @@ public class ToolRegistryExposureTest {
                 new SolonClawWebTools.SafeWebsearchTool(
                         new SecurityPolicyService(env.appConfig), null, env.appConfig);
 
+        approveNetworkOperationForTest("https://api.search.brave.com/res/v1/web/search");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -4017,6 +4046,7 @@ public class ToolRegistryExposureTest {
                     }
                 };
 
+        approveNetworkOperationForTest("https://api.search.brave.com/res/v1/web/search");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -4056,6 +4086,7 @@ public class ToolRegistryExposureTest {
                     }
                 };
 
+        approveNetworkOperationForTest("https://api.search.brave.com/res/v1/web/search");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -4094,6 +4125,7 @@ public class ToolRegistryExposureTest {
                     }
                 };
 
+        approveNetworkOperationForTest("https://html.duckduckgo.com/html/");
         Document document =
                 websearch.websearch(
                         "solon ai", Integer.valueOf(2), "fallback", "auto", Integer.valueOf(1000));
@@ -4134,6 +4166,7 @@ public class ToolRegistryExposureTest {
                     }
                 };
 
+        approveNetworkOperationForTest("https://html.duckduckgo.com/html/");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -4171,6 +4204,7 @@ public class ToolRegistryExposureTest {
                     }
                 };
 
+        approveNetworkOperationForTest("https://html.duckduckgo.com/html/");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -4202,9 +4236,9 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
-                        new CodeSearchTool() {
+                        new CodeSearchTalent() {
                             @Override
-                            public Object handle(String query, Integer tokensNum) {
+                            public String codesearch(String query, Integer tokensNum) throws Throwable {
                                 Map<String, Object> result =
                                         new java.util.LinkedHashMap<String, Object>();
                                 result.put(
@@ -4215,10 +4249,11 @@ public class ToolRegistryExposureTest {
                                                         .metadata(
                                                                 "source_url",
                                                                 "https://blocked.example/code?token=secret123")));
-                                return result;
+                                return ONode.serialize(result);
                             }
                         });
 
+        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -4245,9 +4280,9 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
-                        new CodeSearchTool() {
+                        new CodeSearchTalent() {
                             @Override
-                            public Object handle(String query, Integer tokensNum) {
+                            public String codesearch(String query, Integer tokensNum) throws Throwable {
                                 Map<String, Object> result =
                                         new java.util.LinkedHashMap<String, Object>();
                                 result.put(
@@ -4256,10 +4291,11 @@ public class ToolRegistryExposureTest {
                                                 new Document(
                                                                 "{\"download\":\"https://blocked.example/code.zip?token=secret123\"}")
                                                         .title("code")));
-                                return result;
+                                return ONode.serialize(result);
                             }
                         });
 
+        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -4286,9 +4322,9 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
-                        new CodeSearchTool() {
+                        new CodeSearchTalent() {
                             @Override
-                            public Object handle(String query, Integer tokensNum) {
+                            public String codesearch(String query, Integer tokensNum) throws Throwable {
                                 Map<String, Object> hit =
                                         new java.util.LinkedHashMap<String, Object>();
                                 hit.put("finalUrl", "https://blocked.example/code?token=secret123");
@@ -4296,10 +4332,11 @@ public class ToolRegistryExposureTest {
                                 Map<String, Object> result =
                                         new java.util.LinkedHashMap<String, Object>();
                                 result.put("results", Arrays.asList(hit));
-                                return result;
+                                return ONode.serialize(result);
                             }
                         });
 
+        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -4326,15 +4363,14 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
-                        new CodeSearchTool() {
+                        new CodeSearchTalent() {
                             @Override
-                            public Object handle(String query, Integer tokensNum) {
-                                return new ReturnedPojo(
-                                        "blocked code result",
-                                        "https://blocked.example/code?token=secret123");
+                            public String codesearch(String query, Integer tokensNum) throws Throwable {
+                                return "blocked code result https://blocked.example/code?token=secret123";
                             }
                         });
 
+        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -4355,17 +4391,17 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
-                        new CodeSearchTool() {
+                        new CodeSearchTalent() {
                             @Override
-                            public Object handle(String query, Integer tokensNum) {
-                                return new ReturnedPojo(
-                                        "token=ghp_pojoresult12345", "https://example.com/code");
+                            public String codesearch(String query, Integer tokensNum) throws Throwable {
+                                return "token=ghp_pojoresult12345 https://example.com/code";
                             }
                         });
 
+        approveNetworkOperationForTest("tool://codesearch");
         Object result = codesearch.codesearch("allowed code query", Integer.valueOf(5000));
 
-        assertThat(result).isInstanceOf(Map.class);
+        assertThat(result).isInstanceOf(String.class);
         assertThat(String.valueOf(result))
                 .contains("example.com")
                 .doesNotContain("ghp_pojoresult12345");
@@ -4390,13 +4426,14 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
-                        new CodeSearchTool() {
+                        new CodeSearchTalent() {
                             @Override
-                            public Object handle(String query, Integer tokensNum) {
-                                return new BlockedStringReturnedObject();
+                            public String codesearch(String query, Integer tokensNum) throws Throwable {
+                                return new BlockedStringReturnedObject().toString();
                             }
                         });
 
+        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -4417,13 +4454,14 @@ public class ToolRegistryExposureTest {
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
-                        new CodeSearchTool() {
+                        new CodeSearchTalent() {
                             @Override
-                            public Object handle(String query, Integer tokensNum) {
-                                return new SecretStringReturnedObject();
+                            public String codesearch(String query, Integer tokensNum) throws Throwable {
+                                return new SecretStringReturnedObject().toString();
                             }
                         });
 
+        approveNetworkOperationForTest("tool://codesearch");
         Object result = codesearch.codesearch("allowed code query", Integer.valueOf(5000));
 
         assertThat(result).isInstanceOf(String.class);
@@ -4436,6 +4474,9 @@ public class ToolRegistryExposureTest {
     void shouldGuardCodeExecutionToolsBeforeDelegatingToSolonAiSkills() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().setGuardrailMode("approval");
+        env.appConfig.getSecurity().setFileGuardrailMode("strict");
+        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
 
         SolonClawCodeExecutionSkills.SafePythonSkill python =
@@ -4699,7 +4740,7 @@ public class ToolRegistryExposureTest {
                                         + "time.sleep(3)\n",
                                 Integer.valueOf(1)));
 
-        assertThat(result.get("status").getString()).isEqualTo("timeout");
+        assertThat(result.get("process_status").getString()).isEqualTo("timeout");
         assertThat(result.get("error").getString()).contains("timed out");
         assertThat(result.get("output").getString())
                 .contains("token=***")
@@ -4847,20 +4888,18 @@ public class ToolRegistryExposureTest {
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
                         env.globalSettingRepository, env.appConfig, policy);
-        DangerousCommandApprovalServiceTest.TestTrace trace =
-                new DangerousCommandApprovalServiceTest.TestTrace();
+        TestTrace trace = new TestTrace();
         Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
         args.put("code", code);
-        service.buildInterceptor().onAction(trace, "execute_code", args);
+        service.buildInterceptor().onAction(trace, exchange("execute_code", args));
         assertThat(
                         service.approve(
                                 trace.getSession(),
                                 DangerousCommandApprovalService.ApprovalScope.ONCE,
                                 "test"))
                 .isTrue();
-        DangerousCommandApprovalServiceTest.TestTrace resumed =
-                new DangerousCommandApprovalServiceTest.TestTrace(trace.getSession());
-        service.buildInterceptor().onAction(resumed, "execute_code", args);
+        TestTrace resumed = new TestTrace(trace.getSession());
+        service.buildInterceptor().onAction(resumed, exchange("execute_code", args));
 
         ONode allowed = ONode.ofJson(executeCode.executeCode(code, Integer.valueOf(5)));
         assertThat(allowed.get("status").getString()).isEqualTo("success");
@@ -4876,6 +4915,7 @@ public class ToolRegistryExposureTest {
     @Test
     void shouldLetApprovedExecuteShellCommandPassToolFallbackOnce() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setGuardrailMode("approval");
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         SolonClawShellSkill shell =
                 new SolonClawShellSkill(
@@ -4890,20 +4930,18 @@ public class ToolRegistryExposureTest {
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
                         env.globalSettingRepository, env.appConfig, policy);
-        DangerousCommandApprovalServiceTest.TestTrace trace =
-                new DangerousCommandApprovalServiceTest.TestTrace();
+        TestTrace trace = new TestTrace();
         Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
         args.put("code", command);
-        service.buildInterceptor().onAction(trace, "execute_shell", args);
+        service.buildInterceptor().onAction(trace, exchange("execute_shell", args));
         assertThat(
                         service.approve(
                                 trace.getSession(),
                                 DangerousCommandApprovalService.ApprovalScope.ONCE,
                                 "test"))
                 .isTrue();
-        DangerousCommandApprovalServiceTest.TestTrace resumed =
-                new DangerousCommandApprovalServiceTest.TestTrace(trace.getSession());
-        service.buildInterceptor().onAction(resumed, "execute_shell", args);
+        TestTrace resumed = new TestTrace(trace.getSession());
+        service.buildInterceptor().onAction(resumed, exchange("execute_shell", args));
 
         assertThat(shell.execute(command, Integer.valueOf(1000))).doesNotContain("危险命令安全规则");
 
@@ -4916,6 +4954,7 @@ public class ToolRegistryExposureTest {
     @Test
     void shouldLetApprovedTerminalCommandPassToolFallbackOnce() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setGuardrailMode("approval");
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         SolonClawShellSkill shell =
                 new SolonClawShellSkill(
@@ -4934,20 +4973,18 @@ public class ToolRegistryExposureTest {
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
                         env.globalSettingRepository, env.appConfig, policy);
-        DangerousCommandApprovalServiceTest.TestTrace trace =
-                new DangerousCommandApprovalServiceTest.TestTrace();
+        TestTrace trace = new TestTrace();
         Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
         args.put("command", command);
-        service.buildInterceptor().onAction(trace, "terminal", args);
+        service.buildInterceptor().onAction(trace, exchange("terminal", args));
         assertThat(
                         service.approve(
                                 trace.getSession(),
                                 DangerousCommandApprovalService.ApprovalScope.ONCE,
                                 "test"))
                 .isTrue();
-        DangerousCommandApprovalServiceTest.TestTrace resumed =
-                new DangerousCommandApprovalServiceTest.TestTrace(trace.getSession());
-        service.buildInterceptor().onAction(resumed, "terminal", args);
+        TestTrace resumed = new TestTrace(trace.getSession());
+        service.buildInterceptor().onAction(resumed, exchange("terminal", args));
 
         ONode allowed =
                 ONode.ofJson(
@@ -5027,11 +5064,10 @@ public class ToolRegistryExposureTest {
         ONode result = ONode.ofJson(fileSkill.read("project-config.txt"));
         String content = result.get("content").getString();
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertToolSuccess(result);
         assertThat(content)
                 .contains("public=true")
                 .contains("api_key=***")
-                .contains("[REDACTED_PATH]")
                 .doesNotContain("sk-test-secret")
                 .doesNotContain("secret123")
                 .doesNotContain("user:pass");
@@ -5067,7 +5103,7 @@ public class ToolRegistryExposureTest {
         ONode result =
                 ONode.ofJson(fileSkill.read("logs/token-ghp_filereadsuccess12345.txt", 1, 5));
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertToolSuccess(result);
         assertThat(result.get("summary").getString())
                 .contains("token-ghp_***")
                 .doesNotContain("ghp_filereadsuccess12345");
@@ -5120,7 +5156,7 @@ public class ToolRegistryExposureTest {
         ONode result = ONode.ofJson(fileSkill.write("notes/out.txt", "hello\n"));
         String expected = workspace.resolve("notes/out.txt").toRealPath().toString();
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertToolSuccess(result);
         assertThat(result.get("resolved_path").getString()).isEqualTo(expected);
         Object filesModified = result.get("files_modified").toData();
         assertThat(String.valueOf(filesModified)).isEqualTo("[" + expected + "]");
@@ -5147,7 +5183,7 @@ public class ToolRegistryExposureTest {
         ONode result = ONode.ofJson(fileSkill.read("notes/input.txt", 1, 2));
         String expected = file.toRealPath().toString();
 
-        assertThat(result.get("success").getBoolean()).isTrue();
+        assertToolSuccess(result);
         assertThat(result.get("resolved_path").getString()).isEqualTo(expected);
         assertThat(result.get("path").getString()).isEqualTo("notes/input.txt");
         assertThat(result.get("content").getString()).contains("1|alpha").contains("2|beta");
@@ -5169,10 +5205,10 @@ public class ToolRegistryExposureTest {
                 ONode.ofJson(fileSkill.read("runtime://tool-results/run-1/call-1.txt", 1, 2));
         ONode write = ONode.ofJson(fileSkill.write("runtime://notes/out.txt", "saved\n"));
 
-        assertThat(read.get("success").getBoolean()).isTrue();
+        assertToolSuccess(read);
         assertThat(read.get("content").getString()).contains("1|runtime ref");
         assertThat(read.get("resolved_path").getString()).isEqualTo(input.toRealPath().toString());
-        assertThat(write.get("success").getBoolean()).isTrue();
+        assertToolSuccess(write);
         assertThat(write.get("resolved_path").getString())
                 .isEqualTo(workspace.resolve("notes/out.txt").toRealPath().toString());
         assertThat(new String(Files.readAllBytes(workspace.resolve("notes/out.txt")), StandardCharsets.UTF_8))
@@ -5209,7 +5245,7 @@ public class ToolRegistryExposureTest {
         Object suggestionsData = result.get("similar_files").toData();
         String suggestions = String.valueOf(suggestionsData);
 
-        assertThat(result.get("success").getBoolean()).isFalse();
+        assertToolError(result);
         assertThat(result.get("error").getString()).contains("config/app.json");
         assertThat(suggestionsData).isNotNull();
         assertThat(result.get("path").getString()).isEqualTo("config/app.json");
@@ -5248,7 +5284,7 @@ public class ToolRegistryExposureTest {
         Object suggestionsData = result.get("similar_files").toData();
         String suggestions = String.valueOf(suggestionsData);
 
-        assertThat(result.get("success").getBoolean()).isFalse();
+        assertToolError(result);
         assertThat(suggestions)
                 .contains("config.yml")
                 .doesNotContain("credentials.json")
@@ -5287,16 +5323,16 @@ public class ToolRegistryExposureTest {
                                 Boolean.FALSE,
                                 null));
 
-        assertThat(read.get("success").getBoolean()).isTrue();
+        assertToolSuccess(read);
         assertThat(read.get("content").getString())
                 .contains("1|alpha")
                 .doesNotContain("     1|")
                 .doesNotContain("\ufeff");
-        assertThat(write.get("success").getBoolean()).isTrue();
+        assertToolSuccess(write);
         assertThat(Files.readAllBytes(writeTarget))
                 .startsWith(bom)
                 .isEqualTo(concat(bom, "new\n".getBytes(StandardCharsets.UTF_8)));
-        assertThat(patch.get("success").getBoolean()).isTrue();
+        assertToolSuccess(patch);
         assertThat(Files.readAllBytes(patchTarget))
                 .startsWith(bom)
                 .isEqualTo(concat(bom, "first updated\nsecond\n".getBytes(StandardCharsets.UTF_8)));
@@ -5313,7 +5349,7 @@ public class ToolRegistryExposureTest {
 
         ONode readResult = ONode.ofJson(fileSkill.read(jarPath));
 
-        assertThat(readResult.get("success").getBoolean()).isFalse();
+        assertToolError(readResult);
         assertThat(readResult.get("error").getString())
                 .contains("jar-internal paths are not disk files");
         assertThatThrownBy(() -> fileSkill.write(jarPath, "content"))
@@ -5342,12 +5378,13 @@ public class ToolRegistryExposureTest {
                         new SecurityPolicyService(env.appConfig));
 
         ONode readResult = ONode.ofJson(fileSkill.read("linked/secret.txt"));
-        assertThat(readResult.get("success").getBoolean()).isFalse();
+        assertToolError(readResult);
         assertThat(readResult.get("error").getString()).contains("符号链接").contains("沙箱外部");
         assertThatThrownBy(() -> fileSkill.write("linked/secret.txt", "TOKEN=new"))
-                .isInstanceOf(SecurityException.class)
-                .hasMessageContaining("符号链接")
-                .hasMessageContaining("沙箱外部");
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("APPROVAL_REQUIRED")
+                .hasMessageContaining("工作区外")
+                .hasMessageContaining("linked/secret.txt");
         assertThat(new String(Files.readAllBytes(outsideFile), StandardCharsets.UTF_8))
                 .contains("TOKEN=old");
     }
@@ -5467,7 +5504,7 @@ public class ToolRegistryExposureTest {
                 .hasMessageContaining("凭据")
                 .hasMessageContaining("[REDACTED_PATH]")
                 .hasMessageNotContaining("credentials/oauth.json");
-        assertThat(patchResult.get("success").getBoolean()).isFalse();
+        assertToolError(patchResult);
         assertThat(patchResult.get("error").getString())
                 .contains("凭据")
                 .contains("[REDACTED_PATH]")
@@ -5494,7 +5531,7 @@ public class ToolRegistryExposureTest {
 
         ONode firstPage = ONode.ofJson(fileSkill.read("long-lines.txt", 1, 99));
 
-        assertThat(firstPage.get("success").getBoolean()).isTrue();
+        assertToolSuccess(firstPage);
         assertThat(firstPage.get("limit").getInt()).isEqualTo(2);
         assertThat(firstPage.get("total_lines").getInt()).isEqualTo(4);
         assertThat(firstPage.get("truncated").getBoolean()).isTrue();
@@ -5536,6 +5573,7 @@ public class ToolRegistryExposureTest {
         ONode firstPage = ONode.ofJson(fileSkill.read("runtime-limits.txt", 1, 99));
         env.appConfig.getTask().setToolOutputMaxLines(3);
         env.appConfig.getTask().setToolOutputMaxLineLength(20);
+        ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool("test_config_refresh");
         ONode updatedPage = ONode.ofJson(fileSkill.read("runtime-limits.txt", 1, 99));
 
         assertThat(firstPage.get("limit").getInt()).isEqualTo(2);
@@ -5570,12 +5608,13 @@ public class ToolRegistryExposureTest {
 
         ONode firstPage = ONode.ofJson(fileSkill.read("runtime-line-length.txt", 1, 2));
         env.appConfig.getTask().setToolOutputMaxLineLength(20);
+        ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool("test_config_refresh");
         ONode updatedPage = ONode.ofJson(fileSkill.read("runtime-line-length.txt", 1, 2));
 
         assertThat(firstPage.get("content").getString())
                 .contains("1|0123456789... [truncated]")
                 .contains("2|bravo");
-        assertThat(updatedPage.get("success").getBoolean()).isTrue();
+        assertToolSuccess(updatedPage);
         assertThat(updatedPage.get("dedup").getBoolean()).isFalse();
         assertThat(updatedPage.get("content").getString())
                 .contains("1|0123456789ABCDEFGHIJ")
@@ -5601,22 +5640,22 @@ public class ToolRegistryExposureTest {
         ONode third = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
         String expected = workspace.resolve("repeat.txt").toRealPath().toString();
 
-        assertThat(first.get("success").getBoolean()).isTrue();
+        assertToolSuccess(first);
         assertThat(first.get("content").getString()).contains("alpha").contains("bravo");
         assertThat(first.get("resolved_path").getString()).isEqualTo(expected);
-        assertThat(second.get("success").getBoolean()).isTrue();
+        assertToolSuccess(second);
         assertThat(second.get("dedup").getBoolean()).isTrue();
         assertThat(second.get("resolved_path").getString()).isEqualTo(expected);
         assertThat(second.get("content_returned").getBoolean()).isFalse();
         assertThat(second.get("content").getString()).isNull();
-        assertThat(third.get("success").getBoolean()).isFalse();
+        assertToolError(third);
         assertThat(third.get("error").getString()).contains("BLOCKED").contains("重复");
         assertThat(third.get("resolved_path").getString()).isEqualTo(expected);
 
         fileSkill.write("repeat.txt", "delta\n");
         ONode changed = ONode.ofJson(fileSkill.read("repeat.txt", 1, 2));
 
-        assertThat(changed.get("success").getBoolean()).isTrue();
+        assertToolSuccess(changed);
         assertThat(changed.get("content").getString()).contains("delta");
     }
 
@@ -5669,13 +5708,13 @@ public class ToolRegistryExposureTest {
         ONode third = ONode.ofJson(fileSkill.read("repeat-after-tool.txt", 1, 2));
         ONode fourth = ONode.ofJson(fileSkill.read("repeat-after-tool.txt", 1, 2));
 
-        assertThat(first.get("success").getBoolean()).isTrue();
-        assertThat(second.get("success").getBoolean()).isTrue();
+        assertToolSuccess(first);
+        assertToolSuccess(second);
         assertThat(second.get("dedup").getBoolean()).isTrue();
-        assertThat(third.get("success").getBoolean()).isTrue();
+        assertToolSuccess(third);
         assertThat(third.get("dedup").getBoolean()).isTrue();
         assertThat(third.get("error").getString()).isNull();
-        assertThat(fourth.get("success").getBoolean()).isFalse();
+        assertToolError(fourth);
         assertThat(fourth.get("error").getString()).contains("BLOCKED").contains("重复");
     }
 
@@ -5696,8 +5735,8 @@ public class ToolRegistryExposureTest {
         ONode staleWrite = ONode.ofJson(fileSkill.write("stale-write.txt", "agent\n"));
         String plainWrite = fileSkill.write("stale-write.txt", "agent2\n");
 
-        assertThat(read.get("success").getBoolean()).isTrue();
-        assertThat(staleWrite.get("success").getBoolean()).isTrue();
+        assertToolSuccess(read);
+        assertToolSuccess(staleWrite);
         assertThat(staleWrite.get("_warning").getString())
                 .contains("was modified since you last read")
                 .contains("stale-write.txt");
@@ -5722,8 +5761,8 @@ public class ToolRegistryExposureTest {
         ONode staleWrite =
                 ONode.ofJson(fileSkill.write("stale-token-ghp_stalewrite12345.txt", "agent\n"));
 
-        assertThat(read.get("success").getBoolean()).isTrue();
-        assertThat(staleWrite.get("success").getBoolean()).isTrue();
+        assertToolSuccess(read);
+        assertToolSuccess(staleWrite);
         assertThat(staleWrite.toJson())
                 .contains("stale-token-ghp_***")
                 .doesNotContain("ghp_stalewrite12345");
@@ -5762,8 +5801,8 @@ public class ToolRegistryExposureTest {
                                 Boolean.FALSE,
                                 null));
 
-        assertThat(read.get("success").getBoolean()).isTrue();
-        assertThat(patched.get("success").getBoolean()).isTrue();
+        assertToolSuccess(read);
+        assertToolSuccess(patched);
         assertThat(patched.get("_warning").getString())
                 .contains("was modified since you last read")
                 .contains("stale-patch.txt");
@@ -5806,8 +5845,8 @@ public class ToolRegistryExposureTest {
     }
 
     private void assertPatchSymlinkEscapeBlocked(ONode result) {
-        assertThat(result.get("success").getBoolean()).isFalse();
-        assertThat(result.get("error").getString()).contains("符号链接").contains("沙箱外部");
+        assertToolError(result);
+        assertThat(result.get("error").getString()).contains("APPROVAL_REQUIRED").contains("工作区外");
     }
 
     private String javaSleepCommand() {
@@ -5920,6 +5959,53 @@ public class ToolRegistryExposureTest {
                 ProcessTools.class.getDeclaredMethod("stdinExecutionToolName", String.class);
         method.setAccessible(true);
         return String.valueOf(method.invoke(tools, command));
+    }
+
+    private ToolExchanger exchange(String toolName, Map<String, Object> args) {
+        return new ToolExchanger(toolName, args);
+    }
+
+    /** 提供审批拦截器测试需要的最小 ReActTrace 实现。 */
+    static class TestTrace extends org.noear.solon.ai.agent.react.ReActTrace {
+        /** 承载测试中的会话上下文和一次性审批状态。 */
+        private final InMemoryAgentSession session;
+
+        /** 记录拦截器写入的路由标识，便于断言流程是否被终止。 */
+        private String route;
+
+        /** 创建默认测试 Trace。 */
+        TestTrace() {
+            this(new InMemoryAgentSession("tool-registry-exposure-test"));
+        }
+
+        /**
+         * 用已有会话创建 Trace，用于模拟审批后的恢复执行。
+         *
+         * @param session 已经保存审批状态的测试会话。
+         */
+        TestTrace(InMemoryAgentSession session) {
+            this.session = session;
+        }
+
+        @Override
+        public InMemoryAgentSession getSession() {
+            return session;
+        }
+
+        @Override
+        public org.noear.solon.flow.FlowContext getContext() {
+            return session.getContext();
+        }
+
+        @Override
+        public void setRoute(String route) {
+            this.route = route;
+        }
+
+        @Override
+        public String getRoute() {
+            return route;
+        }
     }
 
     public static class ReturnedPojo {

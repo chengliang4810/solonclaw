@@ -418,8 +418,11 @@ public class PluginConfiguration implements PluginRegistrationSink {
                 if (value != null) {
                     result.add(String.valueOf(value));
                 }
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                log.debug(
+                        "内置工具常量读取失败，跳过当前字段 field={}, error={}",
+                        field.getName(),
+                        e.getClass().getSimpleName());
             }
         }
         return result;

@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.mcp;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import java.time.Duration;
 import java.util.Map;
@@ -9,7 +10,7 @@ import reactor.core.publisher.Mono;
 
 /** 创建Solon Ai MCP Client提供方相关实例，统一封装构造参数与默认策略。 */
 public class SolonAiMcpClientProviderFactory implements McpClientProviderFactory {
-    /** 注入运行时服务，用于调用对应业务能力。 */
+    /** MCP 运行时服务，用于在 Solon AI 通知工具变化时持久化最新工具清单。 */
     private final McpRuntimeService runtimeService;
 
     /**
@@ -22,10 +23,10 @@ public class SolonAiMcpClientProviderFactory implements McpClientProviderFactory
     }
 
     /**
-     * 执行create，服务于SolonAiMCPClient提供方主流程相关逻辑。
+     * 根据本项目 MCP 服务端配置创建 Solon AI 的 McpClientProvider。
      *
-     * @param config 当前模块使用的配置对象。
-     * @return 返回create结果。
+     * @param config 已完成默认值补齐和安全策略校验的 MCP 服务端配置。
+     * @return 可交给 Solon AI 工具链注册的 MCP 客户端提供方。
      */
     @Override
     public McpClientProvider create(final McpRuntimeService.McpServerConfig config) {
@@ -50,7 +51,7 @@ public class SolonAiMcpClientProviderFactory implements McpClientProviderFactory
         } else {
             builder.url(config.getEndpoint());
             Map<String, String> headers = config.getHeaders();
-            if (!headers.isEmpty()) {
+            if (CollUtil.isNotEmpty(headers)) {
                 builder.headers(headers);
             }
             String accessToken = config.getAccessToken();
@@ -62,13 +63,16 @@ public class SolonAiMcpClientProviderFactory implements McpClientProviderFactory
     }
 
     /**
-     * 判断是否存在Header。
+     * 判断配置中是否已经显式设置指定 HTTP 头，避免重复覆盖鉴权头。
      *
-     * @param headers headers 参数。
-     * @param name 名称参数。
-     * @return 如果Header满足条件则返回 true，否则返回 false。
+     * @param headers MCP HTTP/SSE 连接的请求头。
+     * @param name 待检查的请求头名称。
+     * @return 忽略大小写命中时返回 true。
      */
     private boolean hasHeader(Map<String, String> headers, String name) {
+        if (CollUtil.isEmpty(headers)) {
+            return false;
+        }
         for (String key : headers.keySet()) {
             if (key != null && key.equalsIgnoreCase(name)) {
                 return true;
@@ -78,10 +82,10 @@ public class SolonAiMcpClientProviderFactory implements McpClientProviderFactory
     }
 
     /**
-     * 转换为渠道。
+     * 将配置中的传输类型映射为 Solon AI MCP 通道常量。
      *
-     * @param transport transport 参数。
-     * @return 返回转换后的渠道。
+     * @param transport 用户配置的传输类型，允许 http、streamable、sse、stdio 等别名。
+     * @return Solon AI MCP 客户端识别的通道常量。
      */
     private String toChannel(String transport) {
         String value = StrUtil.nullToEmpty(transport).trim().toLowerCase().replace('-', '_');

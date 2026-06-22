@@ -7,8 +7,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from guardlib import REPO_ROOT, temp_prefix
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_PATH = REPO_ROOT / "scripts" / "check-raw-exception-logging.py"
 
 
@@ -36,7 +36,7 @@ def write_text(path: Path, text: str) -> None:
 
 
 def main() -> int:
-    sandbox = Path(tempfile.mkdtemp(prefix="jimuqu-raw-exception-logging-selftest-"))
+    sandbox = Path(tempfile.mkdtemp(prefix=temp_prefix("raw-exception-logging-selftest")))
     try:
         source_dir = reset_sandbox(sandbox)
         write_text(

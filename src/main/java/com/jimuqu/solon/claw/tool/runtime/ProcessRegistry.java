@@ -9,24 +9,33 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 维护进程注册信息，供运行时按需查询和装配。 */
 public class ProcessRegistry {
+    /** 记录进程注册表中的可降级异常，日志不输出命令、工作目录或进程输出内容。 */
+    private static final Logger log = LoggerFactory.getLogger(ProcessRegistry.class);
+
     /** 最大输出CHARS的统一常量值。 */
     private static final int MAX_OUTPUT_CHARS = 200000;
+
+    /** 进程事件本地时间格式，保持原有无时区后缀的展示语义。 */
+    private static final DateTimeFormatter LOCAL_TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss").withZone(ZoneId.systemDefault());
 
     /** WATCH最小整型ERVALMILLIS的统一常量值。 */
     private static final long WATCH_MIN_INTERVAL_MILLIS = 15000L;
@@ -1126,9 +1135,32 @@ public class ProcessRegistry {
             if (value instanceof Number) {
                 return Long.valueOf(((Number) value).longValue());
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableFailure("resolve-pid", e);
         }
         return null;
+    }
+
+    /**
+     * 记录可恢复进程异常，只写阶段和异常类型，避免泄露命令、路径或输出内容。
+     *
+     * @param stage 降级阶段。
+     * @param error 异常对象。
+     */
+    private static void logRecoverableFailure(String stage, Exception error) {
+        if (log.isDebugEnabled()) {
+            log.debug("process registry fallback. stage={} error={}", stage, exceptionSummary(error));
+        }
+    }
+
+    /**
+     * 生成低敏异常摘要，仅保留异常类型。
+     *
+     * @param error 异常对象。
+     * @return 返回异常类型摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getName();
     }
 
     /** 承载Managed进程相关状态和辅助逻辑。 */
@@ -1316,7 +1348,12 @@ public class ProcessRegistry {
                     owner.enqueueCompletionIfNeeded(this);
                 }
                 return true;
-            } catch (IllegalThreadStateException ignored) {
+            } catch (IllegalThreadStateException e) {
+                if (log.isTraceEnabled()) {
+                    log.trace(
+                            "process registry fallback. stage=refresh-exit-state error={}",
+                            exceptionSummary(e));
+                }
                 exited = false;
                 return false;
             }
@@ -1690,9 +1727,7 @@ public class ProcessRegistry {
          * @return 返回iso本地结果。
          */
         private static String isoLocal(long timestamp) {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
-            format.setTimeZone(TimeZone.getDefault());
-            return format.format(new Date(timestamp));
+            return LOCAL_TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(timestamp));
         }
     }
 

@@ -609,7 +609,7 @@ public class ProactiveCandidateService {
         }
         try {
             return Long.parseLong(StrUtil.nullToEmpty(String.valueOf(value)).trim());
-        } catch (Exception ignored) {
+        } catch (NumberFormatException e) {
             return fallback;
         }
     }

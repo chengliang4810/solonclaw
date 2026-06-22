@@ -22,11 +22,16 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
-import org.noear.solon.ai.skills.sys.ShellSkill;
+import org.noear.solon.ai.talents.sys.ShellTalent;
 import org.noear.solon.annotation.Param;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载Solon项目终端技能相关状态和辅助逻辑。 */
-public class SolonClawShellSkill extends ShellSkill {
+public class SolonClawShellSkill extends ShellTalent {
+    /** 记录终端工具可恢复降级事件，避免异常被静默吞掉。 */
+    private static final Logger log = LoggerFactory.getLogger(SolonClawShellSkill.class);
+
     /** 工作目录MARKERPREFIX的统一常量值。 */
     private static final String CWD_MARKER_PREFIX = "__SOLON_CLAW_CWD__=";
 
@@ -264,7 +269,7 @@ public class SolonClawShellSkill extends ShellSkill {
                             required = false,
                             defaultValue = "false",
                             description =
-                                    "Accepted for compatibility; delivery is handled by higher-level runtime events.")
+                                    "Background process completion notification toggle.")
                     Boolean notifyOnComplete) {
         return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, null, null);
     }
@@ -305,14 +310,13 @@ public class SolonClawShellSkill extends ShellSkill {
                             required = false,
                             defaultValue = "false",
                             description =
-                                    "Accepted for compatibility; delivery is handled by higher-level runtime events.")
+                                    "Background process completion notification toggle.")
                     Boolean notifyOnComplete,
             @Param(
                             name = "pty",
                             required = false,
                             defaultValue = "false",
-                            description =
-                                    "Accepted for parameter compatibility. PTY execution is disabled for stdin-pipe commands.")
+                            description = "PTY request flag. Stdin-pipe commands run without PTY.")
                     Boolean pty) {
         return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, pty, null);
     }
@@ -364,8 +368,7 @@ public class SolonClawShellSkill extends ShellSkill {
                             name = "pty",
                             required = false,
                             defaultValue = "false",
-                            description =
-                                    "Accepted for parameter compatibility. PTY execution is disabled for stdin-pipe commands.")
+                            description = "PTY request flag. Stdin-pipe commands run without PTY.")
                     Boolean pty,
             @Param(
                             name = "watch_patterns",
@@ -469,7 +472,6 @@ public class SolonClawShellSkill extends ShellSkill {
                 SecretRedactor.redact(
                         StrUtil.blankToDefault(message, "Failed to execute command"), 1000));
         map.put("status", "error");
-        map.put("success", Boolean.FALSE);
         return ONode.serialize(map);
     }
 
@@ -548,7 +550,7 @@ public class SolonClawShellSkill extends ShellSkill {
                         .data("command", SecretRedactor.redact(managed.getCommand()))
                         .data("cwd", managed.displayCwd())
                         .data("pid", managed.getPid())
-                        .data("status", managed.isExited() ? "exited" : "running")
+                        .data("process_status", managed.isExited() ? "exited" : "running")
                         .data("background", Boolean.TRUE)
                         .data("notify_on_complete", Boolean.TRUE.equals(notifyOnComplete))
                         .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
@@ -718,6 +720,8 @@ public class SolonClawShellSkill extends ShellSkill {
         summary.put("configured", Boolean.valueOf(sudoPasswordConfigured));
         summary.put("envKey", "SOLONCLAW_SUDO_PASSWORD");
         summary.put("configKey", "solonclaw.terminal.sudoPassword");
+        summary.put("requiresActiveGuardrail", Boolean.TRUE);
+        summary.put("disabledWhenGuardrailBypass", Boolean.TRUE);
         summary.put("rewritesRealSudoInvocations", Boolean.TRUE);
         summary.put("stdinPasswordInjection", Boolean.TRUE);
         summary.put("passwordRedacted", Boolean.TRUE);
@@ -728,6 +732,9 @@ public class SolonClawShellSkill extends ShellSkill {
         summary.put("compoundCommandSupported", Boolean.TRUE);
         summary.put("ptyDisabledForStdinPipe", Boolean.TRUE);
         summary.put("missingPasswordHint", Boolean.TRUE);
+        summary.put("blankPasswordIgnored", Boolean.TRUE);
+        summary.put("requiresExplicitNonBlankSecret", Boolean.TRUE);
+        summary.put("credentialStorageRisk", "Configured sudo passwords can grant privileged command execution and should only be set in trusted local runtimes.");
         summary.put(
                 "description",
                 "Configured sudo commands are rewritten to use sudo -S -p '' with the password sent through stdin; secrets are never embedded in the visible command.");
@@ -977,16 +984,30 @@ public class SolonClawShellSkill extends ShellSkill {
      * @return 返回解析后的Sudo密码。
      */
     private String resolveSudoPassword() {
+        if (isGuardrailBypassMode()) {
+            return null;
+        }
         String envValue = System.getenv("SOLONCLAW_SUDO_PASSWORD");
-        if (envValue != null) {
+        if (StrUtil.isNotBlank(envValue)) {
             return envValue;
         }
         if (appConfig != null
                 && appConfig.getTerminal() != null
-                && appConfig.getTerminal().getSudoPassword() != null) {
+                && StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword())) {
             return appConfig.getTerminal().getSudoPassword();
         }
         return null;
+    }
+
+    /**
+     * 判断当前安全护栏是否被显式关闭，关闭时禁止 sudo 密码自动注入形成静默提权通道。
+     *
+     * @return 如果 Agent 工具护栏为 bypass 则返回 true。
+     */
+    private boolean isGuardrailBypassMode() {
+        return appConfig != null
+                && appConfig.getSecurity() != null
+                && "bypass".equalsIgnoreCase(appConfig.getSecurity().getGuardrailMode());
     }
 
     /**
@@ -1067,7 +1088,8 @@ public class SolonClawShellSkill extends ShellSkill {
                 if (transformed != null) {
                     return transformed;
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                logRecoverableShellFailure("terminal_output_transform", e);
             }
         }
         return value;
@@ -1358,7 +1380,8 @@ public class SolonClawShellSkill extends ShellSkill {
                         resolved.add(value);
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                logRecoverableShellFailure("shell_init_path_resolve", e);
             }
         }
         return Collections.unmodifiableList(resolved);
@@ -1495,10 +1518,31 @@ public class SolonClawShellSkill extends ShellSkill {
             if (tempScript != null) {
                 try {
                     Files.deleteIfExists(tempScript);
-                } catch (Exception ignored) {
+                } catch (Exception e) {
+                    logRecoverableShellFailure("foreground_temp_script_delete", e);
                 }
             }
         }
+    }
+
+    /**
+     * 记录终端辅助流程的可恢复失败，仅输出阶段和异常类型，避免泄露命令正文或路径细节。
+     *
+     * @param action 可恢复操作名称。
+     * @param error 捕获到的异常。
+     */
+    private static void logRecoverableShellFailure(String action, Exception error) {
+        log.debug("Shell helper fallback: action={}, error={}", action, exceptionSummary(error));
+    }
+
+    /**
+     * 生成终端日志使用的低敏异常摘要。
+     *
+     * @param error 捕获到的异常。
+     * @return 返回异常类型名称。
+     */
+    private static String exceptionSummary(Exception error) {
+        return error == null ? "unknown" : error.getClass().getSimpleName();
     }
 
     /**

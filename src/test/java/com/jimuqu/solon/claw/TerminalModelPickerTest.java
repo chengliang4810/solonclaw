@@ -82,6 +82,7 @@ public class TerminalModelPickerTest {
     private AppConfig config() {
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setConfigFile(runtimeHome.resolve("config.yml").toString());
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default Provider");
         provider.setBaseUrl("https://api.openai.com");

@@ -23,11 +23,16 @@ import java.util.function.IntSupplier;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 import org.noear.solon.ai.annotation.ToolMapping;
-import org.noear.solon.ai.skills.file.FileReadWriteSkill;
+import org.noear.solon.ai.talents.file.FileReadWriteTalent;
 import org.noear.solon.annotation.Param;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载Solon项目文件Read写入技能相关状态和辅助逻辑。 */
-public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
+public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
+    /** 记录文件读写技能的安全边界与非关键解析异常，避免 fallback 路径静默吞错。 */
+    private static final Logger log = LoggerFactory.getLogger(SolonClawFileReadWriteSkill.class);
+
     /** 默认READOFFSET的统一常量值。 */
     private static final int DEFAULT_READ_OFFSET = 1;
 
@@ -286,7 +291,6 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
      * 参考风格读取工具名，复用当前分页、去重和安全策略。
      *
      * @param path 文件路径。
-     * @param fileName 兼容内置文件工具参数名的文件路径。
      * @param offset 从第几行开始读取。
      * @param limit 最大返回行数。
      * @return 返回read结果。
@@ -296,12 +300,10 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             description = "Read a text file with line numbers. offset starts at 1 and limit defaults to 500.")
     public String readFile(
             @Param(name = "path", required = false) String path,
-            @Param(name = "fileName", required = false) String fileName,
             @Param(name = "offset", required = false, defaultValue = "1") Integer offset,
             @Param(name = "limit", required = false, defaultValue = "500") Integer limit) {
-        String resolvedPath = StrUtil.blankToDefault(path, fileName);
-        assertSafe(ToolNameConstants.READ_FILE, resolvedPath);
-        return readPaged(resolvedPath, offset, limit);
+        assertSafe(ToolNameConstants.READ_FILE, path);
+        return readPaged(path, offset, limit);
     }
 
     /**
@@ -427,6 +429,16 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkFileToolArgs(toolName, args);
         if (!verdict.isAllowed()) {
+            if (verdict.isApprovalRequired()) {
+                throw new IllegalArgumentException(
+                        "APPROVAL_REQUIRED: "
+                                + verdict.getMessage()
+                                + "\n工具："
+                                + toolName
+                                + "\n路径："
+                                + redactPath(verdict.getPath(), 400)
+                                + "\n请先在对话审批该单次操作。");
+            }
             throw new IllegalArgumentException(blockedMessage(toolName, verdict));
         }
     }
@@ -444,8 +456,19 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 + "\n工具："
                 + toolName
                 + "\n路径："
-                + SecretRedactor.redact(verdict.getPath(), 400)
+                + redactPath(verdict.getPath(), 400)
                 + "\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。";
+    }
+
+    /**
+     * 脱敏安全拒绝消息中的敏感路径，保留普通项目路径用于排障。
+     *
+     * @param path 原始路径。
+     * @param maxLength 最大展示长度。
+     * @return 返回脱敏后的路径。
+     */
+    private String redactPath(String path, int maxLength) {
+        return SecretRedactor.redactSensitivePaths(SecretRedactor.redact(path, maxLength));
     }
 
     /**
@@ -629,7 +652,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                                     collector.renderLine(lines, i, resolveMaxLineLength())));
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn(
+                    "搜索文件内容失败，已跳过文件 path={} error={}",
+                    safeDisplayPath(displayPath),
+                    exceptionSummary(e));
             // 非UTF-8或不可读文件跳过，保持搜索工具可继续返回其它结果。
         }
     }
@@ -714,6 +741,20 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     }
 
     /**
+     * 生成日志可用的短路径，避免敏感凭据路径进入日志。
+     *
+     * @param path 文件或目录路径。
+     * @return 返回脱敏后的日志路径。
+     */
+    private static String safeLogPath(Path path) {
+        if (path == null) {
+            return "";
+        }
+        return SecretRedactor.redactSensitivePaths(
+                SecretRedactor.redact(path.toAbsolutePath().normalize().toString(), 400));
+    }
+
+    /**
      * 生成安全展示用的工具错误。
      *
      * @param e 捕获到的异常。
@@ -725,6 +766,44 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             message = e.getClass().getSimpleName();
         }
         return SecretRedactor.redact(message, 1000);
+    }
+
+    /**
+     * 生成单行异常摘要供日志使用，并在捕获中断异常时恢复线程中断标记。
+     *
+     * @param e 捕获到的异常。
+     * @return 返回脱敏后的单行异常摘要。
+     */
+    private static String exceptionSummary(Exception e) {
+        restoreInterruptedFlag(e);
+        if (e == null) {
+            return "Exception";
+        }
+        String message = e.getMessage();
+        if (StrUtil.isBlank(message)) {
+            return e.getClass().getSimpleName();
+        }
+        String oneLine = message.replace('\r', ' ').replace('\n', ' ').replace('\t', ' ');
+        return SecretRedactor.redactSensitivePaths(
+                SecretRedactor.redact(e.getClass().getSimpleName() + ": " + oneLine, 600));
+    }
+
+    /**
+     * 在异常链中发现中断异常时恢复线程中断标记，避免上层运行控制丢失取消信号。
+     *
+     * @param throwable 捕获到的异常链。
+     */
+    private static void restoreInterruptedFlag(Throwable throwable) {
+        Throwable current = throwable;
+        int depth = 0;
+        while (current != null && depth < 8) {
+            if (current instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            current = current.getCause();
+            depth++;
+        }
     }
 
     /**
@@ -771,7 +850,8 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
     private static int resolvePositiveLimit(IntSupplier supplier, int fallback) {
         try {
             return Math.max(1, supplier == null ? fallback : supplier.getAsInt());
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("解析文件工具输出限制失败，使用兜底值 error={}", exceptionSummary(e));
             return Math.max(1, fallback);
         }
     }
@@ -866,6 +946,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
      */
     private void writeTextPreservingBom(Path target, String content) throws Exception {
         String value = StrUtil.nullToEmpty(content);
+        String oldContent =
+                Files.exists(target) && !Files.isDirectory(target)
+                        ? stripLeadingBom(new String(Files.readAllBytes(target), StandardCharsets.UTF_8))
+                        : "";
+        ConfigSecretWriteGuard.assertNoPlaceholderSecretDowngrade(target, oldContent, value);
         if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
             value = UTF8_BOM + value;
         }
@@ -891,7 +976,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                     && (bytes[0] & 0xFF) == 0xEF
                     && (bytes[1] & 0xFF) == 0xBB
                     && (bytes[2] & 0xFF) == 0xBF;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn(
+                    "检查文件BOM失败，按无BOM处理 path={} error={}",
+                    safeLogPath(target),
+                    exceptionSummary(e));
             return false;
         }
     }
@@ -1081,7 +1170,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                 }
                 scored.add(new ScoredPath(score, displayPathForCandidate(candidate)));
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn(
+                    "生成相似文件建议失败，已返回空列表 path={} error={}",
+                    safeDisplayPath(requestedPath),
+                    exceptionSummary(e));
             return Collections.emptyList();
         }
         Collections.sort(
@@ -1369,7 +1462,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
                     consecutiveReadCount = 0;
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.warn(
+                    "清理文件读取去重状态失败，已保留现有状态 path={} error={}",
+                    safeDisplayPath(fileName),
+                    exceptionSummary(e));
         }
     }
 
@@ -1720,7 +1817,8 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteSkill {
             }
             try {
                 return Pattern.compile(value.substring(1, value.length() - 1));
-            } catch (PatternSyntaxException ignored) {
+            } catch (PatternSyntaxException e) {
+                log.debug("搜索正则编译失败，按普通文本匹配 error={}", exceptionSummary(e));
                 return null;
             }
         }

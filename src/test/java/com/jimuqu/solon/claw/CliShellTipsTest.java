@@ -45,47 +45,7 @@ public class CliShellTipsTest {
 
         assertThat(commandList()).containsExactly(TerminalCommandCatalog.SLASH_COMMANDS);
         assertThat(LocalTerminalHelp.text()).contains("/reload-mcp [now|always]");
-        assertThat(commandList())
-                .contains(
-                        "/security",
-                        "/security audit",
-                        "/security status",
-                        "/security policy",
-                        "/security audit-tool",
-                        "/security approvals",
-                        "/security slash-confirm",
-                        "/security approval-card",
-                        "/security approval-audit",
-                        "/security mcp-reload",
-                        "/security hardline",
-                        "/security terminal-guardrails",
-                        "/security tirith",
-                        "/security tirith-approval",
-                        "/security cron-approvals",
-                        "/security subagent-approvals",
-                        "/security smart-approval",
-                        "/security urls",
-                        "/security private-urls",
-                        "/security website",
-                        "/security paths",
-                        "/security credentials",
-                        "/security skill-credentials",
-                        "/security tool-args",
-                        "/security lifecycle",
-                        "/security mcp",
-                        "/security mcp-oauth",
-                        "/security mcp-package",
-                        "/security schema",
-                        "/security attachments",
-                        "/security terminal-paste",
-                        "/security media-cache",
-                        "/security tool-results",
-                        "/security patch",
-                        "/security code-execution",
-                        "/security subprocess-env",
-                        "/security terminal-output",
-                        "/security sudo",
-                        "/security process");
+        assertThat(commandList()).contains("/security");
         assertThat(shouldHandleInline(shell, "/tips")).isTrue();
         assertThat(shouldHandleInline(shell, "/skin mono")).isTrue();
         assertThat(shouldHandleInline(shell, "/security audit")).isTrue();
@@ -334,7 +294,7 @@ public class CliShellTipsTest {
         assertThat(TerminalSecurityPolicyView.render(null, "/security hardline"))
                 .contains("硬阻断命令策略摘要")
                 .contains("metadataUrlBlocked")
-                .contains("yolo=false");
+                .contains("sessionAutoApproval=false");
         assertThat(TerminalSecurityPolicyView.render(null, "/security terminal-guardrails"))
                 .contains("终端护栏策略摘要")
                 .contains("managedRequired")
@@ -409,7 +369,7 @@ public class CliShellTipsTest {
                                 "/security status echo token=ghp_terminalstatus12345 http://127.0.0.1/?token=terminal-status-secret target/sk-terminal-status-secret.txt"))
                 .contains("安全策略状态摘要")
                 .contains("executesCommand=false")
-                .contains("statusAlias=true")
+                .contains("executesCommand=false")
                 .doesNotContain("ghp_terminalstatus12345")
                 .doesNotContain("terminal-status-secret")
                 .doesNotContain("sk-terminal-status-secret");
@@ -475,7 +435,6 @@ public class CliShellTipsTest {
     void shouldRenderEventsLocallyLikeTerminalUi() throws Exception {
         CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null));
 
-        assertThat(commandList()).contains("/events");
         assertThat(shouldHandleInline(shell, "/events")).isTrue();
         assertThat(renderEvents(shell)).isEqualTo("暂无终端事件。");
 

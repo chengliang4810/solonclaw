@@ -141,7 +141,7 @@ public class GatewayControllerHttpTest {
                                 ChatMessage.ofUser(repeat("B", 5000)))));
         sessionRepository.save(session);
 
-        GatewayReply compressReply = postMessage("http-admin-chat", "http-admin", "/compress 发布流程");
+        GatewayReply compressReply = postMessage("http-admin-chat", "http-admin", "/compact 发布流程");
         SessionRecord updated = sessionRepository.findById(session.getSessionId());
 
         assertThat(compressReply.getContent()).contains("关注主题");

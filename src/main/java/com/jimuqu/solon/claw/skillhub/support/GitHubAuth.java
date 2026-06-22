@@ -6,6 +6,7 @@ import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
@@ -13,10 +14,14 @@ import java.security.Signature;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.logging.Logger;
 import org.noear.snack4.ONode;
 
 /** GitHub API 鉴权辅助。 */
 public class GitHubAuth {
+    /** GitHub 鉴权辅助的低敏日志记录器，禁止记录 token、JWT、响应体或授权 URL。 */
+    private static final Logger LOG = Logger.getLogger(GitHubAuth.class.getName());
+
     /** 记录Git中心认证中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;
 
@@ -128,8 +133,15 @@ public class GitHubAuth {
                 String token = new String(output, StandardCharsets.UTF_8).trim();
                 return StrUtil.blankToDefault(token, null);
             }
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOG.fine(
+                    "GitHub CLI token 读取被中断，已回退到后续鉴权方式：errorType="
+                            + e.getClass().getSimpleName());
+        } catch (IOException | RuntimeException e) {
+            LOG.fine(
+                    "GitHub CLI token 读取失败，已回退到后续鉴权方式：errorType="
+                            + e.getClass().getSimpleName());
         }
         return null;
     }
@@ -167,7 +179,10 @@ public class GitHubAuth {
                             headers,
                             "{}");
             return ONode.ofJson(response).get("token").getString();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOG.fine(
+                    "GitHub App token 申请失败，已回退为匿名访问：errorType="
+                            + e.getClass().getSimpleName());
             return null;
         }
     }

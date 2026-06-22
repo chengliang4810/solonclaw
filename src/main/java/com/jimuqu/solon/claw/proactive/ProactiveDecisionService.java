@@ -24,11 +24,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.logging.Logger;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 
 /** 主动协作决策服务，负责硬门控、频率控制、排序和可选模型判断。 */
 public class ProactiveDecisionService {
+    /** 主动协作决策服务的低敏日志记录器。 */
+    private static final Logger LOG = Logger.getLogger(ProactiveDecisionService.class.getName());
+
     /** 模型决策系统提示词，强调只能判断是否联系用户，不能授权执行动作。 */
     private static final String LLM_DECISION_SYSTEM_PROMPT =
             "你是主动协作触达决策器。只判断是否值得联系用户，输出 JSON："
@@ -584,7 +588,10 @@ public class ProactiveDecisionService {
                         node.get("reason").getString(),
                         node.get("message_intent").getString(),
                         node.get("sensitivity").getString());
-            } catch (Exception ignored) {
+            } catch (RuntimeException e) {
+                LOG.fine(
+                        "主动协作模型决策 JSON 解析失败，已按不发送处理：errorType="
+                                + e.getClass().getSimpleName());
                 return new LlmDecisionResult(false, "invalid_llm_json", "", "normal");
             }
         }

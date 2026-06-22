@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.Locale;
 import lombok.Getter;
 
-/** 承载大模型错误Classifier相关状态和辅助逻辑。 */
+/** 将模型调用异常归类为可重试、可降级或需要压缩上下文的运行决策。 */
 public final class LlmErrorClassifier {
-    /** BILLING正则S的统一常量值。 */
+    /** 计费或账户余额不足相关错误特征，命中后通常不应立即重试同一提供方。 */
     private static final List<String> BILLING_PATTERNS =
             Arrays.asList(
                     "insufficient credits",
@@ -24,7 +24,7 @@ public final class LlmErrorClassifier {
                     "plan does not include",
                     "billing_not_active");
 
-    /** 频率限制正则S的统一常量值。 */
+    /** 频率限制或并发限制相关错误特征，命中后允许切换提供方或稍后重试。 */
     private static final List<String> RATE_LIMIT_PATTERNS =
             Arrays.asList(
                     "rate limit",
@@ -42,11 +42,11 @@ public final class LlmErrorClassifier {
                     "too many concurrent requests",
                     "servicequotaexceededexception");
 
-    /** 用量限制正则S的统一常量值。 */
+    /** 用量限制通用特征，需要结合 transient 信号区分余额耗尽和周期窗口限制。 */
     private static final List<String> USAGE_LIMIT_PATTERNS =
             Arrays.asList("usage limit", "quota", "limit exceeded", "key limit exceeded");
 
-    /** 用量限制TRANSIENTSIGNALS的统一常量值。 */
+    /** 周期性用量窗口的临时性信号，命中后按限流处理而不是按计费失败处理。 */
     private static final List<String> USAGE_LIMIT_TRANSIENT_SIGNALS =
             Arrays.asList(
                     "try again",
@@ -58,7 +58,7 @@ public final class LlmErrorClassifier {
                     "periodic",
                     "window");
 
-    /** 上下文OVERFLOW正则S的统一常量值。 */
+    /** 上下文窗口溢出相关错误特征，命中后触发压缩后重试。 */
     private static final List<String> CONTEXT_OVERFLOW_PATTERNS =
             Arrays.asList(
                     "context length",
@@ -80,11 +80,11 @@ public final class LlmErrorClassifier {
                     "超过最大长度",
                     "exceeds the maximum number of input tokens");
 
-    /** 载荷TOOLARGE正则S的统一常量值。 */
+    /** 请求体过大错误特征，通常需要压缩或减少附件内容后再试。 */
     private static final List<String> PAYLOAD_TOO_LARGE_PATTERNS =
             Arrays.asList("request entity too large", "payload too large", "error code: 413");
 
-    /** 模型NOTFOUND正则S的统一常量值。 */
+    /** 模型不存在或当前账号不可用错误特征，命中后应切换模型或提供方。 */
     private static final List<String> MODEL_NOT_FOUND_PATTERNS =
             Arrays.asList(
                     "is not a valid model",
@@ -98,7 +98,7 @@ public final class LlmErrorClassifier {
                     "model_not_available",
                     "invalid_model");
 
-    /** 认证正则S的统一常量值。 */
+    /** 鉴权失败错误特征，命中后不重试同一密钥。 */
     private static final List<String> AUTH_PATTERNS =
             Arrays.asList(
                     "invalid api key",
@@ -111,7 +111,7 @@ public final class LlmErrorClassifier {
                     "token revoked",
                     "access denied");
 
-    /** TRANSPORT正则S的统一常量值。 */
+    /** 网络或传输层错误特征，命中后允许重试或降级。 */
     private static final List<String> TRANSPORT_PATTERNS =
             Arrays.asList(
                     "timeout",
@@ -128,14 +128,14 @@ public final class LlmErrorClassifier {
                     "ssl",
                     "tls");
 
-    /** 创建大模型Error Classifier实例。 */
+    /** 工具类只提供静态分类方法，不允许实例化。 */
     private LlmErrorClassifier() {}
 
     /**
-     * 执行classify相关逻辑。
+     * 根据异常链文本和 HTTP 状态码推导模型调用失败处置策略。
      *
-     * @param error 错误参数。
-     * @return 返回classify结果。
+     * @param error 模型调用抛出的异常。
+     * @return 返回分类后的失败原因与处置标记。
      */
     public static ClassifiedError classify(Throwable error) {
         String message = collectErrorText(error).toLowerCase(Locale.ROOT);
@@ -185,15 +185,15 @@ public final class LlmErrorClassifier {
     }
 
     /**
-     * 执行结果相关逻辑。
+     * 构造分类结果对象，集中表达重试、降级和压缩三个运行决策。
      *
-     * @param reason 原因参数。
-     * @param statusCode 状态Code参数。
-     * @param retryable retryable 参数。
-     * @param fallback 兜底参数。
-     * @param compress compress 参数。
-     * @param message 平台消息或错误消息。
-     * @return 返回结果。
+     * @param reason 失败原因。
+     * @param statusCode 解析到的 HTTP 状态码，无法识别时为 0。
+     * @param retryable 是否允许同一链路稍后重试。
+     * @param fallback 是否允许切换模型或提供方。
+     * @param compress 是否建议先压缩上下文再重试。
+     * @param message 已归一化的小写错误文本。
+     * @return 返回分类结果。
      */
     private static ClassifiedError result(
             FailoverReason reason,
@@ -206,11 +206,11 @@ public final class LlmErrorClassifier {
     }
 
     /**
-     * 判断是否包含Any。
+     * 判断错误文本是否包含任一分类特征。
      *
-     * @param message 平台消息或错误消息。
-     * @param patterns patterns 参数。
-     * @return 返回contains Any结果。
+     * @param message 已归一化的小写错误文本。
+     * @param patterns 分类特征集合。
+     * @return 命中任一特征时返回 true。
      */
     private static boolean containsAny(String message, List<String> patterns) {
         if (StrUtil.isBlank(message)) {
@@ -225,10 +225,9 @@ public final class LlmErrorClassifier {
     }
 
     /**
-     * 收集Error Text。
+     * 收集异常链上的错误消息，避免外层包装异常吞掉提供方原始原因。
      *
-     * @param error 错误参数。
-     * @return 返回Error Text结果。
+     * @return 返回以分隔符串联后的错误文本。
      */
     private static String collectErrorText(Throwable error) {
         StringBuilder buffer = new StringBuilder();
@@ -246,10 +245,9 @@ public final class LlmErrorClassifier {
     }
 
     /**
-     * 提取状态Code。
+     * 从错误文本中提取常见 HTTP 状态码。
      *
-     * @param message 平台消息或错误消息。
-     * @return 返回状态Code结果。
+     * @return 命中状态码时返回对应整数，否则返回 0。
      */
     private static int extractStatusCode(String message) {
         for (int code : new int[] {400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 529}) {
@@ -268,60 +266,60 @@ public final class LlmErrorClassifier {
         return 0;
     }
 
-    /** 枚举故障切换Reason的可选值，保证状态表达在各模块间一致。 */
+    /** 故障切换原因枚举，保证网关、运行日志和调度重试使用同一套状态表达。 */
     public enum FailoverReason {
-        /** 表示认证枚举值。 */
+        /** API Key、Token 或权限认证失败。 */
         AUTH,
-        /** 表示BILLING枚举值。 */
+        /** 账户余额、套餐或计费状态不满足请求要求。 */
         BILLING,
-        /** 表示频率限制枚举值。 */
+        /** 请求频率、并发数或周期用量窗口触顶。 */
         RATE_LIMIT,
-        /** 表示OVERLOADED枚举值。 */
+        /** 提供方临时过载。 */
         OVERLOADED,
-        /** 表示SERVER ERROR枚举值。 */
+        /** 提供方 5xx 服务端错误。 */
         SERVER_ERROR,
-        /** 表示TIMEOUT枚举值。 */
+        /** 网络超时或连接被中断。 */
         TIMEOUT,
-        /** 表示上下文OVERFLOW枚举值。 */
+        /** 请求上下文超出模型窗口。 */
         CONTEXT_OVERFLOW,
-        /** 表示PAYLOAD TOO LARGE枚举值。 */
+        /** 请求体或附件载荷超过提供方限制。 */
         PAYLOAD_TOO_LARGE,
-        /** 表示模型NOT FOUND枚举值。 */
+        /** 模型不存在、不可用或名称非法。 */
         MODEL_NOT_FOUND,
-        /** 表示UNKNOWN枚举值。 */
+        /** 无法归入已知类型的错误。 */
         UNKNOWN
     }
 
-    /** 承载Classified错误相关状态和辅助逻辑。 */
+    /** 模型失败分类结果，供运行编排器决定是否重试、降级或压缩上下文。 */
     @Getter
     public static class ClassifiedError {
-        /** 记录Classified错误中的原因。 */
+        /** 失败原因。 */
         private final FailoverReason reason;
 
-        /** 记录Classified错误中的状态Code。 */
+        /** 解析到的 HTTP 状态码，无法识别时为 0。 */
         private final int statusCode;
 
-        /** 是否启用retryable。 */
+        /** 是否允许同一链路稍后重试。 */
         private final boolean retryable;
 
-        /** 标记是否需要兜底。 */
+        /** 是否允许切换模型或提供方兜底。 */
         private final boolean shouldFallback;
 
-        /** 标记是否需要压缩。 */
+        /** 是否建议先压缩上下文再重试。 */
         private final boolean shouldCompress;
 
-        /** 记录Classified错误中的消息。 */
+        /** 已归一化的小写错误文本，用于运行日志和诊断。 */
         private final String message;
 
         /**
-         * 创建Classified Error实例，并注入运行所需依赖。
+         * 创建模型失败分类结果。
          *
-         * @param reason 原因参数。
-         * @param statusCode 状态Code参数。
-         * @param retryable retryable 参数。
-         * @param shouldFallback should兜底参数。
-         * @param shouldCompress shouldCompress 参数。
-         * @param message 平台消息或错误消息。
+         * @param reason 失败原因。
+         * @param statusCode HTTP 状态码。
+         * @param retryable 是否允许重试。
+         * @param shouldFallback 是否允许兜底。
+         * @param shouldCompress 是否建议压缩上下文。
+         * @param message 已归一化的小写错误文本。
          */
         private ClassifiedError(
                 FailoverReason reason,

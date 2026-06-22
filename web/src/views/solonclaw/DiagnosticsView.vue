@@ -127,8 +127,14 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
     {
       title: d('detailGroups.approvalRules'),
       items: [
-        metric('commandApprovalMode', firstDefined(approvalPolicy.mode, securityApprovals.value.mode)),
-        metric('scheduledJobMode', firstDefined(approvalPolicy.cronMode, securityApprovals.value.cron_mode)),
+        metric(
+          'commandApprovalMode',
+          firstDefined(approvalPolicy.guardrailMode, securityApprovals.value.guardrail_mode),
+        ),
+        metric(
+          'scheduledJobMode',
+          firstDefined(approvalPolicy.guardrailCronMode, securityApprovals.value.guardrail_cron_mode),
+        ),
         metric('subagentAutoApprove', approvalPolicy.subagentAutoApprove),
         metric('smartJudgeConfigured', approvalPolicy.smartJudgeConfigured),
         metric('dangerousRuleCount', approvalPolicy.dangerousRuleCount),

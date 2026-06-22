@@ -2,8 +2,9 @@ package com.jimuqu.solon.claw.support;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -23,6 +24,11 @@ public class RuntimeMemoryMonitorService {
 
     /** 字节PERMB的统一常量值。 */
     private static final long BYTES_PER_MB = 1024L * 1024L;
+
+    /** 运行时内存快照 ISO 时间格式，等价于旧 yyyy-MM-dd'T'HH:mm:ss.SSSZ 输出。 */
+    private static final DateTimeFormatter SNAPSHOT_TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSZ")
+                    .withZone(ZoneId.systemDefault());
 
     /** 记录运行时记忆Monitor中的生命周期Lock。 */
     private final Object lifecycleLock = new Object();
@@ -206,7 +212,7 @@ public class RuntimeMemoryMonitorService {
      * @return 返回时间戳Iso结果。
      */
     private String timestampIso(long timestamp) {
-        return new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ").format(new Date(timestamp));
+        return SNAPSHOT_TIME_FORMATTER.format(Instant.ofEpochMilli(timestamp));
     }
 
     /**

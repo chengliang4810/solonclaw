@@ -34,6 +34,7 @@ import {
   type McpReloadAllResult,
   type McpServer,
 } from '@/api/solonclaw/mcp'
+import { asArray, displayJson, hasItems, listCount, trimText } from '@/shared/text'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -89,8 +90,12 @@ const selectedServer = computed(() => {
 
 const tools = computed(() => {
   const raw = selectedServer.value?.tools
-  return Array.isArray(raw) ? raw : []
+  return asArray<unknown>(raw)
 })
+
+const lastAddedToolsText = computed(() => asArray<string>(lastAction.value?.added_tools).join(', '))
+const lastRemovedToolsText = computed(() => asArray<string>(lastAction.value?.removed_tools).join(', '))
+const hasLastToolDiff = computed(() => hasItems(lastAction.value?.added_tools) || hasItems(lastAction.value?.removed_tools))
 
 onMounted(load)
 
@@ -191,7 +196,7 @@ async function saveServer() {
 }
 
 function parseJsonField(text: string, label: string) {
-  const value = text.trim()
+  const value = trimText(text)
   if (!value) {
     return undefined
   }
@@ -203,13 +208,7 @@ function parseJsonField(text: string, label: string) {
 }
 
 function prettyJson(value: unknown, empty = false) {
-  if (value === null || value === undefined || value === '') {
-    return empty ? '' : '-'
-  }
-  if (typeof value === 'string') {
-    return value
-  }
-  return JSON.stringify(value, null, 2)
+  return displayJson(value, { emptyText: empty ? '' : '-' })
 }
 
 function toolName(tool: unknown) {
@@ -291,9 +290,10 @@ async function loadOAuthStatus() {
     oauthForm.client_id = String(oauth.client_id || '')
     oauthForm.client_secret = ''
     oauthForm.redirect_uri = String(oauth.redirect_uri || '')
-    oauthForm.scopes = Array.isArray(oauthStatus.value.scopes)
-      ? oauthStatus.value.scopes.join(' ')
-      : String(oauthStatus.value.scopes || oauth.scope || '')
+    const scopes = oauthStatus.value.scopes
+    oauthForm.scopes = Array.isArray(scopes)
+      ? asArray<string>(scopes).join(' ')
+      : String(scopes || oauth.scope || '')
     oauthForm.state = String(oauth.state || '')
   } catch (err: any) {
     message.error(err.message || t('mcp.oauthStatusLoadFailed'))
@@ -419,9 +419,9 @@ async function copy(text: string) {
         <span>{{ t('mcp.changedCount', { count: lastReloadAll.changed_count }) }}</span>
         <span>{{ t('mcp.unchangedCount', { count: lastReloadAll.unchanged_count }) }}</span>
       </div>
-      <div v-if="lastReloadAll.changed_servers.length || lastReloadAll.unchanged_servers.length" class="tool-diff">
-        <span v-if="lastReloadAll.changed_servers.length">{{ t('mcp.changedServers', { servers: lastReloadAll.changed_servers.join(', ') }) }}</span>
-        <span v-if="lastReloadAll.unchanged_servers.length">{{ t('mcp.unchangedServers', { servers: lastReloadAll.unchanged_servers.join(', ') }) }}</span>
+      <div v-if="hasItems(lastReloadAll.changed_servers) || hasItems(lastReloadAll.unchanged_servers)" class="tool-diff">
+        <span v-if="hasItems(lastReloadAll.changed_servers)">{{ t('mcp.changedServers', { servers: lastReloadAll.changed_servers.join(', ') }) }}</span>
+        <span v-if="hasItems(lastReloadAll.unchanged_servers)">{{ t('mcp.unchangedServers', { servers: lastReloadAll.unchanged_servers.join(', ') }) }}</span>
       </div>
     </section>
 
@@ -442,7 +442,7 @@ async function copy(text: string) {
             </div>
             <div class="server-meta">
               <span>{{ server.transport }}</span>
-              <span>{{ t('mcp.toolCountBadge', { count: Array.isArray(server.tools) ? server.tools.length : 0 }) }}</span>
+              <span>{{ t('mcp.toolCountBadge', { count: listCount(server.tools) }) }}</span>
               <span>{{ t(server.enabled ? 'common.enabled' : 'common.disabled') }}</span>
             </div>
             <div v-if="server.last_error" class="server-error">{{ server.last_error }}</div>
@@ -496,9 +496,9 @@ async function copy(text: string) {
               <span>{{ t('mcp.fields.toolsHash') }}：{{ lastAction.tools_hash || '-' }}</span>
               <span>{{ t('mcp.toolCount', { count: `${lastAction.previous_tool_count ?? '-'} -> ${lastAction.current_tool_count ?? lastAction.tool_count ?? '-'}` }) }}</span>
             </div>
-            <div v-if="lastAction.added_tools?.length || lastAction.removed_tools?.length" class="tool-diff">
-              <span v-if="lastAction.added_tools?.length">{{ t('mcp.addedTools', { tools: lastAction.added_tools.join(', ') }) }}</span>
-              <span v-if="lastAction.removed_tools?.length">{{ t('mcp.removedTools', { tools: lastAction.removed_tools.join(', ') }) }}</span>
+            <div v-if="hasLastToolDiff" class="tool-diff">
+              <span v-if="lastAddedToolsText">{{ t('mcp.addedTools', { tools: lastAddedToolsText }) }}</span>
+              <span v-if="lastRemovedToolsText">{{ t('mcp.removedTools', { tools: lastRemovedToolsText }) }}</span>
             </div>
             <div v-if="lastAction.error" class="server-error">{{ lastAction.error }}</div>
           </div>

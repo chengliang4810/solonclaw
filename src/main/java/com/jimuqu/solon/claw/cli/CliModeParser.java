@@ -1,12 +1,13 @@
 package com.jimuqu.solon.claw.cli;
 
+import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 承载CLI模式Parser相关状态和辅助逻辑。 */
+/** 解析进程启动参数，决定当前进程是启动服务端、进入本地 CLI/TUI，还是输出补全脚本。 */
 public final class CliModeParser {
     /** 需要在本地终端渲染说明而不是启动 HTTP/WebSocket 服务的顶层管理命令。 */
     private static final java.util.List<String> LOCAL_GUIDANCE_COMMANDS =
@@ -18,7 +19,6 @@ public final class CliModeParser {
                     "secrets",
                     "proxy",
                     "mcp",
-                    "migrate",
                     "send",
                     "hooks",
                     "dump",
@@ -35,13 +35,13 @@ public final class CliModeParser {
     private CliModeParser() {}
 
     /**
-     * 执行解析相关逻辑。
+     * 解析命令行参数为启动模式。
      *
-     * @param args 工具或命令参数。
-     * @return 返回parse结果。
+     * @param args 原始启动参数。
+     * @return CLI/TUI/server/completion 启动模式。
      */
     public static CliMode parse(String[] args) {
-        if (args == null || args.length == 0) {
+        if (ArrayUtil.isEmpty(args)) {
             return new CliMode(CliMode.Kind.SERVER, null, null);
         }
         CliMode topLevelCommand = parseTopLevelTerminalCommand(args);
@@ -117,134 +117,96 @@ public final class CliModeParser {
             if (args.length > 1
                     && ("set".equalsIgnoreCase(args[1])
                             || "configure".equalsIgnoreCase(args[1]))) {
-                List<String> command = new ArrayList<String>();
-                command.add("/model");
-                for (int i = 1; i < args.length; i++) {
-                    command.add(args[i]);
-                }
-                return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+                return localSlashCommand("/model", args, 1);
             }
-            if (args.length > 1) {
-                List<String> command = new ArrayList<String>();
-                command.add("/model");
-                for (int i = 1; i < args.length; i++) {
-                    command.add(args[i]);
-                }
-                return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
-            }
-            return new CliMode(CliMode.Kind.CLI, "/setup model", null);
+            return args.length == 1 ? new CliMode(CliMode.Kind.CLI, "/setup model", null) : null;
         }
         if ("models".equals(first)) {
             return new CliMode(CliMode.Kind.CLI, "/models", null);
         }
         if ("session".equals(first)) {
-            List<String> command = new ArrayList<String>();
-            command.add("/session");
-            for (int i = 1; i < args.length; i++) {
-                command.add(args[i]);
-            }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/session", args, 1);
         }
         if ("sessions".equals(first) && args.length > 1) {
-            String sub = args[1] == null ? "" : args[1].trim().toLowerCase();
+            String sub = StrUtil.nullToEmpty(args[1]).trim().toLowerCase();
             if ("browse".equals(sub) || "list".equals(sub) || "ls".equals(sub)) {
-                List<String> command = new ArrayList<String>();
-                command.add("/sessions");
-                for (int i = 2; i < args.length; i++) {
-                    command.add(args[i]);
-                }
-                return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+                return localSlashCommand("/sessions", args, 2);
             }
         }
         if ("setup".equals(first)) {
-            List<String> command = new ArrayList<String>();
-            command.add("/setup");
-            for (int i = 1; i < args.length; i++) {
-                command.add(args[i]);
-            }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/setup", args, 1);
         }
         if ("gateway".equals(first) && args.length > 1 && "setup".equalsIgnoreCase(args[1])) {
-            List<String> command = new ArrayList<String>();
-            command.add("/setup");
-            command.add("gateway");
-            for (int i = 2; i < args.length; i++) {
-                command.add(args[i]);
-            }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/setup", "gateway", args, 2);
         }
         if ("gateway".equals(first)) {
-            List<String> command = new ArrayList<String>();
-            command.add("/gateway");
             if (args.length == 1) {
-                command.add("status");
-            } else {
-                for (int i = 1; i < args.length; i++) {
-                    command.add(args[i]);
-                }
+                return localSlashCommand("/gateway", "status", args, 1);
             }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/gateway", args, 1);
         }
         if ("config".equals(first)) {
-            List<String> command = new ArrayList<String>();
-            command.add("/config");
-            for (int i = 1; i < args.length; i++) {
-                command.add(args[i]);
-            }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/config", args, 1);
         }
         if ("doctor".equals(first)) {
-            List<String> command = new ArrayList<String>();
-            command.add("/doctor");
-            for (int i = 1; i < args.length; i++) {
-                command.add(args[i]);
-            }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/doctor", args, 1);
         }
         if ("status".equals(first) || "logout".equals(first)) {
-            List<String> command = new ArrayList<String>();
-            command.add("/" + first);
-            for (int i = 1; i < args.length; i++) {
-                command.add(args[i]);
-            }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/" + first, args, 1);
         }
         if ("version".equals(first) || "--version".equals(first) || "-v".equals(first)) {
-            List<String> command = new ArrayList<String>();
-            command.add("/version");
             if ("version".equals(first)) {
-                for (int i = 1; i < args.length; i++) {
-                    command.add(args[i]);
-                }
+                return localSlashCommand("/version", args, 1);
             }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return new CliMode(CliMode.Kind.CLI, "/version", null);
         }
         if ("pairing".equals(first)) {
-            List<String> command = new ArrayList<String>();
-            command.add("/pairing");
-            for (int i = 1; i < args.length; i++) {
-                command.add(args[i]);
-            }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/pairing", args, 1);
         }
         if (LOCAL_GUIDANCE_COMMANDS.contains(first)) {
-            List<String> command = new ArrayList<String>();
-            command.add("/" + first);
-            for (int i = 1; i < args.length; i++) {
-                command.add(args[i]);
-            }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/" + first, args, 1);
         }
         CommandDescriptor descriptor = CommandRegistry.resolve(first);
         if (descriptor != null) {
-            List<String> command = new ArrayList<String>();
-            command.add("/" + descriptor.getName());
-            for (int i = 1; i < args.length; i++) {
-                command.add(args[i]);
-            }
-            return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
+            return localSlashCommand("/" + descriptor.getName(), args, 1);
         }
         return null;
+    }
+
+    /**
+     * 将顶层管理命令转换成本地 CLI 可执行的 slash command。
+     *
+     * @param slashCommand 目标 slash command，例如 /setup 或 /doctor。
+     * @param args 原始启动参数。
+     * @param fromIndex 需要保留到 slash command 后面的原始参数起点。
+     * @return 本地 CLI 模式，网络监听不会启动。
+     */
+    private static CliMode localSlashCommand(String slashCommand, String[] args, int fromIndex) {
+        return localSlashCommand(slashCommand, null, args, fromIndex);
+    }
+
+    /**
+     * 将顶层管理命令转换成本地 CLI 可执行的 slash command，并可插入固定子命令。
+     *
+     * @param slashCommand 目标 slash command，例如 /setup 或 /gateway。
+     * @param fixedArgument 需要固定插入的子命令；为空时不插入。
+     * @param args 原始启动参数。
+     * @param fromIndex 需要保留到 slash command 后面的原始参数起点。
+     * @return 本地 CLI 模式，网络监听不会启动。
+     */
+    private static CliMode localSlashCommand(
+            String slashCommand, String fixedArgument, String[] args, int fromIndex) {
+        List<String> command = new ArrayList<String>();
+        command.add(slashCommand);
+        if (StrUtil.isNotBlank(fixedArgument)) {
+            command.add(fixedArgument);
+        }
+        if (ArrayUtil.isNotEmpty(args)) {
+            for (int i = Math.max(0, fromIndex); i < args.length; i++) {
+                command.add(args[i]);
+            }
+        }
+        return new CliMode(CliMode.Kind.CLI, StrUtil.join(" ", command).trim(), null);
     }
 
     /**
@@ -254,7 +216,7 @@ public final class CliModeParser {
      * @return 若只有一个复合参数则按空白切分，否则返回原数组。
      */
     private static String[] expandSingleCompositeArgument(String[] args) {
-        if (args == null || args.length != 1 || args[0] == null) {
+        if (ArrayUtil.length(args) != 1 || args[0] == null) {
             return args;
         }
         String value = args[0].trim();

@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.gateway.feedback;
 
+import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -9,24 +10,29 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 工具参数预览辅助。 */
 public final class ToolPreviewSupport {
+    /** 记录预览降级原因，日志不包含工具参数正文。 */
+    private static final Logger log = LoggerFactory.getLogger(ToolPreviewSupport.class);
+
     /** 创建工具Preview辅助实例。 */
     private ToolPreviewSupport() {}
 
     /**
-     * 构建Preview。
+     * 构建可发送到消息渠道的工具调用参数预览。
      *
      * @param toolName 工具名称。
-     * @param args 工具或命令参数。
-     * @param maxLen 最大保留字符数。
-     * @param verbose verbose 参数。
-     * @return 返回创建好的Preview。
+     * @param args 工具调用参数。
+     * @param maxLen 渠道消息中允许展示的最大长度。
+     * @param verbose 是否展示完整 JSON 参数。
+     * @return 已脱敏、已截断的预览文本。
      */
     public static String buildPreview(
             String toolName, Map<String, Object> args, int maxLen, boolean verbose) {
-        if (args == null || args.isEmpty()) {
+        if (MapUtil.isEmpty(args)) {
             return "";
         }
 
@@ -49,11 +55,11 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 构建JSON Safe Preview。
+     * 在 verbose 模式下生成尽量合法且短小的 JSON 预览。
      *
-     * @param args 工具或命令参数。
+     * @param args 已脱敏的工具参数。
      * @param maxLen 最大保留字符数。
-     * @return 返回创建好的JSON Safe Preview。
+     * @return 长度受控的 JSON 文本。
      */
     private static String buildJsonSafePreview(Map<String, Object> args, int maxLen) {
         try {
@@ -63,8 +69,8 @@ public final class ToolPreviewSupport {
             if (serialized.length() <= maxLen) {
                 return serialized;
             }
-        } catch (Exception ignored) {
-            // 保留此处实现约束，避免后续维护时破坏既有行为。
+        } catch (Exception e) {
+            log.debug("Tool argument JSON preview shrink failed; using truncated fallback: {}", exceptionSummary(e));
         }
         Map<String, Object> fallback = new LinkedHashMap<String, Object>();
         fallback.put("truncated", Boolean.TRUE);
@@ -74,10 +80,20 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 执行shrinkJSON字符串s相关逻辑。
+     * 生成低敏异常摘要，避免预览失败日志泄露工具参数内容。
      *
-     * @param value 待规范化或校验的原始值。
-     * @param maxStringLength max字符串Length参数。
+     * @param e 异常对象。
+     * @return 仅包含异常类型的摘要文本。
+     */
+    private static String exceptionSummary(Exception e) {
+        return e == null ? "unknown" : e.getClass().getSimpleName();
+    }
+
+    /**
+     * 递归收缩 JSON 对象中的长字符串，保留字段结构用于排查。
+     *
+     * @param value 反序列化后的 Map/List/普通值。
+     * @param maxStringLength 单个字符串字段允许保留的最大长度。
      */
     @SuppressWarnings("unchecked")
     private static void shrinkJsonStrings(Object value, int maxStringLength) {
@@ -100,11 +116,11 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 执行pickPrimary值相关逻辑。
+     * 从工具参数中选择最有诊断价值的字段作为简短预览。
      *
      * @param toolName 工具名称。
-     * @param args 工具或命令参数。
-     * @return 返回pick Primary Value结果。
+     * @param args 已脱敏的工具参数。
+     * @return 命中的 key=value 文本，未命中时返回整体 JSON。
      */
     private static String pickPrimaryValue(String toolName, Map<String, Object> args) {
         String[] candidates = preferredKeys(toolName);
@@ -132,10 +148,10 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 执行preferredKeys相关逻辑。
+     * 根据工具类型返回优先展示的参数键。
      *
      * @param toolName 工具名称。
-     * @return 返回preferred Keys结果。
+     * @return 按优先级排序的参数键列表。
      */
     private static String[] preferredKeys(String toolName) {
         if ("file_read".equals(toolName)
@@ -157,15 +173,12 @@ public final class ToolPreviewSupport {
                 || "execute_js".equals(toolName)) {
             return new String[] {"command", "code"};
         }
-        if (ToolNameConstants.CONFIG_SET_SECRET.equals(toolName)
-                || "config_update_secret".equals(toolName)) {
+        if (ToolNameConstants.CONFIG_SET_SECRET.equals(toolName)) {
             return new String[] {"key"};
         }
         if (ToolNameConstants.CONFIG_GET.equals(toolName)
                 || ToolNameConstants.CONFIG_SET.equals(toolName)
-                || ToolNameConstants.CONFIG_REFRESH.equals(toolName)
-                || "config_read".equals(toolName)
-                || "config_write".equals(toolName)) {
+                || ToolNameConstants.CONFIG_REFRESH.equals(toolName)) {
             return new String[] {"key", "reconnectChannels"};
         }
         if ("delegate_task".equals(toolName)) {
@@ -180,7 +193,7 @@ public final class ToolPreviewSupport {
             return new String[] {"query", "q", "keyword"};
         }
         if ("webfetch".equals(toolName)) {
-            return new String[] {"url", "urls"};
+            return new String[] {"url"};
         }
         if ("cronjob".equals(toolName)) {
             return new String[] {"action", "name"};
@@ -192,17 +205,15 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 清理参数。
+     * 复制并脱敏工具参数，避免 token、密钥或密码进入渠道消息。
      *
      * @param toolName 工具名称。
-     * @param args 工具或命令参数。
-     * @return 返回参数结果。
+     * @param args 原始工具参数。
+     * @return 保持原有层级结构的安全参数副本。
      */
     private static Map<String, Object> sanitizeArgs(String toolName, Map<String, Object> args) {
         Map<String, Object> safe = new LinkedHashMap<String, Object>();
-        boolean secretTool =
-                ToolNameConstants.CONFIG_SET_SECRET.equals(toolName)
-                        || "config_update_secret".equals(toolName);
+        boolean secretTool = ToolNameConstants.CONFIG_SET_SECRET.equals(toolName);
         for (Map.Entry<String, Object> entry : args.entrySet()) {
             String key = entry.getKey();
             Object value = entry.getValue();
@@ -216,11 +227,11 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 清理Value。
+     * 递归脱敏单个参数值。
      *
      * @param key 配置键或映射键。
      * @param value 待规范化或校验的原始值。
-     * @return 返回Value结果。
+     * @return 字符串、Map 和 Iterable 的安全副本；其他对象保持原值。
      */
     @SuppressWarnings("unchecked")
     private static Object sanitizeValue(String key, Object value) {
@@ -252,10 +263,10 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 判断是否Sensitive Arg键。
+     * 判断参数名是否表示敏感信息。
      *
      * @param key 配置键或映射键。
-     * @return 如果Sensitive Arg键满足条件则返回 true，否则返回 false。
+     * @return 命中常见 token、secret、password 等关键词时返回 true。
      */
     private static boolean isSensitiveArgKey(String key) {
         String normalized = StrUtil.nullToEmpty(key).toLowerCase(Locale.ROOT);
@@ -270,10 +281,10 @@ public final class ToolPreviewSupport {
     }
 
     /**
-     * 执行规范化相关逻辑。
+     * 将多行预览压成单行，适配国内消息渠道的进度提示。
      *
      * @param text 待处理文本。
-     * @return 返回规范化结果。
+     * @return 去掉首尾空白后的单行文本。
      */
     private static String normalize(String text) {
         return StrUtil.nullToEmpty(text).replace('\r', ' ').replace('\n', ' ').trim();

@@ -6,6 +6,7 @@ DEFAULT_JAR_NAME="solon-claw-0.0.1.jar"
 RUNTIME_JAR="$ROOT/$DEFAULT_JAR_NAME"
 DEV_JAR="$ROOT/target/$DEFAULT_JAR_NAME"
 
+# 运行包优先使用根目录 jar，源码开发时回退到 target/ 下的构建产物。
 if [ -n "${SOLONCLAW_JAR:-}" ]; then
     JAR="$SOLONCLAW_JAR"
 elif [ -f "$RUNTIME_JAR" ]; then
@@ -14,13 +15,16 @@ else
     JAR="$DEV_JAR"
 fi
 
+# Node TUI 是运行包中的独立前端入口；可通过环境变量覆盖以便本地调试。
 TERMINAL_UI="${SOLONCLAW_TERMINAL_UI:-$ROOT/terminal-ui/dist/entry.js}"
 JAVA_RUNTIME_ARGS=()
 SOLONCLAW_RUNTIME_HOME="${SOLONCLAW_RUNTIME_HOME:-}"
+# 指定 runtime home 时同步 SOLONCLAW_HOME，保证后端和终端 UI 看到同一运行目录。
 if [ -n "$SOLONCLAW_RUNTIME_HOME" ]; then
     JAVA_RUNTIME_ARGS=("-Dsolonclaw.runtime.home=$SOLONCLAW_RUNTIME_HOME")
     export SOLONCLAW_HOME="${SOLONCLAW_HOME:-$SOLONCLAW_RUNTIME_HOME}"
 elif [ "$JAR" = "$RUNTIME_JAR" ]; then
+    # 发布运行包以包根目录作为 runtime home，符合 target/solon-claw-runtime 的布局约定。
     JAVA_RUNTIME_ARGS=("-Dsolonclaw.runtime.home=$ROOT")
     export SOLONCLAW_HOME="${SOLONCLAW_HOME:-$ROOT}"
 fi
@@ -33,6 +37,7 @@ require_jar() {
     fi
 }
 
+# server/completion 命令由后端 Java 进程处理，其余交互默认进入 Node TUI。
 if [ "${1:-}" = "server" ]; then
     shift
     require_jar

@@ -45,6 +45,6 @@ public class CronJobRunRecord {
     /** 结构化投递结果 JSON。 */
     private String deliveryResultJson;
 
-    /** 兼容旧 summary 字段。 */
+    /** 执行摘要。 */
     private String summary;
 }

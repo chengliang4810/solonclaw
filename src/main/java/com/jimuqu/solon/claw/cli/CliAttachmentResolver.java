@@ -20,9 +20,14 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载CLI附件Resolver相关状态和辅助逻辑。 */
 public class CliAttachmentResolver {
+    /** 记录附件解析中的可恢复降级事件，日志不得包含路径、token或文件内容。 */
+    private static final Logger log = LoggerFactory.getLogger(CliAttachmentResolver.class);
+
     /** 最大附件字节的统一常量值。 */
     private static final long MAX_ATTACHMENT_BYTES = 32L * 1024L * 1024L;
 
@@ -301,18 +306,21 @@ public class CliAttachmentResolver {
             if (value.toLowerCase(Locale.ROOT).startsWith("file:")) {
                 return new File(new URI(value)).getCanonicalFile();
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableFailure("file_uri_canonicalize", e);
             try {
                 String withoutScheme = value.substring("file:".length());
                 return FileUtil.file(URLDecoder.decode(withoutScheme, "UTF-8")).getCanonicalFile();
-            } catch (Exception ignoredAgain) {
+            } catch (Exception fallbackError) {
+                logRecoverableFailure("file_uri_decode_fallback", fallbackError);
                 return null;
             }
         }
         try {
             String expanded = expandUserHome(value);
             return FileUtil.file(expanded).getCanonicalFile();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableFailure("local_path_canonicalize", e);
             return null;
         }
     }
@@ -428,7 +436,8 @@ public class CliAttachmentResolver {
             if (value.toLowerCase(Locale.ROOT).startsWith("file:")) {
                 return new File(new URI(value)).getName();
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            logRecoverableFailure("file_uri_display_name", e);
         }
         if (Pattern.compile("^[A-Za-z]:[/\\\\].+").matcher(value).matches()) {
             String normalized = value.replace('\\', '/');
@@ -445,10 +454,12 @@ public class CliAttachmentResolver {
      * @return 返回safe消息结果。
      */
     private static String safeMessage(String value) {
-        String result = SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
-        // 兜底遮蔽消息中残留的绝对路径，例如 path=/some/absolute/path。
-        result = ABSOLUTE_PATH_IN_MESSAGE.matcher(result).replaceAll("[REDACTED_PATH]");
-        return result;
+        String redacted =
+                SecretRedactor.redactSensitivePaths(
+                        SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000));
+        redacted = ABSOLUTE_PATH_IN_MESSAGE.matcher(redacted).replaceAll("[REDACTED_PATH]");
+        redacted = WINDOWS_PATH_TOKEN.matcher(redacted).replaceAll("[REDACTED_PATH]");
+        return POSIX_PATH_TOKEN.matcher(redacted).replaceAll("[REDACTED_PATH]");
     }
 
     /**
@@ -459,6 +470,26 @@ public class CliAttachmentResolver {
      */
     private static String safeName(String value) {
         return SecretRedactor.redact(StrUtil.blankToDefault(value, "-"), 400);
+    }
+
+    /**
+     * 记录附件解析中的可恢复异常，仅输出动作名和异常类型，避免泄露路径、token或附件内容。
+     *
+     * @param action 降级动作名称。
+     * @param error 触发降级的异常。
+     */
+    private static void logRecoverableFailure(String action, Exception error) {
+        log.debug("CLI附件解析降级：action={} error={}", action, exceptionType(error));
+    }
+
+    /**
+     * 提取异常类型摘要，避免记录异常消息和堆栈中的敏感上下文。
+     *
+     * @param error 待摘要的异常。
+     * @return 返回异常类型名称。
+     */
+    private static String exceptionType(Exception error) {
+        return error == null ? "unknown" : error.getClass().getSimpleName();
     }
 
     /** 承载Candidate相关状态和辅助逻辑。 */

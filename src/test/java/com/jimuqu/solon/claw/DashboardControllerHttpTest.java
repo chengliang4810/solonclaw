@@ -40,8 +40,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterAll;
@@ -55,11 +53,23 @@ public class DashboardControllerHttpTest {
     private static int port;
     private static File runtimeHome;
     private static String previousHttpKeepAlive;
+    /** Dashboard HTTP 集成测试使用的固定访问令牌，避免从页面 HTML 中读取真实配置值。 */
+    private static final String DASHBOARD_TEST_TOKEN = "test-dashboard-token";
+    private static final String LOCAL_OAUTH_AUTHORIZATION_ENDPOINT =
+            "http://127.0.0.1:8765/oauth/authorize";
+    private static final String LOCAL_OAUTH_TOKEN_ENDPOINT = "http://127.0.0.1:8765/oauth/token";
 
     @BeforeAll
     static void startApp() throws Exception {
         port = findFreePort();
         runtimeHome = Files.createTempDirectory("solon-claw-dashboard-test").toFile();
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  dashboard:\n"
+                        + "    accessToken: "
+                        + DASHBOARD_TEST_TOKEN
+                        + "\n",
+                new File(runtimeHome, "config.yml"));
         previousHttpKeepAlive = System.getProperty("http.keepAlive");
         System.setProperty("http.keepAlive", "false");
 
@@ -68,6 +78,9 @@ public class DashboardControllerHttpTest {
                 new String[] {
                     "--server.port=" + port,
                     "--solonclaw.runtime.home=" + runtimeHome.getAbsolutePath(),
+                    "--solonclaw.workspace="
+                            + new File(runtimeHome, "workspace").getAbsolutePath(),
+                    "--solonclaw.dashboard.accessToken=" + DASHBOARD_TEST_TOKEN,
                     "--solonclaw.scheduler.enabled=false",
                     "--solonclaw.gateway.allowAllUsers=true",
                     "--solonclaw.gateway.injectionSecret=test-injection-secret"
@@ -98,12 +111,12 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
-    void shouldInjectDashboardTokenAndProtectSensitiveApis() throws Exception {
+    void shouldAvoidInjectingDashboardTokenAndProtectSensitiveApis() throws Exception {
         HttpResult index = request("GET", "/", null, null);
         assertThat(index.status).isEqualTo(200);
-        assertThat(index.body).contains("__APP_SESSION_TOKEN__");
+        assertThat(index.body).doesNotContain("__APP_SESSION_TOKEN__");
 
-        String token = extractToken(index.body);
+        String token = DASHBOARD_TEST_TOKEN;
         assertThat(token).isNotBlank();
 
         HttpResult status = request("GET", "/api/status", null, null);
@@ -145,23 +158,23 @@ public class DashboardControllerHttpTest {
 
         HttpResult login = request("GET", "/login", null, null);
         assertThat(login.status).isEqualTo(200);
-        assertThat(login.body).contains("__APP_SESSION_TOKEN__");
+        assertThat(login.body).doesNotContain("__APP_SESSION_TOKEN__");
 
         HttpResult chat = request("GET", "/chat", null, null);
         assertThat(chat.status).isEqualTo(200);
-        assertThat(chat.body).contains("__APP_SESSION_TOKEN__");
+        assertThat(chat.body).doesNotContain("__APP_SESSION_TOKEN__");
 
         HttpResult solonClawChat = request("GET", "/solonclaw/chat", null, null);
         assertThat(solonClawChat.status).isEqualTo(200);
-        assertThat(solonClawChat.body).contains("__APP_SESSION_TOKEN__");
+        assertThat(solonClawChat.body).doesNotContain("__APP_SESSION_TOKEN__");
 
         HttpResult solonClawBase = request("GET", "/solonclaw", null, null);
         assertThat(solonClawBase.status).isEqualTo(200);
-        assertThat(solonClawBase.body).contains("__APP_SESSION_TOKEN__");
+        assertThat(solonClawBase.body).doesNotContain("__APP_SESSION_TOKEN__");
 
         HttpResult files = request("GET", "/files", null, null);
         assertThat(files.status).isEqualTo(200);
-        assertThat(files.body).contains("__APP_SESSION_TOKEN__");
+        assertThat(files.body).doesNotContain("__APP_SESSION_TOKEN__");
     }
 
     @Test
@@ -179,7 +192,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldReturnStructuredErrorForInvalidDiagnosticsJson() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult result =
                 request(
@@ -199,7 +212,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldExposeSubprocessEnvironmentProbeHttpEndpoint() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult result =
                 request(
@@ -221,7 +234,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldReturnStructuredErrorForInvalidProviderValidationRequest() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult result =
                 request(
@@ -238,7 +251,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldReturnStructuredErrorForInvalidSubprocessEnvironmentProbeJson() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult result =
                 request(
@@ -257,7 +270,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldUpdateDashboardPlatformToolsetPolicy() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult overview = request("GET", "/api/tools/platform-toolsets", null, token);
         assertThat(overview.status).isEqualTo(200);
@@ -317,11 +330,13 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldValidateConfiguredProviderThroughDashboardRoute() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         AppConfig.ProviderConfig provider =
                 Solon.context().getBean(AppConfig.class).getProviders().get("default");
+        AppConfig config = Solon.context().getBean(AppConfig.class);
         String previousBaseUrl = provider.getBaseUrl();
         String previousDialect = provider.getDialect();
+        boolean previousAllowPrivateUrls = config.getSecurity().isAllowPrivateUrls();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
             server.createContext(
@@ -337,6 +352,7 @@ public class DashboardControllerHttpTest {
             server.start();
             provider.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
             provider.setDialect("openai");
+            config.getSecurity().setAllowPrivateUrls(true);
 
             HttpResult result =
                     request(
@@ -355,13 +371,14 @@ public class DashboardControllerHttpTest {
         } finally {
             provider.setBaseUrl(previousBaseUrl);
             provider.setDialect(previousDialect);
+            config.getSecurity().setAllowPrivateUrls(previousAllowPrivateUrls);
             server.stop(0);
         }
     }
 
     @Test
     void shouldExposeConfigDriftDiagnosticsThroughDashboard() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         File configFile = new File(runtimeHome, "config.yml");
         String previous = configFile.exists() ? FileUtil.readUtf8String(configFile) : null;
         try {
@@ -395,7 +412,6 @@ public class DashboardControllerHttpTest {
                     .contains("solonclaw.scheduler.tickSeconds")
                     .contains("\"raw_value\"")
                     .contains("\"effective_value\"")
-                    .doesNotContain("\"legacy_keys\"")
                     .doesNotContain("sk-dashboardconfigdrift12345");
 
             HttpResult doctor = request("GET", "/api/diagnostics/doctor", null, token);
@@ -403,7 +419,6 @@ public class DashboardControllerHttpTest {
             assertThat(doctor.body)
                     .contains("\"config\"")
                     .contains("config_unknown_keys")
-                    .doesNotContain("config_legacy_keys")
                     .doesNotContain("sk-dashboardconfigdrift12345");
         } finally {
             if (previous == null) {
@@ -417,7 +432,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldExposeTuiRuntimeRpcForSetupAndModelConfiguration() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         File overrideFile = new File(runtimeHome, "config.yml");
 
         HttpResult unauthorized =
@@ -528,7 +543,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldPersistConfigAndExposeDashboardResources() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult createProvider =
                 request(
@@ -708,9 +723,9 @@ public class DashboardControllerHttpTest {
                 .contains("\"atomicValidationBeforeWrite\":true")
                 .contains("\"credentialPolicyPrechecked\":true")
                 .contains("\"executeCodeSupported\":true")
-                .contains("\"scriptPreflightUrlPolicy\":false")
-                .contains("\"fileGuardrailMode\":\"bypass\"")
-                .contains("\"urlGuardrailMode\":\"bypass\"")
+                .contains("\"scriptPreflightUrlPolicy\":true")
+                .contains("\"fileGuardrailMode\":\"strict\"")
+                .contains("\"urlGuardrailMode\":\"strict\"")
                 .contains("\"hardlineRulesApplied\":true")
                 .contains("\"sandboxEnvironmentSanitized\":true")
                 .contains("\"rpcToolOutputsRedacted\":true")
@@ -868,7 +883,8 @@ public class DashboardControllerHttpTest {
                 .contains("\"describedPreviewRedacted\":true")
                 .contains("\"persistedOutputRedacted\":true")
                 .contains("\"fullOutputSavedRaw\":false")
-                .contains("\"storageBase\":\"tool-results\"")
+                .contains("\"storageBase\":\".jimuqu/tool-results\"")
+                .contains("\"workspaceRelativeRefsPreferred\":true")
                 .contains("\"storageFailureFallsBackToPreviewOnly\":true")
                 .contains("\"sudo_rewrite_policy\"")
                 .contains("\"rewritesRealSudoInvocations\":true")
@@ -896,7 +912,6 @@ public class DashboardControllerHttpTest {
                 ONode.ofJson(diagnostics.body).get("data").get("security").get("approvals");
         assertThat(approvalDiagnostics.toJson())
                 .doesNotContain("\"pendingQueueContextKey\"")
-                .doesNotContain("\"legacyPendingContextKey\"")
                 .doesNotContain("\"onceScopeStoresContextKey\"")
                 .doesNotContain("\"sessionScopeStoresContextKey\"");
         ONode approvalCardDiagnostics = approvalDiagnostics.get("approval_card_policy");
@@ -1461,9 +1476,9 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/mcp",
-                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"],\"auth\":{\"header\":\"Authorization: Bearer ghp_mcpsecret12345\"}}",
+                        "{\"serverId\":\"secret-stdio-docs\",\"name\":\"Secret Stdio\",\"transport\":\"stdio\",\"command\":\"OPENAI_API_KEY=sk-test-dashboard-secret docs-mcp\",\"args\":[\"--token=secret-arg-value\",\"--stdio\"],\"auth\":{\"header\":\"Authorization: Bearer ghp_mcpsecret12345\"}}",
                         token);
-        assertThat(secretMcp.status).isEqualTo(200);
+        assertThat(secretMcp.status).as(secretMcp.body).isEqualTo(200);
         HttpResult userInfoMcp =
                 request(
                         "POST",
@@ -1473,7 +1488,7 @@ public class DashboardControllerHttpTest {
         assertThat(userInfoMcp.status).isEqualTo(400);
         assertThat(userInfoMcp.body)
                 .contains("MCP_BAD_REQUEST")
-                .contains("[REDACTED_PATH]")
+                .contains("[REDACTED_URL_CREDENTIAL]")
                 .doesNotContain("secret-endpoint-pass")
                 .doesNotContain("secret-userinfo-token");
         HttpResult secretMcpList = request("GET", "/api/mcp", null, token);
@@ -1482,7 +1497,6 @@ public class DashboardControllerHttpTest {
                 .contains("OPENAI_API_KEY=***")
                 .contains("--token=***")
                 .contains("Authorization: Bearer ***")
-                .contains("https://example.com/sse")
                 .doesNotContain("sk-test-dashboard-secret")
                 .doesNotContain("secret-arg-value")
                 .doesNotContain("secret-endpoint-pass")
@@ -1493,7 +1507,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/mcp",
-                        "{\"serverId\":\"oauth-docs\",\"name\":\"OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"auth_type\":\"oauth_pkce\",\"access_token\":\"secret-access\",\"refresh_token\":\"secret-refresh\",\"client_secret\":\"secret-client\",\"expires_at\":4102444800000,\"scopes\":[\"repo\"]},\"tools\":[{\"name\":\"docs_search\"}]}",
+                        "{\"serverId\":\"oauth-docs\",\"name\":\"OAuth Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"oauth\":{\"enabled\":true,\"provider\":\"github\",\"auth_type\":\"oauth_pkce\",\"access_token\":\"secret-access\",\"refresh_token\":\"secret-refresh\",\"client_secret\":\"secret-client\",\"expires_at\":4102444800000,\"scopes\":[\"repo\"]},\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(updateMcpOAuth.status).isEqualTo(200);
 
@@ -1510,7 +1524,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/mcp",
-                        "{\"serverId\":\"oauth-error-docs\",\"name\":\"OAuth Error Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"status\":\"pending\",\"error\":\"access_token=ghp_oautherror12345&callback=http://localhost/cb?api%255Fkey=oauth-encoded-secret&token=secret-oauth-error\",\"message\":\"client_secret=oauth-message-secret https://example.test/callback#refresh_token=oauth-fragment-secret\"},\"tools\":[{\"name\":\"docs_search\"}]}",
+                        "{\"serverId\":\"oauth-error-docs\",\"name\":\"OAuth Error Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"oauth\":{\"enabled\":true,\"status\":\"pending\",\"error\":\"access_token=ghp_oautherror12345&callback=http://localhost/cb?api%255Fkey=oauth-encoded-secret&token=secret-oauth-error\",\"message\":\"client_secret=oauth-message-secret https://example.test/callback#refresh_token=oauth-fragment-secret\"},\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(oauthErrorServer.status).isEqualTo(200);
         HttpResult oauthErrorStatus =
@@ -1535,13 +1549,15 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/mcp/oauth-docs/oauth/begin",
-                        "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
-                                + "https://example.com/oauth/token"
+                        "{\"authorization_endpoint\":\""
+                                + LOCAL_OAUTH_AUTHORIZATION_ENDPOINT
+                                + "\",\"token_endpoint\":\""
+                                + LOCAL_OAUTH_TOKEN_ENDPOINT
                                 + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                         token);
         assertThat(beginOAuth.status).isEqualTo(200);
         assertThat(beginOAuth.body).contains("\"status\":\"pending\"");
-        assertThat(beginOAuth.body).contains("https://example.com/oauth/authorize");
+        assertThat(beginOAuth.body).contains(LOCAL_OAUTH_AUTHORIZATION_ENDPOINT);
         assertThat(beginOAuth.body).contains("code_challenge_method=S256");
         assertThat(beginOAuth.body).contains("scope=repo%20read%3Auser");
         assertThat(beginOAuth.body).contains("\"has_code_verifier\":true");
@@ -1614,7 +1630,9 @@ public class DashboardControllerHttpTest {
                     request(
                             "POST",
                             "/api/mcp/oauth-docs/oauth/begin",
-                            "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
+                            "{\"authorization_endpoint\":\""
+                                    + LOCAL_OAUTH_AUTHORIZATION_ENDPOINT
+                                    + "\",\"token_endpoint\":\""
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
@@ -1651,7 +1669,9 @@ public class DashboardControllerHttpTest {
                     request(
                             "POST",
                             "/api/mcp/oauth-docs/oauth/begin",
-                            "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
+                            "{\"authorization_endpoint\":\""
+                                    + LOCAL_OAUTH_AUTHORIZATION_ENDPOINT
+                                    + "\",\"token_endpoint\":\""
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
@@ -1749,7 +1769,9 @@ public class DashboardControllerHttpTest {
                     request(
                             "POST",
                             "/api/mcp/oauth-docs/oauth/begin",
-                            "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
+                            "{\"authorization_endpoint\":\""
+                                    + LOCAL_OAUTH_AUTHORIZATION_ENDPOINT
+                                    + "\",\"token_endpoint\":\""
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
@@ -1787,7 +1809,9 @@ public class DashboardControllerHttpTest {
                     request(
                             "POST",
                             "/api/mcp/oauth-docs/oauth/begin",
-                            "{\"authorization_endpoint\":\"https://example.com/oauth/authorize\",\"token_endpoint\":\""
+                            "{\"authorization_endpoint\":\""
+                                    + LOCAL_OAUTH_AUTHORIZATION_ENDPOINT
+                                    + "\",\"token_endpoint\":\""
                                     + tokenEndpoint.redirectUrl()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
@@ -1821,7 +1845,7 @@ public class DashboardControllerHttpTest {
                 request(
                         "POST",
                         "/api/mcp",
-                        "{\"serverId\":\"blocked-oauth-docs\",\"name\":\"Blocked OAuth Docs\",\"transport\":\"http\",\"endpoint\":\"https://example.com/sse\",\"oauth\":{\"enabled\":true,\"status\":\"authenticated\",\"client_id\":\"client-1\",\"access_token\":\"secret-access\",\"refresh_token\":\"refresh-secret\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-refresh-url\"},\"tools\":[{\"name\":\"docs_search\"}]}",
+                        "{\"serverId\":\"blocked-oauth-docs\",\"name\":\"Blocked OAuth Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"oauth\":{\"enabled\":true,\"status\":\"authenticated\",\"client_id\":\"client-1\",\"access_token\":\"secret-access\",\"refresh_token\":\"refresh-secret\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-refresh-url\"},\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
         assertThat(blockedRefreshServer.status).isEqualTo(200);
         HttpResult blockedRefresh =
@@ -1854,7 +1878,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldFilterDashboardLogsByQueryAndKeyword() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         File agentLog = FileUtil.file(runtimeHome, "logs", "agent.log");
         FileUtil.appendUtf8String(
                 "2026-06-13 10:10:10.000 ERROR [test] "
@@ -1890,7 +1914,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldIncludeRunAndToolIndexMatchesInDashboardLogQuery() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         String marker = "web-loop-log-index-tool-20260614";
         long now = System.currentTimeMillis();
 
@@ -1945,7 +1969,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldListAndResolvePendingDashboardApprovals() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         seedPendingApproval(
                 "dashboard-approval-chat",
                 "MEMORY:dashboard-approval-chat:dashboard-user",
@@ -2024,7 +2048,7 @@ public class DashboardControllerHttpTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeSafeSelectorForUnsafeDashboardApprovalId() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         seedPendingApproval(
                 "dashboard-unsafe-approval-chat",
                 "MEMORY:dashboard-unsafe-approval-chat:dashboard-user",
@@ -2037,7 +2061,6 @@ public class DashboardControllerHttpTest {
                 (List<Map<String, Object>>)
                         agentSession.getContext().get("_dangerous_command_pending_queue_");
         queue.get(0).put("approvalId", "approval-unsafe always");
-        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
         agentSession.updateSnapshot();
 
         HttpResult pending = request("GET", "/api/diagnostics/approvals?limit=20", null, token);
@@ -2064,7 +2087,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldListAndRevokeAlwaysDashboardApprovals() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         seedPendingApproval(
                 "dashboard-always-chat",
                 "MEMORY:dashboard-always-chat:dashboard-user",
@@ -2142,7 +2165,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldRejectRawAlwaysApprovalRevokeWithoutLeakingDashboardInput() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         seedPendingApproval(
                 "dashboard-raw-always-chat",
                 "MEMORY:dashboard-raw-always-chat:dashboard-user",
@@ -2201,7 +2224,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldListAndResolvePendingSlashConfirmsFromDashboard() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         GatewayMessage commandMessage =
                 new GatewayMessage(
@@ -2256,7 +2279,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldRejectDisallowedAlwaysSlashConfirmFromDashboard() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         bean(SlashConfirmService.class)
                 .register(
                         "MEMORY:dashboard-confirm-once:dashboard-user", "rollback", "确认回滚？", false);
@@ -2301,7 +2324,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldRedactSlashConfirmPromptFromDashboard() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         bean(SlashConfirmService.class)
                 .register(
                         "MEMORY:dashboard-secret-confirm:user",
@@ -2342,7 +2365,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldRejectUnsafeSlashConfirmSelectorWithoutLeakingDashboardInput() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         bean(SlashConfirmService.class)
                 .register(
                         "MEMORY:dashboard-unsafe-confirm:user-token=ghp_sourcesecret12345",
@@ -2401,7 +2424,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldKeepDashboardSlashConfirmResolutionSourceIsolated() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         SlashConfirmService service = bean(SlashConfirmService.class);
         String sourceA = "MEMORY:dashboard-source-isolated-a:user-a";
         String sourceB = "MEMORY:dashboard-source-isolated-b:user-token=ghp_sourceisolation12345";
@@ -2437,7 +2460,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldRedactDashboardCronErrors() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         String leakedToken = "sk-dashboardcron12345";
         File tokenDir = new File(new File(runtimeHome, "projects"), leakedToken);
         FileUtil.mkdir(tokenDir);
@@ -2460,7 +2483,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldReturnStructuredErrorForInvalidCronJson() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult dashboardCron =
                 request(
@@ -2479,7 +2502,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldRedactDashboardChatRunFailedEvents() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         String leakedToken = "sk-chatfailed12345";
         ONode start =
                 ONode.ofJson(
@@ -2507,7 +2530,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldSupportDashboardChatRunsAndUploads() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult upload =
                 requestMultipart("/api/chat/uploads", token, "hello.txt", "hello world");
@@ -2652,7 +2675,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldHideCuratorHostPaths() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult run = request("POST", "/api/curator/run?force=true", "{}", token);
         assertThat(run.status).isEqualTo(200);
@@ -2694,7 +2717,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldHideAgentHostPaths() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult defaultAgent = request("GET", "/api/agents/default", null, token);
         assertThat(defaultAgent.status).isEqualTo(200);
@@ -2758,8 +2781,9 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldHideWorkspaceHostPaths() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
-        File diaryDir = new File(runtimeHome, "memory");
+        String token = DASHBOARD_TEST_TOKEN;
+        File workspaceDir = FileUtil.file(bean(AppConfig.class).getWorkspace().getDir());
+        File diaryDir = new File(workspaceDir, "memory");
         FileUtil.mkdir(diaryDir);
         File diary = new File(diaryDir, "2099-01-01.md");
         FileUtil.writeUtf8String("# private diary\n", diary);
@@ -2768,16 +2792,19 @@ public class DashboardControllerHttpTest {
         assertThat(files.status).isEqualTo(200);
         assertThat(files.body).contains("workspace://files/");
         assertThat(files.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(files.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult agents = request("GET", "/api/workspace/files/agents", null, token);
         assertThat(agents.status).isEqualTo(200);
         assertThat(agents.body).contains("workspace://files/agents");
         assertThat(agents.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(agents.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult diaries = request("GET", "/api/workspace/diaries", null, token);
         assertThat(diaries.status).isEqualTo(200);
         assertThat(diaries.body).contains("workspace://diaries/memory/2099-01-01.md");
         assertThat(diaries.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(diaries.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult diaryFile =
                 request(
@@ -2789,6 +2816,7 @@ public class DashboardControllerHttpTest {
         assertThat(diaryFile.status).isEqualTo(200);
         assertThat(diaryFile.body).contains("workspace://diaries/memory/2099-01-01.md");
         assertThat(diaryFile.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(diaryFile.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult rejectedDiary =
                 request(
@@ -2819,7 +2847,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldWrapSessionMutationErrors() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult missingSession =
                 request(
@@ -2861,7 +2889,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldWrapRunControlErrors() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult invalidJson =
                 request(
@@ -2892,7 +2920,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldRedactSubagentControlEcho() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult invalidJson =
                 request(
@@ -2922,7 +2950,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldWrapDashboardChatErrors() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult missingRun =
                 request(
@@ -2956,7 +2984,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldHideMediaCacheHostPaths() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         File mediaDir = new File(new File(runtimeHome, "cache"), "media/MEMORY");
         FileUtil.mkdir(mediaDir);
         File cached = new File(mediaDir, "dashboard-secret-token.txt");
@@ -2996,7 +3024,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldWrapMediaErrors() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         File secret = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String("apiKey: ghp_mediapath12345\n", secret);
 
@@ -3044,7 +3072,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldRejectDashboardChatAttachmentPathsOutsideMediaCache() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
         File secret = new File(runtimeHome, "config.yml");
         FileUtil.writeUtf8String("providers:\n  default:\n    apiKey: secret\n", secret);
 
@@ -3070,7 +3098,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldNotExposeTodoApis() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         assertThat(request("GET", "/api/todos", null, token).status).isEqualTo(404);
         assertThat(request("POST", "/api/todos", "{\"title\":\"removed\"}", token).status)
@@ -3079,7 +3107,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldRejectPlaceholderSecrets() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult unsafeProviderUrl =
                 request(
@@ -3132,7 +3160,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldWrapRuntimeConfigStateErrors() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult unsupportedSet =
                 request(
@@ -3161,7 +3189,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldReturnStructuredErrorForInvalidRuntimeConfigJson() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult invalidSet =
                 request(
@@ -3199,7 +3227,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldWrapDashboardConfigSaveErrors() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult invalidSaveJson =
                 request(
@@ -3254,7 +3282,7 @@ public class DashboardControllerHttpTest {
 
     @Test
     void shouldWrapProviderMutationErrors() throws Exception {
-        String token = extractToken(request("GET", "/", null, null).body);
+        String token = DASHBOARD_TEST_TOKEN;
 
         HttpResult invalidCreate =
                 request(
@@ -3402,12 +3430,6 @@ public class DashboardControllerHttpTest {
     private static <T> T bean(Class<T> type) {
         AppContext context = Solon.context();
         return context.getBean(type);
-    }
-
-    private static String extractToken(String html) {
-        Matcher matcher = Pattern.compile("__APP_SESSION_TOKEN__=\\\"([^\\\"]+)\\\"").matcher(html);
-        assertThat(matcher.find()).isTrue();
-        return matcher.group(1);
     }
 
     private static String jsonEscape(String value) {

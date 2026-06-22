@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { NModal, NForm, NFormItem, NInput, NButton, NSelect, NInputNumber, NSwitch, useMessage } from 'naive-ui'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
 import { useI18n } from 'vue-i18n'
+import { hasText, joinTextList, splitTrimmedText, trimText } from '@/shared/text'
 
 const { t } = useI18n()
 
@@ -181,27 +182,23 @@ function buildScheduleValue() {
   if (scheduleKind.value === 'interval') {
     return buildIntervalSchedule()
   }
-  return formData.value.schedule.trim()
+  return trimText(formData.value.schedule)
 }
 
 function splitCsv(value: string) {
-  return value.split(',').map(item => item.trim()).filter(Boolean)
-}
-
-function joinCsv(value?: string[] | null) {
-  return (value || []).join(', ')
+  return splitTrimmedText(value, ',')
 }
 
 function supportedDeliveryPlatform(value: string) {
-  return deliveryPlatformOptions.value.some(option => option.value === value.trim().toLowerCase())
+  return deliveryPlatformOptions.value.some(option => option.value === trimText(value).toLowerCase())
 }
 
 function splitDeliveryTarget(value: string) {
-  const parts = value.trim().split(':')
+  const parts = trimText(value).split(':')
   return {
-    platform: (parts[0] || '').trim().toLowerCase(),
-    chatId: (parts[1] || '').trim(),
-    threadId: parts.slice(2).join(':').trim(),
+    platform: trimText(parts[0]).toLowerCase(),
+    chatId: trimText(parts[1]),
+    threadId: trimText(parts.slice(2).join(':')),
   }
 }
 
@@ -211,7 +208,7 @@ function inferDeliveryControls(
   threadId?: string | null,
   originPlatform?: string | null,
 ) {
-  const value = (deliver || 'origin').trim() || 'origin'
+  const value = trimText(deliver) || 'origin'
   formData.value.deliver_chat_id = chatId || ''
   formData.value.deliver_thread_id = threadId || ''
 
@@ -228,7 +225,7 @@ function inferDeliveryControls(
     return
   }
   if (target.platform === 'origin' && (chatId || threadId)) {
-    const platform = (originPlatform || '').trim().toLowerCase()
+    const platform = trimText(originPlatform).toLowerCase()
     if (supportedDeliveryPlatform(platform)) {
       deliveryPlatform.value = platform
       deliveryMode.value = 'specific'
@@ -257,7 +254,7 @@ function inferDeliveryControls(
 function buildDeliveryPayload() {
   if (deliveryMode.value === 'multi') {
     return {
-      deliver: deliveryMultiText.value.trim() || 'local',
+      deliver: trimText(deliveryMultiText.value) || 'local',
       deliver_chat_id: '',
       deliver_thread_id: '',
     }
@@ -272,8 +269,8 @@ function buildDeliveryPayload() {
   if (deliveryMode.value === 'specific') {
     return {
       deliver: deliveryPlatform.value,
-      deliver_chat_id: formData.value.deliver_chat_id.trim(),
-      deliver_thread_id: formData.value.deliver_thread_id.trim(),
+      deliver_chat_id: trimText(formData.value.deliver_chat_id),
+      deliver_thread_id: trimText(formData.value.deliver_thread_id),
     }
   }
   return {
@@ -296,13 +293,13 @@ onMounted(async () => {
         deliver_chat_id: job.deliver_chat_id || '',
         deliver_thread_id: job.deliver_thread_id || '',
         repeat_times: typeof job.repeat === 'number' ? job.repeat : (typeof job.repeat === 'object' ? job.repeat.times : null),
-        skills_text: joinCsv(job.skills),
+        skills_text: joinTextList(job.skills),
         wrap_response: job.wrap_response,
         script: job.script || '',
         workdir: job.workdir || '',
         no_agent: job.no_agent,
-        context_from_text: joinCsv(job.context_from),
-        enabled_toolsets_text: joinCsv(job.enabled_toolsets),
+        context_from_text: joinTextList(job.context_from),
+        enabled_toolsets_text: joinTextList(job.enabled_toolsets),
         provider: job.provider || '',
         model: job.model || '',
         base_url: job.base_url || '',
@@ -322,7 +319,7 @@ onMounted(async () => {
 })
 
 async function handleSave() {
-  if (!formData.value.name.trim()) {
+  if (!hasText(formData.value.name)) {
     message.warning(t('jobs.nameRequired'))
     return
   }
@@ -331,15 +328,15 @@ async function handleSave() {
     message.warning(t('jobs.scheduleRequired'))
     return
   }
-  if (formData.value.no_agent && !formData.value.script.trim()) {
+  if (formData.value.no_agent && !hasText(formData.value.script)) {
     message.warning(t('jobs.scriptRequiredForNoAgent'))
     return
   }
-  if (!formData.value.no_agent && !formData.value.prompt.trim() && splitCsv(formData.value.skills_text).length === 0) {
+  if (!formData.value.no_agent && !hasText(formData.value.prompt) && splitCsv(formData.value.skills_text).length === 0) {
     message.warning(t('jobs.promptOrSkillRequired'))
     return
   }
-  if (deliveryMode.value === 'specific' && !formData.value.deliver_chat_id.trim()) {
+  if (deliveryMode.value === 'specific' && !hasText(formData.value.deliver_chat_id)) {
     message.warning(t('jobs.deliverChatIdRequired'))
     return
   }
@@ -366,7 +363,7 @@ async function handleSave() {
       enabled_toolsets: enabledToolsets,
       enabled: formData.value.state === 'scheduled',
       state: formData.value.state === 'scheduled' ? 'active' : formData.value.state,
-      paused_reason: formData.value.paused_reason.trim() || undefined,
+      paused_reason: trimText(formData.value.paused_reason) || undefined,
     }
     if (isEdit.value && skillEditMode.value === 'merge') {
       delete payload.skills
@@ -387,7 +384,7 @@ async function handleSave() {
       ['paused_reason', formData.value.paused_reason],
     ]
     for (const [key, raw] of nullableFields) {
-      const value = String(raw).trim()
+      const value = trimText(String(raw))
       if (value) payload[key] = value
       else if (isEdit.value) payload[key] = null
     }

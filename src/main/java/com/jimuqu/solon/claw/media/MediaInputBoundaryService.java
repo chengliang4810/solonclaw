@@ -5,6 +5,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -25,21 +26,21 @@ import org.noear.solon.ai.chat.content.ImageBlock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** 多模态图片输入安全边界。 */
+/** 多模态图片输入安全边界，负责把附件转换为模型可接受的图片块并限制输入体积。 */
 public class MediaInputBoundaryService {
-    /** 日志的统一常量值。 */
+    /** 图片输入边界的运行日志。 */
     private static final Logger log = LoggerFactory.getLogger(MediaInputBoundaryService.class);
 
-    /** 最大图片附件的统一常量值。 */
+    /** 单轮请求最多嵌入的图片附件数量，防止一次会话占用过多上下文窗口。 */
     public static final int MAX_IMAGE_ATTACHMENTS = 3;
 
-    /** EMBEDTARGET字节的统一常量值。 */
+    /** Base64 内嵌目标上限，超过后会尝试压缩为 JPEG。 */
     public static final long EMBED_TARGET_BYTES = 4L * 1024L * 1024L;
 
-    /** 最大图片字节的统一常量值。 */
+    /** 原始图片读取上限，避免把超大附件直接送入模型请求。 */
     public static final long MAX_IMAGE_BYTES = 20L * 1024L * 1024L;
 
-    /** 图片MIMEALLOW列表的统一常量值。 */
+    /** 允许送入多模态模型的图片 MIME 白名单。 */
     private static final Set<String> IMAGE_MIME_ALLOWLIST =
             new HashSet<String>(
                     Arrays.asList(
@@ -51,7 +52,7 @@ public class MediaInputBoundaryService {
                             "image/heic",
                             "image/heif"));
 
-    /** 记录媒体输入Boundary中的缓存根用户。 */
+    /** 媒体缓存根目录，只允许读取该目录下的本地图片附件。 */
     private final File cacheRoot;
 
     /**
@@ -69,10 +70,10 @@ public class MediaInputBoundaryService {
     }
 
     /**
-     * 转换为图片块。
+     * 将消息附件转换为 Solon AI 图片块。
      *
-     * @param attachment 附件参数。
-     * @return 返回转换后的图片块。
+     * @param attachment 待转换的消息附件。
+     * @return 合法图片返回模型图片块；不满足边界约束时返回 null。
      */
     public ImageBlock toImageBlock(MessageAttachment attachment) {
         if (!isImageAttachment(attachment)) {
@@ -92,7 +93,7 @@ public class MediaInputBoundaryService {
                 return ImageBlock.ofBase64(payload.base64, payload.mimeType);
             }
             if (StrUtil.isNotBlank(attachment.getUrl())) {
-                String url = attachment.getUrl().trim();
+                String url = BasicValueSupport.trimToEmpty(attachment.getUrl());
                 URI uri = URI.create(url);
                 String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(Locale.ROOT);
                 if (!"http".equals(scheme) && !"https".equals(scheme) && !"data".equals(scheme)) {
@@ -141,7 +142,7 @@ public class MediaInputBoundaryService {
     }
 
     /**
-     * 执行max图片附件相关逻辑。
+     * 读取单轮允许发送给模型的最大图片附件数量。
      *
      * @return 返回max图片附件结果。
      */
@@ -150,10 +151,10 @@ public class MediaInputBoundaryService {
     }
 
     /**
-     * 判断是否图片附件。
+     * 判断附件是否为图片输入。
      *
      * @param attachment 附件参数。
-     * @return 如果图片附件满足条件则返回 true，否则返回 false。
+     * @return kind 为 image 且 MIME 为 image/* 时返回 true。
      */
     private boolean isImageAttachment(MessageAttachment attachment) {
         if (attachment == null) {
@@ -165,14 +166,14 @@ public class MediaInputBoundaryService {
     }
 
     /**
-     * 执行图片载荷相关逻辑。
+     * 构建图片载荷，必要时把过大的图片压缩为较小的 JPEG。
      *
-     * @param data 数据参数。
-     * @param mimeType MIME 类型参数。
-     * @return 返回图片Payload结果。
+     * @param data 原始图片字节。
+     * @param mimeType 原始图片 MIME。
+     * @return 可内嵌到模型请求的图片载荷；不合法或无法压缩时返回 null。
      */
     private ImagePayload imagePayload(byte[] data, String mimeType) {
-        if (data == null || data.length == 0 || data.length > MAX_IMAGE_BYTES) {
+        if (BasicValueSupport.isEmpty(data) || data.length > MAX_IMAGE_BYTES) {
             return null;
         }
         String base64 = java.util.Base64.getEncoder().encodeToString(data);
@@ -183,11 +184,11 @@ public class MediaInputBoundaryService {
     }
 
     /**
-     * 执行shrink图片载荷相关逻辑。
+     * 多轮降采样并降低 JPEG 质量，尽量把图片压到内嵌目标以内。
      *
-     * @param data 数据参数。
-     * @param mimeType MIME 类型参数。
-     * @return 返回shrink图片Payload结果。
+     * @param data 原始图片字节。
+     * @param mimeType 原始图片 MIME，仅用于调用方理解来源，压缩后固定输出 JPEG。
+     * @return 压缩成功时返回图片载荷，否则返回 null。
      */
     private ImagePayload shrinkImagePayload(byte[] data, String mimeType) {
         try {
@@ -226,12 +227,12 @@ public class MediaInputBoundaryService {
     }
 
     /**
-     * 执行scale图片相关逻辑。
+     * 使用高质量插值缩放图片。
      *
-     * @param source 来源参数。
-     * @param width width标识或键值。
-     * @param height height 参数。
-     * @return 返回scale图片结果。
+     * @param source 原始图片。
+     * @param width 目标宽度。
+     * @param height 目标高度。
+     * @return 缩放后的 RGB 图片。
      */
     private BufferedImage scaleImage(BufferedImage source, int width, int height) {
         BufferedImage target = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
@@ -251,11 +252,11 @@ public class MediaInputBoundaryService {
     }
 
     /**
-     * 编码Jpeg。
+     * 按指定质量编码 JPEG。
      *
      * @param image 图片参数。
-     * @param quality quality 参数。
-     * @return 返回encode Jpeg结果。
+     * @param quality JPEG 压缩质量。
+     * @return JPEG 字节数组。
      */
     private byte[] encodeJpeg(BufferedImage image, float quality) throws Exception {
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
@@ -275,16 +276,16 @@ public class MediaInputBoundaryService {
         }
     }
 
-    /** 承载图片载荷相关状态和辅助逻辑。 */
+    /** 承载可发送给模型的图片 Base64 与 MIME。 */
     private static final class ImagePayload {
-        /** 记录图片载荷中的base64。 */
+        /** 图片 Base64 正文，不包含 data URL 头。 */
         private final String base64;
 
-        /** 记录图片载荷中的MIME 类型。 */
+        /** 图片 MIME 类型。 */
         private final String mimeType;
 
         /**
-         * 创建图片Payload实例，并注入运行所需依赖。
+         * 创建图片载荷。
          *
          * @param base64 base64 参数。
          * @param mimeType MIME 类型参数。
@@ -296,36 +297,36 @@ public class MediaInputBoundaryService {
     }
 
     /**
-     * 规范化Mime。
+     * 规范化图片 MIME，缺失时按 png 处理。
      *
      * @param mimeType MIME 类型参数。
      * @return 返回Mime结果。
      */
     private String normalizeMime(String mimeType) {
-        String value = StrUtil.nullToEmpty(mimeType).trim().toLowerCase(Locale.ROOT);
+        String value = BasicValueSupport.trimToEmpty(mimeType).toLowerCase(Locale.ROOT);
         return StrUtil.blankToDefault(value, "image/png");
     }
 
     /**
-     * 清理Base64。
+     * 去掉 data URL 头，只保留 Base64 正文。
      *
      * @param data 数据参数。
      * @return 返回clean Base64结果。
      */
     private String cleanBase64(String data) {
-        String value = StrUtil.nullToEmpty(data).trim();
+        String value = BasicValueSupport.trimToEmpty(data);
         int comma = value.indexOf(',');
         return comma >= 0 ? value.substring(comma + 1).trim() : value;
     }
 
     /**
-     * 执行数据URI载荷相关逻辑。
+     * 解析 data URL 中的 Base64 载荷。
      *
      * @param value 待规范化或校验的原始值。
-     * @return 返回data URI Payload结果。
+     * @return 合法 Base64 载荷；格式不合法时返回 null。
      */
     private String dataUriPayload(String value) {
-        String text = StrUtil.nullToEmpty(value).trim();
+        String text = BasicValueSupport.trimToEmpty(value);
         int comma = text.indexOf(',');
         if (comma < 0 || !text.substring(0, comma).toLowerCase(Locale.ROOT).contains(";base64")) {
             return null;
@@ -334,7 +335,7 @@ public class MediaInputBoundaryService {
     }
 
     /**
-     * 判断是否Under缓存根用户。
+     * 判断文件是否位于媒体缓存根目录下。
      *
      * @param file 文件或目录路径参数。
      * @return 如果Under缓存根用户满足条件则返回 true，否则返回 false。
@@ -342,13 +343,18 @@ public class MediaInputBoundaryService {
     private boolean isUnderCacheRoot(File file) {
         try {
             return isUnderPath(file.getCanonicalFile(), cacheRoot.getCanonicalFile());
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "媒体缓存路径规范化失败，按绝对路径兜底 path={}, error={}",
+                    SecretRedactor.redactSensitivePaths(
+                            SecretRedactor.redact(file == null ? "" : file.getPath(), 400)),
+                    e.getClass().getSimpleName());
         }
         return isUnderPath(file.getAbsoluteFile(), cacheRoot.getAbsoluteFile());
     }
 
     /**
-     * 判断是否Under路径。
+     * 判断文件路径是否在指定根路径内。
      *
      * @param file 文件或目录路径参数。
      * @param root root 参数。

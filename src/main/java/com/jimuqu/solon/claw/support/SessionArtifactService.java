@@ -15,9 +15,14 @@ import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.ToolMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供会话Artifact相关业务能力，封装调用方不需要感知的运行细节。 */
 public class SessionArtifactService {
+    /** 记录会话Artifact解析降级路径的低敏诊断日志。 */
+    private static final Logger log = LoggerFactory.getLogger(SessionArtifactService.class);
+
     /** 默认RECAPEXCHANGES的统一常量值。 */
     private static final int DEFAULT_RECAP_EXCHANGES = 10;
 
@@ -373,7 +378,8 @@ public class SessionArtifactService {
         }
         try {
             return ONode.deserialize(raw, Object.class);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("会话工具参数JSON解析失败，按原始字符串兜底 error={}", exceptionSummary(e));
             Map<String, Object> fallback = new LinkedHashMap<String, Object>();
             fallback.put("raw", raw);
             return fallback;
@@ -449,7 +455,8 @@ public class SessionArtifactService {
         }
         try {
             return ONode.deserialize(value, Object.class);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("会话工具响应JSON解析失败，按原始内容兜底 error={}", exceptionSummary(e));
             return content;
         }
     }
@@ -547,5 +554,18 @@ public class SessionArtifactService {
             this.value = value;
             this.nextIndex = nextIndex;
         }
+    }
+
+    /**
+     * 生成异常类型摘要，避免日志携带会话正文、工具参数或异常消息。
+     *
+     * @param error 异常对象。
+     * @return 仅包含异常类型的安全摘要。
+     */
+    private static String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return error.getClass().getSimpleName();
     }
 }

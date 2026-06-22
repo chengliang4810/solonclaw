@@ -7,9 +7,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载Solon项目工具结构清理器相关状态和辅助逻辑。 */
 public final class SolonClawToolSchemaSanitizer {
+    /** 记录工具 schema JSON 解析降级的低敏诊断日志，不输出 schema 原文。 */
+    private static final Logger log = LoggerFactory.getLogger(SolonClawToolSchemaSanitizer.class);
+
     /** TOP级别FORBIDDENCOMBINATORS的统一常量值。 */
     private static final String[] TOP_LEVEL_FORBIDDEN_COMBINATORS =
             new String[] {"allOf", "anyOf", "oneOf", "enum", "not"};
@@ -105,9 +110,9 @@ public final class SolonClawToolSchemaSanitizer {
         }
         Object stripped = stripNullableUnions(top, true);
         Object patternSafe = stripPatternAndFormat(stripped).getSchema();
-        Object compatible = stripUnsupportedSchemaKeywords(patternSafe);
-        compatible = stripTopLevelForbiddenCombinators(compatible);
-        return ONode.serialize(compatible instanceof Map ? compatible : defaultObjectSchema());
+        Object sanitizedSchema = stripUnsupportedSchemaKeywords(patternSafe);
+        sanitizedSchema = stripTopLevelForbiddenCombinators(sanitizedSchema);
+        return ONode.serialize(sanitizedSchema instanceof Map ? sanitizedSchema : defaultObjectSchema());
     }
 
     /**
@@ -131,9 +136,9 @@ public final class SolonClawToolSchemaSanitizer {
         }
         Object stripped = stripNullableUnions(top, true);
         Object patternSafe = stripPatternAndFormat(stripped).getSchema();
-        Object compatible = stripUnsupportedSchemaKeywords(patternSafe);
-        compatible = stripTopLevelForbiddenCombinators(compatible);
-        return compatible instanceof Map ? compatible : defaultObjectSchema();
+        Object sanitizedSchema = stripUnsupportedSchemaKeywords(patternSafe);
+        sanitizedSchema = stripTopLevelForbiddenCombinators(sanitizedSchema);
+        return sanitizedSchema instanceof Map ? sanitizedSchema : defaultObjectSchema();
     }
 
     /**
@@ -162,7 +167,8 @@ public final class SolonClawToolSchemaSanitizer {
         }
         try {
             return ONode.ofJson(raw).toData();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("工具schema JSON解析失败，跳过schema清理 error={}", e.getClass().getSimpleName());
             return null;
         }
     }

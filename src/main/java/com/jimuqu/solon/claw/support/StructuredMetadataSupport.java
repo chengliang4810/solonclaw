@@ -7,9 +7,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 运行事件结构化元数据的脱敏与序列化工具。 */
 public final class StructuredMetadataSupport {
+    /** 记录结构化元数据解析降级的低敏诊断日志，不输出元数据正文。 */
+    private static final Logger log = LoggerFactory.getLogger(StructuredMetadataSupport.class);
+
     /** 结构化元数据中单个字符串字段的默认最大长度。 */
     private static final int DEFAULT_STRING_LIMIT = 2000;
 
@@ -45,8 +50,10 @@ public final class StructuredMetadataSupport {
         try {
             Object parsed = ONode.deserialize(metadataJson, Object.class);
             return ONode.serialize(redactValue(parsed, DEFAULT_STRING_LIMIT));
-        } catch (Exception ignored) {
-            return SecretRedactor.redact(metadataJson, DEFAULT_FALLBACK_LIMIT);
+        } catch (Exception e) {
+            log.debug("结构化元数据JSON解析失败，按普通文本脱敏保存 error={}", e.getClass().getSimpleName());
+            return SecretRedactor.redactSensitivePaths(
+                    SecretRedactor.redact(metadataJson, DEFAULT_FALLBACK_LIMIT));
         }
     }
 
@@ -88,6 +95,7 @@ public final class StructuredMetadataSupport {
         if (value instanceof Number || value instanceof Boolean) {
             return value;
         }
-        return SecretRedactor.redact(String.valueOf(value), stringLimit);
+        return SecretRedactor.redactSensitivePaths(
+                SecretRedactor.redact(String.valueOf(value), stringLimit));
     }
 }

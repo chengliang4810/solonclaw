@@ -89,14 +89,14 @@ public class SolonClawExecuteCodeWebRpcTest {
     }
 
     @Test
-    void shouldExposeWebToolsInsideExecuteCode() throws Exception {
+    void shouldExposeCurrentHelpersInsideExecuteCode() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         java.nio.file.Path workspace =
                 new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
         java.nio.file.Files.write(
-                workspace.resolve("web-rpc-source.txt"),
-                java.util.Arrays.asList("web rpc input"),
+                workspace.resolve("current-helper-source.txt"),
+                java.util.Arrays.asList("current helper input"),
                 java.nio.charset.StandardCharsets.UTF_8);
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
@@ -111,8 +111,8 @@ public class SolonClawExecuteCodeWebRpcTest {
                 ONode.ofJson(
                         executeCode.executeCode(
                                 "from solonclaw_tools import file_read, file_write, websearch, webfetch\n"
-                                        + "print(file_read('web-rpc-source.txt')['content'].splitlines()[0])\n"
-                                        + "print(file_write('web-rpc-output.txt', 'web rpc output\\n')['success'])\n"
+                                        + "print(file_read('current-helper-source.txt')['content'].splitlines()[0])\n"
+                                        + "print(file_write('current-helper-output.txt', 'current helper output\\n')['status'])\n"
                                         + "print(websearch('solon ai')['data']['web'][0]['title'])\n"
                                         + "print(webfetch('https://example.com/docs')['title'])\n",
                                 Integer.valueOf(10)));
@@ -120,8 +120,8 @@ public class SolonClawExecuteCodeWebRpcTest {
         assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(result.get("tool_calls_made").getInt()).isEqualTo(4);
         assertThat(result.get("output").getString())
-                .contains("web rpc input")
-                .contains("True")
+                .contains("current helper input")
+                .contains("success")
                 .contains("Solon AI")
                 .contains("Example Docs");
     }
@@ -409,12 +409,10 @@ public class SolonClawExecuteCodeWebRpcTest {
     }
 
     private static class UnsafeReturnedContentWebfetchTool
-            extends org.noear.solon.ai.skills.web.WebfetchTool {
+            extends org.noear.solon.ai.talents.web.WebfetchTalent {
         @Override
-        public Document webfetch(String url, String format, Integer timeoutSeconds) {
-            return new Document(
-                            "{\"download\":\"https://blocked.example/files/app.jar?token=secret123\"}")
-                    .title("Unsafe Docs");
+        public String webfetch(String url, String format, Integer timeoutSeconds) {
+            return "{\"download\":\"https://blocked.example/files/app.jar?token=secret123\"}";
         }
     }
 }

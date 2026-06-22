@@ -11,7 +11,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 import org.noear.solon.Solon;
 import org.noear.solon.core.Props;
 import org.slf4j.Logger;
@@ -22,10 +21,6 @@ import org.yaml.snakeyaml.Yaml;
 public class GatewayRuntimeRefreshService {
     /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(GatewayRuntimeRefreshService.class);
-
-    /** ABSOLUTE路径的统一常量值。 */
-    private static final Pattern ABSOLUTE_PATH =
-            Pattern.compile("(?<![A-Za-z0-9_])(?:[A-Za-z]:)?[/\\\\][^\\s\"'<>|;?#]*");
 
     /** 注入应用配置，用于消息网关运行时刷新。 */
     private final AppConfig appConfig;
@@ -205,9 +200,7 @@ public class GatewayRuntimeRefreshService {
      * @return 返回safe消息结果。
      */
     private String safeMessage(String message) {
-        return ABSOLUTE_PATH
-                .matcher(SecretRedactor.redact(message, 1000))
-                .replaceAll("[REDACTED_PATH]");
+        return SecretRedactor.redactSensitivePaths(SecretRedactor.redact(message, 1000));
     }
 
     /**
@@ -333,16 +326,16 @@ public class GatewayRuntimeRefreshService {
             try {
                 Integer.parseInt(String.valueOf(value).trim());
                 return ValidationResult.success();
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                logConfigFallback("validate-integer-number", key, e);
             }
         }
         if (value instanceof String) {
             try {
                 Integer.parseInt(((String) value).trim());
                 return ValidationResult.success();
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                logConfigFallback("validate-integer-text", key, e);
             }
         }
         return ValidationResult.failure(key + " 必须是整数。");
@@ -363,8 +356,8 @@ public class GatewayRuntimeRefreshService {
             try {
                 Double.parseDouble(((String) value).trim());
                 return ValidationResult.success();
-            } catch (Exception ignored) {
-                // 保留此处实现约束，避免后续维护时破坏既有行为。
+            } catch (Exception e) {
+                logConfigFallback("validate-double-text", key, e);
             }
         }
         return ValidationResult.failure(key + " 必须是数字。");
@@ -399,6 +392,31 @@ public class GatewayRuntimeRefreshService {
             }
         }
         return ValidationResult.failure(key + " 必须是布尔值。");
+    }
+
+    /**
+     * 记录配置校验中的可恢复解析失败，仅输出阶段、配置键和异常类型，避免配置值或凭据进入日志。
+     *
+     * @param stage 校验阶段。
+     * @param key 配置键。
+     * @param error 捕获到的异常。
+     */
+    private void logConfigFallback(String stage, String key, Throwable error) {
+        log.debug(
+                "Runtime config validation fallback: stage={}, key={}, errorType={}",
+                StrUtil.blankToDefault(stage, "unknown"),
+                StrUtil.blankToDefault(key, "unknown"),
+                exceptionType(error));
+    }
+
+    /**
+     * 提取低敏异常类型，禁止把异常消息或堆栈写入配置刷新日志。
+     *
+     * @param error 捕获到的异常。
+     * @return 异常类型名称。
+     */
+    private String exceptionType(Throwable error) {
+        return error == null ? "unknown" : error.getClass().getSimpleName();
     }
 
     /**
@@ -825,18 +843,6 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.react.toolLoopSameToolFailureHaltAfter",
                     "solonclaw.react.toolLoopNoProgressWarnAfter",
                     "solonclaw.react.toolLoopNoProgressBlockAfter",
-                    "tool_loop_guardrails.warn_after.exact_failure",
-                    "tool_loop_guardrails.warn_after.same_tool_failure",
-                    "tool_loop_guardrails.warn_after.idempotent_no_progress",
-                    "tool_loop_guardrails.hard_stop_after.exact_failure",
-                    "tool_loop_guardrails.hard_stop_after.same_tool_failure",
-                    "tool_loop_guardrails.hard_stop_after.idempotent_no_progress",
-                    "tool_loop_guardrails.exact_failure_warn_after",
-                    "tool_loop_guardrails.exact_failure_block_after",
-                    "tool_loop_guardrails.same_tool_failure_warn_after",
-                    "tool_loop_guardrails.same_tool_failure_halt_after",
-                    "tool_loop_guardrails.no_progress_warn_after",
-                    "tool_loop_guardrails.no_progress_block_after",
                     "solonclaw.trace.retentionDays",
                     "solonclaw.trace.maxAttempts",
                     "solonclaw.trace.toolPreviewLength",
@@ -877,8 +883,6 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.react.toolLoopHardStopEnabled",
                     "solonclaw.browser.rewriteLoopbackUrls",
                     "solonclaw.browser.rewrite_loopback_urls",
-                    "tool_loop_guardrails.warnings_enabled",
-                    "tool_loop_guardrails.hard_stop_enabled",
                     "security.allowPrivateUrls",
                     "security.allow_private_urls",
                     "security.tirithEnabled",
@@ -900,8 +904,7 @@ public class GatewayRuntimeRefreshService {
                     "security.websiteBlocklist.sharedFiles",
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
-                    "solonclaw.terminal.credentialFiles",
-                    "solonclaw.terminal.writeSafeRoot");
+                    "solonclaw.terminal.credentialFiles");
 
     /** 整型后缀列表的统一常量值。 */
     private static final Set<String> INT_SUFFIXES =

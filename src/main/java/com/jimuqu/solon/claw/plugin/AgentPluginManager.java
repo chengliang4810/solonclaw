@@ -16,36 +16,36 @@ import org.slf4j.LoggerFactory;
 
 /** 插件生命周期管理：发现、编译、加载、卸载。 */
 public class AgentPluginManager {
-    /** 日志的统一常量值。 */
+    /** 插件发现、编译和销毁过程的日志记录器。 */
     private static final Logger log = LoggerFactory.getLogger(AgentPluginManager.class);
 
-    /** 记录Agent插件中的钩子注册表。 */
+    /** 插件注册钩子的共享注册表，随插件管理器生命周期一起清理。 */
     private final AgentHookRegistry hookRegistry;
 
-    /** 保存loadedPlugins映射，便于按键快速查询。 */
+    /** 已成功加载的插件实例，key 为插件名称。 */
     private final Map<String, LoadedPlugin> loadedPlugins = new ConcurrentHashMap<>();
 
-    /** 记录Agent插件中的用户Plugins目录。 */
+    /** 用户插件根目录，目录下每个子目录代表一个插件。 */
     private final Path userPluginsDir;
 
-    /** 标记是否启用Plugins。 */
+    /** 允许按需启用的 standalone 插件名称集合。 */
     private final Set<String> enabledPlugins;
 
-    /** 标记是否禁用Plugins。 */
+    /** 显式禁用的插件名称集合，优先级高于 manifest 中的 enabled。 */
     private final Set<String> disabledPlugins;
 
-    /** 是否启用loadBundledPlugins。 */
+    /** 是否扫描打包在 classpath 中的内置插件。 */
     private final boolean loadBundledPlugins;
 
-    /** 保存诊断集合，维持调用顺序或去重语义。 */
+    /** 本轮发现和加载产生的诊断记录，保持扫描顺序便于前端展示。 */
     private final List<PluginLoadDiagnostic> diagnostics = new ArrayList<>();
 
     /**
      * 创建Agent插件管理器实例，并注入运行所需依赖。
      *
      * @param hookRegistry 钩子注册表依赖组件。
-     * @param enabledPlugins 启用状态Plugins开关值。
-     * @param disabledPlugins disabledPlugins 参数。
+     * @param enabledPlugins 允许运行的 standalone 插件名称集合。
+     * @param disabledPlugins 显式禁用的插件名称集合。
      */
     public AgentPluginManager(
             AgentHookRegistry hookRegistry,
@@ -63,9 +63,9 @@ public class AgentPluginManager {
      * 创建Agent插件管理器实例，并注入运行所需依赖。
      *
      * @param hookRegistry 钩子注册表依赖组件。
-     * @param enabledPlugins 启用状态Plugins开关值。
-     * @param disabledPlugins disabledPlugins 参数。
-     * @param pluginRoot 插件Root参数。
+     * @param enabledPlugins 允许运行的 standalone 插件名称集合。
+     * @param disabledPlugins 显式禁用的插件名称集合。
+     * @param pluginRoot 用户插件根目录。
      */
     public AgentPluginManager(
             AgentHookRegistry hookRegistry,
@@ -79,10 +79,10 @@ public class AgentPluginManager {
      * 创建Agent插件管理器实例，并注入运行所需依赖。
      *
      * @param hookRegistry 钩子注册表依赖组件。
-     * @param enabledPlugins 启用状态Plugins开关值。
-     * @param disabledPlugins disabledPlugins 参数。
-     * @param pluginRoot 插件Root参数。
-     * @param loadBundledPlugins loadBundledPlugins 参数。
+     * @param enabledPlugins 允许运行的 standalone 插件名称集合。
+     * @param disabledPlugins 显式禁用的插件名称集合。
+     * @param pluginRoot 用户插件根目录。
+     * @param loadBundledPlugins 是否同时加载内置插件目录。
      */
     public AgentPluginManager(
             AgentHookRegistry hookRegistry,
@@ -98,18 +98,18 @@ public class AgentPluginManager {
     }
 
     /**
-     * 读取钩子注册表。
+     * 读取共享钩子注册表。
      *
-     * @return 返回读取到的钩子注册表。
+     * @return 插件注册和运行时桥接共用的钩子注册表。
      */
     public AgentHookRegistry getHookRegistry() {
         return hookRegistry;
     }
 
     /**
-     * 执行discoverAndLoad相关逻辑。
+     * 扫描内置和用户插件目录，并按启用策略完成加载。
      *
-     * @param sink sink 参数。
+     * @param sink 主应用提供的注册接收器，用于接收工具、Provider 和平台适配器。
      */
     public void discoverAndLoad(PluginRegistrationSink sink) {
         diagnostics.clear();
@@ -177,9 +177,9 @@ public class AgentPluginManager {
     }
 
     /**
-     * 执行discoverBundled相关逻辑。
+     * 扫描 classpath 中打包的内置插件目录。
      *
-     * @param manifests manifests 参数。
+     * @param manifests 承接解析成功的插件清单。
      */
     private void discoverBundled(List<AgentPluginManifest> manifests) {
         try {
@@ -196,9 +196,9 @@ public class AgentPluginManager {
     }
 
     /**
-     * 执行discover用户Plugins相关逻辑。
+     * 扫描用户插件目录。
      *
-     * @param manifests manifests 参数。
+     * @param manifests 承接解析成功的插件清单。
      */
     private void discoverUserPlugins(List<AgentPluginManifest> manifests) {
         if (!Files.isDirectory(userPluginsDir)) {
@@ -208,11 +208,11 @@ public class AgentPluginManager {
     }
 
     /**
-     * 执行scan目录相关逻辑。
+     * 扫描单个插件根目录下的一层子目录并解析 plugin.yaml/plugin.yml。
      *
-     * @param dir 文件或目录路径参数。
-     * @param source 来源参数。
-     * @param manifests manifests 参数。
+     * @param dir 插件根目录。
+     * @param source 插件来源标识，如 bundled 或 user。
+     * @param manifests 承接解析成功的插件清单。
      */
     private void scanDirectory(Path dir, String source, List<AgentPluginManifest> manifests) {
         try (Stream<Path> children = Files.list(dir)) {
@@ -247,12 +247,12 @@ public class AgentPluginManager {
     }
 
     /**
-     * 解析Manifest。
+     * 解析插件清单文件，保留当前轻量 YAML 子集解析行为。
      *
-     * @param manifestFile 文件或目录路径参数。
-     * @param pluginDir 文件或目录路径参数。
-     * @param source 来源参数。
-     * @return 返回解析后的Manifest。
+     * @param manifestFile plugin.yaml 或 plugin.yml 路径。
+     * @param pluginDir 插件所在目录。
+     * @param source 插件来源标识。
+     * @return 解析后的插件清单。
      */
     private AgentPluginManifest parseManifest(Path manifestFile, Path pluginDir, String source)
             throws IOException {
@@ -275,16 +275,18 @@ public class AgentPluginManager {
     }
 
     /**
-     * 解析Simple YAML。
+     * 解析插件清单中的顶层简单键值，列表块由专门方法处理。
      *
-     * @param content 待处理内容。
-     * @return 返回解析后的Simple YAML。
+     * @param content YAML 清单文本。
+     * @return 顶层字符串键值。
      */
     private Map<String, String> parseSimpleYaml(String content) {
         Map<String, String> map = new LinkedHashMap<>();
         for (String line : content.split("\n")) {
             line = line.trim();
-            if (line.isEmpty() || line.startsWith("#")) continue;
+            if (isIgnorableYamlLine(line)) {
+                continue;
+            }
             int colon = line.indexOf(':');
             if (colon > 0) {
                 String key = line.substring(0, colon).trim();
@@ -299,11 +301,11 @@ public class AgentPluginManager {
     }
 
     /**
-     * 解析String List。
+     * 解析插件清单中的字符串列表块。
      *
-     * @param content 待处理内容。
-     * @param key 配置键或映射键。
-     * @return 返回解析后的String List。
+     * @param content YAML 清单文本。
+     * @param key 列表块键名。
+     * @return 列表中按顺序出现的字符串值。
      */
     private List<String> parseStringList(String content, String key) {
         List<String> values = new ArrayList<>();
@@ -311,7 +313,7 @@ public class AgentPluginManager {
         for (String raw : content.split("\n")) {
             String line = raw.replace("\r", "");
             String trimmed = line.trim();
-            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+            if (isIgnorableYamlLine(trimmed)) {
                 continue;
             }
             if (!line.startsWith(" ") && !line.startsWith("\t")) {
@@ -326,10 +328,10 @@ public class AgentPluginManager {
     }
 
     /**
-     * 解析Env Requirements。
+     * 解析插件清单中的环境变量要求列表。
      *
-     * @param content 待处理内容。
-     * @return 返回解析后的Env Requirements。
+     * @param content YAML 清单文本。
+     * @return 按清单顺序保留的环境变量要求。
      */
     private List<AgentPluginManifest.EnvRequirement> parseEnvRequirements(String content) {
         List<AgentPluginManifest.EnvRequirement> requirements = new ArrayList<>();
@@ -338,7 +340,7 @@ public class AgentPluginManager {
         for (String raw : content.split("\n")) {
             String line = raw.replace("\r", "");
             String trimmed = line.trim();
-            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+            if (isIgnorableYamlLine(trimmed)) {
                 continue;
             }
             if (!line.startsWith(" ") && !line.startsWith("\t")) {
@@ -361,10 +363,10 @@ public class AgentPluginManager {
     }
 
     /**
-     * 写入Env Field。
+     * 将环境变量要求中的一个字段写入当前 EnvRequirement。
      *
-     * @param requirement requirement 参数。
-     * @param raw 原始输入值。
+     * @param requirement 当前正在解析的环境变量要求。
+     * @param raw 单行字段文本，如 {@code name: API_KEY}。
      */
     private void setEnvField(AgentPluginManifest.EnvRequirement requirement, String raw) {
         int colon = raw.indexOf(':');
@@ -383,10 +385,10 @@ public class AgentPluginManager {
     }
 
     /**
-     * 执行unquote相关逻辑。
+     * 移除简单单双引号包裹，保持内部内容不做转义扩展。
      *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回unquote结果。
+     * @param value YAML 简单标量文本。
+     * @return 去掉外层引号后的值。
      */
     private String unquote(String value) {
         if (value == null) {
@@ -400,10 +402,20 @@ public class AgentPluginManager {
     }
 
     /**
-     * 加载插件。
+     * 判断 YAML 行是否为空行或注释行。
      *
-     * @param manifest manifest 参数。
-     * @param sink sink 参数。
+     * @param trimmed 已 trim 的 YAML 行。
+     * @return 空行或注释行返回 true。
+     */
+    private boolean isIgnorableYamlLine(String trimmed) {
+        return StrUtil.isBlank(trimmed) || trimmed.startsWith("#");
+    }
+
+    /**
+     * 编译插件 Java 源码，实例化 AgentPlugin 并注册到主应用。
+     *
+     * @param manifest 已通过启用策略和环境变量检查的插件清单。
+     * @param sink 主应用注册接收器。
      */
     private void loadPlugin(AgentPluginManifest manifest, PluginRegistrationSink sink) {
         Path dir = manifest.getDirectory();
@@ -487,11 +499,11 @@ public class AgentPluginManager {
     }
 
     /**
-     * 执行来源Class名称相关逻辑。
+     * 从插件 Java 源码中推导可加载类名。
      *
-     * @param javaFile 文件或目录路径参数。
-     * @param source 来源参数。
-     * @return 返回来源Class名称结果。
+     * @param javaFile 插件源码文件。
+     * @param source 源码文本。
+     * @return 带包名的类名；无 package 声明时返回文件基础名。
      */
     private String sourceClassName(Path javaFile, String source) {
         String simpleName = javaFile.getFileName().toString().replace(".java", "");
@@ -507,9 +519,9 @@ public class AgentPluginManager {
     }
 
     /**
-     * 列出Plugins。
+     * 列出已成功加载的插件清单。
      *
-     * @return 返回Plugins列表。
+     * @return 按插件名称排序的已加载插件清单。
      */
     public List<AgentPluginManifest> listPlugins() {
         return loadedPlugins.values().stream()
@@ -519,19 +531,19 @@ public class AgentPluginManager {
     }
 
     /**
-     * 执行诊断相关逻辑。
+     * 读取最近一次扫描和加载产生的诊断记录。
      *
-     * @return 返回诊断结果。
+     * @return 不可变诊断记录列表。
      */
     public List<PluginLoadDiagnostic> diagnostics() {
         return Collections.unmodifiableList(diagnostics);
     }
 
     /**
-     * 执行firstMissing环境变量相关逻辑。
+     * 查找插件运行前缺失的第一个必需环境变量。
      *
-     * @param manifest manifest 参数。
-     * @return 返回first Missing Env结果。
+     * @param manifest 插件清单。
+     * @return 第一个缺失环境变量名；都满足时返回 null。
      */
     private String firstMissingEnv(AgentPluginManifest manifest) {
         for (AgentPluginManifest.EnvRequirement requirement : manifest.getRequiresEnv()) {
@@ -546,13 +558,13 @@ public class AgentPluginManager {
     }
 
     /**
-     * 执行诊断相关逻辑。
+     * 创建并脱敏插件诊断消息。
      *
-     * @param manifest manifest 参数。
+     * @param manifest 插件清单。
      * @param status 状态参数。
-     * @param reason 原因参数。
-     * @param message 平台消息或错误消息。
-     * @return 返回诊断结果。
+     * @param reason 机器可读原因。
+     * @param message 人类可读消息。
+     * @return 可安全展示的诊断记录。
      */
     private PluginLoadDiagnostic diagnostic(
             AgentPluginManifest manifest, PluginLoadStatus status, String reason, String message) {
@@ -564,16 +576,16 @@ public class AgentPluginManager {
      * 生成安全展示用的消息。
      *
      * @param message 平台消息或错误消息。
-     * @return 返回safe消息结果。
+     * @return 已脱敏且限制长度的消息。
      */
     private String safeMessage(String message) {
         return SecretRedactor.redact(StrUtil.nullToDefault(message, ""), 1000);
     }
 
     /**
-     * 重新加载目标服务端配置与工具清单。
+     * 卸载指定插件实例；重新发现加载由调用方后续触发。
      *
-     * @param name 名称参数。
+     * @param name 插件名称。
      */
     public void reload(String name) {
         LoadedPlugin existing = loadedPlugins.remove(name);
@@ -602,7 +614,7 @@ public class AgentPluginManager {
      * 将异常转换为可展示且不泄漏敏感信息的错误文本。
      *
      * @param error 错误参数。
-     * @return 返回safe Error结果。
+     * @return 已脱敏的异常类型和消息。
      */
     private String safeError(Throwable error) {
         if (error == null) {
@@ -614,22 +626,22 @@ public class AgentPluginManager {
         return SecretRedactor.redact(value, 1000);
     }
 
-    /** 承载Loaded插件相关状态和辅助逻辑。 */
+    /** 已加载插件的运行时句柄。 */
     private static class LoadedPlugin {
-        /** 记录Loaded插件中的manifest。 */
+        /** 插件清单元数据。 */
         private final AgentPluginManifest manifest;
 
-        /** 记录Loaded插件中的插件。 */
+        /** 插件实例，用于后续销毁。 */
         private final AgentPlugin plugin;
 
-        /** 记录Loaded插件中的上下文。 */
+        /** 插件注册上下文，保留供调试和后续扩展使用。 */
         private final DefaultAgentPluginContext context;
 
         /**
-         * 创建Loaded插件实例，并注入运行所需依赖。
+         * 创建已加载插件运行时句柄。
          *
-         * @param manifest manifest 参数。
-         * @param plugin 插件参数。
+         * @param manifest 插件清单。
+         * @param plugin 插件实例。
          * @param context 当前请求或运行上下文。
          */
         LoadedPlugin(
@@ -642,43 +654,43 @@ public class AgentPluginManager {
         }
 
         /**
-         * 读取Manifest。
+         * 读取插件清单。
          *
-         * @return 返回读取到的Manifest。
+         * @return 插件清单。
          */
         AgentPluginManifest getManifest() {
             return manifest;
         }
 
         /**
-         * 读取插件。
+         * 读取插件实例。
          *
-         * @return 返回读取到的插件。
+         * @return 插件实例。
          */
         AgentPlugin getPlugin() {
             return plugin;
         }
     }
 
-    /** 承载ConflictAware接收端相关状态和辅助逻辑。 */
+    /** 为单个插件包装注册接收器，负责阻止工具名和命令名冲突。 */
     private class ConflictAwareSink implements PluginRegistrationSink {
-        /** 记录ConflictAware接收端中的manifest。 */
+        /** 当前正在注册的插件清单。 */
         private final AgentPluginManifest manifest;
 
-        /** 记录ConflictAware接收端中的委托。 */
+        /** 主应用提供的真实注册接收器。 */
         private final PluginRegistrationSink delegate;
 
-        /** 保存插件工具集合，维持调用顺序或去重语义。 */
+        /** 当前插件本次注册过的工具名，避免同一插件内部重复注册。 */
         private final Set<String> pluginTools = new LinkedHashSet<>();
 
-        /** 保存插件Commands集合，维持调用顺序或去重语义。 */
+        /** 当前插件本次注册过的命令名，避免同一插件内部重复注册。 */
         private final Set<String> pluginCommands = new LinkedHashSet<>();
 
         /**
-         * 创建Conflict Aware接收端实例，并注入运行所需依赖。
+         * 创建带冲突检查的注册接收器。
          *
-         * @param manifest manifest 参数。
-         * @param delegate 委派参数。
+         * @param manifest 当前插件清单。
+         * @param delegate 主应用注册接收器。
          */
         ConflictAwareSink(AgentPluginManifest manifest, PluginRegistrationSink delegate) {
             this.manifest = manifest;
@@ -686,10 +698,9 @@ public class AgentPluginManager {
         }
 
         /**
-         * 判断是否存在工具。
+         * 判断工具名是否已被主应用或当前插件占用。
          *
-         * @param name 名称参数。
-         * @return 如果工具满足条件则返回 true，否则返回 false。
+         * @return 已占用时返回 true。
          */
         @Override
         public boolean hasTool(String name) {
@@ -697,10 +708,9 @@ public class AgentPluginManager {
         }
 
         /**
-         * 判断是否存在命令。
+         * 判断命令名是否已被主应用或当前插件占用。
          *
-         * @param name 名称参数。
-         * @return 如果命令满足条件则返回 true，否则返回 false。
+         * @return 已占用时返回 true。
          */
         @Override
         public boolean hasCommand(String name) {
@@ -708,21 +718,17 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应工具Registered事件。
+         * 注册工具，并在名称为空或冲突时写入跳过诊断。
          *
-         * @param registration registration 参数。
          */
         @Override
         public void onToolRegistered(ToolRegistration registration) {
             String name = registration == null ? null : registration.getName();
             if (StrUtil.isBlank(name) || hasTool(name)) {
-                diagnostics.add(
-                        diagnostic(
-                                manifest,
-                                PluginLoadStatus.SKIPPED,
-                                "duplicate_tool_name",
-                                "Plugin tool name already exists: "
-                                        + StrUtil.nullToDefault(name, "")));
+                recordSkippedRegistration(
+                        "duplicate_tool_name",
+                        "Plugin tool name already exists: ",
+                        name);
                 return;
             }
             pluginTools.add(name);
@@ -730,22 +736,18 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应命令Registered事件。
+         * 注册命令，并在名称为空或冲突时写入跳过诊断。
          *
-         * @param name 名称参数。
          * @param handler handler 参数。
          * @param description 描述参数。
          */
         @Override
         public void onCommandRegistered(String name, CommandHandler handler, String description) {
             if (StrUtil.isBlank(name) || hasCommand(name)) {
-                diagnostics.add(
-                        diagnostic(
-                                manifest,
-                                PluginLoadStatus.SKIPPED,
-                                "duplicate_command_name",
-                                "Plugin command name already exists: "
-                                        + StrUtil.nullToDefault(name, "")));
+                recordSkippedRegistration(
+                        "duplicate_command_name",
+                        "Plugin command name already exists: ",
+                        name);
                 return;
             }
             pluginCommands.add(name);
@@ -753,7 +755,7 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应Web搜索提供方Registered事件。
+         * 转发 Web 搜索 Provider 注册事件。
          *
          * @param provider 模型或能力提供方。
          */
@@ -764,7 +766,7 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应图片Gen提供方Registered事件。
+         * 转发图片生成 Provider 注册事件。
          *
          * @param provider 模型或能力提供方。
          */
@@ -775,7 +777,7 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应VideoGen提供方Registered事件。
+         * 转发视频生成 Provider 注册事件。
          *
          * @param provider 模型或能力提供方。
          */
@@ -786,7 +788,7 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应浏览器提供方Registered事件。
+         * 转发浏览器自动化 Provider 注册事件。
          *
          * @param provider 模型或能力提供方。
          */
@@ -797,7 +799,7 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应语音提供方Registered事件。
+         * 转发语音合成 Provider 注册事件。
          *
          * @param provider 模型或能力提供方。
          */
@@ -808,7 +810,7 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应转写提供方Registered事件。
+         * 转发语音转写 Provider 注册事件。
          *
          * @param provider 模型或能力提供方。
          */
@@ -819,7 +821,7 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应记忆提供方Registered事件。
+         * 转发长期记忆 Provider 注册事件。
          *
          * @param provider 模型或能力提供方。
          */
@@ -830,13 +832,29 @@ public class AgentPluginManager {
         }
 
         /**
-         * 响应平台Registered事件。
+         * 转发国内渠道平台适配器注册事件。
          *
          * @param registration registration 参数。
          */
         @Override
         public void onPlatformRegistered(PlatformRegistration registration) {
             delegate.onPlatformRegistered(registration);
+        }
+
+        /**
+         * 记录因重复或空名称被跳过的注册项。
+         *
+         * @param reason 机器可读原因。
+         * @param messagePrefix 展示消息前缀。
+         * @param name 注册项名称。
+         */
+        private void recordSkippedRegistration(String reason, String messagePrefix, String name) {
+            diagnostics.add(
+                    diagnostic(
+                            manifest,
+                            PluginLoadStatus.SKIPPED,
+                            reason,
+                            messagePrefix + StrUtil.nullToDefault(name, "")));
         }
     }
 }

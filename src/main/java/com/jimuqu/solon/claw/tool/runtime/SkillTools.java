@@ -23,9 +23,14 @@ import lombok.RequiredArgsConstructor;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供技能工具能力，供 Agent 运行时按安全策略调用。 */
 public class SkillTools {
+    /** 记录技能工具上下文降级的低敏诊断日志，不输出会话正文或技能内容。 */
+    private static final Logger log = LoggerFactory.getLogger(SkillTools.class);
+
     /** 本地技能目录服务。 */
     private final LocalSkillService localSkillService;
 
@@ -299,7 +304,10 @@ public class SkillTools {
             SessionRecord session =
                     sessionRepository == null ? null : sessionRepository.getBoundSession(sourceKey);
             return session == null ? null : session.getSessionId();
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("技能工具读取当前会话失败，使用无会话上下文兜底 source={} error={}",
+                    safeError(sourceKey),
+                    e.getClass().getSimpleName());
             return null;
         }
     }
@@ -317,7 +325,7 @@ public class SkillTools {
 
     /** 统一工具错误返回。 */
     private String toolError(String message) {
-        return new ONode().set("success", false).set("error", safeError(message)).toJson();
+        return new ONode().set("status", "error").set("error", safeError(message)).toJson();
     }
 
     /**

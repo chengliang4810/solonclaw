@@ -112,7 +112,7 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
      * @return 返回创建好的请求JSON。
      */
     @Override
-    public String buildRequestJson(
+    public ONode buildRequestJson(
             ChatConfig config, ChatOptions options, List<ChatMessage> messages, boolean isStream) {
         return delegate.buildRequestJson(config, options, messages, isStream);
     }
@@ -271,8 +271,12 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
                 resp.addChoice(
                         new ChatChoice(0, new Date(), null, new AssistantMessage(delta, true)));
                 parsed = true;
-            } catch (Exception ignored) {
-                // 交由被包装的协议方言处理事件，或报告 JSON 格式异常。
+            } catch (Exception e) {
+                log.debug(
+                        "Responses 推理流事件解析失败，交由委托方言处理 dialect={}, eventLength={}, error={}",
+                        dialectName,
+                        candidate.length(),
+                        e.getClass().getSimpleName());
             }
         }
         return parsed;

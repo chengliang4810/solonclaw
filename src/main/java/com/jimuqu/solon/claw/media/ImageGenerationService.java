@@ -6,28 +6,28 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URI;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** 图片生成运行时服务。 */
+/** 图片生成运行时服务，负责选择插件提供方、下载或解码图片结果，并写入附件缓存。 */
 public class ImageGenerationService {
-    /** 最大图片字节的统一常量值。 */
+    /** 单张生成图片允许缓存的最大字节数，避免插件返回超大文件拖垮运行时。 */
     private static final long MAX_IMAGE_BYTES = 32L * 1024L * 1024L;
 
-    /** 注入附件缓存服务，用于调用对应业务能力。 */
+    /** 附件缓存服务，用于把生成结果落到本地媒体缓存并形成 mediaReference。 */
     private final AttachmentCacheService attachmentCacheService;
 
-    /** 保存providers集合，维持调用顺序或去重语义。 */
+    /** 图片生成提供方列表，按配置或插件注册顺序选择第一个可用提供方。 */
     private final List<ImageGenProvider> providers;
 
-    /** 注入安全策略服务，用于调用对应业务能力。 */
+    /** URL 安全策略服务，用于约束插件返回的远程图片下载地址。 */
     private final SecurityPolicyService securityPolicyService;
 
     /**
@@ -35,7 +35,7 @@ public class ImageGenerationService {
      *
      * @param appConfig 应用运行配置。
      * @param attachmentCacheService 附件缓存服务依赖。
-     * @param providers 能力提供方列表。
+     * @param providers 图片生成能力提供方列表。
      */
     public ImageGenerationService(
             com.jimuqu.solon.claw.config.AppConfig appConfig,
@@ -49,7 +49,7 @@ public class ImageGenerationService {
      *
      * @param appConfig 应用运行配置。
      * @param attachmentCacheService 附件缓存服务依赖。
-     * @param providers 能力提供方列表。
+     * @param providers 图片生成能力提供方列表。
      * @param securityPolicyService 安全策略服务依赖。
      */
     public ImageGenerationService(
@@ -61,17 +61,17 @@ public class ImageGenerationService {
                 attachmentCacheService == null
                         ? new AttachmentCacheService(appConfig)
                         : attachmentCacheService;
-        this.providers = providers == null ? Collections.<ImageGenProvider>emptyList() : providers;
+        this.providers = BasicValueSupport.emptyListIfNull(providers);
         this.securityPolicyService = securityPolicyService;
     }
 
     /**
      * 执行图片生成请求并返回缓存后的媒体引用。
      *
-     * @param prompt 提示词参数。
-     * @param aspectRatio aspectRatio 参数。
-     * @param options options 参数。
-     * @return 返回generate结果。
+     * @param prompt 图片生成提示词，不能为空。
+     * @param aspectRatio 期望宽高比；为空时使用 1:1。
+     * @param options 插件透传选项。
+     * @return 返回生成结果、缓存附件和媒体用量。
      */
     public ImageGenerationOutcome generate(
             String prompt, String aspectRatio, Map<String, Object> options) {
@@ -87,14 +87,14 @@ public class ImageGenerationService {
                     provider.generate(
                             prompt,
                             StrUtil.blankToDefault(aspectRatio, "1:1"),
-                            options == null ? Collections.<String, Object>emptyMap() : options);
+                            BasicValueSupport.emptyMapIfNull(options));
             if (result == null || !result.isSuccess()) {
                 return ImageGenerationOutcome.fail(
                         safeError(result == null ? "Image generation failed" : result.getError()));
             }
             ImageBytes image = bytesFromProviderUrl(result.getUrl());
             byte[] bytes = image.bytes;
-            if (bytes == null || bytes.length == 0) {
+            if (BasicValueSupport.isEmpty(bytes)) {
                 return ImageGenerationOutcome.fail("Image provider returned empty image");
             }
             if (bytes.length > MAX_IMAGE_BYTES) {
@@ -139,13 +139,13 @@ public class ImageGenerationService {
     }
 
     /**
-     * 执行字节From提供方URL相关逻辑。
+     * 从插件返回地址读取图片字节，支持 data URL 和经过安全策略校验的 HTTP(S) URL。
      *
-     * @param url 待校验或访问的 URL。
-     * @return 返回bytes From提供方URL结果。
+     * @param url 插件返回的图片地址。
+     * @return 图片字节与推断 MIME。
      */
     private ImageBytes bytesFromProviderUrl(String url) {
-        String value = StrUtil.nullToEmpty(url).trim();
+        String value = BasicValueSupport.trimToEmpty(url);
         if (value.startsWith("data:")) {
             int comma = value.indexOf(',');
             if (comma < 0) {
@@ -176,13 +176,13 @@ public class ImageGenerationService {
     }
 
     /**
-     * 执行MIMEFrom提供方URL相关逻辑。
+     * 从 data URL 推断图片 MIME，推断失败时回退到 png。
      *
-     * @param url 待校验或访问的 URL。
-     * @return 返回mime From提供方URL结果。
+     * @param url 插件返回的图片地址。
+     * @return 可用于附件缓存的图片 MIME。
      */
     private String mimeFromProviderUrl(String url) {
-        String value = StrUtil.nullToEmpty(url).trim();
+        String value = BasicValueSupport.trimToEmpty(url);
         if (value.startsWith("data:")) {
             int semi = value.indexOf(';');
             if (semi > 5) {
@@ -196,13 +196,13 @@ public class ImageGenerationService {
     }
 
     /**
-     * 执行图片MIME相关逻辑。
+     * 规范化 HTTP Content-Type，只接受 image/*。
      *
-     * @param contentType content类型参数。
-     * @return 返回图片Mime结果。
+     * @param contentType HTTP 响应头里的 Content-Type。
+     * @return 合法图片 MIME；不是图片时返回空字符串。
      */
     private String imageMime(String contentType) {
-        String value = StrUtil.nullToEmpty(contentType).trim().toLowerCase(Locale.ROOT);
+        String value = BasicValueSupport.trimToEmpty(contentType).toLowerCase(Locale.ROOT);
         int semi = value.indexOf(';');
         if (semi > 0) {
             value = value.substring(0, semi).trim();
@@ -211,10 +211,10 @@ public class ImageGenerationService {
     }
 
     /**
-     * 执行扩展名相关逻辑。
+     * 根据图片 MIME 选择缓存文件扩展名。
      *
      * @param mimeType MIME 类型参数。
-     * @return 返回extension结果。
+     * @return 返回无点号扩展名。
      */
     private String extension(String mimeType) {
         if ("image/jpeg".equals(mimeType)) {
@@ -240,16 +240,16 @@ public class ImageGenerationService {
                 StrUtil.blankToDefault(value, "Image generation failed"), 1000);
     }
 
-    /** 承载图片字节相关状态和辅助逻辑。 */
+    /** 承载插件图片结果的原始字节和 MIME。 */
     private static class ImageBytes {
-        /** 记录图片字节中的字节。 */
+        /** 图片原始字节。 */
         private final byte[] bytes;
 
-        /** 记录图片字节中的MIME 类型。 */
+        /** 图片 MIME 类型。 */
         private final String mimeType;
 
         /**
-         * 创建图片Bytes实例，并注入运行所需依赖。
+         * 创建图片字节结果。
          *
          * @param bytes 字节参数。
          * @param mimeType MIME 类型参数。
@@ -260,21 +260,21 @@ public class ImageGenerationService {
         }
     }
 
-    /** 表示图片Generation结果，携带调用方后续判断所需信息。 */
+    /** 表示图片生成结果，携带调用方后续判断所需信息。 */
     public static class ImageGenerationOutcome {
-        /** 是否启用success。 */
+        /** 本次图片生成是否成功。 */
         private final boolean success;
 
-        /** 记录图片Generation中的附件。 */
+        /** 成功时缓存得到的附件。 */
         private final MessageAttachment attachment;
 
-        /** 记录图片Generation中的媒体引用。 */
+        /** 成功时可回填到会话或工具结果的媒体引用。 */
         private final String mediaReference;
 
-        /** 记录图片Generation中的提供方。 */
+        /** 实际执行生成的插件提供方名称。 */
         private final String provider;
 
-        /** 记录图片Generation中的错误。 */
+        /** 失败时经过脱敏处理的错误。 */
         private final String error;
 
         /** 保存媒体用量映射，便于按键快速查询。 */
@@ -302,10 +302,7 @@ public class ImageGenerationService {
             this.mediaReference = mediaReference;
             this.provider = provider;
             this.error = error;
-            this.mediaUsage =
-                    mediaUsage == null
-                            ? Collections.<String, Object>emptyMap()
-                            : new LinkedHashMap<String, Object>(mediaUsage);
+            this.mediaUsage = BasicValueSupport.mutableLinkedMap(mediaUsage);
         }
 
         /**
@@ -337,7 +334,7 @@ public class ImageGenerationService {
         }
 
         /**
-         * 判断是否Success。
+         * 判断图片生成是否成功。
          *
          * @return 如果Success满足条件则返回 true，否则返回 false。
          */
@@ -346,7 +343,7 @@ public class ImageGenerationService {
         }
 
         /**
-         * 读取附件。
+         * 读取缓存附件。
          *
          * @return 返回读取到的附件。
          */
@@ -355,7 +352,7 @@ public class ImageGenerationService {
         }
 
         /**
-         * 读取媒体Reference。
+         * 读取可被模型或前端引用的媒体地址。
          *
          * @return 返回读取到的媒体Reference。
          */
@@ -364,7 +361,7 @@ public class ImageGenerationService {
         }
 
         /**
-         * 读取提供方。
+         * 读取实际使用的插件提供方名称。
          *
          * @return 返回读取到的提供方。
          */
@@ -373,7 +370,7 @@ public class ImageGenerationService {
         }
 
         /**
-         * 读取Error。
+         * 读取失败错误文本。
          *
          * @return 返回读取到的Error。
          */

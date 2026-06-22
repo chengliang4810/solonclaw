@@ -230,7 +230,7 @@ public class ProcessTools {
             String message = safeError(e);
             ToolResultEnvelope envelope = ToolResultEnvelope.error(message);
             if (message.startsWith("Unknown process session_id:")) {
-                envelope.data("status", "not_found");
+                envelope.data("process_status", "not_found");
             }
             return envelope.toJson();
         }
@@ -258,7 +258,7 @@ public class ProcessTools {
                 .data("pid", managed.getPid())
                 .data("command", SecretRedactor.redact(managed.getCommand()))
                 .data("cwd", managed.displayCwd())
-                .data("status", managed.isExited() ? "exited" : "running")
+                .data("process_status", managed.isExited() ? "exited" : "running")
                 .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
                 .data("output_preview", cleanOutput(managed.outputPreview(1000)))
                 .data("exited", Boolean.valueOf(managed.isExited()))
@@ -308,7 +308,7 @@ public class ProcessTools {
                                 ? "后台进程日志已读取：" + managed.getId()
                                 : "后台进程日志已读取，进程仍在运行：" + managed.getId())
                 .data("session_id", managed.getId())
-                .data("status", managed.isExited() ? "exited" : "running")
+                .data("process_status", managed.isExited() ? "exited" : "running")
                 .data("output", output)
                 .data("total_lines", Integer.valueOf(totalLines))
                 .data("showing", selected.size() + " lines")
@@ -382,7 +382,7 @@ public class ProcessTools {
                                         : "后台进程仍在运行：" + managed.getId())
                         .data("session_id", managed.getId())
                         .data("command", SecretRedactor.redact(managed.getCommand()))
-                        .data("status", managed.isExited() ? "exited" : "running")
+                        .data("process_status", managed.isExited() ? "exited" : "running")
                         .data("pid", managed.getPid())
                         .data("uptime_seconds", Long.valueOf(managed.uptimeSeconds()))
                         .data("output_preview", output)
@@ -438,7 +438,7 @@ public class ProcessTools {
                             : timeoutNote;
             return ToolResultEnvelope.ok("后台进程等待超时：" + managed.getId())
                     .data("session_id", managed.getId())
-                    .data("status", "timeout")
+                    .data("process_status", "timeout")
                     .data("exited", Boolean.valueOf(false))
                     .data("running", Boolean.valueOf(true))
                     .data("pid", managed.getPid())
@@ -452,7 +452,7 @@ public class ProcessTools {
         ToolResultEnvelope envelope =
                 ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())
                         .data("session_id", managed.getId())
-                        .data("status", "exited")
+                        .data("process_status", "exited")
                         .data("exited", Boolean.valueOf(true))
                         .data("running", Boolean.valueOf(false))
                         .data("pid", managed.getPid())
@@ -507,7 +507,7 @@ public class ProcessTools {
                                 ? "后台进程已停止：" + managed.getId()
                                 : "后台进程未停止：" + managed.getId())
                 .data("session_id", managed.getId())
-                .data("status", stopResult.getStatus())
+                .data("process_status", stopResult.getStatus())
                 .data("stopped", Boolean.valueOf(stopResult.isStopped()))
                 .data("exited", Boolean.valueOf(managed.isExited()))
                 .data("exit_code", managed.getExitCode())
@@ -544,7 +544,7 @@ public class ProcessTools {
                                 ? "已向后台进程提交输入：" + managed.getId()
                                 : "已写入后台进程 stdin：" + managed.getId())
                 .data("session_id", managed.getId())
-                .data("status", "ok")
+                    .data("process_status", "ok")
                 .data("bytes_written", Integer.valueOf(payload.length()))
                 .data("written", Integer.valueOf(payload.length()))
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
@@ -565,7 +565,7 @@ public class ProcessTools {
         processRegistry.closeStdin(managed.getId());
         return ToolResultEnvelope.ok("后台进程 stdin 已关闭：" + managed.getId())
                 .data("session_id", managed.getId())
-                .data("status", "ok")
+                .data("process_status", "ok")
                 .data("message", "stdin closed")
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
                 .data("exited", Boolean.valueOf(managed.isExited()))
@@ -581,7 +581,7 @@ public class ProcessTools {
     private String alreadyExited(ProcessRegistry.ManagedProcess managed) {
         return ToolResultEnvelope.ok("后台进程已结束：" + managed.getId())
                 .data("session_id", managed.getId())
-                .data("status", "already_exited")
+                .data("process_status", "already_exited")
                 .data("error", "Process has already finished")
                 .data("exit_code", managed.getExitCode())
                 .dataIfNotNull("exit_code_meaning", exitCodeMeaning(managed))

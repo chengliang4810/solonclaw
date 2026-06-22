@@ -2,14 +2,20 @@ package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 承载本地终端记录文本相关状态和辅助逻辑。 */
 public class LocalTerminalTranscript {
+    /** 记录终端虚拟历史命令解析失败等非关键降级信息。 */
+    private static final Logger log = LoggerFactory.getLogger(LocalTerminalTranscript.class);
+
     /** 最大ENTRIES的统一常量值。 */
     private static final int MAX_ENTRIES = 120;
 
@@ -24,6 +30,10 @@ public class LocalTerminalTranscript {
 
     /** 展示最大LENGTH的统一常量值。 */
     private static final int SHOW_MAX_LENGTH = 6000;
+
+    /** 终端虚拟历史展示时间格式，使用系统时区保持原有本地时间语义。 */
+    private static final DateTimeFormatter TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault());
 
     /** 保存entries集合，维持调用顺序或去重语义。 */
     private final List<Entry> entries = new ArrayList<Entry>();
@@ -206,7 +216,8 @@ public class LocalTerminalTranscript {
                 return DEFAULT_LIMIT;
             }
             return Math.min(parsed, MAX_RENDER_LIMIT);
-        } catch (Exception ignored) {
+        } catch (NumberFormatException e) {
+            log.debug("终端虚拟历史条数解析失败，使用默认限制: value={}, error={}", rest, e.toString());
             return DEFAULT_LIMIT;
         }
     }
@@ -279,7 +290,7 @@ public class LocalTerminalTranscript {
         if (millis <= 0L) {
             return "-";
         }
-        return new SimpleDateFormat("HH:mm:ss").format(new Date(millis));
+        return TIME_FORMATTER.format(Instant.ofEpochMilli(millis));
     }
 
     /** 承载Entry相关状态和辅助逻辑。 */

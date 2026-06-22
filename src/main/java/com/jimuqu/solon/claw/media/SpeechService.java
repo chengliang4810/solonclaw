@@ -7,27 +7,27 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.nio.file.Files;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** TTS 与独立语音转写运行时服务。 */
+/** TTS 与独立语音转写运行时服务，负责选择插件提供方并把语音结果接入附件缓存。 */
 public class SpeechService {
-    /** 最大音频字节的统一常量值。 */
+    /** 单个音频输入或输出允许处理的最大字节数。 */
     private static final long MAX_AUDIO_BYTES = 32L * 1024L * 1024L;
 
-    /** 注入附件缓存服务，用于调用对应业务能力。 */
+    /** 附件缓存服务，用于保存 TTS 输出并解析待转写的本地语音缓存。 */
     private final AttachmentCacheService attachmentCacheService;
 
-    /** 保存语音Providers集合，维持调用顺序或去重语义。 */
+    /** TTS 提供方列表，按插件注册顺序选择第一个可用提供方。 */
     private final List<SpeechProvider> speechProviders;
 
-    /** 保存转写Providers集合，维持调用顺序或去重语义。 */
+    /** 语音转写提供方列表，按插件注册顺序选择第一个可用提供方。 */
     private final List<TranscriptionProvider> transcriptionProviders;
 
     /**
@@ -35,8 +35,8 @@ public class SpeechService {
      *
      * @param appConfig 应用运行配置。
      * @param attachmentCacheService 附件缓存服务依赖。
-     * @param speechProviders 语音Providers标识或键值。
-     * @param transcriptionProviders 转写Providers标识或键值。
+     * @param speechProviders TTS 能力提供方列表。
+     * @param transcriptionProviders 语音转写能力提供方列表。
      */
     public SpeechService(
             AppConfig appConfig,
@@ -47,21 +47,17 @@ public class SpeechService {
                 attachmentCacheService == null
                         ? new AttachmentCacheService(appConfig)
                         : attachmentCacheService;
-        this.speechProviders =
-                speechProviders == null ? Collections.<SpeechProvider>emptyList() : speechProviders;
-        this.transcriptionProviders =
-                transcriptionProviders == null
-                        ? Collections.<TranscriptionProvider>emptyList()
-                        : transcriptionProviders;
+        this.speechProviders = BasicValueSupport.emptyListIfNull(speechProviders);
+        this.transcriptionProviders = BasicValueSupport.emptyListIfNull(transcriptionProviders);
     }
 
     /**
      * 执行语音合成请求并返回缓存后的音频引用。
      *
-     * @param text 待处理文本。
-     * @param voice 语音参数。
-     * @param options options 参数。
-     * @return 返回synthesize结果。
+     * @param text 待合成的文本，不能为空。
+     * @param voice 语音名称；为空时使用 provider 默认语音。
+     * @param options 插件透传选项。
+     * @return 返回合成结果、缓存附件和媒体用量。
      */
     public SpeechOutcome synthesize(String text, String voice, Map<String, Object> options) {
         if (StrUtil.isBlank(text)) {
@@ -76,13 +72,13 @@ public class SpeechService {
                     provider.synthesize(
                             text,
                             StrUtil.blankToDefault(voice, "default"),
-                            options == null ? Collections.<String, Object>emptyMap() : options);
+                            BasicValueSupport.emptyMapIfNull(options));
             if (result == null || !result.isSuccess()) {
                 return SpeechOutcome.fail(
                         safeError(result == null ? "TTS failed" : result.getError()));
             }
             byte[] audio = result.getAudio();
-            if (audio == null || audio.length == 0) {
+            if (BasicValueSupport.isEmpty(audio)) {
                 return SpeechOutcome.fail("TTS provider returned empty audio");
             }
             if (audio.length > MAX_AUDIO_BYTES) {
@@ -113,9 +109,9 @@ public class SpeechService {
     /**
      * 执行语音转写请求并返回识别文本。
      *
-     * @param attachment 附件参数。
-     * @param options options 参数。
-     * @return 返回transcribe结果。
+     * @param attachment 语音附件，必须能解析到本地缓存文件。
+     * @param options 插件透传选项。
+     * @return 返回转写文本和媒体用量。
      */
     public TranscriptionOutcome transcribe(
             MessageAttachment attachment, Map<String, Object> options) {
@@ -135,7 +131,7 @@ public class SpeechService {
                     provider.transcribe(
                             audio,
                             StrUtil.blankToDefault(attachment.getMimeType(), "audio/wav"),
-                            options == null ? Collections.<String, Object>emptyMap() : options);
+                            BasicValueSupport.emptyMapIfNull(options));
             if (result == null || !result.isSuccess()) {
                 return TranscriptionOutcome.fail(
                         safeError(result == null ? "Transcription failed" : result.getError()));
@@ -178,10 +174,10 @@ public class SpeechService {
     }
 
     /**
-     * 判断是否Voice附件。
+     * 判断附件是否可作为语音转写输入。
      *
      * @param attachment 附件参数。
-     * @return 如果Voice附件满足条件则返回 true，否则返回 false。
+     * @return kind 为 voice 或 MIME 为 audio/* 时返回 true。
      */
     private boolean isVoiceAttachment(MessageAttachment attachment) {
         if (attachment == null) {
@@ -193,10 +189,10 @@ public class SpeechService {
     }
 
     /**
-     * 读取附件Bytes。
+     * 从附件本地缓存读取语音字节。
      *
      * @param attachment 附件参数。
-     * @return 返回读取到的附件Bytes。
+     * @return 本地缓存文件的完整音频字节。
      */
     private byte[] readAttachmentBytes(MessageAttachment attachment) throws Exception {
         if (StrUtil.isBlank(attachment.getLocalPath())) {
@@ -210,22 +206,20 @@ public class SpeechService {
     }
 
     /**
-     * 合并用量。
+     * 复制插件返回的媒体用量，确保调用方可继续追加本地统计字段。
      *
      * @param usage 用量参数。
-     * @return 返回用量结果。
+     * @return 可变有序用量 Map。
      */
     private Map<String, Object> mergeUsage(Map<String, Object> usage) {
-        return usage == null
-                ? new LinkedHashMap<String, Object>()
-                : new LinkedHashMap<String, Object>(usage);
+        return BasicValueSupport.mutableLinkedMap(usage);
     }
 
     /**
-     * 执行扩展名相关逻辑。
+     * 根据音频 MIME 选择缓存文件扩展名。
      *
      * @param mimeType MIME 类型参数。
-     * @return 返回extension结果。
+     * @return 返回无点号扩展名。
      */
     private String extension(String mimeType) {
         String mime = StrUtil.nullToEmpty(mimeType).toLowerCase(Locale.ROOT);
@@ -252,21 +246,21 @@ public class SpeechService {
                 StrUtil.blankToDefault(value, "Speech operation failed"), 1000);
     }
 
-    /** 表示语音结果，携带调用方后续判断所需信息。 */
+    /** 表示 TTS 结果，携带缓存附件、媒体引用和统计信息。 */
     public static class SpeechOutcome {
-        /** 是否启用success。 */
+        /** 本次 TTS 是否成功。 */
         private final boolean success;
 
-        /** 记录语音中的附件。 */
+        /** 成功时缓存得到的音频附件。 */
         private final MessageAttachment attachment;
 
-        /** 记录语音中的媒体引用。 */
+        /** 成功时可回填到会话或工具结果的媒体引用。 */
         private final String mediaReference;
 
-        /** 记录语音中的提供方。 */
+        /** 实际执行 TTS 的插件提供方名称。 */
         private final String provider;
 
-        /** 记录语音中的错误。 */
+        /** 失败时经过脱敏处理的错误。 */
         private final String error;
 
         /** 保存媒体用量映射，便于按键快速查询。 */
@@ -294,10 +288,7 @@ public class SpeechService {
             this.mediaReference = mediaReference;
             this.provider = provider;
             this.error = error;
-            this.mediaUsage =
-                    mediaUsage == null
-                            ? Collections.<String, Object>emptyMap()
-                            : new LinkedHashMap<String, Object>(mediaUsage);
+            this.mediaUsage = BasicValueSupport.mutableLinkedMap(mediaUsage);
         }
 
         /**
@@ -328,7 +319,7 @@ public class SpeechService {
         }
 
         /**
-         * 判断是否Success。
+         * 判断 TTS 是否成功。
          *
          * @return 如果Success满足条件则返回 true，否则返回 false。
          */
@@ -337,7 +328,7 @@ public class SpeechService {
         }
 
         /**
-         * 读取附件。
+         * 读取缓存音频附件。
          *
          * @return 返回读取到的附件。
          */
@@ -346,7 +337,7 @@ public class SpeechService {
         }
 
         /**
-         * 读取媒体Reference。
+         * 读取可被模型或前端引用的媒体地址。
          *
          * @return 返回读取到的媒体Reference。
          */
@@ -355,7 +346,7 @@ public class SpeechService {
         }
 
         /**
-         * 读取提供方。
+         * 读取实际使用的插件提供方名称。
          *
          * @return 返回读取到的提供方。
          */
@@ -364,7 +355,7 @@ public class SpeechService {
         }
 
         /**
-         * 读取Error。
+         * 读取失败错误文本。
          *
          * @return 返回读取到的Error。
          */
@@ -382,18 +373,18 @@ public class SpeechService {
         }
     }
 
-    /** 表示转写结果，携带调用方后续判断所需信息。 */
+    /** 表示语音转写结果，携带转写文本、提供方和媒体统计。 */
     public static class TranscriptionOutcome {
-        /** 是否启用success。 */
+        /** 本次转写是否成功。 */
         private final boolean success;
 
-        /** 记录转写中的文本。 */
+        /** 成功时识别得到的文本。 */
         private final String text;
 
-        /** 记录转写中的提供方。 */
+        /** 实际执行转写的插件提供方名称。 */
         private final String provider;
 
-        /** 记录转写中的错误。 */
+        /** 失败时经过脱敏处理的错误。 */
         private final String error;
 
         /** 保存媒体用量映射，便于按键快速查询。 */
@@ -418,10 +409,7 @@ public class SpeechService {
             this.text = text;
             this.provider = provider;
             this.error = error;
-            this.mediaUsage =
-                    mediaUsage == null
-                            ? Collections.<String, Object>emptyMap()
-                            : new LinkedHashMap<String, Object>(mediaUsage);
+            this.mediaUsage = BasicValueSupport.mutableLinkedMap(mediaUsage);
         }
 
         /**
@@ -448,7 +436,7 @@ public class SpeechService {
         }
 
         /**
-         * 判断是否Success。
+         * 判断语音转写是否成功。
          *
          * @return 如果Success满足条件则返回 true，否则返回 false。
          */
@@ -457,7 +445,7 @@ public class SpeechService {
         }
 
         /**
-         * 读取Text。
+         * 读取转写文本。
          *
          * @return 返回读取到的Text。
          */
@@ -466,7 +454,7 @@ public class SpeechService {
         }
 
         /**
-         * 读取提供方。
+         * 读取实际使用的插件提供方名称。
          *
          * @return 返回读取到的提供方。
          */
@@ -475,7 +463,7 @@ public class SpeechService {
         }
 
         /**
-         * 读取Error。
+         * 读取失败错误文本。
          *
          * @return 返回读取到的Error。
          */

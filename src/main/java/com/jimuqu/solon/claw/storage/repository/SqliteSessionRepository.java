@@ -5,9 +5,11 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -19,10 +21,15 @@ import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 import org.noear.solon.flow.FlowContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** SQLite 会话仓储实现。 */
 @RequiredArgsConstructor
 public class SqliteSessionRepository implements SessionRepository {
+    /** 会话仓储日志，仅输出脱敏异常摘要，避免泄露消息正文或完整 NDJSON。 */
+    private static final Logger log = LoggerFactory.getLogger(SqliteSessionRepository.class);
+
     /** SELECTCOLUMNS的统一常量值。 */
     private static final String SELECT_COLUMNS =
             "session_id, source_key, branch_name, parent_session_id, model_override, service_tier_override, reasoning_effort_override, "
@@ -50,9 +57,6 @@ public class SqliteSessionRepository implements SessionRepository {
                     + "s.cumulative_total_tokens, s.last_usage_at, s.last_resolved_provider, "
                     + "s.last_resolved_model, s.created_at, s.updated_at";
 
-    /** 上下文待恢复审批的统一常量值。 */
-    private static final String CONTEXT_PENDING_APPROVAL = "_dangerous_command_pending_";
-
     /** 上下文待恢复审批队列的统一常量值。 */
     private static final String CONTEXT_PENDING_APPROVAL_QUEUE =
             "_dangerous_command_pending_queue_";
@@ -60,8 +64,9 @@ public class SqliteSessionRepository implements SessionRepository {
     /** 上下文会话APPROVALS的统一常量值。 */
     private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
 
-    /** 上下文会话YOLO的统一常量值。 */
-    private static final String CONTEXT_SESSION_YOLO = "_dangerous_command_session_yolo_";
+    /** 会话级自动审批状态键，分支复制时必须清理以避免安全状态串联。 */
+    private static final String CONTEXT_SESSION_AUTO_APPROVAL =
+            "_dangerous_command_session_auto_approval_";
 
     /** 数据库访问对象。 */
     private final SqliteDatabase database;
@@ -198,11 +203,13 @@ public class SqliteSessionRepository implements SessionRepository {
         try {
             FlowContext context = FlowContext.fromJson(snapshotJson);
             context.remove(CONTEXT_SESSION_APPROVALS);
-            context.remove(CONTEXT_PENDING_APPROVAL);
             context.remove(CONTEXT_PENDING_APPROVAL_QUEUE);
-            context.remove(CONTEXT_SESSION_YOLO);
+            context.remove(CONTEXT_SESSION_AUTO_APPROVAL);
             return context.toJson();
-        } catch (Throwable ignored) {
+        } catch (RuntimeException e) {
+            log.warn(
+                    "SQLite session branch snapshot cleanup failed; clone continues with empty snapshot: error={}",
+                    exceptionSummary(e));
             return null;
         }
     }
@@ -416,7 +423,10 @@ public class SqliteSessionRepository implements SessionRepository {
                         resultSet.close();
                         statement.close();
                     }
-                } catch (Exception ignored) {
+                } catch (SQLException | RuntimeException e) {
+                    log.debug(
+                            "SQLite session FTS search failed; LIKE fallback will continue: error={}",
+                            exceptionSummary(e));
                     // FTS5 对 '-'、冒号和中文长串较敏感；失败时继续尝试安全拆词和 LIKE 兜底。
                 }
                 if (results.size() >= safeLimit) {
@@ -1001,7 +1011,10 @@ public class SqliteSessionRepository implements SessionRepository {
             } finally {
                 insert.close();
             }
-        } catch (Exception ignored) {
+        } catch (SQLException | RuntimeException e) {
+            log.warn(
+                    "SQLite session search index update failed; session save continues: error={}",
+                    exceptionSummary(e));
             // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
     }
@@ -1022,7 +1035,10 @@ public class SqliteSessionRepository implements SessionRepository {
             } finally {
                 delete.close();
             }
-        } catch (Exception ignored) {
+        } catch (SQLException | RuntimeException e) {
+            log.debug(
+                    "SQLite session search index delete failed; session delete continues: error={}",
+                    exceptionSummary(e));
             // 这里的失败不应影响主流程或安全关键路径。
         }
     }
@@ -1068,9 +1084,47 @@ public class SqliteSessionRepository implements SessionRepository {
                     }
                 }
             }
-        } catch (Exception ignored) {
+        } catch (IOException | RuntimeException e) {
+            log.debug(
+                    "SQLite session tool index parse failed; tool search fields remain empty: error={}",
+                    exceptionSummary(e));
         }
         return new ToolIndex(names.toString(), calls.toString());
+    }
+
+    /**
+     * 生成会话仓储日志中的单行脱敏异常摘要，避免输出消息正文、token 或完整 NDJSON。
+     *
+     * @param error 当前捕获的异常。
+     * @return 返回异常类型和脱敏后的短消息。
+     */
+    private static String exceptionSummary(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        String message = error.getMessage();
+        if (StrUtil.isBlank(message)) {
+            return error.getClass().getSimpleName();
+        }
+        String safeMessage = message.replaceAll("[\\r\\n\\t]+", " ");
+        safeMessage =
+                safeMessage.replaceAll(
+                        "(?i)(api[_-]?key|token|authorization|secret|password)\\s*[:=]\\s*[^,;\\s]+",
+                        "$1=<redacted>");
+        safeMessage =
+                safeMessage.replaceAll(
+                        "\"(content|ndjson|message|messages|transcript)\"\\s*:\\s*\"(?:\\\\.|[^\"])*\"",
+                        "\"$1\":\"<redacted>\"");
+        safeMessage = safeMessage.replaceAll("\"(?:\\\\.|[^\"]){32,}\"", "\"<redacted>\"");
+        safeMessage = safeMessage.replaceAll("'(?:\\\\.|[^']){32,}'", "'<redacted>'");
+        safeMessage =
+                safeMessage.replaceAll(
+                        "\\b[A-Za-z0-9_./+=:-]{48,}\\b",
+                        "<redacted>");
+        if (safeMessage.length() > 160) {
+            safeMessage = safeMessage.substring(0, 160) + "...";
+        }
+        return error.getClass().getSimpleName() + ": " + safeMessage;
     }
 
     /**

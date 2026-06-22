@@ -61,7 +61,7 @@ public class MemoryTools {
         String normalizedTarget = StrUtil.blankToDefault(target, MemoryConstants.TARGET_MEMORY);
         if (MemoryConstants.ACTION_READ.equalsIgnoreCase(action)) {
             return new ONode()
-                    .set("success", true)
+                    .set("status", "success")
                     .set("action", MemoryConstants.ACTION_READ)
                     .set("target", safe(normalizedTarget, 200))
                     .set("content", safe(memoryService.read(normalizedTarget), 8000))
@@ -89,7 +89,7 @@ public class MemoryTools {
             result = "Unsupported memory action";
         }
         return new ONode()
-                .set("success", isSuccess(result))
+                .set("status", status(result))
                 .set("action", StrUtil.nullToEmpty(action))
                 .set("target", safe(normalizedTarget, 200))
                 .set("message", safe(result, 1000))
@@ -97,20 +97,22 @@ public class MemoryTools {
     }
 
     /**
-     * 判断是否Success。
+     * 判断记忆工具调用状态。
      *
      * @param message 平台消息或错误消息。
-     * @return 如果Success满足条件则返回 true，否则返回 false。
+     * @return 返回当前工具结果状态。
      */
-    private boolean isSuccess(String message) {
+    private String status(String message) {
         String normalized = StrUtil.nullToEmpty(message).trim();
         if (normalized.length() == 0) {
-            return false;
+            return "error";
         }
-        return !normalized.startsWith("Unsupported")
-                && !normalized.contains("不能为空")
-                && !normalized.contains("不会写入")
-                && !normalized.startsWith("未");
+        boolean ok =
+                !normalized.startsWith("Unsupported")
+                        && !normalized.contains("不能为空")
+                        && !normalized.contains("不会写入")
+                        && !normalized.startsWith("未");
+        return ok ? "success" : "error";
     }
 
     /**
@@ -151,7 +153,7 @@ public class MemoryTools {
      */
     private String blockedResponse(String action, String target, String message) {
         return new ONode()
-                .set("success", false)
+                .set("status", "error")
                 .set("action", StrUtil.nullToEmpty(action))
                 .set("target", safe(target, 200))
                 .set("message", safe(message, 1000))

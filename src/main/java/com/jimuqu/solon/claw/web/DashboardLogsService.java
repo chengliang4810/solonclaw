@@ -100,7 +100,7 @@ public class DashboardLogsService {
     }
 
     /**
-     * 读取日志并兼容未传关键字的旧调用路径。
+     * 读取日志，并在未传关键字时按当前筛选条件直接返回最近日志。
      *
      * @param fileName 文件或目录路径参数。
      * @param lineCount 行Count参数。

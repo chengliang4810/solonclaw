@@ -1,6 +1,9 @@
 package com.jimuqu.solon.claw.gateway.platform.base;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
+
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
@@ -10,12 +13,13 @@ import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /** 可配置渠道适配器基类，负责处理启用状态、连接状态和基础日志。 */
 public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapter {
@@ -114,11 +118,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         log.info("[{}:{}] {}", request.getPlatform(), request.getChatId(), request.getText());
     }
 
-    /**
-     * 执行状态Snapshot相关逻辑。
-     *
-     * @return 返回状态Snapshot结果。
-     */
+    /** 返回 dashboard 和诊断接口使用的渠道状态快照。 */
     @Override
     public ChannelStatus statusSnapshot() {
         ChannelStatus status = new ChannelStatus(platformType, isEnabled(), connected, detail);
@@ -165,34 +165,24 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     /** 覆盖缺失配置项。 */
     protected void setMissingConfig(String... values) {
         missingConfig.clear();
-        if (values == null) {
-            return;
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                missingConfig.add(value.trim());
-            }
+        if (ArrayUtil.isNotEmpty(values)) {
+            appendMissingConfig(CollUtil.newArrayList(values));
         }
     }
 
     /** 覆盖缺失配置项。 */
     protected void setMissingConfig(List<String> values) {
         missingConfig.clear();
-        if (values == null) {
-            return;
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                missingConfig.add(value.trim());
-            }
+        if (CollUtil.isNotEmpty(values)) {
+            appendMissingConfig(values);
         }
     }
 
     /** 设置功能标签。 */
     protected void setFeatures(String... values) {
         features.clear();
-        if (values != null) {
-            features.addAll(Arrays.asList(values));
+        if (ArrayUtil.isNotEmpty(values)) {
+            Collections.addAll(features, values);
         }
     }
 
@@ -214,10 +204,23 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     }
 
     /**
-     * 生成安全展示用的状态文本。
+     * 追加缺失配置项，统一过滤空白并去掉两端空格。
      *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回safe状态Text结果。
+     * @param values 渠道配置路径或 dashboard 诊断字段。
+     */
+    private void appendMissingConfig(Iterable<String> values) {
+        for (String value : values) {
+            if (StrUtil.isNotBlank(value)) {
+                missingConfig.add(value.trim());
+            }
+        }
+    }
+
+    /**
+     * 生成可展示的状态文本，并在进入 dashboard 前脱敏。
+     *
+     * @param value 渠道连接详情或错误消息。
+     * @return 脱敏后的状态文本，入参为空时保持为空。
      */
     private String safeStatusText(String value) {
         return value == null ? null : SecretRedactor.redact(value, 1000);
@@ -227,7 +230,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
      * 将异常转换为可展示且不泄漏敏感信息的错误文本。
      *
      * @param throwable 捕获到的异常。
-     * @return 返回safe Error结果。
+     * @return 可写入渠道状态和日志的脱敏错误文本。
      */
     protected String safeError(Throwable throwable) {
         if (throwable == null) {
@@ -241,10 +244,10 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     }
 
     /**
-     * 执行错误类型相关逻辑。
+     * 提取异常类型名称，用作渠道最近错误码的兜底信息。
      *
      * @param throwable 捕获到的异常。
-     * @return 返回error类型结果。
+     * @return 异常类名；异常为空时返回通用 Throwable。
      */
     protected String errorType(Throwable throwable) {
         return throwable == null ? "Throwable" : throwable.getClass().getSimpleName();
@@ -261,7 +264,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
                 weakFields.add(field.path);
             }
         }
-        if (weakFields.isEmpty()) {
+        if (CollUtil.isEmpty(weakFields)) {
             return false;
         }
         channelConfig.setEnabled(false);
@@ -280,11 +283,11 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     }
 
     /**
-     * 执行凭据Field相关逻辑。
+     * 构造弱凭据检测使用的配置字段描述。
      *
-     * @param path 文件或目录路径。
-     * @param value 待规范化或校验的原始值。
-     * @return 返回凭据Field结果。
+     * @param path 配置路径，用于诊断输出。
+     * @param value 配置值，用于判断是否为示例或占位凭据。
+     * @return 凭据字段描述对象。
      */
     protected CredentialField credentialField(String path, String value) {
         return new CredentialField(path, value);
@@ -300,19 +303,19 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         return SecretValueGuard.isPlaceholderSecret(value);
     }
 
-    /** 承载凭据Field相关状态和辅助逻辑。 */
+    /** 承载单个渠道凭据字段，避免弱凭据检测调用处重复传递 path/value 对。 */
     protected static class CredentialField {
-        /** 记录凭据Field中的路径。 */
+        /** 配置路径，用于错误详情和 dashboard 诊断。 */
         private final String path;
 
-        /** 记录凭据Field中的值。 */
+        /** 配置值，仅用于占位凭据判断，不进入用户可见输出。 */
         private final String value;
 
         /**
-         * 创建凭据Field实例，并注入运行所需依赖。
+         * 创建凭据字段描述。
          *
-         * @param path 文件或目录路径。
-         * @param value 待规范化或校验的原始值。
+         * @param path 配置路径。
+         * @param value 配置值。
          */
         private CredentialField(String path, String value) {
             this.path = path == null ? "" : path.trim();

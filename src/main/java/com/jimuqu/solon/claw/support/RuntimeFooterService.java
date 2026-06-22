@@ -7,10 +7,15 @@ import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
 import java.io.File;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 最终回复运行态 footer 渲染。 */
 @RequiredArgsConstructor
 public class RuntimeFooterService {
+    /** 记录 footer 路径压缩失败的低敏诊断日志，不输出完整工作目录。 */
+    private static final Logger log = LoggerFactory.getLogger(RuntimeFooterService.class);
+
     /** SEPARATOR的统一常量值。 */
     private static final String SEPARATOR = " · ";
 
@@ -182,7 +187,10 @@ public class RuntimeFooterService {
                 return "~" + absolute.substring(home.length());
             }
             return absolute;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("压缩运行目录展示失败，使用原始脱敏前输入长度 error={} length={}",
+                    e.getClass().getSimpleName(),
+                    Integer.valueOf(value.length()));
             return value;
         }
     }

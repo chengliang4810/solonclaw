@@ -12,6 +12,17 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class DangerousCommandApprovalCommandTest {
+    /**
+     * 创建显式开启人工审批护栏的命令测试环境，用于验证 pending 会话阻塞新请求等审批链路。
+     *
+     * @return 返回已开启 approval 模式的测试环境。
+     */
+    private static TestEnvironment approvalEnvironment() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getSecurity().setGuardrailMode("approval");
+        return env;
+    }
+
     @Test
     void shouldApproveDangerousCommandForSessionAndResume() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -342,7 +353,6 @@ public class DangerousCommandApprovalCommandTest {
                 (List<Map<String, Object>>)
                         agentSession.getContext().get("_dangerous_command_pending_queue_");
         queue.get(0).put("approvalId", "approval-unsafe always");
-        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
         agentSession.updateSnapshot();
 
         SqliteAgentSession restoredAgentSession =
@@ -382,7 +392,6 @@ public class DangerousCommandApprovalCommandTest {
                 (List<Map<String, Object>>)
                         agentSession.getContext().get("_dangerous_command_pending_queue_");
         queue.get(0).put("approvalId", "approval-unsafe always");
-        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
         agentSession.updateSnapshot();
 
         SqliteAgentSession restoredAgentSession =
@@ -439,7 +448,6 @@ public class DangerousCommandApprovalCommandTest {
                 (List<Map<String, Object>>)
                         agentSession.getContext().get("_dangerous_command_pending_queue_");
         queue.get(0).put("approvalId", "approval-ghp_selectorsecret123456");
-        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
         agentSession.updateSnapshot();
 
         SqliteAgentSession restoredAgentSession =
@@ -510,7 +518,6 @@ public class DangerousCommandApprovalCommandTest {
                 (List<Map<String, Object>>)
                         agentSession.getContext().get("_dangerous_command_pending_queue_");
         queue.get(0).put("approvalId", "approval-unsafe always");
-        agentSession.getContext().put("_dangerous_command_pending_", queue.get(0));
         agentSession.updateSnapshot();
 
         SqliteAgentSession restoredAgentSession =
@@ -652,7 +659,7 @@ public class DangerousCommandApprovalCommandTest {
 
     @Test
     void shouldSkipNewRunWhenDangerousApprovalIsPending() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TestEnvironment env = approvalEnvironment();
         env.gatewayService.handle(env.message("room-4", "user-4", "hello"));
         env.gatewayAuthorizationService.claimAdmin(
                 env.message("room-4", "user-4", "/pairing claim-admin"));
@@ -702,104 +709,110 @@ public class DangerousCommandApprovalCommandTest {
     }
 
     @Test
-    void shouldToggleYoloOnlyForCurrentSession() throws Exception {
+    void shouldToggleSessionAutoApprovalOnlyForCurrentSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.gatewayService.handle(env.message("room-yolo-a", "user-yolo", "hello"));
-        env.gatewayService.handle(env.message("room-yolo-b", "user-yolo", "hello"));
+        env.gatewayService.handle(env.message("room-auto-approval-a", "user-auto-approval", "hello"));
+        env.gatewayService.handle(env.message("room-auto-approval-b", "user-auto-approval", "hello"));
         env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-yolo-a", "user-yolo", "/pairing claim-admin"));
+                env.message("room-auto-approval-a", "user-auto-approval", "/pairing claim-admin"));
 
         SessionRecord sessionA =
-                env.sessionRepository.bindNewSession("MEMORY:room-yolo-a:user-yolo");
+                env.sessionRepository.bindNewSession("MEMORY:room-auto-approval-a:user-auto-approval");
         SessionRecord sessionB =
-                env.sessionRepository.bindNewSession("MEMORY:room-yolo-b:user-yolo");
+                env.sessionRepository.bindNewSession("MEMORY:room-auto-approval-b:user-auto-approval");
 
-        GatewayReply enabled = env.send("room-yolo-a", "user-yolo", "/yolo");
+        GatewayReply enabled = env.send("room-auto-approval-a", "user-auto-approval", "/approve auto");
 
         SessionRecord updatedA =
-                env.sessionRepository.getBoundSession("MEMORY:room-yolo-a:user-yolo");
+                env.sessionRepository.getBoundSession("MEMORY:room-auto-approval-a:user-auto-approval");
         SessionRecord updatedB =
-                env.sessionRepository.getBoundSession("MEMORY:room-yolo-b:user-yolo");
+                env.sessionRepository.getBoundSession("MEMORY:room-auto-approval-b:user-auto-approval");
         SqliteAgentSession agentSessionA = new SqliteAgentSession(updatedA, env.sessionRepository);
         SqliteAgentSession agentSessionB = new SqliteAgentSession(updatedB, env.sessionRepository);
 
-        assertThat(enabled.getContent()).contains("YOLO 已开启");
+        assertThat(enabled.getContent()).contains("会话自动审批已开启");
         assertThat(updatedA.getSessionId()).isEqualTo(sessionA.getSessionId());
         assertThat(updatedB.getSessionId()).isEqualTo(sessionB.getSessionId());
-        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionA))
+        assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(agentSessionA))
                 .isTrue();
-        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionB))
+        assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(agentSessionB))
                 .isFalse();
 
-        GatewayReply disabled = env.send("room-yolo-a", "user-yolo", "/yolo");
+        GatewayReply disabled = env.send("room-auto-approval-a", "user-auto-approval", "/approve auto");
         SessionRecord disabledA =
-                env.sessionRepository.getBoundSession("MEMORY:room-yolo-a:user-yolo");
-        assertThat(disabled.getContent()).contains("YOLO 已关闭");
+                env.sessionRepository.getBoundSession("MEMORY:room-auto-approval-a:user-auto-approval");
+        assertThat(disabled.getContent()).contains("会话自动审批已关闭");
         assertThat(
-                        env.dangerousCommandApprovalService.isSessionYoloEnabled(
+                        env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(
                                 new SqliteAgentSession(disabledA, env.sessionRepository)))
                 .isFalse();
     }
 
     @Test
-    void shouldSupportExplicitYoloStatusOnOffForCurrentSession() throws Exception {
+    void shouldSupportExplicitSessionAutoApprovalStatusOnOffForCurrentSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.gatewayService.handle(env.message("room-yolo-explicit-a", "user-yolo", "hello"));
-        env.gatewayService.handle(env.message("room-yolo-explicit-b", "user-yolo", "hello"));
+        env.gatewayService.handle(env.message("room-auto-explicit-a", "user-auto", "hello"));
+        env.gatewayService.handle(env.message("room-auto-explicit-b", "user-auto", "hello"));
         env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-yolo-explicit-a", "user-yolo", "/pairing claim-admin"));
+                env.message("room-auto-explicit-a", "user-auto", "/pairing claim-admin"));
 
         SessionRecord sessionA =
-                env.sessionRepository.bindNewSession("MEMORY:room-yolo-explicit-a:user-yolo");
+                env.sessionRepository.bindNewSession("MEMORY:room-auto-explicit-a:user-auto");
         SessionRecord sessionB =
-                env.sessionRepository.bindNewSession("MEMORY:room-yolo-explicit-b:user-yolo");
+                env.sessionRepository.bindNewSession("MEMORY:room-auto-explicit-b:user-auto");
         SqliteAgentSession agentSessionA = new SqliteAgentSession(sessionA, env.sessionRepository);
         SqliteAgentSession agentSessionB = new SqliteAgentSession(sessionB, env.sessionRepository);
 
-        GatewayReply initialStatus = env.send("room-yolo-explicit-a", "user-yolo", "/yolo status");
-        assertThat(initialStatus.getContent()).contains("YOLO 已关闭");
+        GatewayReply initialStatus =
+                env.send("room-auto-explicit-a", "user-auto", "/approve auto status");
+        assertThat(initialStatus.getContent()).contains("会话自动审批已关闭");
         assertThat(
-                        env.dangerousCommandApprovalService.isSessionYoloEnabled(
-                                yoloSession(env, "room-yolo-explicit-a")))
+                        env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(
+                                sessionAutoApprovalSession(env, "room-auto-explicit-a")))
                 .isFalse();
 
-        GatewayReply enabled = env.send("room-yolo-explicit-a", "user-yolo", "/yolo on");
-        GatewayReply enabledAgain = env.send("room-yolo-explicit-a", "user-yolo", "/yolo enable");
-        assertThat(enabled.getContent()).contains("YOLO 已开启");
-        assertThat(enabledAgain.getContent()).contains("YOLO 已开启");
+        GatewayReply enabled = env.send("room-auto-explicit-a", "user-auto", "/approve auto on");
+        GatewayReply enabledAgain =
+                env.send("room-auto-explicit-a", "user-auto", "/approve auto enable");
+        assertThat(enabled.getContent()).contains("会话自动审批已开启");
+        assertThat(enabledAgain.getContent()).contains("会话自动审批已开启");
         assertThat(
-                        env.dangerousCommandApprovalService.isSessionYoloEnabled(
-                                yoloSession(env, "room-yolo-explicit-a")))
+                        env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(
+                                sessionAutoApprovalSession(env, "room-auto-explicit-a")))
                 .isTrue();
-        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionB))
+        assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(agentSessionB))
                 .isFalse();
 
-        GatewayReply status = env.send("room-yolo-explicit-a", "user-yolo", "/yolo status");
-        assertThat(status.getContent()).contains("YOLO 已开启");
+        GatewayReply status =
+                env.send("room-auto-explicit-a", "user-auto", "/approve auto status");
+        assertThat(status.getContent()).contains("会话自动审批已开启");
         assertThat(
-                        env.dangerousCommandApprovalService.isSessionYoloEnabled(
-                                yoloSession(env, "room-yolo-explicit-a")))
+                        env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(
+                                sessionAutoApprovalSession(env, "room-auto-explicit-a")))
                 .isTrue();
 
-        GatewayReply disabled = env.send("room-yolo-explicit-a", "user-yolo", "/yolo off");
-        GatewayReply disabledAgain = env.send("room-yolo-explicit-a", "user-yolo", "/yolo disable");
-        assertThat(disabled.getContent()).contains("YOLO 已关闭");
-        assertThat(disabledAgain.getContent()).contains("YOLO 已关闭");
+        GatewayReply disabled = env.send("room-auto-explicit-a", "user-auto", "/approve auto off");
+        GatewayReply disabledAgain =
+                env.send("room-auto-explicit-a", "user-auto", "/approve auto disable");
+        assertThat(disabled.getContent()).contains("会话自动审批已关闭");
+        assertThat(disabledAgain.getContent()).contains("会话自动审批已关闭");
         assertThat(
-                        env.dangerousCommandApprovalService.isSessionYoloEnabled(
-                                yoloSession(env, "room-yolo-explicit-a")))
+                        env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(
+                                sessionAutoApprovalSession(env, "room-auto-explicit-a")))
                 .isFalse();
-        assertThat(env.dangerousCommandApprovalService.isSessionYoloEnabled(agentSessionB))
+        assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(agentSessionB))
                 .isFalse();
 
-        GatewayReply invalid = env.send("room-yolo-explicit-a", "user-yolo", "/yolo maybe");
+        GatewayReply invalid =
+                env.send("room-auto-explicit-a", "user-auto", "/approve auto maybe");
         assertThat(invalid.isError()).isTrue();
-        assertThat(invalid.getContent()).contains("用法：/yolo [status|on|off]");
+        assertThat(invalid.getContent()).contains("用法：/approve auto [status|on|off]");
     }
 
-    private SqliteAgentSession yoloSession(TestEnvironment env, String chatId) throws Exception {
+    private SqliteAgentSession sessionAutoApprovalSession(TestEnvironment env, String chatId)
+            throws Exception {
         SessionRecord session =
-                env.sessionRepository.getBoundSession("MEMORY:" + chatId + ":user-yolo");
+                env.sessionRepository.getBoundSession("MEMORY:" + chatId + ":user-auto");
         return new SqliteAgentSession(session, env.sessionRepository);
     }
 }

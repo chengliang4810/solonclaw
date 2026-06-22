@@ -1,5 +1,44 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.BARE_HOST_FETCH_CONTEXT_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.BARE_HOST_TOKEN_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.BLOCKED_DEVICE_PATHS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_DIR_SEGMENTS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_FILE_NAMES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_PATH_OPTION_NAMES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_PATH_SUFFIXES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.DIRECT_NETWORK_ENDPOINT_PREFIX_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.IPV4_CIDR_TOKEN_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.IPV6_CIDR_TOKEN_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.LOCAL_MANAGEMENT_PIPE_PATHS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.LOCAL_MANAGEMENT_SOCKET_PATHS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.NETWORK_CREDENTIAL_SHORT_OPTIONS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.NETWORK_UPLOAD_FILE_OPTIONS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.NETWORK_UPLOAD_FILE_SHORT_OPTIONS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_LOCAL_MANAGEMENT_ENV_ASSIGNMENT_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_PROXY_ENV_ASSIGNMENT_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_REGISTRY_PROXY_PROPERTY_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_REGISTRY_PROXY_VALUE_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.PROC_STDIO_FD_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.QUOTED_WINDOWS_PATH_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.RAW_BLOCK_DEVICE_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.RUNTIME_CREDENTIAL_FILE_PATHS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SENSITIVE_KEY_FILE_EXTENSIONS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SENSITIVE_KEY_FILE_MARKERS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SENSITIVE_URL_PARAMETER_NAMES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SHELL_CREDENTIAL_TOKEN_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SHELL_PATH_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SSH_FILE_CONFIG_OPTION_NAMES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.URLISH_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WORKDIR_SAFE_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_EXACT_PATHS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_HOME_FILE_NAMES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_PREFIXES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_WINDOWS_PREFIXES;
+
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HtmlUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -7,7 +46,6 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
-import java.math.BigInteger;
 import java.net.IDN;
 import java.net.InetAddress;
 import java.net.URI;
@@ -23,423 +61,31 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供安全策略相关业务能力，封装调用方不需要感知的运行细节。 */
 public class SecurityPolicyService {
-    /** 始终阻断的主机列表的统一常量值。 */
-    private static final String[] ALWAYS_BLOCKED_HOSTS =
-            new String[] {"metadata.google.internal", "metadata.goog"};
-
-    /** 始终阻断的 IP 列表的统一常量值。 */
-    private static final String[] ALWAYS_BLOCKED_IPS =
-            new String[] {
-                "169.254.169.254",
-                "169.254.170.2",
-                "169.254.169.253",
-                "100.100.100.200",
-                "fd00:ec2::254",
-                "fd00:ec2:0:0:0:0:0:254"
-            };
-
-    /** 可信私有 IP 主机列表的统一常量值。 */
-    private static final String[] TRUSTED_PRIVATE_IP_HOSTS =
-            new String[] {"multimedia.nt.qq.com.cn"};
-
-    /** 凭据目录片段列表的统一常量值。 */
-    private static final List<String> CREDENTIAL_DIR_SEGMENTS =
-            Arrays.asList(
-                    ".ssh",
-                    ".aws",
-                    ".gnupg",
-                    ".kube",
-                    ".docker",
-                    ".azure",
-                    ".claude",
-                    ".codex",
-                    ".qwen",
-                    ".gemini",
-                    ".cargo",
-                    ".terraform.d",
-                    ".config/gh",
-                    ".config/gcloud",
-                    ".config/gemini",
-                    ".config/pip",
-                    ".m2",
-                    ".gem",
-                    ".nuget");
-
-    /** 凭据文件名称列表的统一常量值。 */
-    private static final List<String> CREDENTIAL_FILE_NAMES =
-            Arrays.asList(
-                    ".env",
-                    ".envrc",
-                    ".env.local",
-                    ".env.production",
-                    ".env.development",
-                    ".netrc",
-                    ".git-credentials",
-                    ".pgpass",
-                    ".npmrc",
-                    ".yarnrc",
-                    ".pnpmrc",
-                    ".curlrc",
-                    ".wgetrc",
-                    ".pypirc",
-                    "pip.conf",
-                    "settings.xml",
-                    "nuget.config",
-                    "credentials",
-                    "credentials.json",
-                    ".credentials.json",
-                    "secret.json",
-                    "secrets.json",
-                    "keyring.json",
-                    "auth.json",
-                    ".anthropic_oauth.json",
-                    "oauth_creds.json",
-                    "client_secret.json",
-                    "client_secrets.json",
-                    "application_default_credentials.json",
-                    "service_account.json",
-                    "service-account.json",
-                    "service_account_key.json",
-                    "service-account-key.json",
-                    "google-credentials.json",
-                    "token.json",
-                    "credentials.toml",
-                    "credentials.tfrc.json",
-                    "authorized_keys",
-                    "hosts.yml",
-                    "kubeconfig",
-                    "id_dsa",
-                    "id_ecdsa",
-                    "id_ecdsa_sk",
-                    "id_rsa_sk",
-                    "id_rsa",
-                    "id_ed25519_sk",
-                    "id_ed25519",
-                    "known_hosts",
-                    "known_hosts.old",
-                    "known_hosts2");
-
-    /** 敏感密钥文件扩展名列表的统一常量值。 */
-    private static final List<String> SENSITIVE_KEY_FILE_EXTENSIONS =
-            Arrays.asList(".pem", ".key", ".p12", ".pfx");
-
-    /** 敏感密钥文件标记列表的统一常量值。 */
-    private static final List<String> SENSITIVE_KEY_FILE_MARKERS =
-            Arrays.asList(
-                    "private",
-                    "secret",
-                    "credential",
-                    "credentials",
-                    "token",
-                    "oauth",
-                    "service-account",
-                    "service_account",
-                    "api-key",
-                    "apikey",
-                    "id_");
-
-    /** 凭据路径后缀列表的统一常量值。 */
-    private static final List<String> CREDENTIAL_PATH_SUFFIXES =
-            Arrays.asList(
-                    ".claude/.credentials.json",
-                    ".codex/auth.json",
-                    ".qwen/oauth_creds.json",
-                    ".gemini/oauth_creds.json",
-                    ".config/gemini/oauth_creds.json",
-                    ".config/gcloud/application_default_credentials.json",
-                    ".cargo/credentials.toml",
-                    ".terraform.d/credentials.tfrc.json");
-
-    /** 运行时凭据文件路径列表的统一常量值。 */
-    private static final List<String> RUNTIME_CREDENTIAL_FILE_PATHS =
-            Arrays.asList("cache/bws_cache.json");
-
-    /** 写入拒绝精确路径列表的统一常量值。 */
-    private static final List<String> WRITE_DENIED_EXACT_PATHS =
-            Arrays.asList(
-                    "/etc/hosts",
-                    "/etc/resolv.conf",
-                    "/etc/sudoers",
-                    "/etc/passwd",
-                    "/etc/shadow",
-                    "/var/run/docker.sock",
-                    "/run/docker.sock");
-
-    /** 写入拒绝主渠道文件名称列表的统一常量值。 */
-    private static final List<String> WRITE_DENIED_HOME_FILE_NAMES =
-            Arrays.asList(".bashrc", ".zshrc", ".profile", ".bash_profile", ".zprofile");
-
-    /** 写入拒绝前缀列表的统一常量值。 */
-    private static final List<String> WRITE_DENIED_PREFIXES =
-            Arrays.asList(
-                    "/boot/",
-                    "/bin/",
-                    "/sbin/",
-                    "/usr/bin/",
-                    "/usr/sbin/",
-                    "/usr/local/bin/",
-                    "/usr/local/sbin/",
-                    "/usr/lib/systemd/",
-                    "/private/etc/",
-                    "/private/var/",
-                    "/etc/sudoers.d/",
-                    "/etc/systemd/");
-
-    /** 写入拒绝Windows 前缀列表的统一常量值。 */
-    private static final List<String> WRITE_DENIED_WINDOWS_PREFIXES =
-            Arrays.asList(
-                    "c:/windows/",
-                    "%windir%/",
-                    "$env:windir/",
-                    "${windir}/",
-                    "c:/program files/",
-                    "c:/program files (x86)/",
-                    "$env:programfiles/",
-                    "${programfiles}/",
-                    "%programfiles%/",
-                    "%programfiles(x86)%/");
-
-    /** 阻断设备路径列表的统一常量值。 */
-    private static final List<String> BLOCKED_DEVICE_PATHS =
-            Arrays.asList(
-                    "/dev/zero",
-                    "/dev/random",
-                    "/dev/urandom",
-                    "/dev/full",
-                    "/dev/stdin",
-                    "/dev/tty",
-                    "/dev/console",
-                    "/dev/stdout",
-                    "/dev/stderr",
-                    "/dev/fd/0",
-                    "/dev/fd/1",
-                    "/dev/fd/2");
-
-    /** 终端路径正则的统一常量值。 */
-    private static final Pattern SHELL_PATH_PATTERN =
-            Pattern.compile(
-                    "(~?[/\\\\][^\\s'\"`|;&<>]+|\\$HOME[/\\\\][^\\s'\"`|;&<>]+|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}[/\\\\][^\\s'\"`|;&<>]+|\\$env:[A-Za-z_][A-Za-z0-9_]*[/\\\\][^\\s'\"`|;&<>]+|%[A-Za-z_][A-Za-z0-9_]*(?:\\([A-Za-z0-9_ -]+\\))?%[/\\\\][^\\s'\"`|;&<>]+|[A-Za-z]:[/\\\\][^\\s'\"`|;&<>]+)",
-                    Pattern.CASE_INSENSITIVE);
-
-    /** QUOTEDWindows路径正则的统一常量值。 */
-    private static final Pattern QUOTED_WINDOWS_PATH_PATTERN =
-            Pattern.compile("([\"'])([A-Za-z]:[\\\\/][^\"'`|;&<>]+)\\1", Pattern.CASE_INSENSITIVE);
-
-    /** 终端RELATIVE凭据路径正则的统一常量值。 */
-    private static final Pattern SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN =
-            Pattern.compile(
-                    "(?<![A-Za-z0-9_./\\\\-])((?:\\.\\.?[/\\\\])?(?:(?:[^\\s'\"`|;&<>/\\\\]+)[/\\\\])*(?:\\.ssh|\\.aws|\\.gnupg|\\.kube|\\.docker|\\.azure|\\.claude|\\.codex|\\.qwen|\\.gemini|\\.cargo|\\.terraform\\.d|\\.m2|\\.gem|\\.nuget|\\.config[/\\\\](?:gh|gcloud|gemini|pip))[/\\\\][^\\s'\"`|;&<>]+)(?![A-Za-z0-9_./\\\\-])",
-                    Pattern.CASE_INSENSITIVE);
-
-    /** 终端凭据token 正则的统一常量值。 */
-    private static final Pattern SHELL_CREDENTIAL_TOKEN_PATTERN =
-            Pattern.compile(
-                    "(?<![A-Za-z0-9_./\\\\-])((?:(?:\\.{1,2}|~|\\$[A-Za-z_][A-Za-z0-9_]*|\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}|\\$env:[A-Za-z_][A-Za-z0-9_]*|%[A-Za-z_][A-Za-z0-9_]*%|[A-Za-z0-9_.@=,+-]+)[/\\\\])*(?:(?:\\.env(?:\\.[A-Za-z0-9_.-]+)?)|(?:\\.envrc)|(?:credentials(?:\\.(?:json|toml|tfrc\\.json))?)|(?:auth\\.json)|(?:secret\\.json)|(?:secrets\\.json)|(?:keyring\\.json)|(?:bws_cache\\.json)|(?:\\.netrc)|(?:\\.git-credentials)|(?:\\.pgpass)|(?:\\.npmrc)|(?:\\.yarnrc)|(?:\\.pnpmrc)|(?:\\.curlrc)|(?:\\.wgetrc)|(?:\\.pypirc)|(?:pip\\.conf)|(?:settings\\.xml)|(?:nuget\\.config)|(?:\\.credentials\\.json)|(?:\\.anthropic_oauth\\.json)|(?:oauth_creds\\.json)|(?:client_secrets?\\.json)|(?:application_default_credentials\\.json)|(?:service[_-]account(?:[_-]key)?\\.json)|(?:google-credentials\\.json)|(?:firebase-adminsdk[A-Za-z0-9_.-]*\\.json)|(?:token\\.json)|(?:authorized_keys)|(?:hosts\\.yml)|(?:known_hosts(?:\\.old|2)?)|(?:kubeconfig)|(?:id_(?:dsa|ecdsa(?:_sk)?|rsa(?:_sk)?|ed25519(?:_sk)?))|(?:(?:private|secret|credentials?|token|oauth|service[_-]account|api-?key|id_)[A-Za-z0-9_.-]*\\.(?:pem|key|p12|pfx))))(?![A-Za-z0-9_./\\\\-])",
-                    Pattern.CASE_INSENSITIVE);
-
-    /** WORKDIR安全正则的统一常量值。 */
-    private static final Pattern WORKDIR_SAFE_PATTERN =
-            Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
-
-    /** proc 标准输入输出文件描述符正则的统一常量值。 */
-    private static final Pattern PROC_STDIO_FD_PATTERN =
-            Pattern.compile("^/proc/(?:self|\\d+)/fd/[0-2]$");
-
-    /** 原始阻断设备正则的统一常量值。 */
-    private static final Pattern RAW_BLOCK_DEVICE_PATTERN =
-            Pattern.compile(
-                    "^/dev/(?:sd|hd|vd|xvd)[a-z][a-z0-9]*$|^/dev/nvme\\d+n\\d+(?:p\\d+)?$|^/dev/mmcblk\\d+(?:p\\d+)?$");
-
-    /** 凭据路径选项名称列表的统一常量值。 */
-    private static final List<String> CREDENTIAL_PATH_OPTION_NAMES =
-            Arrays.asList(
-                    "--key",
-                    "--identity-file",
-                    "--ssh-key",
-                    "--ssh-key-file",
-                    "--private-key",
-                    "--private-key-file",
-                    "--proxy-key",
-                    "--client-key",
-                    "--client-key-file",
-                    "--cert",
-                    "--cert-file",
-                    "--certificate",
-                    "--certificate-file",
-                    "--proxy-cert",
-                    "--cacert",
-                    "--ca-certificate",
-                    "--capath",
-                    "--ca-directory",
-                    "--crl-file",
-                    "--netrc-file",
-                    "--cookie",
-                    "--cookie-jar",
-                    "--load-cookies",
-                    "--kubeconfig",
-                    "--key-file",
-                    "--service-account-key-file",
-                    "--credential-file",
-                    "--credentials-file",
-                    "--token-file",
-                    "--password-file",
-                    "--userconfig",
-                    "--globalconfig",
-                    "--config",
-                    "-F",
-                    "-i");
-
-    /** 紧凑凭据路径选项前缀列表的统一常量值。 */
-    private static final List<String> COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES =
-            Arrays.asList("-i", "-F", "-K");
-
-    /** 网络凭据短选项列表的统一常量值。 */
-    private static final List<String> NETWORK_CREDENTIAL_SHORT_OPTIONS =
-            Arrays.asList("-b", "-c", "-E", "-K");
-
-    /** 网络上传文件选项列表的统一常量值。 */
-    private static final List<String> NETWORK_UPLOAD_FILE_OPTIONS =
-            Arrays.asList(
-                    "--upload-file",
-                    "--data-binary",
-                    "--data-raw",
-                    "--data",
-                    "-d",
-                    "--json",
-                    "--post-file",
-                    "--body-file");
-
-    /** 网络上传文件短选项列表的统一常量值。 */
-    private static final List<String> NETWORK_UPLOAD_FILE_SHORT_OPTIONS = Arrays.asList("-T");
-
-    /** 本地管理套接字路径列表的统一常量值。 */
-    private static final List<String> LOCAL_MANAGEMENT_SOCKET_PATHS =
-            Arrays.asList(
-                    "/var/run/docker.sock",
-                    "/run/docker.sock",
-                    "/run/containerd/containerd.sock",
-                    "/run/podman/podman.sock",
-                    "/var/run/cri-dockerd.sock",
-                    "/var/run/crio/crio.sock");
-
-    /** 本地管理PIPE路径列表的统一常量值。 */
-    private static final List<String> LOCAL_MANAGEMENT_PIPE_PATHS =
-            Arrays.asList(
-                    "//./pipe/docker_engine",
-                    "\\\\.\\pipe\\docker_engine",
-                    "npipe:////./pipe/docker_engine",
-                    "npipe://./pipe/docker_engine");
-
-    /** SSH文件配置选项名称列表的统一常量值。 */
-    private static final List<String> SSH_FILE_CONFIG_OPTION_NAMES =
-            Arrays.asList(
-                    "IdentityFile",
-                    "CertificateFile",
-                    "UserKnownHostsFile",
-                    "GlobalKnownHostsFile",
-                    "HostKey",
-                    "HostCertificate",
-                    "HostKeyAlias");
-
-    /** URL 候选正则的统一常量值。 */
-    private static final Pattern URLISH_PATTERN =
-            Pattern.compile(
-                    "(?iu)((?:https?|wss?|s?ftp|scp|gopher|file|dict|ldap|ldaps|tftp)://[^\\s)>'\"]+|(?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}]{2,}(?::\\d+)?/[^\\s)>'\"]*|localhost(?::\\d+)?/[^\\s)>'\"]*|(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?/[^\\s)>'\"]*|\\[[0-9a-f:.%]+\\](?::\\d+)?/[^\\s)>'\"]*)");
-
-    /** IPv4 CIDR token 正则的统一常量值。 */
-    private static final Pattern IPV4_CIDR_TOKEN_PATTERN =
-            Pattern.compile("^(?:\\d{1,3}\\.){3}\\d{1,3}/\\d{1,2}$");
-
-    /** IPv6 CIDR token 正则的统一常量值。 */
-    private static final Pattern IPV6_CIDR_TOKEN_PATTERN =
-            Pattern.compile(
-                    "^\\[[0-9a-fA-F:.%]+\\]/\\d{1,3}$|^[0-9a-fA-F:.%]*:[0-9a-fA-F:.%]*/\\d{1,3}$");
-
-    /** 裸主机名token 正则的统一常量值。 */
-    private static final Pattern BARE_HOST_TOKEN_PATTERN =
-            Pattern.compile(
-                    "(?iu)(?<![\\p{L}\\p{N}_./:-])((?:[\\p{L}\\p{N}-]+\\.)+[\\p{L}\\p{N}-]+|localhost|(?:0x[0-9a-f]+)|(?:0[0-7]+(?:\\.0[0-7]+){3})|(?:\\d{1,10})(?:\\.\\d{1,3}){0,3}|\\[[0-9a-f:.%]+\\])(?::\\d{1,5})?(?![\\p{L}\\p{N}_./:-])");
-
-    /** 裸主机名FETCH上下文正则的统一常量值。 */
-    private static final Pattern BARE_HOST_FETCH_CONTEXT_PATTERN =
-            Pattern.compile(
-                    "(?iu)(?:^|[^\\p{L}\\p{N}_./:-])(?:curl|wget|aria2c|httpie|http|xh|curlie|nc|netcat|ncat|telnet|socat|websocat|grpcurl|openssl\\s+s_client|fetch|axios|httpx|requests\\.(?:get|post|put|delete|patch|head|request)|urllib\\.request\\.urlopen|urlopen|Invoke-WebRequest|Invoke-RestMethod|iwr|irm|Start-BitsTransfer|bitsadmin|certutil|mshta|regsvr32|rundll32|WebClient|WebRequest|HttpWebRequest|RestTemplate|OkHttpClient|HttpURLConnection)\\b");
-
-    /** 直接网络端点前缀正则的统一常量值。 */
-    private static final Pattern DIRECT_NETWORK_ENDPOINT_PREFIX_PATTERN =
-            Pattern.compile("(?iu)^(tcp|tcp4|tcp6|udp|udp4|udp6|ssl|tls|connect):(.+)$");
-
-    /** JAVA代理选项列表ASSIGNMENT正则的统一常量值。 */
-    private static final Pattern JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN =
-            Pattern.compile(
-                    "(?i)(?:^|\\s)(?:JAVA_TOOL_OPTIONS|JDK_JAVA_OPTIONS|MAVEN_OPTS|GRADLE_OPTS)=((?:\"[^\"]*\")|(?:'[^']*')|\\S+)");
-
-    /** PowerShell代理环境变量ASSIGNMENT正则的统一常量值。 */
-    private static final Pattern POWERSHELL_PROXY_ENV_ASSIGNMENT_PATTERN =
-            Pattern.compile(
-                    "(?i)(?:\\$env:|Env:)(HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|NPM_CONFIG_NO_PROXY|NPM_CONFIG_NOPROXY|YARN_PROXY|YARN_HTTPS_PROXY|YARN_NO_PROXY|YARN_NOPROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PNPM_CONFIG_NO_PROXY|PNPM_CONFIG_NOPROXY|PIP_PROXY)\\s*=\\s*((?:\"[^\"]*\")|(?:'[^']*')|\\S+)|\\[Environment\\]::SetEnvironmentVariable\\s*\\(\\s*['\"](HTTP_PROXY|HTTPS_PROXY|FTP_PROXY|ALL_PROXY|NO_PROXY|NPM_CONFIG_PROXY|NPM_CONFIG_HTTPS_PROXY|NPM_CONFIG_NO_PROXY|NPM_CONFIG_NOPROXY|YARN_PROXY|YARN_HTTPS_PROXY|YARN_NO_PROXY|YARN_NOPROXY|PNPM_CONFIG_PROXY|PNPM_CONFIG_HTTPS_PROXY|PNPM_CONFIG_NO_PROXY|PNPM_CONFIG_NOPROXY|PIP_PROXY)['\"]\\s*,\\s*((?:\"[^\"]*\")|(?:'[^']*')|[^,)]+)");
-
-    /** PowerShell注册表代理PROPERTY正则的统一常量值。 */
-    private static final Pattern POWERSHELL_REGISTRY_PROXY_PROPERTY_PATTERN =
-            Pattern.compile("(?i)^-(?:Name|PropertyName|Property)$|^-n$");
-
-    /** PowerShell注册表代理值正则的统一常量值。 */
-    private static final Pattern POWERSHELL_REGISTRY_PROXY_VALUE_PATTERN =
-            Pattern.compile("(?i)^-(?:Value|PropertyValue)$");
-
-    /** PowerShell本地管理环境变量ASSIGNMENT正则的统一常量值。 */
-    private static final Pattern POWERSHELL_LOCAL_MANAGEMENT_ENV_ASSIGNMENT_PATTERN =
-            Pattern.compile(
-                    "(?i)(?:\\$env:|Env:)(DOCKER_HOST|CONTAINER_HOST|PODMAN_HOST)\\s*=\\s*((?:\"[^\"]*\")|(?:'[^']*')|\\S+)|\\[Environment\\]::SetEnvironmentVariable\\s*\\(\\s*['\"](DOCKER_HOST|CONTAINER_HOST|PODMAN_HOST)['\"]\\s*,\\s*((?:\"[^\"]*\")|(?:'[^']*')|[^,)]+)");
-
-    /** SENSITIVEURL参数名称列表的统一常量值。 */
-    private static final List<String> SENSITIVE_URL_PARAMETER_NAMES =
-            Arrays.asList(
-                    "access_token",
-                    "refresh_token",
-                    "id_token",
-                    "auth_token",
-                    "oauth_token",
-                    "authorization",
-                    "proxy_authorization",
-                    "bearer_token",
-                    "code_verifier",
-                    "client_assertion",
-                    "saml_response",
-                    "samlresponse",
-                    "token",
-                    "access_key",
-                    "secret_key",
-                    "session_token",
-                    "client_secret",
-                    "api_key",
-                    "apikey",
-                    "password",
-                    "private_key",
-                    "secret",
-                    "jwt",
-                    "signature",
-                    "x-amz-signature",
-                    "x-amz-credential",
-                    "x-amz-security-token",
-                    "x-goog-signature",
-                    "x-goog-credential",
-                    "x-oss-signature",
-                    "x-oss-security-token",
-                    "x-cos-signature",
-                    "x-cos-security-token",
-                    "x-obs-signature",
-                    "x-obs-security-token",
-                    "x-ms-signature",
-                    "security-token");
+    /** 记录 URL 与文件安全策略的保守阻断和降级原因。 */
+    private static final Logger log = LoggerFactory.getLogger(SecurityPolicyService.class);
 
     /** 注入应用配置，用于安全策略。 */
     private final AppConfig appConfig;
+
+    /** 当前线程已通过人工审批的一次性文件策略键集合。 */
+    private static final ThreadLocal<Collection<String>> APPROVED_FILE_POLICY_KEYS =
+            new ThreadLocal<Collection<String>>();
+
+    /** 当前线程已通过人工审批的一次性 URL 策略键集合。 */
+    private static final ThreadLocal<Collection<String>> APPROVED_URL_POLICY_KEYS =
+            new ThreadLocal<Collection<String>>();
+
+    /** 当前线程是否只预览策略审批命中而不消费审批。 */
+    private static final ThreadLocal<Boolean> POLICY_APPROVAL_PREVIEW =
+            new ThreadLocal<Boolean>();
 
     /**
      * 创建安全策略服务实例，并注入运行所需依赖。
@@ -466,7 +112,11 @@ public class SecurityPolicyService {
      * @return 返回URL结果。
      */
     public UrlVerdict checkUrl(String url) {
-        return checkUrl(url, null);
+        UrlVerdict verdict = checkUrlSafety(url, null);
+        if (!verdict.allowed) {
+            return verdict;
+        }
+        return checkExternalUrlApproval(normalizeExternalApprovalUrl(url));
     }
 
     /**
@@ -476,7 +126,11 @@ public class SecurityPolicyService {
      * @return 返回URL Allowing私聊结果。
      */
     public UrlVerdict checkUrlAllowingPrivate(String url) {
-        return checkUrl(url, Boolean.TRUE);
+        UrlVerdict verdict = checkUrlSafety(url, Boolean.TRUE);
+        if (!verdict.allowed) {
+            return verdict;
+        }
+        return checkExternalUrlApproval(normalizeExternalApprovalUrl(url));
     }
 
     /**
@@ -486,7 +140,21 @@ public class SecurityPolicyService {
      * @return 返回URL 块ing私聊结果。
      */
     public UrlVerdict checkUrlBlockingPrivate(String url) {
-        return checkUrl(url, Boolean.FALSE);
+        UrlVerdict verdict = checkUrlSafety(url, Boolean.FALSE);
+        if (!verdict.allowed) {
+            return verdict;
+        }
+        return checkExternalUrlApproval(normalizeExternalApprovalUrl(url));
+    }
+
+    /**
+     * 检查工具返回内容中的 URL 硬安全边界；返回内容扫描不代表再次发起网络访问，因此不消费网络审批。
+     *
+     * @param url 待校验或访问的 URL。
+     * @return 返回硬安全边界判定。
+     */
+    public UrlVerdict checkReturnedUrl(String url) {
+        return checkUrlSafety(url, null);
     }
 
     /**
@@ -515,7 +183,7 @@ public class SecurityPolicyService {
         }
         URI uri = parseUri(raw);
         if (uri == null) {
-            return UrlVerdict.allow();
+            return UrlVerdict.block(raw, "URL 解析失败，无法确认是否触达云元数据或链路本地地址");
         }
         String host = extractUriHost(uri);
         if (StrUtil.isBlank(host)) {
@@ -529,24 +197,28 @@ public class SecurityPolicyService {
             InetAddress[] addresses = resolveHost(host);
             for (InetAddress address : addresses) {
                 String ip = address.getHostAddress();
-                if (isAlwaysBlockedIp(ip) || isAlwaysBlockedAddress(address)) {
+                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip) || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)) {
                     return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
                 }
             }
-        } catch (Exception ignored) {
-            return UrlVerdict.allow();
+        } catch (Exception e) {
+            log.warn(
+                    "URL 硬安全边界解析失败，按 fail-closed 阻断: host={}, error={}",
+                    host,
+                    e.toString());
+            return UrlVerdict.block(raw, "DNS 解析失败，无法确认是否触达云元数据或链路本地地址：" + host);
         }
         return UrlVerdict.allow();
     }
 
     /**
-     * 检查URL。
+     * 仅检查 URL 安全硬边界，不消费外部网络审批。
      *
      * @param url 待校验或访问的 URL。
      * @param allowPrivateOverride allowPrivateOverride标识或键值。
      * @return 返回URL结果。
      */
-    private UrlVerdict checkUrl(String url, Boolean allowPrivateOverride) {
+    private UrlVerdict checkUrlSafety(String url, Boolean allowPrivateOverride) {
         String raw = normalizeUrlText(url);
         if (raw.length() == 0) {
             return UrlVerdict.block(raw, "URL 缺少内容");
@@ -556,7 +228,7 @@ public class SecurityPolicyService {
         }
 
         if (raw.startsWith("//")) {
-            return checkUrl("http:" + raw, allowPrivateOverride);
+            return checkUrlSafety("http:" + raw, allowPrivateOverride);
         }
         if (!raw.contains("://")) {
             if (hasSchemelessUserInfo(raw)) {
@@ -613,10 +285,8 @@ public class SecurityPolicyService {
      */
     private UrlVerdict checkSchemelessHostAccess(
             String raw, String host, Boolean allowPrivateOverride) {
-        for (String blocked : ALWAYS_BLOCKED_HOSTS) {
-            if (blocked.equals(host)) {
-                return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
-            }
+        if (SecurityAddressPolicySupport.isAlwaysBlockedHost(host)) {
+            return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
         }
         WebsiteRule websiteRule = checkWebsitePolicy(raw, host);
         if (websiteRule != null) {
@@ -628,7 +298,7 @@ public class SecurityPolicyService {
                             + websiteRule.rule
                             + "'");
         }
-        if (isLocalOrAddressLiteral(host)) {
+        if (SecurityAddressPolicySupport.isLocalOrAddressLiteral(host)) {
             return checkHostAccess(raw, "", host, allowPrivateOverride);
         }
         return UrlVerdict.allow();
@@ -656,18 +326,18 @@ public class SecurityPolicyService {
                         : allowPrivateOverride.booleanValue();
         boolean trustedPrivateHost =
                 ("https".equals(scheme) || "wss".equals(scheme))
-                        && contains(TRUSTED_PRIVATE_IP_HOSTS, host);
+                        && SecurityAddressPolicySupport.isTrustedPrivateIpHost(host);
 
-        int[] hostIpv4 = parseIpv4HostLiteral(host);
+        int[] hostIpv4 = SecurityAddressPolicySupport.parseIpv4HostLiteral(host);
 
         // 先检查字面量 IP，避免 DNS 解析绕过云元数据和内网地址拦截。
         if (hostIpv4 != null) {
-            String ip = formatIpv4(hostIpv4);
-            if (isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+            String ip = SecurityAddressPolicySupport.formatIpv4(hostIpv4);
+            if (SecurityAddressPolicySupport.isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
                 return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
             }
             if (!allowPrivate
-                    && isBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+                    && SecurityAddressPolicySupport.isBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
                 return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
             }
         }
@@ -676,12 +346,12 @@ public class SecurityPolicyService {
             InetAddress[] addresses = resolveHost(host);
             for (InetAddress address : addresses) {
                 String ip = address.getHostAddress();
-                if (isAlwaysBlockedIp(ip) || isAlwaysBlockedAddress(address)) {
+                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip) || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)) {
                     return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
                 }
                 if (!allowPrivate
-                        && isPrivateOrInternal(address, ip)
-                        && !(trustedPrivateHost && isTrustedPrivateAddress(address))) {
+                        && SecurityAddressPolicySupport.isPrivateOrInternal(address, ip)
+                        && !(trustedPrivateHost && SecurityAddressPolicySupport.isTrustedPrivateAddress(address))) {
                     return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
                 }
             }
@@ -726,23 +396,21 @@ public class SecurityPolicyService {
      * @return 返回Always 块ed Host结果。
      */
     private UrlVerdict checkAlwaysBlockedHost(String raw, String host) {
-        for (String blocked : ALWAYS_BLOCKED_HOSTS) {
-            if (blocked.equals(host)) {
-                return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
-            }
+        if (SecurityAddressPolicySupport.isAlwaysBlockedHost(host)) {
+            return UrlVerdict.block(raw, "阻断云元数据/内部主机：" + host);
         }
-        if (isAlwaysBlockedIp(host)) {
+        if (SecurityAddressPolicySupport.isAlwaysBlockedIp(host)) {
             return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host);
         }
         InetAddress literalAddress = parseAddressLiteral(host);
-        if (literalAddress != null && isAlwaysBlockedAddress(literalAddress)) {
+        if (literalAddress != null && SecurityAddressPolicySupport.isAlwaysBlockedAddress(literalAddress)) {
             return UrlVerdict.block(
                     raw, "阻断云元数据/链路本地地址：" + host + " -> " + literalAddress.getHostAddress());
         }
-        int[] hostIpv4 = parseObfuscatedIpv4(host);
+        int[] hostIpv4 = SecurityAddressPolicySupport.parseObfuscatedIpv4(host);
         if (hostIpv4 != null
-                && isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
-            return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + formatIpv4(hostIpv4));
+                && SecurityAddressPolicySupport.isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+            return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + SecurityAddressPolicySupport.formatIpv4(hostIpv4));
         }
         return UrlVerdict.allow();
     }
@@ -760,7 +428,8 @@ public class SecurityPolicyService {
         }
         try {
             return InetAddress.getByName(value);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Address literal parsing failed; treating host as a regular name: {}", exceptionSummary(e));
             return null;
         }
     }
@@ -778,13 +447,44 @@ public class SecurityPolicyService {
             return UrlVerdict.block(credentialVerdict.reference, "工具参数包含敏感凭据字段，禁止通过结构化请求参数发送凭据");
         }
         List<String> urls = extractUrls(toolName, args);
+        List<String> normalizedUrls = new ArrayList<String>();
         for (String url : urls) {
-            UrlVerdict verdict = checkUrl(normalizeToolUrlForCheck(toolName, url));
+            String normalizedUrl = normalizeToolUrlForCheck(toolName, url);
+            if (!normalizedUrls.contains(normalizedUrl)) {
+                normalizedUrls.add(normalizedUrl);
+            }
+            UrlVerdict verdict = checkUrlSafety(normalizedUrl, null);
             if (!verdict.allowed) {
                 return verdict;
             }
         }
+        for (String normalizedUrl : normalizedUrls) {
+            UrlVerdict externalVerdict = checkExternalUrlApproval(normalizedUrl);
+            if (externalVerdict.allowed && isSchemelessPublicNetworkTarget(normalizedUrl)) {
+                externalVerdict = checkExternalNetworkOperation(toolName);
+            }
+            if (!externalVerdict.allowed) {
+                return externalVerdict;
+            }
+        }
         return UrlVerdict.allow();
+    }
+
+    /**
+     * 检查没有显式 URL 参数但会发起外部网络访问的工具。
+     *
+     * @param toolName 工具名称。
+     * @return 返回 URL 策略判定。
+     */
+    public UrlVerdict checkExternalNetworkOperation(String toolName) {
+        UrlVerdict networkVerdict =
+                UrlVerdict.approvalRequired(
+                        "tool://" + StrUtil.nullToEmpty(toolName).trim(),
+                        "network_external_operation",
+                        "网络外部操作需要审批");
+        return isUrlPolicyApproved(networkVerdict.getApprovalToken())
+                ? UrlVerdict.allow()
+                : networkVerdict;
     }
 
     /**
@@ -1065,11 +765,21 @@ public class SecurityPolicyService {
                         : blocklist.getSharedFiles();
         SharedWebsiteRuleSummary shared = sharedWebsiteRuleSummary();
         summary.put("allowPrivateUrls", Boolean.valueOf(allowPrivate));
-        summary.put("alwaysBlockedHostCount", Integer.valueOf(ALWAYS_BLOCKED_HOSTS.length));
-        summary.put("alwaysBlockedIpCount", Integer.valueOf(ALWAYS_BLOCKED_IPS.length));
-        summary.put("trustedPrivateIpHostCount", Integer.valueOf(TRUSTED_PRIVATE_IP_HOSTS.length));
-        summary.put("alwaysBlockedHostSamples", sample(Arrays.asList(ALWAYS_BLOCKED_HOSTS), 4));
-        summary.put("alwaysBlockedIpSamples", sample(Arrays.asList(ALWAYS_BLOCKED_IPS), 4));
+        summary.put(
+                "alwaysBlockedHostCount",
+                Integer.valueOf(SecurityAddressPolicySupport.alwaysBlockedHosts().size()));
+        summary.put(
+                "alwaysBlockedIpCount",
+                Integer.valueOf(SecurityAddressPolicySupport.alwaysBlockedIps().size()));
+        summary.put(
+                "trustedPrivateIpHostCount",
+                Integer.valueOf(SecurityAddressPolicySupport.trustedPrivateIpHosts().size()));
+        summary.put(
+                "alwaysBlockedHostSamples",
+                sample(SecurityAddressPolicySupport.alwaysBlockedHosts(), 4));
+        summary.put(
+                "alwaysBlockedIpSamples",
+                sample(SecurityAddressPolicySupport.alwaysBlockedIps(), 4));
         summary.put(
                 "sensitiveQueryNameCount", Integer.valueOf(SENSITIVE_URL_PARAMETER_NAMES.size()));
         summary.put("sensitiveQueryNameSamples", sample(SENSITIVE_URL_PARAMETER_NAMES, 6));
@@ -1138,11 +848,18 @@ public class SecurityPolicyService {
         summary.put("siteLocalBlocked", Boolean.TRUE);
         summary.put("multicastBlocked", Boolean.TRUE);
         summary.put("reservedDocumentationRangesBlocked", Boolean.TRUE);
-        summary.put("trustedPrivateIpHostCount", Integer.valueOf(TRUSTED_PRIVATE_IP_HOSTS.length));
         summary.put(
-                "trustedPrivateIpHostSamples", sample(Arrays.asList(TRUSTED_PRIVATE_IP_HOSTS), 4));
-        summary.put("alwaysBlockedHostSamples", sample(Arrays.asList(ALWAYS_BLOCKED_HOSTS), 4));
-        summary.put("alwaysBlockedIpSamples", sample(Arrays.asList(ALWAYS_BLOCKED_IPS), 4));
+                "trustedPrivateIpHostCount",
+                Integer.valueOf(SecurityAddressPolicySupport.trustedPrivateIpHosts().size()));
+        summary.put(
+                "trustedPrivateIpHostSamples",
+                sample(SecurityAddressPolicySupport.trustedPrivateIpHosts(), 4));
+        summary.put(
+                "alwaysBlockedHostSamples",
+                sample(SecurityAddressPolicySupport.alwaysBlockedHosts(), 4));
+        summary.put(
+                "alwaysBlockedIpSamples",
+                sample(SecurityAddressPolicySupport.alwaysBlockedIps(), 4));
         summary.put(
                 "description",
                 "Private URL safety resolves hosts and blocks loopback, link-local, private, multicast, documentation, and cloud metadata addresses unless private URL access is explicitly allowed.");
@@ -1193,10 +910,6 @@ public class SecurityPolicyService {
      */
     public Map<String, Object> pathPolicySummary() {
         Map<String, Object> summary = new java.util.LinkedHashMap<String, Object>();
-        String writeSafeRoot =
-                appConfig == null || appConfig.getTerminal() == null
-                        ? ""
-                        : StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
         summary.put("traversalBlocked", Boolean.TRUE);
         summary.put("controlCharactersBlocked", Boolean.TRUE);
         summary.put("rawControlCharactersBlocked", Boolean.TRUE);
@@ -1215,8 +928,9 @@ public class SecurityPolicyService {
         summary.put("localManagementPipeReadBlocked", Boolean.TRUE);
         summary.put("localManagementPipeWriteBlocked", Boolean.TRUE);
         summary.put("localManagementPipeAccessBlocked", Boolean.TRUE);
-        summary.put("writeSafeRootConfigured", Boolean.valueOf(StrUtil.isNotBlank(writeSafeRoot)));
-        summary.put("writeSafeRoot", SecretRedactor.redact(writeSafeRoot, 400));
+        summary.put("workspaceWriteFree", Boolean.TRUE);
+        summary.put("outsideWorkspaceReadFree", Boolean.TRUE);
+        summary.put("outsideWorkspaceWriteApprovalRequired", Boolean.TRUE);
         summary.put("writeDeniedExactPathCount", Integer.valueOf(WRITE_DENIED_EXACT_PATHS.size()));
         summary.put("writeDeniedPrefixCount", Integer.valueOf(WRITE_DENIED_PREFIXES.size()));
         summary.put(
@@ -1351,6 +1065,23 @@ public class SecurityPolicyService {
         if (!credentialOptionVerdict.allowed) {
             return credentialOptionVerdict;
         }
+        Matcher quotedWindowsMatcher = QUOTED_WINDOWS_PATH_PATTERN.matcher(code);
+        while (quotedWindowsMatcher.find()) {
+            FileVerdict verdict =
+                    checkPath(
+                            quotedWindowsMatcher.group(2),
+                            isCommandWritePathContext(
+                                    code,
+                                    quotedWindowsMatcher.start(2),
+                                    quotedWindowsMatcher.end(2)));
+            if (!verdict.allowed) {
+                return verdict;
+            }
+        }
+        FileVerdict traversalVerdict = checkCommandPathTraversalTokens(code);
+        if (!traversalVerdict.allowed) {
+            return traversalVerdict;
+        }
         Matcher relativeCredentialMatcher = SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN.matcher(code);
         while (relativeCredentialMatcher.find()) {
             FileVerdict verdict = checkPath(relativeCredentialMatcher.group(1), false);
@@ -1368,14 +1099,14 @@ public class SecurityPolicyService {
         }
         Matcher matcher = SHELL_PATH_PATTERN.matcher(code);
         while (matcher.find()) {
-            FileVerdict verdict = checkPath(matcher.group(1), true);
-            if (!verdict.allowed) {
-                return verdict;
+            String path = matcher.group(1);
+            if (isUrlLikePathToken(path)) {
+                continue;
             }
-        }
-        Matcher quotedWindowsMatcher = QUOTED_WINDOWS_PATH_PATTERN.matcher(code);
-        while (quotedWindowsMatcher.find()) {
-            FileVerdict verdict = checkPath(quotedWindowsMatcher.group(2), true);
+            FileVerdict verdict =
+                    checkPath(
+                            path,
+                            isCommandWritePathContext(code, matcher.start(1), matcher.end(1)));
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -1385,6 +1116,164 @@ public class SecurityPolicyService {
             return configuredCredentialVerdict;
         }
         return FileVerdict.allow();
+    }
+
+    /**
+     * 检查命令 token 中的编码路径遍历，覆盖相对路径不会被绝对路径正则捕获的场景。
+     *
+     * @param code 命令文本。
+     * @return 返回命令路径遍历判定结果。
+     */
+    private FileVerdict checkCommandPathTraversalTokens(String code) {
+        for (String token : shellLikeTokens(code, 200)) {
+            String path = cleanUrlToken(token);
+            if (StrUtil.isBlank(path) || isUrlLikePathToken(path)) {
+                continue;
+            }
+            String normalized = normalizePathText(path);
+            if (containsTraversal(normalized)) {
+                return FileVerdict.block(path, "路径遍历被阻断");
+            }
+        }
+        return FileVerdict.allow();
+    }
+
+    /**
+     * 判断命令 token 是否是 URL 或协议相对 URL，避免网络地址被文件路径规则抢占。
+     *
+     * @param path 文件或 URL 候选。
+     * @return 如果是 URL 样式 token 返回 true。
+     */
+    private boolean isUrlLikePathToken(String path) {
+        String value = StrUtil.nullToEmpty(path).trim();
+        if (value.startsWith("//")) {
+            return true;
+        }
+        int scheme = value.indexOf("://");
+        if (scheme <= 0) {
+            return false;
+        }
+        String prefix = value.substring(0, scheme).toLowerCase(Locale.ROOT);
+        return "http".equals(prefix)
+                || "https".equals(prefix)
+                || "ws".equals(prefix)
+                || "wss".equals(prefix)
+                || "ftp".equals(prefix)
+                || "sftp".equals(prefix)
+                || "scp".equals(prefix)
+                || "file".equals(prefix);
+    }
+
+    /**
+     * 判断命令中的路径是否处于明确写入上下文。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @param start 路径起始偏移。
+     * @param end 路径结束偏移。
+     * @return 如果路径作为写入目标返回 true。
+     */
+    private boolean isCommandWritePathContext(String command, int start, int end) {
+        String code = StrUtil.nullToEmpty(command);
+        if (start < 0 || start > code.length()) {
+            return false;
+        }
+        String before = code.substring(0, start);
+        String after = end >= 0 && end < code.length() ? code.substring(end) : "";
+        if (hasShellRedirectionBeforePath(before)) {
+            return true;
+        }
+        String previousToken = previousShellToken(before);
+        if (isDetachedOutputOption(previousToken) || isWriteCommandToken(previousToken)) {
+            return true;
+        }
+        String previousPreviousToken = previousShellToken(removeTrailingToken(before));
+        if (isWriteCommandToken(previousPreviousToken) && isPowerShellPathOption(previousToken)) {
+            return true;
+        }
+        return startsWithWriteCommandRemainder(after);
+    }
+
+    /**
+     * 判断路径前是否出现 shell 输出重定向。
+     *
+     * @param before 路径之前的命令文本。
+     * @return 如果路径前是输出重定向返回 true。
+     */
+    private boolean hasShellRedirectionBeforePath(String before) {
+        String text = StrUtil.nullToEmpty(before).trim();
+        return text.endsWith(">") || text.endsWith("1>") || text.endsWith("2>");
+    }
+
+    /**
+     * 获取文本末尾最近的 shell token。
+     *
+     * @param text 待解析文本。
+     * @return 返回最近 token。
+     */
+    private String previousShellToken(String text) {
+        List<String> tokens = shellLikeTokens(StrUtil.nullToEmpty(text), 200);
+        return tokens.isEmpty() ? "" : cleanUrlToken(tokens.get(tokens.size() - 1));
+    }
+
+    /**
+     * 移除文本末尾最近的 shell token。
+     *
+     * @param text 待处理文本。
+     * @return 返回移除后的文本。
+     */
+    private String removeTrailingToken(String text) {
+        String value = StrUtil.nullToEmpty(text).trim();
+        if (value.length() == 0) {
+            return "";
+        }
+        int index = value.length() - 1;
+        while (index >= 0 && !Character.isWhitespace(value.charAt(index))) {
+            index--;
+        }
+        return index < 0 ? "" : value.substring(0, index).trim();
+    }
+
+    /**
+     * 判断 token 是否为常见写入命令。
+     *
+     * @param token shell token。
+     * @return 如果是写入命令返回 true。
+     */
+    private boolean isWriteCommandToken(String token) {
+        String value = StrUtil.nullToEmpty(token).trim().toLowerCase(Locale.ROOT);
+        return "tee".equals(value)
+                || "tee-object".equals(value)
+                || "out-file".equals(value)
+                || "set-content".equals(value)
+                || "add-content".equals(value)
+                || "new-item".equals(value)
+                || "copy-item".equals(value)
+                || "move-item".equals(value)
+                || "cp".equals(value)
+                || "mv".equals(value)
+                || "install".equals(value);
+    }
+
+    /**
+     * 判断 token 是否为 PowerShell 路径类写入选项。
+     *
+     * @param token shell token。
+     * @return 如果是路径选项返回 true。
+     */
+    private boolean isPowerShellPathOption(String token) {
+        String value = StrUtil.nullToEmpty(token).trim().toLowerCase(Locale.ROOT);
+        return "-path".equals(value) || "-literalpath".equals(value) || "-filepath".equals(value);
+    }
+
+    /**
+     * 判断路径后续是否像写命令内容参数。
+     *
+     * @param after 路径后的命令文本。
+     * @return 如果后续文本像写入内容返回 true。
+     */
+    private boolean startsWithWriteCommandRemainder(String after) {
+        String value = StrUtil.nullToEmpty(after).trim();
+        return value.length() > 0 && !value.startsWith("|") && !value.startsWith("&&");
     }
 
     /**
@@ -1663,7 +1552,7 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(path)) {
                 continue;
             }
-            FileVerdict verdict = checkPath(path, false);
+            FileVerdict verdict = checkPath(path, true);
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -1768,14 +1657,39 @@ public class SecurityPolicyService {
             return socketVerdict;
         }
         List<String> urls = new ArrayList<String>();
-        extractUrlishFromText(command, urls);
+        extractCommandUrlishFromText(command, urls);
+        List<String> normalizedUrls = new ArrayList<String>();
         for (String url : urls) {
-            UrlVerdict verdict = checkUrl(cleanUrlToken(url));
+            String value = cleanUrlToken(url);
+            if (isBareNumericCommandUrlCandidate(value)) {
+                continue;
+            }
+            normalizedUrls.add(value);
+            UrlVerdict verdict = checkUrlSafety(value, null);
             if (!verdict.allowed) {
                 return verdict;
             }
         }
+        for (String value : normalizedUrls) {
+            UrlVerdict externalVerdict = checkExternalUrlApproval(normalizeExternalApprovalUrl(value));
+            if (externalVerdict.allowed && isSchemelessPublicNetworkTarget(value)) {
+                externalVerdict = checkExternalNetworkOperation("command_url");
+            }
+            if (!externalVerdict.allowed) {
+                return externalVerdict;
+            }
+        }
         return UrlVerdict.allow();
+    }
+
+    /**
+     * 判断命令 URL 候选是否只是裸数字参数；例如端口 `22` 不能被当成十进制 IPv4 主机 0.0.0.22。
+     *
+     * @param value 已清理的候选文本。
+     * @return 纯十进制数字返回 true。
+     */
+    private boolean isBareNumericCommandUrlCandidate(String value) {
+        return Pattern.compile("^\\d+$").matcher(StrUtil.nullToEmpty(value)).matches();
     }
 
     /**
@@ -2038,15 +1952,54 @@ public class SecurityPolicyService {
         extractUrlishFromText(command, urls);
         for (String url : urls) {
             String value = cleanUrlToken(url);
-            UrlVerdict verdict =
-                    value.startsWith("//")
-                            ? checkAlwaysBlockedUrl("http:" + value)
-                            : value.contains("://")
-                                    ? checkAlwaysBlockedUrl(value)
-                                    : checkAlwaysBlockedSchemelessUrl(value);
+            UrlVerdict verdict = checkCommandAlwaysBlockedUrlToken(value);
             if (!verdict.allowed) {
                 return verdict;
             }
+        }
+        return UrlVerdict.allow();
+    }
+
+    /**
+     * 检查命令文本里的硬阻断 URL 候选；DNS 不确定时交给后续 URL/文件策略处理，避免误判为不可审批 hardline。
+     *
+     * @param value 已清理的 URL 或主机候选。
+     * @return 明确命中云元数据/链路本地地址时返回阻断，否则返回允许。
+     */
+    private UrlVerdict checkCommandAlwaysBlockedUrlToken(String value) {
+        if (StrUtil.isBlank(value)) {
+            return UrlVerdict.allow();
+        }
+        if (value.startsWith("//")) {
+            return checkCommandAlwaysBlockedUrlToken("http:" + value);
+        }
+        if (!value.contains("://")) {
+            return checkAlwaysBlockedSchemelessUrl(value);
+        }
+        URI uri = parseUri(value);
+        if (uri == null) {
+            return UrlVerdict.allow();
+        }
+        String host = extractUriHost(uri);
+        if (StrUtil.isBlank(host)) {
+            return UrlVerdict.allow();
+        }
+        UrlVerdict hostVerdict = checkAlwaysBlockedHost(value, host);
+        if (!hostVerdict.allowed) {
+            return hostVerdict;
+        }
+        try {
+            for (InetAddress address : resolveHost(host)) {
+                String ip = address.getHostAddress();
+                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip) || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)) {
+                    return UrlVerdict.block(value, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
+                }
+            }
+        } catch (Exception e) {
+            log.debug(
+                    "命令硬阻断 URL 候选解析失败，交给后续 URL/文件策略处理: host={}, error={}",
+                    host,
+                    e.toString());
         }
         return UrlVerdict.allow();
     }
@@ -2089,9 +2042,6 @@ public class SecurityPolicyService {
         if (matchesCredentialPath(normalized)) {
             return FileVerdict.block(path, writeLike ? "写入敏感系统/凭据文件被阻断" : "读取敏感系统/凭据文件被阻断");
         }
-        if (writeLike && isOutsideSafeWriteRoot(path)) {
-            return FileVerdict.block(path, "写入路径超出安全写入根被阻断");
-        }
         if (writeLike && matchesWriteDeniedPath(normalized)) {
             return FileVerdict.block(path, "写入敏感系统文件被阻断");
         }
@@ -2102,7 +2052,342 @@ public class SecurityPolicyService {
             return FileVerdict.block(
                     path, writeLike ? "写入本地容器/运行时管理命名管道被阻断" : "访问本地容器/运行时管理命名管道被阻断");
         }
+        if (writeLike && isOutsideWorkspace(path)) {
+            FileVerdict verdict =
+                    FileVerdict.approvalRequired(
+                            path, "workspace_outside_write", "工作区外写入需要审批");
+            if (!isFilePolicyApproved(verdict.getApprovalToken())) {
+                return verdict;
+            }
+        }
         return FileVerdict.allow();
+    }
+
+    /**
+     * 记录当前线程已通过审批的文件策略键。
+     *
+     * @param policyKey 文件策略键。
+     */
+    public static void approveFilePolicyForCurrentThread(String policyKey) {
+        approvePolicyForCurrentThread(APPROVED_FILE_POLICY_KEYS, policyKey);
+    }
+
+    /**
+     * 记录当前线程已通过审批的具体文件策略目标。
+     *
+     * @param policyKey 文件策略键。
+     * @param target 审批绑定的具体路径。
+     */
+    public static void approveFilePolicyForCurrentThread(String policyKey, String target) {
+        approveFilePolicyForCurrentThread(policyApprovalToken(policyKey, target));
+    }
+
+    /**
+     * 记录当前线程已通过审批的 URL 策略键。
+     *
+     * @param policyKey URL 策略键。
+     */
+    public static void approveUrlPolicyForCurrentThread(String policyKey) {
+        approvePolicyForCurrentThread(APPROVED_URL_POLICY_KEYS, policyKey);
+    }
+
+    /**
+     * 记录当前线程已通过审批的具体 URL 策略目标。
+     *
+     * @param policyKey URL 策略键。
+     * @param target 审批绑定的具体 URL 或工具目标。
+     */
+    public static void approveUrlPolicyForCurrentThread(String policyKey, String target) {
+        approveUrlPolicyForCurrentThread(policyApprovalToken(policyKey, target));
+    }
+
+    /**
+     * 清理当前线程的一次性策略审批，避免审批泄漏到后续工具调用。
+     */
+    public static void clearCurrentThreadPolicyApprovals() {
+        APPROVED_FILE_POLICY_KEYS.remove();
+        APPROVED_URL_POLICY_KEYS.remove();
+    }
+
+    /**
+     * 在不消费线程本地策略审批的情况下执行安全检查。
+     *
+     * @param action 需要执行的检查逻辑。
+     * @param <T> 检查结果类型。
+     * @return 返回检查逻辑的原始结果。
+     */
+    public static <T> T previewPolicyApprovals(Supplier<T> action) {
+        if (action == null) {
+            return null;
+        }
+        Boolean previous = POLICY_APPROVAL_PREVIEW.get();
+        POLICY_APPROVAL_PREVIEW.set(Boolean.TRUE);
+        try {
+            return action.get();
+        } finally {
+            if (previous == null) {
+                POLICY_APPROVAL_PREVIEW.remove();
+            } else {
+                POLICY_APPROVAL_PREVIEW.set(previous);
+            }
+        }
+    }
+
+    /**
+     * 写入当前线程策略审批集合。
+     *
+     * @param holder 线程本地集合。
+     * @param policyKey 策略键。
+     */
+    private static void approvePolicyForCurrentThread(
+            ThreadLocal<Collection<String>> holder, String policyKey) {
+        if (StrUtil.isBlank(policyKey)) {
+            return;
+        }
+        Collection<String> approvals = holder.get();
+        if (approvals == null) {
+            approvals = new ArrayList<String>();
+            holder.set(approvals);
+        }
+        approvals.add(policyKey.trim());
+    }
+
+    /**
+     * 判断文件策略键是否已被当前线程一次性放行。
+     *
+     * @param policyKey 策略键。
+     * @return 如果已放行返回 true。
+     */
+    private boolean isFilePolicyApproved(String policyKey) {
+        return isPolicyApproved(APPROVED_FILE_POLICY_KEYS, policyKey);
+    }
+
+    /**
+     * 判断 URL 策略键是否已被当前线程一次性放行。
+     *
+     * @param policyKey 策略键。
+     * @return 如果已放行返回 true。
+     */
+    private boolean isUrlPolicyApproved(String policyKey) {
+        return isPolicyApproved(APPROVED_URL_POLICY_KEYS, policyKey);
+    }
+
+    /**
+     * 判断线程本地策略审批是否命中。
+     *
+     * @param holder 线程本地集合。
+     * @param policyKey 策略键。
+     * @return 如果命中返回 true。
+     */
+    private boolean isPolicyApproved(ThreadLocal<Collection<String>> holder, String policyKey) {
+        if (StrUtil.isBlank(policyKey)) {
+            return false;
+        }
+        Collection<String> approvals = holder.get();
+        if (approvals == null) {
+            return false;
+        }
+        boolean approved = approvals.contains(policyKey.trim());
+        if (!approved) {
+            return false;
+        }
+        if (Boolean.TRUE.equals(POLICY_APPROVAL_PREVIEW.get())) {
+            return true;
+        }
+        approvals.remove(policyKey.trim());
+        if (approvals.isEmpty()) {
+            holder.remove();
+        }
+        return approved;
+    }
+
+    /**
+     * 生成一次性审批 token，绑定策略类型和具体目标，避免同线程下一次敏感操作被顺带放行。
+     *
+     * @param policyKey 策略键。
+     * @param target 审批目标。
+     * @return 返回线程本地审批 token。
+     */
+    private static String policyApprovalToken(String policyKey, String target) {
+        String key = StrUtil.nullToEmpty(policyKey).trim();
+        String normalizedTarget =
+                SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(target)).trim();
+        return normalizedTarget.length() == 0 ? key : key + "\n" + normalizedTarget;
+    }
+
+    /**
+     * 检查普通外部 URL 操作是否需要审批。
+     *
+     * @param url 待访问 URL。
+     * @return 返回 URL 策略判定。
+     */
+    private UrlVerdict checkExternalUrlApproval(String url) {
+        String text = StrUtil.nullToEmpty(url).trim();
+        if (text.length() == 0) {
+            return UrlVerdict.allow();
+        }
+        URI uri = parseUri(text);
+        if (uri == null || StrUtil.isBlank(uri.getScheme())) {
+            return UrlVerdict.allow();
+        }
+        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
+        if (!"http".equals(scheme)
+                && !"https".equals(scheme)
+                && !"ws".equals(scheme)
+                && !"wss".equals(scheme)) {
+            return UrlVerdict.allow();
+        }
+        if (isLocalUrl(uri)) {
+            return UrlVerdict.allow();
+        }
+        UrlVerdict verdict =
+                UrlVerdict.approvalRequired(text, "network_external_operation", "网络外部操作需要审批");
+        return isUrlPolicyApproved(verdict.getApprovalToken()) ? UrlVerdict.allow() : verdict;
+    }
+
+    /**
+     * 标准化用于外部网络审批的 URL 文本。
+     *
+     * @param raw 原始 URL 或主机文本。
+     * @return 返回可解析的 URL 文本。
+     */
+    private String normalizeExternalApprovalUrl(String raw) {
+        String value = StrUtil.nullToEmpty(raw).trim();
+        return value.startsWith("//") ? "https:" + value : value;
+    }
+
+    /**
+     * 判断无协议文本是否仍代表外部网络目标；DNS 失败时也不能把潜在网络访问静默放行。
+     *
+     * @param raw 原始 URL 或主机文本。
+     * @return 如果是公网主机或公网 IP 返回 true。
+     */
+    private boolean isSchemelessPublicNetworkTarget(String raw) {
+        String value = cleanUrlToken(raw);
+        if (StrUtil.isBlank(value) || value.contains("://") || value.startsWith("//")) {
+            return false;
+        }
+        String host = extractSchemelessHost(value);
+        if (StrUtil.isBlank(host) || isLocalHostName(host)) {
+            return false;
+        }
+        try {
+            for (InetAddress address : resolveHost(host)) {
+                String ip = address.getHostAddress();
+                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip)
+                        || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)
+                        || SecurityAddressPolicySupport.isPrivateOrInternal(address, ip)) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (Exception e) {
+            log.debug(
+                    "无协议网络目标解析失败，按外部网络访问处理: host={}, error={}",
+                    host,
+                    e.toString());
+            return true;
+        }
+    }
+
+    /**
+     * 判断 URL 是否指向本机或环回地址。
+     *
+     * @param uri 已解析 URL。
+     * @return 如果是本机地址返回 true。
+     */
+    private boolean isLocalUrl(URI uri) {
+        String host = normalizeHost(uri == null ? "" : uri.getHost());
+        if (StrUtil.isBlank(host)) {
+            return false;
+        }
+        return isLocalHostName(host);
+    }
+
+    /**
+     * 判断主机名是否为本机或环回地址。
+     *
+     * @param host 主机名或地址。
+     * @return 如果是本机返回 true。
+     */
+    private boolean isLocalHostName(String host) {
+        String value = normalizeHost(host);
+        return "localhost".equals(value) || "127.0.0.1".equals(value) || "::1".equals(value);
+    }
+
+    /**
+     * 判断写入路径是否位于配置工作区之外。
+     *
+     * @param rawPath 文件或目录路径。
+     * @return 如果路径在工作区之外返回 true。
+     */
+    private boolean isOutsideWorkspace(String rawPath) {
+        try {
+            File workspace = workspaceRoot();
+            File target = resolveWorkspaceRelativePath(rawPath);
+            return !isInside(target.getCanonicalFile(), workspace.getCanonicalFile());
+        } catch (Exception e) {
+            log.debug("Workspace boundary resolution failed; treating path as outside workspace: {}", exceptionSummary(e));
+            return true;
+        }
+    }
+
+    /**
+     * 解析工作区根目录。
+     *
+     * @return 返回规范化后的工作区根目录。
+     */
+    private File workspaceRoot() throws java.io.IOException {
+        String configured =
+                appConfig == null || appConfig.getWorkspace() == null
+                        ? RuntimePathConstants.DEFAULT_WORKSPACE
+                        : StrUtil.blankToDefault(
+                                appConfig.getWorkspace().getDir(),
+                                RuntimePathConstants.DEFAULT_WORKSPACE);
+        File workspace = new File(configured);
+        if (!workspace.isAbsolute()) {
+            workspace = new File(jarBaseDir(new File(System.getProperty("user.dir"))), configured);
+        }
+        return workspace.getCanonicalFile();
+    }
+
+    /**
+     * 解析运行 Jar 所在目录；测试或解包运行时回退到当前进程目录。
+     *
+     * @param fallbackBase 无法识别 Jar 路径时使用的目录。
+     * @return 返回用于解析工作区相对路径的基准目录。
+     */
+    private File jarBaseDir(File fallbackBase) {
+        try {
+            java.net.URL location =
+                    SecurityPolicyService.class.getProtectionDomain().getCodeSource().getLocation();
+            if (location == null) {
+                return fallbackBase;
+            }
+            File file = new File(location.toURI()).getAbsoluteFile();
+            if (file.isFile()) {
+                File parent = file.getParentFile();
+                return parent == null ? fallbackBase : parent;
+            }
+        } catch (Exception e) {
+            log.debug("Jar base directory resolution failed; falling back to process directory: {}", exceptionSummary(e));
+            // 运行环境可能没有 code source，保持启动路径可预测。
+        }
+        return fallbackBase;
+    }
+
+    /**
+     * 按工作区语义解析工具传入路径。
+     *
+     * @param rawPath 文件或目录路径。
+     * @return 返回规范化目标路径。
+     */
+    private File resolveWorkspaceRelativePath(String rawPath) throws java.io.IOException {
+        File file = new File(StrUtil.nullToEmpty(rawPath).trim());
+        if (!file.isAbsolute()) {
+            file = new File(workspaceRoot(), file.getPath());
+        }
+        return file.getCanonicalFile();
     }
 
     /**
@@ -2347,16 +2632,102 @@ public class SecurityPolicyService {
         extractProxyHosts(text, urls);
         extractProtocolRelativeUrlish(text, urls);
         extractSchemelessUserInfoUrlish(text, urls);
+        extractBareSecurityRelevantHosts(text, urls);
+        java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
+        while (matcher.find()) {
+            urls.add(matcher.group());
+        }
+        extractObfuscatedSchemelessUrlish(text, urls);
+    }
+
+    /**
+     * 提取命令文本中的 URL 候选；命令里常见本地文件路径形如 logs/app.log，不能仅凭后缀像主机名就当成网络目标。
+     *
+     * @param raw 原始命令文本。
+     * @param urls 待校验或访问的地址参数。
+     */
+    private void extractCommandUrlishFromText(Object raw, List<String> urls) {
+        if (raw == null) {
+            return;
+        }
+        String text = normalizeUrlText(String.valueOf(raw));
+        extractCurlConnectionOverrideHosts(text, urls);
+        extractCurlDohUrls(text, urls);
+        extractCurlDnsServers(text, urls);
+        extractSystemDnsCommands(text, urls);
+        extractLocalBindAddresses(text, urls);
+        extractJavaProxyOptionsAssignments(text, urls);
+        extractPowerShellProxyEnvironmentAssignments(text, urls);
+        extractSetxProxyEnvironmentAssignments(text, urls);
+        extractSystemProxyCommands(text, urls);
+        extractWindowsRegistryProxyCommands(text, urls);
+        extractGitProxyConfigAssignments(text, urls);
+        extractPackageManagerProxyConfigAssignments(text, urls);
+        extractProxyHosts(text, urls);
+        extractProtocolRelativeUrlish(text, urls);
+        extractSchemelessUserInfoUrlish(text, urls);
         boolean fetchContext = hasBareHostFetchContext(text);
+        if (fetchContext) {
+            extractBareSecurityRelevantHosts(text, urls);
+        } else {
+            extractBareCommandSecurityHosts(text, urls);
+        }
         java.util.regex.Matcher matcher = URLISH_PATTERN.matcher(text);
         while (matcher.find()) {
             String value = matcher.group();
-            if (!isCidrRangeToken(value) || fetchContext) {
+            if (value.contains("://")
+                    || value.startsWith("//")
+                    || fetchContext
+                    || shouldKeepCommandUrlishWithoutFetchContext(value)) {
                 urls.add(value);
             }
         }
-        extractBareSecurityRelevantHosts(text, urls);
         extractObfuscatedSchemelessUrlish(text, urls);
+    }
+
+    /**
+     * 判断无显式抓取上下文时命令中的 URL 候选是否仍属于硬安全边界；避免把本地相对文件误识别为外部网络。
+     *
+     * @param raw 原始 URL 候选。
+     * @return 需要继续做 URL 安全检查时返回 true。
+     */
+    private boolean shouldKeepCommandUrlishWithoutFetchContext(String raw) {
+        String value = cleanUrlToken(raw);
+        if (value.length() == 0) {
+            return false;
+        }
+        if (value.contains("://") || value.startsWith("//") || hasSchemelessUserInfo(value)) {
+            return true;
+        }
+        String host = extractSchemelessHost(value);
+        if (StrUtil.isBlank(host)) {
+            return false;
+        }
+        return !checkStaticHostPolicy(value, host).isAllowed();
+    }
+
+    /**
+     * 提取无显式抓取上下文时仍需要硬拦截的裸主机；普通诊断命令中的内网字面量不在这里升级为 URL。
+     *
+     * @param text 待处理文本。
+     * @param urls 待校验或访问的地址参数。
+     */
+    private void extractBareCommandSecurityHosts(String text, List<String> urls) {
+        extractDirectNetworkEndpointHosts(text, urls);
+        Matcher matcher = BARE_HOST_TOKEN_PATTERN.matcher(StrUtil.nullToEmpty(text));
+        while (matcher.find()) {
+            String value = cleanUrlToken(matcher.group(1));
+            if (value.length() == 0 || value.contains("://")) {
+                continue;
+            }
+            String host = extractSchemelessHost(value);
+            if (StrUtil.isBlank(host) || value.matches("\\d+")) {
+                continue;
+            }
+            if (SecurityAddressPolicySupport.isAlwaysBlockedIp(host) || !checkStaticHostPolicy(value, host).isAllowed()) {
+                urls.add(value);
+            }
+        }
     }
 
     /**
@@ -3755,9 +4126,7 @@ public class SecurityPolicyService {
      * @param urls 待校验或访问的地址参数。
      */
     private void extractBareSecurityRelevantHosts(String text, List<String> urls) {
-        if (!hasBareHostFetchContext(text)) {
-            return;
-        }
+        boolean fetchContext = hasBareHostFetchContext(text);
         extractDirectNetworkEndpointHosts(text, urls);
         Matcher matcher = BARE_HOST_TOKEN_PATTERN.matcher(StrUtil.nullToEmpty(text));
         while (matcher.find()) {
@@ -3769,7 +4138,10 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(host)) {
                 continue;
             }
-            if (shouldCheckBareHost(host)) {
+            if (!fetchContext && value.matches("\\d+")) {
+                continue;
+            }
+            if (fetchContext || shouldCheckBareHost(host)) {
                 urls.add(value);
             }
         }
@@ -3858,16 +4230,14 @@ public class SecurityPolicyService {
      * @return 如果Check Bare Host满足条件则返回 true，否则返回 false。
      */
     private boolean shouldCheckBareHost(String host) {
-        for (String blocked : ALWAYS_BLOCKED_HOSTS) {
-            if (blocked.equals(host)) {
-                return true;
-            }
+        if (SecurityAddressPolicySupport.isAlwaysBlockedHost(host)) {
+            return true;
         }
-        int[] obfuscatedIpv4 = parseObfuscatedIpv4(host);
+        int[] obfuscatedIpv4 = SecurityAddressPolicySupport.parseObfuscatedIpv4(host);
         if (obfuscatedIpv4 != null) {
-            return isBlockedOrAlwaysBlockedIpv4(obfuscatedIpv4);
+            return SecurityAddressPolicySupport.isBlockedOrAlwaysBlockedIpv4(obfuscatedIpv4);
         }
-        if (isLocalOrAddressLiteral(host)) {
+        if (SecurityAddressPolicySupport.isLocalOrAddressLiteral(host)) {
             return true;
         }
         return checkWebsitePolicy(host, host) != null;
@@ -3898,8 +4268,8 @@ public class SecurityPolicyService {
             if (colon > 0 && hostPort.indexOf(':') == colon) {
                 hostPort = hostPort.substring(0, colon);
             }
-            int[] octets = parseObfuscatedIpv4(normalizeHost(hostPort));
-            if (octets != null && isBlockedOrAlwaysBlockedIpv4(octets)) {
+            int[] octets = SecurityAddressPolicySupport.parseObfuscatedIpv4(normalizeHost(hostPort));
+            if (octets != null && SecurityAddressPolicySupport.isBlockedOrAlwaysBlockedIpv4(octets)) {
                 urls.add(value);
             }
         }
@@ -4201,7 +4571,7 @@ public class SecurityPolicyService {
      * @return 返回工具参数Patch Intent Samples结果。
      */
     private static List<String> toolArgsPatchIntentSamples() {
-        return Arrays.asList("patch", "apply_patch", "patch_apply", "diff_apply", "apply_diff");
+        return Collections.singletonList("patch");
     }
 
     /**
@@ -4484,15 +4854,7 @@ public class SecurityPolicyService {
      */
     private boolean isPatchIntentValue(Object raw) {
         String value = StrUtil.nullToEmpty(String.valueOf(raw)).trim().toLowerCase(Locale.ROOT);
-        return "patch".equals(value)
-                || "apply_patch".equals(value)
-                || "apply-patch".equals(value)
-                || "patch_apply".equals(value)
-                || "patch-apply".equals(value)
-                || "diff_apply".equals(value)
-                || "diff-apply".equals(value)
-                || "apply_diff".equals(value)
-                || "apply-diff".equals(value);
+        return "patch".equals(value);
     }
 
     /**
@@ -4528,7 +4890,6 @@ public class SecurityPolicyService {
                 || "edit".equals(value)
                 || "edit_file".equals(value)
                 || "patch".equals(value)
-                || "apply_patch".equals(value)
                 || "install".equals(value)
                 || "update".equals(value)
                 || "save".equals(value);
@@ -4566,7 +4927,8 @@ public class SecurityPolicyService {
             String decoded;
             try {
                 decoded = URLDecoder.decode(value, StandardCharsets.UTF_8.name());
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("Path text decoding failed; returning original normalized path text: {}", exceptionSummary(e));
                 return value;
             }
             decoded = TerminalAnsiSanitizer.stripAnsi(decoded);
@@ -5032,7 +5394,8 @@ public class SecurityPolicyService {
                             .toAbsolutePath()
                             .normalize();
             return path.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Runtime relative path normalization failed; returning empty path: {}", exceptionSummary(e));
             return "";
         }
     }
@@ -5136,31 +5499,6 @@ public class SecurityPolicyService {
     }
 
     /**
-     * 判断是否Outside Safe Write根用户。
-     *
-     * @param rawPath 文件或目录路径参数。
-     * @return 如果Outside Safe Write根用户满足条件则返回 true，否则返回 false。
-     */
-    private boolean isOutsideSafeWriteRoot(String rawPath) {
-        String safeRoot = "";
-        if (appConfig != null && appConfig.getTerminal() != null) {
-            safeRoot = StrUtil.nullToEmpty(appConfig.getTerminal().getWriteSafeRoot()).trim();
-        }
-        if (StrUtil.isBlank(safeRoot)) {
-            safeRoot = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_WRITE_SAFE_ROOT")).trim();
-        }
-        if (StrUtil.isBlank(safeRoot)) {
-            return false;
-        }
-        File root = resolveComparablePath(safeRoot);
-        File target = resolveComparablePath(rawPath);
-        if (root == null || target == null) {
-            return false;
-        }
-        return !isInside(target, root);
-    }
-
-    /**
      * 解析Comparable路径。
      *
      * @param rawPath 文件或目录路径参数。
@@ -5176,7 +5514,10 @@ public class SecurityPolicyService {
         } catch (Exception e) {
             try {
                 return new File(value).getAbsoluteFile().toPath().normalize().toFile();
-            } catch (Exception ignored) {
+            } catch (Exception fallbackError) {
+                log.debug(
+                        "Comparable path fallback normalization failed; returning null: {}",
+                        exceptionSummary(fallbackError));
                 return null;
             }
         }
@@ -5257,7 +5598,8 @@ public class SecurityPolicyService {
                     return value.substring(runtime.length() + 1);
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Runtime prefix stripping failed; keeping normalized path: {}", exceptionSummary(e));
         }
         return value;
     }
@@ -5279,7 +5621,8 @@ public class SecurityPolicyService {
                             .toAbsolutePath()
                             .normalize();
             return path.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Runtime path normalization failed; returning empty path: {}", exceptionSummary(e));
             return "";
         }
     }
@@ -5392,7 +5735,8 @@ public class SecurityPolicyService {
                         summary.ruleSamples.add(value);
                     }
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("Shared rule file loading failed; skipping unreadable rule file: {}", exceptionSummary(e));
                 summary.skippedFileCount++;
             }
         }
@@ -5434,7 +5778,8 @@ public class SecurityPolicyService {
                 return checkPath(file.getAbsolutePath(), false).isAllowed() ? file : null;
             }
             return null;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Shared file resolution failed; rejecting shared file path: {}", exceptionSummary(e));
             return null;
         }
     }
@@ -5595,7 +5940,8 @@ public class SecurityPolicyService {
     private URI parseUri(String url) {
         try {
             return URI.create(url);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("URI parsing failed; treating URL text as unparsable: {}", exceptionSummary(e));
             return null;
         }
     }
@@ -5976,7 +6322,8 @@ public class SecurityPolicyService {
             String decoded;
             try {
                 decoded = URLDecoder.decode(value, StandardCharsets.UTF_8.name());
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("URL component decoding failed; returning current normalized text: {}", exceptionSummary(e));
                 return value;
             }
             decoded = normalizeUrlText(decoded);
@@ -6096,7 +6443,8 @@ public class SecurityPolicyService {
             String decoded;
             try {
                 decoded = URLDecoder.decode(value, StandardCharsets.UTF_8.name());
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.debug("Host text decoding failed; returning current normalized host: {}", exceptionSummary(e));
                 return value;
             }
             decoded = normalizeUrlText(decoded);
@@ -6123,226 +6471,29 @@ public class SecurityPolicyService {
         }
         try {
             return IDN.toASCII(host, IDN.USE_STD3_ASCII_RULES).toLowerCase(Locale.ROOT);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug(
+                    "Host ASCII normalization failed; keeping normalized host: {}",
+                    exceptionSummary(e));
             return host;
         }
     }
 
     /**
-     * 判断是否本地Or Address Literal。
+     * 将安全解析异常压缩成单行脱敏摘要，避免 debug 日志输出完整栈或敏感路径。
      *
-     * @param host 主机参数。
-     * @return 如果本地Or Address Literal满足条件则返回 true，否则返回 false。
+     * @param error 解析或规范化过程中捕获的异常。
+     * @return 返回异常类型与脱敏消息摘要。
      */
-    private boolean isLocalOrAddressLiteral(String host) {
-        String value = StrUtil.nullToEmpty(host).toLowerCase(Locale.ROOT);
-        if ("localhost".equals(value)) {
-            return true;
+    private static String exceptionSummary(Exception error) {
+        if (error == null) {
+            return "";
         }
-        if (value.indexOf(':') >= 0) {
-            return true;
-        }
-        return parseObfuscatedIpv4(value) != null
-                || Pattern.compile("^\\d{1,3}(?:\\.\\d{1,3}){3}$").matcher(value).matches();
-    }
-
-    /**
-     * 判断是否Always 块ed Ip。
-     *
-     * @param ip ip 参数。
-     * @return 如果Always 块ed Ip满足条件则返回 true，否则返回 false。
-     */
-    private boolean isAlwaysBlockedIp(String ip) {
-        if (contains(ALWAYS_BLOCKED_IPS, ip)) {
-            return true;
-        }
-        return ip != null && ip.startsWith("169.254.");
-    }
-
-    /**
-     * 判断是否Always 块ed Address。
-     *
-     * @param address address 参数。
-     * @return 如果Always 块ed Address满足条件则返回 true，否则返回 false。
-     */
-    private boolean isAlwaysBlockedAddress(InetAddress address) {
-        if (address == null) {
-            return false;
-        }
-        byte[] rawAddress = address.getAddress();
-        if (rawAddress == null) {
-            return false;
-        }
-        if (rawAddress.length == 4) {
-            return isAlwaysBlockedIpv4(
-                    rawAddress[0] & 0xff,
-                    rawAddress[1] & 0xff,
-                    rawAddress[2] & 0xff,
-                    rawAddress[3] & 0xff);
-        }
-        if (rawAddress.length == 16
-                && isZeroSuffix(rawAddress, 0, 10)
-                && rawAddress[10] == (byte) 0xff
-                && rawAddress[11] == (byte) 0xff) {
-            return isAlwaysBlockedIpv4(
-                    rawAddress[12] & 0xff,
-                    rawAddress[13] & 0xff,
-                    rawAddress[14] & 0xff,
-                    rawAddress[15] & 0xff);
-        }
-        if (rawAddress.length == 16 && isZeroSuffix(rawAddress, 0, 12)) {
-            return isAlwaysBlockedIpv4(
-                    rawAddress[12] & 0xff,
-                    rawAddress[13] & 0xff,
-                    rawAddress[14] & 0xff,
-                    rawAddress[15] & 0xff);
-        }
-        return false;
-    }
-
-    /**
-     * 判断是否Always 块ed Ipv4。
-     *
-     * @param a a 参数。
-     * @param b b 参数。
-     * @param c c 参数。
-     * @param d d 参数。
-     * @return 如果Always 块ed Ipv4满足条件则返回 true，否则返回 false。
-     */
-    private boolean isAlwaysBlockedIpv4(int a, int b, int c, int d) {
-        if (a == 169 && b == 254) {
-            return true;
-        }
-        return (a == 100 && b == 100 && c == 100 && d == 200);
-    }
-
-    /**
-     * 判断是否私聊Or Internal。
-     *
-     * @param address address 参数。
-     * @param ip ip 参数。
-     * @return 如果私聊Or Internal满足条件则返回 true，否则返回 false。
-     */
-    private boolean isPrivateOrInternal(InetAddress address, String ip) {
-        if (address.isAnyLocalAddress()
-                || address.isLoopbackAddress()
-                || address.isSiteLocalAddress()
-                || address.isMulticastAddress()
-                || address.isLinkLocalAddress()) {
-            return true;
-        }
-        if (ip == null) {
-            return false;
-        }
-        byte[] rawAddress = address.getAddress();
-        if (rawAddress.length == 16
-                && isZeroSuffix(rawAddress, 0, 10)
-                && rawAddress[10] == (byte) 0xff
-                && rawAddress[11] == (byte) 0xff) {
-            int a = rawAddress[12] & 0xff;
-            int b = rawAddress[13] & 0xff;
-            int c = rawAddress[14] & 0xff;
-            int d = rawAddress[15] & 0xff;
-            if (isBlockedIpv4(a, b, c, d)) {
-                return true;
-            }
-        }
-        if (rawAddress.length == 16 && isZeroSuffix(rawAddress, 0, 12)) {
-            int a = rawAddress[12] & 0xff;
-            int b = rawAddress[13] & 0xff;
-            int c = rawAddress[14] & 0xff;
-            int d = rawAddress[15] & 0xff;
-            if (isBlockedIpv4(a, b, c, d)) {
-                return true;
-            }
-        }
-        if (isBlockedIpv4Text(ip)) {
-            return true;
-        }
-        return isBlockedIpv6Address(rawAddress);
-    }
-
-    /**
-     * 判断是否块ed Ipv4 Text。
-     *
-     * @param ip ip 参数。
-     * @return 如果块ed Ipv4 Text满足条件则返回 true，否则返回 false。
-     */
-    private boolean isBlockedIpv4Text(String ip) {
-        String value = StrUtil.nullToEmpty(ip);
-        int percent = value.indexOf('%');
-        if (percent >= 0) {
-            value = value.substring(0, percent);
-        }
-        int[] obfuscated = parseObfuscatedIpv4(value);
-        if (obfuscated != null) {
-            return isBlockedIpv4(obfuscated[0], obfuscated[1], obfuscated[2], obfuscated[3]);
-        }
-        String[] parts = value.split("\\.");
-        if (parts.length != 4) {
-            return false;
-        }
-        int[] octets = new int[4];
-        for (int i = 0; i < parts.length; i++) {
-            try {
-                if (parts[i].length() == 0) {
-                    return false;
-                }
-                octets[i] = Integer.parseInt(parts[i]);
-            } catch (NumberFormatException e) {
-                return false;
-            }
-            if (octets[i] < 0 || octets[i] > 255) {
-                return false;
-            }
-        }
-        return isBlockedIpv4(octets[0], octets[1], octets[2], octets[3]);
-    }
-
-    /**
-     * 判断是否块ed Ipv4。
-     *
-     * @param a a 参数。
-     * @param b b 参数。
-     * @param c c 参数。
-     * @param d d 参数。
-     * @return 如果块ed Ipv4满足条件则返回 true，否则返回 false。
-     */
-    private boolean isBlockedIpv4(int a, int b, int c, int d) {
-        if (a == 0 || a == 10 || a == 127 || a >= 224) {
-            return true;
-        }
-        if (a == 100 && b >= 64 && b <= 127) {
-            return true;
-        }
-        if (a == 172 && b >= 16 && b <= 31) {
-            return true;
-        }
-        if (a == 192 && b == 168) {
-            return true;
-        }
-        if (a == 198 && (b == 18 || b == 19)) {
-            return true;
-        }
-        return (a == 192 && b == 0 && (c == 0 || c == 2))
-                || (a == 198 && b == 51 && c == 100)
-                || (a == 203 && b == 0 && c == 113);
-    }
-
-    /**
-     * 判断是否Trusted私聊Address。
-     *
-     * @param address address 参数。
-     * @return 如果Trusted私聊Address满足条件则返回 true，否则返回 false。
-     */
-    private boolean isTrustedPrivateAddress(InetAddress address) {
-        byte[] rawAddress = address == null ? null : address.getAddress();
-        if (rawAddress == null || rawAddress.length != 4) {
-            return false;
-        }
-        int a = rawAddress[0] & 0xff;
-        int b = rawAddress[1] & 0xff;
-        return a == 198 && (b == 18 || b == 19);
+        String message =
+                SecretRedactor.redact(
+                        StrUtil.blankToDefault(error.getMessage(), error.getClass().getName()),
+                        500);
+        return error.getClass().getSimpleName() + ": " + message;
     }
 
     /**
@@ -6388,232 +6539,6 @@ public class SecurityPolicyService {
         return null;
     }
 
-    /**
-     * 判断是否块ed Ipv6 Address。
-     *
-     * @param rawAddress 原始Address参数。
-     * @return 如果块ed Ipv6 Address满足条件则返回 true，否则返回 false。
-     */
-    private boolean isBlockedIpv6Address(byte[] rawAddress) {
-        if (rawAddress == null || rawAddress.length != 16) {
-            return false;
-        }
-        int first = unsignedShort(rawAddress, 0);
-        int second = unsignedShort(rawAddress, 2);
-        if (first == 0 || first == 1 || first == 0x2002 || first >= 0xff00) {
-            return true;
-        }
-        if (first >= 0xfc00 && first <= 0xfdff) {
-            return true;
-        }
-        if (first == 0x2001 && second < 0x0200) {
-            return true;
-        }
-        if (first == 0x2001 && second == 0x0db8) {
-            return true;
-        }
-        return first == 0x0064 && second == 0xff9b && isZeroSuffix(rawAddress, 4, 8);
-    }
-
-    /**
-     * 判断是否块ed Or Always 块ed Ipv4。
-     *
-     * @param octets octets 参数。
-     * @return 如果块ed Or Always 块ed Ipv4满足条件则返回 true，否则返回 false。
-     */
-    private boolean isBlockedOrAlwaysBlockedIpv4(int[] octets) {
-        return octets != null
-                && octets.length == 4
-                && (isAlwaysBlockedIpv4(octets[0], octets[1], octets[2], octets[3])
-                        || isBlockedIpv4(octets[0], octets[1], octets[2], octets[3]));
-    }
-
-    /**
-     * 解析Ipv4 Host Literal。
-     *
-     * @param host 主机参数。
-     * @return 返回解析后的Ipv4 Host Literal。
-     */
-    private int[] parseIpv4HostLiteral(String host) {
-        int[] obfuscated = parseObfuscatedIpv4(host);
-        if (obfuscated != null) {
-            return obfuscated;
-        }
-        String value = StrUtil.nullToEmpty(host).toLowerCase(Locale.ROOT).trim();
-        if (value.indexOf(':') >= 0) {
-            return null;
-        }
-        String[] parts = value.split("\\.");
-        if (parts.length != 4) {
-            return null;
-        }
-        int[] octets = new int[4];
-        for (int i = 0; i < parts.length; i++) {
-            if (!Pattern.compile("^\\d{1,3}$").matcher(parts[i]).matches()) {
-                return null;
-            }
-            try {
-                octets[i] = Integer.parseInt(parts[i], 10);
-            } catch (NumberFormatException e) {
-                return null;
-            }
-            if (octets[i] < 0 || octets[i] > 255) {
-                return null;
-            }
-        }
-        return octets;
-    }
-
-    /**
-     * 解析Obfuscated Ipv4。
-     *
-     * @param host 主机参数。
-     * @return 返回解析后的Obfuscated Ipv4。
-     */
-    private int[] parseObfuscatedIpv4(String host) {
-        String value = StrUtil.nullToEmpty(host).toLowerCase(Locale.ROOT).trim();
-        if (value.length() == 0 || value.indexOf(':') >= 0) {
-            return null;
-        }
-        if (value.startsWith("0x") && value.indexOf('.') < 0) {
-            return parseIpv4Number(value.substring(2), 16);
-        }
-        if (Pattern.compile("^\\d+$").matcher(value).matches()) {
-            return parseIpv4Number(value, 10);
-        }
-        String[] parts = value.split("\\.");
-        if (parts.length != 4) {
-            return null;
-        }
-        int[] octets = new int[4];
-        boolean nonDecimal = false;
-        for (int i = 0; i < parts.length; i++) {
-            String part = parts[i];
-            int radix = 10;
-            if (part.startsWith("0x") && part.length() > 2) {
-                radix = 16;
-                part = part.substring(2);
-                nonDecimal = true;
-            } else if (part.length() > 1 && part.charAt(0) == '0') {
-                radix = 8;
-                nonDecimal = true;
-            }
-            if (!isNumberInRadix(part, radix)) {
-                return null;
-            }
-            try {
-                octets[i] = Integer.parseInt(part, radix);
-            } catch (NumberFormatException e) {
-                return null;
-            }
-            if (octets[i] < 0 || octets[i] > 255) {
-                return null;
-            }
-        }
-        return nonDecimal ? octets : null;
-    }
-
-    /**
-     * 解析Ipv4 Number。
-     *
-     * @param raw 原始输入值。
-     * @param radix radix 参数。
-     * @return 返回解析后的Ipv4 Number。
-     */
-    private int[] parseIpv4Number(String raw, int radix) {
-        if (!isNumberInRadix(raw, radix)) {
-            return null;
-        }
-        try {
-            BigInteger value = new BigInteger(raw, radix);
-            if (value.signum() < 0 || value.bitLength() > 32) {
-                return null;
-            }
-            long packed = value.longValue();
-            return new int[] {
-                (int) ((packed >> 24) & 0xff),
-                (int) ((packed >> 16) & 0xff),
-                (int) ((packed >> 8) & 0xff),
-                (int) (packed & 0xff)
-            };
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    /**
-     * 判断是否Number In Radix。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @param radix radix 参数。
-     * @return 如果Number In Radix满足条件则返回 true，否则返回 false。
-     */
-    private boolean isNumberInRadix(String value, int radix) {
-        if (StrUtil.isBlank(value)) {
-            return false;
-        }
-        for (int i = 0; i < value.length(); i++) {
-            if (Character.digit(value.charAt(i), radix) < 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 格式化Ipv4。
-     *
-     * @param octets octets 参数。
-     * @return 返回Ipv4结果。
-     */
-    private String formatIpv4(int[] octets) {
-        return octets[0] + "." + octets[1] + "." + octets[2] + "." + octets[3];
-    }
-
-    /**
-     * 执行unsigned短相关逻辑。
-     *
-     * @param bytes 字节参数。
-     * @param offset 分页偏移量。
-     * @return 返回unsigned Short结果。
-     */
-    private int unsignedShort(byte[] bytes, int offset) {
-        return ((bytes[offset] & 0xff) << 8) | (bytes[offset + 1] & 0xff);
-    }
-
-    /**
-     * 判断是否Zero Suffix。
-     *
-     * @param bytes 字节参数。
-     * @param offset 分页偏移量。
-     * @param length length 参数。
-     * @return 如果Zero Suffix满足条件则返回 true，否则返回 false。
-     */
-    private boolean isZeroSuffix(byte[] bytes, int offset, int length) {
-        for (int i = offset; i < offset + length; i++) {
-            if (bytes[i] != 0) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 执行contains相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param value 待规范化或校验的原始值。
-     * @return 返回contains结果。
-     */
-    private boolean contains(String[] values, String value) {
-        for (String item : values) {
-            if (item.equalsIgnoreCase(StrUtil.nullToEmpty(value))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     /** 承载网站Rule相关状态和辅助逻辑。 */
     private static class WebsiteRule {
         /** 记录网站Rule中的URL。 */
@@ -6645,6 +6570,12 @@ public class SecurityPolicyService {
         /** 记录URL判定中的消息。 */
         private final String message;
 
+        /** 是否需要人工审批而不是硬阻断。 */
+        private final boolean approvalRequired;
+
+        /** 需要审批时使用的策略键。 */
+        private final String policyKey;
+
         /**
          * 创建URL Verdict实例，并注入运行所需依赖。
          *
@@ -6653,9 +6584,29 @@ public class SecurityPolicyService {
          * @param message 平台消息或错误消息。
          */
         private UrlVerdict(boolean allowed, String url, String message) {
+            this(allowed, url, message, false, "");
+        }
+
+        /**
+         * 创建URL Verdict实例，并注入审批策略元数据。
+         *
+         * @param allowed allowed开关值。
+         * @param url 待校验或访问的 URL。
+         * @param message 平台消息或错误消息。
+         * @param approvalRequired 是否需要人工审批。
+         * @param policyKey 审批策略键。
+         */
+        private UrlVerdict(
+                boolean allowed,
+                String url,
+                String message,
+                boolean approvalRequired,
+                String policyKey) {
             this.allowed = allowed;
             this.url = url;
             this.message = message;
+            this.approvalRequired = approvalRequired;
+            this.policyKey = StrUtil.nullToEmpty(policyKey);
         }
 
         /**
@@ -6676,6 +6627,19 @@ public class SecurityPolicyService {
          */
         public static UrlVerdict block(String url, String message) {
             return new UrlVerdict(false, url, message);
+        }
+
+        /**
+         * 执行需要审批相关逻辑。
+         *
+         * @param url 待校验或访问的 URL。
+         * @param policyKey 审批策略键。
+         * @param message 平台消息或错误消息。
+         * @return 返回approval required结果。
+         */
+        public static UrlVerdict approvalRequired(
+                String url, String policyKey, String message) {
+            return new UrlVerdict(false, url, message, true, policyKey);
         }
 
         /**
@@ -6704,6 +6668,33 @@ public class SecurityPolicyService {
         public String getMessage() {
             return message;
         }
+
+        /**
+         * 判断是否需要审批。
+         *
+         * @return 如果需要审批返回 true。
+         */
+        public boolean isApprovalRequired() {
+            return approvalRequired;
+        }
+
+        /**
+         * 读取审批策略键。
+         *
+         * @return 返回审批策略键。
+         */
+        public String getPolicyKey() {
+            return policyKey;
+        }
+
+        /**
+         * 读取绑定具体 URL 目标的一次性审批 token。
+         *
+         * @return 返回审批 token。
+         */
+        public String getApprovalToken() {
+            return policyApprovalToken(policyKey, url);
+        }
     }
 
     /** 承载文件判定相关状态和辅助逻辑。 */
@@ -6717,6 +6708,12 @@ public class SecurityPolicyService {
         /** 记录文件判定中的消息。 */
         private final String message;
 
+        /** 是否需要人工审批而不是硬阻断。 */
+        private final boolean approvalRequired;
+
+        /** 需要审批时使用的策略键。 */
+        private final String policyKey;
+
         /**
          * 创建文件Verdict实例，并注入运行所需依赖。
          *
@@ -6725,9 +6722,29 @@ public class SecurityPolicyService {
          * @param message 平台消息或错误消息。
          */
         private FileVerdict(boolean allowed, String path, String message) {
+            this(allowed, path, message, false, "");
+        }
+
+        /**
+         * 创建文件Verdict实例，并注入审批策略元数据。
+         *
+         * @param allowed allowed开关值。
+         * @param path 文件或目录路径。
+         * @param message 平台消息或错误消息。
+         * @param approvalRequired 是否需要人工审批。
+         * @param policyKey 审批策略键。
+         */
+        private FileVerdict(
+                boolean allowed,
+                String path,
+                String message,
+                boolean approvalRequired,
+                String policyKey) {
             this.allowed = allowed;
             this.path = path;
             this.message = message;
+            this.approvalRequired = approvalRequired;
+            this.policyKey = StrUtil.nullToEmpty(policyKey);
         }
 
         /**
@@ -6748,6 +6765,19 @@ public class SecurityPolicyService {
          */
         public static FileVerdict block(String path, String message) {
             return new FileVerdict(false, path, message);
+        }
+
+        /**
+         * 执行需要审批相关逻辑。
+         *
+         * @param path 文件或目录路径。
+         * @param policyKey 审批策略键。
+         * @param message 平台消息或错误消息。
+         * @return 返回approval required结果。
+         */
+        public static FileVerdict approvalRequired(
+                String path, String policyKey, String message) {
+            return new FileVerdict(false, path, message, true, policyKey);
         }
 
         /**
@@ -6775,6 +6805,33 @@ public class SecurityPolicyService {
          */
         public String getMessage() {
             return message;
+        }
+
+        /**
+         * 判断是否需要审批。
+         *
+         * @return 如果需要审批返回 true。
+         */
+        public boolean isApprovalRequired() {
+            return approvalRequired;
+        }
+
+        /**
+         * 读取审批策略键。
+         *
+         * @return 返回审批策略键。
+         */
+        public String getPolicyKey() {
+            return policyKey;
+        }
+
+        /**
+         * 读取绑定具体路径目标的一次性审批 token。
+         *
+         * @return 返回审批 token。
+         */
+        public String getApprovalToken() {
+            return policyApprovalToken(policyKey, path);
         }
     }
 

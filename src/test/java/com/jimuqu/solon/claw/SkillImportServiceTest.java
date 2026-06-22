@@ -148,8 +148,8 @@ public class SkillImportServiceTest {
     }
 
     @Test
-    void shouldSkipUnsafeHistoricalInstallRecordsWhenLoadingLock() throws Exception {
-        File skillsDir = Files.createTempDirectory("skill-install-lock-compat").toFile();
+    void shouldSkipUnsafeEditedInstallRecordsWhenLoadingLock() throws Exception {
+        File skillsDir = Files.createTempDirectory("skill-install-lock-safety").toFile();
         FileUtil.mkdir(FileUtil.file(skillsDir, ".hub"));
         FileUtil.writeUtf8String(
                 "{\"version\":1,\"installed\":{"

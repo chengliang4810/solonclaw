@@ -12,9 +12,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.noear.snack4.ONode;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供Slash Confirm相关业务能力，封装调用方不需要感知的运行细节。 */
 public class SlashConfirmService {
+    /** 记录确认状态读取失败等低敏诊断信息，不输出命令正文。 */
+    private static final Logger log = LoggerFactory.getLogger(SlashConfirmService.class);
+
     /** CHOICEONCE的统一常量值。 */
     public static final String CHOICE_ONCE = "once";
 
@@ -262,9 +267,20 @@ public class SlashConfirmService {
                 }
             }
             return commands;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            log.debug("Slash confirm always-command state parse failed; using empty fallback: {}", exceptionSummary(e));
             return new LinkedHashSet<String>();
         }
+    }
+
+    /**
+     * 生成低敏异常摘要，避免日志中出现仓储内容或命令文本。
+     *
+     * @param e 异常对象。
+     * @return 仅包含异常类型的摘要文本。
+     */
+    private static String exceptionSummary(Exception e) {
+        return e == null ? "unknown" : e.getClass().getSimpleName();
     }
 
     /**

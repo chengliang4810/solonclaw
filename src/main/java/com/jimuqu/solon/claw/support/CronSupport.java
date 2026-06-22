@@ -9,9 +9,14 @@ import java.util.Calendar;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 轻量级 cron 计算辅助类，覆盖 5 段 cron 与可选年份字段。 */
 public final class CronSupport {
+    /** 共享 cron 解析工具的低噪诊断日志，禁止记录用户输入的调度表达式。 */
+    private static final Logger log = LoggerFactory.getLogger(CronSupport.class);
+
     /** RECURRING整型ERVAL正则的统一常量值。 */
     private static final Pattern RECURRING_INTERVAL_PATTERN =
             Pattern.compile(
@@ -87,7 +92,8 @@ public final class CronSupport {
             long first = nextRunAt(cronExpr, fromEpochMillis);
             long second = nextRunAt(cronExpr, first);
             return Math.max(0L, second - first);
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            debugParseFallback("period", ex);
             return 0L;
         }
     }
@@ -133,7 +139,8 @@ public final class CronSupport {
         try {
             parseIsoMillis(normalized);
             return true;
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            debugParseFallback("one-shot", ex);
             return false;
         }
     }
@@ -168,7 +175,8 @@ public final class CronSupport {
         try {
             validate(parts);
             return true;
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            debugParseFallback("cron-expression", ex);
             return false;
         }
     }
@@ -227,7 +235,8 @@ public final class CronSupport {
         }
         try {
             return Long.valueOf(parseIsoMillis(normalized));
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            debugParseFallback("absolute-run-at", ex);
             return null;
         }
     }
@@ -252,7 +261,8 @@ public final class CronSupport {
         try {
             long isoMillis = parseIsoMillis(schedule.trim());
             return Long.valueOf(Math.max(isoMillis, fromEpochMillis + 1000L));
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
+            debugParseFallback("direct-schedule", ex);
             return null;
         }
     }
@@ -299,9 +309,25 @@ public final class CronSupport {
     private static long parseIsoMillis(String value) {
         try {
             return Instant.parse(value).toEpochMilli();
-        } catch (DateTimeParseException ignored) {
+        } catch (DateTimeParseException instantParseFailure) {
+            debugParseFallback("instant-iso", instantParseFailure);
             LocalDateTime dateTime = LocalDateTime.parse(value);
             return dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        }
+    }
+
+    /**
+     * 记录可回退的调度解析失败；只输出固定解析场景和异常类型，避免把调度表达式或配置值写入日志。
+     *
+     * @param scenario 固定解析场景名，不包含用户输入内容。
+     * @param cause 触发 fallback 的解析异常。
+     */
+    private static void debugParseFallback(String scenario, Exception cause) {
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Cron schedule parse fallback: scenario={}, exception={}",
+                    scenario,
+                    cause.getClass().getName());
         }
     }
 

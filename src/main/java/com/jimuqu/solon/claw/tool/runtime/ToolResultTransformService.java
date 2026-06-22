@@ -6,11 +6,19 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.noear.solon.ai.agent.react.ReActInterceptor;
 import org.noear.solon.ai.agent.react.ReActTrace;
+import org.noear.solon.ai.agent.react.task.ToolExchanger;
+import org.noear.solon.ai.chat.ChatResponse;
 import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 提供工具结果Transform相关业务能力，封装调用方不需要感知的运行细节。 */
 public class ToolResultTransformService {
+    /** 记录工具结果转换器降级的低敏诊断日志，不输出工具结果正文。 */
+    private static final Logger log = LoggerFactory.getLogger(ToolResultTransformService.class);
+
     /** 保存transformers集合，维持调用顺序或去重语义。 */
     private final List<ToolResultTransformer> transformers =
             new CopyOnWriteArrayList<ToolResultTransformer>();
@@ -54,7 +62,10 @@ public class ToolResultTransformService {
                 if (transformed != null) {
                     return transformed;
                 }
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                log.warn("工具结果转换器执行失败，继续使用原始结果 transformer={} error={}",
+                        transformer.getClass().getName(),
+                        e.getClass().getSimpleName());
             }
         }
         return original;
@@ -202,10 +213,13 @@ public class ToolResultTransformService {
          * 响应原因事件。
          *
          * @param trace trace 参数。
+         * @param response 模型响应。
          * @param message 平台消息或错误消息。
+         * @param durationMs 推理耗时。
          */
         @Override
-        public void onReason(ReActTrace trace, AssistantMessage message) {
+        public void onReasonEnd(
+                ReActTrace trace, ChatResponse response, AssistantMessage message, long durationMs) {
             captureToolCallIds(trace, message);
         }
 
@@ -213,12 +227,13 @@ public class ToolResultTransformService {
          * 响应Action事件。
          *
          * @param trace trace 参数。
-         * @param toolName 工具名称。
-         * @param args 工具或命令参数。
+         * @param exchanger 工具交换对象。
          */
         @Override
-        public void onAction(ReActTrace trace, String toolName, Map<String, Object> args) {
+        public void onAction(ReActTrace trace, ToolExchanger exchanger) {
             if (trace != null) {
+                String toolName = exchanger == null ? null : exchanger.getToolName();
+                Map<String, Object> args = exchanger == null ? null : exchanger.getArgs();
                 trace.setExtra(extraArgsKey(toolName), args);
             }
         }
@@ -227,20 +242,23 @@ public class ToolResultTransformService {
          * 响应观察结果事件。
          *
          * @param trace trace 参数。
-         * @param toolName 工具名称。
-         * @param result 结果响应或执行结果。
+         * @param exchanger 工具交换对象。
+         * @param message 工具消息。
+         * @param error 工具异常。
          * @param durationMs durationMs 参数。
          */
         @Override
         public void onObservation(
-                ReActTrace trace, String toolName, String result, long durationMs) {
+                ReActTrace trace,
+                ToolExchanger exchanger,
+                ChatMessage message,
+                Throwable error,
+                long durationMs) {
             if (trace == null || service == null) {
                 return;
             }
-            String original = StrUtil.nullToEmpty(trace.getLastObservation());
-            if (StrUtil.isEmpty(original)) {
-                original = StrUtil.nullToEmpty(result);
-            }
+            String toolName = exchanger == null ? null : exchanger.getToolName();
+            String original = ReActToolObservationSupport.get(trace, exchanger);
             ToolResultContext context =
                     new ToolResultContext(
                             toolName,
@@ -249,7 +267,7 @@ public class ToolResultTransformService {
                             trace.getSession() == null ? null : trace.getSession().getSessionId(),
                             toolCallId(trace, toolName),
                             durationMs);
-            trace.setLastObservation(service.transform(context));
+            ReActToolObservationSupport.set(trace, exchanger, service.transform(context));
         }
 
         /**
