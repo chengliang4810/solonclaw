@@ -71,7 +71,7 @@ public class ClawHubSkillSource implements SkillSource {
         String cacheKey = "clawhub_search_" + Integer.toHexString((query + "|" + limit).hashCode());
         String cached = stateStore.readCachedIndex(cacheKey);
         if (StrUtil.isNotBlank(cached)) {
-            return deserializeList(cached);
+            return SkillMetaDeserialize.deserializeList(cached);
         }
 
         int safeLimit = Math.max(1, limit);
@@ -258,7 +258,7 @@ public class ClawHubSkillSource implements SkillSource {
     private List<SkillMeta> loadDomesticIndex(int limit) throws Exception {
         String cached = stateStore.readCachedIndex(INDEX_CACHE_KEY);
         if (StrUtil.isNotBlank(cached)) {
-            return limitResults(deserializeList(cached), limit);
+            return limitResults(SkillMetaDeserialize.deserializeList(cached), limit);
         }
         ONode payload = tryGetJson(CN_INDEX_URL);
         if (payload == null) {
@@ -444,21 +444,6 @@ public class ClawHubSkillSource implements SkillSource {
             output.write(buffer, 0, read);
         }
         return output.toByteArray();
-    }
-
-    /**
-     * 执行deserialize列表相关逻辑。
-     *
-     * @param json JSON参数。
-     * @return 返回deserialize List结果。
-     */
-    private List<SkillMeta> deserializeList(String json) {
-        SkillMeta[] array = ONode.deserialize(json, SkillMeta[].class);
-        List<SkillMeta> results = new ArrayList<SkillMeta>();
-        if (array != null) {
-            Collections.addAll(results, array);
-        }
-        return results;
     }
 
     /**

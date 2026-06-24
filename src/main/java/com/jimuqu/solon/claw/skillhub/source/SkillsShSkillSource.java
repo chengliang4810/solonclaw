@@ -59,7 +59,7 @@ public class SkillsShSkillSource implements SkillSource {
                 "skills_sh_search_" + Integer.toHexString((query + "|" + limit).hashCode());
         String cached = stateStore.readCachedIndex(cacheKey);
         if (StrUtil.isNotBlank(cached)) {
-            return deserializeList(cached);
+            return SkillMetaDeserialize.deserializeList(cached);
         }
 
         String url =
@@ -174,21 +174,6 @@ public class SkillsShSkillSource implements SkillSource {
         meta.setRepo(parts[0] + "/" + parts[1]);
         meta.setPath(parts[2]);
         return meta;
-    }
-
-    /**
-     * 执行deserialize列表相关逻辑。
-     *
-     * @param json JSON参数。
-     * @return 返回deserialize List结果。
-     */
-    private List<SkillMeta> deserializeList(String json) {
-        SkillMeta[] array = ONode.deserialize(json, SkillMeta[].class);
-        List<SkillMeta> results = new ArrayList<SkillMeta>();
-        if (array != null) {
-            Collections.addAll(results, array);
-        }
-        return results;
     }
 
     /**
