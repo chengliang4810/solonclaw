@@ -12,7 +12,6 @@ import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -222,14 +221,7 @@ public class ProactiveScheduler {
         if (gatewayPolicyRepository == null) {
             return homes;
         }
-        for (PlatformType platform :
-                Arrays.asList(
-                        PlatformType.WEIXIN,
-                        PlatformType.WECOM,
-                        PlatformType.FEISHU,
-                        PlatformType.DINGTALK,
-                        PlatformType.QQBOT,
-                        PlatformType.YUANBAO)) {
+        for (PlatformType platform : PlatformType.DOMESTIC_PLATFORMS) {
             try {
                 HomeChannelRecord home = gatewayPolicyRepository.getHomeChannel(platform);
                 if (home != null && home.getPlatform() != null && StrUtil.isNotBlank(home.getChatId())) {

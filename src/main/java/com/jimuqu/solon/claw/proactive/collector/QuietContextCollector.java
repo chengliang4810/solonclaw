@@ -16,12 +16,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 静默上下文观测采集器，用于为主动协作决策提供 home channel、静默时间和活跃运行门控信号。 */
 public class QuietContextCollector implements ProactiveObservationCollector {
     /** 静默上下文采集器的低敏日志记录器。 */
-    private static final Logger LOG = Logger.getLogger(QuietContextCollector.class.getName());
+    private static final Logger log = LoggerFactory.getLogger(QuietContextCollector.class);
 
     /** 采集器稳定名称，用于观测来源、排障和后续硬门控识别。 */
     public static final String COLLECTOR_NAME = "quiet_context";
@@ -111,9 +112,7 @@ public class QuietContextCollector implements ProactiveObservationCollector {
                 }
             }
         } catch (Exception e) {
-            LOG.fine(
-                    "主动协作活跃运行读取失败，已按无活跃运行继续：errorType="
-                            + e.getClass().getSimpleName());
+            log.debug("主动协作活跃运行读取失败，已按无活跃运行继续：errorType={}", e.getClass().getSimpleName());
             return result;
         }
         return result;
@@ -151,9 +150,10 @@ public class QuietContextCollector implements ProactiveObservationCollector {
      */
     private ProactiveObservation buildObservation(
             ProactiveTickContext context, List<AgentRunRecord> activeRuns) {
+        AppConfig.ProactiveConfig proactive = proactiveConfig(context);
         List<HomeChannelRecord> homeChannels = safeHomeChannels(context);
         boolean homeReady = !homeChannels.isEmpty();
-        boolean quietHour = isQuietHour(context);
+        boolean quietHour = isQuietHour(context, proactive);
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("type", OBSERVATION_TYPE);
         payload.put("gateOnly", Boolean.TRUE);
@@ -161,8 +161,8 @@ public class QuietContextCollector implements ProactiveObservationCollector {
         payload.put("homeChannelCount", Integer.valueOf(homeChannels.size()));
         payload.put("missingHomeChannel", Boolean.valueOf(!homeReady));
         payload.put("quietHour", Boolean.valueOf(quietHour));
-        payload.put("quietStartHour", Integer.valueOf(context.getConfig().getProactive().getQuietStartHour()));
-        payload.put("quietEndHour", Integer.valueOf(context.getConfig().getProactive().getQuietEndHour()));
+        payload.put("quietStartHour", Integer.valueOf(proactive == null ? 0 : proactive.getQuietStartHour()));
+        payload.put("quietEndHour", Integer.valueOf(proactive == null ? 0 : proactive.getQuietEndHour()));
         payload.put("lastSentAt", lastSentAt(context));
         payload.put("activeRunCount", Integer.valueOf(activeRuns.size()));
         payload.put("homeChannels", homeChannelPayload(homeChannels));
@@ -203,15 +203,28 @@ public class QuietContextCollector implements ProactiveObservationCollector {
      * @param context 当前 tick 上下文。
      * @return 处于静默时段返回 true。
      */
-    private boolean isQuietHour(ProactiveTickContext context) {
+    private boolean isQuietHour(ProactiveTickContext context, AppConfig.ProactiveConfig proactive) {
+        if (proactive == null) {
+            return false;
+        }
         int hour =
                 LocalDateTime.ofInstant(
                                 Instant.ofEpochMilli(context.getNowMillis()), ZoneId.systemDefault())
                         .getHour();
         return com.jimuqu.solon.claw.proactive.ProactiveSupport.isQuietHour(
-                context.getConfig().getProactive().getQuietStartHour(),
-                context.getConfig().getProactive().getQuietEndHour(),
+                proactive.getQuietStartHour(),
+                proactive.getQuietEndHour(),
                 hour);
+    }
+
+    /**
+     * 读取主动协作配置；buildObservation 可被测试或重构直接调用，空配置按未配置处理。
+     *
+     * @param context 当前 tick 上下文。
+     * @return 主动协作配置；缺失时返回 null。
+     */
+    private AppConfig.ProactiveConfig proactiveConfig(ProactiveTickContext context) {
+        return context == null || context.getConfig() == null ? null : context.getConfig().getProactive();
     }
 
     /**

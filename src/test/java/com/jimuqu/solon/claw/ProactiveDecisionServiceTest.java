@@ -5,12 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.ProactiveCandidateRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveDecision;
 import com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveObservationRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveSourceSnapshotRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveTickContext;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.proactive.ProactiveDecisionService;
 import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import java.time.LocalDateTime;
@@ -21,6 +24,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.message.ChatMessage;
 
 /** 主动协作决策服务测试。 */
 public class ProactiveDecisionServiceTest {
@@ -180,6 +184,42 @@ public class ProactiveDecisionServiceTest {
 
         assertThat(overridingClient.calls).isEqualTo(0);
         assertThat(hardGateDecisions.get(0).getReason()).isEqualTo("no_home_channel");
+    }
+
+    @Test
+    void shouldParseFirstCompleteJsonBlockFromLlmDecisionText() throws Exception {
+        ProactiveDecisionService.GatewayLlmDecisionClient client =
+                new ProactiveDecisionService.GatewayLlmDecisionClient(
+                        new FixedTextLlmGateway(
+                                "先不要解析这个示例：{\"send\":false,\"reason\":\"示例\",\"message_intent\":\"\",\"sensitivity\":\"high\"}\n"
+                                        + "```json\n"
+                                        + "{\"send\":true,\"reason\":\"值得跟进\",\"message_intent\":\"询问是否继续验证\",\"sensitivity\":\"low\"}\n"
+                                        + "```\n补充说明 {\"ignored\":true}"));
+
+        ProactiveDecisionService.LlmDecisionResult result =
+                client.decide(contextAt(10, 0), candidate("candidate-json", 90, 0.9D, "source-a"));
+
+        assertThat(result.isSend()).isFalse();
+        assertThat(result.getReason()).isEqualTo("示例");
+        assertThat(result.getSensitivity()).isEqualTo("high");
+    }
+
+    @Test
+    void shouldKeepLlmDecisionSystemPromptWithinSafeBoundary() throws Exception {
+        FixedTextLlmGateway gateway =
+                new FixedTextLlmGateway(
+                        "{\"send\":true,\"reason\":\"值得跟进\",\"message_intent\":\"询问是否继续验证\",\"sensitivity\":\"low\"}");
+        ProactiveDecisionService.GatewayLlmDecisionClient client =
+                new ProactiveDecisionService.GatewayLlmDecisionClient(gateway);
+
+        client.decide(contextAt(10, 0), candidate("candidate-prompt", 90, 0.9D, "source-a"));
+
+        assertThat(gateway.systemPrompt)
+                .contains("不要输出任何用户数据")
+                .contains("会话内容")
+                .contains("文件路径")
+                .contains("凭据信息")
+                .contains("危险操作");
     }
 
     /**
@@ -346,6 +386,37 @@ public class ProactiveDecisionServiceTest {
                 ProactiveTickContext context, ProactiveCandidateRecord candidate) {
             calls++;
             return result;
+        }
+    }
+
+    /** 固定返回文本的大模型网关，用于覆盖主动协作 JSON 解析和提示词边界。 */
+    private static final class FixedTextLlmGateway implements LlmGateway {
+        /** 模型固定输出。 */
+        private final String text;
+
+        /** 最近一次系统提示词。 */
+        private String systemPrompt;
+
+        /** 创建固定文本网关。 */
+        private FixedTextLlmGateway(String text) {
+            this.text = text;
+        }
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects) {
+            this.systemPrompt = systemPrompt;
+            LlmResult result = new LlmResult();
+            result.setAssistantMessage(ChatMessage.ofAssistant(text));
+            return result;
+        }
+
+        @Override
+        public LlmResult resume(SessionRecord session, String systemPrompt, List<Object> toolObjects) {
+            throw new UnsupportedOperationException("主动协作决策测试不需要恢复会话");
         }
     }
 

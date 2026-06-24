@@ -24,20 +24,23 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.logging.Logger;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 主动协作决策服务，负责硬门控、频率控制、排序和可选模型判断。 */
 public class ProactiveDecisionService {
     /** 主动协作决策服务的低敏日志记录器。 */
-    private static final Logger LOG = Logger.getLogger(ProactiveDecisionService.class.getName());
+    private static final Logger log = LoggerFactory.getLogger(ProactiveDecisionService.class);
 
     /** 模型决策系统提示词，强调只能判断是否联系用户，不能授权执行动作。 */
     private static final String LLM_DECISION_SYSTEM_PROMPT =
             "你是主动协作触达决策器。只判断是否值得联系用户，输出 JSON："
                     + "{\"send\":boolean,\"reason\":\"...\",\"message_intent\":\"...\",\"sensitivity\":\"low|normal|high\"}。"
-                    + "不要承诺已执行任何代码、命令、外部投递或文件修改。";
+                    + "不要承诺已执行任何代码、命令、外部投递或文件修改；"
+                    + "不要输出任何用户数据、会话内容、文件路径或凭据信息；"
+                    + "不要授权、建议或包装危险操作。";
 
     /** 主动协作仓储，用于保存决策和更新候选状态。 */
     private final ProactiveRepository repository;
@@ -589,26 +592,84 @@ public class ProactiveDecisionService {
                         node.get("message_intent").getString(),
                         node.get("sensitivity").getString());
             } catch (RuntimeException e) {
-                LOG.fine(
-                        "主动协作模型决策 JSON 解析失败，已按不发送处理：errorType="
-                                + e.getClass().getSimpleName());
+                log.debug("主动协作模型决策 JSON 解析失败，已按不发送处理：errorType={}", e.getClass().getSimpleName());
                 return new LlmDecisionResult(false, "invalid_llm_json", "", "normal");
             }
         }
 
         /**
-         * 从可能带 Markdown 包裹的文本中提取 JSON 对象。
+         * 从可能带 Markdown 包裹、解释文本或多个对象的文本中提取首个可解析决策 JSON。
          *
          * @param text 原始文本。
          * @return 返回 JSON 对象文本。
          */
         private String extractJson(String text) {
+            for (int i = 0; i < text.length(); i++) {
+                if (text.charAt(i) != '{') {
+                    continue;
+                }
+                String candidate = completeJsonObjectAt(text, i);
+                if (candidate != null && isDecisionJson(candidate)) {
+                    return candidate;
+                }
+            }
             int start = text.indexOf('{');
             int end = text.lastIndexOf('}');
             if (start >= 0 && end > start) {
                 return text.substring(start, end + 1);
             }
             return text;
+        }
+
+        /**
+         * 从指定左花括号开始提取一个完整 JSON 对象；会跳过字符串中的花括号。
+         *
+         * @param text 原始文本。
+         * @param start 起始左花括号位置。
+         * @return 完整对象文本；未闭合时返回 null。
+         */
+        private String completeJsonObjectAt(String text, int start) {
+            int depth = 0;
+            boolean inString = false;
+            boolean escaped = false;
+            for (int i = start; i < text.length(); i++) {
+                char ch = text.charAt(i);
+                if (inString) {
+                    if (escaped) {
+                        escaped = false;
+                    } else if (ch == '\\') {
+                        escaped = true;
+                    } else if (ch == '"') {
+                        inString = false;
+                    }
+                    continue;
+                }
+                if (ch == '"') {
+                    inString = true;
+                } else if (ch == '{') {
+                    depth++;
+                } else if (ch == '}') {
+                    depth--;
+                    if (depth == 0) {
+                        return text.substring(start, i + 1);
+                    }
+                }
+            }
+            return null;
+        }
+
+        /**
+         * 判断对象是否像主动协作决策 JSON，避免 Markdown 示例或后续杂项对象污染解析范围。
+         *
+         * @param json 候选 JSON 对象文本。
+         * @return 包含 send 字段且可被 Snack4 解析时返回 true。
+         */
+        private boolean isDecisionJson(String json) {
+            try {
+                return !ONode.ofJson(json).get("send").isNull();
+            } catch (RuntimeException e) {
+                return false;
+            }
         }
     }
 

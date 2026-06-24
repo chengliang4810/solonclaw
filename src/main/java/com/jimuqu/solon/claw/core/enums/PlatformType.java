@@ -1,5 +1,9 @@
 package com.jimuqu.solon.claw.core.enums;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 /** 支持的消息平台枚举。 */
 public enum PlatformType {
     /** 内存网关与测试专用平台。 */
@@ -22,6 +26,11 @@ public enum PlatformType {
 
     /** 腾讯元宝平台。 */
     YUANBAO;
+
+    /** 国内消息平台的统一顺序；主动协作和诊断只在这些可投递平台之间回退，不包含测试内存平台。 */
+    public static final List<PlatformType> DOMESTIC_PLATFORMS =
+            Collections.unmodifiableList(
+                    Arrays.asList(WEIXIN, WECOM, FEISHU, DINGTALK, QQBOT, YUANBAO));
 
     /**
      * 按名称解析平台，无法识别时返回 null。
