@@ -154,10 +154,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     private final Map<String, Boolean> conversationGroupFlags =
             new ConcurrentHashMap<String, Boolean>();
 
-    /** 保存会话Webhooks映射，便于按键快速查询。 */
-    private final Map<String, SessionWebhookState> sessionWebhooks =
-            new ConcurrentHashMap<String, SessionWebhookState>();
-
     /** 保存卡片InstanceBindings映射，便于按键快速查询。 */
     private final Map<String, String> cardInstanceBindings =
             new ConcurrentHashMap<String, String>();
@@ -1239,7 +1235,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             return;
         }
         long expiresAt = expiredTime == null ? 0L : expiredTime.longValue();
-        sessionWebhooks.put(chatId, new SessionWebhookState(sessionWebhook, expiresAt));
         try {
             channelStateRepository.put(
                     PlatformType.DINGTALK, chatId, STATE_SESSION_WEBHOOK, sessionWebhook);
@@ -1738,35 +1733,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
         }
         return "solon-claw";
-    }
-
-    /** 表示会话Webhook数据，在服务、仓储和接口之间传递。 */
-    private static class SessionWebhookState {
-        /** 记录会话Webhook中的URL。 */
-        private final String url;
-
-        /** 记录会话Webhook中的expires时间。 */
-        private final long expiresAt;
-
-        /**
-         * 创建会话Webhook状态实例，并注入运行所需依赖。
-         *
-         * @param url 待校验或访问的 URL。
-         * @param expiresAt expiresAt 参数。
-         */
-        private SessionWebhookState(String url, long expiresAt) {
-            this.url = url;
-            this.expiresAt = expiresAt;
-        }
-
-        /**
-         * 判断是否Valid。
-         *
-         * @return 如果Valid满足条件则返回 true，否则返回 false。
-         */
-        private boolean isValid() {
-            return expiresAt <= 0 || expiresAt > System.currentTimeMillis();
-        }
     }
 
     /** 承载投递上下文相关状态和辅助逻辑。 */

@@ -9,22 +9,10 @@ import com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 
 /** 主动协作投递服务，负责选择 home channel、发送最终文案并记录投递结果。 */
 public class ProactiveDispatchService {
-    /** 国内平台回退顺序，排除测试内存平台。 */
-    private static final List<PlatformType> DOMESTIC_PLATFORM_ORDER =
-            Arrays.asList(
-                    PlatformType.WEIXIN,
-                    PlatformType.WECOM,
-                    PlatformType.FEISHU,
-                    PlatformType.DINGTALK,
-                    PlatformType.QQBOT,
-                    PlatformType.YUANBAO);
-
     /** home channel 仓储，用于解析各平台默认投递目标。 */
     private final GatewayPolicyRepository gatewayPolicyRepository;
 
@@ -132,7 +120,7 @@ public class ProactiveDispatchService {
                 return home;
             }
         }
-        for (PlatformType platform : DOMESTIC_PLATFORM_ORDER) {
+        for (PlatformType platform : PlatformType.DOMESTIC_PLATFORMS) {
             HomeChannelRecord home = validHome(gatewayPolicyRepository.getHomeChannel(platform));
             if (home != null) {
                 return home;

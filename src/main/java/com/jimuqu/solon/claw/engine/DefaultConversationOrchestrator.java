@@ -1331,7 +1331,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 }
             }
         } catch (Exception e) {
-            log.debug("Failed to inspect recent tool activity for empty-reply recovery", e);
+            log.debug(
+                    "Failed to inspect recent tool activity for empty-reply recovery: {}",
+                    EngineSupport.safeError(e));
             return false;
         }
         return false;
@@ -1347,9 +1349,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                     Collections.emptyList());
         } catch (Exception e) {
             log.debug(
-                    "Empty-reply recovery chat failed for session {}",
+                    "Empty-reply recovery chat failed for session {}, error={}",
                     session == null ? "" : session.getSessionId(),
-                    e);
+                    EngineSupport.safeError(e));
             return null;
         }
     }
@@ -1364,9 +1366,9 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                     Collections.emptyList());
         } catch (Exception e) {
             log.debug(
-                    "Max-steps recovery chat failed for session {}",
+                    "Max-steps recovery chat failed for session {}, error={}",
                     session == null ? "" : session.getSessionId(),
-                    e);
+                    EngineSupport.safeError(e));
             return null;
         }
     }

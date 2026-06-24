@@ -190,7 +190,9 @@ public class TirithSecurityService {
                 try {
                     process.destroy();
                 } catch (Exception e) {
-                    log.debug("Tirith process cleanup failed after scan completion.", e);
+                    log.debug(
+                            "Tirith process cleanup failed after scan completion: {}",
+                            safeMessage(e));
                 }
             }
             executor.shutdownNow();
@@ -1073,7 +1075,9 @@ public class TirithSecurityService {
                 byte[] bytes = digest.digest(text.getBytes(StandardCharsets.UTF_8));
                 return "sha256:" + hexPrefix(bytes, 12);
             } catch (NoSuchAlgorithmException e) {
-                log.debug("SHA-256 command audit hash algorithm is unavailable.", e);
+                log.debug(
+                        "SHA-256 command audit hash algorithm is unavailable: {}",
+                        safeMessage(e));
                 return "sha256:unavailable";
             }
         }
