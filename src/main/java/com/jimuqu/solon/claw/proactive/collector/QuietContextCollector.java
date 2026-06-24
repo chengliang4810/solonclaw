@@ -204,35 +204,14 @@ public class QuietContextCollector implements ProactiveObservationCollector {
      * @return 处于静默时段返回 true。
      */
     private boolean isQuietHour(ProactiveTickContext context) {
-        int start = normalizeHour(context.getConfig().getProactive().getQuietStartHour());
-        int end = normalizeHour(context.getConfig().getProactive().getQuietEndHour());
         int hour =
                 LocalDateTime.ofInstant(
                                 Instant.ofEpochMilli(context.getNowMillis()), ZoneId.systemDefault())
                         .getHour();
-        if (start == end) {
-            return false;
-        }
-        if (start < end) {
-            return hour >= start && hour < end;
-        }
-        return hour >= start || hour < end;
-    }
-
-    /**
-     * 将配置小时夹紧到 0-23。
-     *
-     * @param hour 原始小时。
-     * @return 返回合法小时。
-     */
-    private int normalizeHour(int hour) {
-        if (hour < 0) {
-            return 0;
-        }
-        if (hour > 23) {
-            return 23;
-        }
-        return hour;
+        return com.jimuqu.solon.claw.proactive.ProactiveSupport.isQuietHour(
+                context.getConfig().getProactive().getQuietStartHour(),
+                context.getConfig().getProactive().getQuietEndHour(),
+                hour);
     }
 
     /**

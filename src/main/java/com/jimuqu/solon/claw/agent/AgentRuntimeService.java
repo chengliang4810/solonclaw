@@ -76,7 +76,6 @@ public class AgentRuntimeService {
         scope.setAgentName(AgentRuntimeScope.DEFAULT_AGENT);
         scope.setDisplayName("默认 Agent");
         scope.setDescription("映射默认工作区的行为");
-        scope.setDefaultAgent(true);
         scope.setAgentHomeDir(appConfig.getRuntime().getHome());
         scope.setWorkspaceDir(appConfig.getWorkspace().getDir());
         scope.setSkillsDir(appConfig.getRuntime().getSkillsDir());
@@ -232,7 +231,6 @@ public class AgentRuntimeService {
         scope.setDisplayName(
                 StrUtil.blankToDefault(profile.getDisplayName(), profile.getAgentName()));
         scope.setDescription(profile.getDescription());
-        scope.setDefaultAgent(false);
         scope.setRolePrompt(profile.getRolePrompt());
         scope.setDefaultModel(profile.getDefaultModel());
         scope.setAllowedToolsJson(StrUtil.blankToDefault(profile.getAllowedToolsJson(), "[]"));

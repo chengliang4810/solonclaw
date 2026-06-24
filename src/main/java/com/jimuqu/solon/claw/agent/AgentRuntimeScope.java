@@ -16,9 +16,6 @@ public class AgentRuntimeScope {
     /** 记录Agent运行时范围中的描述。 */
     private String description;
 
-    /** 是否启用默认Agent。 */
-    private boolean defaultAgent = true;
-
     /** 记录Agent运行时范围中的角色提示词。 */
     private String rolePrompt;
 
@@ -78,7 +75,7 @@ public class AgentRuntimeScope {
      * @return 如果默认Agent名称满足条件则返回 true，否则返回 false。
      */
     public boolean isDefaultAgentName() {
-        return defaultAgent || DEFAULT_AGENT.equalsIgnoreCase(agentName);
+        return DEFAULT_AGENT.equalsIgnoreCase(agentName);
     }
 
     /**
@@ -142,24 +139,6 @@ public class AgentRuntimeScope {
      */
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    /**
-     * 判断是否默认Agent。
-     *
-     * @return 如果默认Agent满足条件则返回 true，否则返回 false。
-     */
-    public boolean isDefaultAgent() {
-        return defaultAgent;
-    }
-
-    /**
-     * 写入默认Agent。
-     *
-     * @param defaultAgent 默认Agent参数。
-     */
-    public void setDefaultAgent(boolean defaultAgent) {
-        this.defaultAgent = defaultAgent;
     }
 
     /**

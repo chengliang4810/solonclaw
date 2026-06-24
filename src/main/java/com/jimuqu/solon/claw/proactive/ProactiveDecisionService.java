@@ -722,11 +722,6 @@ public class ProactiveDecisionService {
             if (proactive == null) {
                 return false;
             }
-            int start = normalizeHour(proactive.getQuietStartHour());
-            int end = normalizeHour(proactive.getQuietEndHour());
-            if (start == end) {
-                return false;
-            }
             int hour =
                     LocalDateTime.ofInstant(
                                     Instant.ofEpochMilli(
@@ -735,26 +730,8 @@ public class ProactiveDecisionService {
                                                     : System.currentTimeMillis()),
                                     ZoneId.systemDefault())
                             .getHour();
-            if (start < end) {
-                return hour >= start && hour < end;
-            }
-            return hour >= start || hour < end;
-        }
-
-        /**
-         * 将小时配置夹紧到 0-23。
-         *
-         * @param hour 原始小时。
-         * @return 返回合法小时。
-         */
-        private static int normalizeHour(int hour) {
-            if (hour < 0) {
-                return 0;
-            }
-            if (hour > 23) {
-                return 23;
-            }
-            return hour;
+            return ProactiveSupport.isQuietHour(
+                    proactive.getQuietStartHour(), proactive.getQuietEndHour(), hour);
         }
     }
 }
