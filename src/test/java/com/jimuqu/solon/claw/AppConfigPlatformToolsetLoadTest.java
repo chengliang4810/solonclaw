@@ -1,0 +1,61 @@
+package com.jimuqu.solon.claw;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import cn.hutool.core.io.FileUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
+import java.io.File;
+import java.nio.file.Files;
+import org.junit.jupiter.api.Test;
+import org.noear.solon.core.Props;
+
+/** AppConfig 从 yaml 加载 platform 工具集配置的单元测试。 */
+public class AppConfigPlatformToolsetLoadTest {
+
+    // ---- AppConfig 配置加载测试 ----
+
+    @Test
+    void shouldLoadPlatformToolsetConfigFromYaml() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-platform-toolset").toFile();
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  gateway:\n"
+                        + "    platforms:\n"
+                        + "      FEISHU:\n"
+                        + "        enabledToolsets:\n"
+                        + "          - web\n"
+                        + "          - file\n"
+                        + "      DINGTALK:\n"
+                        + "        enabledToolsets:\n"
+                        + "          - web\n"
+                        + "          - terminal\n"
+                        + "          - file\n"
+                        + "        approvalRequired: true\n",
+                new File(runtimeHome, "config.yml"));
+
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+
+        AppConfig.GatewayConfig gateway = config.getGateway();
+        assertThat(gateway.getPlatforms()).containsKeys("FEISHU", "DINGTALK");
+
+        AppConfig.PlatformConfig feishu = gateway.getPlatforms().get("FEISHU");
+        assertThat(feishu.getEnabledToolsets()).containsExactly("web", "file");
+        assertThat(feishu.isApprovalRequired()).isFalse();
+
+        AppConfig.PlatformConfig dingtalk = gateway.getPlatforms().get("DINGTALK");
+        assertThat(dingtalk.getEnabledToolsets()).containsExactly("web", "terminal", "file");
+        assertThat(dingtalk.isApprovalRequired()).isTrue();
+    }
+
+    @Test
+    void shouldReturnEmptyPlatformsWhenNotConfigured() throws Exception {
+        File runtimeHome = Files.createTempDirectory("solon-claw-platform-empty").toFile();
+        Props props = new Props();
+        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getGateway().getPlatforms()).isEmpty();
+    }
+}
