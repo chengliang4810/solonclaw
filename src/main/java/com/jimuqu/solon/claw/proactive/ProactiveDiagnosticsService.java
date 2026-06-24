@@ -284,27 +284,8 @@ public class ProactiveDiagnosticsService {
      * @return 处于免打扰时段时返回 true。
      */
     private boolean isQuietHour(long nowMillis) {
-        int start = normalizeHour(config().getQuietStartHour());
-        int end = normalizeHour(config().getQuietEndHour());
-        int hour =
-                Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()).getHour();
-        if (start == end) {
-            return false;
-        }
-        if (start < end) {
-            return hour >= start && hour < end;
-        }
-        return hour >= start || hour < end;
-    }
-
-    /**
-     * 规范化小时值，避免配置越界影响诊断输出。
-     *
-     * @param hour 配置中的小时值。
-     * @return 0 到 23 之间的小时。
-     */
-    private int normalizeHour(int hour) {
-        return Math.max(0, Math.min(23, hour));
+        int hour = Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()).getHour();
+        return ProactiveSupport.isQuietHour(config().getQuietStartHour(), config().getQuietEndHour(), hour);
     }
 
     /**
