@@ -20,15 +20,6 @@ public class AgentProfileService {
      * 创建Agent角色配置服务实例，并注入运行所需依赖。
      *
      * @param repository repository依赖组件。
-     */
-    public AgentProfileService(AgentProfileRepository repository) {
-        this(repository, null);
-    }
-
-    /**
-     * 创建Agent角色配置服务实例，并注入运行所需依赖。
-     *
-     * @param repository repository依赖组件。
      * @param runtimeService 运行时服务依赖。
      */
     public AgentProfileService(

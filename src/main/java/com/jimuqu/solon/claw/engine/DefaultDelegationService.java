@@ -157,52 +157,6 @@ public class DefaultDelegationService implements DelegationService {
      * @param preferenceStore 本地偏好存储依赖。
      * @param sessionRepository 会话仓储依赖。
      * @param agentRunRepository Agent运行仓储依赖。
-     */
-    public DefaultDelegationService(
-            ConversationOrchestratorHolder conversationHolder,
-            SqlitePreferenceStore preferenceStore,
-            SessionRepository sessionRepository,
-            AgentRunRepository agentRunRepository) {
-        this(
-                conversationHolder,
-                preferenceStore,
-                sessionRepository,
-                agentRunRepository,
-                null,
-                null);
-    }
-
-    /**
-     * 创建默认委托服务实例，并注入运行所需依赖。
-     *
-     * @param conversationHolder conversationHolder 参数。
-     * @param preferenceStore 本地偏好存储依赖。
-     * @param sessionRepository 会话仓储依赖。
-     * @param agentRunRepository Agent运行仓储依赖。
-     * @param appConfig 应用运行配置。
-     */
-    public DefaultDelegationService(
-            ConversationOrchestratorHolder conversationHolder,
-            SqlitePreferenceStore preferenceStore,
-            SessionRepository sessionRepository,
-            AgentRunRepository agentRunRepository,
-            AppConfig appConfig) {
-        this(
-                conversationHolder,
-                preferenceStore,
-                sessionRepository,
-                agentRunRepository,
-                appConfig,
-                null);
-    }
-
-    /**
-     * 创建默认委托服务实例，并注入运行所需依赖。
-     *
-     * @param conversationHolder conversationHolder 参数。
-     * @param preferenceStore 本地偏好存储依赖。
-     * @param sessionRepository 会话仓储依赖。
-     * @param agentRunRepository Agent运行仓储依赖。
      * @param appConfig 应用运行配置。
      * @param agentRunControlService Agent运行控制服务依赖。
      */

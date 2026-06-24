@@ -61,16 +61,6 @@ public final class CronAutoDeliveryContext {
     }
 
     /**
-     * 执行当前相关逻辑。
-     *
-     * @return 返回当前结果。
-     */
-    public static Target current() {
-        List<Target> targets = CURRENT.get();
-        return targets == null || targets.isEmpty() ? null : targets.get(0);
-    }
-
-    /**
      * 执行当前Targets相关逻辑。
      *
      * @return 返回当前Targets结果。
@@ -78,18 +68,6 @@ public final class CronAutoDeliveryContext {
     public static List<Target> currentTargets() {
         List<Target> targets = CURRENT.get();
         return targets == null ? Collections.<Target>emptyList() : targets;
-    }
-
-    /**
-     * 判断是否Duplicate Target。
-     *
-     * @param platform 平台参数。
-     * @param chatId 聊天标识。
-     * @param threadId thread标识。
-     * @return 如果Duplicate Target满足条件则返回 true，否则返回 false。
-     */
-    public static boolean isDuplicateTarget(PlatformType platform, String chatId, String threadId) {
-        return matchingTarget(platform, chatId, threadId) != null;
     }
 
     /**

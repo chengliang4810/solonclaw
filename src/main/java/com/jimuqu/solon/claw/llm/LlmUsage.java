@@ -72,15 +72,6 @@ public class LlmUsage {
     }
 
     /**
-     * 读取规范输入 token。
-     *
-     * @return 返回读取到的规范输入 token。
-     */
-    public long getCanonicalInputTokens() {
-        return promptTokens;
-    }
-
-    /**
      * 读取输出 token。
      *
      * @return 返回读取到的输出 token。
@@ -99,29 +90,11 @@ public class LlmUsage {
     }
 
     /**
-     * 读取规范输出 token。
-     *
-     * @return 返回读取到的规范输出 token。
-     */
-    public long getCanonicalOutputTokens() {
-        return completionTokens;
-    }
-
-    /**
      * 读取缓存读取 token。
      *
      * @return 返回读取到的缓存读取 token。
      */
     public long getCacheReadTokens() {
-        return cacheReadTokens;
-    }
-
-    /**
-     * 读取规范缓存读取 token。
-     *
-     * @return 返回读取到的规范缓存读取 token。
-     */
-    public long getCanonicalCacheReadTokens() {
         return cacheReadTokens;
     }
 
@@ -135,29 +108,11 @@ public class LlmUsage {
     }
 
     /**
-     * 读取规范缓存写入 token。
-     *
-     * @return 返回读取到的规范缓存写入 token。
-     */
-    public long getCanonicalCacheWriteTokens() {
-        return cacheWriteTokens;
-    }
-
-    /**
      * 读取推理 token。
      *
      * @return 返回读取到的推理 token。
      */
     public long getReasoningTokens() {
-        return reasoningTokens;
-    }
-
-    /**
-     * 读取规范推理 token。
-     *
-     * @return 返回读取到的规范推理 token。
-     */
-    public long getCanonicalReasoningTokens() {
         return reasoningTokens;
     }
 

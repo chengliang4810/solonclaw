@@ -2655,25 +2655,6 @@ public class CronJobService {
     }
 
     /**
-     * 执行firstPresent相关逻辑。
-     *
-     * @param map 待读取的映射对象。
-     * @param keys 候选键列表。
-     * @return 返回first Present结果。
-     */
-    private Object firstPresent(Map<?, ?> map, String... keys) {
-        if (map == null || keys == null) {
-            return null;
-        }
-        for (String key : keys) {
-            if (map.containsKey(key)) {
-                return map.get(key);
-            }
-        }
-        return null;
-    }
-
-    /**
      * 执行默认任务名称相关逻辑。
      *
      * @param body 请求体或消息正文内容。
