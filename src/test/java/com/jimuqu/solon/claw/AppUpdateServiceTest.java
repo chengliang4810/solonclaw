@@ -17,13 +17,16 @@ import org.junit.jupiter.api.Test;
 public class AppUpdateServiceTest {
     @Test
     void shouldFallbackToTagsWhenReleaseApiReturns404() {
-        FakeVersionService versionService = new FakeVersionService(new AppConfig());
+        AppConfig config = new AppConfig();
+        // 提供运行目录，避免写更新缓存时 runtimeHome() 因 home 为 null 抛 NPE（对齐生产运行时）
+        config.getRuntime().setHome(new File("target/update-test-runtime").getAbsolutePath());
+        FakeVersionService versionService = new FakeVersionService(config);
         versionService.setDeploymentMode("docker");
         versionService.setCurrentVersion("0.0.1");
         versionService.setCurrentTag("v0.0.1");
         versionService.setReleaseRepo("chengliang4810/solon-claw");
 
-        FakeUpdateService service = new FakeUpdateService(new AppConfig(), versionService);
+        FakeUpdateService service = new FakeUpdateService(config, versionService);
         service.setReleaseStatus(404);
         service.setTagsBody("[{\"name\":\"v0.0.2\"}]");
 
