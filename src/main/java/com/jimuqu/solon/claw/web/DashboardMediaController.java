@@ -1,8 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
-import java.util.LinkedHashMap;
+import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import java.util.Map;
-import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
@@ -53,7 +52,7 @@ public class DashboardMediaController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mediaService.indexLocal(body(context));
+                        return mediaService.indexLocal(DashboardRequestBodies.jsonObjectMap(context));
                     }
                 });
     }
@@ -158,37 +157,6 @@ public class DashboardMediaController {
                 context.status(400);
             }
             return DashboardResponse.error("MEDIA_BAD_REQUEST", e.getMessage());
-        }
-    }
-
-    /**
-     * 执行正文相关逻辑。
-     *
-     * @param context 当前请求或运行上下文。
-     * @return 返回body结果。
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> body(Context context) {
-        String raw;
-        try {
-            raw = context.body();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
-        }
-        if (raw == null || raw.trim().length() == 0) {
-            return new LinkedHashMap<String, Object>();
-        }
-        try {
-            ONode node = ONode.ofJson(raw);
-            if (node.toData() instanceof Map) {
-                return ONode.deserialize(node.toJson(), LinkedHashMap.class);
-            }
-            throw new IllegalArgumentException(
-                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
         }
     }
 

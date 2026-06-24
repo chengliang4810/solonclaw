@@ -551,7 +551,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         String commentId = event.get("comment_id").getString();
         String replyId = event.get("reply_id").getString();
         String userId =
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         notice.get("from_user_id").get("open_id").getString(),
                         notice.get("from_user_id").get("user_id").getString(),
                         event.get("operator_id").get("open_id").getString());
@@ -561,7 +561,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             return null;
         }
         String text =
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         extractCommentText(event.get("reply_content")),
                         extractCommentText(event.get("comment_content")),
                         event.get("text").getString(),
@@ -657,17 +657,17 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             appendText(buffer, node.getString());
             return;
         }
-        String type = firstNonBlank(node.get("type").getString(), node.get("tag").getString());
+        String type = StrUtil.firstNonBlank(node.get("type").getString(), node.get("tag").getString());
         if ("text_run".equalsIgnoreCase(type)) {
             appendText(buffer, node.get("text_run").get("text").getString());
         } else if ("text".equalsIgnoreCase(type)) {
             appendText(
                     buffer,
-                    firstNonBlank(node.get("text").getString(), node.get("content").getString()));
+                    StrUtil.firstNonBlank(node.get("text").getString(), node.get("content").getString()));
         } else if ("docs_link".equalsIgnoreCase(type) || "link".equalsIgnoreCase(type)) {
             appendText(
                     buffer,
-                    firstNonBlank(
+                    StrUtil.firstNonBlank(
                             node.get("docs_link").get("url").getString(),
                             node.get("link").get("url").getString()));
         }
@@ -1336,16 +1336,16 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         Map<String, String> result = new LinkedHashMap<String, String>();
         result.put(
                 "bot_name",
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         bot.get("bot_name").getString(),
                         bot.get("botName").getString(),
                         bot.get("app_name").getString()));
         result.put(
                 "bot_open_id",
-                firstNonBlank(bot.get("open_id").getString(), bot.get("openId").getString()));
+                StrUtil.firstNonBlank(bot.get("open_id").getString(), bot.get("openId").getString()));
         result.put(
                 "bot_user_id",
-                firstNonBlank(bot.get("user_id").getString(), bot.get("userId").getString()));
+                StrUtil.firstNonBlank(bot.get("user_id").getString(), bot.get("userId").getString()));
         return result;
     }
 
@@ -1886,24 +1886,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     /**
-     * 执行firstNon空白值相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @return 返回first Non Blank结果。
-     */
-    private String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    /**
      * 将输入对象转换为去除首尾空白的字符串。
      *
      * @param value 待规范化或校验的原始值。
@@ -1948,7 +1930,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             String url = String.format(MESSAGE_REACTION_URL, messageId);
             ONode response =
                     ensureOk(postJson(url, body.toJson()), "Feishu reaction create failed");
-            return firstNonBlank(
+            return StrUtil.firstNonBlank(
                     response.get("data").get("reaction_id").getString(),
                     response.get("data").get("reaction").get("reaction_id").getString());
         } catch (Exception e) {

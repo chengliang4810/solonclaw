@@ -94,30 +94,12 @@ public class ModelPrice {
     }
 
     /**
-     * 写入提示词Micros Per token。
-     *
-     * @param promptMicrosPerToken 提示词MicrosPertoken参数。
-     */
-    public void setPromptMicrosPerToken(long promptMicrosPerToken) {
-        setInputMicrosPerToken(promptMicrosPerToken);
-    }
-
-    /**
      * 读取Completion Micros Per token。
      *
      * @return 返回读取到的Completion Micros Per token。
      */
     public long getCompletionMicrosPerToken() {
         return outputMicrosPerToken;
-    }
-
-    /**
-     * 写入Completion Micros Per token。
-     *
-     * @param completionMicrosPerToken 补全文本MicrosPertoken参数。
-     */
-    public void setCompletionMicrosPerToken(long completionMicrosPerToken) {
-        setOutputMicrosPerToken(completionMicrosPerToken);
     }
 
     /**

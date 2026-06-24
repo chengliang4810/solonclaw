@@ -59,25 +59,6 @@ public class GitHubAuth {
     }
 
     /**
-     * 判断是否Authenticated。
-     *
-     * @return 如果Authenticated满足条件则返回 true，否则返回 false。
-     */
-    public boolean isAuthenticated() {
-        return StrUtil.isNotBlank(resolveToken());
-    }
-
-    /**
-     * 执行认证Method相关逻辑。
-     *
-     * @return 返回认证Method结果。
-     */
-    public String authMethod() {
-        resolveToken();
-        return StrUtil.blankToDefault(cachedMethod, "anonymous");
-    }
-
-    /**
      * 解析token。
      *
      * @return 返回解析后的token。

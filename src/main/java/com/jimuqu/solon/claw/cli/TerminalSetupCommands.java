@@ -11,7 +11,6 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import java.io.File;
-import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,28 +20,6 @@ public class TerminalSetupCommands {
     /** 国内渠道顺序，和本项目已确认保留的渠道范围保持一致。 */
     private static final List<String> DOMESTIC_CHANNELS =
             RuntimeSetupSpec.domesticChannels();
-
-    /** 只提供本地配置说明、不启动服务或外部向导的当前管理命令。 */
-    private static final List<String> LOCAL_GUIDANCE_COMMANDS =
-            Arrays.asList(
-                    "postinstall",
-                    "login",
-                    "auth",
-                    "fallback",
-                    "secrets",
-                    "proxy",
-                    "mcp",
-                    "send",
-                    "hooks",
-                    "dump",
-                    "backup",
-                    "checkpoints",
-                    "import",
-                    "bundles",
-                    "memory",
-                    "dashboard",
-                    "logs",
-                    "prompt-size");
 
     /** 保存应用配置依赖，用于读取当前生效模型、渠道与运行时路径。 */
     private final AppConfig appConfig;
@@ -260,7 +237,7 @@ public class TerminalSetupCommands {
      * @return 属于本地说明命令返回 true。
      */
     private boolean isLocalGuidanceCommand(String value) {
-        for (String command : LOCAL_GUIDANCE_COMMANDS) {
+        for (String command : LocalGuidanceCommands.COMMANDS) {
             if (command.equals(value) || value.startsWith(command + " ")) {
                 return true;
             }

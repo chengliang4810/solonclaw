@@ -9,28 +9,6 @@ import java.util.List;
 
 /** 解析进程启动参数，决定当前进程是启动服务端、进入本地 CLI/TUI，还是输出补全脚本。 */
 public final class CliModeParser {
-    /** 需要在本地终端渲染说明而不是启动 HTTP/WebSocket 服务的顶层管理命令。 */
-    private static final java.util.List<String> LOCAL_GUIDANCE_COMMANDS =
-            java.util.Arrays.asList(
-                    "postinstall",
-                    "login",
-                    "auth",
-                    "fallback",
-                    "secrets",
-                    "proxy",
-                    "mcp",
-                    "send",
-                    "hooks",
-                    "dump",
-                    "backup",
-                    "checkpoints",
-                    "import",
-                    "bundles",
-                    "memory",
-                    "dashboard",
-                    "logs",
-                    "prompt-size");
-
     /** 创建Cli模式Parser实例。 */
     private CliModeParser() {}
 
@@ -163,7 +141,7 @@ public final class CliModeParser {
         if ("pairing".equals(first)) {
             return localSlashCommand("/pairing", args, 1);
         }
-        if (LOCAL_GUIDANCE_COMMANDS.contains(first)) {
+        if (LocalGuidanceCommands.COMMANDS.contains(first)) {
             return localSlashCommand("/" + first, args, 1);
         }
         CommandDescriptor descriptor = CommandRegistry.resolve(first);

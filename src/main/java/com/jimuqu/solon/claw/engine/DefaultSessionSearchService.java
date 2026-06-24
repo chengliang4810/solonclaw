@@ -249,7 +249,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         if (StrUtil.isNotBlank(query.getToolName())) {
             for (ToolCallRecord toolCall :
                     agentRunRepository.searchToolCalls(
-                            firstNonBlankValue(query.getChannel(), query.getSourceKey()),
+                            StrUtil.firstNonBlank(query.getChannel(), query.getSourceKey()),
                             query.getSessionId(),
                             query.getRunId(),
                             query.getToolName(),
@@ -267,7 +267,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         }
         for (AgentRunRecord run :
                 agentRunRepository.searchRuns(
-                        firstNonBlankValue(query.getChannel(), query.getSourceKey()),
+                        StrUtil.firstNonBlank(query.getChannel(), query.getSourceKey()),
                         query.getSessionId(),
                         query.getRunId(),
                         query.getQuery(),
@@ -427,24 +427,6 @@ public class DefaultSessionSearchService implements SessionSearchService {
             }
         }
         return "";
-    }
-
-    /**
-     * 执行firstNon空白值值相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @return 返回first Non Blank Value结果。
-     */
-    private String firstNonBlankValue(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value;
-            }
-        }
-        return null;
     }
 
     /**

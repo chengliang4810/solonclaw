@@ -1,9 +1,8 @@
 package com.jimuqu.solon.claw.web;
 
-import java.util.LinkedHashMap;
+import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import java.util.List;
 import java.util.Map;
-import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
@@ -63,7 +62,7 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers", method = MethodType.POST)
     public Map<String, Object> create(Context context) throws Exception {
         try {
-            return providerService.createProvider(body(context));
+            return providerService.createProvider(DashboardRequestBodies.jsonObjectMap(context));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
@@ -79,7 +78,8 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers/models", method = MethodType.POST)
     public Map<String, Object> listModels(Context context) throws Exception {
         try {
-            return DashboardResponse.ok(providerService.listRemoteModels(body(context)));
+            return DashboardResponse.ok(
+                    providerService.listRemoteModels(DashboardRequestBodies.jsonObjectMap(context)));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("PROVIDER_MODELS_BAD_REQUEST", e.getMessage());
@@ -98,7 +98,8 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers/validate", method = MethodType.POST)
     public Map<String, Object> validate(Context context) throws Exception {
         try {
-            return DashboardResponse.ok(providerService.validateProvider(body(context)));
+            return DashboardResponse.ok(
+                    providerService.validateProvider(DashboardRequestBodies.jsonObjectMap(context)));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("PROVIDER_VALIDATE_BAD_REQUEST", e.getMessage());
@@ -115,7 +116,8 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers/{providerKey}", method = MethodType.PUT)
     public Map<String, Object> update(String providerKey, Context context) throws Exception {
         try {
-            return providerService.updateProvider(providerKey, body(context));
+            return providerService.updateProvider(
+                    providerKey, DashboardRequestBodies.jsonObjectMap(context));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
@@ -148,7 +150,7 @@ public class DashboardProviderController {
     @Mapping(value = "/api/model/default", method = MethodType.PUT)
     public Map<String, Object> updateDefault(Context context) throws Exception {
         try {
-            Map<String, Object> body = body(context);
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
             return providerService.updateDefaultModel(
                     body.get("providerKey") == null ? "" : String.valueOf(body.get("providerKey")),
                     body.get("model") == null ? "" : String.valueOf(body.get("model")));
@@ -167,44 +169,13 @@ public class DashboardProviderController {
     @Mapping(value = "/api/model/fallbacks", method = MethodType.PUT)
     public Map<String, Object> updateFallbacks(Context context) throws Exception {
         try {
-            Map<String, Object> body = body(context);
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
             Object items = body.get("fallbackProviders");
             return providerService.updateFallbackProviders(
                     items instanceof List ? (List<Map<String, Object>>) items : null);
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
-        }
-    }
-
-    /**
-     * 执行正文相关逻辑。
-     *
-     * @param context 当前请求或运行上下文。
-     * @return 返回body结果。
-     */
-    @SuppressWarnings("unchecked")
-    private LinkedHashMap<String, Object> body(Context context) {
-        String raw;
-        try {
-            raw = context.body();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
-        }
-        if (raw == null || raw.trim().length() == 0) {
-            return new LinkedHashMap<String, Object>();
-        }
-        try {
-            Object data = ONode.ofJson(raw).toData();
-            if (data instanceof Map) {
-                return new LinkedHashMap<String, Object>((Map<String, Object>) data);
-            }
-            throw new IllegalArgumentException(
-                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
         }
     }
 }

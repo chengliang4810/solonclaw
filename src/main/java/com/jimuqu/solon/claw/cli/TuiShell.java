@@ -82,17 +82,6 @@ public class TuiShell {
      * @param cliRuntime CLI运行时参数。
      * @param mode 模式参数。
      * @param attachmentResolver 附件解析器参数。
-     */
-    public TuiShell(CliRuntime cliRuntime, CliMode mode, CliAttachmentResolver attachmentResolver) {
-        this(cliRuntime, mode, attachmentResolver, null, null, null, null, null);
-    }
-
-    /**
-     * 创建Tui Shell实例，并注入运行所需依赖。
-     *
-     * @param cliRuntime CLI运行时参数。
-     * @param mode 模式参数。
-     * @param attachmentResolver 附件解析器参数。
      * @param appConfig 应用运行配置。
      */
     public TuiShell(
@@ -101,52 +90,6 @@ public class TuiShell {
             CliAttachmentResolver attachmentResolver,
             AppConfig appConfig) {
         this(cliRuntime, mode, attachmentResolver, appConfig, null, null, null, null);
-    }
-
-    /**
-     * 创建Tui Shell实例，并注入运行所需依赖。
-     *
-     * @param cliRuntime CLI运行时参数。
-     * @param mode 模式参数。
-     * @param attachmentResolver 附件解析器参数。
-     * @param appConfig 应用运行配置。
-     * @param modelPicker 模型选择器参数。
-     */
-    public TuiShell(
-            CliRuntime cliRuntime,
-            CliMode mode,
-            CliAttachmentResolver attachmentResolver,
-            AppConfig appConfig,
-            TerminalModelPicker modelPicker) {
-        this(cliRuntime, mode, attachmentResolver, appConfig, modelPicker, null, null, null);
-    }
-
-    /**
-     * 创建Tui Shell实例，并注入运行所需依赖。
-     *
-     * @param cliRuntime CLI运行时参数。
-     * @param mode 模式参数。
-     * @param attachmentResolver 附件解析器参数。
-     * @param appConfig 应用运行配置。
-     * @param modelPicker 模型选择器参数。
-     * @param sessionBrowser 会话浏览器参数。
-     */
-    public TuiShell(
-            CliRuntime cliRuntime,
-            CliMode mode,
-            CliAttachmentResolver attachmentResolver,
-            AppConfig appConfig,
-            TerminalModelPicker modelPicker,
-            TerminalSessionBrowser sessionBrowser) {
-        this(
-                cliRuntime,
-                mode,
-                attachmentResolver,
-                appConfig,
-                modelPicker,
-                null,
-                sessionBrowser,
-                null);
     }
 
     /**

@@ -2,12 +2,12 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.annotation.Param;
@@ -114,10 +114,8 @@ public class DashboardCronController {
     @Mapping(value = "/api/cron/jobs", method = MethodType.POST)
     public Map<String, Object> create(Context context) throws Exception {
         try {
-            return DashboardResponse.ok(cronService.create(body(context)));
-        } catch (BodyParseException e) {
-            context.status(400);
-            return DashboardResponse.error("CRON_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.ok(
+                    cronService.create(DashboardRequestBodies.jsonObjectMap(context)));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -180,10 +178,8 @@ public class DashboardCronController {
     @Mapping(value = "/api/cron/jobs/{id}", method = MethodType.PUT)
     public Map<String, Object> update(String id, Context context) throws Exception {
         try {
-            return DashboardResponse.ok(cronService.update(id, body(context)));
-        } catch (BodyParseException e) {
-            context.status(400);
-            return DashboardResponse.error("CRON_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.ok(
+                    cronService.update(id, DashboardRequestBodies.jsonObjectMap(context)));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -214,10 +210,8 @@ public class DashboardCronController {
      */
     private Map<String, Object> dashboardPauseJob(String id, Context context) throws Exception {
         try {
-            return DashboardResponse.ok(cronService.pause(id, body(context)));
-        } catch (BodyParseException e) {
-            context.status(400);
-            return DashboardResponse.error("CRON_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.ok(
+                    cronService.pause(id, DashboardRequestBodies.jsonObjectMap(context)));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -293,14 +287,11 @@ public class DashboardCronController {
     private Map<String, Object> dashboardRunJob(String id, Context context, boolean retry)
             throws Exception {
         try {
-            Map<String, Object> requestBody = body(context);
+            Map<String, Object> requestBody = DashboardRequestBodies.jsonObjectMap(context);
             return DashboardResponse.ok(
                     retry
                             ? cronService.retry(id, requestBody)
                             : cronService.trigger(id, requestBody));
-        } catch (BodyParseException e) {
-            context.status(400);
-            return DashboardResponse.error("CRON_BAD_REQUEST", e.getMessage());
         } catch (IllegalArgumentException e) {
             context.status(400);
             return dashboardError("CRON_BAD_REQUEST", e);
@@ -369,36 +360,6 @@ public class DashboardCronController {
         } catch (IllegalStateException e) {
             context.status(isNotFound(e) ? 404 : 400);
             return dashboardError(isNotFound(e) ? "CRON_NOT_FOUND" : "CRON_BAD_REQUEST", e);
-        }
-    }
-
-    /**
-     * 执行正文相关逻辑。
-     *
-     * @param context 当前请求或运行上下文。
-     * @return 返回body结果。
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> body(Context context) throws Exception {
-        String raw;
-        try {
-            raw = context.body();
-        } catch (Exception e) {
-            throw new BodyParseException("请求体读取失败 / Request body read failed");
-        }
-        if (raw == null || raw.trim().length() == 0) {
-            return new LinkedHashMap<String, Object>();
-        }
-        try {
-            Object data = ONode.ofJson(raw).toData();
-            if (data instanceof Map) {
-                return (Map<String, Object>) data;
-            }
-            throw new BodyParseException("请求体必须是 JSON 对象 / Request body must be a JSON object");
-        } catch (BodyParseException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new BodyParseException("请求体 JSON 解析失败 / Request body JSON parse failed");
         }
     }
 
@@ -472,17 +433,5 @@ public class DashboardCronController {
             return defaultValue;
         }
         return Math.min(value, maxValue);
-    }
-
-    /** 表示Body Parse异常，用于向上层传递可识别的失败原因。 */
-    private static final class BodyParseException extends IllegalArgumentException {
-        /**
-         * 创建Body Parse Exception实例，并注入运行所需依赖。
-         *
-         * @param message 平台消息或错误消息。
-         */
-        private BodyParseException(String message) {
-            super(message);
-        }
     }
 }

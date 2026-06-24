@@ -1566,29 +1566,12 @@ public class CronJobService {
             File target =
                     (requested.isAbsolute() ? requested : new File(scriptsDir, value))
                             .getCanonicalFile();
-            if (!isUnderDirectory(scriptsDir, target)) {
+            if (!CronJobSupport.isUnderDirectory(scriptsDir, target)) {
                 throw new IllegalStateException("script must stay within runtime/scripts");
             }
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("script path could not be validated: " + safeError(e));
+            throw new IllegalStateException("script path could not be validated: " + CronJobSupport.safeError(e));
         }
-    }
-
-    /**
-     * 判断是否Under Directory。
-     *
-     * @param root root 参数。
-     * @param target target 参数。
-     * @return 如果Under Directory满足条件则返回 true，否则返回 false。
-     */
-    private boolean isUnderDirectory(File root, File target) throws java.io.IOException {
-        java.nio.file.Path rootPath = root.getCanonicalFile().toPath().toAbsolutePath().normalize();
-        java.nio.file.Path targetPath =
-                target.getCanonicalFile().toPath().toAbsolutePath().normalize();
-        if (targetPath.equals(rootPath)) {
-            return false;
-        }
-        return targetPath.startsWith(rootPath);
     }
 
     /**
@@ -1687,22 +1670,8 @@ public class CronJobService {
             }
             return normalized;
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("workdir path could not be validated: " + safeError(e));
+            throw new IllegalStateException("workdir path could not be validated: " + CronJobSupport.safeError(e));
         }
-    }
-
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param e 捕获到的异常。
-     * @return 返回safe Error结果。
-     */
-    private String safeError(Exception e) {
-        if (e == null) {
-            return "Exception";
-        }
-        return SecretRedactor.redact(
-                StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()), 1000);
     }
 
     /**
@@ -2247,7 +2216,7 @@ public class CronJobService {
     private String scheduleObjectValue(Object value) {
         if (value instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) value;
-            String text = firstString(map, "raw", "expr", "cron", "value", "display");
+            String text = CronJobSupport.firstString(map, "raw", "expr", "cron", "value", "display");
             if (StrUtil.isNotBlank(text)) {
                 return text;
             }
@@ -2273,9 +2242,9 @@ public class CronJobService {
         if (value == null || value.isEmpty()) {
             return null;
         }
-        String platform = firstString(value, "platform", "type", "channel", "mode");
-        String chatId = firstString(value, "chat_id", "chatId", "target", "target_id", "targetId");
-        String threadId = firstString(value, "thread_id", "threadId", "message_id", "messageId");
+        String platform = CronJobSupport.firstString(value, "platform", "type", "channel", "mode");
+        String chatId = CronJobSupport.firstString(value, "chat_id", "chatId", "target", "target_id", "targetId");
+        String threadId = CronJobSupport.firstString(value, "thread_id", "threadId", "message_id", "messageId");
         if (StrUtil.isBlank(platform)) {
             return null;
         }
@@ -2302,8 +2271,8 @@ public class CronJobService {
      */
     private void applyModelPin(
             CronJobRecord record, String model, String provider, String baseUrl) {
-        String normalizedModel = normalizeBlank(model);
-        String normalizedProvider = normalizeBlank(provider);
+        String normalizedModel = CronJobSupport.normalizeBlank(model);
+        String normalizedProvider = CronJobSupport.normalizeBlank(provider);
         String normalizedBaseUrl = normalizeBaseUrl(baseUrl);
         if ("custom".equals(normalizedProvider)) {
             normalizedProvider = null;
@@ -2348,20 +2317,20 @@ public class CronJobService {
         Map<?, ?> modelObject = objectMap(modelValue);
         String model =
                 modelObject != null
-                        ? firstString(modelObject, "model", "name", "id")
+                        ? CronJobSupport.firstString(modelObject, "model", "name", "id")
                         : string(modelValue, defaultModel);
         String provider =
                 providerValue != null
                         ? string(providerValue, defaultProvider)
                         : modelObject != null
-                                ? firstString(
+                                ? CronJobSupport.firstString(
                                         modelObject, "provider", "providerKey", "provider_key")
                                 : defaultProvider;
         String baseUrl =
                 baseUrlValue != null || baseUrlAliasValue != null
                         ? string(baseUrlValue, string(baseUrlAliasValue, defaultBaseUrl))
                         : modelObject != null
-                                ? firstString(
+                                ? CronJobSupport.firstString(
                                         modelObject, "base_url", "baseUrl", "api_url", "apiUrl")
                                 : defaultBaseUrl;
         return new ModelOverride(model, provider, baseUrl);
@@ -2438,53 +2407,9 @@ public class CronJobService {
     private void logCronBestEffortFailure(String jobId, String phase, Exception error) {
         log.debug(
                 "Cron job best-effort fallback: jobId={}, phase={}, error={}",
-                safeLogJobId(jobId),
+                CronJobSupport.safeLogJobId(jobId),
                 phase,
-                exceptionType(error));
-    }
-
-    /**
-     * 生成日志用任务标识，避免空值或异常值破坏结构化日志。
-     *
-     * @param jobId 定时任务标识。
-     * @return 可用于日志的任务标识。
-     */
-    private String safeLogJobId(String jobId) {
-        String value = StrUtil.nullToEmpty(jobId).trim();
-        return StrUtil.isBlank(value) ? "unknown" : value;
-    }
-
-    /**
-     * 生成异常类型摘要，避免把异常消息中的 prompt、脚本或密钥写入日志。
-     *
-     * @param error 捕获到的异常。
-     * @return 异常类型名称。
-     */
-    private String exceptionType(Throwable error) {
-        if (error == null) {
-            return "Exception";
-        }
-        if (error instanceof InterruptedException) {
-            Thread.currentThread().interrupt();
-        }
-        return error.getClass().getSimpleName();
-    }
-
-    /**
-     * 执行first字符串相关逻辑。
-     *
-     * @param map 待读取的映射对象。
-     * @param keys 候选键列表。
-     * @return 返回first String结果。
-     */
-    private String firstString(Map<?, ?> map, String... keys) {
-        for (int i = 0; i < keys.length; i++) {
-            Object value = map.get(keys[i]);
-            if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
-                return String.valueOf(value);
-            }
-        }
-        return null;
+                CronJobSupport.exceptionType(error));
     }
 
     /**
@@ -2494,7 +2419,7 @@ public class CronJobService {
      * @return 返回Base URL结果。
      */
     private String normalizeBaseUrl(String value) {
-        String normalized = normalizeBlank(value);
+        String normalized = CronJobSupport.normalizeBlank(value);
         while (StrUtil.isNotBlank(normalized) && normalized.endsWith("/")) {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
@@ -2538,20 +2463,6 @@ public class CronJobService {
             builder.deleteCharAt(builder.length() - 1);
         }
         return builder.length() == 0 ? fallback : builder.toString();
-    }
-
-    /**
-     * 规范化Blank。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回Blank结果。
-     */
-    private String normalizeBlank(String value) {
-        if (value == null) {
-            return null;
-        }
-        String text = value.trim();
-        return text.length() == 0 ? null : text;
     }
 
     /**
@@ -2655,25 +2566,6 @@ public class CronJobService {
     }
 
     /**
-     * 执行firstPresent相关逻辑。
-     *
-     * @param map 待读取的映射对象。
-     * @param keys 候选键列表。
-     * @return 返回first Present结果。
-     */
-    private Object firstPresent(Map<?, ?> map, String... keys) {
-        if (map == null || keys == null) {
-            return null;
-        }
-        for (String key : keys) {
-            if (map.containsKey(key)) {
-                return map.get(key);
-            }
-        }
-        return null;
-    }
-
-    /**
      * 执行默认任务名称相关逻辑。
      *
      * @param body 请求体或消息正文内容。
@@ -2693,12 +2585,12 @@ public class CronJobService {
         if (StrUtil.isNotBlank(explicit)) {
             return explicit;
         }
-        String labelSource = normalizeBlank(prompt);
+        String labelSource = CronJobSupport.normalizeBlank(prompt);
         if (StrUtil.isBlank(labelSource) && CollUtil.isNotEmpty(skills)) {
-            labelSource = normalizeBlank(skills.get(0));
+            labelSource = CronJobSupport.normalizeBlank(skills.get(0));
         }
         if (StrUtil.isBlank(labelSource) && noAgent) {
-            labelSource = normalizeBlank(script);
+            labelSource = CronJobSupport.normalizeBlank(script);
         }
         if (StrUtil.isBlank(labelSource)) {
             labelSource = "cron job";
@@ -2721,8 +2613,8 @@ public class CronJobService {
             return result;
         }
         for (Map.Entry<String, String> entry : values.entrySet()) {
-            String key = normalizeBlank(entry.getKey());
-            String value = normalizeBlank(entry.getValue());
+            String key = CronJobSupport.normalizeBlank(entry.getKey());
+            String value = CronJobSupport.normalizeBlank(entry.getValue());
             if (StrUtil.isNotBlank(key) && StrUtil.isNotBlank(value)) {
                 result.put(key, value);
             }

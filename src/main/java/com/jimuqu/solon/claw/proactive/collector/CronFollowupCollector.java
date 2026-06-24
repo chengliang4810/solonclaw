@@ -8,7 +8,6 @@ import com.jimuqu.solon.claw.core.model.ProactiveObservation;
 import com.jimuqu.solon.claw.core.model.ProactiveTickContext;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.proactive.ProactiveObservationCollector;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -30,9 +29,6 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
 
     /** 判定重复失败所需的最小失败次数，避免单次偶发失败直接升级为重复失败。 */
     private static final int REPEATED_FAILURE_THRESHOLD = 2;
-
-    /** 一天对应的毫秒数，用于把配置中的回看天数转换为时间窗口。 */
-    private static final long DAY_MILLIS = 24L * 60L * 60L * 1000L;
 
     /** payload 中短文本字段最大长度，避免原始输出或错误过长。 */
     private static final int TEXT_MAX_LENGTH = 600;
@@ -132,10 +128,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
      */
     private long cutoffMillis(ProactiveTickContext context) {
         int lookbackDays = context.getConfig().getProactive().getCronLookbackDays();
-        long safeDays = Math.max(1L, Math.min((long) lookbackDays, 3650L));
-        long windowMillis = safeDays * DAY_MILLIS;
-        long nowMillis = context.getNowMillis();
-        return nowMillis < windowMillis ? 0L : nowMillis - windowMillis;
+        return CollectorSupport.lookbackCutoffMillis(context.getNowMillis(), lookbackDays);
     }
 
     /**
@@ -164,7 +157,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
         } catch (Exception e) {
             LOG.fine(
                     "定时任务执行历史读取失败，已标记历史不可用：jobId="
-                            + safe(jobId, 120)
+                            + CollectorSupport.safe(jobId, 120)
                             + ", errorType="
                             + e.getClass().getSimpleName());
             return new CronRunHistory(result, false);
@@ -215,7 +208,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
      * @return 状态为 ACTIVE 或空状态时返回 true。
      */
     private boolean isActive(CronJobRecord job) {
-        String status = normalize(job.getStatus());
+        String status = CollectorSupport.normalize(job.getStatus());
         return StrUtil.isBlank(status) || "active".equals(status);
     }
 
@@ -226,7 +219,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
      * @return 状态为 PAUSED 时返回 true。
      */
     private boolean isPaused(CronJobRecord job) {
-        return "paused".equals(normalize(job.getStatus()));
+        return "paused".equals(CollectorSupport.normalize(job.getStatus()));
     }
 
     /**
@@ -248,7 +241,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
             count++;
         }
         if (count == 0
-                && (containsKeyword(job.getLastStatus(), FAILURE_STATUSES)
+                && (CollectorSupport.containsKeyword(job.getLastStatus(), FAILURE_STATUSES)
                         || StrUtil.isNotBlank(job.getLastError()))) {
             count = 1;
         }
@@ -262,7 +255,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
      * @return 命中失败语义返回 true。
      */
     private boolean isFailedRun(CronJobRunRecord run) {
-        return containsKeyword(run.getStatus(), FAILURE_STATUSES)
+        return CollectorSupport.containsKeyword(run.getStatus(), FAILURE_STATUSES)
                 || StrUtil.isNotBlank(run.getError())
                 || StrUtil.isNotBlank(run.getDeliveryError());
     }
@@ -322,7 +315,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
      * @return 包含人工确认、审批、继续处理等关键词时返回 true。
      */
     private boolean isActionableText(String text) {
-        return !isSilent(text) && containsKeyword(text, ACTIONABLE_OUTPUT_KEYWORDS);
+        return !isSilent(text) && CollectorSupport.containsKeyword(text, ACTIONABLE_OUTPUT_KEYWORDS);
     }
 
     /**
@@ -349,7 +342,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
             CronJobRecord job, String type, List<CronJobRunRecord> recentRuns, int failureCount) {
         ProactiveObservation observation = new ProactiveObservation();
         observation.setCollector(COLLECTOR_NAME);
-        observation.setSourceKey(safe(sourceKey(job), 160));
+        observation.setSourceKey(CollectorSupport.safe(sourceKey(job), 160));
         observation.setStatus("COLLECTED");
         observation.setSummary(summary(job, type));
         observation.setPayload(payload(job, type, recentRuns, failureCount));
@@ -369,11 +362,11 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
             CronJobRecord job, String type, List<CronJobRunRecord> recentRuns, int failureCount) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("type", type);
-        payload.put("jobId", safe(job.getJobId(), 120));
-        payload.put("name", safe(job.getName(), 160));
-        payload.put("sourceKey", safe(sourceKey(job), 160));
-        payload.put("status", safe(job.getStatus(), 80));
-        payload.put("lastStatus", safe(job.getLastStatus(), 80));
+        payload.put("jobId", CollectorSupport.safe(job.getJobId(), 120));
+        payload.put("name", CollectorSupport.safe(job.getName(), 160));
+        payload.put("sourceKey", CollectorSupport.safe(sourceKey(job), 160));
+        payload.put("status", CollectorSupport.safe(job.getStatus(), 80));
+        payload.put("lastStatus", CollectorSupport.safe(job.getLastStatus(), 80));
         payload.put("evidence", evidencePayload(job, recentRuns, failureCount));
         return payload;
     }
@@ -389,10 +382,10 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
     private Map<String, Object> evidencePayload(
             CronJobRecord job, List<CronJobRunRecord> recentRuns, int failureCount) {
         Map<String, Object> evidence = new LinkedHashMap<String, Object>();
-        evidence.put("lastError", safe(job.getLastError(), TEXT_MAX_LENGTH));
-        evidence.put("deliveryError", safe(job.getLastDeliveryError(), TEXT_MAX_LENGTH));
-        evidence.put("pausedReason", safe(job.getPausedReason(), TEXT_MAX_LENGTH));
-        evidence.put("lastOutput", safe(job.getLastOutput(), TEXT_MAX_LENGTH));
+        evidence.put("lastError", CollectorSupport.safe(job.getLastError(), TEXT_MAX_LENGTH));
+        evidence.put("deliveryError", CollectorSupport.safe(job.getLastDeliveryError(), TEXT_MAX_LENGTH));
+        evidence.put("pausedReason", CollectorSupport.safe(job.getPausedReason(), TEXT_MAX_LENGTH));
+        evidence.put("lastOutput", CollectorSupport.safe(job.getLastOutput(), TEXT_MAX_LENGTH));
         evidence.put("lastRunAt", Long.valueOf(job.getLastRunAt()));
         evidence.put("nextRunAt", Long.valueOf(job.getNextRunAt()));
         evidence.put("updatedAt", Long.valueOf(job.getUpdatedAt()));
@@ -415,13 +408,13 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
         List<Map<String, Object>> payloads = new ArrayList<Map<String, Object>>();
         for (CronJobRunRecord run : recentRuns) {
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put("runId", safe(run.getRunId(), 120));
-            payload.put("status", safe(run.getStatus(), 80));
-            payload.put("triggerType", safe(run.getTriggerType(), 80));
-            payload.put("output", safe(run.getOutput(), RUN_PREVIEW_MAX_LENGTH));
-            payload.put("summary", safe(run.getSummary(), RUN_PREVIEW_MAX_LENGTH));
-            payload.put("error", safe(run.getError(), RUN_PREVIEW_MAX_LENGTH));
-            payload.put("deliveryError", safe(run.getDeliveryError(), RUN_PREVIEW_MAX_LENGTH));
+            payload.put("runId", CollectorSupport.safe(run.getRunId(), 120));
+            payload.put("status", CollectorSupport.safe(run.getStatus(), 80));
+            payload.put("triggerType", CollectorSupport.safe(run.getTriggerType(), 80));
+            payload.put("output", CollectorSupport.safe(run.getOutput(), RUN_PREVIEW_MAX_LENGTH));
+            payload.put("summary", CollectorSupport.safe(run.getSummary(), RUN_PREVIEW_MAX_LENGTH));
+            payload.put("error", CollectorSupport.safe(run.getError(), RUN_PREVIEW_MAX_LENGTH));
+            payload.put("deliveryError", CollectorSupport.safe(run.getDeliveryError(), RUN_PREVIEW_MAX_LENGTH));
             payload.put("startedAt", Long.valueOf(run.getStartedAt()));
             payload.put("finishedAt", Long.valueOf(run.getFinishedAt()));
             payloads.add(payload);
@@ -437,7 +430,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
      * @return 返回简短摘要。
      */
     private String summary(CronJobRecord job, String type) {
-        return safe(
+        return CollectorSupport.safe(
                 type
                         + ": 定时任务 "
                         + StrUtil.blankToDefault(job.getJobId(), "unknown")
@@ -456,48 +449,6 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
             return job.getSourceKey();
         }
         return "cron:" + StrUtil.blankToDefault(job.getJobId(), "unknown");
-    }
-
-    /**
-     * 判断文本是否包含任一关键词，英文统一小写匹配，中文保持原文匹配。
-     *
-     * @param text 候选文本。
-     * @param keywords 关键词列表。
-     * @return 命中任一关键词返回 true。
-     */
-    private boolean containsKeyword(String text, List<String> keywords) {
-        String value = normalize(text);
-        if (StrUtil.isBlank(value) || keywords == null || keywords.isEmpty()) {
-            return false;
-        }
-        for (String keyword : keywords) {
-            if (StrUtil.isNotBlank(keyword)
-                    && value.contains(keyword.toLowerCase(Locale.ROOT))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 规范化文本用于状态与关键词匹配。
-     *
-     * @param value 原始文本。
-     * @return 返回小写且非 null 的文本。
-     */
-    private String normalize(String value) {
-        return StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
-    }
-
-    /**
-     * 对载荷和摘要文本做统一脱敏与长度限制。
-     *
-     * @param value 原始文本。
-     * @param maxLength 最大保留长度。
-     * @return 返回安全文本。
-     */
-    private String safe(String value, int maxLength) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
     }
 
     /** 定时任务执行历史读取结果，区分“确实没有历史”和“历史读取失败”。 */

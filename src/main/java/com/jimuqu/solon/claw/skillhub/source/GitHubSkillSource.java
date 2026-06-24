@@ -201,7 +201,7 @@ public class GitHubSkillSource implements SkillSource {
         String cacheKey = "github_search_" + repo.replace("/", "_") + "_" + path.replace("/", "_");
         String cached = stateStore.readCachedIndex(cacheKey);
         if (StrUtil.isNotBlank(cached)) {
-            return deserializeSkillMetaList(cached);
+            return SkillMetaDeserialize.deserializeList(cached);
         }
 
         String normalizedPath = trimSlashes(path);
@@ -323,21 +323,6 @@ public class GitHubSkillSource implements SkillSource {
         tap.setRepo(repo);
         tap.setPath(path);
         return tap;
-    }
-
-    /**
-     * 执行deserialize技能Meta列表相关逻辑。
-     *
-     * @param json JSON参数。
-     * @return 返回deserialize技能Meta List结果。
-     */
-    private List<SkillMeta> deserializeSkillMetaList(String json) {
-        SkillMeta[] array = ONode.deserialize(json, SkillMeta[].class);
-        List<SkillMeta> results = new ArrayList<SkillMeta>();
-        if (array != null) {
-            Collections.addAll(results, array);
-        }
-        return results;
     }
 
     /**

@@ -1,10 +1,8 @@
 package com.jimuqu.solon.claw.scheduler;
 
-import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -73,7 +71,9 @@ public class SkillCuratorScheduler {
         try {
             curatorService.runOnce(false);
         } catch (Exception e) {
-            log.warn("[CURATOR] background run failed: error={}", safeError(e));
+            log.warn(
+                    "[CURATOR] background run failed: error={}",
+                    CronJobSupport.safeError(e));
         } finally {
             running.set(false);
         }
@@ -106,20 +106,5 @@ public class SkillCuratorScheduler {
             executorService.shutdownNow();
             executorService = null;
         }
-    }
-
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param error 错误参数。
-     * @return 返回safe Error结果。
-     */
-    private String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
-        return SecretRedactor.redact(value, 1000);
     }
 }

@@ -9,12 +9,10 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.proactive.ProactiveObservationCollector;
 import com.jimuqu.solon.claw.support.MessageSupport;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -31,9 +29,6 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
 
     /** 单次扫描最多读取的近期会话数，避免主动协作 tick 扫全库。 */
     private static final int RECENT_SESSION_LIMIT = 200;
-
-    /** 一天对应的毫秒数，用于把配置中的天数转换为时间窗口。 */
-    private static final long DAY_MILLIS = 24L * 60L * 60L * 1000L;
 
     /** 最终回复预览最大长度，避免把长消息完整带入观测载荷。 */
     private static final int PREVIEW_MAX_LENGTH = 360;
@@ -204,10 +199,7 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      */
     private long cutoffMillis(ProactiveTickContext context) {
         int lookbackDays = context.getConfig().getProactive().getSessionLookbackDays();
-        long safeDays = Math.max(1L, Math.min((long) lookbackDays, 3650L));
-        long windowMillis = safeDays * DAY_MILLIS;
-        long nowMillis = context.getNowMillis();
-        return nowMillis < windowMillis ? 0L : nowMillis - windowMillis;
+        return CollectorSupport.lookbackCutoffMillis(context.getNowMillis(), lookbackDays);
     }
 
     /**
@@ -312,30 +304,14 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      */
     private String searchableText(SessionRecord session, SessionSignals signals) {
         StringBuilder text = new StringBuilder();
-        appendText(text, session.getTitle());
-        appendText(text, session.getCompressedSummary());
-        appendText(text, signals.lastUserMessage);
-        appendText(text, signals.finalAssistantReply);
+        CollectorSupport.appendText(text, session.getTitle());
+        CollectorSupport.appendText(text, session.getCompressedSummary());
+        CollectorSupport.appendText(text, signals.lastUserMessage);
+        CollectorSupport.appendText(text, signals.finalAssistantReply);
         String value = text.toString();
         return value.length() > SIGNAL_TEXT_MAX_LENGTH
                 ? value.substring(0, SIGNAL_TEXT_MAX_LENGTH)
                 : value;
-    }
-
-    /**
-     * 追加一段非空文本到匹配缓冲区。
-     *
-     * @param builder 文本缓冲区。
-     * @param value 候选文本。
-     */
-    private void appendText(StringBuilder builder, String value) {
-        if (StrUtil.isBlank(value)) {
-            return;
-        }
-        if (builder.length() > 0) {
-            builder.append('\n');
-        }
-        builder.append(value);
     }
 
     /**
@@ -358,11 +334,11 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
         if (goalState == null) {
             return false;
         }
-        String status = normalize(goalState.getStatus());
+        String status = CollectorSupport.normalize(goalState.getStatus());
         if (GoalState.STATUS_DONE.equals(status) || GoalState.STATUS_CLEARED.equals(status)) {
             return false;
         }
-        String reason = normalize(goalState.getPausedReason() + "\n" + goalState.getLastReason());
+        String reason = CollectorSupport.normalize(goalState.getPausedReason() + "\n" + goalState.getLastReason());
         return GoalState.STATUS_PAUSED.equals(status)
                 || status.contains("blocked")
                 || reason.contains("blocked")
@@ -377,7 +353,7 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      * @return 命中待确认语义返回 true。
      */
     private boolean looksWaitingForUser(String finalAssistantReply) {
-        return containsKeyword(finalAssistantReply, WAITING_ASSISTANT_KEYWORDS);
+        return CollectorSupport.containsKeyword(finalAssistantReply, WAITING_ASSISTANT_KEYWORDS);
     }
 
     /**
@@ -387,14 +363,14 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      * @return 同时具备续接语义和工作痕迹，或最后助手正在等待确认时返回 true。
      */
     private boolean hasContinuationSignal(SessionSignals signals) {
-        if (!containsKeyword(signals.searchText, CONTINUATION_KEYWORDS)) {
+        if (!CollectorSupport.containsKeyword(signals.searchText, CONTINUATION_KEYWORDS)) {
             return false;
         }
         if (isExplanationOnlyQuestion(signals)) {
             return false;
         }
         return looksWaitingForUser(signals.finalAssistantReply)
-                || containsKeyword(signals.searchText, WORK_TRACE_KEYWORDS);
+                || CollectorSupport.containsKeyword(signals.searchText, WORK_TRACE_KEYWORDS);
     }
 
     /**
@@ -404,7 +380,7 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      * @return 用户在询问概念且助手没有等待确认时返回 true。
      */
     private boolean isExplanationOnlyQuestion(SessionSignals signals) {
-        return containsKeyword(signals.lastUserMessage, EXPLANATION_QUESTION_KEYWORDS)
+        return CollectorSupport.containsKeyword(signals.lastUserMessage, EXPLANATION_QUESTION_KEYWORDS)
                 && !looksWaitingForUser(signals.finalAssistantReply);
     }
 
@@ -415,14 +391,14 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      * @return 有工作痕迹且未明确完成时返回 true。
      */
     private boolean hasRecentWorkWithoutFinalSignal(SessionSignals signals) {
-        if (signals.messageCount < 2 || containsKeyword(signals.finalAssistantReply, COMPLETION_KEYWORDS)) {
+        if (signals.messageCount < 2 || CollectorSupport.containsKeyword(signals.finalAssistantReply, COMPLETION_KEYWORDS)) {
             return false;
         }
         if (isExplanationOnlyQuestion(signals)) {
             return false;
         }
-        return containsKeyword(signals.searchText, CONTINUATION_KEYWORDS)
-                && containsKeyword(signals.searchText, WORK_TRACE_KEYWORDS);
+        return CollectorSupport.containsKeyword(signals.searchText, CONTINUATION_KEYWORDS)
+                && CollectorSupport.containsKeyword(signals.searchText, WORK_TRACE_KEYWORDS);
     }
 
     /**
@@ -438,7 +414,7 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
                 goalState != null
                         && (GoalState.STATUS_DONE.equalsIgnoreCase(goalState.getStatus())
                                 || GoalState.STATUS_CLEARED.equalsIgnoreCase(goalState.getStatus()));
-        boolean finalCompleted = containsKeyword(signals.finalAssistantReply, COMPLETION_KEYWORDS);
+        boolean finalCompleted = CollectorSupport.containsKeyword(signals.finalAssistantReply, COMPLETION_KEYWORDS);
         boolean hasOpenGoal =
                 reasons.contains("goal_active") || reasons.contains("goal_needs_continuation");
         boolean awaitingUser = reasons.contains("assistant_waiting_confirmation");
@@ -458,17 +434,17 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
         String sourceKey = sourceKey(session);
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("type", COLLECTOR_NAME);
-        payload.put("sessionId", safe(session.getSessionId(), 120));
-        payload.put("title", safe(session.getTitle(), 160));
-        payload.put("branchName", safe(session.getBranchName(), 160));
-        payload.put("sourceKey", safe(sourceKey, 160));
+        payload.put("sessionId", CollectorSupport.safe(session.getSessionId(), 120));
+        payload.put("title", CollectorSupport.safe(session.getTitle(), 160));
+        payload.put("branchName", CollectorSupport.safe(session.getBranchName(), 160));
+        payload.put("sourceKey", CollectorSupport.safe(sourceKey, 160));
         payload.put("updatedAt", Long.valueOf(session.getUpdatedAt()));
-        payload.put("finalReplyPreview", safe(signals.finalAssistantReply, PREVIEW_MAX_LENGTH));
+        payload.put("finalReplyPreview", CollectorSupport.safe(signals.finalAssistantReply, PREVIEW_MAX_LENGTH));
         payload.put("reasons", new ArrayList<String>(reasons));
 
         ProactiveObservation observation = new ProactiveObservation();
         observation.setCollector(COLLECTOR_NAME);
-        observation.setSourceKey(safe(sourceKey, 160));
+        observation.setSourceKey(CollectorSupport.safe(sourceKey, 160));
         observation.setSummary(summary(session, reasons));
         observation.setPayload(payload);
         observation.setStatus("COLLECTED");
@@ -484,7 +460,7 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      */
     private String summary(SessionRecord session, List<String> reasons) {
         String title = StrUtil.blankToDefault(session.getTitle(), session.getSessionId());
-        return safe(
+        return CollectorSupport.safe(
                 "session_continuation: 会话「"
                         + title
                         + "」可能需要续接，原因 "
@@ -506,48 +482,6 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
     }
 
     /**
-     * 判断文本是否包含任一关键词，英文统一按小写匹配，中文保持原文匹配。
-     *
-     * @param text 候选文本。
-     * @param keywords 关键词列表。
-     * @return 命中任一关键词返回 true。
-     */
-    private boolean containsKeyword(String text, List<String> keywords) {
-        String value = normalize(text);
-        if (StrUtil.isBlank(value) || keywords == null || keywords.isEmpty()) {
-            return false;
-        }
-        for (String keyword : keywords) {
-            if (StrUtil.isNotBlank(keyword)
-                    && value.contains(keyword.toLowerCase(Locale.ROOT))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 规范化文本用于关键词匹配。
-     *
-     * @param value 原始文本。
-     * @return 返回小写且非 null 的文本。
-     */
-    private String normalize(String value) {
-        return StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
-    }
-
-    /**
-     * 对载荷和摘要文本做统一脱敏与长度限制。
-     *
-     * @param value 原始文本。
-     * @param maxLength 最大保留长度。
-     * @return 返回安全文本。
-     */
-    private String safe(String value, int maxLength) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
-    }
-
-    /**
      * 记录会话续接采集的可恢复失败；日志不输出会话正文、目标 JSON、prompt 或异常消息。
      *
      * @param stage 失败阶段。
@@ -558,26 +492,8 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
             log.debug(
                     "session continuation collector fallback: stage={}, errorType={}",
                     stage,
-                    exceptionType(error));
+                    CollectorSupport.exceptionType(error));
         }
-    }
-
-    /**
-     * 提取异常类型；如果异常链包含中断异常，恢复线程中断标记。
-     *
-     * @param error 原始异常。
-     * @return 异常类名。
-     */
-    private String exceptionType(Throwable error) {
-        Throwable current = error;
-        while (current != null) {
-            if (current instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-            current = current.getCause();
-        }
-        return error == null ? "UnknownException" : error.getClass().getSimpleName();
     }
 
     /** 单个会话解析后的规则判断信号。 */

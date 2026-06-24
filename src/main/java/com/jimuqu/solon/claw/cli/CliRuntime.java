@@ -163,30 +163,6 @@ public class CliRuntime {
      *
      * @param sessionId 当前会话标识。
      * @param input 输入参数。
-     * @return 返回消息结果。
-     */
-    private GatewayMessage message(String sessionId, String input) {
-        return message(sessionId, input, null);
-    }
-
-    /**
-     * 执行消息相关逻辑。
-     *
-     * @param sessionId 当前会话标识。
-     * @param input 输入参数。
-     * @param attachments attachments 参数。
-     * @return 返回消息结果。
-     */
-    private GatewayMessage message(
-            String sessionId, String input, List<MessageAttachment> attachments) {
-        return message(sessionId, input, attachments, null);
-    }
-
-    /**
-     * 执行消息相关逻辑。
-     *
-     * @param sessionId 当前会话标识。
-     * @param input 输入参数。
      * @param attachments attachments 参数。
      * @param workspaceDir 文件或目录路径参数。
      * @return 返回消息结果。

@@ -83,33 +83,6 @@ public class CliShell {
      * @param cliRuntime CLI运行时参数。
      * @param mode 模式参数。
      * @param attachmentResolver 附件解析器参数。
-     */
-    public CliShell(CliRuntime cliRuntime, CliMode mode, CliAttachmentResolver attachmentResolver) {
-        this(cliRuntime, mode, attachmentResolver, null, null);
-    }
-
-    /**
-     * 创建Cli Shell实例，并注入运行所需依赖。
-     *
-     * @param cliRuntime CLI运行时参数。
-     * @param mode 模式参数。
-     * @param attachmentResolver 附件解析器参数。
-     * @param modelPicker 模型选择器参数。
-     */
-    public CliShell(
-            CliRuntime cliRuntime,
-            CliMode mode,
-            CliAttachmentResolver attachmentResolver,
-            TerminalModelPicker modelPicker) {
-        this(cliRuntime, mode, attachmentResolver, null, modelPicker, null, null, null);
-    }
-
-    /**
-     * 创建Cli Shell实例，并注入运行所需依赖。
-     *
-     * @param cliRuntime CLI运行时参数。
-     * @param mode 模式参数。
-     * @param attachmentResolver 附件解析器参数。
      * @param modelPicker 模型选择器参数。
      * @param sessionBrowser 会话浏览器参数。
      */
@@ -120,34 +93,6 @@ public class CliShell {
             TerminalModelPicker modelPicker,
             TerminalSessionBrowser sessionBrowser) {
         this(cliRuntime, mode, attachmentResolver, null, modelPicker, null, sessionBrowser, null);
-    }
-
-    /**
-     * 创建Cli Shell实例，并注入运行所需依赖。
-     *
-     * @param cliRuntime CLI运行时参数。
-     * @param mode 模式参数。
-     * @param attachmentResolver 附件解析器参数。
-     * @param modelPicker 模型选择器参数。
-     * @param sessionBrowser 会话浏览器参数。
-     * @param historyViewer 历史查看器参数。
-     */
-    public CliShell(
-            CliRuntime cliRuntime,
-            CliMode mode,
-            CliAttachmentResolver attachmentResolver,
-            TerminalModelPicker modelPicker,
-            TerminalSessionBrowser sessionBrowser,
-            TerminalHistoryViewer historyViewer) {
-        this(
-                cliRuntime,
-                mode,
-                attachmentResolver,
-                null,
-                modelPicker,
-                null,
-                sessionBrowser,
-                historyViewer);
     }
 
     /**

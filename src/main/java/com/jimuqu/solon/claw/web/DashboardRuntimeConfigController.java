@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
@@ -48,7 +49,7 @@ public class DashboardRuntimeConfigController {
     @Mapping(value = "/api/runtime-config", method = MethodType.PUT)
     public Map<String, Object> set(Context context) throws Exception {
         try {
-            ONode body = body(context);
+            ONode body = DashboardRequestBodies.jsonObject(context);
             return DashboardResponse.ok(
                     runtimeConfigService.set(
                             body.get("key").getString(), body.get("value").getString()));
@@ -72,7 +73,7 @@ public class DashboardRuntimeConfigController {
         String key = context.param("key");
         try {
             if (StrUtil.isBlank(key) && StrUtil.isNotBlank(context.body())) {
-                ONode body = body(context);
+                ONode body = DashboardRequestBodies.jsonObject(context);
                 key = body.get("key").getString();
             }
         } catch (IllegalArgumentException e) {
@@ -108,7 +109,7 @@ public class DashboardRuntimeConfigController {
                     "RUNTIME_CONFIG_RATE_LIMITED", "Reveal rate limit exceeded");
         }
         try {
-            ONode body = body(context);
+            ONode body = DashboardRequestBodies.jsonObject(context);
             return DashboardResponse.ok(runtimeConfigService.reveal(body.get("key").getString()));
         } catch (IllegalArgumentException e) {
             context.status(400);
@@ -116,37 +117,6 @@ public class DashboardRuntimeConfigController {
         } catch (IllegalStateException e) {
             context.status(400);
             return DashboardResponse.error("RUNTIME_CONFIG_BAD_REQUEST", e.getMessage());
-        }
-    }
-
-    /**
-     * 执行正文相关逻辑。
-     *
-     * @param context 当前请求或运行上下文。
-     * @return 返回body结果。
-     */
-    private ONode body(Context context) {
-        String raw;
-        try {
-            raw = context.body();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
-        }
-        if (StrUtil.isBlank(raw)) {
-            return new ONode();
-        }
-        try {
-            ONode node = ONode.ofJson(raw);
-            Object data = node.toData();
-            if (data instanceof Map) {
-                return node;
-            }
-            throw new IllegalArgumentException(
-                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
         }
     }
 }

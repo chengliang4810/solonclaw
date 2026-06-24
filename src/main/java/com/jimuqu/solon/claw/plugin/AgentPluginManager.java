@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 import org.noear.liquor.DynamicCompiler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.yaml.snakeyaml.Yaml;
 
 /** 插件生命周期管理：发现、编译、加载、卸载。 */
 public class AgentPluginManager {
@@ -247,168 +248,96 @@ public class AgentPluginManager {
     }
 
     /**
-     * 解析插件清单文件，保留当前轻量 YAML 子集解析行为。
+     * 解析插件清单文件，使用 snakeyaml 加载后再映射到 AgentPluginManifest。
+     *
+     * <p>字段映射与原手写解析保持一致：顶层标量取字符串值；布尔字段（enabled、env.secret）沿用
+     * Boolean.parseBoolean 语义；列表字段保留出现顺序。name/kind/enabled 维持原有默认值。
      *
      * @param manifestFile plugin.yaml 或 plugin.yml 路径。
      * @param pluginDir 插件所在目录。
      * @param source 插件来源标识。
      * @return 解析后的插件清单。
      */
+    @SuppressWarnings("unchecked")
     private AgentPluginManifest parseManifest(Path manifestFile, Path pluginDir, String source)
             throws IOException {
         String content = Files.readString(manifestFile);
-        Map<String, String> props = parseSimpleYaml(content);
+        Object root = new Yaml().load(content);
+        Map<String, Object> props =
+                root instanceof Map ? (Map<String, Object>) root : Collections.emptyMap();
 
         AgentPluginManifest manifest = new AgentPluginManifest();
-        manifest.setName(props.getOrDefault("name", pluginDir.getFileName().toString()));
-        manifest.setVersion(props.get("version"));
-        manifest.setDescription(props.get("description"));
-        manifest.setAuthor(props.get("author"));
-        manifest.setKind(props.getOrDefault("kind", "standalone"));
-        manifest.setEnabled(Boolean.parseBoolean(props.getOrDefault("enabled", "true")));
-        manifest.setEntry(props.get("entry"));
-        manifest.setProvidesTools(parseStringList(content, "providesTools"));
-        manifest.setRequiresEnv(parseEnvRequirements(content));
+        manifest.setName(
+                props.containsKey("name")
+                        ? scalar(props.get("name"))
+                        : pluginDir.getFileName().toString());
+        manifest.setVersion(scalar(props.get("version")));
+        manifest.setDescription(scalar(props.get("description")));
+        manifest.setAuthor(scalar(props.get("author")));
+        manifest.setKind(props.containsKey("kind") ? scalar(props.get("kind")) : "standalone");
+        manifest.setEnabled(
+                props.containsKey("enabled")
+                        ? Boolean.parseBoolean(scalar(props.get("enabled")))
+                        : true);
+        manifest.setEntry(scalar(props.get("entry")));
+        manifest.setProvidesTools(parseStringList(props.get("providesTools")));
+        manifest.setRequiresEnv(parseEnvRequirements(props.get("requiresEnv")));
         manifest.setSource(source);
         manifest.setDirectory(pluginDir);
         return manifest;
     }
 
     /**
-     * 解析插件清单中的顶层简单键值，列表块由专门方法处理。
+     * 解析 providesTools 字符串列表块。
      *
-     * @param content YAML 清单文本。
-     * @return 顶层字符串键值。
+     * @param value YAML 解析出的 providesTools 节点。
+     * @return 按顺序保留的字符串值。
      */
-    private Map<String, String> parseSimpleYaml(String content) {
-        Map<String, String> map = new LinkedHashMap<>();
-        for (String line : content.split("\n")) {
-            line = line.trim();
-            if (isIgnorableYamlLine(line)) {
-                continue;
-            }
-            int colon = line.indexOf(':');
-            if (colon > 0) {
-                String key = line.substring(0, colon).trim();
-                String value = line.substring(colon + 1).trim();
-                if (value.startsWith("\"") && value.endsWith("\"")) {
-                    value = value.substring(1, value.length() - 1);
-                }
-                map.put(key, value);
-            }
+    private List<String> parseStringList(Object value) {
+        if (!(value instanceof List)) {
+            return Collections.emptyList();
         }
-        return map;
-    }
-
-    /**
-     * 解析插件清单中的字符串列表块。
-     *
-     * @param content YAML 清单文本。
-     * @param key 列表块键名。
-     * @return 列表中按顺序出现的字符串值。
-     */
-    private List<String> parseStringList(String content, String key) {
         List<String> values = new ArrayList<>();
-        boolean inList = false;
-        for (String raw : content.split("\n")) {
-            String line = raw.replace("\r", "");
-            String trimmed = line.trim();
-            if (isIgnorableYamlLine(trimmed)) {
-                continue;
-            }
-            if (!line.startsWith(" ") && !line.startsWith("\t")) {
-                inList = trimmed.equals(key + ":");
-                continue;
-            }
-            if (inList && trimmed.startsWith("- ")) {
-                values.add(unquote(trimmed.substring(2).trim()));
-            }
+        for (Object item : (List<?>) value) {
+            values.add(scalar(item));
         }
         return values;
     }
 
     /**
-     * 解析插件清单中的环境变量要求列表。
+     * 解析 requiresEnv 环境变量要求列表。
      *
-     * @param content YAML 清单文本。
+     * @param value YAML 解析出的 requiresEnv 节点。
      * @return 按清单顺序保留的环境变量要求。
      */
-    private List<AgentPluginManifest.EnvRequirement> parseEnvRequirements(String content) {
+    private List<AgentPluginManifest.EnvRequirement> parseEnvRequirements(Object value) {
+        if (!(value instanceof List)) {
+            return Collections.emptyList();
+        }
         List<AgentPluginManifest.EnvRequirement> requirements = new ArrayList<>();
-        AgentPluginManifest.EnvRequirement current = null;
-        boolean inList = false;
-        for (String raw : content.split("\n")) {
-            String line = raw.replace("\r", "");
-            String trimmed = line.trim();
-            if (isIgnorableYamlLine(trimmed)) {
+        for (Object item : (List<?>) value) {
+            if (!(item instanceof Map)) {
                 continue;
             }
-            if (!line.startsWith(" ") && !line.startsWith("\t")) {
-                inList = trimmed.equals("requiresEnv:");
-                continue;
-            }
-            if (!inList) {
-                continue;
-            }
-            if (trimmed.startsWith("- ")) {
-                current = new AgentPluginManifest.EnvRequirement();
-                requirements.add(current);
-                String inline = trimmed.substring(2).trim();
-                setEnvField(current, inline);
-            } else if (current != null) {
-                setEnvField(current, trimmed);
-            }
+            Map<?, ?> fields = (Map<?, ?>) item;
+            AgentPluginManifest.EnvRequirement requirement = new AgentPluginManifest.EnvRequirement();
+            requirement.setName(scalar(fields.get("name")));
+            requirement.setDescription(scalar(fields.get("description")));
+            Object secret = fields.get("secret");
+            requirement.setSecret(secret != null && Boolean.parseBoolean(scalar(secret)));
+            requirements.add(requirement);
         }
         return requirements;
     }
 
     /**
-     * 将环境变量要求中的一个字段写入当前 EnvRequirement。
+     * 将 YAML 标量转为字符串，保持与原手写解析一致的取值。
      *
-     * @param requirement 当前正在解析的环境变量要求。
-     * @param raw 单行字段文本，如 {@code name: API_KEY}。
+     * @param value YAML 解析出的标量值。
+     * @return 字符串形式或 null。
      */
-    private void setEnvField(AgentPluginManifest.EnvRequirement requirement, String raw) {
-        int colon = raw.indexOf(':');
-        if (colon <= 0) {
-            return;
-        }
-        String key = raw.substring(0, colon).trim();
-        String value = unquote(raw.substring(colon + 1).trim());
-        if ("name".equals(key)) {
-            requirement.setName(value);
-        } else if ("description".equals(key)) {
-            requirement.setDescription(value);
-        } else if ("secret".equals(key)) {
-            requirement.setSecret(Boolean.parseBoolean(value));
-        }
-    }
-
-    /**
-     * 移除简单单双引号包裹，保持内部内容不做转义扩展。
-     *
-     * @param value YAML 简单标量文本。
-     * @return 去掉外层引号后的值。
-     */
-    private String unquote(String value) {
-        if (value == null) {
-            return null;
-        }
-        if ((value.startsWith("\"") && value.endsWith("\""))
-                || (value.startsWith("'") && value.endsWith("'"))) {
-            return value.substring(1, value.length() - 1);
-        }
-        return value;
-    }
-
-    /**
-     * 判断 YAML 行是否为空行或注释行。
-     *
-     * @param trimmed 已 trim 的 YAML 行。
-     * @return 空行或注释行返回 true。
-     */
-    private boolean isIgnorableYamlLine(String trimmed) {
-        return StrUtil.isBlank(trimmed) || trimmed.startsWith("#");
+    private String scalar(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     /**

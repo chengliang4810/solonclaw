@@ -8,7 +8,6 @@ import com.jimuqu.solon.claw.core.model.ProactiveTickContext;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.proactive.ProactiveObservationCollector;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -36,9 +35,6 @@ public class RunStateCollector implements ProactiveObservationCollector {
 
     /** 单个运行最多纳入的失败工具调用数量，控制观测载荷大小。 */
     private static final int TOOL_ERROR_LIMIT = 5;
-
-    /** 一天对应的毫秒数，用于把配置中的回看天数转换为时间窗口。 */
-    private static final long DAY_MILLIS = 24L * 60L * 60L * 1000L;
 
     /** payload 中短文本字段最大长度，避免原始错误或预览过长。 */
     private static final int TEXT_MAX_LENGTH = 600;
@@ -158,10 +154,7 @@ public class RunStateCollector implements ProactiveObservationCollector {
      */
     private long cutoffMillis(ProactiveTickContext context) {
         int lookbackDays = context.getConfig().getProactive().getRunLookbackDays();
-        long safeDays = Math.max(1L, Math.min((long) lookbackDays, 3650L));
-        long windowMillis = safeDays * DAY_MILLIS;
-        long nowMillis = context.getNowMillis();
-        return nowMillis < windowMillis ? 0L : nowMillis - windowMillis;
+        return CollectorSupport.lookbackCutoffMillis(context.getNowMillis(), lookbackDays);
     }
 
     /**
@@ -210,14 +203,14 @@ public class RunStateCollector implements ProactiveObservationCollector {
         if (StrUtil.isNotBlank(run.getError())) {
             score += 3;
         }
-        if (containsKeyword(run.getStatus(), FAILURE_KEYWORDS)
-                || containsKeyword(run.getExitReason(), FAILURE_KEYWORDS)) {
+        if (CollectorSupport.containsKeyword(run.getStatus(), FAILURE_KEYWORDS)
+                || CollectorSupport.containsKeyword(run.getExitReason(), FAILURE_KEYWORDS)) {
             score += 2;
         }
-        if (containsKeyword(run.getStatus(), QUEUE_AWARE_STATUSES)
+        if (CollectorSupport.containsKeyword(run.getStatus(), QUEUE_AWARE_STATUSES)
                 || run.isBackgrounded()
-                || containsKeyword(run.getPhase(), Arrays.asList("queue", "queued", "waiting"))
-                || containsKeyword(run.getBusyPolicy(), Arrays.asList("queue", "queued"))) {
+                || CollectorSupport.containsKeyword(run.getPhase(), Arrays.asList("queue", "queued", "waiting"))
+                || CollectorSupport.containsKeyword(run.getBusyPolicy(), Arrays.asList("queue", "queued"))) {
             score += 1;
         }
         return score;
@@ -263,7 +256,7 @@ public class RunStateCollector implements ProactiveObservationCollector {
      */
     private boolean isRecoverableRun(AgentRunRecord run) {
         return run.isRecoverable()
-                || "recoverable".equals(normalize(run.getStatus()))
+                || "recoverable".equals(CollectorSupport.normalize(run.getStatus()))
                 || StrUtil.isNotBlank(run.getRecoveryHint());
     }
 
@@ -278,10 +271,10 @@ public class RunStateCollector implements ProactiveObservationCollector {
         if (isSuccessfulFinished(run)) {
             return false;
         }
-        return containsKeyword(run.getStatus(), FAILURE_KEYWORDS)
+        return CollectorSupport.containsKeyword(run.getStatus(), FAILURE_KEYWORDS)
                 || StrUtil.isNotBlank(run.getError())
-                || containsKeyword(run.getExitReason(), FAILURE_KEYWORDS)
-                || containsKeyword(run.getFinalReplyPreview(), FAILURE_KEYWORDS)
+                || CollectorSupport.containsKeyword(run.getExitReason(), FAILURE_KEYWORDS)
+                || CollectorSupport.containsKeyword(run.getFinalReplyPreview(), FAILURE_KEYWORDS)
                 || !toolErrors.isEmpty();
     }
 
@@ -295,18 +288,18 @@ public class RunStateCollector implements ProactiveObservationCollector {
     private boolean isVerificationFailed(
             AgentRunRecord run, List<Map<String, Object>> toolErrors) {
         StringBuilder evidence = new StringBuilder();
-        appendText(evidence, run.getStatus());
-        appendText(evidence, run.getExitReason());
-        appendText(evidence, run.getInputPreview());
-        appendText(evidence, run.getFinalReplyPreview());
-        appendText(evidence, run.getError());
+        CollectorSupport.appendText(evidence, run.getStatus());
+        CollectorSupport.appendText(evidence, run.getExitReason());
+        CollectorSupport.appendText(evidence, run.getInputPreview());
+        CollectorSupport.appendText(evidence, run.getFinalReplyPreview());
+        CollectorSupport.appendText(evidence, run.getError());
         for (Map<String, Object> toolError : toolErrors) {
-            appendText(evidence, String.valueOf(toolError.get("toolName")));
-            appendText(evidence, String.valueOf(toolError.get("argsPreview")));
-            appendText(evidence, String.valueOf(toolError.get("resultPreview")));
-            appendText(evidence, String.valueOf(toolError.get("error")));
+            CollectorSupport.appendText(evidence, String.valueOf(toolError.get("toolName")));
+            CollectorSupport.appendText(evidence, String.valueOf(toolError.get("argsPreview")));
+            CollectorSupport.appendText(evidence, String.valueOf(toolError.get("resultPreview")));
+            CollectorSupport.appendText(evidence, String.valueOf(toolError.get("error")));
         }
-        return containsKeyword(evidence.toString(), VERIFICATION_FAILURE_KEYWORDS);
+        return CollectorSupport.containsKeyword(evidence.toString(), VERIFICATION_FAILURE_KEYWORDS);
     }
 
     /**
@@ -320,10 +313,10 @@ public class RunStateCollector implements ProactiveObservationCollector {
         if (queuedMessages <= 0 || isSuccessfulFinished(run)) {
             return false;
         }
-        return containsKeyword(run.getStatus(), QUEUE_AWARE_STATUSES)
+        return CollectorSupport.containsKeyword(run.getStatus(), QUEUE_AWARE_STATUSES)
                 || run.isBackgrounded()
-                || containsKeyword(run.getPhase(), Arrays.asList("queue", "queued", "waiting"))
-                || containsKeyword(run.getBusyPolicy(), Arrays.asList("queue", "queued"));
+                || CollectorSupport.containsKeyword(run.getPhase(), Arrays.asList("queue", "queued", "waiting"))
+                || CollectorSupport.containsKeyword(run.getBusyPolicy(), Arrays.asList("queue", "queued"));
     }
 
     /**
@@ -380,7 +373,7 @@ public class RunStateCollector implements ProactiveObservationCollector {
             if (toolCall == null || !looksToolFailure(toolCall)) {
                 continue;
             }
-            String key = normalize(toolCall.getToolName()) + "|" + normalize(toolCall.getError());
+            String key = CollectorSupport.normalize(toolCall.getToolName()) + "|" + CollectorSupport.normalize(toolCall.getError());
             counts.put(key, Integer.valueOf(counts.containsKey(key) ? counts.get(key) + 1 : 1));
         }
         Set<String> repeated = new HashSet<String>();
@@ -400,7 +393,7 @@ public class RunStateCollector implements ProactiveObservationCollector {
      * @return 需要纳入观测证据返回 true。
      */
     private boolean isFailedToolCall(ToolCallRecord toolCall, Set<String> repeatedKeys) {
-        String key = normalize(toolCall.getToolName()) + "|" + normalize(toolCall.getError());
+        String key = CollectorSupport.normalize(toolCall.getToolName()) + "|" + CollectorSupport.normalize(toolCall.getError());
         return looksToolFailure(toolCall) || repeatedKeys.contains(key);
     }
 
@@ -411,9 +404,9 @@ public class RunStateCollector implements ProactiveObservationCollector {
      * @return 命中失败语义返回 true。
      */
     private boolean looksToolFailure(ToolCallRecord toolCall) {
-        return containsKeyword(toolCall.getStatus(), TOOL_FAILURE_STATUSES)
+        return CollectorSupport.containsKeyword(toolCall.getStatus(), TOOL_FAILURE_STATUSES)
                 || StrUtil.isNotBlank(toolCall.getError())
-                || containsKeyword(toolCall.getResultPreview(), FAILURE_KEYWORDS);
+                || CollectorSupport.containsKeyword(toolCall.getResultPreview(), FAILURE_KEYWORDS);
     }
 
     /**
@@ -424,12 +417,12 @@ public class RunStateCollector implements ProactiveObservationCollector {
      */
     private Map<String, Object> toolCallPayload(ToolCallRecord toolCall) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
-        payload.put("toolCallId", safe(toolCall.getToolCallId(), 120));
-        payload.put("toolName", safe(toolCall.getToolName(), 120));
-        payload.put("status", safe(toolCall.getStatus(), 80));
-        payload.put("argsPreview", safe(toolCall.getArgsPreview(), TOOL_PREVIEW_MAX_LENGTH));
-        payload.put("resultPreview", safe(toolCall.getResultPreview(), TOOL_PREVIEW_MAX_LENGTH));
-        payload.put("error", safe(toolCall.getError(), TOOL_PREVIEW_MAX_LENGTH));
+        payload.put("toolCallId", CollectorSupport.safe(toolCall.getToolCallId(), 120));
+        payload.put("toolName", CollectorSupport.safe(toolCall.getToolName(), 120));
+        payload.put("status", CollectorSupport.safe(toolCall.getStatus(), 80));
+        payload.put("argsPreview", CollectorSupport.safe(toolCall.getArgsPreview(), TOOL_PREVIEW_MAX_LENGTH));
+        payload.put("resultPreview", CollectorSupport.safe(toolCall.getResultPreview(), TOOL_PREVIEW_MAX_LENGTH));
+        payload.put("error", CollectorSupport.safe(toolCall.getError(), TOOL_PREVIEW_MAX_LENGTH));
         payload.put("finishedAt", Long.valueOf(toolCall.getFinishedAt()));
         return payload;
     }
@@ -475,7 +468,7 @@ public class RunStateCollector implements ProactiveObservationCollector {
         }
         ProactiveObservation observation = new ProactiveObservation();
         observation.setCollector(COLLECTOR_NAME);
-        observation.setSourceKey(safe(sourceKey(run), 160));
+        observation.setSourceKey(CollectorSupport.safe(sourceKey(run), 160));
         observation.setSummary(summary(run, type));
         observation.setStatus("COLLECTED");
         observation.setPayload(payload(run, type, toolErrors, queuedMessages));
@@ -498,17 +491,17 @@ public class RunStateCollector implements ProactiveObservationCollector {
             int queuedMessages) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("type", type);
-        payload.put("runId", safe(run.getRunId(), 120));
-        payload.put("sessionId", safe(run.getSessionId(), 120));
-        payload.put("sourceKey", safe(sourceKey(run), 160));
-        payload.put("status", safe(run.getStatus(), 80));
-        payload.put("phase", safe(run.getPhase(), 120));
-        payload.put("exitReason", safe(run.getExitReason(), 160));
+        payload.put("runId", CollectorSupport.safe(run.getRunId(), 120));
+        payload.put("sessionId", CollectorSupport.safe(run.getSessionId(), 120));
+        payload.put("sourceKey", CollectorSupport.safe(sourceKey(run), 160));
+        payload.put("status", CollectorSupport.safe(run.getStatus(), 80));
+        payload.put("phase", CollectorSupport.safe(run.getPhase(), 120));
+        payload.put("exitReason", CollectorSupport.safe(run.getExitReason(), 160));
         payload.put("recoverable", Boolean.valueOf(run.isRecoverable()));
-        payload.put("recoveryHint", safe(run.getRecoveryHint(), TEXT_MAX_LENGTH));
-        payload.put("inputPreview", safe(run.getInputPreview(), TEXT_MAX_LENGTH));
-        payload.put("finalReplyPreview", safe(run.getFinalReplyPreview(), TEXT_MAX_LENGTH));
-        payload.put("error", safe(run.getError(), TEXT_MAX_LENGTH));
+        payload.put("recoveryHint", CollectorSupport.safe(run.getRecoveryHint(), TEXT_MAX_LENGTH));
+        payload.put("inputPreview", CollectorSupport.safe(run.getInputPreview(), TEXT_MAX_LENGTH));
+        payload.put("finalReplyPreview", CollectorSupport.safe(run.getFinalReplyPreview(), TEXT_MAX_LENGTH));
+        payload.put("error", CollectorSupport.safe(run.getError(), TEXT_MAX_LENGTH));
         payload.put("lastActivityAt", Long.valueOf(run.getLastActivityAt()));
         payload.put("finishedAt", Long.valueOf(run.getFinishedAt()));
         if (!toolErrors.isEmpty()) {
@@ -528,7 +521,7 @@ public class RunStateCollector implements ProactiveObservationCollector {
      * @return 返回简短摘要。
      */
     private String summary(AgentRunRecord run, String type) {
-        return safe(
+        return CollectorSupport.safe(
                 type
                         + ": 运行 "
                         + StrUtil.blankToDefault(run.getRunId(), "unknown")
@@ -552,27 +545,6 @@ public class RunStateCollector implements ProactiveObservationCollector {
     }
 
     /**
-     * 判断文本是否包含任一关键词，英文统一小写匹配，中文保持原文匹配。
-     *
-     * @param text 候选文本。
-     * @param keywords 关键词列表。
-     * @return 命中任一关键词返回 true。
-     */
-    private boolean containsKeyword(String text, List<String> keywords) {
-        String value = normalize(text);
-        if (StrUtil.isBlank(value) || keywords == null || keywords.isEmpty()) {
-            return false;
-        }
-        for (String keyword : keywords) {
-            if (StrUtil.isNotBlank(keyword)
-                    && value.contains(keyword.toLowerCase(Locale.ROOT))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * 判断规范化文本是否精确匹配枚举值，避免 incomplete、finished_failed 这类状态被误判为成功。
      *
      * @param text 候选文本。
@@ -580,7 +552,7 @@ public class RunStateCollector implements ProactiveObservationCollector {
      * @return 精确命中时返回 true。
      */
     private boolean containsExactNormalized(String text, List<String> keywords) {
-        String value = normalize(text);
+        String value = CollectorSupport.normalize(text);
         if (StrUtil.isBlank(value) || keywords == null || keywords.isEmpty()) {
             return false;
         }
@@ -594,43 +566,6 @@ public class RunStateCollector implements ProactiveObservationCollector {
     }
 
     /**
-     * 追加一段非空文本到匹配缓冲区。
-     *
-     * @param builder 文本缓冲区。
-     * @param value 候选文本。
-     */
-    private void appendText(StringBuilder builder, String value) {
-        if (StrUtil.isBlank(value)) {
-            return;
-        }
-        if (builder.length() > 0) {
-            builder.append('\n');
-        }
-        builder.append(value);
-    }
-
-    /**
-     * 规范化文本用于关键词匹配。
-     *
-     * @param value 原始文本。
-     * @return 返回小写且非 null 的文本。
-     */
-    private String normalize(String value) {
-        return StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
-    }
-
-    /**
-     * 对载荷和摘要文本做统一脱敏与长度限制。
-     *
-     * @param value 原始文本。
-     * @param maxLength 最大保留长度。
-     * @return 返回安全文本。
-     */
-    private String safe(String value, int maxLength) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
-    }
-
-    /**
      * 记录运行状态采集的可恢复失败；日志只写阶段和异常类型，不输出运行输入、工具内容或异常消息。
      *
      * @param stage 失败阶段。
@@ -641,25 +576,7 @@ public class RunStateCollector implements ProactiveObservationCollector {
             log.debug(
                     "run state collector fallback: stage={}, errorType={}",
                     stage,
-                    exceptionType(error));
+                    CollectorSupport.exceptionType(error));
         }
-    }
-
-    /**
-     * 提取异常类型；如果异常链包含中断异常，恢复线程中断标记。
-     *
-     * @param error 原始异常。
-     * @return 异常类名。
-     */
-    private String exceptionType(Throwable error) {
-        Throwable current = error;
-        while (current != null) {
-            if (current instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-            current = current.getCause();
-        }
-        return error == null ? "UnknownException" : error.getClass().getSimpleName();
     }
 }

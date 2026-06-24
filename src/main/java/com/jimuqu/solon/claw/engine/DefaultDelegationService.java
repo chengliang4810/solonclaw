@@ -157,52 +157,6 @@ public class DefaultDelegationService implements DelegationService {
      * @param preferenceStore 本地偏好存储依赖。
      * @param sessionRepository 会话仓储依赖。
      * @param agentRunRepository Agent运行仓储依赖。
-     */
-    public DefaultDelegationService(
-            ConversationOrchestratorHolder conversationHolder,
-            SqlitePreferenceStore preferenceStore,
-            SessionRepository sessionRepository,
-            AgentRunRepository agentRunRepository) {
-        this(
-                conversationHolder,
-                preferenceStore,
-                sessionRepository,
-                agentRunRepository,
-                null,
-                null);
-    }
-
-    /**
-     * 创建默认委托服务实例，并注入运行所需依赖。
-     *
-     * @param conversationHolder conversationHolder 参数。
-     * @param preferenceStore 本地偏好存储依赖。
-     * @param sessionRepository 会话仓储依赖。
-     * @param agentRunRepository Agent运行仓储依赖。
-     * @param appConfig 应用运行配置。
-     */
-    public DefaultDelegationService(
-            ConversationOrchestratorHolder conversationHolder,
-            SqlitePreferenceStore preferenceStore,
-            SessionRepository sessionRepository,
-            AgentRunRepository agentRunRepository,
-            AppConfig appConfig) {
-        this(
-                conversationHolder,
-                preferenceStore,
-                sessionRepository,
-                agentRunRepository,
-                appConfig,
-                null);
-    }
-
-    /**
-     * 创建默认委托服务实例，并注入运行所需依赖。
-     *
-     * @param conversationHolder conversationHolder 参数。
-     * @param preferenceStore 本地偏好存储依赖。
-     * @param sessionRepository 会话仓储依赖。
-     * @param agentRunRepository Agent运行仓储依赖。
      * @param appConfig 应用运行配置。
      * @param agentRunControlService Agent运行控制服务依赖。
      */
@@ -324,7 +278,7 @@ public class DefaultDelegationService implements DelegationService {
                     "delegateSingle failed: sourceKey={}, prompt={}, error={}",
                     sourceKey,
                     SecretRedactor.redact(prompt, 1000),
-                    safeError(e));
+                    EngineSupport.safeError(e));
             return failureResult("delegate", e.getMessage());
         } finally {
             concurrencyLimiter.release();
@@ -461,7 +415,7 @@ public class DefaultDelegationService implements DelegationService {
                     log.warn(
                             "delegateBatch child failed: sourceKey={}, error={}",
                             sourceKey,
-                            safeError(e));
+                            EngineSupport.safeError(e));
                     results.add(failureResult("delegate", e.getMessage()));
                 }
             }
@@ -575,20 +529,6 @@ public class DefaultDelegationService implements DelegationService {
         result.setContent(
                 SecretRedactor.redact(StrUtil.blankToDefault(message, "delegation failed"), 1000));
         return result;
-    }
-
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param error 错误参数。
-     * @return 返回safe Error结果。
-     */
-    private String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        return SecretRedactor.redact(
-                StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()), 1000);
     }
 
     /**

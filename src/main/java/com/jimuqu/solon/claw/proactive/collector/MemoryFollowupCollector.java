@@ -7,7 +7,6 @@ import com.jimuqu.solon.claw.core.model.ProactiveObservation;
 import com.jimuqu.solon.claw.core.model.ProactiveTickContext;
 import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.proactive.ProactiveObservationCollector;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -289,11 +288,11 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
      */
     private MemoryHint inspectLine(String section, String sourceRef, String line, int lineNumber) {
         List<String> labels = new ArrayList<String>();
-        boolean subject = containsAny(line, WORK_SUBJECT_KEYWORDS) || containsPathOrRepoRef(line);
-        boolean followup = containsAny(line, FOLLOWUP_KEYWORDS);
-        boolean responsibility = containsAny(line, RESPONSIBILITY_KEYWORDS);
-        boolean workAction = containsAny(line, WORK_ACTION_KEYWORDS);
-        boolean explicitFollowup = followup && containsAny(line, EXPLICIT_FOLLOWUP_KEYWORDS);
+        boolean subject = CollectorSupport.containsKeyword(line, WORK_SUBJECT_KEYWORDS) || containsPathOrRepoRef(line);
+        boolean followup = CollectorSupport.containsKeyword(line, FOLLOWUP_KEYWORDS);
+        boolean responsibility = CollectorSupport.containsKeyword(line, RESPONSIBILITY_KEYWORDS);
+        boolean workAction = CollectorSupport.containsKeyword(line, WORK_ACTION_KEYWORDS);
+        boolean explicitFollowup = followup && CollectorSupport.containsKeyword(line, EXPLICIT_FOLLOWUP_KEYWORDS);
         boolean workResponsibility = responsibility && workAction;
         if (containsPathOrRepoRef(line)) {
             labels.add("repo_watch");
@@ -367,11 +366,11 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
             boolean followup,
             boolean responsibility,
             boolean workAction) {
-        boolean genericPreference = containsAny(line, GENERIC_PREFERENCE_KEYWORDS);
+        boolean genericPreference = CollectorSupport.containsKeyword(line, GENERIC_PREFERENCE_KEYWORDS);
         if (!genericPreference) {
             return false;
         }
-        boolean stylePreference = containsAny(line, STYLE_PREFERENCE_KEYWORDS);
+        boolean stylePreference = CollectorSupport.containsKeyword(line, STYLE_PREFERENCE_KEYWORDS);
         if (stylePreference && !workAction && !responsibility) {
             return true;
         }
@@ -426,11 +425,11 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
         payload.put("sourceRef", hint.sourceRef);
         payload.put("priority", "low");
         payload.put("confidenceHint", hint.confidenceHint);
-        payload.put("topic", safe(topic(hint.line), 160));
+        payload.put("topic", CollectorSupport.safe(topic(hint.line), 160));
         payload.put("reasonLabels", new ArrayList<String>(hint.labels));
 
         Map<String, Object> evidence = new LinkedHashMap<String, Object>();
-        evidence.put("lines", Arrays.asList(safe(hint.line, LINE_MAX_LENGTH)));
+        evidence.put("lines", Arrays.asList(CollectorSupport.safe(hint.line, LINE_MAX_LENGTH)));
         evidence.put("lineNumber", Integer.valueOf(hint.lineNumber));
         payload.put("evidence", evidence);
         return payload;
@@ -443,7 +442,7 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
      * @return 返回已脱敏摘要。
      */
     private String summary(MemoryHint hint) {
-        return safe(
+        return CollectorSupport.safe(
                 "knowledge_followup: "
                         + topic(hint.line)
                         + "，原因 "
@@ -469,38 +468,6 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
      */
     private String sourceKey(MemoryHint hint) {
         return COLLECTOR_NAME + ":" + hint.section + ":" + hint.lineNumber;
-    }
-
-    /**
-     * 判断文本是否包含任一关键词，英文统一小写匹配，中文保持原文匹配。
-     *
-     * @param text 候选文本。
-     * @param keywords 关键词列表。
-     * @return 命中任一关键词返回 true。
-     */
-    private boolean containsAny(String text, List<String> keywords) {
-        String value = StrUtil.nullToEmpty(text).toLowerCase(Locale.ROOT);
-        if (StrUtil.isBlank(value) || keywords == null || keywords.isEmpty()) {
-            return false;
-        }
-        for (String keyword : keywords) {
-            if (StrUtil.isNotBlank(keyword)
-                    && value.contains(keyword.toLowerCase(Locale.ROOT))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 对载荷和摘要文本做统一脱敏与长度限制。
-     *
-     * @param value 原始文本。
-     * @param maxLength 最大保留长度。
-     * @return 返回安全文本。
-     */
-    private String safe(String value, int maxLength) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
     }
 
     /** 单条记忆命中的主动跟进线索。 */

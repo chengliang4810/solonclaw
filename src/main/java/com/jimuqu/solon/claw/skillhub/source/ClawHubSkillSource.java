@@ -71,7 +71,7 @@ public class ClawHubSkillSource implements SkillSource {
         String cacheKey = "clawhub_search_" + Integer.toHexString((query + "|" + limit).hashCode());
         String cached = stateStore.readCachedIndex(cacheKey);
         if (StrUtil.isNotBlank(cached)) {
-            return deserializeList(cached);
+            return SkillMetaDeserialize.deserializeList(cached);
         }
 
         int safeLimit = Math.max(1, limit);
@@ -214,7 +214,7 @@ public class ClawHubSkillSource implements SkillSource {
                 continue;
             }
             String rawUrl =
-                    firstNonBlank(
+                    StrUtil.firstNonBlank(
                             fileNode.get("rawUrl").getString(),
                             fileNode.get("downloadUrl").getString(),
                             fileNode.get("url").getString());
@@ -258,7 +258,7 @@ public class ClawHubSkillSource implements SkillSource {
     private List<SkillMeta> loadDomesticIndex(int limit) throws Exception {
         String cached = stateStore.readCachedIndex(INDEX_CACHE_KEY);
         if (StrUtil.isNotBlank(cached)) {
-            return limitResults(deserializeList(cached), limit);
+            return limitResults(SkillMetaDeserialize.deserializeList(cached), limit);
         }
         ONode payload = tryGetJson(CN_INDEX_URL);
         if (payload == null) {
@@ -447,21 +447,6 @@ public class ClawHubSkillSource implements SkillSource {
     }
 
     /**
-     * 执行deserialize列表相关逻辑。
-     *
-     * @param json JSON参数。
-     * @return 返回deserialize List结果。
-     */
-    private List<SkillMeta> deserializeList(String json) {
-        SkillMeta[] array = ONode.deserialize(json, SkillMeta[].class);
-        List<SkillMeta> results = new ArrayList<SkillMeta>();
-        if (array != null) {
-            Collections.addAll(results, array);
-        }
-        return results;
-    }
-
-    /**
      * 规范化Tags。
      *
      * @param tagsNode tags节点参数。
@@ -521,16 +506,16 @@ public class ClawHubSkillSource implements SkillSource {
         if (item == null || item.isNull()) {
             return null;
         }
-        String slug = firstNonBlank(item.get("slug").getString(), fallbackSlug);
+        String slug = StrUtil.firstNonBlank(item.get("slug").getString(), fallbackSlug);
         if (StrUtil.isBlank(slug)) {
             return null;
         }
         SkillMeta meta = new SkillMeta();
         meta.setName(
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         item.get("displayName").getString(), item.get("name").getString(), slug));
         meta.setDescription(
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         item.get("summary").getString(),
                         item.get("description").getString(),
                         item.get("description_zh").getString()));
@@ -608,21 +593,4 @@ public class ClawHubSkillSource implements SkillSource {
         return String.format(template, URLEncoder.encode(slug, "UTF-8"));
     }
 
-    /**
-     * 执行firstNon空白值相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @return 返回first Non Blank结果。
-     */
-    private static String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value;
-            }
-        }
-        return null;
-    }
 }

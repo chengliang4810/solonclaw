@@ -34,25 +34,6 @@ public class CliRunner {
      * 创建Cli Runner实例，并注入运行所需依赖。
      *
      * @param cliRuntime CLI运行时参数。
-     */
-    public CliRunner(CliRuntime cliRuntime) {
-        this(cliRuntime, null, null, null, null);
-    }
-
-    /**
-     * 创建Cli Runner实例，并注入运行所需依赖。
-     *
-     * @param cliRuntime CLI运行时参数。
-     * @param sessionRepository 会话仓储依赖。
-     */
-    public CliRunner(CliRuntime cliRuntime, SessionRepository sessionRepository) {
-        this(cliRuntime, sessionRepository, null, null, null);
-    }
-
-    /**
-     * 创建Cli Runner实例，并注入运行所需依赖。
-     *
-     * @param cliRuntime CLI运行时参数。
      * @param sessionRepository 会话仓储依赖。
      * @param appConfig 应用运行配置。
      * @param attachmentResolver 附件解析器参数。
