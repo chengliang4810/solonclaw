@@ -1626,7 +1626,7 @@ public class DefaultCronScheduler {
             if (StrUtil.isBlank(chatId)) {
                 return homeTarget(platform);
             }
-            return new CronDeliveryTarget(platform, chatId.trim(), normalizeBlank(threadId));
+            return new CronDeliveryTarget(platform, chatId.trim(), CronJobSupport.normalizeBlank(threadId));
         }
 
         PlatformType platform = PlatformType.fromName(target);
@@ -1658,7 +1658,7 @@ public class DefaultCronScheduler {
             PlatformType platform = deliverPlatform(job);
             if (platform != null) {
                 return new CronDeliveryTarget(
-                        platform, job.getDeliverChatId(), normalizeBlank(job.getDeliverThreadId()));
+                        platform, job.getDeliverChatId(), CronJobSupport.normalizeBlank(job.getDeliverThreadId()));
             }
         }
         String[] parts = SourceKeySupport.split(job.getSourceKey());
@@ -1669,7 +1669,7 @@ public class DefaultCronScheduler {
         return new CronDeliveryTarget(
                 platform,
                 parts[1],
-                normalizeBlank(StrUtil.blankToDefault(job.getDeliverThreadId(), parts[3])));
+                CronJobSupport.normalizeBlank(StrUtil.blankToDefault(job.getDeliverThreadId(), parts[3])));
     }
 
     /**
@@ -1697,36 +1697,19 @@ public class DefaultCronScheduler {
         }
         Map<?, ?> origin = (Map<?, ?>) data;
         PlatformType platform =
-                PlatformType.fromName(firstString(origin, "platform", "channel", "source"));
+                PlatformType.fromName(CronJobSupport.firstString(origin, "platform", "channel", "source"));
         String chatId =
-                firstString(origin, "chat_id", "chatId", "conversation_id", "conversationId");
-        String threadId = firstString(origin, "thread_id", "threadId", "topic_id", "topicId");
+                CronJobSupport.firstString(origin, "chat_id", "chatId", "conversation_id", "conversationId");
+        String threadId = CronJobSupport.firstString(origin, "thread_id", "threadId", "topic_id", "topicId");
         if (platform == null || StrUtil.isBlank(chatId)) {
             return null;
         }
         if (platform == PlatformType.MEMORY
                 && "dashboard".equalsIgnoreCase(chatId)
                 && StrUtil.isBlank(threadId)) {
-            threadId = firstString(origin, "user_id", "userId", "session_id", "sessionId");
+            threadId = CronJobSupport.firstString(origin, "user_id", "userId", "session_id", "sessionId");
         }
-        return new CronDeliveryTarget(platform, chatId.trim(), normalizeBlank(threadId));
-    }
-
-    /**
-     * 执行first字符串相关逻辑。
-     *
-     * @param map 待读取的映射对象。
-     * @param keys 候选键列表。
-     * @return 返回first String结果。
-     */
-    private String firstString(Map<?, ?> map, String... keys) {
-        for (int i = 0; i < keys.length; i++) {
-            Object value = map.get(keys[i]);
-            if (value != null && StrUtil.isNotBlank(String.valueOf(value))) {
-                return String.valueOf(value);
-            }
-        }
-        return null;
+        return new CronDeliveryTarget(platform, chatId.trim(), CronJobSupport.normalizeBlank(threadId));
     }
 
     /**
@@ -1753,7 +1736,7 @@ public class DefaultCronScheduler {
             return null;
         }
         return new CronDeliveryTarget(
-                platform, home.getChatId(), normalizeBlank(home.getThreadId()));
+                platform, home.getChatId(), CronJobSupport.normalizeBlank(home.getThreadId()));
     }
 
     /**
@@ -1807,20 +1790,6 @@ public class DefaultCronScheduler {
             return platform;
         }
         return sourcePlatform(job);
-    }
-
-    /**
-     * 规范化Blank。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回Blank结果。
-     */
-    private String normalizeBlank(String value) {
-        if (value == null) {
-            return null;
-        }
-        String text = value.trim();
-        return text.length() == 0 ? null : text;
     }
 
     /**
@@ -2095,7 +2064,7 @@ public class DefaultCronScheduler {
         File script =
                 (requested.isAbsolute() ? requested : new File(scriptsDir, job.getScript()))
                         .getCanonicalFile();
-        if (!isUnderDirectory(scriptsDir, script) || !script.exists() || !script.isFile()) {
+        if (!CronJobSupport.isUnderDirectory(scriptsDir, script) || !script.exists() || !script.isFile()) {
             throw new IllegalStateException(
                     "定时任务脚本不在 runtime/scripts 下或文件不存在：" + job.getScript());
         }
@@ -2133,23 +2102,6 @@ public class DefaultCronScheduler {
                             + output);
         }
         return new CronScriptResult(output, parseWakeAgent(job.getJobId(), output));
-    }
-
-    /**
-     * 判断是否Under Directory。
-     *
-     * @param root root 参数。
-     * @param target target 参数。
-     * @return 如果Under Directory满足条件则返回 true，否则返回 false。
-     */
-    private boolean isUnderDirectory(File root, File target) throws Exception {
-        java.nio.file.Path rootPath = root.getCanonicalFile().toPath().toAbsolutePath().normalize();
-        java.nio.file.Path targetPath =
-                target.getCanonicalFile().toPath().toAbsolutePath().normalize();
-        if (targetPath.equals(rootPath)) {
-            return false;
-        }
-        return targetPath.startsWith(rootPath);
     }
 
     /**
@@ -2394,43 +2346,16 @@ public class DefaultCronScheduler {
         if ("agent_poll_wait".equals(phase)) {
             log.trace(
                     "Cron scheduler best-effort fallback: jobId={}, phase={}, error={}",
-                    safeLogJobId(jobId),
+                    CronJobSupport.safeLogJobId(jobId),
                     phase,
-                    exceptionType(error));
+                    CronJobSupport.exceptionType(error));
             return;
         }
         log.debug(
                 "Cron scheduler best-effort fallback: jobId={}, phase={}, error={}",
-                safeLogJobId(jobId),
+                CronJobSupport.safeLogJobId(jobId),
                 phase,
-                exceptionType(error));
-    }
-
-    /**
-     * 生成日志用任务标识，避免空值或异常值破坏结构化日志。
-     *
-     * @param jobId 定时任务标识。
-     * @return 可用于日志的任务标识。
-     */
-    private String safeLogJobId(String jobId) {
-        String value = StrUtil.nullToEmpty(jobId).trim();
-        return StrUtil.isBlank(value) ? "unknown" : value;
-    }
-
-    /**
-     * 生成异常类型摘要，避免把异常消息中的 prompt、脚本或密钥写入日志。
-     *
-     * @param error 捕获到的异常。
-     * @return 异常类型名称。
-     */
-    private String exceptionType(Throwable error) {
-        if (error == null) {
-            return "Exception";
-        }
-        if (error instanceof InterruptedException) {
-            Thread.currentThread().interrupt();
-        }
-        return error.getClass().getSimpleName();
+                CronJobSupport.exceptionType(error));
     }
 
     /**

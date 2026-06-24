@@ -557,7 +557,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             log.debug(
                     "skip resume pending system note: sessionId={}, error={}",
                     session == null ? "" : session.getSessionId(),
-                    safeError(e));
+                    EngineSupport.safeError(e));
             return systemPrompt;
         }
     }
@@ -621,7 +621,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             log.debug(
                     "skip invalid pending session snapshot: sessionId={}, error={}",
                     session.getSessionId(),
-                    safeError(e));
+                    EngineSupport.safeError(e));
             return false;
         }
     }
@@ -645,7 +645,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             log.warn(
                     "clear agent pending failed: sessionId={}, error={}",
                     session.getSessionId(),
-                    safeError(e));
+                    EngineSupport.safeError(e));
         }
     }
 
@@ -1084,7 +1084,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             log.warn(
                     "Goal continuation hook failed: sessionId={}, error={}",
                     session.getSessionId(),
-                    safeError(e));
+                    EngineSupport.safeError(e));
         }
     }
 
@@ -1186,7 +1186,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         try {
             return StrUtil.nullToEmpty(memoryManager.prefetch(sourceKey, userMessage));
         } catch (Exception e) {
-            log.warn("Memory prefetch failed: sourceKey={}, error={}", sourceKey, safeError(e));
+            log.warn("Memory prefetch failed: sourceKey={}, error={}", sourceKey, EngineSupport.safeError(e));
             return "";
         }
     }
@@ -1224,7 +1224,7 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             memoryManager.syncTurn(
                     memoryTurnContext(sourceKey, userMessage, finalReply, session, outcome));
         } catch (Exception e) {
-            log.warn("Memory sync failed: sourceKey={}, error={}", sourceKey, safeError(e));
+            log.warn("Memory sync failed: sourceKey={}, error={}", sourceKey, EngineSupport.safeError(e));
         }
     }
 
@@ -1478,18 +1478,4 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
                 Math.max(0L, extra.getTotalTokens()) + Math.max(0L, base.getTotalTokens()));
     }
 
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param error 错误参数。
-     * @return 返回safe Error结果。
-     */
-    private String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
-        return SecretRedactor.redact(value, 1000);
-    }
 }

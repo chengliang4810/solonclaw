@@ -8,7 +8,6 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,7 +70,7 @@ public class PendingSessionRecoveryService {
                 }
             }
         } catch (Exception e) {
-            log.warn("recoverRecentPendingSessions failed: error={}", safeError(e));
+            log.warn("recoverRecentPendingSessions failed: error={}", EngineSupport.safeError(e));
         }
         return recovered;
     }
@@ -99,7 +98,7 @@ public class PendingSessionRecoveryService {
             log.debug(
                     "skip pending auto-resume: sessionId={}, error={}",
                     session == null ? "" : session.getSessionId(),
-                    safeError(e));
+                    EngineSupport.safeError(e));
             return false;
         }
     }
@@ -139,7 +138,7 @@ public class PendingSessionRecoveryService {
                     "auto-resume pending session failed: sourceKey={}, sessionId={}, error={}",
                     session.getSourceKey(),
                     session.getSessionId(),
-                    safeError(e));
+                    EngineSupport.safeError(e));
         }
         return false;
     }
@@ -158,18 +157,4 @@ public class PendingSessionRecoveryService {
         return minutes * 60L * 1000L;
     }
 
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param error 错误参数。
-     * @return 返回safe Error结果。
-     */
-    private String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
-        return SecretRedactor.redact(value, 1000);
-    }
 }
