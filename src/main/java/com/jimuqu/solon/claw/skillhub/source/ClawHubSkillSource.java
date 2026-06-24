@@ -214,7 +214,7 @@ public class ClawHubSkillSource implements SkillSource {
                 continue;
             }
             String rawUrl =
-                    firstNonBlank(
+                    StrUtil.firstNonBlank(
                             fileNode.get("rawUrl").getString(),
                             fileNode.get("downloadUrl").getString(),
                             fileNode.get("url").getString());
@@ -521,16 +521,16 @@ public class ClawHubSkillSource implements SkillSource {
         if (item == null || item.isNull()) {
             return null;
         }
-        String slug = firstNonBlank(item.get("slug").getString(), fallbackSlug);
+        String slug = StrUtil.firstNonBlank(item.get("slug").getString(), fallbackSlug);
         if (StrUtil.isBlank(slug)) {
             return null;
         }
         SkillMeta meta = new SkillMeta();
         meta.setName(
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         item.get("displayName").getString(), item.get("name").getString(), slug));
         meta.setDescription(
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         item.get("summary").getString(),
                         item.get("description").getString(),
                         item.get("description_zh").getString()));
@@ -608,21 +608,4 @@ public class ClawHubSkillSource implements SkillSource {
         return String.format(template, URLEncoder.encode(slug, "UTF-8"));
     }
 
-    /**
-     * 执行firstNon空白值相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @return 返回first Non Blank结果。
-     */
-    private static String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value;
-            }
-        }
-        return null;
-    }
 }

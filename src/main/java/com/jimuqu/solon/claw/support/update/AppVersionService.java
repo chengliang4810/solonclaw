@@ -131,7 +131,7 @@ public class AppVersionService {
             return true;
         }
         String cgroup =
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         readFileQuietly("/proc/1/cgroup"), readFileQuietly("/proc/self/cgroup"));
         return cgroup != null
                 && (cgroup.contains("docker")
@@ -325,24 +325,6 @@ public class AppVersionService {
         } catch (Exception e) {
             return 0;
         }
-    }
-
-    /**
-     * 执行firstNon空白值相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @return 返回first Non Blank结果。
-     */
-    private static String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value;
-            }
-        }
-        return null;
     }
 
     /**

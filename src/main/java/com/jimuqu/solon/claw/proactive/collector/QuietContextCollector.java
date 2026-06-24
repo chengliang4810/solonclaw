@@ -9,14 +9,12 @@ import com.jimuqu.solon.claw.core.model.ProactiveObservation;
 import com.jimuqu.solon.claw.core.model.ProactiveTickContext;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.proactive.ProactiveObservationCollector;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -131,8 +129,8 @@ public class QuietContextCollector implements ProactiveObservationCollector {
         if (run.getFinishedAt() > 0L) {
             return false;
         }
-        String status = normalize(run.getStatus());
-        String phase = normalize(run.getPhase());
+        String status = CollectorSupport.normalize(run.getStatus());
+        String phase = CollectorSupport.normalize(run.getPhase());
         return run.isBackgrounded()
                 || status.contains("running")
                 || status.contains("queued")
@@ -267,10 +265,10 @@ public class QuietContextCollector implements ProactiveObservationCollector {
      * @return 发送成功返回 true。
      */
     private boolean isSentDecision(ProactiveDecisionRecord decision) {
-        if (!"send".equals(normalize(decision.getDecision()))) {
+        if (!"send".equals(CollectorSupport.normalize(decision.getDecision()))) {
             return false;
         }
-        String deliveryStatus = normalize(decision.getDeliveryStatus());
+        String deliveryStatus = CollectorSupport.normalize(decision.getDeliveryStatus());
         return StrUtil.isBlank(deliveryStatus) || "success".equals(deliveryStatus);
     }
 
@@ -285,9 +283,9 @@ public class QuietContextCollector implements ProactiveObservationCollector {
         for (HomeChannelRecord home : homeChannels) {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("platform", home.getPlatform().name());
-            item.put("chatId", safe(home.getChatId(), TEXT_MAX_LENGTH));
-            item.put("threadId", safe(home.getThreadId(), TEXT_MAX_LENGTH));
-            item.put("chatName", safe(home.getChatName(), TEXT_MAX_LENGTH));
+            item.put("chatId", CollectorSupport.safe(home.getChatId(), TEXT_MAX_LENGTH));
+            item.put("threadId", CollectorSupport.safe(home.getThreadId(), TEXT_MAX_LENGTH));
+            item.put("chatName", CollectorSupport.safe(home.getChatName(), TEXT_MAX_LENGTH));
             item.put("updatedAt", Long.valueOf(home.getUpdatedAt()));
             result.add(item);
         }
@@ -304,11 +302,11 @@ public class QuietContextCollector implements ProactiveObservationCollector {
         List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
         for (AgentRunRecord run : activeRuns) {
             Map<String, Object> item = new LinkedHashMap<String, Object>();
-            item.put("runId", safe(run.getRunId(), TEXT_MAX_LENGTH));
-            item.put("sessionId", safe(run.getSessionId(), TEXT_MAX_LENGTH));
-            item.put("sourceKey", safe(run.getSourceKey(), TEXT_MAX_LENGTH));
-            item.put("status", safe(run.getStatus(), 80));
-            item.put("phase", safe(run.getPhase(), 120));
+            item.put("runId", CollectorSupport.safe(run.getRunId(), TEXT_MAX_LENGTH));
+            item.put("sessionId", CollectorSupport.safe(run.getSessionId(), TEXT_MAX_LENGTH));
+            item.put("sourceKey", CollectorSupport.safe(run.getSourceKey(), TEXT_MAX_LENGTH));
+            item.put("status", CollectorSupport.safe(run.getStatus(), 80));
+            item.put("phase", CollectorSupport.safe(run.getPhase(), 120));
             item.put("backgrounded", Boolean.valueOf(run.isBackgrounded()));
             item.put("lastActivityAt", Long.valueOf(run.getLastActivityAt()));
             result.add(item);
@@ -339,26 +337,5 @@ public class QuietContextCollector implements ProactiveObservationCollector {
             reasons.add("主动协作门控可用");
         }
         return "proactive_context: " + String.join("，", reasons);
-    }
-
-    /**
-     * 规范化文本用于状态判断。
-     *
-     * @param value 原始文本。
-     * @return 返回小写文本。
-     */
-    private String normalize(String value) {
-        return StrUtil.nullToEmpty(value).toLowerCase(Locale.ROOT);
-    }
-
-    /**
-     * 对载荷文本做脱敏和长度限制。
-     *
-     * @param value 原始文本。
-     * @param maxLength 最大保留长度。
-     * @return 返回安全文本。
-     */
-    private String safe(String value, int maxLength) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
     }
 }

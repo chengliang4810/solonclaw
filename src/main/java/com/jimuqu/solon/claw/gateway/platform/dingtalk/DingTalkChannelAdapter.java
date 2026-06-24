@@ -1359,7 +1359,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
     private GatewayMessage toCardCallbackMessage(Map<String, Object> payload) {
         ONode node = ONode.ofJson(ONode.serialize(payload));
         String processKey =
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         node.get("processQueryKey").getString(),
                         node.get("process_query_key").getString(),
                         node.get("outTrackId").getString(),
@@ -1367,13 +1367,13 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         node.get("cardBizId").getString(),
                         node.get("card_biz_id").getString());
         String chatId =
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         node.get("openConversationId").getString(),
                         node.get("open_conversation_id").getString(),
                         findNested(node, "conversation", "openConversationId"),
                         cardInstanceBindings.get(processKey));
         String userId =
-                firstNonBlank(
+                StrUtil.firstNonBlank(
                         node.get("userId").getString(),
                         node.get("staffId").getString(),
                         node.get("unionId").getString(),
@@ -1410,24 +1410,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             return null;
         }
         return parent.get(childKey).getString();
-    }
-
-    /**
-     * 执行firstNon空白值相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @return 返回first Non Blank结果。
-     */
-    private String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (notBlank(value)) {
-                return value;
-            }
-        }
-        return null;
     }
 
     /**

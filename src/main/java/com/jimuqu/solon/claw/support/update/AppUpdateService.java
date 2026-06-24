@@ -544,7 +544,7 @@ public class AppUpdateService {
                 request.setProxy(proxy);
             }
             String token =
-                    firstNonBlank(
+                    StrUtil.firstNonBlank(
                             RuntimeConfigResolver.getValue("solonclaw.integrations.github.token"),
                             RuntimeConfigResolver.getValue(
                                     "solonclaw.integrations.github.cliToken"));
@@ -800,24 +800,6 @@ public class AppUpdateService {
     private void clearLastError() {
         this.lastErrorMessage = null;
         this.lastErrorAt = 0L;
-    }
-
-    /**
-     * 执行firstNon空白值相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @return 返回first Non Blank结果。
-     */
-    private static String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value;
-            }
-        }
-        return null;
     }
 
     /** 表示更新结果，携带调用方后续判断所需信息。 */

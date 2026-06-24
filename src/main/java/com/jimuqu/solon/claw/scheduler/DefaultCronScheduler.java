@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.scheduler;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.SecureUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -39,7 +40,6 @@ import java.io.FileOutputStream;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -1977,17 +1977,14 @@ public class DefaultCronScheduler {
      * @return 返回join Names结果。
      */
     private String joinNames(List<String> values) {
-        StringBuilder builder = new StringBuilder();
+        List<String> names = new ArrayList<String>();
         for (String value : values) {
             if (StrUtil.isBlank(value)) {
                 continue;
             }
-            if (builder.length() > 0) {
-                builder.append(", ");
-            }
-            builder.append(value.trim());
+            names.add(value.trim());
         }
-        return builder.toString();
+        return String.join(", ", names);
     }
 
     /**
@@ -2787,22 +2784,7 @@ public class DefaultCronScheduler {
      * @return 返回sha256 Hex结果。
      */
     private String sha256Hex(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash =
-                    digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
-            StringBuilder builder = new StringBuilder();
-            for (byte item : hash) {
-                String hex = Integer.toHexString(item & 0xff);
-                if (hex.length() == 1) {
-                    builder.append('0');
-                }
-                builder.append(hex);
-            }
-            return builder.toString();
-        } catch (Exception e) {
-            return String.valueOf(Math.abs(StrUtil.nullToEmpty(value).hashCode()));
-        }
+        return SecureUtil.sha256(StrUtil.nullToEmpty(value));
     }
 
     /**

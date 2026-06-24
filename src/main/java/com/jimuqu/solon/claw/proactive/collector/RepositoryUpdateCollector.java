@@ -16,7 +16,6 @@ import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.proactive.RepositoryProbeService;
 import com.jimuqu.solon.claw.proactive.RepositoryReferenceExtractor;
 import com.jimuqu.solon.claw.support.MessageSupport;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -48,9 +47,6 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
 
     /** 单次 tick 最多读取定时任务数。 */
     private static final int CRON_JOB_LIMIT = 120;
-
-    /** 一天对应的毫秒数，用于按配置限制会话回看窗口。 */
-    private static final long DAY_MILLIS = 24L * 60L * 60L * 1000L;
 
     /** 摘要最大长度，保持诊断和候选生成可读。 */
     private static final int SUMMARY_MAX_LENGTH = 240;
@@ -274,10 +270,7 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
      */
     private long sessionCutoffMillis(ProactiveTickContext context) {
         int lookbackDays = context.getConfig().getProactive().getSessionLookbackDays();
-        long safeDays = Math.max(1L, Math.min((long) lookbackDays, 3650L));
-        long windowMillis = safeDays * DAY_MILLIS;
-        long nowMillis = context.getNowMillis();
-        return nowMillis < windowMillis ? 0L : nowMillis - windowMillis;
+        return CollectorSupport.lookbackCutoffMillis(context.getNowMillis(), lookbackDays);
     }
 
     /**
@@ -413,12 +406,12 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
         snapshot.setStateHash(state.getStateHash());
         snapshot.setCheckedAt(nowMillis);
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
-        payload.put("displayName", safe(state.getDisplayName(), 160));
-        payload.put("branch", safe(state.getBranch(), 120));
-        payload.put("commitHash", safe(state.getCommitHash(), 120));
-        payload.put("releaseId", safe(state.getReleaseId(), 120));
-        payload.put("referenceSourceType", safe(reference.getSourceType(), 80));
-        payload.put("referenceSourceRef", safe(reference.getSourceRef(), 160));
+        payload.put("displayName", CollectorSupport.safe(state.getDisplayName(), 160));
+        payload.put("branch", CollectorSupport.safe(state.getBranch(), 120));
+        payload.put("commitHash", CollectorSupport.safe(state.getCommitHash(), 120));
+        payload.put("releaseId", CollectorSupport.safe(state.getReleaseId(), 120));
+        payload.put("referenceSourceType", CollectorSupport.safe(reference.getSourceType(), 80));
+        payload.put("referenceSourceRef", CollectorSupport.safe(reference.getSourceRef(), 160));
         snapshot.setPayload(payload);
         return snapshot;
     }
@@ -437,18 +430,18 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
             String previousHash) {
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("type", OBSERVATION_TYPE);
-        payload.put("sourceRef", safe(reference.getRef(), 220));
-        payload.put("branch", safe(state.getBranch(), 120));
-        payload.put("stateHash", safe(state.getStateHash(), 160));
-        payload.put("commitHash", safe(state.getCommitHash(), 160));
-        payload.put("releaseId", safe(state.getReleaseId(), 160));
+        payload.put("sourceRef", CollectorSupport.safe(reference.getRef(), 220));
+        payload.put("branch", CollectorSupport.safe(state.getBranch(), 120));
+        payload.put("stateHash", CollectorSupport.safe(state.getStateHash(), 160));
+        payload.put("commitHash", CollectorSupport.safe(state.getCommitHash(), 160));
+        payload.put("releaseId", CollectorSupport.safe(state.getReleaseId(), 160));
 
         Map<String, Object> evidence = new LinkedHashMap<String, Object>();
-        evidence.put("previousHash", previousHash == null ? null : safe(previousHash, 160));
-        evidence.put("displayName", safe(state.getDisplayName(), 160));
-        evidence.put("referenceSourceType", safe(reference.getSourceType(), 80));
-        evidence.put("referenceSourceRef", safe(reference.getSourceRef(), 160));
-        evidence.put("referenceEvidence", safe(reference.getEvidence(), TEXT_MAX_LENGTH));
+        evidence.put("previousHash", previousHash == null ? null : CollectorSupport.safe(previousHash, 160));
+        evidence.put("displayName", CollectorSupport.safe(state.getDisplayName(), 160));
+        evidence.put("referenceSourceType", CollectorSupport.safe(reference.getSourceType(), 80));
+        evidence.put("referenceSourceRef", CollectorSupport.safe(reference.getSourceRef(), 160));
+        evidence.put("referenceEvidence", CollectorSupport.safe(reference.getEvidence(), TEXT_MAX_LENGTH));
         payload.put("evidence", evidence);
 
         ProactiveObservation observation = new ProactiveObservation();
@@ -473,7 +466,7 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
             RepositoryProbeService.RepositoryState state,
             String previousHash) {
         String change = previousHash == null ? "首次记录" : "状态变化";
-        return safe(
+        return CollectorSupport.safe(
                 "project_update_opportunity: 仓库「"
                         + StrUtil.blankToDefault(state.getDisplayName(), reference.getRef())
                         + "」"
@@ -491,17 +484,6 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
      */
     private String sourceKey(RepositoryReferenceExtractor.RepositoryReference reference) {
         return COLLECTOR_NAME + ":" + reference.getRef();
-    }
-
-    /**
-     * 对文本做脱敏和长度限制。
-     *
-     * @param value 原始文本。
-     * @param maxLength 最大保留长度。
-     * @return 返回安全文本。
-     */
-    private String safe(String value, int maxLength) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), maxLength);
     }
 
     /**

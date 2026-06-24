@@ -1,9 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
-import cn.hutool.core.util.StrUtil;
-import java.util.LinkedHashMap;
+import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import java.util.Map;
-import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
@@ -65,7 +63,7 @@ public class DashboardAgentController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return agentService.create(body(context));
+                        return agentService.create(DashboardRequestBodies.jsonObjectMap(context));
                     }
                 });
     }
@@ -113,7 +111,7 @@ public class DashboardAgentController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return agentService.update(name, body(context));
+                        return agentService.update(name, DashboardRequestBodies.jsonObjectMap(context));
                     }
                 });
     }
@@ -137,7 +135,7 @@ public class DashboardAgentController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return agentService.activate(name, body(context));
+                        return agentService.activate(name, DashboardRequestBodies.jsonObjectMap(context));
                     }
                 });
     }
@@ -164,37 +162,6 @@ public class DashboardAgentController {
                         return agentService.delete(name);
                     }
                 });
-    }
-
-    /**
-     * 执行正文相关逻辑。
-     *
-     * @param context 当前请求或运行上下文。
-     * @return 返回body结果。
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> body(Context context) throws Exception {
-        String raw;
-        try {
-            raw = context.body();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
-        }
-        if (StrUtil.isBlank(raw)) {
-            return new LinkedHashMap<String, Object>();
-        }
-        try {
-            ONode node = ONode.ofJson(raw);
-            if (node.toData() instanceof Map) {
-                return ONode.deserialize(node.toJson(), LinkedHashMap.class);
-            }
-            throw new IllegalArgumentException(
-                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
-        }
     }
 
     /**

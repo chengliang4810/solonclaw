@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.web;
 
+import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.snack4.ONode;
@@ -119,7 +120,7 @@ public class DashboardRunController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        ONode body = body(context);
+                        ONode body = DashboardRequestBodies.jsonObject(context);
                         return dashboardRunService.control(
                                 runId,
                                 body.get("command").getString(),
@@ -183,7 +184,7 @@ public class DashboardRunController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        ONode body = body(context);
+                        ONode body = DashboardRequestBodies.jsonObject(context);
                         return dashboardRunService.controlSubagent(
                                 subagentId, body.get("command").getString());
                     }
@@ -206,37 +207,6 @@ public class DashboardRunController {
         } catch (IllegalStateException e) {
             context.status(400);
             return DashboardResponse.error("RUN_BAD_REQUEST", e.getMessage());
-        }
-    }
-
-    /**
-     * 执行正文相关逻辑。
-     *
-     * @param context 当前请求或运行上下文。
-     * @return 返回body结果。
-     */
-    private ONode body(Context context) {
-        String raw;
-        try {
-            raw = context.body();
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
-        }
-        if (raw == null || raw.trim().length() == 0) {
-            return new ONode();
-        }
-        try {
-            ONode node = ONode.ofJson(raw);
-            Object data = node.toData();
-            if (data instanceof Map) {
-                return node;
-            }
-            throw new IllegalArgumentException(
-                    "请求体必须是 JSON 对象 / Request body must be a JSON object");
-        } catch (IllegalArgumentException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalArgumentException("请求体 JSON 解析失败 / Request body JSON parse failed");
         }
     }
 
