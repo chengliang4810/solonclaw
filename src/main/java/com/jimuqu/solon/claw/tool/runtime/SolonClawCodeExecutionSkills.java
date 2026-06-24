@@ -286,7 +286,9 @@ public class SolonClawCodeExecutionSkills {
                     try {
                         rpcFuture.get(3, TimeUnit.SECONDS);
                     } catch (Exception e) {
-                        log.debug("execute_code RPC loop did not stop cleanly", e);
+                        log.debug(
+                                "execute_code RPC loop did not stop cleanly: {}",
+                                safeErrorText(e));
                     }
                     String stdoutText =
                             cleanOutput(stdout.get(3, TimeUnit.SECONDS), maxStdoutChars());
@@ -543,7 +545,7 @@ public class SolonClawCodeExecutionSkills {
                     Thread.currentThread().interrupt();
                     return;
                 } catch (Exception ex) {
-                    log.debug("execute_code RPC loop iteration failed", ex);
+                    log.debug("execute_code RPC loop iteration failed: {}", safeErrorText(ex));
                     try {
                         Thread.sleep(50L);
                     } catch (InterruptedException interrupted) {
@@ -596,9 +598,9 @@ public class SolonClawCodeExecutionSkills {
                 Files.deleteIfExists(request);
             } catch (Exception e) {
                 log.warn(
-                        "execute_code RPC response write failed for request {}",
+                        "execute_code RPC response write failed for request {}, error={}",
                         request == null ? "<null>" : request.getFileName(),
-                        e);
+                        safeErrorText(e));
             }
         }
 
@@ -682,7 +684,9 @@ public class SolonClawCodeExecutionSkills {
                     return rpcJson(parsed);
                 }
             } catch (Exception e) {
-                log.debug("execute_code RPC tool result is not structured JSON; wrapping as text", e);
+                log.debug(
+                        "execute_code RPC tool result is not structured JSON; wrapping as text: {}",
+                        safeErrorText(e));
             }
             Map<String, Object> wrapped = new LinkedHashMap<String, Object>();
             wrapped.put("output", value);
@@ -885,7 +889,9 @@ public class SolonClawCodeExecutionSkills {
                     }
                 }
             } catch (Exception e) {
-                log.debug("execute_code websearch document is not structured JSON; using fallback item", e);
+                log.debug(
+                        "execute_code websearch document is not structured JSON; using fallback item: {}",
+                        safeErrorText(e));
             }
             List<Map<String, Object>> web = new ArrayList<Map<String, Object>>();
             Map<String, Object> item = new LinkedHashMap<String, Object>();
@@ -1346,7 +1352,10 @@ public class SolonClawCodeExecutionSkills {
                 }
                 Files.deleteIfExists(path);
             } catch (Exception e) {
-                log.debug("execute_code staging cleanup failed for {}", path, e);
+                log.debug(
+                        "execute_code staging cleanup failed for {}, error={}",
+                        path,
+                        safeErrorText(e));
             }
         }
     }
