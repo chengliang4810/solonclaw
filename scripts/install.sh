@@ -81,7 +81,7 @@ echo "  选择部署方式:"
 echo "    1) 原生安装（Java + 系统服务）"
 echo "    2) Docker 部署（docker compose）"
 echo ""
-read -rp "  请输入 [1/2]（默认 1）: " DEPLOY_CHOICE
+read -rp "  请输入 [1/2]（默认 1）: " DEPLOY_CHOICE < /dev/tty
 DEPLOY_CHOICE="${DEPLOY_CHOICE:-1}"
 
 # ─── GitHub 代理检测 ─────────────────────────────────────────────────────────
