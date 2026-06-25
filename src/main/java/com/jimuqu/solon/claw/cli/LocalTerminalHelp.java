@@ -72,7 +72,7 @@ public final class LocalTerminalHelp {
                 + "/deny list|status|all - 查看或批量拒绝待审批命令\n"
                 + "/confirm - 查看待确认 slash 命令\n"
                 + "/skin [classic|mono|contrast] - 查看或切换 TUI 皮肤\n"
-                + TerminalShortcuts.helpLine()
+                + "Ctrl+C - 中断当前操作  Ctrl+D - 退出\n"
                 + "\n"
                 + "/exit 或 /quit - 退出当前终端会话；有后台任务时先显示退出保护\n"
                 + "/exit! 或 /quit! - 停止运行中的后台任务并强制退出\n"

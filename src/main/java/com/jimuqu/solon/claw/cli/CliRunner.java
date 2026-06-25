@@ -74,27 +74,7 @@ public class CliRunner {
         if (mode.getKind() == CliMode.Kind.COMPLETION) {
             return new ShellCompletionGenerator().write(mode.getInput(), System.out, System.err);
         }
-        if (mode.getKind() == CliMode.Kind.TUI) {
-            return new TuiShell(
-                            cliRuntime,
-                            mode,
-                            attachmentResolver,
-                            appConfig,
-                            modelPicker,
-                            setupCommands,
-                            sessionBrowser,
-                            historyViewer)
-                    .run();
-        }
-        return new CliShell(
-                        cliRuntime,
-                        mode,
-                        attachmentResolver,
-                        appConfig,
-                        modelPicker,
-                        setupCommands,
-                        sessionBrowser,
-                        historyViewer)
-                .run();
+        System.err.println("本地 CLI/TUI 已移除，请使用 npm 包 solonclaw 连接后端: npm install -g solonclaw");
+        return 1;
     }
 }
