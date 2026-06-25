@@ -1,12 +1,19 @@
 {
-  "name": "solonclaw-tui",
+  "name": "solonclaw",
   "version": "0.0.1",
-  "private": true,
+  "description": "Terminal UI for solonclaw agent service",
   "type": "module",
+  "bin": {
+    "solonclaw": "./dist/entry.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "npm run build --prefix packages/solonclaw-ink && tsx --watch src/entry.tsx",
     "start": "tsx src/entry.tsx",
     "build": "node scripts/build.mjs",
+    "prepack": "npm run build && node -e \"const fs=require('fs');const f='dist/entry.js';const c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c)\"",
     "type-check": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint src/ packages/",
     "lint:fix": "eslint src/ packages/ --fix",
@@ -16,17 +23,10 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "dependencies": {
-    "@nanostores/react": "^1.1.0",
-    "@solonclaw/ink": "file:./packages/solonclaw-ink",
-    "ink": "^6.8.0",
-    "ink-text-input": "^6.0.0",
-    "nanostores": "^1.2.0",
-    "react": "^19.2.4",
-    "unicode-animations": "^1.0.3"
-  },
   "devDependencies": {
     "@eslint/js": "^9",
+    "@nanostores/react": "^1.1.0",
+    "@solonclaw/ink": "file:./packages/solonclaw-ink",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^8",
@@ -39,14 +39,35 @@
     "eslint-plugin-react-hooks": "^7",
     "eslint-plugin-unused-imports": "^4",
     "globals": "^16",
+    "ink": "^6.8.0",
+    "ink-text-input": "^6.0.0",
+    "nanostores": "^1.2.0",
     "prettier": "^3",
+    "react": "^19.2.4",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
+    "unicode-animations": "^1.0.3",
     "vitest": "^4.1.3"
   },
   "overrides": {
     "eslint-plugin-react-hooks": {
       "zod-validation-error": "^4.0.2"
     }
-  }
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chengliang4810/solon-claw.git",
+    "directory": "terminal-ui"
+  },
+  "keywords": [
+    "solonclaw",
+    "tui",
+    "terminal",
+    "agent",
+    "ai"
+  ]
 }
