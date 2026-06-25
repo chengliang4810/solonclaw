@@ -263,6 +263,17 @@ deploy_native() {
             else
                 error "无法自动安装 Java，请手动安装 JDK 8+（https://adoptium.net）"
             fi
+            # apt/yum 安装后刷新 shell 命令哈希表
+            hash -r 2>/dev/null || true
+            # 如果 command -v 仍找不到，尝试常见路径
+            if ! command -v java &>/dev/null; then
+                for jbin in /usr/bin/java /usr/lib/jvm/default-java/bin/java /etc/alternatives/java; do
+                    if [ -x "$jbin" ]; then
+                        export PATH="$(dirname "$jbin"):$PATH"
+                        break
+                    fi
+                done
+            fi
         fi
         check_java || error "Java 安装后仍未检测到 java 命令，请手动安装 JDK 8+"
     fi
