@@ -25,42 +25,38 @@ import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
-/** 运行时配置解析器，统一处理 runtime/config.yml 中的可写配置项。 */
+/** 工作区配置解析器，统一处理 workspace/config.yml 中的可写配置项。 */
 public class RuntimeConfigResolver {
-    /** 运行时配置解析日志，日志内容必须保持低敏。 */
+    /** 工作区配置解析日志，日志内容必须保持低敏。 */
     private static final Logger log = LoggerFactory.getLogger(RuntimeConfigResolver.class);
 
     /** LOCK的统一常量值。 */
     private static final Object LOCK = new Object();
 
-    /** 记录运行时配置Resolver中的当前。 */
+    /** 记录工作区配置Resolver中的当前实例。 */
     private static volatile RuntimeConfigResolver current;
 
     /** 键路径列表的统一常量值。 */
     private static final Map<String, String> KEY_PATHS = buildKeyPaths();
 
-    /** 记录运行时配置Resolver中的配置文件。 */
+    /** 记录工作区配置Resolver中的配置文件。 */
     private final File configFile;
 
-    /** 记录运行时配置Resolver中的最近一次Loaded时间。 */
+    /** 记录工作区配置Resolver中的最近一次加载时间。 */
     private volatile long lastLoadedAt;
 
     /** 保存文件值s映射，便于按键快速查询。 */
     private volatile Map<String, Object> fileValues = Collections.emptyMap();
 
-    /**
-     * 创建运行时配置Resolver实例，并注入运行所需依赖。
-     *
-     * @param configFile 文件或目录路径参数。
-     */
+    /** 创建工作区配置Resolver实例，并注入运行所需依赖。 */
     private RuntimeConfigResolver(File configFile) {
         this.configFile = configFile;
         reload();
     }
 
-    /** 基于已解析的运行时根目录初始化全局解析器。 */
-    public static RuntimeConfigResolver initialize(String runtimeHome) {
-        File homeDir = resolveRuntimeHome(runtimeHome);
+    /** 基于已解析的工作区目录初始化全局解析器。 */
+    public static RuntimeConfigResolver initialize(String workspaceHome) {
+        File homeDir = resolveWorkspaceHome(workspaceHome);
         File configFile = FileUtil.file(homeDir, "config.yml");
         synchronized (LOCK) {
             if (current == null || !current.configFile.equals(configFile)) {
@@ -72,18 +68,18 @@ public class RuntimeConfigResolver {
         }
     }
 
-    /** 返回当前解析器；若尚未初始化，则使用默认 runtime 目录。 */
+    /** 返回当前解析器；若尚未初始化，则使用默认工作区目录。 */
     public static RuntimeConfigResolver getInstance() {
         RuntimeConfigResolver instance = current;
         if (instance == null) {
-            instance = initialize(RuntimePathConstants.RUNTIME_HOME);
+            instance = initialize(RuntimePathConstants.DEFAULT_WORKSPACE);
         } else {
             instance.reloadIfNeeded();
         }
         return instance;
     }
 
-    /** 读取生效配置值。 */
+    /** 按白名单键读取生效配置值。 */
     public static String getValue(String key) {
         return getInstance().get(key);
     }
@@ -104,7 +100,7 @@ public class RuntimeConfigResolver {
         return getInstance().getByPath(path, defaultValue);
     }
 
-    /** 返回 runtime/config.yml 文件路径。 */
+    /** 返回 workspace/config.yml 文件路径。 */
     public File configFile() {
         return configFile;
     }
@@ -139,7 +135,7 @@ public class RuntimeConfigResolver {
         return value == null ? defaultValue : value;
     }
 
-    /** 返回 runtime/config.yml 中的文件值快照。 */
+    /** 返回 workspace/config.yml 中的文件值快照。 */
     public Map<String, String> fileValues() {
         reloadIfNeeded();
         Map<String, String> result = new LinkedHashMap<String, String>();
@@ -172,7 +168,7 @@ public class RuntimeConfigResolver {
         return result;
     }
 
-    /** 生成 runtime/config.yml 与生效 AppConfig 的漂移诊断快照。 */
+    /** 生成 workspace/config.yml 与生效 AppConfig 的漂移诊断快照。 */
     public Map<String, Object> diagnostics(AppConfig appConfig) {
         reloadIfNeeded();
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -219,7 +215,7 @@ public class RuntimeConfigResolver {
         return result;
     }
 
-    /** 设置 runtime/config.yml 中的键值。 */
+    /** 设置 workspace/config.yml 中的键值。 */
     public synchronized void setFileValue(String key, String value) {
         String path = requirePath(key);
         validateSecretFileValue(path, value);
@@ -229,7 +225,7 @@ public class RuntimeConfigResolver {
     }
 
     /**
-     * 写入 runtime/config.yml 中的列表值，用于需要保留 YAML 结构的配置项。
+     * 写入 workspace/config.yml 中的列表值，用于需要保留 YAML 结构的配置项。
      *
      * @param key 配置键。
      * @param values 列表值；调用方负责保证元素结构符合业务配置。
@@ -257,7 +253,7 @@ public class RuntimeConfigResolver {
         write(root);
     }
 
-    /** 删除 runtime/config.yml 中的键值。 */
+    /** 删除 workspace/config.yml 中的键值。 */
     public synchronized void removeFileValue(String key) {
         String path = requirePath(key);
         Map<String, Object> root = loadYamlRoot();
@@ -265,7 +261,7 @@ public class RuntimeConfigResolver {
         write(root);
     }
 
-    /** 强制重载 runtime/config.yml。 */
+    /** 强制重载 workspace/config.yml。 */
     public synchronized void reload() {
         FileUtil.mkParentDirs(configFile);
         if (!configFile.exists()) {
@@ -345,7 +341,7 @@ public class RuntimeConfigResolver {
                 Files.move(temp.toPath(), configFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to write runtime config", e);
+            throw new IllegalStateException("Failed to write workspace config", e);
         }
         reload();
     }
@@ -382,7 +378,7 @@ public class RuntimeConfigResolver {
      * @return 返回配置文件Reference结果。
      */
     private String configFileReference() {
-        return "runtime://config.yml";
+        return "workspace://config.yml";
     }
 
     /**
@@ -454,7 +450,7 @@ public class RuntimeConfigResolver {
         if (text.length() < 2 || text.contains("\n") || text.contains("\r")) {
             return false;
         }
-        if (text.startsWith("runtime://") || text.startsWith("path://")) {
+        if (text.startsWith("workspace://") || text.startsWith("path://")) {
             return false;
         }
         return text.startsWith("/")
@@ -485,13 +481,13 @@ public class RuntimeConfigResolver {
     }
 
     /**
-     * 判断是否运行时主渠道键。
+     * 判断是否启动级路径键；这些键只允许来自启动配置，不能写入 workspace/config.yml。
      *
      * @param key 配置键或映射键。
-     * @return 如果运行时主渠道键满足条件则返回 true，否则返回 false。
+     * @return 如果启动级路径键满足条件则返回 true，否则返回 false。
      */
-    private static boolean isRuntimeHomeKey(String key) {
-        return "solonclaw.runtime.home".equals(key);
+    private static boolean isStartupPathKey(String key) {
+        return "solonclaw.workspace".equals(key);
     }
 
     /**
@@ -576,7 +572,7 @@ public class RuntimeConfigResolver {
      * @return 返回生效路径。
      */
     private static String effectivePath(String rawKey) {
-        if (StrUtil.isBlank(rawKey) || isRuntimeHomeKey(rawKey)) {
+        if (StrUtil.isBlank(rawKey) || isStartupPathKey(rawKey)) {
             return null;
         }
         String mapped = KEY_PATHS.get(rawKey);
@@ -729,7 +725,7 @@ public class RuntimeConfigResolver {
     }
 
     /**
-     * 提取低敏异常类型，禁止把异常消息或堆栈写入运行时配置解析日志。
+     * 提取低敏异常类型，禁止把异常消息或堆栈写入工作区配置解析日志。
      *
      * @param error 捕获到的异常。
      * @return 异常类型名称。
@@ -795,15 +791,13 @@ public class RuntimeConfigResolver {
         if (StrUtil.isNotBlank(mapped)) {
             return mapped;
         }
-        if (key.startsWith("solonclaw.runtime.")) {
+        if (isStartupPathKey(key)) {
             return null;
         }
         if ("fallbackProviders".equals(key)) {
             return key;
         }
-        if (key.startsWith("solonclaw.")
-                || key.startsWith("providers.")
-                || key.startsWith("model.")) {
+        if (isKnownConfigKey(key, knownDynamicPrefixes(null))) {
             return key;
         }
         return null;
@@ -968,13 +962,13 @@ public class RuntimeConfigResolver {
     }
 
     /**
-     * 解析运行时主渠道。
+     * 解析工作区主目录。
      *
-     * @param runtimeHome 运行时主渠道参数。
-     * @return 返回解析后的运行时主渠道。
+     * @param workspaceHome 工作区目录参数。
+     * @return 返回解析后的工作区目录。
      */
-    private static File resolveRuntimeHome(String runtimeHome) {
-        String raw = StrUtil.blankToDefault(runtimeHome, RuntimePathConstants.RUNTIME_HOME);
+    private static File resolveWorkspaceHome(String workspaceHome) {
+        String raw = StrUtil.blankToDefault(workspaceHome, RuntimePathConstants.DEFAULT_WORKSPACE);
         File file = new File(raw);
         if (file.isAbsolute()) {
             return file;
@@ -1001,7 +995,6 @@ public class RuntimeConfigResolver {
         addAll(
                 mappings,
                 "solonclaw.llm.stream",
-                "solonclaw.workspace",
                 "solonclaw.llm.reasoningEffort",
                 "solonclaw.llm.temperature",
                 "solonclaw.llm.maxTokens",
@@ -1033,8 +1026,8 @@ public class RuntimeConfigResolver {
                 "solonclaw.display.resumeDisplay",
                 "solonclaw.display.toolPreviewLength",
                 "solonclaw.display.progressThrottleMs",
-                "solonclaw.display.runtimeFooter.enabled",
-                "solonclaw.display.runtimeFooter.fields",
+                "solonclaw.display.metadataFooter.enabled",
+                "solonclaw.display.metadataFooter.fields",
                 "solonclaw.gateway.allowedUsers",
                 "solonclaw.gateway.allowAllUsers",
                 "solonclaw.gateway.injectionSecret",
@@ -1152,7 +1145,7 @@ public class RuntimeConfigResolver {
                 mappings,
                 "solonclaw.channels.feishu.comment.enabled",
                 "solonclaw.channels.feishu.comment.pairingFile",
-                "solonclaw.display.platforms.feishu.runtimeFooter.enabled");
+                "solonclaw.display.platforms.feishu.metadataFooter.enabled");
         addChannelMappings(
                 mappings,
                 "dingtalk",
@@ -1166,12 +1159,12 @@ public class RuntimeConfigResolver {
         addAll(
                 mappings,
                 "solonclaw.channels.dingtalk.aiCardStreaming.enabled",
-                "solonclaw.display.platforms.dingtalk.runtimeFooter.enabled");
+                "solonclaw.display.platforms.dingtalk.metadataFooter.enabled");
         addChannelMappings(mappings, "wecom", "botId", "secret", "websocketUrl", "toolProgress");
         addAll(
                 mappings,
                 "solonclaw.channels.wecom.groupMemberAllowedUsers",
-                "solonclaw.display.platforms.wecom.runtimeFooter.enabled");
+                "solonclaw.display.platforms.wecom.metadataFooter.enabled");
         addChannelMappings(
                 mappings,
                 "weixin",
@@ -1185,7 +1178,7 @@ public class RuntimeConfigResolver {
                 "sendChunkRetries",
                 "sendChunkRetryDelaySeconds",
                 "toolProgress");
-        add(mappings, "solonclaw.display.platforms.weixin.runtimeFooter.enabled");
+        add(mappings, "solonclaw.display.platforms.weixin.metadataFooter.enabled");
         addChannelMappings(
                 mappings,
                 "qqbot",
@@ -1195,7 +1188,7 @@ public class RuntimeConfigResolver {
                 "websocketUrl",
                 "markdownSupport",
                 "toolProgress");
-        add(mappings, "solonclaw.display.platforms.qqbot.runtimeFooter.enabled");
+        add(mappings, "solonclaw.display.platforms.qqbot.metadataFooter.enabled");
         addChannelMappings(
                 mappings,
                 "yuanbao",
@@ -1205,7 +1198,7 @@ public class RuntimeConfigResolver {
                 "apiDomain",
                 "websocketUrl",
                 "toolProgress");
-        add(mappings, "solonclaw.display.platforms.yuanbao.runtimeFooter.enabled");
+        add(mappings, "solonclaw.display.platforms.yuanbao.metadataFooter.enabled");
         return mappings;
     }
 

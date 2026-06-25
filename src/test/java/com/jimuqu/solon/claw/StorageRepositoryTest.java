@@ -174,7 +174,7 @@ public class StorageRepositoryTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         env.dangerousCommandApprovalService.approve(
                 agentSession, DangerousCommandApprovalService.ApprovalScope.SESSION, "tester");
 

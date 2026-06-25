@@ -1,6 +1,6 @@
 import { PassThrough } from 'stream'
 
-import { Box, renderSync } from '@solon-claw/ink'
+import { Box, renderSync } from '@solonclaw/ink'
 import React from 'react'
 import { describe, expect, it } from 'vitest'
 
@@ -284,7 +284,7 @@ describe('Md link labels', () => {
 
 describe('renderTable CJK width alignment', () => {
   it('column starts share the same display offset across CJK rows', async () => {
-    const { stringWidth } = await import('@solon-claw/ink')
+    const { stringWidth } = await import('@solonclaw/ink')
 
     const md = [
       '| 配置 | Config | 状态 |',

@@ -1173,7 +1173,7 @@ public class SolonAiOwnedReActLoopTest {
                             ChatMessage.ofAssistant(
                                     "Thought: 需要读取长文件\n"
                                             + "Action: read_file\n"
-                                            + "Action Input: {\"path\":\"runtime/logs/long-observation.json\"}");
+                                            + "Action Input: {\"path\":\"workspace/logs/long-observation.json\"}");
                 } else if (model.mode == FakeMode.NATIVE_TOOL_WITHOUT_SESSION_APPEND) {
                     assistant = assistantWithToolCall("call_native_echo", "echo_tool", "{\"value\":\"native\"}");
                     return new FakeResponse(model, options, assistant, false);
@@ -1228,7 +1228,7 @@ public class SolonAiOwnedReActLoopTest {
                                         "Need second read.",
                                         "call_preamble_read",
                                         "read_file",
-                                        "{\"path\":\"runtime/logs/page.json\"}");
+                                        "{\"path\":\"workspace/logs/page.json\"}");
                         session.addMessage(visible);
                         session.addMessage(aggregation);
                         return Flux.just(new FakeResponse(model, options, visible, true, aggregation));

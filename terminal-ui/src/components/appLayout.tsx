@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { AlternateScreen, Box, NoSelect, ScrollBox, Text } from '@solon-claw/ink'
+import { AlternateScreen, Box, NoSelect, ScrollBox, Text } from '@solonclaw/ink'
 import { Fragment, memo, useMemo, useRef } from 'react'
 
 import { useGateway } from '../app/gatewayContext.js'

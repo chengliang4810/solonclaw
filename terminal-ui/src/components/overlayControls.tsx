@@ -1,4 +1,4 @@
-import { Text, useInput } from '@solon-claw/ink'
+import { Text, useInput } from '@solonclaw/ink'
 
 import type { Theme } from '../theme.js'
 

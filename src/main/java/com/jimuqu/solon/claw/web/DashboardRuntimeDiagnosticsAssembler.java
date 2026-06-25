@@ -41,7 +41,7 @@ final class DashboardRuntimeDiagnosticsAssembler {
     /** 进程生命周期事件最多展示数量，保留最近状态变化但不泄露过多历史。 */
     private static final int PROCESS_LIFECYCLE_EVENT_LIMIT = 10;
 
-    /** 应用配置，用于解析运行时路径和运行目录。 */
+    /** 应用配置，用于解析工作区路径和状态目录。 */
     private final AppConfig appConfig;
 
     /** 关闭取证服务，用于读取最近一次退出摘要。 */
@@ -56,7 +56,7 @@ final class DashboardRuntimeDiagnosticsAssembler {
     /** 托管进程注册表，用于展示后台进程状态。 */
     private final ProcessRegistry processRegistry;
 
-    /** 网关运行时刷新服务，用于展示最近一次配置刷新失败摘要。 */
+    /** 网关工作区配置刷新服务，用于展示最近一次配置刷新失败摘要。 */
     private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
 
     /**
@@ -67,7 +67,7 @@ final class DashboardRuntimeDiagnosticsAssembler {
      * @param runtimeMemoryMonitorService 运行时记忆监控服务。
      * @param agentRunRepository Agent 运行仓储。
      * @param processRegistry 托管进程注册表。
-     * @param gatewayRuntimeRefreshService 网关运行时刷新服务。
+     * @param gatewayRuntimeRefreshService 网关工作区配置刷新服务。
      */
     DashboardRuntimeDiagnosticsAssembler(
             AppConfig appConfig,
@@ -284,7 +284,7 @@ final class DashboardRuntimeDiagnosticsAssembler {
     }
 
     /**
-     * 组装最近一次关闭取证摘要，文件路径只以 runtime:// 或 path:// 形式展示。
+     * 组装最近一次关闭取证摘要，文件路径只以 workspace:// 或 path:// 形式展示。
      *
      * @return 返回关闭取证诊断 Map。
      */
@@ -336,7 +336,7 @@ final class DashboardRuntimeDiagnosticsAssembler {
     }
 
     /**
-     * 将本机路径转换为 Dashboard 可展示的 runtime:// 或 path:// 引用。
+     * 将本机路径转换为 Dashboard 可展示的 workspace:// 或 path:// 引用。
      *
      * @param value 原始路径文本。
      * @return 返回脱敏后的路径引用。
@@ -346,24 +346,24 @@ final class DashboardRuntimeDiagnosticsAssembler {
         if (StrUtil.isBlank(text)) {
             return text;
         }
-        File runtimeHome = new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
+        File workspaceHome = new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
         File file = new File(text).getAbsoluteFile();
         try {
-            runtimeHome = runtimeHome.getCanonicalFile();
+            workspaceHome = workspaceHome.getCanonicalFile();
             file = file.getCanonicalFile();
         } catch (Exception e) {
             log.debug(
                     "Dashboard runtime path canonicalization failed; falling back to absolute path: {}",
                     diagnosticFailureSummary(e));
         }
-        String homePath = normalized(runtimeHome);
+        String homePath = normalized(workspaceHome);
         String filePath = normalized(file);
         if (filePath.equals(homePath)) {
-            return "runtime://";
+            return "workspace://";
         }
         if (filePath.startsWith(homePath + File.separator)) {
             String relative = filePath.substring(homePath.length() + 1).replace('\\', '/');
-            return "runtime://" + relative;
+            return "workspace://" + relative;
         }
         return externalPathReference(text);
     }

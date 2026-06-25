@@ -54,7 +54,7 @@ public class DashboardGatewayDoctorService {
     /** 注入大模型提供方服务，用于调用对应业务能力。 */
     private final LlmProviderService llmProviderService;
 
-    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
+    /** 注入消息网关工作区配置刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
 
@@ -169,7 +169,7 @@ public class DashboardGatewayDoctorService {
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("generated_at", isoNow());
-        result.put("runtime_home", runtimeReference(appConfig.getRuntime().getHome()));
+        result.put("workspace_home", runtimeReference(appConfig.getRuntime().getHome()));
         result.put("model", model);
         result.put("last_shutdown", shutdown);
         result.put("config", config);
@@ -342,8 +342,8 @@ public class DashboardGatewayDoctorService {
                     "warning",
                     "config",
                     "config_unknown_keys",
-                    "runtime_config",
-                    "runtime/config.yml 存在未知配置键：" + unknown + " 个。",
+                    "workspace_config",
+                    "workspace/config.yml 存在未知配置键：" + unknown + " 个。",
                     "查看 config.unknown_keys，移除或迁移未生效的配置键。");
         }
         if (diffs > 0) {
@@ -352,8 +352,8 @@ public class DashboardGatewayDoctorService {
                     "info",
                     "config",
                     "config_effective_drift",
-                    "runtime_config",
-                    "runtime/config.yml 与当前生效配置存在差异：" + diffs + " 个。",
+                    "workspace_config",
+                    "workspace/config.yml 与当前生效配置存在差异：" + diffs + " 个。",
                     "查看 config.effective_diffs，确认类型归一化、别名或默认值覆盖是否符合预期。");
         }
     }
@@ -1047,22 +1047,22 @@ public class DashboardGatewayDoctorService {
         if (StrUtil.isBlank(text)) {
             return text;
         }
-        File runtimeHome = new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
+        File workspaceHome = new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
         File file = new File(text).getAbsoluteFile();
         try {
-            runtimeHome = runtimeHome.getCanonicalFile();
+            workspaceHome = workspaceHome.getCanonicalFile();
             file = file.getCanonicalFile();
         } catch (Exception e) {
             logRecoverableDoctorFailure("runtime_reference_canonicalize", e);
         }
-        String homePath = normalized(runtimeHome);
+        String homePath = normalized(workspaceHome);
         String filePath = normalized(file);
         if (filePath.equals(homePath)) {
-            return "runtime://";
+            return "workspace://";
         }
         if (filePath.startsWith(homePath + File.separator)) {
             String relative = filePath.substring(homePath.length() + 1).replace('\\', '/');
-            return "runtime://" + relative;
+            return "workspace://" + relative;
         }
         return externalPathReference(text);
     }

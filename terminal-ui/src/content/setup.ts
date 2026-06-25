@@ -4,7 +4,7 @@ export const SETUP_REQUIRED_TITLE = '需要先完成设置'
 
 export const buildSetupRequiredSections = (): PanelSection[] => [
   {
-    text: 'SolonClaw 在 TUI 中开始会话前，需要先配置模型提供方。'
+    text: 'solonclaw 在 TUI 中开始会话前，需要先配置模型提供方。'
   },
   {
     rows: [

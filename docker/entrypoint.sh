@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
-RUNTIME_HOME="/app/runtime"
+WORKSPACE_HOME="/app/workspace"
 
-# /app/runtime 承载 config.yml、SQLite、日志、缓存、技能和上下文文件。
+# /app/workspace 承载 config.yml、SQLite、日志、缓存、技能和上下文文件。
 # 官方镜像以非 root 用户运行，这里只创建目录，不尝试修改宿主机挂载权限。
-mkdir -p "$RUNTIME_HOME"
+mkdir -p "$WORKSPACE_HOME"
 
 # 参数原样透传给后端，便于 docker compose 覆盖 server/console 等启动模式。
-exec java -jar /app/solon-claw.jar "$@"
+exec java -jar /app/solonclaw.jar "$@"

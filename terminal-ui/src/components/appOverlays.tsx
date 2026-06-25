@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { Box, Text } from '@solon-claw/ink'
+import { Box, Text } from '@solonclaw/ink'
 
 import { useGateway } from '../app/gatewayContext.js'
 import type { AppOverlaysProps } from '../app/interfaces.js'

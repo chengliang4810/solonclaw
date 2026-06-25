@@ -1,4 +1,4 @@
-import { Box, Text, useInput, useStdout } from '@solon-claw/ink'
+import { Box, Text, useInput, useStdout } from '@solonclaw/ink'
 import { useEffect, useMemo, useState } from 'react'
 
 import { providerDisplayNames } from '../domain/providers.js'
@@ -17,7 +17,7 @@ const MAX_WIDTH = 90
 
 type Stage = 'provider' | 'key' | 'model' | 'disconnect'
 
-export const modelKeyStorageHint = () => 'Paste your API key below (saved to runtime/config.yml)'
+export const modelKeyStorageHint = () => 'Paste your API key below (saved to workspace/config.yml)'
 
 export function ModelPicker({ allowPersistGlobal = true, gw, onCancel, onSelect, sessionId, t }: ModelPickerProps) {
   const [providers, setProviders] = useState<ModelOptionProvider[]>([])
@@ -357,7 +357,7 @@ export function ModelPicker({ allowPersistGlobal = true, gw, onCancel, onSelect,
     }
 
     // Persist-global toggle moved to Ctrl+G so 'g' can be typed into the
-    // filter. With Ctrl held, @solon-claw/ink reports `ch` as the key name ('g'),
+    // filter. With Ctrl held, @solonclaw/ink reports `ch` as the key name ('g'),
     // not the raw control byte (see input-event.ts: input = ctrl ? name : seq).
     if (allowPersistGlobal && key.ctrl && ch === 'g') {
       setPersistGlobal(v => !v)

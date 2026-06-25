@@ -16,13 +16,13 @@ import org.noear.snack4.ONode;
 
 public class GatewayRuntimeStatusServiceTest {
     @Test
-    void shouldWritePidFileAsGatewayRuntimeMetadata(@TempDir Path runtimeHome) {
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(runtimeHome));
+    void shouldWritePidFileAsGatewayRuntimeMetadata(@TempDir Path workspaceHome) {
+        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
 
         service.writePidFile();
 
-        Map<String, Object> payload = readMap(runtimeHome.resolve("gateway.pid").toFile());
-        assertThat(payload).containsEntry("kind", "solon-claw-gateway");
+        Map<String, Object> payload = readMap(workspaceHome.resolve("gateway.pid").toFile());
+        assertThat(payload).containsEntry("kind", "solonclaw-gateway");
         assertThat(asLong(payload.get("pid"))).isEqualTo(currentPid());
         assertThat(asLong(payload.get("startTime"))).isEqualTo(currentJvmStartTime());
         assertThat(payload.get("startInstant")).isInstanceOf(String.class);
@@ -32,28 +32,28 @@ public class GatewayRuntimeStatusServiceTest {
     }
 
     @Test
-    void shouldTreatMatchingJsonPidMetadataAsRunning(@TempDir Path runtimeHome) {
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(runtimeHome));
+    void shouldTreatMatchingJsonPidMetadataAsRunning(@TempDir Path workspaceHome) {
+        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
         service.writePidFile();
 
         assertThat(service.isRunning()).isTrue();
     }
 
     @Test
-    void shouldRejectNumericPidFileWithoutGatewayMetadata(@TempDir Path runtimeHome) {
-        File pidFile = runtimeHome.resolve("gateway.pid").toFile();
+    void shouldRejectNumericPidFileWithoutGatewayMetadata(@TempDir Path workspaceHome) {
+        File pidFile = workspaceHome.resolve("gateway.pid").toFile();
         FileUtil.writeString(String.valueOf(currentPid()), pidFile, StandardCharsets.UTF_8);
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(runtimeHome));
+        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
 
         assertThat(service.isRunning()).isFalse();
     }
 
     @Test
-    void shouldRejectJsonPidMetadataWhenCurrentJvmStartTimeDoesNotMatch(@TempDir Path runtimeHome) {
-        File pidFile = runtimeHome.resolve("gateway.pid").toFile();
+    void shouldRejectJsonPidMetadataWhenCurrentJvmStartTimeDoesNotMatch(@TempDir Path workspaceHome) {
+        File pidFile = workspaceHome.resolve("gateway.pid").toFile();
         FileUtil.writeString(
                 "{"
-                        + "\"kind\":\"solon-claw-gateway\","
+                        + "\"kind\":\"solonclaw-gateway\","
                         + "\"pid\":"
                         + currentPid()
                         + ","
@@ -67,28 +67,28 @@ public class GatewayRuntimeStatusServiceTest {
                         + "}",
                 pidFile,
                 StandardCharsets.UTF_8);
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(runtimeHome));
+        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
 
         assertThat(service.isRunning()).isFalse();
     }
 
     @Test
-    void shouldNotRemovePidFileOwnedByDifferentGatewayInstance(@TempDir Path runtimeHome) {
-        File pidFile = runtimeHome.resolve("gateway.pid").toFile();
+    void shouldNotRemovePidFileOwnedByDifferentGatewayInstance(@TempDir Path workspaceHome) {
+        File pidFile = workspaceHome.resolve("gateway.pid").toFile();
         FileUtil.writeString(
                 "{"
-                        + "\"kind\":\"solon-claw-gateway\","
+                        + "\"kind\":\"solonclaw-gateway\","
                         + "\"pid\":"
                         + currentPid()
                         + ","
                         + "\"startTime\":"
                         + (currentJvmStartTime() + 1000L)
                         + ","
-                        + "\"command\":\"solon-claw\""
+                        + "\"command\":\"solonclaw\""
                         + "}",
                 pidFile,
                 StandardCharsets.UTF_8);
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(runtimeHome));
+        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
 
         service.removePidFile();
 
@@ -103,9 +103,9 @@ public class GatewayRuntimeStatusServiceTest {
         return (Map<String, Object>) parsed;
     }
 
-    private AppConfig config(Path runtimeHome) {
+    private AppConfig config(Path workspaceHome) {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toFile().getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.toFile().getAbsolutePath());
         return config;
     }
 

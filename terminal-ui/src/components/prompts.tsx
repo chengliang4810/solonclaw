@@ -1,4 +1,4 @@
-import { Box, Text, useInput } from '@solon-claw/ink'
+import { Box, Text, useInput } from '@solonclaw/ink'
 import { useState } from 'react'
 
 import { isMac } from '../lib/platform.js'

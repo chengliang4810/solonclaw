@@ -142,10 +142,10 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 附件缓存服务。 */
     private final AttachmentCacheService attachmentCacheService;
 
-    /** 运行时配置服务。 */
+    /** 工作区配置服务。 */
     private final RuntimeSettingsService runtimeSettingsService;
 
-    /** 运行时配置刷新服务。 */
+    /** 工作区配置刷新服务。 */
     private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
 
     /** 文件/URL 安全策略。 */

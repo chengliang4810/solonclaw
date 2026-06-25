@@ -114,7 +114,7 @@ export interface SetupStatusResponse {
   model?: string
   provider?: string
   provider_configured?: boolean
-  runtime_config?: string
+  workspace_config?: string
 }
 
 export interface ChannelSetupField {

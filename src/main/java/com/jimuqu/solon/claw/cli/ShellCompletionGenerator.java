@@ -59,7 +59,7 @@ public class ShellCompletionGenerator {
     String bash() {
         return "# Solon Claw bash completion\n"
                 + "# Add to ~/.bashrc:\n"
-                + "#   eval \"$(solon-claw completion bash)\"\n\n"
+                + "#   eval \"$(solonclaw completion bash)\"\n\n"
                 + "_solon_claw_completion() {\n"
                 + "    local cur prev\n"
                 + "    COMPREPLY=()\n"
@@ -92,7 +92,7 @@ public class ShellCompletionGenerator {
                 + "            ;;\n"
                 + "    esac\n"
                 + "}\n\n"
-                + "complete -F _solon_claw_completion solon-claw\n";
+                + "complete -F _solon_claw_completion solonclaw\n";
     }
 
     /**
@@ -101,10 +101,10 @@ public class ShellCompletionGenerator {
      * @return 返回zsh结果。
      */
     String zsh() {
-        return "#compdef solon-claw\n"
+        return "#compdef solonclaw\n"
                 + "# Solon Claw zsh completion\n"
                 + "# Add to ~/.zshrc:\n"
-                + "#   eval \"$(solon-claw completion zsh)\"\n\n"
+                + "#   eval \"$(solonclaw completion zsh)\"\n\n"
                 + "_solon_claw() {\n"
                 + "    local context state line\n"
                 + "    typeset -A opt_args\n\n"
@@ -125,7 +125,7 @@ public class ShellCompletionGenerator {
                 + "                'tui:Run terminal UI'\n"
                 + "                'completion:Print shell completion script'\n"
                 + "            )\n"
-                + "            _describe 'solon-claw command' cmds\n"
+                + "            _describe 'solonclaw command' cmds\n"
                 + "            ;;\n"
                 + "        args)\n"
                 + "            case ${line[1]} in\n"
@@ -149,21 +149,21 @@ public class ShellCompletionGenerator {
     String fish() {
         return "# Solon Claw fish completion\n"
                 + "# Add to your config:\n"
-                + "#   solon-claw completion fish | source\n\n"
-                + "complete -c solon-claw -f\n"
-                + "complete -c solon-claw -f -l cli -d 'Run line-oriented CLI'\n"
-                + "complete -c solon-claw -f -l tui -d 'Run terminal UI'\n"
-                + "complete -c solon-claw -f -l session -d 'Session id'\n"
-                + "complete -c solon-claw -f -s p -l ask -d 'Send one prompt'\n"
-                + "complete -c solon-claw -f -n '__fish_seen_subcommand_from cli tui; and __fish_seen_argument -s p -l ask' -a '"
+                + "#   solonclaw completion fish | source\n\n"
+                + "complete -c solonclaw -f\n"
+                + "complete -c solonclaw -f -l cli -d 'Run line-oriented CLI'\n"
+                + "complete -c solonclaw -f -l tui -d 'Run terminal UI'\n"
+                + "complete -c solonclaw -f -l session -d 'Session id'\n"
+                + "complete -c solonclaw -f -s p -l ask -d 'Send one prompt'\n"
+                + "complete -c solonclaw -f -n '__fish_seen_subcommand_from cli tui; and __fish_seen_argument -s p -l ask' -a '"
                 + words(LOCAL_SLASH_COMMANDS)
                 + "'\n"
-                + "complete -c solon-claw -f -n 'not __fish_seen_subcommand_from "
+                + "complete -c solonclaw -f -n 'not __fish_seen_subcommand_from "
                 + words(TOP_LEVEL)
                 + "' -a '"
                 + words(TOP_LEVEL)
                 + "'\n"
-                + "complete -c solon-claw -f -n '__fish_seen_subcommand_from completion' -a '"
+                + "complete -c solonclaw -f -n '__fish_seen_subcommand_from completion' -a '"
                 + words(COMPLETION_SHELLS)
                 + "'\n";
     }

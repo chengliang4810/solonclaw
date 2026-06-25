@@ -23,7 +23,7 @@ import struct
 
 from guardlib import REPO_ROOT
 
-DEFAULT_JAR = REPO_ROOT / "target" / "solon-claw-0.0.1.jar"
+DEFAULT_JAR = REPO_ROOT / "target" / "solonclaw-0.0.1.jar"
 
 # 这些命令覆盖用户会直接输入的初始化、模型、渠道、会话、工具、安全和自动化入口。
 DEFAULT_COMMANDS = [
@@ -168,10 +168,10 @@ TUI_COMMANDS = [
 ]
 
 NODE_TUI_ACTIONS = [
-    {"type": "command", "value": "/setup", "expect": "Model, channel, and runtime checks", "after": "q", "close_expect": "ready"},
-    {"type": "panel", "value": "/setup", "expect": "Model, channel, and runtime checks", "keys": "\r", "post_expect": "Select provider", "after": "q", "close_expect": "ready"},
-    {"type": "panel", "value": "/setup", "expect": "Model, channel, and runtime checks", "keys": "\x1b[B\r", "post_expect": "Channel setup", "after": "q", "close_expect": "ready"},
-    {"type": "panel", "value": "/setup", "expect": "Model, channel, and runtime checks", "keys": "\x1b[B\x1b[B\r", "post_expect": "model.provider", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/setup", "expect": "模型、渠道与工作区检查", "after": "q", "close_expect": "ready"},
+    {"type": "panel", "value": "/setup", "expect": "模型、渠道与工作区检查", "keys": "\r", "post_expect": "Select provider", "after": "q", "close_expect": "ready"},
+    {"type": "panel", "value": "/setup", "expect": "模型、渠道与工作区检查", "keys": "\x1b[B\r", "post_expect": "Channel setup", "after": "q", "close_expect": "ready"},
+    {"type": "panel", "value": "/setup", "expect": "模型、渠道与工作区检查", "keys": "\x1b[B\x1b[B\r", "post_expect": "model.provider", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/setup model", "expect": "Select provider", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/setup gateway", "expect": "Channel setup", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/model --refresh", "expect": "providers:", "after": "q", "close_expect": "ready"},
@@ -193,7 +193,7 @@ OSC_PATTERN = re.compile(r"\x1b\][^\x07]*(?:\x07|\x1b\\)")
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Audit local terminal command behavior.")
     parser.add_argument("--jar", default=str(DEFAULT_JAR), help="可执行 jar 路径。")
-    parser.add_argument("--runtime-home", default="", help="临时运行目录；默认自动创建。")
+    parser.add_argument("--workspace-home", default="", help="临时工作区目录；默认自动创建。")
     parser.add_argument("--timeout-seconds", type=float, default=15.0, help="单条命令超时秒数。")
     parser.add_argument("--no-defaults", action="store_true", help="不运行默认命令集，只运行显式追加命令或生命周期场景。")
     parser.add_argument("--include-write-commands", action="store_true", help="追加临时配置写入烟测。")
@@ -203,7 +203,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--node-tui-port", type=int, default=18081, help="Node TUI 审计使用的本地后端端口。")
     parser.add_argument("--node-tui-command", action="append", default=[], help="替换默认 Node TUI 动作为指定命令；可重复。")
     parser.add_argument("--tui-command", action="append", default=[], help="追加一条 TUI 伪终端交互命令。")
-    parser.add_argument("--keep-runtime", action="store_true", help="保留自动创建的运行目录。")
+    parser.add_argument("--keep-workspace", action="store_true", help="保留自动创建的工作区目录。")
     parser.add_argument("--command", action="append", default=[], help="追加一条要审计的命令。")
     return parser.parse_args()
 
@@ -321,7 +321,7 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
         "/setup:enter-model": {
             "type": "panel",
             "value": "/setup",
-            "expect": "Model, channel, and runtime checks",
+            "expect": "模型、渠道与工作区检查",
             "keys": "\r",
             "post_expect": "Select provider",
             "after": "q",
@@ -330,7 +330,7 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
         "/setup:enter-channels": {
             "type": "panel",
             "value": "/setup",
-            "expect": "Model, channel, and runtime checks",
+            "expect": "模型、渠道与工作区检查",
             "keys": "\x1b[B\r",
             "post_expect": "Channel setup",
             "after": "q",
@@ -339,7 +339,7 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
         "/setup:enter-doctor": {
             "type": "panel",
             "value": "/setup",
-            "expect": "Model, channel, and runtime checks",
+            "expect": "模型、渠道与工作区检查",
             "keys": "\x1b[B\x1b[B\r",
             "post_expect": "model.provider",
             "after": "q",
@@ -456,14 +456,14 @@ def terminal_query_responses(output: bytearray, state: TerminalResponseState) ->
     return b"".join(responses)
 
 
-def build_node_tui_env(runtime_home: Path, port: int) -> dict[str, str]:
+def build_node_tui_env(workspace_home: Path, port: int) -> dict[str, str]:
     """构造真实 Node TUI 审计环境，隔离前端状态并连接本次启动的后端。"""
     env = dict(os.environ)
     env.setdefault("LC_ALL", "C.UTF-8")
     env.setdefault("LANG", "C.UTF-8")
     env.setdefault("TERM", "xterm-256color")
     env.setdefault("SOLONCLAW_TERMINAL_SKIN", "mono")
-    env["SOLONCLAW_HOME"] = str(runtime_home)
+    env["SOLONCLAW_HOME"] = str(workspace_home)
     env["SOLONCLAW_SERVER_URL"] = f"http://127.0.0.1:{port}"
     env["SOLONCLAW_TUI_INLINE"] = "1"
     env["SOLONCLAW_TUI_MOUSE_TRACKING"] = "0"
@@ -550,10 +550,10 @@ def wait_for_new_text(
     return contains_new_terminal_text(output, expected, start_len)
 
 
-def run_command(jar: Path, runtime_home: Path, command: str, index: int, timeout_seconds: float) -> dict[str, object]:
-    out_path = runtime_home / f"audit-{index:03d}.out"
-    err_path = runtime_home / f"audit-{index:03d}.err"
-    java_args = ["java", f"-Dsolonclaw.runtime.home={runtime_home}", "-jar", str(jar)]
+def run_command(jar: Path, workspace_home: Path, command: str, index: int, timeout_seconds: float) -> dict[str, object]:
+    out_path = workspace_home / f"audit-{index:03d}.out"
+    err_path = workspace_home / f"audit-{index:03d}.err"
+    java_args = ["java", f"-Dsolonclaw.workspace={workspace_home}", "-jar", str(jar)]
     java_args.extend(command_to_java_args(command))
     env = dict(os.environ)
     env.setdefault("LC_ALL", "C")
@@ -617,16 +617,16 @@ def report_result(index: int, result: dict[str, object], findings: list[dict[str
 
 def run_tui_pty(
     jar: Path,
-    runtime_home: Path,
+    workspace_home: Path,
     commands: list[str],
     timeout_seconds: float,
     findings: list[dict[str, object]],
 ) -> int:
-    out_path = runtime_home / "audit-tui-pty.out"
-    err_path = runtime_home / "audit-tui-pty.err"
+    out_path = workspace_home / "audit-tui-pty.out"
+    err_path = workspace_home / "audit-tui-pty.err"
     java_args = [
         "java",
-        f"-Dsolonclaw.runtime.home={runtime_home}",
+        f"-Dsolonclaw.workspace={workspace_home}",
         "-Dsolonclaw.terminal.audit=true",
         "-jar",
         str(jar),
@@ -774,7 +774,7 @@ def run_node_tui_sequence(
     saw_exit_action = False
     try:
         fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 36, 132, 0, 0))
-        if not wait_for_text(master_fd, output, "SolonClaw", min(12.0, timeout_seconds), response_state):
+        if not wait_for_text(master_fd, output, "solonclaw", min(12.0, timeout_seconds), response_state):
             step_issues.append("startup_missing_banner")
         if not step_issues and not wait_for_text(
             master_fd, output, "ready", min(20.0, timeout_seconds), response_state
@@ -871,19 +871,19 @@ def run_node_tui_sequence(
 
 def run_node_tui_pty(
     jar: Path,
-    runtime_home: Path,
+    workspace_home: Path,
     port: int,
     timeout_seconds: float,
     findings: list[dict[str, object]],
     explicit_commands: list[str] | None = None,
 ) -> int:
-    out_path = runtime_home / "audit-node-tui-pty.out"
-    err_path = runtime_home / "audit-node-tui-pty.err"
-    server_out = runtime_home / "audit-node-tui-server.out"
-    server_err = runtime_home / "audit-node-tui-server.err"
+    out_path = workspace_home / "audit-node-tui-pty.out"
+    err_path = workspace_home / "audit-node-tui-pty.err"
+    server_out = workspace_home / "audit-node-tui-server.out"
+    server_err = workspace_home / "audit-node-tui-server.err"
     bootstrap = run_command(
         jar,
-        runtime_home,
+        workspace_home,
         "model set --provider audit-openai --base-url https://api.example.com/v1 "
         "--api-key Sk-Audit-Node-Tui-Secret123 --model audit-model --dialect openai",
         0,
@@ -901,7 +901,7 @@ def run_node_tui_pty(
     server_env.setdefault("LANG", "C")
     server_cmd = [
         "java",
-        f"-Dsolonclaw.runtime.home={runtime_home}",
+        f"-Dsolonclaw.workspace={workspace_home}",
         f"-Dserver.port={port}",
         "-jar",
         str(jar),
@@ -941,7 +941,7 @@ def run_node_tui_pty(
         print(f"  issues={','.join(result['issues'])}", flush=True)
         return 1
 
-    env = build_node_tui_env(runtime_home, port)
+    env = build_node_tui_env(workspace_home, port)
     try:
         main_actions = build_node_tui_actions(explicit_commands or []) or NODE_TUI_ACTIONS
         main_run = run_node_tui_sequence(
@@ -954,7 +954,7 @@ def run_node_tui_pty(
             new_run = run_node_tui_sequence(
                     new_actions,
                     env,
-                    runtime_home / "audit-node-tui-new-session.out",
+                    workspace_home / "audit-node-tui-new-session.out",
                     min(30.0, timeout_seconds),
                     require_exit=False)
     finally:
@@ -995,14 +995,14 @@ def run_node_tui_pty(
 
 def run_cron_lifecycle(
     jar: Path,
-    runtime_home: Path,
+    workspace_home: Path,
     start_index: int,
     timeout_seconds: float,
     findings: list[dict[str, object]],
 ) -> int:
     index = start_index
     create_command = '/cron add "every 2h" "检查状态" --name audit-lifecycle --script "echo ok" --no-agent'
-    result = run_command(jar, runtime_home, create_command, index, timeout_seconds)
+    result = run_command(jar, workspace_home, create_command, index, timeout_seconds)
     report_result(index, result, findings)
     if result["suspect"] or result["secret_leak"]:
         return 1
@@ -1021,7 +1021,7 @@ def run_cron_lifecycle(
     ]:
         index += 1
         count += 1
-        report_result(index, run_command(jar, runtime_home, command, index, timeout_seconds), findings)
+        report_result(index, run_command(jar, workspace_home, command, index, timeout_seconds), findings)
     return count
 
 
@@ -1032,36 +1032,36 @@ def main() -> int:
         print(f"jar not found: {jar}", file=sys.stderr)
         return 2
 
-    created_runtime = False
-    if args.runtime_home:
-        runtime_home = Path(args.runtime_home).resolve()
-        runtime_home.mkdir(parents=True, exist_ok=True)
+    created_workspace = False
+    if args.workspace_home:
+        workspace_home = Path(args.workspace_home).resolve()
+        workspace_home.mkdir(parents=True, exist_ok=True)
     else:
-        runtime_home = Path(tempfile.mkdtemp(prefix="solonclaw-command-audit."))
-        created_runtime = True
+        workspace_home = Path(tempfile.mkdtemp(prefix="solonclaw-command-audit."))
+        created_workspace = True
 
     commands = build_command_list(args.no_defaults, args.include_write_commands, args.command)
 
-    print(f"audit.runtime={runtime_home}", flush=True)
+    print(f"audit.workspace={workspace_home}", flush=True)
     print(f"audit.jar={jar}", flush=True)
     findings = []
     for index, command in enumerate(commands, start=1):
-        result = run_command(jar, runtime_home, command, index, args.timeout_seconds)
+        result = run_command(jar, workspace_home, command, index, args.timeout_seconds)
         report_result(index, result, findings)
     lifecycle_count = 0
     if args.cron_lifecycle:
         lifecycle_count = run_cron_lifecycle(
-            jar, runtime_home, len(commands) + 1, args.timeout_seconds, findings)
+            jar, workspace_home, len(commands) + 1, args.timeout_seconds, findings)
     tui_count = 0
     if args.tui_pty:
         tui_commands = list(TUI_COMMANDS)
         tui_commands.extend(args.tui_command)
-        tui_count = run_tui_pty(jar, runtime_home, tui_commands, args.timeout_seconds, findings)
+        tui_count = run_tui_pty(jar, workspace_home, tui_commands, args.timeout_seconds, findings)
     node_tui_count = 0
     if args.node_tui_pty:
         node_tui_count = run_node_tui_pty(
             jar,
-            runtime_home,
+            workspace_home,
             args.node_tui_port,
             args.timeout_seconds,
             findings,
@@ -1070,10 +1070,10 @@ def main() -> int:
 
     print(f"audit.total={len(commands) + lifecycle_count + tui_count + node_tui_count}", flush=True)
     print(f"audit.findings={len(findings)}", flush=True)
-    if created_runtime and not args.keep_runtime and not findings:
-        shutil.rmtree(runtime_home)
+    if created_workspace and not args.keep_workspace and not findings:
+        shutil.rmtree(workspace_home)
     else:
-        print(f"audit.outputs={runtime_home}", flush=True)
+        print(f"audit.outputs={workspace_home}", flush=True)
     return 1 if findings else 0
 
 

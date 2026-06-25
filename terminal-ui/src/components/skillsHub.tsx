@@ -1,4 +1,4 @@
-import { Box, Text, useInput, useStdout } from '@solon-claw/ink'
+import { Box, Text, useInput, useStdout } from '@solonclaw/ink'
 import { useEffect, useState } from 'react'
 
 import type { GatewayClient } from '../gatewayClient.js'

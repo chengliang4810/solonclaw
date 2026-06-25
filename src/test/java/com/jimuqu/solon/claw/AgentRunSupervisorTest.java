@@ -656,16 +656,16 @@ public class AgentRunSupervisorTest {
 
     private static Fixture fixture() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = Files.createTempDirectory("solon-claw-supervisor").toFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        File workspaceHome = Files.createTempDirectory("solonclaw-supervisor").toFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
-        writeProviderConfig(runtimeHome);
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
+        writeProviderConfig(workspaceHome);
         config.getTrace().setMaxAttempts(1);
 
         AppConfig.ProviderConfig primary = new AppConfig.ProviderConfig();
@@ -698,13 +698,13 @@ public class AgentRunSupervisorTest {
     }
 
     /**
-     * 写入测试专用运行时模型配置，避免全局 RuntimeConfigResolver 读取本机默认 runtime。
+     * 写入测试专用工作区模型配置，避免全局 RuntimeConfigResolver 读取本机默认 workspace。
      *
-     * @param runtimeHome 测试运行时根目录。
+     * @param workspaceHome 测试工作区根目录。
      */
-    private static void writeProviderConfig(File runtimeHome) throws Exception {
+    private static void writeProviderConfig(File workspaceHome) throws Exception {
         Files.write(
-                new File(runtimeHome, "config.yml").toPath(),
+                new File(workspaceHome, "config.yml").toPath(),
                 Collections.singletonList(
                         "providers:\n"
                                 + "  primary:\n"

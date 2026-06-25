@@ -51,7 +51,7 @@ import org.noear.solon.core.AppContext;
 
 public class DashboardControllerHttpTest {
     private static int port;
-    private static File runtimeHome;
+    private static File workspaceHome;
     private static String previousHttpKeepAlive;
     /** Dashboard HTTP 集成测试使用的固定访问令牌，避免从页面 HTML 中读取真实配置值。 */
     private static final String DASHBOARD_TEST_TOKEN = "test-dashboard-token";
@@ -62,14 +62,14 @@ public class DashboardControllerHttpTest {
     @BeforeAll
     static void startApp() throws Exception {
         port = findFreePort();
-        runtimeHome = Files.createTempDirectory("solon-claw-dashboard-test").toFile();
+        workspaceHome = Files.createTempDirectory("solonclaw-dashboard-test").toFile();
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  dashboard:\n"
                         + "    accessToken: "
                         + DASHBOARD_TEST_TOKEN
                         + "\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
         previousHttpKeepAlive = System.getProperty("http.keepAlive");
         System.setProperty("http.keepAlive", "false");
 
@@ -77,9 +77,7 @@ public class DashboardControllerHttpTest {
                 SolonClawApp.class,
                 new String[] {
                     "--server.port=" + port,
-                    "--solonclaw.runtime.home=" + runtimeHome.getAbsolutePath(),
-                    "--solonclaw.workspace="
-                            + new File(runtimeHome, "workspace").getAbsolutePath(),
+                    "--solonclaw.workspace=" + workspaceHome.getAbsolutePath(),
                     "--solonclaw.dashboard.accessToken=" + DASHBOARD_TEST_TOKEN,
                     "--solonclaw.scheduler.enabled=false",
                     "--solonclaw.gateway.allowAllUsers=true",
@@ -95,9 +93,9 @@ public class DashboardControllerHttpTest {
         try {
             Solon.stopBlock(false, 0);
         } finally {
-            if (runtimeHome != null) {
+            if (workspaceHome != null) {
                 try {
-                    FileUtil.del(runtimeHome);
+                    FileUtil.del(workspaceHome);
                 } catch (IORuntimeException ignored) {
                     // Windows may keep logback's agent.log handle briefly after Solon stops.
                 }
@@ -128,10 +126,10 @@ public class DashboardControllerHttpTest {
         assertThat(authorizedStatus.status).isEqualTo(200);
         assertThat(authorizedStatus.body).contains("\"setup_state\"");
 
-        HttpResult unauthorizedRuntimeConfig = request("GET", "/api/runtime-config", null, null);
+        HttpResult unauthorizedRuntimeConfig = request("GET", "/api/workspace-config", null, null);
         assertThat(unauthorizedRuntimeConfig.status).isEqualTo(401);
 
-        HttpResult authorizedRuntimeConfig = request("GET", "/api/runtime-config", null, token);
+        HttpResult authorizedRuntimeConfig = request("GET", "/api/workspace-config", null, token);
         assertThat(authorizedRuntimeConfig.status).isEqualTo(200);
         assertThat(authorizedRuntimeConfig.body)
                 .contains("providers.default.apiKey")
@@ -151,7 +149,7 @@ public class DashboardControllerHttpTest {
         HttpResult diagnosticsDoctor = request("GET", "/api/diagnostics/doctor", null, token);
         assertThat(diagnosticsDoctor.status).isEqualTo(200);
         assertThat(diagnosticsDoctor.body)
-                .contains("\"runtime_home\"")
+                .contains("\"workspace_home\"")
                 .contains("\"model\"")
                 .contains("\"health_checks\"")
                 .contains("\"platforms\"");
@@ -186,7 +184,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"ws_url\"")
                 .contains("/ws/tui");
 
-        HttpResult runtimeConfig = request("GET", "/api/runtime-config", null, null);
+        HttpResult runtimeConfig = request("GET", "/api/workspace-config", null, null);
         assertThat(runtimeConfig.status).isEqualTo(401);
     }
 
@@ -295,7 +293,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"disabledToolsets\":[\"browser\",\"terminal\"]")
                 .contains("\"approvalRequired\":true");
 
-        File overrideFile = new File(runtimeHome, "config.yml");
+        File overrideFile = new File(workspaceHome, "config.yml");
         assertThat(overrideFile).exists();
         assertThat(FileUtil.readUtf8String(overrideFile))
                 .contains("gateway:")
@@ -379,7 +377,7 @@ public class DashboardControllerHttpTest {
     @Test
     void shouldExposeConfigDriftDiagnosticsThroughDashboard() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
-        File configFile = new File(runtimeHome, "config.yml");
+        File configFile = new File(workspaceHome, "config.yml");
         String previous = configFile.exists() ? FileUtil.readUtf8String(configFile) : null;
         try {
             FileUtil.writeUtf8String(
@@ -400,7 +398,7 @@ public class DashboardControllerHttpTest {
                             + "  providerKey: default\n"
                             + "  default: gpt-5.4\n",
                     configFile);
-            RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath()).reload();
+            RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath()).reload();
 
             HttpResult diagnostics = request("GET", "/api/config/diagnostics", null, token);
             assertThat(diagnostics.status).isEqualTo(200);
@@ -426,14 +424,14 @@ public class DashboardControllerHttpTest {
             } else {
                 FileUtil.writeUtf8String(previous, configFile);
             }
-            RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath()).reload();
+            RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath()).reload();
         }
     }
 
     @Test
     void shouldExposeTuiRuntimeRpcForSetupAndModelConfiguration() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
-        File overrideFile = new File(runtimeHome, "config.yml");
+        File overrideFile = new File(workspaceHome, "config.yml");
 
         HttpResult unauthorized =
                 request("POST", "/api/tui/rpc", "{\"method\":\"setup.status\",\"params\":{}}", null);
@@ -593,7 +591,7 @@ public class DashboardControllerHttpTest {
                         "{\"config\":{\"llm\":{\"model\":\"dashboard-model\"},\"scheduler\":{\"tickSeconds\":45}}}",
                         token);
         assertThat(saveConfig.status).isEqualTo(200);
-        File overrideFile = new File(runtimeHome, "config.yml");
+        File overrideFile = new File(workspaceHome, "config.yml");
         assertThat(overrideFile).exists();
         assertThat(FileUtil.readUtf8String(overrideFile)).contains("dashboard-model");
 
@@ -609,7 +607,7 @@ public class DashboardControllerHttpTest {
         HttpResult saveRuntimeConfig =
                 request(
                         "PUT",
-                        "/api/runtime-config",
+                        "/api/workspace-config",
                         "{\"key\":\"providers.default.apiKey\",\"value\":\"secret12345678\"}",
                         token);
         assertThat(saveRuntimeConfig.status).isEqualTo(200);
@@ -619,7 +617,7 @@ public class DashboardControllerHttpTest {
         HttpResult saveToolOutputBudget =
                 request(
                         "PUT",
-                        "/api/runtime-config",
+                        "/api/workspace-config",
                         "{\"key\":\"solonclaw.task.toolOutputTurnBudget\",\"value\":\"123456\"}",
                         token);
         assertThat(saveToolOutputBudget.status).isEqualTo(200);
@@ -631,7 +629,7 @@ public class DashboardControllerHttpTest {
         HttpResult revealRuntimeConfig =
                 request(
                         "POST",
-                        "/api/runtime-config/reveal",
+                        "/api/workspace-config/reveal",
                         "{\"key\":\"providers.default.apiKey\"}",
                         token);
         assertThat(revealRuntimeConfig.status).isEqualTo(200);
@@ -854,7 +852,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"secretRedaction\":true")
                 .contains("\"credential_file_count\"")
                 .contains("\"credential_file_policy\"")
-                .contains("\"runtimeRelativeOnly\":true")
+                .contains("\"workspaceRelativeOnly\":true")
                 .contains("\"absolutePathRejected\":true")
                 .contains("\"pathTraversalRejected\":true")
                 .contains("\"hostPathsOmittedFromMetadata\":true")
@@ -1154,7 +1152,7 @@ public class DashboardControllerHttpTest {
         assertThat(createCron.body).contains("\"deliver_chat_id\":\"chat-dashboard\"");
         assertThat(createCron.body).contains("\"deliver_thread_id\":\"thread-dashboard\"");
         String dashboardCronId = ONode.ofJson(createCron.body).get("data").get("id").getString();
-        File dashboardScriptsDir = new File(runtimeHome, "scripts");
+        File dashboardScriptsDir = new File(workspaceHome, "scripts");
         FileUtil.mkdir(dashboardScriptsDir);
         FileUtil.writeUtf8String(
                 "print('dashboard trigger ok: daily summary')\n",
@@ -1879,7 +1877,7 @@ public class DashboardControllerHttpTest {
     @Test
     void shouldFilterDashboardLogsByQueryAndKeyword() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
-        File agentLog = FileUtil.file(runtimeHome, "logs", "agent.log");
+        File agentLog = FileUtil.file(workspaceHome, "logs", "agent.log");
         FileUtil.appendUtf8String(
                 "2026-06-13 10:10:10.000 ERROR [test] "
                         + "com.jimuqu.solon.claw.web.DashboardLogsService - "
@@ -1944,7 +1942,7 @@ public class DashboardControllerHttpTest {
         tool.setToolName("read_file");
         tool.setStatus("completed");
         tool.setArgsPreview(
-                "{path=runtime/logs/compact-summary.json, token=ghp_logindextoolsecret12345}");
+                "{path=workspace/logs/compact-summary.json, token=ghp_logindextoolsecret12345}");
         tool.setResultPreview("{\"ok\":true}");
         tool.setReadOnly(true);
         tool.setResultIndexable(true);
@@ -2053,7 +2051,7 @@ public class DashboardControllerHttpTest {
                 "dashboard-unsafe-approval-chat",
                 "MEMORY:dashboard-unsafe-approval-chat:dashboard-user",
                 "Dashboard unsafe approval session",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         SessionRepository repository = bean(SessionRepository.class);
         SessionRecord record = repository.findById("dashboard-unsafe-approval-chat");
         SqliteAgentSession agentSession = new SqliteAgentSession(record, repository);
@@ -2092,7 +2090,7 @@ public class DashboardControllerHttpTest {
                 "dashboard-always-chat",
                 "MEMORY:dashboard-always-chat:dashboard-user",
                 "Dashboard always approval session",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
 
         HttpResult pending = request("GET", "/api/diagnostics/approvals?limit=20", null, token);
         ONode pendingData = ONode.ofJson(pending.body).get("data").get("items").get(0);
@@ -2125,7 +2123,7 @@ public class DashboardControllerHttpTest {
         assertThat(
                         bean(DangerousCommandApprovalService.class)
                                 .isAlwaysApproved(
-                                        "execute_shell", patternKey, "rm -rf runtime/logs"))
+                                        "execute_shell", patternKey, "rm -rf workspace/logs"))
                 .isTrue();
 
         HttpResult revoke =
@@ -2144,7 +2142,7 @@ public class DashboardControllerHttpTest {
         assertThat(
                         bean(DangerousCommandApprovalService.class)
                                 .isAlwaysApproved(
-                                        "execute_shell", patternKey, "rm -rf runtime/logs"))
+                                        "execute_shell", patternKey, "rm -rf workspace/logs"))
                 .isFalse();
 
         HttpResult history =
@@ -2462,7 +2460,7 @@ public class DashboardControllerHttpTest {
     void shouldRedactDashboardCronErrors() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
         String leakedToken = "sk-dashboardcron12345";
-        File tokenDir = new File(new File(runtimeHome, "projects"), leakedToken);
+        File tokenDir = new File(new File(workspaceHome, "projects"), leakedToken);
         FileUtil.mkdir(tokenDir);
 
         HttpResult rejectedCreate =
@@ -2478,7 +2476,7 @@ public class DashboardControllerHttpTest {
         assertThat(rejectedCreate.body).contains("\"success\":false");
         assertThat(rejectedCreate.body).contains("***");
         assertThat(rejectedCreate.body).doesNotContain(leakedToken);
-        assertThat(rejectedCreate.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(rejectedCreate.body).doesNotContain(workspaceHome.getAbsolutePath());
     }
 
     @Test
@@ -2537,7 +2535,7 @@ public class DashboardControllerHttpTest {
         assertThat(upload.status).isEqualTo(200);
         assertThat(upload.body).contains("\"local_path\"");
         assertThat(upload.body).contains("media://");
-        assertThat(upload.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(upload.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(upload.body).contains("\"mime_type\"");
 
         String uploadedLocalPath =
@@ -2681,12 +2679,12 @@ public class DashboardControllerHttpTest {
         assertThat(run.status).isEqualTo(200);
         assertThat(run.body).contains("curator://report");
         assertThat(run.body).contains("skill://sample-skill");
-        assertThat(run.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(run.body).doesNotContain(workspaceHome.getAbsolutePath());
 
         HttpResult list = request("GET", "/api/curator?limit=5", null, token);
         assertThat(list.status).isEqualTo(200);
         assertThat(list.body).contains("curator://report");
-        assertThat(list.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(list.body).doesNotContain(workspaceHome.getAbsolutePath());
         String reportId =
                 ONode.ofJson(list.body)
                         .get("data")
@@ -2699,7 +2697,7 @@ public class DashboardControllerHttpTest {
         assertThat(detail.status).isEqualTo(200);
         assertThat(detail.body).contains("curator://report");
         assertThat(detail.body).contains("skill://sample-skill");
-        assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(detail.body).doesNotContain(workspaceHome.getAbsolutePath());
 
         HttpResult invalidJson =
                 request(
@@ -2722,7 +2720,7 @@ public class DashboardControllerHttpTest {
         HttpResult defaultAgent = request("GET", "/api/agents/default", null, token);
         assertThat(defaultAgent.status).isEqualTo(200);
         assertThat(defaultAgent.body).contains("agent://default/workspace");
-        assertThat(defaultAgent.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(defaultAgent.body).doesNotContain(workspaceHome.getAbsolutePath());
 
         HttpResult created =
                 request(
@@ -2732,18 +2730,18 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(created.status).isEqualTo(200);
         assertThat(created.body).contains("agent://dashboard-path-agent/workspace");
-        assertThat(created.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(created.body).doesNotContain(workspaceHome.getAbsolutePath());
 
         HttpResult agents = request("GET", "/api/agents", null, token);
         assertThat(agents.status).isEqualTo(200);
         assertThat(agents.body).contains("agent://dashboard-path-agent/workspace");
-        assertThat(agents.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(agents.body).doesNotContain(workspaceHome.getAbsolutePath());
 
         HttpResult detail = request("GET", "/api/agents/dashboard-path-agent", null, token);
         assertThat(detail.status).isEqualTo(200);
         assertThat(detail.body).contains("agent://dashboard-path-agent/skills");
         assertThat(detail.body).contains("agent://dashboard-path-agent/cache");
-        assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(detail.body).doesNotContain(workspaceHome.getAbsolutePath());
 
         HttpResult missing =
                 request(
@@ -2791,19 +2789,19 @@ public class DashboardControllerHttpTest {
         HttpResult files = request("GET", "/api/workspace/files", null, token);
         assertThat(files.status).isEqualTo(200);
         assertThat(files.body).contains("workspace://files/");
-        assertThat(files.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(files.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(files.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult agents = request("GET", "/api/workspace/files/agents", null, token);
         assertThat(agents.status).isEqualTo(200);
         assertThat(agents.body).contains("workspace://files/agents");
-        assertThat(agents.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(agents.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(agents.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult diaries = request("GET", "/api/workspace/diaries", null, token);
         assertThat(diaries.status).isEqualTo(200);
         assertThat(diaries.body).contains("workspace://diaries/memory/2099-01-01.md");
-        assertThat(diaries.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(diaries.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(diaries.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult diaryFile =
@@ -2815,7 +2813,7 @@ public class DashboardControllerHttpTest {
                         token);
         assertThat(diaryFile.status).isEqualTo(200);
         assertThat(diaryFile.body).contains("workspace://diaries/memory/2099-01-01.md");
-        assertThat(diaryFile.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(diaryFile.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(diaryFile.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult rejectedDiary =
@@ -2828,7 +2826,7 @@ public class DashboardControllerHttpTest {
         assertThat(rejectedDiary.status).isEqualTo(400);
         assertThat(rejectedDiary.body)
                 .contains("WORKSPACE_BAD_REQUEST")
-                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain(workspaceHome.getAbsolutePath())
                 .doesNotContain("missing-secret-token.md");
 
         HttpResult invalidJson =
@@ -2985,7 +2983,7 @@ public class DashboardControllerHttpTest {
     @Test
     void shouldHideMediaCacheHostPaths() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
-        File mediaDir = new File(new File(runtimeHome, "cache"), "media/MEMORY");
+        File mediaDir = new File(new File(workspaceHome, "cache"), "media/MEMORY");
         FileUtil.mkdir(mediaDir);
         File cached = new File(mediaDir, "dashboard-secret-token.txt");
         FileUtil.writeUtf8String("cached media", cached);
@@ -3006,26 +3004,26 @@ public class DashboardControllerHttpTest {
         HttpResult detail = request("GET", "/api/media/dashboard-media-secret", null, token);
         assertThat(detail.status).isEqualTo(200);
         assertThat(detail.body).contains("media://MEMORY/dashboard-secret-token.txt");
-        assertThat(detail.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(detail.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(detail.body).doesNotContain("ghp_mediasecret123");
 
         HttpResult download =
                 request("POST", "/api/media/dashboard-media-secret/download", "{}", token);
         assertThat(download.status).isEqualTo(200);
         assertThat(download.body).contains("media://MEMORY/dashboard-secret-token.txt");
-        assertThat(download.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(download.body).doesNotContain(workspaceHome.getAbsolutePath());
 
         HttpResult reference =
                 request("POST", "/api/media/dashboard-media-secret/reference", "{}", token);
         assertThat(reference.status).isEqualTo(200);
         assertThat(reference.body).contains("media://MEMORY/dashboard-secret-token.txt");
-        assertThat(reference.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(reference.body).doesNotContain(workspaceHome.getAbsolutePath());
     }
 
     @Test
     void shouldWrapMediaErrors() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
-        File secret = new File(runtimeHome, "config.yml");
+        File secret = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String("apiKey: ghp_mediapath12345\n", secret);
 
         HttpResult invalidPath =
@@ -3041,7 +3039,7 @@ public class DashboardControllerHttpTest {
         assertThat(invalidPath.body)
                 .contains("MEDIA_BAD_REQUEST")
                 .doesNotContain(secret.getAbsolutePath())
-                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain(workspaceHome.getAbsolutePath())
                 .doesNotContain("ghp_mediaindex12345");
 
         HttpResult invalidJson =
@@ -3073,7 +3071,7 @@ public class DashboardControllerHttpTest {
     @Test
     void shouldRejectDashboardChatAttachmentPathsOutsideMediaCache() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
-        File secret = new File(runtimeHome, "config.yml");
+        File secret = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String("providers:\n  default:\n    apiKey: secret\n", secret);
 
         HttpResult rejected =
@@ -3090,7 +3088,7 @@ public class DashboardControllerHttpTest {
         assertThat(rejected.status).isEqualTo(400);
         assertThat(rejected.body).contains("outside media cache");
         assertThat(rejected.body).doesNotContain(secret.getAbsolutePath());
-        assertThat(rejected.body).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(rejected.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(rejected.body).doesNotContain("run_id");
         assertThat(request("GET", "/api/sessions?limit=20&offset=0", null, token).body)
                 .doesNotContain("dashboard-chat-attachment-guard");
@@ -3136,24 +3134,24 @@ public class DashboardControllerHttpTest {
         HttpResult saveRuntimeConfig =
                 request(
                         "PUT",
-                        "/api/runtime-config",
+                        "/api/workspace-config",
                         "{\"key\":\"providers.default.apiKey\",\"value\":\"NONE\"}",
                         token);
         assertThat(saveRuntimeConfig.status).isEqualTo(400);
         assertThat(saveRuntimeConfig.body)
-                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("WORKSPACE_CONFIG_BAD_REQUEST")
                 .contains("占位符密钥")
                 .doesNotContain("NONE");
 
         HttpResult saveChannelToken =
                 request(
                         "PUT",
-                        "/api/runtime-config",
+                        "/api/workspace-config",
                         "{\"key\":\"solonclaw.channels.weixin.token\",\"value\":\"dummy\"}",
                         token);
         assertThat(saveChannelToken.status).isEqualTo(400);
         assertThat(saveChannelToken.body)
-                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("WORKSPACE_CONFIG_BAD_REQUEST")
                 .contains("占位符密钥")
                 .doesNotContain("dummy");
     }
@@ -3165,24 +3163,24 @@ public class DashboardControllerHttpTest {
         HttpResult unsupportedSet =
                 request(
                         "PUT",
-                        "/api/runtime-config",
+                        "/api/workspace-config",
                         "{\"key\":\"token=ghp_runtimeconfig12345\",\"value\":\"x\"}",
                         token);
         assertThat(unsupportedSet.status).isEqualTo(400);
         assertThat(unsupportedSet.body)
-                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("WORKSPACE_CONFIG_BAD_REQUEST")
                 .contains("token=***")
                 .doesNotContain("ghp_runtimeconfig12345");
 
         HttpResult unsupportedReveal =
                 request(
                         "POST",
-                        "/api/runtime-config/reveal",
+                        "/api/workspace-config/reveal",
                         "{\"key\":\"token=ghp_runtimereveal12345\"}",
                         token);
         assertThat(unsupportedReveal.status).isEqualTo(400);
         assertThat(unsupportedReveal.body)
-                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("WORKSPACE_CONFIG_BAD_REQUEST")
                 .contains("token=***")
                 .doesNotContain("ghp_runtimereveal12345");
     }
@@ -3194,31 +3192,31 @@ public class DashboardControllerHttpTest {
         HttpResult invalidSet =
                 request(
                         "PUT",
-                        "/api/runtime-config",
+                        "/api/workspace-config",
                         "{\"key\":\"providers.default.apiKey\",\"value\":\"ghp_invalidruntime12345\"",
                         token);
         HttpResult invalidReveal =
                 request(
                         "POST",
-                        "/api/runtime-config/reveal",
+                        "/api/workspace-config/reveal",
                         "{\"key\":\"providers.default.apiKey\",\"token\":\"ghp_invalidreveal12345\"",
                         token);
         HttpResult deleteByBody =
                 request(
                         "DELETE",
-                        "/api/runtime-config",
+                        "/api/workspace-config",
                         "{\"key\":\"providers.default.apiKey\"}",
                         token);
 
         assertThat(invalidSet.status).isEqualTo(400);
         assertThat(invalidSet.body)
-                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("WORKSPACE_CONFIG_BAD_REQUEST")
                 .contains("请求体 JSON 解析失败")
                 .doesNotContain("ghp_invalidruntime12345")
                 .doesNotContain("providers.default.apiKey");
         assertThat(invalidReveal.status).isEqualTo(400);
         assertThat(invalidReveal.body)
-                .contains("RUNTIME_CONFIG_BAD_REQUEST")
+                .contains("WORKSPACE_CONFIG_BAD_REQUEST")
                 .contains("请求体 JSON 解析失败")
                 .doesNotContain("ghp_invalidreveal12345")
                 .doesNotContain("providers.default.apiKey");
@@ -3251,7 +3249,7 @@ public class DashboardControllerHttpTest {
         assertThat(unsupportedSave.status).isEqualTo(400);
         assertThat(unsupportedSave.body)
                 .contains("CONFIG_BAD_REQUEST")
-                .contains("runtime-relative paths")
+                .contains("workspace-relative paths")
                 .doesNotContain("ghp_configsave12345");
 
         HttpResult invalidRawJson =
@@ -3276,7 +3274,7 @@ public class DashboardControllerHttpTest {
         assertThat(unsupportedRaw.status).isEqualTo(400);
         assertThat(unsupportedRaw.body)
                 .contains("CONFIG_BAD_REQUEST")
-                .contains("runtime-relative paths")
+                .contains("workspace-relative paths")
                 .doesNotContain("ghp_configraw12345");
     }
 
@@ -3362,20 +3360,20 @@ public class DashboardControllerHttpTest {
     }
 
     private static void createSampleSkill() {
-        File skillFile = FileUtil.file(runtimeHome, "skills", "sample-skill", "SKILL.md");
+        File skillFile = FileUtil.file(workspaceHome, "skills", "sample-skill", "SKILL.md");
         String content =
                 "---\nname: sample-skill\ndescription: Sample skill for dashboard tests\n---\n\n# Sample\n";
         FileUtil.writeUtf8String(content, skillFile);
-        File references = FileUtil.file(runtimeHome, "skills", "sample-skill", "references");
+        File references = FileUtil.file(workspaceHome, "skills", "sample-skill", "references");
         FileUtil.mkdir(references);
         FileUtil.writeUtf8String("supporting skill notes", FileUtil.file(references, "info.md"));
     }
 
     private static void seedDashboardGoalSession() throws Exception {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         SqliteDatabase database = new SqliteDatabase(config);
         try {
             SqliteSessionRepository repository = new SqliteSessionRepository(database);
@@ -3600,10 +3598,10 @@ public class DashboardControllerHttpTest {
     private static Map<String, String> signedHeaders(
             String timestamp, String nonce, String body, String secret) throws Exception {
         Map<String, String> headers = new LinkedHashMap<String, String>();
-        headers.put("X-SolonClaw-Timestamp", timestamp);
-        headers.put("X-SolonClaw-Nonce", nonce);
+        headers.put("X-solonclaw-Timestamp", timestamp);
+        headers.put("X-solonclaw-Nonce", nonce);
         headers.put(
-                "X-SolonClaw-Signature",
+                "X-solonclaw-Signature",
                 "sha256=" + hmacSha256(secret, timestamp + "." + nonce + "." + body));
         return headers;
     }

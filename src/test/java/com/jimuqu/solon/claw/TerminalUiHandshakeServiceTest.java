@@ -14,7 +14,7 @@ public class TerminalUiHandshakeServiceTest {
         Map<String, Object> handshake = service.handshake("https://agent.example.com/base");
 
         assertThat(handshake)
-                .containsEntry("app", "solon-claw")
+                .containsEntry("app", "solonclaw")
                 .containsEntry("mode", "server")
                 .containsEntry("protocol_version", Integer.valueOf(1));
         assertThat(handshake.get("ws_url")).isEqualTo("wss://agent.example.com:9443/base/ws/tui");

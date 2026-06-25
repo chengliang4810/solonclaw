@@ -1,4 +1,4 @@
-import { Box, Text, useStdout } from '@solon-claw/ink'
+import { Box, Text, useStdout } from '@solonclaw/ink'
 import { useEffect, useState } from 'react'
 import unicodeSpinners from 'unicode-animations'
 

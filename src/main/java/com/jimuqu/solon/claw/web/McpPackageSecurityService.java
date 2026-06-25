@@ -436,7 +436,7 @@ public class McpPackageSecurityService {
         }
         Map<String, String> headers = new LinkedHashMap<String, String>();
         headers.put("Content-Type", "application/json");
-        headers.put("User-Agent", "solon-claw-osv-check/1.0");
+        headers.put("User-Agent", "solonclaw-osv-check/1.0");
         String body = httpClient.postJson(endpoint, headers, ONode.serialize(payload));
         Object parsed = ONode.deserialize(StrUtil.nullToEmpty(body), Object.class);
         if (!(parsed instanceof Map)) {

@@ -55,12 +55,12 @@ export interface AppConfig {
   [key: string]: any
 }
 
-interface RuntimeConfigInfo {
+interface WorkspaceConfigInfo {
   is_set: boolean
   redacted_value?: string | null
 }
 
-function configPreview(config: Record<string, RuntimeConfigInfo>, key: string): string {
+function configPreview(config: Record<string, WorkspaceConfigInfo>, key: string): string {
   const item = config[key]
   if (!item || !item.is_set) return ''
   return item.redacted_value || '已设置'
@@ -75,24 +75,24 @@ function configBoolean(value: unknown): boolean {
 }
 
 
-export async function fetchRuntimeConfigItems(): Promise<Record<string, RuntimeConfigInfo>> {
-  return request<Record<string, RuntimeConfigInfo>>('/api/runtime-config')
+export async function fetchWorkspaceConfigItems(): Promise<Record<string, WorkspaceConfigInfo>> {
+  return request<Record<string, WorkspaceConfigInfo>>('/api/workspace-config')
 }
 
-export async function setRuntimeConfigItem(key: string, value: string): Promise<void> {
+export async function setWorkspaceConfigItem(key: string, value: string): Promise<void> {
   const text = (value || '').trim()
   if (!text) {
-    await request(`/api/runtime-config?key=${encodeURIComponent(key)}`, { method: 'DELETE' })
+    await request(`/api/workspace-config?key=${encodeURIComponent(key)}`, { method: 'DELETE' })
     return
   }
-  await request('/api/runtime-config', {
+  await request('/api/workspace-config', {
     method: 'PUT',
     body: JSON.stringify({ key, value: text }),
   })
 }
 
-export async function revealRuntimeConfigItem(key: string): Promise<string> {
-  const data = await request<{ value: string }>('/api/runtime-config/reveal', {
+export async function revealWorkspaceConfigItem(key: string): Promise<string> {
+  const data = await request<{ value: string }>('/api/workspace-config/reveal', {
     method: 'POST',
     body: JSON.stringify({ key }),
   })
@@ -102,7 +102,7 @@ export async function revealRuntimeConfigItem(key: string): Promise<string> {
 export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
   const [data, runtimeConfig] = await Promise.all([
     request<Record<string, any>>('/api/config'),
-    request<Record<string, RuntimeConfigInfo>>('/api/runtime-config'),
+    request<Record<string, WorkspaceConfigInfo>>('/api/workspace-config'),
   ])
   return {
     display: {
@@ -269,11 +269,11 @@ export async function saveCredentials(
     const raw = entry.value
     const text = typeof raw === 'boolean' ? String(raw) : (raw ?? '').toString().trim()
     if (!text) {
-      await request(`/api/runtime-config?key=${encodeURIComponent(entry.key)}`, {
+      await request(`/api/workspace-config?key=${encodeURIComponent(entry.key)}`, {
         method: 'DELETE',
       })
     } else {
-      await request('/api/runtime-config', {
+      await request('/api/workspace-config', {
         method: 'PUT',
         body: JSON.stringify({ key: entry.key, value: text }),
       })

@@ -1,7 +1,7 @@
 export default {
   // 登录
   login: {
-    title: 'SolonClaw',
+    title: 'solonclaw',
     description: '输入访问令牌以继续。令牌在服务端启动日志中查看。',
     placeholder: '访问令牌',
     submit: '登录',
@@ -80,7 +80,7 @@ export default {
 
   account: {
     dashboardAccessToken: 'Dashboard 访问令牌',
-    accessTokenDescription: '这里只配置一个运行时配置项：solonclaw.dashboard.accessToken。它用于 Dashboard 页面和 /api/* 请求的 Bearer Token。',
+    accessTokenDescription: '这里只配置一个工作区配置项：solonclaw.dashboard.accessToken。它用于 Dashboard 页面和 /api/* 请求的 Bearer Token。',
     accessTokenPlaceholder: '输入新的访问令牌',
     accessTokenRequired: '访问令牌不能为空',
     accessTokenSaved: '访问令牌已保存',
@@ -205,7 +205,7 @@ export default {
     builtin: '内置',
     current: '当前',
     globalDefaultModel: '使用全局默认模型',
-    readonlyHint: '默认内置智能体映射运行时根目录，仅供只读查看。',
+    readonlyHint: '默认内置智能体映射工作区根目录，仅供只读查看。',
     editableHint: '这些设置只影响当前命名智能体，不会写入全局配置。',
     activate: '设为当前会话',
     displayName: '显示名称',
@@ -334,7 +334,7 @@ export default {
     clearSkillsNotice: '保存后会清空当前任务的全部技能绑定',
     wrapResponse: '包装投递结果',
     script: '脚本',
-    scriptPlaceholder: '填写 runtime/scripts 下的相对路径，例如 watchdog.sh',
+    scriptPlaceholder: '填写 workspace/scripts 下的相对路径，例如 watchdog.sh',
     scriptRequiredForNoAgent: '非智能体模式必须填写脚本',
     promptOrSkillRequired: '非脚本直投模式需要填写提示词或至少一个技能',
     noAgent: '非智能体模式',
@@ -604,8 +604,8 @@ export default {
 
   diagnostics: {
     title: '系统诊断',
-    description: '这里集中查看运行目录、模型提供方、渠道、安全策略和待审批项，便于排查当前实例状态。',
-    runtime: '运行目录',
+    description: '这里集中查看工作区、模型提供方、渠道、安全策略和待审批项，便于排查当前实例状态。',
+    runtime: '工作区',
     providers: '模型提供方',
     channels: '渠道',
     toolsAndMcp: '工具与 MCP',
@@ -659,7 +659,7 @@ export default {
     auditToolPlaceholder: 'execute_shell',
     auditCommandPlaceholder: '输入待审计命令',
     auditUrlPlaceholder: 'https://example.com',
-    auditPathPlaceholder: 'runtime/config.yml',
+    auditPathPlaceholder: 'workspace/config.yml',
     auditArgsPlaceholder: '{"url":"https://example.com"}',
     auditStatusHint: '只读取当前安全策略摘要，不执行命令、不访问 URL、不读取文件。',
     auditRun: '审计',

@@ -53,15 +53,15 @@ public class TuiShellHeaderTest {
 
     @Test
     void shouldResolveTuiHistoryFileInsideRuntimeHome() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-history");
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-history");
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setHome(workspaceHome.toString());
         TuiShell shell = new TuiShell(null, new CliMode(CliMode.Kind.TUI, null, null), null, config);
 
         java.io.File historyFile = historyFile(shell);
 
         assertThat(historyFile)
-                .isEqualTo(runtimeHome.resolve("history").resolve("tui.history").toFile());
+                .isEqualTo(workspaceHome.resolve("history").resolve("tui.history").toFile());
         assertThat(historyFile.getParentFile()).isDirectory();
     }
 

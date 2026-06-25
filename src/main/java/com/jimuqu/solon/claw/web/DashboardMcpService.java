@@ -372,7 +372,7 @@ public class DashboardMcpService {
                 appConfig.getMcp().isEnabled()
                         ? mcpRuntimeService.refreshLiveTools(serverId, false)
                         : mcpRuntimeService.refreshPersistedTools(
-                                serverId, false, "disabled", "MCP is disabled in runtime config.");
+                                serverId, false, "disabled", "MCP is disabled in workspace config.");
         return runtimeRefreshMap(state, "refreshed");
     }
 
@@ -897,7 +897,7 @@ public class DashboardMcpService {
                     securityVerdict.isAllowed()
                             ? (appConfig.getMcp().isEnabled()
                                     ? null
-                                    : "MCP is disabled in runtime config.")
+                                    : "MCP is disabled in workspace config.")
                             : safeDisplayError(securityVerdict.getMessage()));
             long now = System.currentTimeMillis();
             statement.setLong(3, now);
@@ -922,7 +922,7 @@ public class DashboardMcpService {
                     securityVerdict.isAllowed()
                             ? (appConfig.getMcp().isEnabled()
                                     ? null
-                                    : "MCP is disabled in runtime config.")
+                                    : "MCP is disabled in workspace config.")
                             : safeDisplayError(securityVerdict.getMessage()));
         } finally {
             connection.close();
@@ -1691,11 +1691,11 @@ public class DashboardMcpService {
     }
 
     /**
-     * 执行运行时刷新映射相关逻辑。
+     * 执行工作区配置刷新映射相关逻辑。
      *
      * @param state 状态参数。
      * @param action 操作参数。
-     * @return 返回运行时刷新Map结果。
+     * @return 返回工作区配置刷新Map结果。
      */
     private Map<String, Object> runtimeRefreshMap(
             McpRuntimeService.McpToolRefreshResult state, String action) {

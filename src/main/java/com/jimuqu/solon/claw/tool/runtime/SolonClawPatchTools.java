@@ -923,7 +923,7 @@ public class SolonClawPatchTools {
     }
 
     /**
-     * 将用户可见的 runtime 根目录前缀折叠到当前工具根，确保 patch 与读写工具使用一致的相对路径语义。
+     * 将用户可见的 workspace 根目录前缀折叠到当前工具根，确保 patch 与读写工具使用一致的相对路径语义。
      *
      * @param rawPath 用户传入的文件路径。
      * @return 返回用于解析的工作区相对路径。
@@ -945,7 +945,7 @@ public class SolonClawPatchTools {
             return value;
         }
         String rootName = fileName.toString();
-        if (!"runtime".equalsIgnoreCase(rootName)) {
+        if (!"workspace".equalsIgnoreCase(rootName)) {
             return value;
         }
         String prefix = rootName + "/";

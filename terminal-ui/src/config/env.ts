@@ -1,4 +1,4 @@
-import type { MouseTrackingMode } from '@solon-claw/ink'
+import type { MouseTrackingMode } from '@solonclaw/ink'
 
 import { isTermuxTuiMode } from '../lib/termux.js'
 

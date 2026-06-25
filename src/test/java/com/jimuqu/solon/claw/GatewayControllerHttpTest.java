@@ -42,18 +42,18 @@ import org.noear.solon.core.handle.ContextEmpty;
 public class GatewayControllerHttpTest {
     private static final String GATEWAY_SECRET = "gateway-test-secret";
     private static int port;
-    private static File runtimeHome;
+    private static File workspaceHome;
 
     @BeforeAll
     static void startApp() throws Exception {
         port = findFreePort();
-        runtimeHome = Files.createTempDirectory("solon-claw-http-test").toFile();
+        workspaceHome = Files.createTempDirectory("solonclaw-http-test").toFile();
 
         Solon.start(
                 SolonClawApp.class,
                 new String[] {
                     "--server.port=" + port,
-                    "--solonclaw.runtime.home=" + runtimeHome.getAbsolutePath(),
+                    "--solonclaw.workspace=" + workspaceHome.getAbsolutePath(),
                     "--solonclaw.gateway.injectionSecret=" + GATEWAY_SECRET,
                     "--solonclaw.scheduler.enabled=false"
                 });
@@ -67,9 +67,9 @@ public class GatewayControllerHttpTest {
         try {
             Solon.stopBlock(false, 0);
         } finally {
-            if (runtimeHome != null) {
+            if (workspaceHome != null) {
                 try {
-                    FileUtil.del(runtimeHome);
+                    FileUtil.del(workspaceHome);
                 } catch (IORuntimeException ignored) {
                     // Windows may keep logback's agent.log handle briefly after Solon stops.
                 }
@@ -115,7 +115,7 @@ public class GatewayControllerHttpTest {
         String sourceKey = "MEMORY:http-admin-chat:http-admin";
         sessionRepository.bindNewSession(sourceKey);
 
-        File file = FileUtil.file(runtimeHome, "cache", "http-rollback.txt");
+        File file = FileUtil.file(workspaceHome, "cache", "http-rollback.txt");
         SessionRecord boundSession = sessionRepository.getBoundSession(sourceKey);
         FileUtil.writeUtf8String("v1", file);
         checkpointService.createCheckpoint(
@@ -251,10 +251,10 @@ public class GatewayControllerHttpTest {
         byte[] body = bodyText.getBytes(StandardCharsets.UTF_8);
         String timestamp = String.valueOf(System.currentTimeMillis() / 1000L);
         String nonce = chatId + "-" + System.nanoTime();
-        connection.setRequestProperty("X-SolonClaw-Timestamp", timestamp);
-        connection.setRequestProperty("X-SolonClaw-Nonce", nonce);
+        connection.setRequestProperty("X-solonclaw-Timestamp", timestamp);
+        connection.setRequestProperty("X-solonclaw-Nonce", nonce);
         connection.setRequestProperty(
-                "X-SolonClaw-Signature",
+                "X-solonclaw-Signature",
                 "sha256=" + hmac(timestamp + "." + nonce + "." + bodyText));
         connection.setFixedLengthStreamingMode(body.length);
         OutputStream outputStream = connection.getOutputStream();

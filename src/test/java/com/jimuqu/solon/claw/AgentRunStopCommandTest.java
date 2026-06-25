@@ -164,7 +164,7 @@ public class AgentRunStopCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(agentSession))
                 .isNotNull();
 

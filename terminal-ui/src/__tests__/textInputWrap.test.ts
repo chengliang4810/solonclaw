@@ -1,4 +1,4 @@
-import { wrapAnsi } from '@solon-claw/ink'
+import { wrapAnsi } from '@solonclaw/ink'
 import { describe, expect, it } from 'vitest'
 
 import { offsetFromPosition } from '../components/textInput.js'

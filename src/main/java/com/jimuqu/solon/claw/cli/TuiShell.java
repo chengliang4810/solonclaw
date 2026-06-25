@@ -147,7 +147,7 @@ public class TuiShell {
         LineReader reader =
                 LineReaderBuilder.builder()
                         .terminal(terminal)
-                        .appName("solon-claw-tui")
+                        .appName("solonclaw-tui")
                         .completer(new StringsCompleter(COMMANDS))
                         .variable(LineReader.HISTORY_FILE, historyFile().toPath())
                         .build();
@@ -200,12 +200,12 @@ public class TuiShell {
 
     /** 解析 TUI 输入历史文件，避免真实输入落到仓库工作目录。 */
     private File historyFile() {
-        String runtimeHome =
+        String workspaceHome =
                 appConfig == null || appConfig.getRuntime() == null
-                        ? RuntimePathConstants.RUNTIME_HOME
+                        ? RuntimePathConstants.WORKSPACE_HOME
                         : StrUtil.blankToDefault(
-                                appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME);
-        File historyDir = FileUtil.file(runtimeHome, "history");
+                                appConfig.getRuntime().getHome(), RuntimePathConstants.WORKSPACE_HOME);
+        File historyDir = FileUtil.file(workspaceHome, "history");
         FileUtil.mkdir(historyDir);
         return FileUtil.file(historyDir, "tui.history");
     }

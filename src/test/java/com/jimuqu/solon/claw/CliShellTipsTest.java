@@ -27,15 +27,15 @@ import org.junit.jupiter.api.Test;
 public class CliShellTipsTest {
     @Test
     void shouldResolveCliHistoryFileInsideRuntimeHome() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-cli-history");
+        Path workspaceHome = Files.createTempDirectory("solonclaw-cli-history");
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setHome(workspaceHome.toString());
         CliShell shell = new CliShell(null, new CliMode(CliMode.Kind.CLI, null, null), null, config, null, null, null, null);
 
         java.io.File historyFile = historyFile(shell);
 
         assertThat(historyFile)
-                .isEqualTo(runtimeHome.resolve("history").resolve("cli.history").toFile());
+                .isEqualTo(workspaceHome.resolve("history").resolve("cli.history").toFile());
         assertThat(historyFile.getParentFile()).isDirectory();
     }
 

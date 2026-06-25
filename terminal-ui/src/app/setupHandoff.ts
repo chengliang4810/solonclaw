@@ -1,4 +1,4 @@
-import type { RunExternalProcess } from '@solon-claw/ink'
+import type { RunExternalProcess } from '@solonclaw/ink'
 
 import type { SetupStatusResponse } from '../gatewayTypes.js'
 import type { LaunchResult } from '../lib/externalCli.js'

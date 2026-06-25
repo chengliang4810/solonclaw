@@ -155,7 +155,7 @@ def generate_release_notes(
     classified = {commit_entry_key(item) for item in features + fixes}
     others = [item for item in commits if commit_entry_key(item) not in classified]
 
-    body = f"""## solon-claw {tag}
+    body = f"""## solonclaw {tag}
 
 本次发布说明按提交类型生成摘要，默认仅展开每类前 {MAX_SUMMARY_ITEMS} 条提交主题，用于突出相对上一版的主要差异。
 These release notes summarize commit types and expand only the first {MAX_SUMMARY_ITEMS} subjects in each section by default, highlighting the main differences from the previous release.
@@ -177,23 +177,23 @@ Commit range: `{display_range}`
 
 ### 下载内容 / Downloads
 
-- `solon-claw.jar`：完整运行包，包含后端依赖与 Dashboard 静态资源。
-- `solon-claw.jar`: Full runtime package with backend dependencies and Dashboard static assets.
-- `solon-claw-source.zip`：当前发布提交的源码 ZIP 包。
-- `solon-claw-source.zip`: Source ZIP archive for the published commit.
-- `solon-claw-source.tar.gz`：当前发布提交的源码 tar.gz 包。
-- `solon-claw-source.tar.gz`: Source tar.gz archive for the published commit.
+- `solonclaw.jar`：完整运行包，包含后端依赖与 Dashboard 静态资源。
+- `solonclaw.jar`: Full package with backend dependencies and Dashboard static assets.
+- `solonclaw-source.zip`：当前发布提交的源码 ZIP 包。
+- `solonclaw-source.zip`: Source ZIP archive for the published commit.
+- `solonclaw-source.tar.gz`：当前发布提交的源码 tar.gz 包。
+- `solonclaw-source.tar.gz`: Source tar.gz archive for the published commit.
 - `SHA256SUMS`：发布包校验文件。
 - `SHA256SUMS`: Checksums for release artifacts.
 
 ### 快速运行 / Quick Start
 
 ```bash
-java -jar solon-claw.jar
+java -jar solonclaw.jar
 ```
 
-服务默认监听 `http://127.0.0.1:8080`，运行数据会写入当前目录的 `runtime/`。
-The service listens on `http://127.0.0.1:8080` by default and writes runtime data to `runtime/` in the current directory.
+服务默认监听 `http://127.0.0.1:8080`，工作区数据会写入当前目录的 `workspace/`。
+The service listens on `http://127.0.0.1:8080` by default and writes workspace data to `workspace/` in the current directory.
 """
     assert_clean_release_text(body, regex)
     output_path.parent.mkdir(parents=True, exist_ok=True)

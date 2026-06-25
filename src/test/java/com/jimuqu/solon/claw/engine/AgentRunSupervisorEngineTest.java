@@ -264,20 +264,20 @@ public class AgentRunSupervisorEngineTest {
     /** 创建只依赖临时目录的核心引擎测试夹具。 */
     private static Fixture fixture() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = Files.createTempDirectory("solon-claw-engine-test").toFile();
-        File dataDir = new File(runtimeHome, "data");
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        File workspaceHome = Files.createTempDirectory("solonclaw-engine-test").toFile();
+        File dataDir = new File(workspaceHome, "data");
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime().setStateDb(new File(dataDir, "state.db").getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
-        config.getWorkspace().setDir(runtimeHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
+        config.getWorkspace().setDir(workspaceHome.getAbsolutePath());
         config.getTrace().setMaxAttempts(1);
         config.getTrace().setRetentionDays(0);
         config.getTask().setBusyPolicy("queue");
-        writeProviderConfig(runtimeHome);
+        writeProviderConfig(workspaceHome);
 
         AppConfig.ProviderConfig primary = new AppConfig.ProviderConfig();
         primary.setName("Primary");
@@ -297,13 +297,13 @@ public class AgentRunSupervisorEngineTest {
     }
 
     /**
-     * 写入运行时模型配置，避免 LlmProviderService 读取开发机全局 runtime。
+     * 写入工作区模型配置，避免 LlmProviderService 读取开发机全局 workspace。
      *
-     * @param runtimeHome 测试运行时根目录。
+     * @param workspaceHome 测试工作区根目录。
      */
-    private static void writeProviderConfig(File runtimeHome) throws Exception {
+    private static void writeProviderConfig(File workspaceHome) throws Exception {
         Files.write(
-                new File(runtimeHome, "config.yml").toPath(),
+                new File(workspaceHome, "config.yml").toPath(),
                 Collections.singletonList(
                         "providers:\n"
                                 + "  primary:\n"

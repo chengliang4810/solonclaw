@@ -370,7 +370,7 @@ public class AgentProfileService {
      */
     private String formatShow(Object value) {
         if (value instanceof String && AgentRuntimeScope.DEFAULT_AGENT.equals(value)) {
-            return "Agent: default\n类型：内置默认 Agent\n位置：默认工作区\n说明：default 不在 runtime/agents 下管理，不允许编辑、删除或克隆。";
+            return "Agent: default\n类型：内置默认 Agent\n位置：默认工作区\n说明：default 不在 workspace/agents 下管理，不允许编辑、删除或克隆。";
         }
         AgentProfile profile = (AgentProfile) value;
         return "Agent: "

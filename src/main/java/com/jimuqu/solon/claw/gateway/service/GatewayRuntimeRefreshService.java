@@ -17,25 +17,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
-/** 运行时配置刷新服务。 */
+/** 工作区配置刷新服务。 */
 public class GatewayRuntimeRefreshService {
     /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(GatewayRuntimeRefreshService.class);
 
-    /** 注入应用配置，用于消息网关运行时刷新。 */
+    /** 注入应用配置，用于消息网关工作区配置刷新。 */
     private final AppConfig appConfig;
 
-    /** 记录消息网关运行时刷新中的渠道连接管理器。 */
+    /** 记录消息网关工作区配置刷新中的渠道连接管理器。 */
     private final ChannelConnectionManager channelConnectionManager;
 
-    /** 记录消息网关运行时刷新中的最近一次配置Mtime。 */
+    /** 记录消息网关工作区配置刷新中的最近一次配置Mtime。 */
     private volatile long lastConfigMtime;
 
-    /** 记录消息网关运行时刷新中的最近一次Failure。 */
+    /** 记录消息网关工作区配置刷新中的最近一次Failure。 */
     private volatile RefreshFailure lastFailure;
 
     /**
-     * 创建消息网关运行时刷新服务实例，并注入运行所需依赖。
+     * 创建消息网关工作区配置刷新服务实例，并注入运行所需依赖。
      *
      * @param appConfig 应用运行配置。
      * @param channelConnectionManager 渠道连接Manager参数。
@@ -89,7 +89,7 @@ public class GatewayRuntimeRefreshService {
         ValidationResult validation = validateRuntimeConfig(configFile);
         if (!validation.isSuccess()) {
             String message = safeMessage(validation.message);
-            log.warn("Skip runtime refresh because config validation failed: {}", message);
+            log.warn("Skip workspace config refresh because config validation failed: {}", message);
             recordFailure(configFile, "validation", message, true);
             return RefreshResult.failure(runtimeConfigReference(configFile), message);
         }
@@ -97,7 +97,7 @@ public class GatewayRuntimeRefreshService {
         AppConfig latest;
         try {
             Props props = Solon.cfg() == null ? new Props() : new Props(Solon.cfg());
-            props.put("solonclaw.runtime.home", appConfig.getRuntime().getHome());
+            props.put("solonclaw.workspace", appConfig.getWorkspace().getDir());
             if (Solon.cfg() == null) {
                 latest = AppConfig.load(props);
             } else {
@@ -105,7 +105,7 @@ public class GatewayRuntimeRefreshService {
             }
         } catch (Throwable e) {
             log.debug(
-                    "Skip runtime refresh because config reload failed: errorType={}, error={}",
+                    "Skip workspace config refresh because config reload failed: errorType={}, error={}",
                     e.getClass().getSimpleName(),
                     safeError(e));
             recordFailure(configFile, e.getClass().getSimpleName(), safeError(e), false);
@@ -115,10 +115,10 @@ public class GatewayRuntimeRefreshService {
         lastConfigMtime = fileMtime(appConfig.getRuntime().getConfigFile());
         lastFailure = null;
         if (!reconnectChannels) {
-            return RefreshResult.success(runtimeConfigReference(configFile), false, "运行时配置已刷新。");
+            return RefreshResult.success(runtimeConfigReference(configFile), false, "工作区配置已刷新。");
         }
         channelConnectionManager.refreshAll();
-        return RefreshResult.success(runtimeConfigReference(configFile), true, "运行时配置已刷新，渠道连接已重连。");
+        return RefreshResult.success(runtimeConfigReference(configFile), true, "工作区配置已刷新，渠道连接已重连。");
     }
 
     /**
@@ -136,9 +136,9 @@ public class GatewayRuntimeRefreshService {
     }
 
     /**
-     * 执行运行时配置文件相关逻辑。
+     * 执行工作区配置文件相关逻辑。
      *
-     * @return 返回运行时配置文件结果。
+     * @return 返回工作区配置文件结果。
      */
     private File runtimeConfigFile() {
         String path = appConfig.getRuntime().getConfigFile();
@@ -147,18 +147,18 @@ public class GatewayRuntimeRefreshService {
         }
         return new File(
                 StrUtil.blankToDefault(
-                        appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME),
+                        appConfig.getRuntime().getHome(), RuntimePathConstants.WORKSPACE_HOME),
                 RuntimePathConstants.CONFIG_FILE_NAME);
     }
 
     /**
-     * 执行运行时配置引用相关逻辑。
+     * 执行工作区配置引用相关逻辑。
      *
      * @param configFile 文件或目录路径参数。
-     * @return 返回运行时配置Reference结果。
+     * @return 返回工作区配置Reference结果。
      */
     private String runtimeConfigReference(File configFile) {
-        return "runtime://" + RuntimePathConstants.CONFIG_FILE_NAME;
+        return "workspace://" + RuntimePathConstants.CONFIG_FILE_NAME;
     }
 
     /**
@@ -204,10 +204,10 @@ public class GatewayRuntimeRefreshService {
     }
 
     /**
-     * 校验运行时配置。
+     * 校验工作区配置。
      *
      * @param configFile 文件或目录路径参数。
-     * @return 返回运行时配置。
+     * @return 返回工作区配置。
      */
     private ValidationResult validateRuntimeConfig(File configFile) {
         if (configFile == null || !configFile.exists()) {
@@ -220,7 +220,7 @@ public class GatewayRuntimeRefreshService {
             parsed = new Yaml().load(content);
         } catch (Exception e) {
             return ValidationResult.failure(
-                    "runtime/config.yml 格式错误："
+                    "workspace/config.yml 格式错误："
                             + safeError(e)
                             + "；配置片段="
                             + SecretRedactor.redact(content, 1000));
@@ -229,7 +229,7 @@ public class GatewayRuntimeRefreshService {
             return ValidationResult.success();
         }
         if (!(parsed instanceof Map)) {
-            return ValidationResult.failure("runtime/config.yml 顶层必须是 YAML 对象。");
+            return ValidationResult.failure("workspace/config.yml 顶层必须是 YAML 对象。");
         }
 
         Map<String, Object> root = sanitizeMap((Map<?, ?>) parsed);
@@ -789,7 +789,7 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.skills.curator",
                     "solonclaw.rollback",
                     "solonclaw.display",
-                    "solonclaw.display.runtimeFooter",
+                    "solonclaw.display.metadataFooter",
                     "solonclaw.display.platforms",
                     "solonclaw.gateway",
                     "solonclaw.dashboard",
@@ -876,7 +876,7 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.skills.curator.enabled",
                     "solonclaw.rollback.enabled",
                     "solonclaw.display.showReasoning",
-                    "solonclaw.display.runtimeFooter.enabled",
+                    "solonclaw.display.metadataFooter.enabled",
                     "solonclaw.gateway.allowAllUsers",
                     "solonclaw.react.summarizationEnabled",
                     "solonclaw.react.toolLoopWarningsEnabled",
@@ -898,7 +898,7 @@ public class GatewayRuntimeRefreshService {
     /** 列表KEYS的统一常量值。 */
     private static final Set<String> LIST_KEYS =
             setOf(
-                    "solonclaw.display.runtimeFooter.fields",
+                    "solonclaw.display.metadataFooter.fields",
                     "solonclaw.gateway.allowedUsers",
                     "security.websiteBlocklist.domains",
                     "security.websiteBlocklist.sharedFiles",
@@ -928,9 +928,9 @@ public class GatewayRuntimeRefreshService {
                     ".comment.enabled",
                     ".aiCardStreaming.enabled",
                     ".markdownSupport",
-                    ".runtimeFooter.enabled");
+                    ".metadataFooter.enabled");
 
     /** 列表后缀列表的统一常量值。 */
     private static final Set<String> LIST_SUFFIXES =
-            setOf(".allowedUsers", ".groupAllowedUsers", ".runtimeFooter.fields");
+            setOf(".allowedUsers", ".groupAllowedUsers", ".metadataFooter.fields");
 }

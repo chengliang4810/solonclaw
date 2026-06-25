@@ -2911,7 +2911,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
     }
 
-    /** 懒加载 PDF 技能，统一复用 runtime/cache/pdf 目录。 */
+    /** 懒加载 PDF 技能，统一复用 workspace/cache/pdf 目录。 */
     PdfTalent pdfSkill() {
         if (pdfSkill == null) {
             synchronized (this) {

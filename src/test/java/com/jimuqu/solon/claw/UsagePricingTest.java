@@ -588,11 +588,11 @@ public class UsagePricingTest {
     }
 
     private AppConfig testConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-pricing-test").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-pricing-test").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         return config;
     }
 }

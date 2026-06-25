@@ -92,19 +92,19 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldResetRuntimeConfigFileThroughSetupReset() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-setup-reset");
-        AppConfig config = config(runtimeHome);
-        RuntimeConfigResolver.initialize(runtimeHome.toString())
+        Path workspaceHome = Files.createTempDirectory("solonclaw-setup-reset");
+        AppConfig config = config(workspaceHome);
+        RuntimeConfigResolver.initialize(workspaceHome.toString())
                 .setFileValue("providers.default.defaultModel", "before-reset");
         TerminalSetupCommands commands = commands(config);
 
         String text = commands.render("/setup --reset");
 
         assertThat(text)
-                .contains("runtime/config.yml 已重置")
-                .contains(runtimeHome.resolve("config.yml").toString())
+                .contains("workspace/config.yml 已重置")
+                .contains(workspaceHome.resolve("config.yml").toString())
                 .contains("next=solonclaw setup model");
-        assertThat(Files.exists(runtimeHome.resolve("config.yml"))).isFalse();
+        assertThat(Files.exists(workspaceHome.resolve("config.yml"))).isFalse();
     }
 
     @Test
@@ -168,8 +168,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldConfigureDomesticGatewayChannelThroughSetupGatewayCommand() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-gateway-set");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-gateway-set");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output =
@@ -177,7 +177,7 @@ public class TerminalSetupCommandsTest {
                         "/setup gateway feishu --app-id cli_test_app --app-secret "
                                 + "Sk-Test-FeishuSecret123 --enabled true");
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat(output)
                 .contains("渠道配置已写入")
                 .contains("channel=feishu")
@@ -196,8 +196,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRejectUnsupportedGatewayChannel() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-gateway-unsupported");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-gateway-unsupported");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output =
@@ -205,13 +205,13 @@ public class TerminalSetupCommandsTest {
                         "/setup gateway unknown --token Sk-Test-UnknownSecret123 --enabled true");
 
         assertThat(output).contains("不支持的渠道").contains("feishu,dingtalk,wecom,weixin,qqbot,yuanbao");
-        assertThat(Files.exists(runtimeHome.resolve("config.yml"))).isFalse();
+        assertThat(Files.exists(workspaceHome.resolve("config.yml"))).isFalse();
     }
 
     @Test
     void shouldExplainUnsupportedGatewayField() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-gateway-unsupported-field");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-gateway-unsupported-field");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output =
@@ -224,29 +224,29 @@ public class TerminalSetupCommandsTest {
                 .contains("渠道 feishu 不支持配置项：verification-token")
                 .contains("可用配置项：")
                 .doesNotContain("用法：solonclaw setup gateway");
-        assertThat(Files.exists(runtimeHome.resolve("config.yml"))).isFalse();
+        assertThat(Files.exists(workspaceHome.resolve("config.yml"))).isFalse();
     }
 
     @Test
     void shouldRenderConfigPathShowAndCheck() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-config");
-        AppConfig config = config(runtimeHome);
-        RuntimeConfigResolver.initialize(runtimeHome.toString())
+        Path workspaceHome = Files.createTempDirectory("solonclaw-config");
+        AppConfig config = config(workspaceHome);
+        RuntimeConfigResolver.initialize(workspaceHome.toString())
                 .setFileValue("providers.default.defaultModel", "gpt-main");
         TerminalSetupCommands commands = commands(config);
 
         assertThat(commands.render("/config path"))
-                .contains(runtimeHome.resolve("config.yml").toString());
+                .contains(workspaceHome.resolve("config.yml").toString());
         assertThat(commands.render("/config show"))
-                .contains("runtime/config.yml")
+                .contains("workspace/config.yml")
                 .contains("providers.default.defaultModel");
         assertThat(commands.render("/config check")).contains("配置检查").contains("has_issues=");
     }
 
     @Test
     void shouldShowDynamicProviderAfterModelSet() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-config-dynamic-provider");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-config-dynamic-provider");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         commands.render(
@@ -264,34 +264,34 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRejectRemovedConfigEnvPathCommand() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-config-env-path");
-        TerminalSetupCommands commands = commands(config(runtimeHome));
+        Path workspaceHome = Files.createTempDirectory("solonclaw-config-env-path");
+        TerminalSetupCommands commands = commands(config(workspaceHome));
 
         String text = commands.render("/config env-path");
 
         assertThat(text)
                 .contains("未知 setup/config 命令")
-                .doesNotContain(runtimeHome.resolve("config.yml").toString());
+                .doesNotContain(workspaceHome.resolve("config.yml").toString());
     }
 
     @Test
     void shouldRenderConfigEditCommandWithoutOpeningEditor() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-config-edit");
-        TerminalSetupCommands commands = commands(config(runtimeHome));
+        Path workspaceHome = Files.createTempDirectory("solonclaw-config-edit");
+        TerminalSetupCommands commands = commands(config(workspaceHome));
 
         String text = commands.render("/config edit");
 
         assertThat(text)
                 .contains("配置文件")
-                .contains(runtimeHome.resolve("config.yml").toString())
+                .contains(workspaceHome.resolve("config.yml").toString())
                 .contains("solonclaw config set")
                 .doesNotContain("未知 setup/config 命令");
     }
 
     @Test
     void shouldRejectRemovedConfigMigrateCommand() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-config-migrate");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-config-migrate");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String text = commands.render("/config migrate");
@@ -301,8 +301,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRenderDoctorSummaryWithoutLeakingSecrets() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-doctor");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-doctor");
+        AppConfig config = config(workspaceHome);
         config.getProviders().get("default").setApiKey("Sk-Test-DoctorSecret123");
         config.getChannels().getFeishu().setEnabled(true);
         config.getChannels().getFeishu().setAppId("doctor_app");
@@ -314,7 +314,7 @@ public class TerminalSetupCommandsTest {
         assertThat(commands.isSetupCommand("/doctor")).isTrue();
         assertThat(output)
                 .contains("Solon Claw Doctor")
-                .contains("runtime.config=")
+                .contains("workspace.config=")
                 .contains("config.has_issues=false")
                 .contains("model.provider=default")
                 .contains("model.api_key=configured")
@@ -327,8 +327,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRenderDoctorFromRuntimeConfigAfterTuiSetupWrites() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-doctor-runtime");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-doctor-runtime");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
         com.jimuqu.solon.claw.support.RuntimeSetupService setupService =
                 new com.jimuqu.solon.claw.support.RuntimeSetupService(config);
@@ -355,8 +355,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRenderDoctorFromRuntimeChannelConfigAfterTuiSetupWrites() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-doctor-runtime-channel");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-doctor-runtime-channel");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
         com.jimuqu.solon.claw.support.RuntimeSetupService setupService =
                 new com.jimuqu.solon.claw.support.RuntimeSetupService(config);
@@ -406,8 +406,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRenderLocalStatusVersionAndLogoutWithoutModelCall() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-system-commands");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-system-commands");
+        AppConfig config = config(workspaceHome);
         config.getProviders().get("default").setApiKey("Sk-Test-SystemSecret123");
         TerminalSetupCommands commands = commands(config);
 
@@ -420,8 +420,8 @@ public class TerminalSetupCommandsTest {
         assertThat(commands.isSetupCommand("/logout")).isTrue();
         assertThat(status)
                 .contains("Solon Claw Status")
-                .contains("runtime.config=")
-                .contains(runtimeHome.resolve("config.yml").toString())
+                .contains("workspace.config=")
+                .contains(workspaceHome.resolve("config.yml").toString())
                 .contains("model.provider=default")
                 .contains("channels.configured=")
                 .doesNotContain("Sk-Test-SystemSecret123")
@@ -517,7 +517,7 @@ public class TerminalSetupCommandsTest {
         assertThat(hooks)
                 .contains("Hooks")
                 .contains("/plugins")
-                .contains("runtime/config.yml")
+                .contains("workspace/config.yml")
                 .doesNotContain("未知 setup/config 命令");
         assertThat(dump)
                 .contains("诊断导出")
@@ -525,8 +525,8 @@ public class TerminalSetupCommandsTest {
                 .contains("/doctor")
                 .doesNotContain("未知 setup/config 命令");
         assertThat(backup)
-                .contains("运行目录备份")
-                .contains("runtime.home")
+                .contains("工作区目录备份")
+                .contains("workspace=")
                 .contains("config.yml")
                 .doesNotContain("未知 setup/config 命令");
         assertThat(checkpoints)
@@ -546,7 +546,7 @@ public class TerminalSetupCommandsTest {
                 .doesNotContain("未知 setup/config 命令");
         assertThat(memory)
                 .contains("记忆")
-                .contains("runtime/config.yml")
+                .contains("workspace/config.yml")
                 .contains("/config")
                 .doesNotContain("未知 setup/config 命令");
         assertThat(dashboard)
@@ -556,7 +556,7 @@ public class TerminalSetupCommandsTest {
                 .doesNotContain("未知 setup/config 命令");
         assertThat(logs)
                 .contains("日志")
-                .contains("runtime")
+                .contains("workspace")
                 .contains("/debug")
                 .doesNotContain("未知 setup/config 命令");
         assertThat(promptSize)
@@ -568,8 +568,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRenderPairingGuidanceAsLocalTerminalCommand() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-pairing-guidance");
-        TerminalSetupCommands commands = commands(config(runtimeHome));
+        Path workspaceHome = Files.createTempDirectory("solonclaw-pairing-guidance");
+        TerminalSetupCommands commands = commands(config(workspaceHome));
 
         String list = commands.render("/pairing list");
         String approve = commands.render("/pairing approve feishu 123456");
@@ -586,13 +586,13 @@ public class TerminalSetupCommandsTest {
                 .contains("请在对应平台管理员私聊中执行")
                 .contains("/pairing approve feishu 123456")
                 .doesNotContain("已批准");
-        assertThat(Files.exists(runtimeHome.resolve("config.yml"))).isFalse();
+        assertThat(Files.exists(workspaceHome.resolve("config.yml"))).isFalse();
     }
 
     @Test
     void shouldManageApiKeyAuthStateLocally() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-auth-local");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-auth-local");
+        AppConfig config = config(workspaceHome);
         config.getProviders().get("default").setApiKey("");
         TerminalSetupCommands commands = commands(config);
 
@@ -604,7 +604,7 @@ public class TerminalSetupCommandsTest {
                                 + "--dialect openai --label Local");
         String status = commands.render("/auth status local-openai");
         String logout = commands.render("/auth logout local-openai");
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
 
         assertThat(empty)
                 .contains("认证状态")
@@ -636,8 +636,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRouteLoginWithApiKeyToLocalAuthAdd() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-login-api-key");
-        TerminalSetupCommands commands = commands(config(runtimeHome));
+        Path workspaceHome = Files.createTempDirectory("solonclaw-login-api-key");
+        TerminalSetupCommands commands = commands(config(workspaceHome));
 
         String output =
                 commands.render(
@@ -652,20 +652,20 @@ public class TerminalSetupCommandsTest {
                 .doesNotContain("Sk-Test-LoginSecret123")
                 .doesNotContain("OAuth")
                 .doesNotContain("未知 setup/config 命令");
-        assertThat(Files.readString(runtimeHome.resolve("config.yml")))
+        assertThat(Files.readString(workspaceHome.resolve("config.yml")))
                 .contains("apiKey: Sk-Test-LoginSecret123")
                 .contains("defaultModel: login-model");
     }
 
     @Test
     void shouldUseProviderTemplateDefaultsWhenAddingApiKeyAuth() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-auth-template");
-        TerminalSetupCommands commands = commands(config(runtimeHome));
+        Path workspaceHome = Files.createTempDirectory("solonclaw-auth-template");
+        TerminalSetupCommands commands = commands(config(workspaceHome));
 
         String output =
                 commands.render("/auth add gemini --api-key Sk-Test-GeminiAuthSecret123 --activate");
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat(output)
                 .contains("认证凭据已写入")
                 .contains("provider=gemini")
@@ -687,8 +687,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldManageFallbackProviderChainLocally() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-fallback-chain");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-fallback-chain");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
         commands.render(
                 "/auth add backup --api-key Sk-Test-FallbackSecret123 "
@@ -697,14 +697,14 @@ public class TerminalSetupCommandsTest {
 
         String empty = commands.render("/fallback list");
         String add = commands.render("/fallback add --provider backup --model backup-model");
-        String addedFile = Files.readString(runtimeHome.resolve("config.yml"));
+        String addedFile = Files.readString(workspaceHome.resolve("config.yml"));
         String duplicate = commands.render("/fallback add --provider backup --model backup-model");
         String list = commands.render("/fallback list");
         String remove = commands.render("/fallback remove 1");
         String addAgain = commands.render("/fallback add --provider backup --model backup-model");
         String clear = commands.render("/fallback clear");
         String finalList = commands.render("/fallback list");
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
 
         assertThat(empty)
                 .contains("Fallback Providers")
@@ -743,8 +743,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRenderGatewayOperationsForSingleProcessRuntime() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-gateway-ops");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-gateway-ops");
+        AppConfig config = config(workspaceHome);
         config.getChannels().getFeishu().setEnabled(true);
         config.getChannels().getFeishu().setAppId("gateway_app");
         config.getChannels().getFeishu().setAppSecret("Sk-Test-GatewaySecret123");
@@ -764,7 +764,7 @@ public class TerminalSetupCommandsTest {
                 .contains("Gateway Status")
                 .contains("runtime=single-process")
                 .contains("feishu: enabled=true, status=configured")
-                .contains("config.path=" + runtimeHome.resolve("config.yml"))
+                .contains("config.path=" + workspaceHome.resolve("config.yml"))
                 .doesNotContain("Sk-Test-GatewaySecret123")
                 .doesNotContain("未知 setup/config 命令");
         assertThat(list)
@@ -799,15 +799,15 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldPreserveConfigSetKeyAndValueCase() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-config-set");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-config-set");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output =
                 commands.render(
                         "/config set providers.default.apiKey Sk-Test-Secret-WithCase123");
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat(output)
                 .contains("providers.default.apiKey=***")
                 .doesNotContain("providers.default.apikey")
@@ -819,8 +819,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldNotRedactNonSecretProviderKey() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-provider-key");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-provider-key");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output = commands.render("/config set model.providerKey default");
@@ -831,8 +831,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRenderUnsupportedConfigSetKeyWithoutThrowingStackTrace() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-config-set-unsupported");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-config-set-unsupported");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output = commands.render("/config set fallbackProviders.0.provider backup");
@@ -843,13 +843,13 @@ public class TerminalSetupCommandsTest {
                 .contains("solonclaw fallback add")
                 .doesNotContain("java.lang")
                 .doesNotContain("RuntimeConfigResolver");
-        assertThat(Files.exists(runtimeHome.resolve("config.yml"))).isFalse();
+        assertThat(Files.exists(workspaceHome.resolve("config.yml"))).isFalse();
     }
 
     @Test
     void shouldConfigureModelProviderThroughSemanticModelSetCommand() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-model-set");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-model-set");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output =
@@ -858,7 +858,7 @@ public class TerminalSetupCommandsTest {
                                 + "--api-key Sk-Test-Secret-WithCase123 --model mimo-v2.5-pro "
                                 + "--dialect openai");
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat(output)
                 .contains("模型配置已写入")
                 .contains("provider=default")
@@ -877,8 +877,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldConfigureModelProviderThroughSetupModelAlias() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-setup-model-set");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-setup-model-set");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output =
@@ -887,7 +887,7 @@ public class TerminalSetupCommandsTest {
                                 + "--api-key Sk-Test-SetupModel123 --model kimi-test "
                                 + "--dialect openai");
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat(output)
                 .contains("模型配置已写入")
                 .contains("model=kimi-test")
@@ -900,14 +900,14 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldUseProviderTemplateDefaultsWhenSettingModelWithApiKeyOnly() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-model-template-set");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-model-template-set");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output =
                 commands.render("/model set --provider gemini --api-key Sk-Test-GeminiModelSecret123");
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat(output)
                 .contains("模型配置已写入")
                 .contains("provider=gemini")
@@ -927,8 +927,8 @@ public class TerminalSetupCommandsTest {
 
     @Test
     void shouldRejectModelSetWithoutModelName() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-model-set-missing");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-model-set-missing");
+        AppConfig config = config(workspaceHome);
         TerminalSetupCommands commands = commands(config);
 
         String output =
@@ -939,7 +939,7 @@ public class TerminalSetupCommandsTest {
         assertThat(output)
                 .contains("用法：solonclaw model set")
                 .contains("--model <model>");
-        assertThat(Files.exists(runtimeHome.resolve("config.yml"))).isFalse();
+        assertThat(Files.exists(workspaceHome.resolve("config.yml"))).isFalse();
     }
 
     private TerminalSetupCommands commands(AppConfig config) {
@@ -948,10 +948,11 @@ public class TerminalSetupCommandsTest {
         return new TerminalSetupCommands(config, picker);
     }
 
-    private AppConfig config(Path runtimeHome) {
+    private AppConfig config(Path workspaceHome) {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
-        config.getRuntime().setConfigFile(runtimeHome.resolve("config.yml").toString());
+        config.getRuntime().setHome(workspaceHome.toString());
+        config.getRuntime().setConfigFile(workspaceHome.resolve("config.yml").toString());
+        config.getWorkspace().setDir(workspaceHome.toString());
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default Provider");
         provider.setBaseUrl("https://api.openai.com/v1");

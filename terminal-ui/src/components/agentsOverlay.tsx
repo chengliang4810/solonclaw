@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { Box, NoSelect, ScrollBox, type ScrollBoxHandle, Text, useInput, useStdout } from '@solon-claw/ink'
+import { Box, NoSelect, ScrollBox, type ScrollBoxHandle, Text, useInput, useStdout } from '@solonclaw/ink'
 import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from 'react'
 
 import {

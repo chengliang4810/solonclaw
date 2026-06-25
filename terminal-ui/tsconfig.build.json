@@ -3,7 +3,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@solon-claw/ink": ["src/types/solon-claw-ink.d.ts"]
+      "@solonclaw/ink": ["src/types/solonclaw-ink.d.ts"]
     }
   }
 }

@@ -1,4 +1,4 @@
-import { Box, Text } from '@solon-claw/ink'
+import { Box, Text } from '@solonclaw/ink'
 import { useState } from 'react'
 
 import type { Theme } from '../theme.js'

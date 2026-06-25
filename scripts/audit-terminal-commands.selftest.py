@@ -151,10 +151,10 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         mod = load_module()
 
         issues = mod.audit_node_tui_transcript(
-            "ready\n/setup\n/config path\nruntime/config.yml\n",
+            "ready\n/setup\n/config path\nworkspace/config.yml\n",
             [
                 {"type": "command", "value": "/setup", "expect": "Select provider"},
-                {"type": "command", "value": "/config path", "expect": "runtime/config.yml"},
+                {"type": "command", "value": "/config path", "expect": "workspace/config.yml"},
             ],
             0,
         )
@@ -241,7 +241,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
                 {
                     "type": "command",
                     "value": "/setup",
-                    "expect": "Model, channel, and runtime checks",
+                    "expect": "模型、渠道与工作区检查",
                     "after": "q",
                     "close_expect": "ready",
                 },
@@ -284,7 +284,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
                 {
                     "type": "panel",
                     "value": "/setup",
-                    "expect": "Model, channel, and runtime checks",
+                    "expect": "模型、渠道与工作区检查",
                     "keys": "\r",
                     "post_expect": "Select provider",
                     "after": "q",
@@ -293,7 +293,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
                 {
                     "type": "panel",
                     "value": "/setup",
-                    "expect": "Model, channel, and runtime checks",
+                    "expect": "模型、渠道与工作区检查",
                     "keys": "\x1b[B\r",
                     "post_expect": "Channel setup",
                     "after": "q",
@@ -302,7 +302,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
                 {
                     "type": "panel",
                     "value": "/setup",
-                    "expect": "Model, channel, and runtime checks",
+                    "expect": "模型、渠道与工作区检查",
                     "keys": "\x1b[B\x1b[B\r",
                     "post_expect": "model.provider",
                     "after": "q",
@@ -311,7 +311,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
             ],
         )
 
-    def test_node_tui_env_uses_runtime_home_for_frontend_state(self) -> None:
+    def test_node_tui_env_uses_workspace_home_for_frontend_state(self) -> None:
         mod = load_module()
 
         env = mod.build_node_tui_env(Path("/tmp/solonclaw-audit-home"), 18123)

@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 public class TerminalModelPickerTest {
-    /** 隔离运行时配置目录，避免本机 runtime/config.yml 覆盖测试夹具中的 provider 展示名。 */
+    /** 隔离工作区配置目录，避免本机 workspace/config.yml 覆盖测试夹具中的 provider 展示名。 */
     @TempDir
-    Path runtimeHome;
+    Path workspaceHome;
 
     @Test
     void shouldRenderCurrentAndFallbackModels() {
@@ -81,8 +81,8 @@ public class TerminalModelPickerTest {
 
     private AppConfig config() {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
-        config.getRuntime().setConfigFile(runtimeHome.resolve("config.yml").toString());
+        config.getRuntime().setHome(workspaceHome.toString());
+        config.getRuntime().setConfigFile(workspaceHome.resolve("config.yml").toString());
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default Provider");
         provider.setBaseUrl("https://api.openai.com");

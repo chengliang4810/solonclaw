@@ -31,7 +31,6 @@ public class RuntimeSettingsService {
             Arrays.asList(
                     "model.providerKey",
                     "model.default",
-                    "solonclaw.workspace",
                     "providers.default.name",
                     "providers.default.baseUrl",
                     "providers.default.apiKey",
@@ -46,14 +45,14 @@ public class RuntimeSettingsService {
                     "display.showReasoning",
                     "display.toolPreviewLength",
                     "display.progressThrottleMs",
-                    "display.runtimeFooter.enabled",
-                    "display.runtimeFooter.fields",
-                    "display.platforms.feishu.runtimeFooter.enabled",
-                    "display.platforms.dingtalk.runtimeFooter.enabled",
-                    "display.platforms.wecom.runtimeFooter.enabled",
-                    "display.platforms.weixin.runtimeFooter.enabled",
-                    "display.platforms.qqbot.runtimeFooter.enabled",
-                    "display.platforms.yuanbao.runtimeFooter.enabled",
+                    "display.metadataFooter.enabled",
+                    "display.metadataFooter.fields",
+                    "display.platforms.feishu.metadataFooter.enabled",
+                    "display.platforms.dingtalk.metadataFooter.enabled",
+                    "display.platforms.wecom.metadataFooter.enabled",
+                    "display.platforms.weixin.metadataFooter.enabled",
+                    "display.platforms.qqbot.metadataFooter.enabled",
+                    "display.platforms.yuanbao.metadataFooter.enabled",
                     "scheduler.enabled",
                     "scheduler.tickSeconds",
                     "scheduler.wrapResponse",
@@ -159,7 +158,7 @@ public class RuntimeSettingsService {
                     ".sendChunkRetryDelaySeconds",
                     ".toolProgress",
                     ".progressCardTemplateId",
-                    ".runtimeFooter.enabled",
+                    ".metadataFooter.enabled",
                     ".comment.enabled",
                     ".comment.pairingFile",
                     ".aiCardStreaming.enabled",
@@ -190,7 +189,7 @@ public class RuntimeSettingsService {
     /** 注入控制台配置服务，用于调用对应业务能力。 */
     private final DashboardConfigService dashboardConfigService;
 
-    /** 注入控制台运行时配置服务，用于调用对应业务能力。 */
+    /** 注入控制台工作区配置服务，用于调用对应业务能力。 */
     private final DashboardRuntimeConfigService dashboardRuntimeConfigService;
 
     /** 注入应用版本服务，用于调用对应业务能力。 */
@@ -209,7 +208,7 @@ public class RuntimeSettingsService {
      * @param globalSettingRepository globalSetting仓储依赖。
      * @param deliveryService 投递服务依赖。
      * @param dashboardConfigService dashboard配置Service配置对象。
-     * @param dashboardRuntimeConfigService dashboard运行时配置Service配置对象。
+     * @param dashboardRuntimeConfigService dashboard工作区配置Service配置对象。
      * @param appVersionService 应用版本服务依赖。
      * @param llmProviderService LLM提供方Service标识或键值。
      * @param dashboardProviderService dashboard提供方Service标识或键值。
@@ -397,13 +396,13 @@ public class RuntimeSettingsService {
         buffer.append("has_session_model_override=").append(resolved.sessionOverride).append('\n');
         buffer.append("enabled_tools=").append(join(enabledToolNames)).append('\n');
         buffer.append("channels=").append(join(channelStates)).append('\n');
-        buffer.append("runtime_home=")
+        buffer.append("workspace_home=")
                 .append(StrUtil.nullToEmpty(appConfig.getRuntime().getHome()))
                 .append('\n');
         buffer.append("workspace_policy=workspace_free: 工作区内读写和普通命令自由；工作区外读取自由，写入与网络等外部操作需要审批，可按本次、当前会话或永久同类操作放行；密钥始终脱敏。\n");
         appendShellGuidance(buffer, enabledToolNames);
         buffer.append(
-                "Only change your own configuration through /model, config_set, or config_set_secret. Secret keys must use config_set_secret and must never be copied from redacted read_file output. If you edit runtime/config.yml directly for non-secret keys, call config_refresh afterward; it validates YAML first and refuses invalid config. Global changes take effect on the next message.");
+                "Only change your own configuration through /model, config_set, or config_set_secret. Secret keys must use config_set_secret and must never be copied from redacted read_file output. If you edit workspace/config.yml directly for non-secret keys, call config_refresh afterward; it validates YAML first and refuses invalid config. Global changes take effect on the next message.");
         return buffer.toString();
     }
 
@@ -543,10 +542,10 @@ public class RuntimeSettingsService {
                 || key.endsWith(".comment.enabled")
                 || key.endsWith(".aiCardStreaming.enabled")
                 || key.endsWith(".markdownSupport")
-                || key.endsWith(".runtimeFooter.enabled")
+                || key.endsWith(".metadataFooter.enabled")
                 || "llm.stream".equals(key)
                 || "display.showReasoning".equals(key)
-                || "display.runtimeFooter.enabled".equals(key)
+                || "display.metadataFooter.enabled".equals(key)
                 || "scheduler.enabled".equals(key)
                 || "scheduler.wrapResponse".equals(key)
                 || "compression.enabled".equals(key)
@@ -628,7 +627,7 @@ public class RuntimeSettingsService {
         }
         if (key.endsWith("allowedUsers")
                 || key.endsWith("groupAllowedUsers")
-                || "display.runtimeFooter.fields".equals(key)
+                || "display.metadataFooter.fields".equals(key)
                 || "gateway.allowedUsers".equals(key)
                 || "security.websiteBlocklist.domains".equals(key)
                 || "security.websiteBlocklist.sharedFiles".equals(key)
@@ -686,9 +685,6 @@ public class RuntimeSettingsService {
         }
         if ("model.default".equals(key)) {
             return appConfig.getModel().getDefault();
-        }
-        if ("solonclaw.workspace".equals(key)) {
-            return appConfig.getWorkspace().getDir();
         }
         if (key.startsWith("providers.default.")) {
             AppConfig.ProviderConfig provider = appConfig.getProviders().get("default");

@@ -667,7 +667,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         return values;
     }
 
-    /** 把 JSON 对象节点转换为字符串映射，供渠道 setup RPC 写入运行时配置。 */
+    /** 把 JSON 对象节点转换为字符串映射，供渠道 setup RPC 写入工作区配置。 */
     @SuppressWarnings("unchecked")
     private Map<String, String> stringMap(ONode node) {
         Map<String, String> values = new LinkedHashMap<String, String>();

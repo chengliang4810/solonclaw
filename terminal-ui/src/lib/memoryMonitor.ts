@@ -53,7 +53,7 @@ function resolveThresholds(criticalBytes?: number, highBytes?: number) {
   return { critical, high }
 }
 
-// Deferred @solon-claw/ink import: loading `@solon-claw/ink` at module top-level
+// Deferred @solonclaw/ink import: loading `@solonclaw/ink` at module top-level
 // pulls the full ~414KB Ink bundle (React, renderer, components, hooks) onto
 // the critical path before the Python gateway can even be spawned. That
 // serialised roughly 150ms of Node work in front of gw.start() on every
@@ -73,7 +73,7 @@ async function _ensureEvictInkCaches(): Promise<(level: 'all' | 'half') => unkno
     return _evictInkCaches
   }
 
-  _evictInkCachesPromise ??= import('@solon-claw/ink')
+  _evictInkCachesPromise ??= import('@solonclaw/ink')
     .then(mod => {
       _evictInkCaches = mod.evictInkCaches as (level: 'all' | 'half') => unknown
 
@@ -144,7 +144,7 @@ export function startMemoryMonitor({
 
     // Prune Ink content caches before dump/exit — half on 'high' (recoverable),
     // full on 'critical' (post-dump RSS reduction, keeps user running).
-    // Deferred import keeps `@solon-claw/ink` off the cold-start critical path;
+    // Deferred import keeps `@solonclaw/ink` off the cold-start critical path;
     // by the time a tick fires 10s after launch the app has already loaded
     // the same module, so this resolves instantly from the ESM cache.
     try {

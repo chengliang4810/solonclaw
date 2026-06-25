@@ -112,7 +112,7 @@ public class SessionArtifactServiceTest {
         assertThat(toolResponse)
                 .contains("\"tool_call_id\":\"call-artifact\"")
                 .contains(
-                        "\"result_ref\":\"runtime://tool-results/run-artifact/call-artifact.txt\"")
+                        "\"result_ref\":\"workspace://tool-results/run-artifact/call-artifact.txt\"")
                 .contains("\"truncated\":true")
                 .contains("\"size\":")
                 .doesNotContain("<persisted-output>")
@@ -136,7 +136,7 @@ public class SessionArtifactServiceTest {
         Map<String, Object> saved = service.saveTrajectory(session, null, true);
 
         assertThat(String.valueOf(saved.get("path")))
-                .isEqualTo("runtime://artifacts/trajectory_samples.jsonl");
+                .isEqualTo("workspace://artifacts/trajectory_samples.jsonl");
         assertThat(saved).doesNotContainKey("host_path");
         File target = new File(artifactsDir, "trajectory_samples.jsonl");
         assertThat(target.getName()).isEqualTo("trajectory_samples.jsonl");
@@ -183,7 +183,7 @@ public class SessionArtifactServiceTest {
                 .contains("trajectory_samples.jsonl");
         assertThat(slash.getContent()).doesNotContain(env.appConfig.getRuntime().getHome());
         assertThat(String.valueOf(dashboardSaved.get("path")))
-                .isEqualTo("runtime://artifacts/failed_trajectories.jsonl");
+                .isEqualTo("workspace://artifacts/failed_trajectories.jsonl");
         assertThat(dashboardSaved).doesNotContainKey("host_path");
         assertThat(String.valueOf(dashboardSaved.get("path")))
                 .doesNotContain(env.appConfig.getRuntime().getHome());

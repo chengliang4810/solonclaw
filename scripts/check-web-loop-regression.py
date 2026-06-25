@@ -89,7 +89,7 @@ def main() -> int:
     args = parser.parse_args()
 
     root = Path(args.root_path).resolve()
-    logs_dir = root / "runtime" / "logs"
+    logs_dir = root / "workspace" / "logs"
     checks: list[Check] = []
     errors: list[str] = []
 

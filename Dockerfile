@@ -20,7 +20,7 @@ COPY src /workspace/src
 COPY --from=frontend /workspace/web/dist /workspace/web/dist
 
 RUN mvn -DskipTests -Dskip.web.build=true package \
-    && cp "$(find target -maxdepth 1 -type f -name 'solon-claw-*.jar' ! -name 'original-*' | head -n 1)" /tmp/solon-claw.jar
+    && cp "$(find target -maxdepth 1 -type f -name 'solonclaw-*.jar' ! -name 'original-*' | head -n 1)" /tmp/solonclaw.jar
 
 FROM eclipse-temurin:17-jre
 
@@ -81,11 +81,11 @@ RUN apt-get update \
 RUN groupadd --system --gid 10001 solonclaw \
     && useradd --system --uid 10001 --gid solonclaw --home-dir /app --shell /usr/sbin/nologin solonclaw
 
-COPY --from=builder /tmp/solon-claw.jar /app/solon-claw.jar
+COPY --from=builder /tmp/solonclaw.jar /app/solonclaw.jar
 COPY docker/entrypoint.sh /app/docker-entrypoint.sh
 
-# runtime 是唯一持久化目录；入口脚本只确保目录存在，不改写用户配置。
-RUN mkdir -p /app/runtime \
+# workspace 是唯一持久化目录；入口脚本只确保目录存在，不改写用户配置。
+RUN mkdir -p /app/workspace \
     && sed -i 's/\r$//' /app/docker-entrypoint.sh \
     && chmod 755 /app/docker-entrypoint.sh \
     && chown -R solonclaw:solonclaw /app \
@@ -93,6 +93,7 @@ RUN mkdir -p /app/runtime \
 
 EXPOSE 8080
 
-# tini 负责转发信号和回收子进程，入口脚本再启动 SolonClaw。
+# tini 负责转发信号和回收子进程，入口脚本再启动 solonclaw。
 USER solonclaw
 ENTRYPOINT ["/usr/bin/tini", "-g", "--", "/app/docker-entrypoint.sh"]
+CMD ["--solonclaw.workspace=/app/workspace"]

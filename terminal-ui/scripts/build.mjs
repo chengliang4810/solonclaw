@@ -35,10 +35,10 @@ await build({
   outfile: out,
   jsx: 'automatic',
   jsxImportSource: 'react',
-  // Skip the prebuilt @solon-claw/ink bundle — esbuild's __esm helper doesn't
+  // Skip the prebuilt @solonclaw/ink bundle — esbuild's __esm helper doesn't
   // await nested async init, which breaks lazy-initialized exports like
   // `render`. Bundling from source sidesteps that.
-  alias: { '@solon-claw/ink': resolve(root, 'packages/solon-claw-ink/src/entry-exports.ts') },
+  alias: { '@solonclaw/ink': resolve(root, 'packages/solonclaw-ink/src/entry-exports.ts') },
   plugins: [stubDevtools],
   // Some transitive deps use CommonJS `require(...)` at runtime. ESM bundles
   // don't get a `require` binding automatically, so we inject one.

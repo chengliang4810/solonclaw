@@ -31,11 +31,11 @@ public class DashboardChatCancelPersistenceTest {
     /** 覆盖运行中取消的主路径，确保刷新页面后不会丢失取消轮次。 */
     @Test
     void shouldPersistCanceledWebRunForSessionRecovery() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-chat-cancel").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-chat-cancel").toFile();
         SqliteDatabase database = null;
         DashboardChatService service = null;
         try {
-            AppConfig config = testConfig(runtimeHome);
+            AppConfig config = testConfig(workspaceHome);
             database = new SqliteDatabase(config);
             SqliteSessionRepository sessionRepository = new SqliteSessionRepository(database);
             BlockingConversationOrchestrator orchestrator =
@@ -74,18 +74,18 @@ public class DashboardChatCancelPersistenceTest {
             if (database != null) {
                 database.shutdown();
             }
-            FileUtil.del(runtimeHome);
+            FileUtil.del(workspaceHome);
         }
     }
 
     /** 覆盖 Web 端直连 slash 命令，确保刷新页面后能恢复命令输入和可见结果。 */
     @Test
     void shouldPersistDirectSlashCommandForSessionRecovery() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-chat-command").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-chat-command").toFile();
         SqliteDatabase database = null;
         DashboardChatService service = null;
         try {
-            AppConfig config = testConfig(runtimeHome);
+            AppConfig config = testConfig(workspaceHome);
             database = new SqliteDatabase(config);
             SqliteSessionRepository sessionRepository = new SqliteSessionRepository(database);
             service =
@@ -120,24 +120,24 @@ public class DashboardChatCancelPersistenceTest {
             if (database != null) {
                 database.shutdown();
             }
-            FileUtil.del(runtimeHome);
+            FileUtil.del(workspaceHome);
         }
     }
 
     /**
-     * 构造最小测试配置，只启用会话仓储所需的运行目录和 SQLite 路径。
+     * 构造最小测试配置，只启用会话仓储所需的工作区目录和 SQLite 路径。
      *
-     * @param runtimeHome 测试运行目录。
+     * @param workspaceHome 测试工作区目录。
      * @return 返回测试配置对象。
      */
-    private static AppConfig testConfig(File runtimeHome) {
+    private static AppConfig testConfig(File workspaceHome) {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         return config;
     }
 

@@ -884,7 +884,7 @@ public class TerminalUiWebSocketListenerTest {
                         text ->
                                 assertThat(text)
                                         .contains("\"type\":\"skin.changed\"")
-                                        .contains("\"agent_name\":\"SolonClaw Agent\"")
+                                        .contains("\"agent_name\":\"solonclaw Agent\"")
                                         .contains("\"colors\":{}"));
     }
 

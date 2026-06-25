@@ -283,7 +283,7 @@ final class DashboardSecurityProbeRunner {
                         "skills/.hub/index.json",
                         false));
         items.add(pathProbe("system_write_path", "系统文件写入阻断", "/etc/hosts", true));
-        items.add(workdirTextProbe("workdir_text_policy", "运行目录文本安全检查", "workspace|bad"));
+        items.add(workdirTextProbe("workdir_text_policy", "工作区目录文本安全检查", "workspace|bad"));
         items.add(
                 toolArgsUrlProbe(
                         "tool_args_url",
@@ -799,7 +799,7 @@ final class DashboardSecurityProbeRunner {
         items.add(
                 commandPathPolicyProbe(
                         "command_private_var_write",
-                        "命令私有运行目录写入检查",
+                        "命令私有状态目录写入检查",
                         "printf probe > /private/var/db/probe"));
         items.add(
                 commandPathPolicyProbe(
@@ -1491,7 +1491,7 @@ final class DashboardSecurityProbeRunner {
                         "python_file_delete",
                         "Python 文件删除审批",
                         ToolNameConstants.EXECUTE_PYTHON,
-                        "os.remove('runtime/state.db')",
+                        "os.remove('workspace/data/state.db')",
                         "python_os_remove"));
         items.add(
                 approvalDetectionProbe(
@@ -1708,7 +1708,7 @@ final class DashboardSecurityProbeRunner {
                         "js_file_delete",
                         "JavaScript 文件删除审批",
                         ToolNameConstants.EXECUTE_JS,
-                        "fs.rmSync('runtime/cache', { recursive: true })",
+                        "fs.rmSync('workspace/cache', { recursive: true })",
                         "js_fs_remove"));
         items.add(
                 approvalDetectionProbe(
@@ -1785,21 +1785,21 @@ final class DashboardSecurityProbeRunner {
                         "gateway_stop_restart",
                         "网关停止或重启审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "solon-claw gateway restart",
+                        "solonclaw gateway restart",
                         "gateway_stop_restart"));
         items.add(
                 approvalDetectionProbe(
                         "app_update_restart",
                         "应用更新重启审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "solon-claw update",
+                        "solonclaw update",
                         "app_update_restart"));
         items.add(
                 approvalDetectionProbe(
                         "kill_agent_process",
                         "Agent 进程终止审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "pkill solon-claw",
+                        "pkill solonclaw",
                         "kill_agent_process"));
         items.add(
                 approvalDetectionProbe(
@@ -1974,35 +1974,35 @@ final class DashboardSecurityProbeRunner {
                         "find_delete",
                         "find 删除审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "find runtime/cache -delete",
+                        "find workspace/cache -delete",
                         "find_delete"));
         items.add(
                 approvalDetectionProbe(
                         "recursive_delete",
                         "递归删除审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "rm -rf runtime/cache",
+                        "rm -rf workspace/cache",
                         "recursive_delete"));
         items.add(
                 approvalDetectionProbe(
                         "recursive_delete_long_flag",
                         "递归删除长参数审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "rm --recursive runtime/cache",
+                        "rm --recursive workspace/cache",
                         "recursive_delete_long_flag"));
         items.add(
                 approvalDetectionProbe(
                         "find_exec_rm",
                         "find 执行 rm 审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "find runtime/cache -type f -exec rm {} \\;",
+                        "find workspace/cache -type f -exec rm {} \\;",
                         "find_exec_rm"));
         items.add(
                 approvalDetectionProbe(
                         "xargs_rm",
                         "xargs 执行 rm 审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "printf '%s\\n' runtime/cache/a | xargs rm",
+                        "printf '%s\\n' workspace/cache/a | xargs rm",
                         "xargs_rm"));
         items.add(
                 approvalDetectionProbe(
@@ -2100,63 +2100,63 @@ final class DashboardSecurityProbeRunner {
                         "copy_into_project_sensitive",
                         "项目敏感文件覆盖审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "cp runtime/config.yml .env",
+                        "cp workspace/config.yml .env",
                         "copy_into_project_sensitive"));
         items.add(
                 approvalDetectionProbe(
                         "chmod_setuid_setgid",
                         "Setuid/Setgid 权限变更审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "chmod u+s runtime/bin/helper",
+                        "chmod u+s workspace/bin/helper",
                         "chmod_setuid_setgid"));
         items.add(
                 approvalDetectionProbe(
                         "world_writable",
                         "全局可写权限审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "chmod 777 runtime/cache",
+                        "chmod 777 workspace/cache",
                         "world_writable"));
         items.add(
                 approvalDetectionProbe(
                         "world_writable_long_flag",
                         "递归全局可写权限审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "chmod --recursive 777 runtime/cache",
+                        "chmod --recursive 777 workspace/cache",
                         "world_writable_long_flag"));
         items.add(
                 approvalDetectionProbe(
                         "linux_acl_permission_widen",
                         "Linux ACL 权限放宽审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "setfacl -m u:deploy:rw runtime/config.yml",
+                        "setfacl -m u:deploy:rw workspace/config.yml",
                         "linux_acl_permission_widen"));
         items.add(
                 approvalDetectionProbe(
                         "chown_root",
                         "递归属主改为 root 审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "chown -R root runtime/cache",
+                        "chown -R root workspace/cache",
                         "chown_root"));
         items.add(
                 approvalDetectionProbe(
                         "chown_root_long_flag",
                         "递归属主改为 root 长参数审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "chown --recursive root runtime/cache",
+                        "chown --recursive root workspace/cache",
                         "chown_root_long_flag"));
         items.add(
                 approvalDetectionProbe(
                         "setcap_privilege",
                         "Linux capability 提权审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "setcap cap_net_bind_service+ep runtime/bin/app",
+                        "setcap cap_net_bind_service+ep workspace/bin/app",
                         "setcap_privilege"));
         items.add(
                 approvalDetectionProbe(
                         "linux_immutable_flag_removed",
                         "Linux immutable 标记移除审批",
                         ToolNameConstants.EXECUTE_SHELL,
-                        "chattr -i runtime/config.yml",
+                        "chattr -i workspace/config.yml",
                         "linux_immutable_flag_removed"));
         items.add(
                 approvalDetectionProbe(
@@ -3720,7 +3720,7 @@ final class DashboardSecurityProbeRunner {
      * @return 返回运行时Probe结果文件结果。
      */
     private Path runtimeProbeResultFile(Path cacheDir, String resultRef) {
-        String prefix = "runtime://tool-results/";
+        String prefix = "workspace://tool-results/";
         if (cacheDir == null || !StrUtil.startWith(resultRef, prefix)) {
             return null;
         }
@@ -3835,12 +3835,12 @@ final class DashboardSecurityProbeRunner {
      * @return 返回附件媒体缓存Probe结果。
      */
     private Map<String, Object> attachmentMediaCacheProbe(String key, String label) {
-        File runtimeHome = null;
+        File workspaceHome = null;
         try {
-            runtimeHome = Files.createTempDirectory("dashboard-media-cache-probe").toFile();
+            workspaceHome = Files.createTempDirectory("dashboard-media-cache-probe").toFile();
             AppConfig probeConfig = new AppConfig();
-            probeConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
-            probeConfig.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+            probeConfig.getRuntime().setHome(workspaceHome.getAbsolutePath());
+            probeConfig.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
             AttachmentCacheService cacheService = new AttachmentCacheService(probeConfig);
             String secret = "sk-dashboardattachmentprobe12345";
             MessageAttachment attachment =
@@ -3856,7 +3856,7 @@ final class DashboardSecurityProbeRunner {
             File resolved = cacheService.resolveMediaReference(reference);
             boolean traversalBlocked = false;
             try {
-                cacheService.resolveMediaReference("media://../runtime/config.yml");
+                cacheService.resolveMediaReference("media://../workspace/config.yml");
             } catch (IllegalArgumentException expected) {
                 traversalBlocked = true;
             }
@@ -3900,7 +3900,7 @@ final class DashboardSecurityProbeRunner {
                     "附件媒体缓存探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         } finally {
-            deleteProbeDirectory(runtimeHome == null ? null : runtimeHome.toPath());
+            deleteProbeDirectory(workspaceHome == null ? null : workspaceHome.toPath());
         }
     }
 
@@ -3912,25 +3912,25 @@ final class DashboardSecurityProbeRunner {
      * @return 返回附件终端Paste Probe结果。
      */
     private Map<String, Object> attachmentTerminalPasteProbe(String key, String label) {
-        File runtimeHome = null;
+        File workspaceHome = null;
         try {
-            runtimeHome = Files.createTempDirectory("dashboard-terminal-paste-probe").toFile();
+            workspaceHome = Files.createTempDirectory("dashboard-terminal-paste-probe").toFile();
             AppConfig probeConfig = new AppConfig();
-            probeConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
-            probeConfig.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+            probeConfig.getRuntime().setHome(workspaceHome.getAbsolutePath());
+            probeConfig.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
             probeConfig
                     .getRuntime()
-                    .setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
-            File safeFile = new File(runtimeHome, "diagram space.png");
+                    .setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+            File safeFile = new File(workspaceHome, "diagram space.png");
             Files.write(
                     safeFile.toPath(),
                     new byte[] {(byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A});
-            File secretDir = new File(runtimeHome, ".ssh");
+            File secretDir = new File(workspaceHome, ".ssh");
             Files.createDirectories(secretDir.toPath());
             String secret = "ghp-dashboardterminalpasteprobe12345";
             File privateKey = new File(secretDir, "id_ed25519-token=" + secret);
             Files.write(privateKey.toPath(), "secret".getBytes("UTF-8"));
-            File missing = new File(runtimeHome, "missing-token=" + secret + ".txt");
+            File missing = new File(workspaceHome, "missing-token=" + secret + ".txt");
             CliAttachmentResolver resolver =
                     new CliAttachmentResolver(
                             new AttachmentCacheService(probeConfig),
@@ -3994,7 +3994,7 @@ final class DashboardSecurityProbeRunner {
                     "附件终端粘贴探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         } finally {
-            deleteProbeDirectory(runtimeHome == null ? null : runtimeHome.toPath());
+            deleteProbeDirectory(workspaceHome == null ? null : workspaceHome.toPath());
         }
     }
 
@@ -4525,24 +4525,24 @@ final class DashboardSecurityProbeRunner {
      * @return 返回code Execution Sandbox Probe结果。
      */
     private Map<String, Object> codeExecutionSandboxProbe(String key, String label) {
-        File runtimeHome = null;
+        File workspaceHome = null;
         try {
-            runtimeHome = Files.createTempDirectory("dashboard-code-sandbox-probe").toFile();
+            workspaceHome = Files.createTempDirectory("dashboard-code-sandbox-probe").toFile();
             AppConfig probeConfig = new AppConfig();
-            probeConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
-            probeConfig.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+            probeConfig.getRuntime().setHome(workspaceHome.getAbsolutePath());
+            probeConfig.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
             probeConfig.getSecurity().setFileGuardrailMode("strict");
             probeConfig.getSecurity().setUrlGuardrailMode("strict");
             probeConfig.getSecurity().setGuardrailMode("strict");
             SecurityPolicyService policy = new SecurityPolicyService(probeConfig);
             SolonClawCodeExecutionSkills.SafePythonSkill python =
                     new SolonClawCodeExecutionSkills.SafePythonSkill(
-                            runtimeHome.getAbsolutePath(),
+                            workspaceHome.getAbsolutePath(),
                             SolonClawCodeExecutionSkills.defaultPythonCommand(),
                             policy);
             SolonClawCodeExecutionSkills.SafeNodejsSkill nodejs =
                     new SolonClawCodeExecutionSkills.SafeNodejsSkill(
-                            runtimeHome.getAbsolutePath(), policy);
+                            workspaceHome.getAbsolutePath(), policy);
             String secret = "sk-dashboardcodesandboxprobe12345";
             boolean fileBlocked =
                     rejectsCode(python, "open('.env').read()", "文件安全策略", ".env", secret);
@@ -4600,7 +4600,7 @@ final class DashboardSecurityProbeRunner {
                     "代码执行沙箱探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
         } finally {
-            deleteProbeDirectory(runtimeHome == null ? null : runtimeHome.toPath());
+            deleteProbeDirectory(workspaceHome == null ? null : workspaceHome.toPath());
         }
     }
 
@@ -4689,7 +4689,7 @@ final class DashboardSecurityProbeRunner {
                 ToolNameConstants.EXECUTE_SHELL,
                 "recursive_delete",
                 "dashboard approval selector probe",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         DangerousCommandApprovalService.PendingApproval pending =
                 approvalService.getPendingApproval(session);
         if (pending != null) {
@@ -4735,7 +4735,7 @@ final class DashboardSecurityProbeRunner {
         expired.put("patternKey", "recursive_delete");
         expired.put("patternKeys", Collections.singletonList("recursive_delete"));
         expired.put("description", "dashboard approval expiry probe");
-        expired.put("command", "rm -rf runtime/cache");
+        expired.put("command", "rm -rf workspace/cache");
         expired.put("commandHash", "dashboard-expired-command");
         expired.put(
                 "approvalKey",
@@ -4776,7 +4776,7 @@ final class DashboardSecurityProbeRunner {
         pending.setPatternKey("recursive_delete");
         pending.setPatternKeys(Collections.singletonList("recursive_delete"));
         pending.setDescription("dashboard approval card selector probe");
-        pending.setCommand("rm -rf runtime/cache");
+        pending.setCommand("rm -rf workspace/cache");
         pending.setCommandHash("dashboard-card-selector");
         pending.setApprovalKey(
                 ToolNameConstants.EXECUTE_SHELL + ":recursive_delete:dashboard-card-selector");

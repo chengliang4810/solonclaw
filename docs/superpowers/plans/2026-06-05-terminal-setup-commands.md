@@ -6,7 +6,7 @@
 
 **Architecture:** Keep terminal UI rendering separate from configuration services. Top-level command parsing maps user commands into local terminal slash commands, and CLI/TUI both call one shared terminal setup service before routing to the agent runtime.
 
-**Tech Stack:** Java, Solon, Hutool, Snack4/YAML runtime config support, JUnit 5, AssertJ.
+**Tech Stack:** Java, Solon, Hutool, Snack4/YAML workspace config support, JUnit 5, AssertJ.
 
 ---
 
@@ -123,14 +123,14 @@ Run: `mvn -DskipTests package`
 - [ ] **Step 3: Execute real user commands**
 
 Run:
-- `java -jar target/solon-claw-0.0.1.jar model`
-- `java -jar target/solon-claw-0.0.1.jar setup`
-- `java -jar target/solon-claw-0.0.1.jar setup model`
-- `java -jar target/solon-claw-0.0.1.jar setup gateway`
-- `java -jar target/solon-claw-0.0.1.jar config path`
-- `java -jar target/solon-claw-0.0.1.jar config check`
-- `java -jar target/solon-claw-0.0.1.jar --cli -p /setup model`
-- `java -jar target/solon-claw-0.0.1.jar --tui -p /setup gateway`
+- `java -jar target/solonclaw-0.0.1.jar model`
+- `java -jar target/solonclaw-0.0.1.jar setup`
+- `java -jar target/solonclaw-0.0.1.jar setup model`
+- `java -jar target/solonclaw-0.0.1.jar setup gateway`
+- `java -jar target/solonclaw-0.0.1.jar config path`
+- `java -jar target/solonclaw-0.0.1.jar config check`
+- `java -jar target/solonclaw-0.0.1.jar --cli -p /setup model`
+- `java -jar target/solonclaw-0.0.1.jar --tui -p /setup gateway`
 
 Expected: each command exits without routing setup/config text to the LLM.
 

@@ -32,7 +32,7 @@ public class AttachmentCacheService {
                     "(?i)(?:ghp_|github_pat_|sk-|sk_|sk_live_|sk_test_|xox[baprs]-|hf_|npm_|pypi-|gsk_|tvly-|exa_|brv_)?\\*\\*\\*");
 
     /** 记录附件缓存中的运行时主渠道。 */
-    private final File runtimeHome;
+    private final File workspaceHome;
 
     /** 记录附件缓存中的缓存根用户。 */
     private final File cacheRoot;
@@ -46,22 +46,22 @@ public class AttachmentCacheService {
      * @param appConfig 应用运行配置。
      */
     public AttachmentCacheService(AppConfig appConfig) {
-        String runtimeHomeValue = null;
+        String workspaceHomeValue = null;
         String cacheDirValue = null;
         if (appConfig != null && appConfig.getRuntime() != null) {
-            runtimeHomeValue = appConfig.getRuntime().getHome();
+            workspaceHomeValue = appConfig.getRuntime().getHome();
             cacheDirValue = appConfig.getRuntime().getCacheDir();
         }
-        this.runtimeHome =
+        this.workspaceHome =
                 FileUtil.file(
                                 StrUtil.blankToDefault(
-                                        runtimeHomeValue, RuntimePathConstants.RUNTIME_HOME))
+                                        workspaceHomeValue, RuntimePathConstants.WORKSPACE_HOME))
                         .getAbsoluteFile();
         File cacheDir =
                 FileUtil.file(
                                 StrUtil.blankToDefault(
                                         cacheDirValue,
-                                        new File(runtimeHome, RuntimePathConstants.CACHE_DIR_NAME)
+                                        new File(workspaceHome, RuntimePathConstants.CACHE_DIR_NAME)
                                                 .getPath()))
                         .getAbsoluteFile();
         this.cacheRoot = new File(cacheDir, "media");
@@ -88,7 +88,7 @@ public class AttachmentCacheService {
         summary.put("generatedAttachmentSingleRuntimeLevelOnly", Boolean.TRUE);
         summary.put("generatedAttachmentExtensionAllowlist", Boolean.TRUE);
         summary.put("hostPathsNotReturnedInMediaReference", Boolean.TRUE);
-        summary.put("mediaRoot", "runtime://cache/media");
+        summary.put("mediaRoot", "workspace://cache/media");
         return summary;
     }
 
@@ -719,17 +719,17 @@ public class AttachmentCacheService {
      * @return 如果Safe运行时Generated文件满足条件则返回 true，否则返回 false。
      */
     private boolean isSafeRuntimeGeneratedFile(File file) {
-        if (!isUnder(file, runtimeHome)) {
+        if (!isUnder(file, workspaceHome)) {
             return false;
         }
         try {
             File parent = file.getCanonicalFile().getParentFile();
-            if (parent == null || !parent.equals(runtimeHome.getCanonicalFile())) {
+            if (parent == null || !parent.equals(workspaceHome.getCanonicalFile())) {
                 return false;
             }
         } catch (Exception e) {
             File parent = file.getAbsoluteFile().getParentFile();
-            if (parent == null || !parent.equals(runtimeHome.getAbsoluteFile())) {
+            if (parent == null || !parent.equals(workspaceHome.getAbsoluteFile())) {
                 return false;
             }
         }

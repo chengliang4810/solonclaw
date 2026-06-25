@@ -17,14 +17,14 @@ import org.junit.jupiter.api.Test;
 class DashboardLogsServiceTest {
     @Test
     void shouldIncludeCronRunIndexMatchesInDashboardLogQuery() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-logs-cron-index").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-logs-cron-index").toFile();
         SqliteDatabase database = null;
         try {
             AppConfig config = new AppConfig();
-            config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-            config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+            config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+            config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
             config.getRuntime()
-                    .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                    .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
             FileUtil.mkdir(config.getRuntime().getLogsDir());
 
             database = new SqliteDatabase(config);
@@ -85,7 +85,7 @@ class DashboardLogsServiceTest {
             if (database != null) {
                 database.shutdown();
             }
-            FileUtil.del(runtimeHome);
+            FileUtil.del(workspaceHome);
         }
     }
 }

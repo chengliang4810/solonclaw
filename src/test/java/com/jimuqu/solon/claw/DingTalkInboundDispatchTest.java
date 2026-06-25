@@ -46,7 +46,7 @@ public class DingTalkInboundDispatchTest {
         assertThat(dispatched.getChatName()).isEqualTo("研发值班群");
         assertThat(dispatched.getUserId()).isEqualTo("staff-001");
         assertThat(dispatched.getUserName()).isEqualTo("值班同事");
-        assertThat(dispatched.getText()).isEqualTo("请检查 solon-claw 状态");
+        assertThat(dispatched.getText()).isEqualTo("请检查 solonclaw 状态");
         assertThat(dispatched.getThreadId()).isEqualTo("msg-001");
         assertThat(dispatched.getAttachments()).isEmpty();
         assertThat(fixture.state.get(PlatformType.DINGTALK, "open-cid-1", "last_user_id"))
@@ -93,7 +93,7 @@ public class DingTalkInboundDispatchTest {
     /** 构造钉钉群聊文本消息，覆盖入站分发需要读取的平台字段。 */
     private ChatbotMessage groupTextMessage() {
         MessageContent text = new MessageContent();
-        text.setContent("  请检查 solon-claw 状态  ");
+        text.setContent("  请检查 solonclaw 状态  ");
         ChatbotMessage message = new ChatbotMessage();
         message.setConversationId("open-cid-1");
         message.setConversationType("2");
@@ -138,17 +138,17 @@ public class DingTalkInboundDispatchTest {
             setField(adapter, "callbackExecutor", new DirectExecutorService());
         }
 
-        /** 创建带临时运行目录的钉钉测试夹具。 */
+        /** 创建带临时工作区目录的钉钉测试夹具。 */
         private static TestDingTalkFixture create() throws Exception {
             AppConfig config = new AppConfig();
-            File runtimeHome = Files.createTempDirectory("solon-claw-dingtalk-inbound").toFile();
-            config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-            config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-            config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-            config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+            File workspaceHome = Files.createTempDirectory("solonclaw-dingtalk-inbound").toFile();
+            config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+            config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+            config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+            config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
             config.getRuntime()
                     .setStateDb(
-                            new File(new File(runtimeHome, "data"), "state.db")
+                            new File(new File(workspaceHome, "data"), "state.db")
                                     .getAbsolutePath());
             config.getChannels().getDingtalk().setEnabled(true);
             config.getChannels().getDingtalk().setClientId("app-key");

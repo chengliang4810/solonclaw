@@ -56,7 +56,7 @@ final class DangerousCommandRuleCatalog {
                     + "(?:settings\\.xml|credentials|credentials\\.toml|credentials\\.tfrc\\.json|oauth_creds\\.json|nuget\\.config|pip\\.conf)\\b|"
                     + HOME_PATH_PREFIX
                     + PATH_SEPARATOR
-                    + "\\.(?:solon-claw|solonclaw)"
+                    + "\\.(?:solonclaw)"
                     + PATH_SEPARATOR
                     + "\\.env\\b|"
                     + AGENT_HOME_PATH_PREFIX
@@ -1419,12 +1419,12 @@ final class DangerousCommandRuleCatalog {
                                     "gateway_stop_restart",
                                     "stop/restart gateway (kills running agents)",
                                     pattern(
-                                            "\\b(?:solon-claw|solonclaw)\\s+gateway\\s+(stop|restart)\\b"),
+                                            "\\b(?:solonclaw)\\s+gateway\\s+(stop|restart)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "app_update_restart",
                                     "agent update (restarts gateway, kills running agents)",
-                                    pattern("\\b(?:solon-claw|solonclaw)\\s+update\\b"),
+                                    pattern("\\b(?:solonclaw)\\s+update\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "gateway_run_detached",
@@ -1436,7 +1436,7 @@ final class DangerousCommandRuleCatalog {
                                     "kill_agent_process",
                                     "kill agent/gateway process (self-termination)",
                                     pattern(
-                                            "\\b(pkill|killall)\\b.*\\b(solon-claw|solonclaw|gateway)\\b"),
+                                            "\\b(pkill|killall)\\b.*\\b(solonclaw|gateway)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_pgrep_expansion",

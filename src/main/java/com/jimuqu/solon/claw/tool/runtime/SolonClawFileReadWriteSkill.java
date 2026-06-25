@@ -1021,18 +1021,18 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      * 将运行态展示引用转换为文件工具可解析的相对路径。
      *
      * @param name 工具入参中的原始路径。
-     * @return 返回去除 runtime:// 前缀后的路径，普通路径保持不变。
+     * @return 返回去除 workspace:// 前缀后的路径，普通路径保持不变。
      */
     private String normalizeRuntimeReference(String name) {
         String value = StrUtil.nullToEmpty(name);
-        if (StrUtil.startWithIgnoreCase(value, "runtime://")) {
-            return value.substring("runtime://".length());
+        if (StrUtil.startWithIgnoreCase(value, "workspace://")) {
+            return value.substring("workspace://".length());
         }
         return value;
     }
 
     /**
-     * 将用户可见的工作区根目录前缀折叠为当前工具根，避免默认 Agent 下写出 runtime/runtime。
+     * 将用户可见的工作区根目录前缀折叠为当前工具根，避免默认 Agent 下写出 workspace/workspace。
      *
      * @param rawPath 用户传入的文件路径。
      * @return 返回用于解析的工作区相对路径。
@@ -1054,7 +1054,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
             return value;
         }
         String rootName = fileName.toString();
-        if (!"runtime".equalsIgnoreCase(rootName)) {
+        if (!"workspace".equalsIgnoreCase(rootName)) {
             return value;
         }
         String prefix = rootName + "/";

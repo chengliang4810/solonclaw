@@ -1,4 +1,4 @@
-import { Box, Text } from '@solon-claw/ink'
+import { Box, Text } from '@solonclaw/ink'
 import { memo, useState } from 'react'
 
 import { countPendingTodos } from '../lib/liveProgress.js'

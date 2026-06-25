@@ -40,7 +40,7 @@ public class MemoryTools {
                         "cat\\s+[^\\n]*(\\.env|credentials|\\.netrc|\\.pgpass|\\.npmrc|\\.pypirc)"),
                 threat("ssh_backdoor", "authorized_keys"),
                 threat("ssh_access", "\\$HOME/\\.ssh|~/\\.ssh"),
-                threat("runtime_env", "\\$HOME/\\.solon-claw/\\.env|~/\\.solon-claw/\\.env")
+                threat("runtime_env", "\\$HOME/\\.solonclaw/\\.env|~/\\.solonclaw/\\.env")
             };
 
     /** 长期记忆服务。 */

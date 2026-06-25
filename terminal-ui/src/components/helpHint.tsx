@@ -1,4 +1,4 @@
-import { Box, Text } from '@solon-claw/ink'
+import { Box, Text } from '@solonclaw/ink'
 
 import { HOTKEYS } from '../content/hotkeys.js'
 import type { Theme } from '../theme.js'

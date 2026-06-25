@@ -32,7 +32,7 @@ public class MemoryFollowupCollectorTest {
         InMemoryMemoryService memoryService = new InMemoryMemoryService();
         memoryService.snapshot.setMemoryText(
                 "# 项目记忆\n"
-                        + "- 持续关注 /Users/chengliang/code-projects/solon-claw-demo 的更新并主动提醒 token=secret-token-1234567890\n"
+                        + "- 持续关注 /Users/chengliang/code-projects/solonclaw-demo 的更新并主动提醒 token=secret-token-1234567890\n"
                         + "- 用户喜欢简洁回答");
 
         List<ProactiveObservation> observations =
@@ -42,7 +42,7 @@ public class MemoryFollowupCollectorTest {
         assertThat(observation.getCollector()).isEqualTo("memory_followup");
         assertThat(observation.getStatus()).isEqualTo("COLLECTED");
         assertThat(observation.getSourceKey()).startsWith("memory_followup:memory:");
-        assertThat(observation.getSummary()).contains("solon-claw-demo");
+        assertThat(observation.getSummary()).contains("solonclaw-demo");
         assertThat(observation.getSummary()).contains("token=***");
         assertThat(observation.getSummary()).doesNotContain("secret-token-1234567890");
         assertThat(observation.getPayload()).containsEntry("type", "knowledge_followup");
@@ -102,7 +102,7 @@ public class MemoryFollowupCollectorTest {
     @Test
     void shouldNotCollectWhenDisabledOrSnapshotMissing() throws Exception {
         InMemoryMemoryService memoryService = new InMemoryMemoryService();
-        memoryService.snapshot.setMemoryText("- 每周跟进 solon-claw 插件系统建设");
+        memoryService.snapshot.setMemoryText("- 每周跟进 solonclaw 插件系统建设");
 
         assertThat(new MemoryFollowupCollector(memoryService).collect(context(false))).isEmpty();
 
@@ -113,7 +113,7 @@ public class MemoryFollowupCollectorTest {
     @Test
     void shouldNotCollectWhenContextOrDependencyMissing() throws Exception {
         InMemoryMemoryService memoryService = new InMemoryMemoryService();
-        memoryService.snapshot.setMemoryText("- 每周跟进 solon-claw 插件系统建设");
+        memoryService.snapshot.setMemoryText("- 每周跟进 solonclaw 插件系统建设");
 
         assertThat(new MemoryFollowupCollector(memoryService).collect(null)).isEmpty();
         assertThat(new MemoryFollowupCollector(null).collect(context(true))).isEmpty();

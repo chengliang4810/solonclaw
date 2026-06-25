@@ -34,7 +34,7 @@ public class ExternalSkillDirectoryServiceTest {
                 "# Standalone\nAnother skill".getBytes(StandardCharsets.UTF_8));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        props.put("solonclaw.workspace", tempDir.getAbsolutePath());
         props.put("solonclaw.skills.externalDirs", extDir.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
 
@@ -51,7 +51,7 @@ public class ExternalSkillDirectoryServiceTest {
     void shouldReturnEmptyWhenDirNotExists() throws Exception {
         File tempDir = Files.createTempDirectory("ext-skill-empty").toFile();
         Props props = new Props();
-        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        props.put("solonclaw.workspace", tempDir.getAbsolutePath());
         props.put("solonclaw.skills.externalDirs", "/nonexistent/path");
         AppConfig config = AppConfig.load(props);
 
@@ -78,7 +78,7 @@ public class ExternalSkillDirectoryServiceTest {
                 "# External".getBytes(StandardCharsets.UTF_8));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        props.put("solonclaw.workspace", tempDir.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
         config.getSkills()
                 .setExternalDirs(
@@ -108,7 +108,7 @@ public class ExternalSkillDirectoryServiceTest {
                 "# Summary".getBytes(StandardCharsets.UTF_8));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        props.put("solonclaw.workspace", tempDir.getAbsolutePath());
         props.put("solonclaw.skills.externalDirs", extDir.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
 
@@ -151,7 +151,7 @@ public class ExternalSkillDirectoryServiceTest {
         extDir.mkdirs();
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        props.put("solonclaw.workspace", tempDir.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
         config.getSkills()
                 .setExternalDirs(
@@ -197,7 +197,7 @@ public class ExternalSkillDirectoryServiceTest {
                 "# Cached Skill".getBytes(StandardCharsets.UTF_8));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        props.put("solonclaw.workspace", tempDir.getAbsolutePath());
         props.put("solonclaw.skills.externalDirs", extDir.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
 
@@ -228,7 +228,7 @@ public class ExternalSkillDirectoryServiceTest {
                 "# README".getBytes(StandardCharsets.UTF_8));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", tempDir.getAbsolutePath());
+        props.put("solonclaw.workspace", tempDir.getAbsolutePath());
         props.put("solonclaw.skills.externalDirs", extDir.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
 

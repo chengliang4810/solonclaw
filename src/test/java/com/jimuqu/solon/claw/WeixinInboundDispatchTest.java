@@ -584,16 +584,16 @@ public class WeixinInboundDispatchTest {
     }
 
     private AppConfig newConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("jimuqu-weixin-dispatch-test").toFile();
+        File workspaceHome = Files.createTempDirectory("jimuqu-weixin-dispatch-test").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         return config;
     }
 

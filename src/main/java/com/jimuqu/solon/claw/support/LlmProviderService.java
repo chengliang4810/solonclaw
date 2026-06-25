@@ -169,7 +169,7 @@ public class LlmProviderService {
         return appConfig.getProviders();
     }
 
-    /** 返回当前 runtime/config.yml 解析器，保证模型请求能读取 TUI 和配置命令的即时写入。 */
+    /** 返回当前 workspace/config.yml 解析器，保证模型请求能读取 TUI 和配置命令的即时写入。 */
     private RuntimeConfigResolver configResolver() {
         String home = appConfig == null || appConfig.getRuntime() == null
                 ? ""
@@ -178,7 +178,7 @@ public class LlmProviderService {
     }
 
     /**
-     * 合并启动配置与运行时配置中的 provider 字段。
+     * 合并启动配置与工作区配置中的 provider 字段。
      *
      * @param providerKey provider 键。
      * @param provider 启动时 provider 配置。
@@ -198,9 +198,9 @@ public class LlmProviderService {
     }
 
     /**
-     * 读取 runtime/config.yml 覆盖值；空白值视为未覆盖，避免清空启动时的必填配置。
+     * 读取 workspace/config.yml 覆盖值；空白值视为未覆盖，避免清空启动时的必填配置。
      *
-     * @param resolver 运行时配置解析器。
+     * @param resolver 工作区配置解析器。
      * @param key 配置键。
      * @param fallback 启动配置中的回退值。
      * @return 返回合并后的字符串值。

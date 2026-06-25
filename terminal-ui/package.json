@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run build --prefix packages/solon-claw-ink && tsx --watch src/entry.tsx",
+    "dev": "npm run build --prefix packages/solonclaw-ink && tsx --watch src/entry.tsx",
     "start": "tsx src/entry.tsx",
     "build": "node scripts/build.mjs",
     "type-check": "tsc --noEmit -p tsconfig.json",
@@ -12,13 +12,13 @@
     "lint:fix": "eslint src/ packages/ --fix",
     "fmt": "prettier --write 'src/**/*.{ts,tsx}' 'packages/**/*.{ts,tsx}'",
     "fix": "npm run lint:fix && npm run fmt",
-    "pretest": "npm run build --prefix packages/solon-claw-ink",
+    "pretest": "npm run build --prefix packages/solonclaw-ink",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@nanostores/react": "^1.1.0",
-    "@solon-claw/ink": "file:./packages/solon-claw-ink",
+    "@solonclaw/ink": "file:./packages/solonclaw-ink",
     "ink": "^6.8.0",
     "ink-text-input": "^6.0.0",
     "nanostores": "^1.2.0",

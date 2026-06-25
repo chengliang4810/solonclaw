@@ -13,8 +13,8 @@ import org.noear.solon.core.Props;
 public class ChannelConfigPolicyLoadTest {
     @Test
     void shouldLoadChannelPoliciesAndWecomGroupAllowMap() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-config-policies").toFile();
-        File overrideFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-config-policies").toFile();
+        File overrideFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  channels:\n"
@@ -25,7 +25,7 @@ public class ChannelConfigPolicyLoadTest {
                         + "        - oc_group_a\n"
                         + "      allowedChats:\n"
                         + "        - oc_chat_a\n"
-                        + "      botName: SolonClaw Bot\n"
+                        + "      botName: solonclaw Bot\n"
                         + "    dingtalk:\n"
                         + "      allowedChats: cidAlpha,cidBeta\n"
                         + "    wecom:\n"
@@ -40,7 +40,7 @@ public class ChannelConfigPolicyLoadTest {
                 overrideFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         props.put("solonclaw.channels.feishu.enabled", "true");
 
         AppConfig config = AppConfig.load(props);
@@ -52,7 +52,7 @@ public class ChannelConfigPolicyLoadTest {
         assertThat(config.getChannels().getFeishu().getAllowedChats()).containsExactly("oc_chat_a");
         assertThat(config.getChannels().getDingtalk().getAllowedChats())
                 .containsExactly("cidAlpha", "cidBeta");
-        assertThat(config.getChannels().getFeishu().getBotName()).isEqualTo("SolonClaw Bot");
+        assertThat(config.getChannels().getFeishu().getBotName()).isEqualTo("solonclaw Bot");
         assertThat(config.getChannels().getWecom().getGroupMemberAllowedUsers().get("room-a"))
                 .containsExactly("alice", "bob");
         assertThat(config.getChannels().getWecom().getGroupMemberAllowedUsers().get("*"))

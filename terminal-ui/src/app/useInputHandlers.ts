@@ -1,5 +1,5 @@
 import { useStore } from '@nanostores/react'
-import { forceRedraw, useInput } from '@solon-claw/ink'
+import { forceRedraw, useInput } from '@solonclaw/ink'
 import { useEffect, useRef } from 'react'
 
 import { TYPING_IDLE_MS } from '../config/timing.js'

@@ -61,7 +61,7 @@ public class DomesticQrSetupServiceTest {
         server.start();
 
         AppConfig config = testConfig();
-        File runtimeHome = new File(config.getRuntime().getHome());
+        File workspaceHome = new File(config.getRuntime().getHome());
         config.getChannels()
                 .getDingtalk()
                 .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
@@ -75,7 +75,7 @@ public class DomesticQrSetupServiceTest {
 
         assertThat(current.get("status")).isEqualTo("confirmed");
         assertThat(current.get("client_id")).isEqualTo("ding-client");
-        assertThat(FileUtil.readUtf8String(new File(runtimeHome, "config.yml")))
+        assertThat(FileUtil.readUtf8String(new File(workspaceHome, "config.yml")))
                 .contains("clientId: ding-client")
                 .contains("clientSecret: ding-secret")
                 .contains("robotCode: ding-client")
@@ -112,7 +112,7 @@ public class DomesticQrSetupServiceTest {
         server.start();
 
         AppConfig config = testConfig();
-        File runtimeHome = new File(config.getRuntime().getHome());
+        File workspaceHome = new File(config.getRuntime().getHome());
         config.getChannels()
                 .getFeishu()
                 .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
@@ -128,7 +128,7 @@ public class DomesticQrSetupServiceTest {
         assertThat(current.get("status")).isEqualTo("confirmed");
         assertThat(current.get("app_id")).isEqualTo("feishu-app");
         assertThat(current.get("open_id")).isEqualTo("ou-owner");
-        assertThat(FileUtil.readUtf8String(new File(runtimeHome, "config.yml")))
+        assertThat(FileUtil.readUtf8String(new File(workspaceHome, "config.yml")))
                 .contains("appId: feishu-app")
                 .contains("appSecret: feishu-secret")
                 .contains("groupAllowedUsers:")
@@ -161,7 +161,7 @@ public class DomesticQrSetupServiceTest {
         server.start();
 
         AppConfig config = testConfig();
-        File runtimeHome = new File(config.getRuntime().getHome());
+        File workspaceHome = new File(config.getRuntime().getHome());
         config.getChannels()
                 .getFeishu()
                 .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
@@ -172,7 +172,7 @@ public class DomesticQrSetupServiceTest {
 
         assertThat(current.get("status")).isEqualTo("confirmed");
         assertThat(current.get("domain")).isEqualTo("lark");
-        assertThat(FileUtil.readUtf8String(new File(runtimeHome, "config.yml")))
+        assertThat(FileUtil.readUtf8String(new File(workspaceHome, "config.yml")))
                 .contains("domain: lark")
                 .contains("appId: lark-app")
                 .contains("appSecret: lark-secret");
@@ -234,16 +234,16 @@ public class DomesticQrSetupServiceTest {
     }
 
     private AppConfig testConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-domestic-qr").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-domestic-qr").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         return config;
     }
 

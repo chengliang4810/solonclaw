@@ -291,7 +291,7 @@ public class GatewayCommandFlowTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         env.dangerousCommandApprovalService.approve(
                 agentSessionA, DangerousCommandApprovalService.ApprovalScope.SESSION, "tester");
         env.dangerousCommandApprovalService.enableSessionAutoApproval(agentSessionB);

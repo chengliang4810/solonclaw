@@ -84,14 +84,14 @@ public class DingTalkProcessingEmotionTest {
 
     private RecordingDingTalkAdapter adapter() throws Exception {
         AppConfig appConfig = new AppConfig();
-        File runtimeHome = Files.createTempDirectory("solon-claw-dingtalk-emotion").toFile();
-        appConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        appConfig.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        appConfig.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        appConfig.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        File workspaceHome = Files.createTempDirectory("solonclaw-dingtalk-emotion").toFile();
+        appConfig.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        appConfig.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        appConfig.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        appConfig.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         appConfig
                 .getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         appConfig.getChannels().getDingtalk().setEnabled(true);
         appConfig.getChannels().getDingtalk().setClientId("app-key");
         appConfig.getChannels().getDingtalk().setClientSecret("app-secret");

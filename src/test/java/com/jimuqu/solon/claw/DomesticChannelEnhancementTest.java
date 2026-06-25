@@ -197,7 +197,7 @@ public class DomesticChannelEnhancementTest {
         Map<String, Object> extras = new LinkedHashMap<String, Object>();
         extras.put("mode", DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
         extras.put("approvalId", "approval-123");
-        extras.put("approvalCommand", "rm -rf runtime/cache");
+        extras.put("approvalCommand", "rm -rf workspace/cache");
         extras.put("approvalDescription", "recursive delete");
         extras.put("approvalToolName", "execute_shell");
         extras.put("approvalAllowAlways", Boolean.TRUE);
@@ -208,7 +208,7 @@ public class DomesticChannelEnhancementTest {
         assertThat(body.get("msg_type").getInt()).isEqualTo(2);
         assertThat(body.get("markdown").get("content").getString()).contains("命令执行审批");
         assertThat(body.get("markdown").get("content").getString())
-                .contains("rm -rf runtime/cache");
+                .contains("rm -rf workspace/cache");
         assertThat(body.get("content").getString()).isNull();
         assertThat(body.get("msg_id").getString()).isEqualTo("m1");
         ONode buttons = body.get("keyboard").get("content").get("rows").get(0).get("buttons");
@@ -407,9 +407,9 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
-    void shouldWriteQqbotUpdatePromptInteractionResponse(@TempDir File runtimeHome) {
+    void shouldWriteQqbotUpdatePromptInteractionResponse(@TempDir File workspaceHome) {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getChannels().getQqbot().setAllowAllUsers(true);
         TestQQBotAdapter adapter = new TestQQBotAdapter(config);
 
@@ -418,7 +418,7 @@ public class DomesticChannelEnhancementTest {
                         "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-1\",\"user_openid\":\"user-a\",\"resolved\":{\"button_data\":\"update_prompt:y\"}}}");
 
         assertThat(message).isNull();
-        assertThat(new File(runtimeHome, QQBotChannelAdapter.UPDATE_RESPONSE_FILE_NAME))
+        assertThat(new File(workspaceHome, QQBotChannelAdapter.UPDATE_RESPONSE_FILE_NAME))
                 .hasContent("y");
     }
 
@@ -1175,7 +1175,7 @@ public class DomesticChannelEnhancementTest {
                 String transcribedText) {
             MessageAttachment attachment = new MessageAttachment();
             attachment.setKind(AttachmentCacheService.normalizeKind(kind, fileName, mimeType));
-            attachment.setLocalPath("runtime/cache/media/qqbot/" + fileName);
+            attachment.setLocalPath("workspace/cache/media/qqbot/" + fileName);
             attachment.setOriginalName(fileName);
             attachment.setMimeType(AttachmentCacheService.normalizeMimeType(mimeType, fileName));
             attachment.setFromQuote(fromQuote);

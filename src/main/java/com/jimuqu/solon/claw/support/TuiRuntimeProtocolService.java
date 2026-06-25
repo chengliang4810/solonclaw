@@ -43,7 +43,7 @@ public class TuiRuntimeProtocolService {
         result.put("provider", providerKey);
         result.put("model", model);
         result.put("api_key", configured ? "configured" : "missing");
-        result.put("runtime_config", configResolver().configFile().getPath());
+        result.put("workspace_config", configResolver().configFile().getPath());
         return result;
     }
 
@@ -70,7 +70,7 @@ public class TuiRuntimeProtocolService {
      *
      * @param slug provider 标识。
      * @param apiKey 用户输入的 API Key。
-     * @param sessionId 可选会话标识，当前保存到全局 runtime/config.yml。
+     * @param sessionId 可选会话标识，当前保存到全局 workspace/config.yml。
      * @return 保存结果。
      */
     public Map<String, Object> modelSaveKey(String slug, String apiKey, String sessionId) {
@@ -136,7 +136,7 @@ public class TuiRuntimeProtocolService {
      * 写入国内消息渠道配置，并返回写入后的状态。
      *
      * @param channel 渠道标识。
-     * @param values 要写入 runtime/config.yml 的字段。
+     * @param values 要写入 workspace/config.yml 的字段。
      * @param sessionId 可选会话标识；当前仅回传给 TUI 便于前端关联请求。
      * @return 已脱敏的保存结果。
      */
@@ -168,7 +168,7 @@ public class TuiRuntimeProtocolService {
     /**
      * 读取 TUI 前端常用配置。
      *
-     * @param key 配置键；支持 full、model、mtime 和 runtime/config.yml 键。
+     * @param key 配置键；支持 full、model、mtime 和 workspace/config.yml 键。
      * @return 配置读取结果。
      */
     public Map<String, Object> configGet(String key) {
@@ -196,7 +196,7 @@ public class TuiRuntimeProtocolService {
     /**
      * 写入 TUI 前端常用配置。
      *
-     * @param key 配置键；model 会解析 provider，其他键写入 runtime/config.yml。
+     * @param key 配置键；model 会解析 provider，其他键写入 workspace/config.yml。
      * @param value 配置值。
      * @param sessionId 可选会话标识；当前仅保留在返回结果中，便于后续扩展 session scope。
      * @return 配置写入结果。
@@ -254,7 +254,7 @@ public class TuiRuntimeProtocolService {
         Map<String, Object> config = new LinkedHashMap<String, Object>();
         config.put("model", activeModelFromRuntime());
         config.put("provider", activeProviderKeyFromRuntime());
-        config.put("runtime_config", configResolver().configFile().getPath());
+        config.put("workspace_config", configResolver().configFile().getPath());
         Map<String, Object> display = new LinkedHashMap<String, Object>();
         display.put("show_reasoning", readBoolean("display.showReasoning", true));
         display.put("show_cost", readBoolean("display.showCost", false));
@@ -442,7 +442,7 @@ public class TuiRuntimeProtocolService {
         if ("enabled".equals(key)) {
             return "true 表示启用该渠道。";
         }
-        return "Saved to runtime/config.yml under solonclaw.channels." + channel + "." + key + ".";
+        return "Saved to workspace/config.yml under solonclaw.channels." + channel + "." + key + ".";
     }
 
     /**
@@ -462,7 +462,7 @@ public class TuiRuntimeProtocolService {
     }
 
     /**
-     * 计算渠道状态，runtime/config.yml 覆盖值优先于启动时配置。
+     * 计算渠道状态，workspace/config.yml 覆盖值优先于启动时配置。
      *
      * @param channel 渠道标识。
      * @param config 启动时渠道配置。
@@ -482,7 +482,7 @@ public class TuiRuntimeProtocolService {
         return "configured";
     }
 
-    /** 判断渠道是否启用，优先读取 runtime/config.yml 覆盖值。 */
+    /** 判断渠道是否启用，优先读取 workspace/config.yml 覆盖值。 */
     private boolean channelEnabled(String channel, AppConfig.ChannelConfig config) {
         String fileValue = runtimeValue("solonclaw.channels." + channel + ".enabled");
         if (StrUtil.isNotBlank(fileValue)) {
@@ -491,7 +491,7 @@ public class TuiRuntimeProtocolService {
         return config != null && config.isEnabled();
     }
 
-    /** 读取渠道字段，优先读取 runtime/config.yml 覆盖值。 */
+    /** 读取渠道字段，优先读取 workspace/config.yml 覆盖值。 */
     private String channelFieldValue(String channel, AppConfig.ChannelConfig config, String key) {
         String fileValue = runtimeValue("solonclaw.channels." + channel + "." + key);
         if (StrUtil.isNotBlank(fileValue)) {
@@ -561,7 +561,7 @@ public class TuiRuntimeProtocolService {
         return StrUtil.nullToEmpty(channel).trim().toLowerCase(java.util.Locale.ROOT);
     }
 
-    /** 返回 provider key 列表，包含启动配置与 runtime/config.yml 动态 provider。 */
+    /** 返回 provider key 列表，包含启动配置与 workspace/config.yml 动态 provider。 */
     private List<String> providerKeys() {
         java.util.LinkedHashSet<String> keys = new java.util.LinkedHashSet<String>();
         if (CollUtil.isNotEmpty(appConfig.getProviders())) {
@@ -646,7 +646,7 @@ public class TuiRuntimeProtocolService {
         return tokens;
     }
 
-    /** 读取运行时配置布尔值。 */
+    /** 读取工作区配置布尔值。 */
     private boolean readBoolean(String key, boolean defaultValue) {
         String value = runtimeValue(key);
         if (StrUtil.isBlank(value)) {
@@ -661,7 +661,7 @@ public class TuiRuntimeProtocolService {
         return file.exists() ? file.lastModified() : 0L;
     }
 
-    /** 读取当前运行时配置解析器。 */
+    /** 读取当前工作区配置解析器。 */
     private RuntimeConfigResolver configResolver() {
         String home = appConfig.getRuntime() == null ? "" : appConfig.getRuntime().getHome();
         return RuntimeConfigResolver.initialize(home);
@@ -807,7 +807,7 @@ public class TuiRuntimeProtocolService {
     }
 
     /**
-     * 读取 runtime/config.yml 中的字符串覆盖值。
+     * 读取 workspace/config.yml 中的字符串覆盖值。
      *
      * @param key 扁平配置键。
      * @return 配置值；不存在时由 RuntimeConfigResolver 返回空值。

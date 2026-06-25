@@ -192,7 +192,7 @@ public class SkillSourceAdapterTest {
                                 "https://chat-agents.lobehub.com/demo-agent.json",
                                 "{\"identifier\":\"demo-agent\",\"meta\":{\"title\":\"Demo Agent\",\"description\":\"agent desc\",\"tags\":[\"assist\"]},\"config\":{\"systemRole\":\"Help the user\"}}")
                         .onText(
-                                "https://solon-claw.local/docs/api/skills-index.json",
+                                "https://solonclaw.local/docs/api/skills-index.json",
                                 "{\"skills\":[{\"name\":\"hub-skill\",\"description\":\"hub desc\",\"source\":\"github\",\"identifier\":\"github/openai/skills/skills/hub-skill\",\"trust_level\":\"trusted\",\"resolved_github_id\":\"openai/skills/skills/hub-skill\",\"tags\":[\"hub\"]}]}")
                         .onText(
                                 "https://api.github.com/repos/openai/skills/contents/skills/hub-skill/SKILL.md",

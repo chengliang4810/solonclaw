@@ -45,9 +45,9 @@ describe('setup panel helpers', () => {
         model: 'mimo-v2.5-pro',
         provider: 'openai',
         provider_configured: true,
-        runtime_config: '/tmp/runtime/config.yml'
+        workspace_config: '/tmp/workspace/config.yml'
       })
-    ).toEqual(['模型：已配置', '提供方：openai', '当前模型：mimo-v2.5-pro', '配置文件：/tmp/runtime/config.yml'])
+    ).toEqual(['模型：已配置', '提供方：openai', '当前模型：mimo-v2.5-pro', '配置文件：/tmp/workspace/config.yml'])
   })
 
   it('formats missing setup status without hiding the next action', () => {

@@ -46,8 +46,8 @@ public class GatewayRestartCoordinatorTest {
     @Test
     void shouldPersistRestartRequesterRoutingMarker() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = Files.createDirectory(tempDir.resolve("runtime")).toFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        File workspaceHome = Files.createDirectory(tempDir.resolve("runtime")).toFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         RecordingRestartExitHandler exitHandler = new RecordingRestartExitHandler();
         GatewayRestartCoordinator coordinator =
                 new GatewayRestartCoordinator(config, null, exitHandler);
@@ -59,7 +59,7 @@ public class GatewayRestartCoordinatorTest {
         try {
             coordinator.requestRestartDrain(requester, 2);
 
-            File marker = new File(runtimeHome, "restart-requester.json");
+            File marker = new File(workspaceHome, "restart-requester.json");
             assertThat(marker).isFile();
             Map<?, ?> data =
                     ONode.deserialize(

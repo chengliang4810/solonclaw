@@ -2086,11 +2086,11 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "configuredMissingCount");
             copyPolicyValue(summary, safe, "configuredRejectedCount");
             copyPolicyValue(summary, safe, "sandboxCredentialMountCount");
-            copyPolicyValue(summary, safe, "runtimeRelativeOnly");
+            copyPolicyValue(summary, safe, "workspaceRelativeOnly");
             copyPolicyValue(summary, safe, "absolutePathRejected");
             copyPolicyValue(summary, safe, "pathTraversalRejected");
             copyPolicyValue(summary, safe, "controlCharacterRejected");
-            copyPolicyValue(summary, safe, "runtimeHomeEscapeRejected");
+            copyPolicyValue(summary, safe, "workspaceEscapeRejected");
             copyPolicyValue(summary, safe, "missingFilesNotMounted");
             copyPolicyValue(summary, safe, "hostPathsOmittedFromMetadata");
             copyPolicyValue(summary, safe, "rejectedPathsRedacted");

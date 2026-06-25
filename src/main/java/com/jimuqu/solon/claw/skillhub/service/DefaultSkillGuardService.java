@@ -143,11 +143,11 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "\\$HOME/\\.docker|~/\\.docker",
                             "references Docker config directory"),
                     new ThreatPattern(
-                            "runtime_env_access",
+                            "workspace_env_access",
                             "critical",
                             "exfiltration",
-                            "\\$HOME/\\.solon-claw/\\.env|~/\\.solon-claw/\\.env|runtime/\\.env|runtime/auth\\.json|runtime/cache/bws_cache\\.json|runtime/mcp-tokens",
-                            "directly references local runtime secrets or token stores"),
+                            "\\$HOME/\\.solonclaw/\\.env|~/\\.solonclaw/\\.env|workspace/\\.env|workspace/auth\\.json|workspace/cache/bws_cache\\.json|workspace/mcp-tokens",
+                            "directly references local workspace secrets or token stores"),
                     new ThreatPattern(
                             "read_secrets_file",
                             "critical",
@@ -587,11 +587,11 @@ public class DefaultSkillGuardService implements SkillGuardService {
                             "AGENTS\\.md|CLAUDE\\.md|\\.cursorrules|\\.clinerules",
                             "references agent config files"),
                     new ThreatPattern(
-                            "runtime_config_mod",
+                            "workspace_config_mod",
                             "critical",
                             "persistence",
-                            "\\.solon-claw/config\\.yml|runtime/config\\.yml|runtime/config\\.example\\.yml",
-                            "references local runtime configuration files"),
+                            "\\.solonclaw/config\\.yml|workspace/config\\.yml|workspace/config\\.example\\.yml",
+                            "references local workspace configuration files"),
                     new ThreatPattern(
                             "other_agent_config",
                             "high",

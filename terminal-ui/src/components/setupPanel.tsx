@@ -1,4 +1,4 @@
-import { Box, Text, useInput } from '@solon-claw/ink'
+import { Box, Text, useInput } from '@solonclaw/ink'
 import { useEffect, useRef, useState } from 'react'
 
 import type { GatewayClient } from '../gatewayClient.js'
@@ -53,7 +53,7 @@ export const setupStatusLines = (status: SetupStatusResponse | null) => [
   `模型：${status?.provider_configured ? '已配置' : '未配置'}`,
   `提供方：${status?.provider || '（未设置）'}`,
   `当前模型：${status?.model || '（未设置）'}`,
-  `配置文件：${status?.runtime_config || '（未知）'}`
+  `配置文件：${status?.workspace_config || '（未知）'}`
 ]
 
 export function SetupPanel({ gw, onChannel, onClose, onDoctor, onModel, t }: SetupPanelProps) {
@@ -117,7 +117,7 @@ export function SetupPanel({ gw, onChannel, onClose, onDoctor, onModel, t }: Set
       </Text>
 
       <Text color={t.color.muted} wrap="truncate-end">
-        模型、渠道与运行时检查
+        模型、渠道与工作区检查
       </Text>
 
       {setupStatusLines(status).map((line, lineIdx) => (

@@ -21,11 +21,11 @@ import org.junit.jupiter.api.Test;
 public class RuntimeConfigResolverTest {
     @Test
     void shouldReadNestedValuesWithCfgGetAndPreserveTypes() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solonclaw-runtime-config").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-workspace-config").toFile();
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  display:\n"
-                        + "    runtimeFooter:\n"
+                        + "    metadataFooter:\n"
                         + "      enabled: true\n"
                         + "      fields:\n"
                         + "        - model\n"
@@ -33,45 +33,45 @@ public class RuntimeConfigResolverTest {
                         + "  skills:\n"
                         + "    curator:\n"
                         + "      intervalHours: 12\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
 
-        RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+        RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
 
-        assertThat(RuntimeConfigResolver.cfgGet("solonclaw.display.runtimeFooter.enabled", false))
+        assertThat(RuntimeConfigResolver.cfgGet("solonclaw.display.metadataFooter.enabled", false))
                 .isEqualTo(Boolean.TRUE);
         assertThat(RuntimeConfigResolver.cfgGet("solonclaw.skills.curator.intervalHours", 0))
                 .isEqualTo(12);
         assertThat(RuntimeConfigResolver.cfgGet("missing.path", "fallback")).isEqualTo("fallback");
-        assertThat(RuntimeConfigResolver.getRawValue("solonclaw.display.runtimeFooter.fields"))
+        assertThat(RuntimeConfigResolver.getRawValue("solonclaw.display.metadataFooter.fields"))
                 .isEqualTo(java.util.Arrays.asList("model", "cwd"));
     }
 
     @Test
-    void shouldNotExposeRuntimeHomeAsRuntimeConfigKey() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solonclaw-runtime-home").toFile();
+    void shouldNotExposeWorkspaceStartupKeyAsConfigFileKey() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-workspace-home").toFile();
         FileUtil.writeUtf8String(
-                "solonclaw:\n" + "  runtime:\n" + "    home: /tmp/other-runtime\n",
-                new File(runtimeHome, "config.yml"));
+                "solonclaw:\n"
+                        + "  workspace: /tmp/other-workspace\n",
+                new File(workspaceHome, "config.yml"));
 
         RuntimeConfigResolver resolver =
-                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+                RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
 
-        assertThat(resolver.get("solonclaw.runtime.home")).isNull();
-        assertThatThrownBy(() -> resolver.setFileValue("solonclaw.runtime.home", "runtime2"))
+        assertThat(resolver.get("solonclaw.workspace")).isNull();
+        assertThatThrownBy(() -> resolver.setFileValue("solonclaw.workspace", "workspace2"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Unsupported config key");
     }
 
     @Test
     void shouldReportConfigDriftWithoutLeakingSecrets() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solonclaw-config-drift").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-config-drift").toFile();
         FileUtil.writeUtf8String(
                 "provider: stale-root-provider\n"
                         + "solonclaw:\n"
-                        + "  runtime:\n"
-                        + "    home: /tmp/ignored-runtime\n"
                         + "  scheduler:\n"
                         + "    tickSeconds: \"bad-number\"\n"
+                        + "  workspace: /tmp/ignored-workspace\n"
                         + "  mystery:\n"
                         + "    enabled: true\n"
                         + "providers:\n"
@@ -84,7 +84,7 @@ public class RuntimeConfigResolverTest {
                         + "model:\n"
                         + "  providerKey: default\n"
                         + "  default: gpt-5.4\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
 
         AppConfig config = new AppConfig();
         config.setScheduler(new AppConfig.SchedulerConfig());
@@ -93,18 +93,20 @@ public class RuntimeConfigResolverTest {
         config.getModel().setDefault("gpt-5.4");
         config.setProviders(new java.util.LinkedHashMap<String, AppConfig.ProviderConfig>());
         RuntimeConfigResolver resolver =
-                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+                RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
 
         Map<String, Object> diagnostics = resolver.diagnostics(config);
         String text = String.valueOf(diagnostics);
 
-        assertThat(diagnostics.get("config_file")).isEqualTo("runtime://config.yml");
-        assertThat(text).doesNotContain(runtimeHome.getAbsolutePath());
-        assertThat(text).doesNotContain("/tmp/ignored-runtime").contains("path://ignored-runtime");
+        assertThat(diagnostics.get("config_file")).isEqualTo("workspace://config.yml");
+        assertThat(text).doesNotContain(workspaceHome.getAbsolutePath());
+        assertThat(text)
+                .doesNotContain("/tmp/ignored-workspace")
+                .contains("path://ignored-workspace");
         assertThat(text)
                 .contains("solonclaw.mystery.enabled")
                 .contains("provider")
-                .contains("solonclaw.runtime.home")
+                .contains("solonclaw.workspace")
                 .contains("solonclaw.scheduler.tickSeconds")
                 .contains("raw_value")
                 .contains("effective_value")
@@ -115,9 +117,9 @@ public class RuntimeConfigResolverTest {
 
     @Test
     void shouldWriteFallbackProvidersAsYamlList() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solonclaw-runtime-fallback-list").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-workspace-fallback-list").toFile();
         RuntimeConfigResolver resolver =
-                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+                RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
         List<Map<String, String>> chain = new ArrayList<Map<String, String>>();
         Map<String, String> fallback = new LinkedHashMap<String, String>();
         fallback.put("provider", "backup");
@@ -127,7 +129,7 @@ public class RuntimeConfigResolverTest {
         resolver.setFileList("fallbackProviders", chain);
 
         Object raw = resolver.getRaw("fallbackProviders");
-        String file = FileUtil.readUtf8String(new File(runtimeHome, "config.yml"));
+        String file = FileUtil.readUtf8String(new File(workspaceHome, "config.yml"));
         assertThat(raw).isInstanceOf(List.class);
         assertThat(file)
                 .contains("fallbackProviders:")
@@ -138,9 +140,9 @@ public class RuntimeConfigResolverTest {
 
     @Test
     void shouldRejectFallbackProviderIndexedScalarWrites() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solonclaw-runtime-fallback-indexed").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-workspace-fallback-indexed").toFile();
         RuntimeConfigResolver resolver =
-                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+                RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
 
         assertThatThrownBy(() -> resolver.setFileValue("fallbackProviders.0.provider", "backup"))
                 .isInstanceOf(IllegalStateException.class)
@@ -149,9 +151,10 @@ public class RuntimeConfigResolverTest {
 
     @Test
     void shouldSeparateRuntimeConfigNonSecretWritesSecretUpdatesAndReveal() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solonclaw-runtime-safety").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-workspace-safety").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getWorkspace().setDir(workspaceHome.getAbsolutePath());
         DashboardRuntimeConfigService service =
                 new DashboardRuntimeConfigService(
                         config,
@@ -159,7 +162,9 @@ public class RuntimeConfigResolverTest {
                                 config, new ChannelConnectionManager(Collections.emptyMap())));
 
         service.writeNonSecret("solonclaw.react.maxSteps", "9", false);
-        assertThat(RuntimeConfigResolver.getValue("solonclaw.react.maxSteps")).isEqualTo("9");
+        assertThat(RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath())
+                        .get("solonclaw.react.maxSteps"))
+                .isEqualTo("9");
 
         assertThatThrownBy(
                         () ->
@@ -185,12 +190,12 @@ public class RuntimeConfigResolverTest {
                                         "providers.default.apiKey", "sk-runti...2345", false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("占位符密钥");
-        assertThatThrownBy(() -> RuntimeConfigResolver.getInstance()
+        assertThatThrownBy(() -> RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath())
                         .setFileValue("providers.default.apiKey", "configured"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("占位符密钥");
-        assertThat(RuntimeConfigResolver.getValue("providers.default.apiKey"))
-                .isEqualTo("sk-runtime-secret-12345");
+        assertThat(service.reveal("providers.default.apiKey"))
+                .containsEntry("value", "sk-runtime-secret-12345");
         assertThatThrownBy(() -> service.reveal("solonclaw.react.maxSteps"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("not revealable");

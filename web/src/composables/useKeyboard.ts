@@ -19,7 +19,7 @@ export function useKeyboard() {
 
     if (mod && e.key === 'j') {
       e.preventDefault()
-      router.push({ name: 'SolonClaw.jobs' })
+      router.push({ name: 'solonclaw.jobs' })
       return
     }
 

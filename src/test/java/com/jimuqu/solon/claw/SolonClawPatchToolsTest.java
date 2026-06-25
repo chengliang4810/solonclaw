@@ -58,11 +58,11 @@ public class SolonClawPatchToolsTest {
                 .isEqualTo("hi\nworld\n");
     }
 
-    /** 验证默认 runtime 工具根下的 patch 路径语义与 read_file/write_file 保持一致。 */
+    /** 验证默认 workspace 工具根下的 patch 路径语义与 read_file/write_file 保持一致。 */
     @Test
-    void shouldCollapseRuntimeRootPrefixForReplaceMode() throws Exception {
-        Path tempRoot = tempDir("patch-runtime-prefix");
-        Path dir = tempRoot.resolve("runtime");
+    void shouldCollapseWorkspaceRootPrefixForReplaceMode() throws Exception {
+        Path tempRoot = tempDir("patch-workspace-prefix");
+        Path dir = tempRoot.resolve("workspace");
         Path file = dir.resolve("logs/patch-target.txt");
         Files.createDirectories(file.getParent());
         writeUtf8(file, "line_1\nline_2=old\nline_3\n");
@@ -71,7 +71,7 @@ public class SolonClawPatchToolsTest {
         String json =
                 tools.patch(
                         "replace",
-                        "runtime/logs/patch-target.txt",
+                        "workspace/logs/patch-target.txt",
                         "line_2=old",
                         "line_2=new",
                         false,
@@ -82,7 +82,7 @@ public class SolonClawPatchToolsTest {
         assertThat(result.get("resolved_path")).isEqualTo(file.toRealPath().toString());
         assertThat(readUtf8(file))
                 .isEqualTo("line_1\nline_2=new\nline_3\n");
-        assertThat(dir.resolve("runtime/logs/patch-target.txt")).doesNotExist();
+        assertThat(dir.resolve("workspace/logs/patch-target.txt")).doesNotExist();
     }
 
     @Test

@@ -261,7 +261,7 @@ public class TerminalSetupCommands {
                 + "action="
                 + action
                 + "\n当前本地终端不直接启动或探测 MCP server；请通过 Dashboard 的 MCP 页面或 "
-                + "runtime/config.yml 写入 mcp.servers 配置。\n"
+                + "workspace/config.yml 写入 mcp.servers 配置。\n"
                 + "config="
                 + configResolver().configFile().getPath()
                 + "\n可用入口：\n"
@@ -276,8 +276,8 @@ public class TerminalSetupCommands {
         return "solonclaw setup\n"
                 + "1. solonclaw setup model - 配置模型提供方、API 地址、API Key 与默认模型\n"
                 + "2. solonclaw setup gateway - 查看并配置国内消息渠道\n"
-                + "3. solonclaw config path - 查看 runtime/config.yml 路径\n"
-                + "4. solonclaw config check - 检查 runtime/config.yml 与当前生效配置差异\n"
+                + "3. solonclaw config path - 查看 workspace/config.yml 路径\n"
+                + "4. solonclaw config check - 检查 workspace/config.yml 与当前生效配置差异\n"
                 + "5. solonclaw doctor - 汇总模型、配置与国内渠道自检\n"
                 + "终端内也可使用：/setup model、/setup gateway、/config path、/doctor。";
     }
@@ -307,7 +307,7 @@ public class TerminalSetupCommands {
         String providerKey = StrUtil.blankToDefault(activeProviderKey(), "default");
         String model = StrUtil.blankToDefault(activeModel(activeProvider()), "your-model");
         return "非交互初始化\n"
-                + "runtime.config="
+                + "workspace.config="
                 + configResolver().configFile().getPath()
                 + "\n"
                 + "1. solonclaw model set --provider "
@@ -351,18 +351,18 @@ public class TerminalSetupCommands {
                 + next;
     }
 
-    /** 重置 runtime/config.yml 覆盖配置，让下一次启动回到应用默认配置。 */
+    /** 重置 workspace/config.yml 覆盖配置，让下一次启动回到应用默认配置。 */
     private String renderSetupReset() {
         RuntimeConfigResolver resolver = configResolver();
         File file = resolver.configFile();
         boolean deleted = !file.exists() || file.delete();
         resolver.reload();
         if (!deleted) {
-            return "runtime/config.yml 重置失败："
+            return "workspace/config.yml 重置失败："
                     + file.getPath()
                     + "\n请检查文件权限后重试。";
         }
-        return "runtime/config.yml 已重置\n"
+        return "workspace/config.yml 已重置\n"
                 + "path="
                 + file.getPath()
                 + "\nnext=solonclaw setup model";
@@ -384,7 +384,7 @@ public class TerminalSetupCommands {
                 + "1. /security policy - 查看工具审批、路径、URL 与终端执行策略\n"
                 + "2. /reload-mcp now - 立即重载 MCP 工具 schema\n"
                 + "3. /tools、/toolsets、/browser、/plugins - 查看工具、浏览器自动化与插件状态\n"
-                + "4. solonclaw config set <key> <value> - 写入工具相关 runtime/config.yml 覆盖项";
+                + "4. solonclaw config set <key> <value> - 写入工具相关 workspace/config.yml 覆盖项";
     }
 
     /** 渲染 Agent 初始化分节，说明会话、目标和 Agent 切换入口。 */
@@ -492,7 +492,7 @@ public class TerminalSetupCommands {
     }
 
     /**
-     * 写入模型提供方配置，复用原始 runtime/config.yml 配置入口。
+     * 写入模型提供方配置，复用原始 workspace/config.yml 配置入口。
      *
      * @param rawValue 用户输入的完整 model set/configure 命令。
      * @return 配置写入结果说明。
@@ -529,7 +529,7 @@ public class TerminalSetupCommands {
         if (!result.isSuccess()) {
             return "模型配置写入失败：" + result.getMessage();
         }
-        return "模型配置已写入 runtime/config.yml：\n"
+        return "模型配置已写入 workspace/config.yml：\n"
                 + "provider="
                 + request.providerKey
                 + "\nmodel="
@@ -614,7 +614,7 @@ public class TerminalSetupCommands {
             return "渠道配置写入失败：" + result.getMessage();
         }
         StringBuilder buffer = new StringBuilder();
-        buffer.append("渠道配置已写入 runtime/config.yml：\n")
+        buffer.append("渠道配置已写入 workspace/config.yml：\n")
                 .append("channel=")
                 .append(request.channel);
         for (Map.Entry<String, String> entry : request.values.entrySet()) {
@@ -626,7 +626,7 @@ public class TerminalSetupCommands {
         return buffer.toString();
     }
 
-    /** 渲染 runtime/config.yml 文件路径。 */
+    /** 渲染 workspace/config.yml 文件路径。 */
     private String renderConfigPath() {
         RuntimeConfigResolver resolver = configResolver();
         return resolver.configFile().getPath();
@@ -642,14 +642,14 @@ public class TerminalSetupCommands {
                 + "\n修改后重新启动服务或通过 Dashboard 刷新运行配置。";
     }
 
-    /** 渲染 runtime/config.yml 的轻量快照。 */
+    /** 渲染 workspace/config.yml 的轻量快照。 */
     private String renderConfigShow() {
         RuntimeConfigResolver resolver = configResolver();
         Map<String, String> snapshot = resolver.fileValues();
         StringBuilder buffer = new StringBuilder();
-        buffer.append("runtime/config.yml: ").append(resolver.configFile().getPath()).append('\n');
+        buffer.append("workspace/config.yml: ").append(resolver.configFile().getPath()).append('\n');
         if (snapshot.isEmpty()) {
-            buffer.append("当前 runtime/config.yml 还没有覆盖项。");
+            buffer.append("当前 workspace/config.yml 还没有覆盖项。");
             return buffer.toString();
         }
         for (Map.Entry<String, String> entry : snapshot.entrySet()) {
@@ -661,7 +661,7 @@ public class TerminalSetupCommands {
         return buffer.toString();
     }
 
-    /** 渲染 runtime/config.yml 与当前生效配置的诊断结果。 */
+    /** 渲染 workspace/config.yml 与当前生效配置的诊断结果。 */
     private String renderConfigCheck() {
         Map<String, Object> diagnostics = configResolver().diagnostics(appConfig);
         return "配置检查\n"
@@ -685,7 +685,7 @@ public class TerminalSetupCommands {
         String missingChannels = missingEnabledChannels();
         String next = doctorNextStep(diagnostics, providerKey, model, apiKeyConfigured, missingChannels);
         return "Solon Claw Doctor\n"
-                + "runtime.config="
+                + "workspace.config="
                 + resolver.configFile().getPath()
                 + "\nconfig.has_issues="
                 + diagnostics.get("has_issues")
@@ -733,7 +733,7 @@ public class TerminalSetupCommands {
         configResolver().reload();
         String doctor = renderDoctor();
         return "Doctor 自动修复\n"
-                + "已刷新 runtime/config.yml 视图；涉及模型密钥和渠道凭据的项目需要用户确认后写入。\n"
+                + "已刷新 workspace/config.yml 视图；涉及模型密钥和渠道凭据的项目需要用户确认后写入。\n"
                 + doctor;
     }
 
@@ -759,9 +759,9 @@ public class TerminalSetupCommands {
                 provider != null && SecretValueGuard.hasUsableSecret(provider.getApiKey());
         return "Solon Claw Status\n"
                 + "runtime=local-terminal\n"
-                + "runtime.home="
-                + runtimeHomeText()
-                + "\nruntime.config="
+                + "workspace="
+                + workspaceHomeText()
+                + "\nworkspace.config="
                 + resolver.configFile().getPath()
                 + "\nmodel.provider="
                 + StrUtil.blankToDefault(activeProviderKey(), "(not set)")
@@ -812,7 +812,7 @@ public class TerminalSetupCommands {
     /** 渲染本地登出结果；当前无独立终端 OAuth 登录态。 */
     private String renderLogout() {
         return "本地登出\n"
-                + "当前版本没有独立的终端登录态；模型 API Key 和渠道凭据保存在 runtime/config.yml。\n"
+                + "当前版本没有独立的终端登录态；模型 API Key 和渠道凭据保存在 workspace/config.yml。\n"
                 + "如需移除凭据，请使用 solonclaw config set 或直接编辑配置文件。";
     }
 
@@ -824,7 +824,7 @@ public class TerminalSetupCommands {
                 + "1. solonclaw setup\n"
                 + "2. solonclaw model set --provider <key> --base-url <https://host/v1> --api-key <api-key> --model <model> --dialect <openai|openai-responses|ollama|gemini|anthropic>\n"
                 + "3. solonclaw setup gateway <feishu|dingtalk|wecom|weixin|qqbot|yuanbao> --enabled true ...\n"
-                + "4. java -Dsolonclaw.runtime.home=<runtime> -jar target/solon-claw-0.0.1.jar";
+                + "4. java -Dsolonclaw.workspace=<workspace> -jar target/solonclaw-0.0.1.jar";
     }
 
     /** 渲染模型登录说明；本项目以 API Key provider 配置为主，不提供独立终端 OAuth。 */
@@ -844,7 +844,7 @@ public class TerminalSetupCommands {
                 + "清理凭据：solonclaw config set providers.<key>.apiKey <empty-or-new-key>";
     }
 
-    /** 渲染认证配置说明，保持凭据入口集中到 runtime/config.yml。 */
+    /** 渲染认证配置说明，保持凭据入口集中到 workspace/config.yml。 */
     private String renderAuthGuidance(String rawValue) {
         List<String> tokens = shellTokens(rawValue);
         if (tokens.size() >= 2) {
@@ -872,7 +872,7 @@ public class TerminalSetupCommands {
             }
         }
         return "认证配置\n"
-                + "模型与渠道凭据统一写入 runtime/config.yml，不维护独立凭据池。\n"
+                + "模型与渠道凭据统一写入 workspace/config.yml，不维护独立凭据池。\n"
                 + "路径："
                 + configResolver().configFile().getPath()
                 + "\n模型：solonclaw model set --provider <key> --base-url <url> --api-key <key> --model <model> --dialect <dialect>"
@@ -882,7 +882,7 @@ public class TerminalSetupCommands {
                 + "\n渠道：solonclaw setup gateway <channel> --enabled true ...";
     }
 
-    /** 渲染 provider API Key 状态列表，合并启动配置和 runtime/config.yml 动态 provider。 */
+    /** 渲染 provider API Key 状态列表，合并启动配置和 workspace/config.yml 动态 provider。 */
     private String renderAuthList() {
         java.util.LinkedHashSet<String> providers = providerKeysForAuth();
         StringBuilder buffer = new StringBuilder();
@@ -968,7 +968,7 @@ public class TerminalSetupCommands {
             resolver.setFileValue("model.providerKey", request.providerKey);
             resolver.setFileValue("model.default", request.model);
         }
-        return "认证凭据已写入 runtime/config.yml：\n"
+        return "认证凭据已写入 workspace/config.yml：\n"
                 + "provider="
                 + request.providerKey
                 + "\nmodel="
@@ -1161,7 +1161,7 @@ public class TerminalSetupCommands {
     /** 渲染外部密钥源说明。 */
     private String renderSecretsGuidance() {
         return "外部密钥源\n"
-                + "当前版本暂未启用外部密钥源同步；请使用运行环境变量或 runtime/config.yml 管理凭据。\n"
+                + "当前版本暂未启用外部密钥源同步；请使用运行环境变量或 workspace/config.yml 管理凭据。\n"
                 + "可用入口：solonclaw config path、solonclaw config set、solonclaw doctor。\n"
                 + "终端输出会对 apiKey、secret、token 等敏感字段脱敏。";
     }
@@ -1195,7 +1195,7 @@ public class TerminalSetupCommands {
                 + "action="
                 + action
                 + "\n插件 hook 通过插件系统注册，当前本地终端不直接安装或触发外部 hook。\n"
-                + "runtime/config.yml="
+                + "workspace/config.yml="
                 + configResolver().configFile().getPath()
                 + "\n可用入口：/plugins 查看插件加载状态，/security policy 查看工具审批边界，"
                 + "solonclaw config set plugins.<name>.enabled true 写入插件开关。";
@@ -1212,27 +1212,27 @@ public class TerminalSetupCommands {
         return "诊断导出\n"
                 + "action="
                 + action
-                + "\n当前终端不自动打包运行目录，避免把凭据或会话内容写入未确认位置。\n"
+                + "\n当前终端不自动打包工作区目录，避免把凭据或会话内容写入未确认位置。\n"
                 + "可用入口：/debug 查看脱敏诊断摘要，/doctor 查看配置自检，"
-                + "solonclaw config show 查看脱敏 runtime/config.yml 快照。";
+                + "solonclaw config show 查看脱敏 workspace/config.yml 快照。";
     }
 
     /**
-     * 渲染运行目录备份说明；备份动作需要用户确认目标路径后手动执行。
+     * 渲染工作区目录备份说明；备份动作需要用户确认目标路径后手动执行。
      *
      * @param rawValue 用户输入的 backup 命令。
-     * @return 运行目录备份说明。
+     * @return 工作区目录备份说明。
      */
     private String renderBackupGuidance(String rawValue) {
         String action = commandAction(rawValue, "backup", "guide");
-        return "运行目录备份\n"
+        return "工作区目录备份\n"
                 + "action="
                 + action
-                + "\nruntime.home="
-                + runtimeHomeText()
+                + "\nworkspace="
+                + workspaceHomeText()
                 + "\nconfig.yml="
                 + configResolver().configFile().getPath()
-                + "\n当前终端不自动复制运行目录；请在确认目标路径、停用中的写入任务后备份 runtime 目录。"
+                + "\n当前终端不自动复制工作区目录；请在确认目标路径、停用中的写入任务后备份 workspace 目录。"
                 + "\n恢复后运行：solonclaw config check && solonclaw doctor";
     }
 
@@ -1264,7 +1264,7 @@ public class TerminalSetupCommands {
                 + "action="
                 + action
                 + "\n当前终端不执行未确认格式的批量导入。Skills 可通过 /skills 或 Skills Hub 管理；"
-                + "会话和配置导入请先备份 runtime 目录，再按目标格式迁移。\n"
+                + "会话和配置导入请先备份 workspace 目录，再按目标格式迁移。\n"
                 + "可用入口：/skills list、/skills install、solonclaw config path、solonclaw doctor。";
     }
 
@@ -1297,7 +1297,7 @@ public class TerminalSetupCommands {
                 + "action="
                 + action
                 + "\n本项目保留本地记忆、上下文文件和跨会话检索能力；外部记忆提供方需要通过配置显式接入。\n"
-                + "runtime/config.yml="
+                + "workspace/config.yml="
                 + configResolver().configFile().getPath()
                 + "\n可用入口：/config show、/config set memory.enabled true、/history、/sessions、/recap。";
     }
@@ -1318,8 +1318,8 @@ public class TerminalSetupCommands {
                 + "action="
                 + action
                 + "\nDashboard 随后端单实例服务启动；本地终端不会再启动第二个 Java 服务。\n"
-                + "启动：java -jar target/solon-claw-0.0.1.jar\n"
-                + "指定运行目录：java -Dsolonclaw.runtime.home=<runtime> -jar target/solon-claw-0.0.1.jar\n"
+                + "启动：java -jar target/solonclaw-0.0.1.jar\n"
+                + "指定工作区目录：java -Dsolonclaw.workspace=<workspace> -jar target/solonclaw-0.0.1.jar\n"
                 + "地址：http://127.0.0.1:"
                 + port
                 + "\nTUI 可通过 SOLONCLAW_SERVER_URL=http://127.0.0.1:"
@@ -1328,7 +1328,7 @@ public class TerminalSetupCommands {
     }
 
     /**
-     * 渲染日志查看说明；日志由运行实例和 runtime 目录管理，本地终端不 tail 外部进程。
+     * 渲染日志查看说明；日志由运行实例和 workspace 目录管理，本地终端不 tail 外部进程。
      *
      * @param rawValue 用户输入的 logs 命令。
      * @return 日志说明。
@@ -1338,8 +1338,8 @@ public class TerminalSetupCommands {
         return "日志\n"
                 + "action="
                 + action
-                + "\nruntime.home="
-                + runtimeHomeText()
+                + "\nworkspace="
+                + workspaceHomeText()
                 + "\n当前终端不直接 tail 外部服务日志；可用 /debug 查看脱敏诊断摘要，"
                 + "/events 查看最近一次终端运行事件，Dashboard 日志页查看运行实例日志。";
     }
@@ -1441,15 +1441,15 @@ public class TerminalSetupCommands {
     /** 渲染前台启动网关说明。 */
     private String renderGatewayRun() {
         return "Gateway Run\n"
-                + "前台启动当前单实例服务：java -jar target/solon-claw-0.0.1.jar\n"
-                + "指定运行目录：java -Dsolonclaw.runtime.home=<runtime> -jar target/solon-claw-0.0.1.jar";
+                + "前台启动当前单实例服务：java -jar target/solonclaw-0.0.1.jar\n"
+                + "指定工作区目录：java -Dsolonclaw.workspace=<workspace> -jar target/solonclaw-0.0.1.jar";
     }
 
     /** 渲染 start 命令说明，避免误导为独立后台服务。 */
     private String renderGatewayStart() {
         return "Gateway Start\n"
                 + "当前版本不安装独立后台服务；请使用 java -jar 启动单实例服务。\n"
-                + "示例：java -Dsolonclaw.runtime.home=<runtime> -jar target/solon-claw-0.0.1.jar";
+                + "示例：java -Dsolonclaw.workspace=<workspace> -jar target/solonclaw-0.0.1.jar";
     }
 
     /** 渲染 stop 命令说明。 */
@@ -1470,7 +1470,7 @@ public class TerminalSetupCommands {
     private String renderGatewayInstall() {
         return "Gateway Install\n"
                 + "当前版本不安装独立后台服务；运行形态只保留 java -jar 与 Docker。\n"
-                + "本地前台：java -Dsolonclaw.runtime.home=<runtime> -jar target/solon-claw-0.0.1.jar\n"
+                + "本地前台：java -Dsolonclaw.workspace=<workspace> -jar target/solonclaw-0.0.1.jar\n"
                 + "容器部署：使用项目 Docker 镜像或部署脚本，由外部进程管理器负责守护。";
     }
 
@@ -1482,7 +1482,7 @@ public class TerminalSetupCommands {
     }
 
     /**
-     * 写入一个 runtime/config.yml 配置项。
+     * 写入一个 workspace/config.yml 配置项。
      *
      * @param args set 子命令后的参数文本。
      * @return 写入结果说明。
@@ -1498,13 +1498,13 @@ public class TerminalSetupCommands {
             configResolver().setFileValue(key, value);
         } catch (IllegalStateException e) {
             return "不支持的配置键：" + key + "\n"
-                    + "请使用已登记的 runtime/config.yml 键名；fallback provider 链路请使用 "
+                    + "请使用已登记的 workspace/config.yml 键名；fallback provider 链路请使用 "
                     + "solonclaw fallback add/remove/clear 管理，避免写坏 YAML 列表结构。";
         }
-        return "已写入 runtime/config.yml：" + key + "=" + safeConfigValue(key, value);
+        return "已写入 workspace/config.yml：" + key + "=" + safeConfigValue(key, value);
     }
 
-    /** 读取当前运行时配置解析器。 */
+    /** 读取当前工作区配置解析器。 */
     private RuntimeConfigResolver configResolver() {
         String home =
                 appConfig == null || appConfig.getRuntime() == null
@@ -1586,8 +1586,8 @@ public class TerminalSetupCommands {
         return values.isEmpty() ? "(none)" : String.join(",", values);
     }
 
-    /** 读取运行时目录文本，兼容测试和极简构造场景。 */
-    private String runtimeHomeText() {
+    /** 读取工作区目录文本，兼容测试和极简构造场景。 */
+    private String workspaceHomeText() {
         if (appConfig == null || appConfig.getRuntime() == null) {
             return "(unknown)";
         }
@@ -1612,7 +1612,7 @@ public class TerminalSetupCommands {
     /**
      * 根据自检状态生成下一步建议。
      *
-     * @param diagnostics runtime/config.yml 诊断结果。
+     * @param diagnostics workspace/config.yml 诊断结果。
      * @param providerKey 当前 provider key。
      * @param model 当前默认模型。
      * @param apiKeyConfigured API Key 是否已配置。
@@ -2074,7 +2074,7 @@ public class TerminalSetupCommands {
                 + "清空：solonclaw fallback clear";
     }
 
-    /** 读取当前 fallback 链路，优先使用 runtime/config.yml 中的结构化列表。 */
+    /** 读取当前 fallback 链路，优先使用 workspace/config.yml 中的结构化列表。 */
     @SuppressWarnings("unchecked")
     private List<FallbackEntry> fallbackChain() {
         Object raw = configResolver().getRaw("fallbackProviders");
@@ -2216,7 +2216,7 @@ public class TerminalSetupCommands {
         return Integer.parseInt(value) > 0;
     }
 
-    /** 汇总 provider key，包含启动配置和 runtime/config.yml 动态配置。 */
+    /** 汇总 provider key，包含启动配置和 workspace/config.yml 动态配置。 */
     private java.util.LinkedHashSet<String> providerKeysForAuth() {
         java.util.LinkedHashSet<String> providers = new java.util.LinkedHashSet<String>();
         if (appConfig != null && appConfig.getProviders() != null) {
@@ -2558,7 +2558,7 @@ public class TerminalSetupCommands {
         /** 国内渠道标识，只允许已确认保留的渠道。 */
         private String channel;
 
-        /** 待写入 runtime/config.yml 的渠道字段和值，字段已归一到 AppConfig 命名。 */
+        /** 待写入 workspace/config.yml 的渠道字段和值，字段已归一到 AppConfig 命名。 */
         private final Map<String, String> values = new LinkedHashMap<String, String>();
 
         /** 用户传入但当前渠道初始化命令未支持的参数名，用于给出明确反馈。 */

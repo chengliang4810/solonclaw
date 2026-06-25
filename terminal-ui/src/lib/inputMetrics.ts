@@ -1,4 +1,4 @@
-import { stringWidth, wrapAnsi } from '@solon-claw/ink'
+import { stringWidth, wrapAnsi } from '@solonclaw/ink'
 
 import type { Role } from '../types.js'
 

@@ -19,13 +19,13 @@ import javax.crypto.spec.SecretKeySpec;
 /** 提供消息网关Injection认证相关业务能力，封装调用方不需要感知的运行细节。 */
 public class GatewayInjectionAuthService {
     /** 外部注入请求携带的 HMAC 签名请求头。 */
-    private static final String HEADER_SIGNATURE = "X-SolonClaw-Signature";
+    private static final String HEADER_SIGNATURE = "X-solonclaw-Signature";
 
     /** 外部注入请求携带的秒级时间戳请求头，用于防重放。 */
-    private static final String HEADER_TIMESTAMP = "X-SolonClaw-Timestamp";
+    private static final String HEADER_TIMESTAMP = "X-solonclaw-Timestamp";
 
     /** 外部注入请求携带的随机串请求头，用于同一窗口内去重。 */
-    private static final String HEADER_NONCE = "X-SolonClaw-Nonce";
+    private static final String HEADER_NONCE = "X-solonclaw-Nonce";
 
     /** 网关注入签名采用的 HMAC 算法。 */
     private static final String HMAC_ALGORITHM = "HmacSHA256";

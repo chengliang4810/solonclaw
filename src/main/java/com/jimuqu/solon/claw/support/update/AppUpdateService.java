@@ -205,15 +205,15 @@ public class AppUpdateService {
                 return UpdateResult.error("未找到当前运行的 jar 文件，无法执行在线升级。");
             }
 
-            File updateDir = new File(versionService.runtimeHome(), "update");
-            File logsDir = new File(versionService.runtimeHome(), "logs");
+            File updateDir = new File(versionService.workspaceHome(), "update");
+            File logsDir = new File(versionService.workspaceHome(), "logs");
             FileUtil.mkdir(updateDir);
             FileUtil.mkdir(logsDir);
 
             File downloadedJar =
                     new File(
                             updateDir,
-                            "solon-claw-"
+                            "solonclaw-"
                                     + AppVersionService.stripLeadingV(status.getLatestTag())
                                     + ".jar.download");
             downloadAsset(status.getJarAssetUrl(), downloadedJar);
@@ -237,7 +237,7 @@ public class AppUpdateService {
             command.add(updateLog.getAbsolutePath());
 
             ProcessBuilder builder = new ProcessBuilder(command);
-            builder.directory(versionService.runtimeHome());
+            builder.directory(versionService.workspaceHome());
             builder.redirectErrorStream(true);
             builder.redirectOutput(ProcessBuilder.Redirect.appendTo(updateLog));
             builder.start();
@@ -483,7 +483,7 @@ public class AppUpdateService {
      * @return 返回缓存文件结果。
      */
     private File cacheFile() {
-        return new File(versionService.runtimeHome(), ".update_check.json");
+        return new File(versionService.workspaceHome(), ".update_check.json");
     }
 
     /**
@@ -536,7 +536,7 @@ public class AppUpdateService {
             HttpRequest request =
                     HttpRequest.get(url)
                             .header(Header.ACCEPT, "application/vnd.github+json")
-                            .header(Header.USER_AGENT, "solon-claw")
+                            .header(Header.USER_AGENT, "solonclaw")
                             .timeout(5000)
                             .setFollowRedirects(false);
             Proxy proxy = resolveProxy();
@@ -670,7 +670,7 @@ public class AppUpdateService {
                 if (StrUtil.isBlank(name)) {
                     continue;
                 }
-                if (name.startsWith("solon-claw-") && name.endsWith(".jar")) {
+                if (name.startsWith("solonclaw-") && name.endsWith(".jar")) {
                     releaseInfo.setJarAssetName(name);
                     releaseInfo.setJarAssetUrl(asset.get("browser_download_url").getString());
                     break;

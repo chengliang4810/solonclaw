@@ -16,7 +16,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** runtime/ 根目录下人格工作区文件的统一访问服务。 */
+/** workspace/ 根目录下人格工作区文件的统一访问服务。 */
 public class PersonaWorkspaceService {
     /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(PersonaWorkspaceService.class);
@@ -200,12 +200,12 @@ public class PersonaWorkspaceService {
                 writeContent(target, loadTemplate(key));
             } catch (IORuntimeException e) {
                 log.warn(
-                        "Unable to seed persona workspace file {}: {}. Startup continues; fix runtime directory permissions before editing workspace files.",
+                        "Unable to seed persona workspace file {}: {}. Startup continues; fix workspace directory permissions before editing workspace files.",
                         safePathRef(target),
                         failureMessage(e));
             } catch (SecurityException e) {
                 log.warn(
-                        "Unable to seed persona workspace file {}: {}. Startup continues; fix runtime directory permissions before editing workspace files.",
+                        "Unable to seed persona workspace file {}: {}. Startup continues; fix workspace directory permissions before editing workspace files.",
                         safePathRef(target),
                         failureMessage(e));
             }

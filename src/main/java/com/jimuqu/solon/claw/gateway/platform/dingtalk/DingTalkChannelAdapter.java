@@ -1723,7 +1723,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private String resolveMarkdownTitle(String content) {
         if (isBlank(content)) {
-            return "solon-claw";
+            return "solonclaw";
         }
         String[] lines = content.split("\\R");
         for (String line : lines) {
@@ -1732,7 +1732,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return normalized.length() > 48 ? normalized.substring(0, 48) : normalized;
             }
         }
-        return "solon-claw";
+        return "solonclaw";
     }
 
     /** 承载投递上下文相关状态和辅助逻辑。 */

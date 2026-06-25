@@ -12,7 +12,7 @@ import org.noear.snack4.ONode;
 /** 承载Solon项目索引来源相关状态和辅助逻辑。 */
 public class SolonClawIndexSource implements SkillSource {
     /** 索引URL的统一常量值。 */
-    private static final String INDEX_URL = "https://solon-claw.local/docs/api/skills-index.json";
+    private static final String INDEX_URL = "https://solonclaw.local/docs/api/skills-index.json";
 
     /** 记录Solon项目索引来源中的HTTPClient。 */
     private final SkillHubHttpClient httpClient;

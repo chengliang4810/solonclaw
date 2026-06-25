@@ -37,7 +37,7 @@ def main() -> int:
         check_binary_text=args.check_binary_text,
     )
     fail_with_findings(
-        "Blocked legacy project naming in repository paths or text. Use solon-claw/solonclaw naming for code, docs, config keys, routes, storage keys, environment variables, generated source, and release artifacts.",
+        "Blocked legacy project naming in repository paths or text. Use solonclaw naming for code, docs, config keys, routes, storage keys, environment variables, generated source, and release artifacts.",
         directory_findings,
     )
 

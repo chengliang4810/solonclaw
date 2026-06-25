@@ -48,7 +48,7 @@ if (shouldForceTruecolor()) {
   process.env.FORCE_COLOR = '3'
 } else if (shouldDowngradeAppleTerminalTruecolor()) {
   // Terminal.app may advertise truecolor even when RGB SGR paths render
-  // incorrectly. Keep SolonClaw on the safer TERM-driven 256-color path unless
+  // incorrectly. Keep solonclaw on the safer TERM-driven 256-color path unless
   // users explicitly opt back in via SOLONCLAW_TUI_TRUECOLOR=1.
   delete process.env.COLORTERM
 

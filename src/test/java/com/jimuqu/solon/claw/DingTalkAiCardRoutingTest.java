@@ -21,13 +21,13 @@ public class DingTalkAiCardRoutingTest {
     @Test
     void shouldRequireExplicitRobotCodeForAiCardRouting() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = Files.createTempDirectory("solon-claw-dingtalk-robot-code").toFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        File workspaceHome = Files.createTempDirectory("solonclaw-dingtalk-robot-code").toFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         config.getChannels().getDingtalk().setEnabled(true);
         config.getChannels().getDingtalk().setClientId("ding-client");
         config.getChannels().getDingtalk().setClientSecret("ding-secret");
@@ -46,13 +46,13 @@ public class DingTalkAiCardRoutingTest {
     @Test
     void shouldRouteDeliveryRequestWithCardExtrasToAiCardSend() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = Files.createTempDirectory("solon-claw-dingtalk-card").toFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        File workspaceHome = Files.createTempDirectory("solonclaw-dingtalk-card").toFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         config.getChannels().getDingtalk().setEnabled(true);
         config.getChannels().getDingtalk().setClientId("app-key");
         config.getChannels().getDingtalk().setClientSecret("app-secret");

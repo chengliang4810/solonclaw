@@ -28,7 +28,7 @@ public final class LocalTerminalHelp {
                 + "/setup --quick|--reset|--non-interactive - 快速检查、重置或输出脚本化初始化引导\n"
                 + "/setup terminal|tools|agent|tts - 查看终端、工具、Agent 和语音服务初始化引导\n"
                 + "/setup gateway <channel> --enabled true ... - 写入国内消息渠道初始化配置\n"
-                + "/config path|show|edit|check|set <key> <value> - 查看或写入 runtime/config.yml\n"
+                + "/config path|show|edit|check|set <key> <value> - 查看或写入 workspace/config.yml\n"
                 + "/doctor [--fix|--ack <id>] - 汇总模型、配置和国内消息渠道自检\n"
                 + "/status - 查看本地运行、模型和渠道状态\n"
                 + "/version - 查看当前版本和部署形态\n"

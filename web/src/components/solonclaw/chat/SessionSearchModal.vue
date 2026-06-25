@@ -115,8 +115,8 @@ async function openItem(item: SearchItem) {
 
   await ensureChatSessionsLoaded()
   await chatStore.switchSession(item.id, messageId)
-  if (router.currentRoute.value.name !== 'SolonClaw.chat') {
-    await router.push({ name: 'SolonClaw.chat' })
+  if (router.currentRoute.value.name !== 'solonclaw.chat') {
+    await router.push({ name: 'solonclaw.chat' })
   }
 }
 

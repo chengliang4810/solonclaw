@@ -509,7 +509,7 @@ public class SolonClawCodeExecutionSkills {
                             + "    raise TimeoutError('Timed out waiting for ' + tool_name + ' response')\n"
                             + "\n"
                             + "def _unavailable(name):\n"
-                            + "    raise RuntimeError(name + ' is not available in solon-claw execute_code yet. Use normal tool calls instead.')\n"
+                            + "    raise RuntimeError(name + ' is not available in solonclaw execute_code yet. Use normal tool calls instead.')\n"
                             + "\n"
                             + "def websearch(query, limit=5): return _call('websearch', {'query': query, 'limit': limit})\n"
                             + "def webfetch(url, format='markdown', timeout=120): return _call('webfetch', {'url': url, 'format': format, 'timeout': timeout})\n"

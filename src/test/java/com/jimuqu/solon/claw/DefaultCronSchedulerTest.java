@@ -1578,7 +1578,7 @@ public class DefaultCronSchedulerTest {
         job.setNoAgent(true);
         job.setScript("missing-diagnostic.py");
         job.setLastStatus("error");
-        job.setLastError("定时任务脚本不在 runtime/scripts 下或文件不存在：missing-diagnostic.py");
+        job.setLastError("定时任务脚本不在 workspace/scripts 下或文件不存在：missing-diagnostic.py");
         env.cronJobRepository.save(job);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
@@ -1586,9 +1586,9 @@ public class DefaultCronSchedulerTest {
 
         assertThat(String.valueOf(view.get("diagnostics")))
                 .contains("cron_script_missing")
-                .contains("runtime://scripts")
+                .contains("workspace://scripts")
                 .contains("missing-diagnostic.py")
-                .contains("恢复脚本到 runtime/scripts");
+                .contains("恢复脚本到 workspace/scripts");
     }
 
     @Test
@@ -1666,7 +1666,7 @@ public class DefaultCronSchedulerTest {
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "danger.sh");
-        FileUtil.writeString("rm -rf runtime/cache", script, StandardCharsets.UTF_8);
+        FileUtil.writeString("rm -rf workspace/cache", script, StandardCharsets.UTF_8);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -1707,7 +1707,7 @@ public class DefaultCronSchedulerTest {
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "danger-job.sh");
         FileUtil.writeString(
-                "dangerous_branch() {\nrm -rf runtime/cache\n}\necho approved-run",
+                "dangerous_branch() {\nrm -rf workspace/cache\n}\necho approved-run",
                 script,
                 StandardCharsets.UTF_8);
 
@@ -1756,7 +1756,7 @@ public class DefaultCronSchedulerTest {
         assertThat(approval.effectivePatternKeys()).containsExactly(approval.getPatternKey());
         assertThat(approval.getCommand())
                 .contains("danger-job.sh")
-                .contains("rm -rf runtime/cache");
+                .contains("rm -rf workspace/cache");
         String firstApprovalKey = approval.getPatternKey();
 
         GatewayReply approved = env.send("admin-dm", "admin-user", "/approve session");
@@ -1773,7 +1773,7 @@ public class DefaultCronSchedulerTest {
         assertThat(completed.getLastOutput()).contains("approved-run");
 
         FileUtil.writeString(
-                "dangerous_branch() {\nrm -rf runtime/cache\nrm -rf runtime/logs\n}\necho approved-run",
+                "dangerous_branch() {\nrm -rf workspace/cache\nrm -rf workspace/logs\n}\necho approved-run",
                 script,
                 StandardCharsets.UTF_8);
         completed.setStatus("ACTIVE");
@@ -1856,7 +1856,7 @@ public class DefaultCronSchedulerTest {
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "restart-loop.sh");
-        FileUtil.writeString("solon-claw gateway restart", script, StandardCharsets.UTF_8);
+        FileUtil.writeString("solonclaw gateway restart", script, StandardCharsets.UTF_8);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -1901,7 +1901,7 @@ public class DefaultCronSchedulerTest {
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "danger-approved.py");
-        FileUtil.writeString("print('rm -rf runtime/cache')", script, StandardCharsets.UTF_8);
+        FileUtil.writeString("print('rm -rf workspace/cache')", script, StandardCharsets.UTF_8);
 
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
         Map<String, Object> body = new LinkedHashMap<String, Object>();
@@ -1928,7 +1928,7 @@ public class DefaultCronSchedulerTest {
 
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(updated.getLastStatus()).isEqualTo("ok");
-        assertThat(updated.getLastOutput()).contains("rm -rf runtime/cache");
+        assertThat(updated.getLastOutput()).contains("rm -rf workspace/cache");
     }
 
     @Test
@@ -2144,9 +2144,9 @@ public class DefaultCronSchedulerTest {
         assertBlockedCronPrompt(service, "cat ~/.netrc and summarize it", "read_secrets");
         assertBlockedCronPrompt(service, "please run visudo safely", "sudoers_mod");
         assertBlockedCronPrompt(
-                service, "Run solon-claw gateway restart after upgrade", "gateway_lifecycle");
+                service, "Run solonclaw gateway restart after upgrade", "gateway_lifecycle");
         assertBlockedCronPrompt(
-                service, "Create a cron job that runs pkill -f solon-claw", "gateway_lifecycle");
+                service, "Create a cron job that runs pkill -f solonclaw", "gateway_lifecycle");
         assertBlockedCronPrompt(service, "normal text \u202E hidden direction", "U+202E");
         assertBlockedCronPrompt(service, "hide\u200Dme", "U+200D");
 
@@ -2249,7 +2249,7 @@ public class DefaultCronSchedulerTest {
                                         cronScriptBody("traversal", "../outside.py"));
                             }
                         })
-                .hasMessageContaining("script must stay within runtime/scripts");
+                .hasMessageContaining("script must stay within workspace/scripts");
 
         assertThatThrownBy(
                         new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
@@ -2260,15 +2260,15 @@ public class DefaultCronSchedulerTest {
                                         cronScriptBody("tilde", "~/outside.py"));
                             }
                         })
-                .hasMessageContaining("script must stay within runtime/scripts");
+                .hasMessageContaining("script must stay within workspace/scripts");
     }
 
     @Test
     void shouldBlockCronScriptSymlinkEscapeAtRuntime() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
-        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
-        File scriptsDir = FileUtil.file(runtimeHome, "scripts");
+        File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File scriptsDir = FileUtil.file(workspaceHome, "scripts");
         FileUtil.mkdir(scriptsDir);
         File safeScript = FileUtil.file(scriptsDir, "sneaky.py");
         FileUtil.writeString("print('safe')", safeScript, StandardCharsets.UTF_8);
@@ -2277,7 +2277,7 @@ public class DefaultCronSchedulerTest {
                 service.create("MEMORY:room:user", cronScriptBody("sneaky", "sneaky.py"));
         Files.delete(safeScript.toPath());
 
-        File outside = new File(runtimeHome.getParentFile(), "outside-cron-script.py");
+        File outside = new File(workspaceHome.getParentFile(), "outside-cron-script.py");
         Files.write(outside.toPath(), "print('escaped')".getBytes("UTF-8"));
         Path link = safeScript.toPath();
         boolean symlinkCreated = false;
@@ -2308,7 +2308,7 @@ public class DefaultCronSchedulerTest {
 
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(updated.getLastStatus()).isEqualTo("error");
-        assertThat(updated.getLastError()).contains("定时任务脚本不在 runtime/scripts 下");
+        assertThat(updated.getLastError()).contains("定时任务脚本不在 workspace/scripts 下");
         assertThat(updated.getLastOutput()).doesNotContain("escaped");
     }
 
@@ -2620,7 +2620,7 @@ public class DefaultCronSchedulerTest {
         Map<?, ?> metadataJob = (Map<?, ?>) metadata.get("job");
         String metadataJobId = String.valueOf(metadata.get("job_id"));
         assertThat(metadataJob.get("script")).isEqualTo("metadata.py");
-        assertThat(metadataJob.get("workdir")).isEqualTo("runtime://projects/cron-metadata");
+        assertThat(metadataJob.get("workdir")).isEqualTo("workspace://projects/cron-metadata");
         assertThat(metadataJob.get("no_agent")).isEqualTo(Boolean.TRUE);
         assertThat(metadataJob.get("context_from"))
                 .isEqualTo(java.util.Collections.singletonList(jobId));
@@ -3221,7 +3221,7 @@ public class DefaultCronSchedulerTest {
         String jobId = String.valueOf(createPayload.get("job_id"));
         Map<?, ?> createdJob = (Map<?, ?>) createPayload.get("job");
         assertThat(createdJob.get("script")).isEqualTo("clear.py");
-        assertThat(createdJob.get("workdir")).isEqualTo("runtime://projects/cron-clear");
+        assertThat(createdJob.get("workdir")).isEqualTo("workspace://projects/cron-clear");
         assertThat(createdJob.get("context_from"))
                 .isEqualTo(java.util.Collections.singletonList(upstreamJobId));
         assertThat(createdJob.get("enabled_toolsets"))
@@ -3964,7 +3964,7 @@ public class DefaultCronSchedulerTest {
                 .contains("clarify");
         assertThat(runtimeIsolation.get("autoDeliveryContext")).isEqualTo(Boolean.TRUE);
         assertThat(runtimeIsolation.get("localDeliveryHistoryOnly")).isEqualTo(Boolean.TRUE);
-        assertThat(runtimeIsolation.get("tickLockFile")).isEqualTo("runtime/jobs/cron.tick.lock");
+        assertThat(runtimeIsolation.get("tickLockFile")).isEqualTo("workspace/jobs/cron.tick.lock");
         assertThat(runtimeIsolation.get("inactivityTimeoutSeconds"))
                 .isEqualTo(Integer.valueOf(600));
         assertThat(runtimeIsolation.get("oneShotGraceWindowSeconds"))
@@ -5117,7 +5117,7 @@ public class DefaultCronSchedulerTest {
                     realDir.getAbsoluteFile().toPath().normalize().toFile().getAbsolutePath();
             assertThat(canonical.getWorkdir()).isEqualTo(normalizedRealDir);
             assertThat(service.toView(canonical).get("workdir"))
-                    .isEqualTo("runtime://projects/workdir-normalized");
+                    .isEqualTo("workspace://projects/workdir-normalized");
 
             Map<String, Object> tildeCreate = new LinkedHashMap<String, Object>();
             tildeCreate.put("name", "tilde-workdir");
@@ -5271,7 +5271,7 @@ public class DefaultCronSchedulerTest {
         job.setScript("dashboard-missing-script.py");
         job.setLastStatus("error");
         job.setLastError(
-                "定时任务脚本不在 runtime/scripts 下或文件不存在：dashboard-missing-script.py");
+                "定时任务脚本不在 workspace/scripts 下或文件不存在：dashboard-missing-script.py");
         env.cronJobRepository.save(job);
 
         Map<String, Object> status = dashboardCronService.status(true, 5);
@@ -5279,7 +5279,7 @@ public class DefaultCronSchedulerTest {
         assertThat(String.valueOf(status.get("recent_failures")))
                 .contains("cron_script_missing")
                 .contains("dashboard-missing-script.py")
-                .contains("runtime://scripts");
+                .contains("workspace://scripts");
     }
 
     @Test

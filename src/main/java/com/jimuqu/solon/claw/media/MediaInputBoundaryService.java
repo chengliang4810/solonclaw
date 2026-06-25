@@ -66,7 +66,7 @@ public class MediaInputBoundaryService {
             cacheDir = appConfig.getRuntime().getCacheDir();
         }
         this.cacheRoot =
-                FileUtil.file(StrUtil.blankToDefault(cacheDir, "runtime/cache")).getAbsoluteFile();
+                FileUtil.file(StrUtil.blankToDefault(cacheDir, "workspace/cache")).getAbsoluteFile();
     }
 
     /**

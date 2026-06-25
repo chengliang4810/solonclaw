@@ -25,7 +25,7 @@ public class GatewayRuntimeStatusService {
     private static final Logger log = LoggerFactory.getLogger(GatewayRuntimeStatusService.class);
 
     /** 消息网关KIND的统一常量值。 */
-    private static final String GATEWAY_KIND = "solon-claw-gateway";
+    private static final String GATEWAY_KIND = "solonclaw-gateway";
 
     /** UTF8的统一常量值。 */
     private static final Charset UTF_8 = StandardCharsets.UTF_8;
@@ -321,7 +321,7 @@ public class GatewayRuntimeStatusService {
     private boolean looksLikeGatewayCommand(String command) {
         String normalized =
                 StrUtil.nullToEmpty(command).replace('\\', '/').toLowerCase(Locale.ROOT);
-        return normalized.contains("solon-claw")
+        return normalized.contains("solonclaw")
                 || normalized.contains("com.jimuqu.solon.claw")
                 || normalized.contains("gateway");
     }

@@ -209,7 +209,7 @@ class PluginRuntimeIntegrationTest {
     @Test
     void appConfigLoadsPluginEnableDisableLists() {
         Props props = new Props();
-        props.put("solonclaw.runtime.home", "target/test-runtime/plugin-config");
+        props.put("solonclaw.workspace", "target/test-runtime/plugin-config");
         props.put("solonclaw.plugins.enabled", "alpha,beta");
         props.put("solonclaw.plugins.disabled", "gamma, delta");
 

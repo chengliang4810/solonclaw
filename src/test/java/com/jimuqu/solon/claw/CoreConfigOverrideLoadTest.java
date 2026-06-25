@@ -15,8 +15,8 @@ import org.noear.solon.core.Props;
 public class CoreConfigOverrideLoadTest {
     @Test
     void shouldLoadCoreAndChannelConfigFromRuntimeConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-core-config").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-core-config").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  scheduler:\n"
@@ -119,7 +119,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         props.put("solonclaw.scheduler.enabled", "true");
         props.put("solonclaw.channels.feishu.enabled", "false");
         props.put("solonclaw.channels.weixin.enabled", "false");
@@ -214,8 +214,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldFallbackInvalidWeixinTextBatchDelaysToDefaults() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-weixin-text-batch").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-weixin-text-batch").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  channels:\n"
@@ -225,7 +225,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -236,10 +236,10 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldExcludeEnvrcFromDefaultRollbackCheckpoints() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-rollback-defaults").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-rollback-defaults").toFile();
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -248,10 +248,10 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldUseDefaultToolOutputMaxBytes() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-default").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-tool-output-default").toFile();
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -262,8 +262,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldCoerceCanonicalToolOutputStringIntegers() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-string").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-tool-output-string").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  task:\n"
@@ -274,7 +274,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -286,8 +286,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldFallbackForInvalidToolOutputValues() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-tool-output-invalid").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-tool-output-invalid").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  task:\n"
@@ -298,7 +298,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -310,8 +310,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalTerminalCredentialFiles() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-config").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-terminal-config").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  terminal:\n"
@@ -322,7 +322,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -333,8 +333,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalScopedTerminalKeys() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-current-config").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-terminal-current-config").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  terminal:\n"
@@ -347,7 +347,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -360,8 +360,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalTerminalShellInitKeys() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-init").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-terminal-init").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  terminal:\n"
@@ -372,7 +372,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -383,10 +383,10 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldDefaultSecurityModesToStrictAndApproval() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-guardrail-defaults").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-guardrail-defaults").toFile();
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -400,14 +400,14 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadSecurityGuardrailModeAndCronModeWithJobScopeDefault() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-guardrail-mode").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-guardrail-mode").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "security:\n" + "  guardrailMode: bypass\n" + "  guardrailCronMode: approval\n",
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -420,8 +420,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldRejectUnsupportedGuardrailModeValues() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-guardrail-invalid").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-guardrail-invalid").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "security:\n"
                         + "  fileGuardrailMode: loose\n"
@@ -431,7 +431,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         assertThatThrownBy(() -> AppConfig.load(props))
                 .isInstanceOf(IllegalStateException.class)
@@ -440,8 +440,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadSecurityHardlineAllowlistFromYamlList() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-hardline-allowlist").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-hardline-allowlist").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "security:\n"
                         + "  hardlineAllowlist:\n"
@@ -450,7 +450,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -460,8 +460,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalExternalSkillsDirs() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-external-skills").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-external-skills").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  skills:\n"
@@ -471,7 +471,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -481,8 +481,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalSkillPreprocessKeys() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-skill-preprocess").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-skill-preprocess").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  skills:\n"
@@ -492,7 +492,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -503,30 +503,30 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalTerminalSudoPassword() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-sudo").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-terminal-sudo").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
-                "solonclaw:\n" + "  terminal:\n" + "    sudoPassword: SolonClaw-pass\n",
+                "solonclaw:\n" + "  terminal:\n" + "    sudoPassword: solonclaw-pass\n",
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getTerminal().getSudoPassword()).isEqualTo("SolonClaw-pass");
+        assertThat(config.getTerminal().getSudoPassword()).isEqualTo("solonclaw-pass");
     }
 
     @Test
     void shouldLoadCanonicalTerminalTimeout() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-timeout").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-terminal-timeout").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n" + "  terminal:\n" + "    processWaitTimeoutSeconds: 9\n",
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -535,8 +535,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalTerminalWriteSafeRoot() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-terminal-write-root").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-terminal-write-root").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  terminal:\n"
@@ -544,7 +544,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -554,8 +554,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalWebsiteBlocklist() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-website-policy").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-website-policy").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "security:\n"
                         + "  websiteBlocklist:\n"
@@ -568,7 +568,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -581,8 +581,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldApplyLoadedWebsitePolicyToUrlChecks() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-website-policy-check").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-website-policy-check").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "security:\n"
                         + "  allowPrivateUrls: true\n"
@@ -594,7 +594,7 @@ public class CoreConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
         SecurityPolicyService policy = new FixedDnsSecurityPolicyService(config, "93.184.216.34");
@@ -608,12 +608,12 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalAllowPrivateUrlsKey() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-private-url-policy").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-private-url-policy").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String("security:\n" + "  allowPrivateUrls: false\n", configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 
@@ -622,12 +622,12 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldTreatQuotedFalseCanonicalAllowPrivateUrlsAsFalse() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-private-url-false").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-private-url-false").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String("security:\n" + "  allowPrivateUrls: \"false\"\n", configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 

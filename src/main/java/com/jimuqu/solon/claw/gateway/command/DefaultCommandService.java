@@ -3425,7 +3425,7 @@ public class DefaultCommandService implements CommandService {
      */
     private DebugSummary debugSummary() throws Exception {
         DebugSummary summary = new DebugSummary();
-        summary.runtimeHome = "runtime://";
+        summary.workspaceHome = "workspace://";
         summary.providerCount =
                 appConfig == null || appConfig.getProviders() == null
                         ? 0
@@ -3466,8 +3466,8 @@ public class DefaultCommandService implements CommandService {
      */
     private String formatDebugSummary(DebugSummary summary) {
         return "调试诊断："
-                + "\nruntime_home="
-                + summary.runtimeHome
+                + "\nworkspace_home="
+                + summary.workspaceHome
                 + "\nproviders="
                 + summary.providerCount
                 + "\nchannels="
@@ -3502,7 +3502,7 @@ public class DefaultCommandService implements CommandService {
     /** 承载Debug摘要相关状态和辅助逻辑。 */
     private static class DebugSummary {
         /** 记录Debug摘要中的运行时主渠道。 */
-        private String runtimeHome;
+        private String workspaceHome;
 
         /** 记录Debug摘要中的提供方次数。 */
         private int providerCount;

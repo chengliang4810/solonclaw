@@ -40,7 +40,7 @@ public class DashboardConfigService {
     /** 注入应用配置，用于控制台配置。 */
     private final AppConfig appConfig;
 
-    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
+    /** 注入消息网关工作区配置刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
 
@@ -241,49 +241,49 @@ public class DashboardConfigService {
                         "display.progressThrottleMs", "number", "general", "reasoning/进度消息节流毫秒"));
         addField(
                 new FieldDefinition(
-                        "display.runtimeFooter.enabled",
+                        "display.metadataFooter.enabled",
                         "boolean",
                         "general",
-                        "最终回复 runtime footer 开关"));
+                        "最终回复 metadata footer 开关"));
         addField(
                 new FieldDefinition(
-                        "display.runtimeFooter.fields", "list", "general", "runtime footer 字段列表"));
+                        "display.metadataFooter.fields", "list", "general", "metadata footer 字段列表"));
         addField(
                 new FieldDefinition(
-                        "display.platforms.feishu.runtimeFooter.enabled",
+                        "display.platforms.feishu.metadataFooter.enabled",
                         "boolean",
                         "messaging",
-                        "飞书 runtime footer 覆盖开关"));
+                        "飞书 metadata footer 覆盖开关"));
         addField(
                 new FieldDefinition(
-                        "display.platforms.dingtalk.runtimeFooter.enabled",
+                        "display.platforms.dingtalk.metadataFooter.enabled",
                         "boolean",
                         "messaging",
-                        "钉钉 runtime footer 覆盖开关"));
+                        "钉钉 metadata footer 覆盖开关"));
         addField(
                 new FieldDefinition(
-                        "display.platforms.wecom.runtimeFooter.enabled",
+                        "display.platforms.wecom.metadataFooter.enabled",
                         "boolean",
                         "messaging",
-                        "企微 runtime footer 覆盖开关"));
+                        "企微 metadata footer 覆盖开关"));
         addField(
                 new FieldDefinition(
-                        "display.platforms.weixin.runtimeFooter.enabled",
+                        "display.platforms.weixin.metadataFooter.enabled",
                         "boolean",
                         "messaging",
-                        "微信 runtime footer 覆盖开关"));
+                        "微信 metadata footer 覆盖开关"));
         addField(
                 new FieldDefinition(
-                        "display.platforms.qqbot.runtimeFooter.enabled",
+                        "display.platforms.qqbot.metadataFooter.enabled",
                         "boolean",
                         "messaging",
-                        "QQBot runtime footer 覆盖开关"));
+                        "QQBot metadata footer 覆盖开关"));
         addField(
                 new FieldDefinition(
-                        "display.platforms.yuanbao.runtimeFooter.enabled",
+                        "display.platforms.yuanbao.metadataFooter.enabled",
                         "boolean",
                         "messaging",
-                        "元宝 runtime footer 覆盖开关"));
+                        "元宝 metadata footer 覆盖开关"));
         addField(new FieldDefinition("scheduler.enabled", "boolean", "general", "启用定时调度"));
         addField(new FieldDefinition("scheduler.tickSeconds", "number", "general", "调度轮询周期（秒）"));
         addField(
@@ -1155,11 +1155,6 @@ public class DashboardConfigService {
     private void validateKeys(Iterable<String> keys) {
         for (String key : keys) {
             String canonicalKey = canonicalFieldKey(key);
-            if (canonicalKey.startsWith("runtime.")
-                    || canonicalKey.startsWith("solonclaw.runtime.")) {
-                throw new IllegalStateException(
-                        "solonclaw.runtime.* is not editable from the dashboard");
-            }
             if (!fields.containsKey(canonicalKey) && !isSupportedPassthroughKey(key)) {
                 throw new IllegalStateException("Unsupported config key: " + key);
             }
@@ -1206,11 +1201,11 @@ public class DashboardConfigService {
             }
             if (startsWithHomePath(value)) {
                 throw new IllegalStateException(
-                        "solonclaw.terminal.credentialFiles must use runtime-relative paths");
+                        "solonclaw.terminal.credentialFiles must use workspace-relative paths");
             }
             if (isAbsolutePathText(value)) {
                 throw new IllegalStateException(
-                        "solonclaw.terminal.credentialFiles must use runtime-relative paths");
+                        "solonclaw.terminal.credentialFiles must use workspace-relative paths");
             }
             if (containsTraversal(value)) {
                 throw new IllegalStateException(

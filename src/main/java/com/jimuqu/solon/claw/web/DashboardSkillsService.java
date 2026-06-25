@@ -174,7 +174,7 @@ public class DashboardSkillsService {
                 toolset(
                         "config",
                         "配置工具",
-                        "读取和修改运行时配置与密钥",
+                        "读取和修改工作区配置与密钥",
                         Arrays.asList(
                                 ToolNameConstants.CONFIG_GET,
                                 ToolNameConstants.CONFIG_SET,

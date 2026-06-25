@@ -124,7 +124,7 @@ public class RuntimeSetupService {
         return SetupResult.ok("gateway", safeValues);
     }
 
-    /** 读取当前运行时配置解析器。 */
+    /** 读取当前工作区配置解析器。 */
     private RuntimeConfigResolver configResolver() {
         String home =
                 appConfig.getRuntime() == null ? "" : appConfig.getRuntime().getHome();

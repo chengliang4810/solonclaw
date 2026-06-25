@@ -1,6 +1,6 @@
-# SolonClaw TUI
+# solonclaw TUI
 
-React + Ink terminal UI for SolonClaw. TypeScript owns the screen; the Java backend owns sessions, tools, model calls, and command logic.
+React + Ink terminal UI for solonclaw. TypeScript owns the screen; the Java backend owns sessions, tools, model calls, and command logic.
 
 ```bash
 solonclaw
@@ -272,7 +272,7 @@ Current color overrides:
 
 ```text
 terminal-ui/
-  packages/solon-claw-ink/   forked Ink renderer (local dep)
+  packages/solonclaw-ink/   forked Ink renderer (local dep)
   src/
     entry.tsx            TTY gate + render()
     app.tsx              top-level Ink tree, composes src/app/*
@@ -324,7 +324,7 @@ terminal-ui/
       text.ts            text helpers, ANSI detection, previews
 
     types/
-      solon-claw-ink.d.ts    type declarations for @solon-claw/ink
+      solonclaw-ink.d.ts    type declarations for @solonclaw/ink
 
     __tests__/           vitest suite
 ```

@@ -77,7 +77,7 @@ public class FeishuWebsocketInboundTest {
                         groupMessage(
                                 "om_group_1",
                                 "{\"text\":\"@_user_1 帮我查一下\"}",
-                                mention("ou_bot", "SolonClaw Bot")),
+                                mention("ou_bot", "solonclaw Bot")),
                         sender("ou_sender", "u_sender")));
 
         assertThat(captured.get()).isNotNull();

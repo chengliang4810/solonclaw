@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,7 +23,7 @@ public class SkillCredentialFileService {
             Logger.getLogger(SkillCredentialFileService.class.getName());
 
     /** 默认CONTAINER基础的统一常量值。 */
-    private static final String DEFAULT_CONTAINER_BASE = "/root/.solon-claw";
+    private static final String DEFAULT_CONTAINER_BASE = "/root/.solonclaw";
 
     /** 缓存MOUNTDIRS的统一常量值。 */
     private static final List<CacheMountDirectory> CACHE_MOUNT_DIRS =
@@ -39,8 +40,8 @@ public class SkillCredentialFileService {
     /** 注入应用配置，用于技能凭据文件。 */
     private final AppConfig appConfig;
 
-    /** 记录技能凭据文件中的运行时主渠道。 */
-    private final File runtimeHome;
+    /** 记录技能凭据文件中的工作区目录。 */
+    private final File workspaceHome;
 
     /** 记录技能凭据文件中的技能目录。 */
     private final File skillsDir;
@@ -61,21 +62,23 @@ public class SkillCredentialFileService {
         this.skillDirectoryResolver = new SkillDirectoryResolver(appConfig);
         String home =
                 appConfig == null || appConfig.getRuntime() == null
-                        ? "runtime"
-                        : StrUtil.blankToDefault(appConfig.getRuntime().getHome(), "runtime");
-        this.runtimeHome = FileUtil.file(home).getAbsoluteFile();
+                        ? RuntimePathConstants.WORKSPACE_HOME
+                        : StrUtil.blankToDefault(
+                                appConfig.getRuntime().getHome(),
+                                RuntimePathConstants.WORKSPACE_HOME);
+        this.workspaceHome = FileUtil.file(home).getAbsoluteFile();
         String skills =
                 appConfig == null || appConfig.getRuntime() == null
-                        ? new File(this.runtimeHome, "skills").getPath()
+                        ? new File(this.workspaceHome, "skills").getPath()
                         : StrUtil.blankToDefault(
                                 appConfig.getRuntime().getSkillsDir(),
-                                new File(this.runtimeHome, "skills").getPath());
+                                new File(this.workspaceHome, "skills").getPath());
         String cache =
                 appConfig == null || appConfig.getRuntime() == null
-                        ? new File(this.runtimeHome, "cache").getPath()
+                        ? new File(this.workspaceHome, "cache").getPath()
                         : StrUtil.blankToDefault(
                                 appConfig.getRuntime().getCacheDir(),
-                                new File(this.runtimeHome, "cache").getPath());
+                                new File(this.workspaceHome, "cache").getPath());
         this.skillsDir = FileUtil.file(skills).getAbsoluteFile();
         this.cacheDir = FileUtil.file(cache).getAbsoluteFile();
     }
@@ -160,11 +163,11 @@ public class SkillCredentialFileService {
         summary.put(
                 "cacheDirectoryMountCount",
                 Integer.valueOf(sandboxPlan.getCacheDirectories().size()));
-        summary.put("runtimeRelativeOnly", Boolean.TRUE);
+        summary.put("workspaceRelativeOnly", Boolean.TRUE);
         summary.put("absolutePathRejected", Boolean.TRUE);
         summary.put("pathTraversalRejected", Boolean.TRUE);
         summary.put("controlCharacterRejected", Boolean.TRUE);
-        summary.put("runtimeHomeEscapeRejected", Boolean.TRUE);
+        summary.put("workspaceEscapeRejected", Boolean.TRUE);
         summary.put("missingFilesNotMounted", Boolean.TRUE);
         summary.put("hostPathsOmittedFromMetadata", Boolean.TRUE);
         summary.put("rejectedPathsRedacted", Boolean.TRUE);
@@ -357,10 +360,10 @@ public class SkillCredentialFileService {
             return CredentialFileMount.rejected(rawPath, "path traversal is not allowed");
         }
         try {
-            File candidate = FileUtil.file(runtimeHome, relativePath).getCanonicalFile();
-            File home = runtimeHome.getCanonicalFile();
+            File candidate = FileUtil.file(workspaceHome, relativePath).getCanonicalFile();
+            File home = workspaceHome.getCanonicalFile();
             if (!isInside(candidate, home)) {
-                return CredentialFileMount.rejected(rawPath, "path escapes runtime home");
+                return CredentialFileMount.rejected(rawPath, "path escapes workspace");
             }
             if (!candidate.isFile()) {
                 return CredentialFileMount.missing(relativePath);

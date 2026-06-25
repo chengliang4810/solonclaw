@@ -268,11 +268,11 @@ public class SecurityPolicyServiceTest {
     @Test
     void shouldBlockRuntimeSecretCacheFileWithoutBlockingOtherCacheFiles() throws Exception {
         AppConfig config = new AppConfig();
-        Path runtimeHome = Files.createTempDirectory("solonclaw-security-cache");
-        config.getRuntime().setHome(runtimeHome.toString());
+        Path workspaceHome = Files.createTempDirectory("solonclaw-security-cache");
+        config.getRuntime().setHome(workspaceHome.toString());
         SecurityPolicyService policy = new SecurityPolicyService(config);
         Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("fileName", runtimeHome.resolve("cache/bws_cache.json").toString());
+        args.put("fileName", workspaceHome.resolve("cache/bws_cache.json").toString());
 
         SecurityPolicyService.FileVerdict fileTool = policy.checkFileToolArgs("read_file", args);
         SecurityPolicyService.FileVerdict relative =
@@ -1209,8 +1209,8 @@ public class SecurityPolicyServiceTest {
 
     @Test
     void shouldMergeWebsiteBlocklistDomainsAndSharedFileRules() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("jimuqu-website-policy");
-        File shared = runtimeHome.resolve("community-blocklist.txt").toFile();
+        Path workspaceHome = Files.createTempDirectory("jimuqu-website-policy");
+        File shared = workspaceHome.resolve("community-blocklist.txt").toFile();
         FileUtil.writeUtf8String(
                 "# comment\n"
                         + "example.org\n"
@@ -1218,7 +1218,7 @@ public class SecurityPolicyServiceTest {
                         + "*.tracking.example\n",
                 shared);
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setHome(workspaceHome.toString());
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
         config.getSecurity()
                 .getWebsiteBlocklist()
@@ -1255,11 +1255,11 @@ public class SecurityPolicyServiceTest {
 
     @Test
     void shouldApplySharedWebsiteBlocklistBeforeLeakingCredentialQuery() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("jimuqu-website-policy");
-        File shared = runtimeHome.resolve("community-blocklist.txt").toFile();
+        Path workspaceHome = Files.createTempDirectory("jimuqu-website-policy");
+        File shared = workspaceHome.resolve("community-blocklist.txt").toFile();
         FileUtil.writeUtf8String("*.blocked-shared.example\n", shared);
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setHome(workspaceHome.toString());
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
         config.getSecurity()
                 .getWebsiteBlocklist()
@@ -1278,11 +1278,11 @@ public class SecurityPolicyServiceTest {
     @Test
     void shouldSkipMissingAndUnsafeWebsiteBlocklistSharedFiles() throws Exception {
         Path parent = Files.createTempDirectory("jimuqu-website-policy-parent");
-        Path runtimeHome = Files.createDirectory(parent.resolve("runtime"));
+        Path workspaceHome = Files.createDirectory(parent.resolve("runtime"));
         File outside = parent.resolve("outside-blocklist.txt").toFile();
         FileUtil.writeUtf8String("blocked-outside.example\n", outside);
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setHome(workspaceHome.toString());
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
         config.getSecurity()
                 .getWebsiteBlocklist()
@@ -1297,11 +1297,11 @@ public class SecurityPolicyServiceTest {
 
     @Test
     void shouldLoadAbsoluteWebsiteBlocklistSharedFiles() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("jimuqu-website-policy");
+        Path workspaceHome = Files.createTempDirectory("jimuqu-website-policy");
         File shared = Files.createTempFile("jimuqu-shared-blocklist", ".txt").toFile();
         FileUtil.writeUtf8String("absolute-blocked.example\n", shared);
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setHome(workspaceHome.toString());
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
         config.getSecurity()
                 .getWebsiteBlocklist()
@@ -1318,12 +1318,12 @@ public class SecurityPolicyServiceTest {
     @Test
     void shouldExposeUrlPolicySummaryWithSharedRuleDiagnostics() throws Exception {
         Path parent = Files.createTempDirectory("jimuqu-url-policy-summary");
-        Path runtimeHome = Files.createDirectory(parent.resolve("runtime"));
-        File shared = runtimeHome.resolve("community-blocklist.txt").toFile();
+        Path workspaceHome = Files.createDirectory(parent.resolve("runtime"));
+        File shared = workspaceHome.resolve("community-blocklist.txt").toFile();
         FileUtil.writeUtf8String(
                 "# comment\n" + "shared.example\n" + "token-sk-1234567890abcdef.example\n", shared);
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setHome(workspaceHome.toString());
         config.getSecurity().setAllowPrivateUrls(false);
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
         config.getSecurity()

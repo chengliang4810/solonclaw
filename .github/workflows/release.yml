@@ -134,9 +134,9 @@ jobs:
           fi
 
           mkdir -p dist
-          RELEASE_JAR="dist/solon-claw.jar"
-          SOURCE_ZIP="dist/solon-claw-source.zip"
-          SOURCE_TAR="dist/solon-claw-source.tar.gz"
+          RELEASE_JAR="dist/solonclaw.jar"
+          SOURCE_ZIP="dist/solonclaw-source.zip"
+          SOURCE_TAR="dist/solonclaw-source.tar.gz"
           cp "$JAR_PATH" "$RELEASE_JAR"
           git archive --format=zip --output="$SOURCE_ZIP" "$GITHUB_SHA"
           git archive --format=tar.gz --output="$SOURCE_TAR" "$GITHUB_SHA"
@@ -170,7 +170,7 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: solon-claw-release
+          name: solonclaw-release
           path: |
             ${{ steps.artifact.outputs.jar_path }}
             ${{ steps.artifact.outputs.source_zip_path }}
@@ -183,7 +183,7 @@ jobs:
         with:
           tag_name: ${{ steps.release.outputs.tag }}
           target_commitish: ${{ github.sha }}
-          name: solon-claw ${{ steps.release.outputs.tag }}
+          name: solonclaw ${{ steps.release.outputs.tag }}
           body_path: ${{ steps.artifact.outputs.body_path }}
           generate_release_notes: false
           draft: false

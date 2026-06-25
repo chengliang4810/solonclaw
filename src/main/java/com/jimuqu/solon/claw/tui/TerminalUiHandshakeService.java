@@ -44,7 +44,7 @@ public class TerminalUiHandshakeService {
     public Map<String, Object> handshake(String serverUrl, String accessToken) {
         String base = normalizeBaseUrl(serverUrl);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("app", "solon-claw");
+        result.put("app", "solonclaw");
         result.put("mode", "server");
         result.put("protocol_version", Integer.valueOf(PROTOCOL_VERSION));
         result.put("ws_url", appendToken(toWebSocketUrl(base), accessToken));

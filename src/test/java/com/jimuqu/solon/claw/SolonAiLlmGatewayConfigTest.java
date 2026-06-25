@@ -37,7 +37,7 @@ public class SolonAiLlmGatewayConfigTest {
     @Test
     void shouldLoadPromptCacheConfig() {
         Properties props = new Properties();
-        props.setProperty("solonclaw.runtime.home", "target/test-runtime/prompt-cache-config");
+        props.setProperty("solonclaw.workspace", "target/test-runtime/prompt-cache-config");
         props.setProperty("solonclaw.llm.promptCache.enabled", "true");
         props.setProperty("solonclaw.llm.promptCache.ttl", "1h");
         props.setProperty("solonclaw.llm.promptCache.layout", "system_and_3");

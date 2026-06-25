@@ -96,7 +96,7 @@ class FakeWebSocket {
 const findRpcFrame = (socket: FakeWebSocket, method: string) =>
   socket.sent.find(frame => frame.includes(`"method":"${method}"`))
 
-describe('GatewayClient SolonClaw bridge', () => {
+describe('GatewayClient solonclaw bridge', () => {
   const originalFetch = globalThis.fetch
   const originalWebSocket = globalThis.WebSocket
   let originalGatewayUrl: string | undefined

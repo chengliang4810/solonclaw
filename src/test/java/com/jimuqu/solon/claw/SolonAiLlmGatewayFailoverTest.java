@@ -102,7 +102,7 @@ public class SolonAiLlmGatewayFailoverTest {
     }
 
     /**
-     * 为 failover 测试隔离 runtime 目录，避免本机 runtime/config.yml 把 providerKey 覆盖成其他值。
+     * 为 failover 测试隔离工作区目录，避免本机 workspace/config.yml 把 providerKey 覆盖成其他值。
      *
      * @param config 测试配置。
      * @param name runtime 目录名称前缀。

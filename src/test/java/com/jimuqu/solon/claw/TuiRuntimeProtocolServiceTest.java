@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test;
 public class TuiRuntimeProtocolServiceTest {
     @Test
     void shouldReportSetupStatusFromSharedProviderConfiguration() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-setup-status");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-setup-status");
+        AppConfig config = config(workspaceHome);
         TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
 
         Map<String, Object> missing = service.setupStatus();
@@ -25,7 +25,7 @@ public class TuiRuntimeProtocolServiceTest {
                 .containsEntry("provider_configured", Boolean.FALSE)
                 .containsEntry("provider", "default")
                 .containsEntry("model", "gpt-main")
-                .containsEntry("runtime_config", runtimeHome.resolve("config.yml").toString());
+                .containsEntry("workspace_config", workspaceHome.resolve("config.yml").toString());
         assertThat(configured)
                 .containsEntry("provider_configured", Boolean.TRUE)
                 .containsEntry("api_key", "configured");
@@ -34,8 +34,8 @@ public class TuiRuntimeProtocolServiceTest {
 
     @Test
     void shouldExposeModelOptionsWithoutLeakingSecrets() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-model-options");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-model-options");
+        AppConfig config = config(workspaceHome);
         config.getProviders().get("default").setApiKey("Sk-Test-TuiOptionsSecret123");
         TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
 
@@ -64,8 +64,8 @@ public class TuiRuntimeProtocolServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeSupportedUnconfiguredProviderTemplatesForTuiPicker() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-provider-templates");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-provider-templates");
+        AppConfig config = config(workspaceHome);
         TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
 
         Map<String, Object> options = service.modelOptions(null);
@@ -92,14 +92,14 @@ public class TuiRuntimeProtocolServiceTest {
 
     @Test
     void shouldActivateUnconfiguredProviderTemplateWhenSavingKey() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-provider-template-save");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-provider-template-save");
+        AppConfig config = config(workspaceHome);
         TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
 
         Map<String, Object> result =
                 service.modelSaveKey("gemini", "Sk-Test-TuiGeminiSecret123", null);
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat(result).containsEntry("ok", Boolean.TRUE);
         assertThat((Map<String, Object>) result.get("provider"))
                 .containsEntry("slug", "gemini")
@@ -119,14 +119,14 @@ public class TuiRuntimeProtocolServiceTest {
 
     @Test
     void shouldSaveProviderKeyThroughRuntimeSetupService() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-save-key");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-save-key");
+        AppConfig config = config(workspaceHome);
         TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
 
         Map<String, Object> result =
                 service.modelSaveKey("default", "Sk-Test-TuiSaveSecret123", null);
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat((Map<String, Object>) result.get("provider"))
                 .containsEntry("slug", "default")
                 .containsEntry("authenticated", Boolean.TRUE);
@@ -136,15 +136,15 @@ public class TuiRuntimeProtocolServiceTest {
 
     @Test
     void shouldPreserveRuntimeSelectedModelWhenSavingProviderKey() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-save-key-current-model");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-save-key-current-model");
+        AppConfig config = config(workspaceHome);
         TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
 
         service.configSet("model", "mimo-v2.5-pro --provider default", null);
         service.modelSaveKey("default", "Sk-Test-TuiCurrentModelSecret123", null);
         Map<String, Object> full = service.configGet("full");
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat((Map<String, Object>) full.get("config"))
                 .containsEntry("model", "mimo-v2.5-pro");
         assertThat(file)
@@ -155,8 +155,8 @@ public class TuiRuntimeProtocolServiceTest {
 
     @Test
     void shouldReadAndWriteConfigValuesForTui() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-config");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-config");
+        AppConfig config = config(workspaceHome);
         TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
 
         Map<String, Object> set = service.configSet("model", "mimo-v2.5-pro --provider default", null);
@@ -168,7 +168,7 @@ public class TuiRuntimeProtocolServiceTest {
         assertThat((Map<String, Object>) full.get("config"))
                 .containsEntry("model", "mimo-v2.5-pro")
                 .containsEntry("provider", "default");
-        assertThat(Files.readString(runtimeHome.resolve("config.yml")))
+        assertThat(Files.readString(workspaceHome.resolve("config.yml")))
                 .contains("providerKey: default")
                 .contains("default: mimo-v2.5-pro");
     }
@@ -176,8 +176,8 @@ public class TuiRuntimeProtocolServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldIncludeRuntimeSelectedModelInCurrentProviderOptions() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-current-model");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-current-model");
+        AppConfig config = config(workspaceHome);
         TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
 
         service.configSet("model", "mimo-v2.5-pro --provider default", null);
@@ -194,8 +194,8 @@ public class TuiRuntimeProtocolServiceTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeAndSaveDomesticGatewayChannelsForTui() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-tui-channel");
-        AppConfig config = config(runtimeHome);
+        Path workspaceHome = Files.createTempDirectory("solonclaw-tui-channel");
+        AppConfig config = config(workspaceHome);
         TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
 
         Map<String, Object> options = service.channelOptions();
@@ -242,7 +242,7 @@ public class TuiRuntimeProtocolServiceTest {
                 .containsEntry("enabled", Boolean.TRUE)
                 .containsEntry("status", "configured");
         assertThat(String.valueOf(save)).doesNotContain("Sk-Test-TuiChannelSecret123");
-        assertThat(Files.readString(runtimeHome.resolve("config.yml")))
+        assertThat(Files.readString(workspaceHome.resolve("config.yml")))
                 .contains("channels:")
                 .contains("feishu:")
                 .contains("appSecret: Sk-Test-TuiChannelSecret123");
@@ -253,10 +253,10 @@ public class TuiRuntimeProtocolServiceTest {
         return (List<Map<String, Object>>) options.get("providers");
     }
 
-    private AppConfig config(Path runtimeHome) {
+    private AppConfig config(Path workspaceHome) {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
-        config.getRuntime().setConfigFile(runtimeHome.resolve("config.yml").toString());
+        config.getRuntime().setHome(workspaceHome.toString());
+        config.getRuntime().setConfigFile(workspaceHome.resolve("config.yml").toString());
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default Provider");
         provider.setBaseUrl("https://api.example.com/v1");

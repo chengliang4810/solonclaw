@@ -1376,13 +1376,13 @@ public final class TerminalSecurityPolicyView {
                 .append(value(skillCredential, "defaultContainerBase"));
         buffer.append('\n')
                 .append("- 路径：relativeOnly=")
-                .append(value(skillCredential, "runtimeRelativeOnly"))
+                .append(value(skillCredential, "workspaceRelativeOnly"))
                 .append(" absoluteRejected=")
                 .append(value(skillCredential, "absolutePathRejected"))
                 .append(" traversalRejected=")
                 .append(value(skillCredential, "pathTraversalRejected"))
                 .append(" escapeRejected=")
-                .append(value(skillCredential, "runtimeHomeEscapeRejected"));
+                .append(value(skillCredential, "workspaceEscapeRejected"));
         buffer.append('\n')
                 .append("- 脱敏：hostPathsHidden=")
                 .append(value(skillCredential, "hostPathsOmittedFromMetadata"))

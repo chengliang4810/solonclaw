@@ -46,7 +46,7 @@ public class DingTalkPrivateSendLiveTest {
         config.setRobotCode(robotCode);
         AppConfig appConfig =
                 buildAppConfig(
-                        config, Files.createTempDirectory("solon-claw-dingtalk-live").toFile());
+                        config, Files.createTempDirectory("solonclaw-dingtalk-live").toFile());
         ChannelStateRepository channelStateRepository =
                 new SqliteChannelStateRepository(new SqliteDatabase(appConfig));
         DingTalkChannelAdapter adapter =
@@ -73,24 +73,10 @@ public class DingTalkPrivateSendLiveTest {
     }
 
     private static AppConfig buildAppConfig(
-            AppConfig.ChannelConfig channelConfig, java.io.File runtimeHome) {
+            AppConfig.ChannelConfig channelConfig, java.io.File workspaceHome) {
         AppConfig appConfig = new AppConfig();
         appConfig.getChannels().setDingtalk(channelConfig);
-        appConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        appConfig
-                .getRuntime()
-                .setContextDir(new java.io.File(runtimeHome, "context").getAbsolutePath());
-        appConfig
-                .getRuntime()
-                .setSkillsDir(new java.io.File(runtimeHome, "skills").getAbsolutePath());
-        appConfig
-                .getRuntime()
-                .setCacheDir(new java.io.File(runtimeHome, "cache").getAbsolutePath());
-        appConfig
-                .getRuntime()
-                .setStateDb(
-                        new java.io.File(new java.io.File(runtimeHome, "data"), "state.db")
-                                .getAbsolutePath());
+        appConfig.getWorkspace().setDir(workspaceHome.getAbsolutePath());
         appConfig.normalizePaths();
         return appConfig;
     }
