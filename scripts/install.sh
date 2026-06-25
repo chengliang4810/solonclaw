@@ -39,7 +39,7 @@ mkdir -p "$INSTALL_DIR" "$WORKSPACE_DIR"
 check_java() {
     if command -v java &>/dev/null; then
         JAVA_VER=$(java -version 2>&1 | head -1 | sed -E 's/.*"([0-9]+)(\.[0-9]+)*.*/\1/')
-        if [ "${JAVA_VER:-0}" -ge 17 ]; then
+        if [ "${JAVA_VER:-0}" -ge 8 ]; then
             ok "Java $JAVA_VER 已安装"
             return 0
         fi
@@ -48,30 +48,30 @@ check_java() {
 }
 
 if ! check_java; then
-    warn "未检测到 Java 17+，正在尝试安装..."
+    warn "未检测到 Java 8+，正在尝试安装..."
     if [ "$PLATFORM" = "darwin" ]; then
         if command -v brew &>/dev/null; then
-            info "通过 Homebrew 安装 OpenJDK 17..."
-            brew install openjdk@17
-            export PATH="$(brew --prefix openjdk@17)/bin:$PATH"
+            info "通过 Homebrew 安装 OpenJDK..."
+            brew install openjdk
+            export PATH="$(brew --prefix openjdk)/bin:$PATH"
         else
-            error "请先安装 Homebrew（https://brew.sh），然后运行: brew install openjdk@17"
+            error "请先安装 Homebrew（https://brew.sh），然后运行: brew install openjdk"
         fi
     elif [ "$PLATFORM" = "linux" ]; then
         if command -v apt-get &>/dev/null; then
-            info "通过 apt 安装 OpenJDK 17..."
-            sudo apt-get update -qq && sudo apt-get install -y -qq openjdk-17-jre-headless
+            info "通过 apt 安装 OpenJDK..."
+            sudo apt-get update -qq && sudo apt-get install -y -qq default-jre-headless
         elif command -v yum &>/dev/null; then
-            info "通过 yum 安装 Java 17..."
-            sudo yum install -y java-17-openjdk
+            info "通过 yum 安装 Java..."
+            sudo yum install -y java-1.8.0-openjdk
         elif command -v dnf &>/dev/null; then
-            info "通过 dnf 安装 Java 17..."
-            sudo dnf install -y java-17-openjdk
+            info "通过 dnf 安装 Java..."
+            sudo dnf install -y java-1.8.0-openjdk
         else
-            error "无法自动安装 Java，请手动安装 JDK 17+（https://adoptium.net）"
+            error "无法自动安装 Java，请手动安装 JDK 8+（https://adoptium.net）"
         fi
     fi
-    check_java || error "Java 安装后仍未检测到 java 命令，请手动安装 JDK 17+"
+    check_java || error "Java 安装后仍未检测到 java 命令，请手动安装 JDK 8+"
 fi
 
 # ─── 检查 Node.js ────────────────────────────────────────────────────────────

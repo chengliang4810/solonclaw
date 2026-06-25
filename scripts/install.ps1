@@ -20,7 +20,7 @@ function Test-Java {
         $ver = & java -version 2>&1 | Select-Object -First 1
         if ($ver -match '"(\d+)') {
             $major = [int]$Matches[1]
-            if ($major -ge 17) {
+            if ($major -ge 8) {
                 Write-Ok "Java $major 已安装"
                 return $true
             }
@@ -30,18 +30,18 @@ function Test-Java {
 }
 
 if (-not (Test-Java)) {
-    Write-Warn "未检测到 Java 17+"
+    Write-Warn "未检测到 Java 8+"
     Write-Host ""
-    Write-Host "请手动安装 Java 17+:"
-    Write-Host "  推荐: winget install EclipseAdoptium.Temurin.17.JRE"
+    Write-Host "请手动安装 Java 8+:"
+    Write-Host "  推荐: winget install EclipseAdoptium.Temurin.8.JRE"
     Write-Host "  或者: https://adoptium.net"
     Write-Host ""
     $winget = Read-Host "是否通过 winget 自动安装？[y/N]"
     if ($winget -match '^[Yy]$') {
-        winget install EclipseAdoptium.Temurin.17.JRE --accept-source-agreements --accept-package-agreements
+        winget install EclipseAdoptium.Temurin.8.JRE --accept-source-agreements --accept-package-agreements
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path", "User")
     }
-    if (-not (Test-Java)) { Write-Err "Java 安装失败，请手动安装 JDK 17+" }
+    if (-not (Test-Java)) { Write-Err "Java 安装失败，请手动安装 JDK 8+" }
 }
 
 # ─── 检查 Node.js ────────────────────────────────────────────────────────────
