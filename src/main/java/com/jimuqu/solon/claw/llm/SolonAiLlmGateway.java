@@ -2377,10 +2377,11 @@ public class SolonAiLlmGateway implements LlmGateway {
                 && SecretValueGuard.isPlaceholderSecret(resolved.getApiKey())) {
             throw new IllegalStateException("LLM apiKey 不能使用示例或占位符密钥。");
         }
+        // LLM API URL 由管理员在配置中显式指定，视为可信目标；检查安全策略但不要求外部 URL 审批。
         SecurityPolicyService.UrlVerdict apiUrlVerdict =
-                LlmConstants.PROVIDER_OLLAMA.equals(dialect)
-                        ? securityPolicyService.checkUrlAllowingPrivate(resolved.getApiUrl())
-                        : securityPolicyService.checkUrl(resolved.getApiUrl());
+                securityPolicyService.checkUrlSafety(
+                        resolved.getApiUrl(),
+                        LlmConstants.PROVIDER_OLLAMA.equals(dialect) ? Boolean.TRUE : null);
         if (!apiUrlVerdict.isAllowed()) {
             throw new IllegalStateException("LLM apiUrl 被安全策略阻断：" + apiUrlVerdict.getMessage());
         }
