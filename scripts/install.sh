@@ -236,9 +236,11 @@ deploy_native() {
     # ─── 检查 Java ────────────────────────────────────────────────────────
     check_java() {
         if command -v java &>/dev/null; then
-            JAVA_VER=$(java -version 2>&1 | head -1 | sed -E 's/.*"([0-9]+)(\.[0-9]+)*.*/\1/')
+            # Java 8 输出 "1.8.0_xxx"，Java 9+ 输出 "17.x.x"
+            JAVA_RAW=$(java -version 2>&1 | head -1)
+            JAVA_VER=$(echo "$JAVA_RAW" | sed -E 's/.*"1\.([0-9]+)\..*/\1/; s/.*"([0-9]+)\..*/\1/')
             if [ "${JAVA_VER:-0}" -ge 8 ]; then
-                ok "Java $JAVA_VER 已安装"
+                ok "Java $(echo "$JAVA_RAW" | sed -E 's/.*"([^"]+)".*/\1/') 已安装"
                 return 0
             fi
         fi
