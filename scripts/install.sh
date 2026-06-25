@@ -96,6 +96,14 @@ echo ""
 read -rp "  请输入 [1/2]（默认 1）: " DEPLOY_CHOICE < /dev/tty
 DEPLOY_CHOICE="${DEPLOY_CHOICE:-1}"
 
+# ─── sdkman / jabba 等 Java 版本管理器自动加载 ───────────────────────────────
+if [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
+    source "$HOME/.sdkman/bin/sdkman-init.sh" 2>/dev/null || true
+fi
+if [ -s "$HOME/.jabba/jabba.sh" ]; then
+    source "$HOME/.jabba/jabba.sh" 2>/dev/null || true
+fi
+
 # ─── GitHub 代理检测 ─────────────────────────────────────────────────────────
 detect_github_proxy
 
