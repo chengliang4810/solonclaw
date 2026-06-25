@@ -1,4 +1,4 @@
-import { forceRedraw, type MouseTrackingMode } from '@solon-claw/ink'
+import { forceRedraw, type MouseTrackingMode } from '@solonclaw/ink'
 
 import { NO_CONFIRM_DESTRUCTIVE } from '../../../config/env.js'
 import { dailyFortune, randomFortune } from '../../../content/fortunes.js'
@@ -117,7 +117,7 @@ export const coreCommands: SlashCommand[] = [
   },
 
   {
-    help: 'update SolonClaw Agent to the latest version (exits TUI)',
+    help: 'update solonclaw Agent to the latest version (exits TUI)',
     name: 'update',
     run: (_arg, ctx) => {
       ctx.transcript.sys('exiting TUI to run update...')
@@ -462,7 +462,7 @@ export const coreCommands: SlashCommand[] = [
       const preview = Math.max(80, parseInt(arg, 10) || 400)
 
       const lines = items.map((m, i) => {
-        const tag = m.role === 'user' ? `You #${i + 1}` : `SolonClaw #${i + 1}`
+        const tag = m.role === 'user' ? `You #${i + 1}` : `solonclaw #${i + 1}`
         const body = m.text.trim() || (m.tools?.length ? `(${m.tools.length} tool calls)` : '(empty)')
         const clipped = body.length > preview ? `${body.slice(0, preview).trimEnd()}…` : body
 

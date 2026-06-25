@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TerminalAnsiSanitizer;
@@ -1230,8 +1231,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     protected File updateResponseFile() {
         String home =
                 appConfig == null || appConfig.getRuntime() == null
-                        ? "runtime"
-                        : StrUtil.blankToDefault(appConfig.getRuntime().getHome(), "runtime");
+                        ? RuntimePathConstants.WORKSPACE_HOME
+                        : StrUtil.blankToDefault(
+                                appConfig.getRuntime().getHome(),
+                                RuntimePathConstants.WORKSPACE_HOME);
         return new File(home, UPDATE_RESPONSE_FILE_NAME).getAbsoluteFile();
     }
 

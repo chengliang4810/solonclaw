@@ -322,7 +322,7 @@ public class SessionSearchServiceTest {
     void shouldRecallToolPathEvidenceAcrossWebSessionSources() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String marker = "web-loop-recovery-strategy-20260615-0808";
-        String path = "runtime/cache/missing-long-loop-state-20260615.json";
+        String path = "workspace/cache/missing-long-loop-state-20260615.json";
         String query = marker + " " + path;
 
         SessionRecord current = env.sessionRepository.bindNewSession("MEMORY:dashboard:new-run");
@@ -1211,8 +1211,8 @@ public class SessionSearchServiceTest {
 
         assertThat(result).hasSize(1);
         assertThat(text)
-                .contains("runtime/cache/missing-long-loop-state-20260615.json")
-                .doesNotContain("runtime/cache/missing-lo...")
+                .contains("workspace/cache/missing-long-loop-state-20260615.json")
+                .doesNotContain("workspace/cache/missing-lo...")
                 .hasSizeLessThanOrEqualTo(280);
     }
 
@@ -1381,7 +1381,7 @@ public class SessionSearchServiceTest {
             entry.setScore(100L);
             entry.setMatchPreview(
                     VerboseSessionSearchService.repeat("路径前置上下文 ", 34)
-                            + "runtime/cache/missing-long-loop-state-20260615.json "
+                            + "workspace/cache/missing-long-loop-state-20260615.json "
                             + VerboseSessionSearchService.repeat("路径后置上下文 ", 40));
             return java.util.Collections.singletonList(entry);
         }

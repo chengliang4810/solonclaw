@@ -200,7 +200,7 @@ public class DashboardAgentService {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("name", AgentRuntimeScope.DEFAULT_AGENT);
         item.put("display_name", "默认 Agent");
-        item.put("description", "映射 runtime 根目录的默认行为");
+        item.put("description", "映射默认工作区的默认行为");
         item.put("default_agent", true);
         item.put("readonly", true);
         item.put("enabled", true);

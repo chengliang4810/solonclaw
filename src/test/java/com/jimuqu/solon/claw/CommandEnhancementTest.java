@@ -281,7 +281,7 @@ public class CommandEnhancementTest {
         assertThat(reply.isError()).isFalse();
         assertThat(reply.getContent())
                 .contains("调试诊断：")
-                .contains("runtime_home=runtime://")
+                .contains("workspace_home=workspace://")
                 .contains("providers=")
                 .contains("channels=")
                 .contains("tools=")
@@ -746,7 +746,7 @@ public class CommandEnhancementTest {
         assertThat(clearedRepeat.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId)).contains("repeat={times=null");
 
-        String runtimeHome = env.appConfig.getRuntime().getHome().replace('\\', '/');
+        String workspaceHome = env.appConfig.getRuntime().getHome().replace('\\', '/');
         GatewayReply tuned =
                 env.send(
                         "admin-chat",
@@ -754,14 +754,14 @@ public class CommandEnhancementTest {
                         "/cron edit "
                                 + jobId
                                 + " --script collect.py --workdir \""
-                                + runtimeHome
+                                + workspaceHome
                                 + "\" --context-from "
                                 + jobId
                                 + " --enabled-toolsets web,terminal");
         assertThat(tuned.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("script=collect.py")
-                .contains("workdir=runtime://")
+                .contains("workdir=workspace://")
                 .contains("context_from=[" + jobId + "]")
                 .contains("depends_on=[" + jobId + "]")
                 .contains("enabled_toolsets=[web, terminal]");
@@ -828,12 +828,12 @@ public class CommandEnhancementTest {
                         "/cron edit "
                                 + jobId
                                 + " --script collect.py --workdir \""
-                                + runtimeHome
+                                + workspaceHome
                                 + "\" --deliver local --clear-deliver-chat-id --clear-deliver-thread-id");
         assertThat(retuned.getContent()).contains("已更新定时任务");
         assertThat(cronJobView(env, jobId))
                 .contains("script=collect.py")
-                .contains("workdir=runtime://")
+                .contains("workdir=workspace://")
                 .contains("deliver=local")
                 .contains("deliver_chat_id=null")
                 .contains("deliver_thread_id=null");
@@ -1238,13 +1238,13 @@ public class CommandEnhancementTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);
 
-        String runtimeHome = env.appConfig.getRuntime().getHome().replace('\\', '/');
+        String workspaceHome = env.appConfig.getRuntime().getHome().replace('\\', '/');
         GatewayReply created =
                 env.send(
                         "admin-chat",
                         "admin-user",
                         "/cron add \"30m\" \"Runtime detail check\" --script collect.py --workdir \""
-                                + runtimeHome
+                                + workspaceHome
                                 + "\" --no-agent --repeat 3 --deliver feishu --no-wrap-response"
                                 + " --deliver-chat-id chat-1 --deliver-thread-id topic-2"
                                 + " --model gpt-cron --provider default --base-url https://api.cron.example/v1/"
@@ -1286,7 +1286,7 @@ public class CommandEnhancementTest {
                 .contains("Wrap response: false")
                 .contains("Script: collect.py")
                 .contains("Mode: no-agent (script stdout delivered directly)")
-                .contains("Workdir: " + runtimeHome)
+                .contains("Workdir: " + workspaceHome)
                 .contains("Context from: " + dependencyId)
                 .contains("Toolsets: shell, file")
                 .contains("Model: gpt-cron")

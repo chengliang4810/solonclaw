@@ -58,16 +58,16 @@ public class WeixinQrSetupServiceTest {
                 });
         server.start();
 
-        File runtimeHome = Files.createTempDirectory("solon-claw-weixin-qr").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-weixin-qr").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         config.getChannels()
                 .getWeixin()
                 .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
@@ -102,7 +102,7 @@ public class WeixinQrSetupServiceTest {
 
         assertThat(current.get("status")).isEqualTo("confirmed");
         assertThat(current.get("account_id")).isEqualTo("wx-bot");
-        assertThat(FileUtil.readUtf8String(new File(runtimeHome, "config.yml")))
+        assertThat(FileUtil.readUtf8String(new File(workspaceHome, "config.yml")))
                 .contains("accountId: wx-bot")
                 .contains("token: wx-token")
                 .contains("http://127.0.0.1:" + server.getAddress().getPort());
@@ -163,7 +163,7 @@ public class WeixinQrSetupServiceTest {
         server.start();
 
         AppConfig config = testConfig();
-        File runtimeHome = new File(config.getRuntime().getHome());
+        File workspaceHome = new File(config.getRuntime().getHome());
         config.getChannels()
                 .getWeixin()
                 .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
@@ -183,7 +183,7 @@ public class WeixinQrSetupServiceTest {
                 .contains("微信 iLink baseurl 被安全策略阻断")
                 .contains("169.254.169.254")
                 .contains("token=***");
-        assertThat(new File(runtimeHome, "config.yml")).doesNotExist();
+        assertThat(new File(workspaceHome, "config.yml")).doesNotExist();
     }
 
     @Test
@@ -231,16 +231,16 @@ public class WeixinQrSetupServiceTest {
     }
 
     private AppConfig testConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-weixin-qr").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-weixin-qr").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         return config;
     }
 

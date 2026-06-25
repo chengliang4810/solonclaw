@@ -715,7 +715,7 @@ public class ToolResultStorageService {
             File cacheBase = new File(new File(cacheDir), TOOL_RESULTS_DIR).getCanonicalFile();
             if (isChild(cacheBase, canonicalFile)) {
                 String relative = cacheBase.toPath().relativize(canonicalFile.toPath()).toString();
-                return "runtime://"
+                return "workspace://"
                         + TOOL_RESULTS_DIR
                         + "/"
                         + relative.replace(File.separatorChar, '/');
@@ -736,7 +736,7 @@ public class ToolResultStorageService {
      */
     private String runtimeResultRef(File file) {
         String name = file == null ? "unknown.txt" : file.getName();
-        return "runtime://" + TOOL_RESULTS_DIR + "/" + SecretRedactor.redact(name, 200);
+        return "workspace://" + TOOL_RESULTS_DIR + "/" + SecretRedactor.redact(name, 200);
     }
 
     /**

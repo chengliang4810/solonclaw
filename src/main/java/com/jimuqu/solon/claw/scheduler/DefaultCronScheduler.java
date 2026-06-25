@@ -1050,8 +1050,8 @@ public class DefaultCronScheduler {
     private boolean isCronScriptPathBlock(Exception error) {
         String message = error == null ? null : error.getMessage();
         return StrUtil.isNotBlank(message)
-                && (message.startsWith("Cron script not found under runtime/scripts")
-                        || message.startsWith("定时任务脚本不在 runtime/scripts 下"));
+                && (message.startsWith("Cron script not found under workspace/scripts")
+                        || message.startsWith("定时任务脚本不在 workspace/scripts 下"));
     }
 
     /**
@@ -2066,7 +2066,7 @@ public class DefaultCronScheduler {
                         .getCanonicalFile();
         if (!CronJobSupport.isUnderDirectory(scriptsDir, script) || !script.exists() || !script.isFile()) {
             throw new IllegalStateException(
-                    "定时任务脚本不在 runtime/scripts 下或文件不存在：" + job.getScript());
+                    "定时任务脚本不在 workspace/scripts 下或文件不存在：" + job.getScript());
         }
         String name = script.getName().toLowerCase();
         String scriptContent = FileUtil.readString(script, StandardCharsets.UTF_8);
@@ -2422,7 +2422,7 @@ public class DefaultCronScheduler {
     /**
      * 生成 bash 可识别的脚本路径；Windows 上常见 bash 来自 WSL，不能直接打开反斜杠盘符路径。
      *
-     * @param script 已通过 runtime/scripts 边界校验的脚本文件。
+     * @param script 已通过 workspace/scripts 边界校验的脚本文件。
      * @return 可传给 bash 的脚本路径。
      */
     private String bashScriptPath(File script) {

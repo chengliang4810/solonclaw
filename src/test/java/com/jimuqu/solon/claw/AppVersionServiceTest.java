@@ -20,8 +20,8 @@ public class AppVersionServiceTest {
     @Test
     void shouldResolveCustomReleaseApiAndProxyFromRuntimeConfig() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = Files.createTempDirectory("solon-claw-version-config").toFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        File workspaceHome = Files.createTempDirectory("solonclaw-version-config").toFile();
+        config.getWorkspace().setDir(workspaceHome.getAbsolutePath());
         config.normalizePaths();
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
@@ -29,7 +29,7 @@ public class AppVersionServiceTest {
                         + "    releaseApiUrl: https://mirror.example/releases/latest\n"
                         + "    tagsApiUrl: https://mirror.example/tags?per_page=5\n"
                         + "    httpProxy: http://127.0.0.1:7890\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
         AppVersionService service = new AppVersionService(config);
 
         assertThat(service.releaseApiUrl()).isEqualTo("https://mirror.example/releases/latest");

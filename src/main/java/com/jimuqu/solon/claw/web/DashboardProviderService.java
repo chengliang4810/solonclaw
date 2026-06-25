@@ -41,7 +41,7 @@ public class DashboardProviderService {
     /** 注入应用配置，用于控制台提供方。 */
     private final AppConfig appConfig;
 
-    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
+    /** 注入消息网关工作区配置刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
 

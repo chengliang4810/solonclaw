@@ -54,7 +54,7 @@ public class DashboardStatusService {
     /** 注入Agent运行控制服务，用于区分近期会话和真实运行中的任务。 */
     private final AgentRunControlService agentRunControlService;
 
-    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
+    /** 注入消息网关工作区配置刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
 
@@ -242,7 +242,7 @@ public class DashboardStatusService {
         if (detailed) {
             result.put("runtime_capabilities", buildRuntimeCapabilitiesSnapshot());
             result.put("runtime_status", buildRuntimeStatusSnapshot(snapshot, true));
-            result.put("runtime_config_refresh", runtimeConfigRefreshStatus());
+            result.put("workspace_config_refresh", runtimeConfigRefreshStatus());
             result.put("solonclaw_home", runtimeReference(appConfig.getRuntime().getHome()));
         }
         if (proactiveDiagnosticsService != null) {
@@ -283,7 +283,7 @@ public class DashboardStatusService {
         result.put("gateway_running", Boolean.valueOf(snapshot.anyConnected));
         result.put("gateway_state", snapshot.gatewayState);
         result.put("gateway_updated_at", snapshot.updatedAt);
-        result.put("runtime_config_refresh", runtimeConfigRefreshStatus());
+        result.put("workspace_config_refresh", runtimeConfigRefreshStatus());
         result.put("runtime_capabilities", buildRuntimeCapabilitiesSnapshot());
         result.put("runtime_status", buildRuntimeStatusSnapshot(snapshot, false));
         if (proactiveDiagnosticsService != null) {
@@ -445,13 +445,13 @@ public class DashboardStatusService {
     private Map<String, Object> buildRuntimeCapabilitiesSnapshot() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("schema_version", Integer.valueOf(1));
-        capabilities.put("service", "solon-claw");
+        capabilities.put("service", "solonclaw");
         capabilities.put("dashboard_first", Boolean.TRUE);
         capabilities.put(
                 "supported_model_protocols",
                 new ArrayList<String>(LlmConstants.SUPPORTED_PROVIDERS));
         capabilities.put("supported_channels", supportedChannels());
-        capabilities.put("runtime_config", runtimeConfigCapabilities());
+        capabilities.put("workspace_config", runtimeConfigCapabilities());
         capabilities.put("diagnostics", diagnosticsCapabilities());
         capabilities.put("cron", cronCapabilities());
         capabilities.put("skills", skillsCapabilities());
@@ -473,13 +473,13 @@ public class DashboardStatusService {
             RuntimeStatusSnapshot snapshot, boolean detailed) {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("schema_version", Integer.valueOf(1));
-        status.put("service", "solon-claw");
+        status.put("service", "solonclaw");
         status.put("status", snapshot.anyFatal ? "degraded" : "ok");
         status.put("updated_at", snapshot.updatedAt);
         status.put("active_sessions", Integer.valueOf(snapshot.activeSessions));
         status.put("running_agent_runs", Integer.valueOf(snapshot.runningAgentRuns));
         status.put("gateway", gatewayRuntimeStatus(snapshot));
-        status.put("runtime_config", runtimeConfigStatus(detailed));
+        status.put("workspace_config", runtimeConfigStatus(detailed));
         status.put("diagnostics", diagnosticsStatus(snapshot));
         status.put("cron", cronStatus());
         status.put("skills", skillsStatus(detailed));
@@ -508,17 +508,17 @@ public class DashboardStatusService {
     }
 
     /**
-     * 执行运行时配置Capabilities相关逻辑。
+     * 执行工作区配置Capabilities相关逻辑。
      *
-     * @return 返回运行时配置Capabilities结果。
+     * @return 返回工作区配置Capabilities结果。
      */
     private Map<String, Object> runtimeConfigCapabilities() {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
-        capabilities.put("runtime_config_file", Boolean.TRUE);
+        capabilities.put("workspace_config_file", Boolean.TRUE);
         capabilities.put("dashboard_editable", Boolean.TRUE);
         capabilities.put("hot_refresh", Boolean.TRUE);
         capabilities.put("secret_redaction", Boolean.TRUE);
-        capabilities.put("runtime_reference_scheme", "runtime://");
+        capabilities.put("workspace_reference_scheme", "workspace://");
         return capabilities;
     }
 
@@ -675,10 +675,10 @@ public class DashboardStatusService {
     }
 
     /**
-     * 执行运行时配置状态相关逻辑。
+     * 执行工作区配置状态相关逻辑。
      *
      * @param detailed detailed 参数。
-     * @return 返回运行时配置状态。
+     * @return 返回工作区配置状态。
      */
     private Map<String, Object> runtimeConfigStatus(boolean detailed) {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
@@ -687,7 +687,7 @@ public class DashboardStatusService {
         status.put("refresh", runtimeConfigRefreshStatus());
         if (detailed) {
             status.put("config_path", runtimeReference(appConfig.getRuntime().getConfigFile()));
-            status.put("runtime_home", runtimeReference(appConfig.getRuntime().getHome()));
+            status.put("workspace_home", runtimeReference(appConfig.getRuntime().getHome()));
             status.put("context_dir", runtimeReference(appConfig.getRuntime().getContextDir()));
             status.put("skills_dir", runtimeReference(appConfig.getRuntime().getSkillsDir()));
             status.put("cache_dir", runtimeReference(appConfig.getRuntime().getCacheDir()));
@@ -983,9 +983,9 @@ public class DashboardStatusService {
     }
 
     /**
-     * 执行运行时配置刷新状态相关逻辑。
+     * 执行工作区配置刷新状态相关逻辑。
      *
-     * @return 返回运行时配置刷新状态。
+     * @return 返回工作区配置刷新状态。
      */
     private Map<String, Object> runtimeConfigRefreshStatus() {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
@@ -1073,22 +1073,22 @@ public class DashboardStatusService {
         if (StrUtil.isBlank(text)) {
             return text;
         }
-        File runtimeHome = new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
+        File workspaceHome = new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
         File file = new File(text).getAbsoluteFile();
         try {
-            runtimeHome = runtimeHome.getCanonicalFile();
+            workspaceHome = workspaceHome.getCanonicalFile();
             file = file.getCanonicalFile();
         } catch (Exception e) {
             log.debug("运行时路径引用规范化失败，使用绝对路径脱敏展示 error={}", e.getClass().getSimpleName());
         }
-        String homePath = normalized(runtimeHome);
+        String homePath = normalized(workspaceHome);
         String filePath = normalized(file);
         if (filePath.equals(homePath)) {
-            return "runtime://";
+            return "workspace://";
         }
         if (filePath.startsWith(homePath + File.separator)) {
             String relative = filePath.substring(homePath.length() + 1).replace('\\', '/');
-            return "runtime://" + relative;
+            return "workspace://" + relative;
         }
         return externalPathReference(text);
     }

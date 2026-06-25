@@ -11,9 +11,9 @@ import org.noear.solon.ai.talents.pdf.PdfTalent;
 public class SolonAiPdfSkillTest {
     @Test
     void shouldCreateAndParsePdfViaOfficialPdfSkill() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("jimuqu-pdf-skill");
+        Path workspaceHome = Files.createTempDirectory("jimuqu-pdf-skill");
         AppConfig config = new AppConfig();
-        config.getRuntime().setCacheDir(runtimeHome.resolve("cache").toAbsolutePath().toString());
+        config.getRuntime().setCacheDir(workspaceHome.resolve("cache").toAbsolutePath().toString());
 
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
         PdfTalent pdfSkill = gateway.pdfSkill();
@@ -22,7 +22,7 @@ public class SolonAiPdfSkillTest {
         String parsed = pdfSkill.parse("report.pdf");
 
         assertThat(result).contains("PDF");
-        assertThat(Files.exists(runtimeHome.resolve("cache").resolve("pdf").resolve("report.pdf")))
+        assertThat(Files.exists(workspaceHome.resolve("cache").resolve("pdf").resolve("report.pdf")))
                 .isTrue();
         assertThat(parsed).containsIgnoringCase("Solon");
         assertThat(parsed).containsIgnoringCase("Hello");

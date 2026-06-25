@@ -10,23 +10,23 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Dashboard 运行时配置管理服务。 */
+/** Dashboard 工作区配置管理服务。 */
 public class DashboardRuntimeConfigService {
-    /** 记录控制台运行时配置中的配置Resolver。 */
+    /** 记录控制台工作区配置中的配置Resolver。 */
     private final RuntimeConfigResolver configResolver;
 
     /** 保存definitions集合，维持调用顺序或去重语义。 */
     private final List<ConfigItemDefinition> definitions;
 
-    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
+    /** 注入消息网关工作区配置刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
 
     /**
-     * 创建控制台运行时配置服务实例，并注入运行所需依赖。
+     * 创建控制台工作区配置服务实例，并注入运行所需依赖。
      *
      * @param appConfig 应用运行配置。
-     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param gatewayRuntimeRefreshService 网关工作区配置Refresh服务依赖。
      */
     public DashboardRuntimeConfigService(
             AppConfig appConfig,
@@ -640,7 +640,7 @@ public class DashboardRuntimeConfigService {
                 return definition;
             }
         }
-        throw new IllegalStateException("Unsupported runtime config item: " + key);
+        throw new IllegalStateException("Unsupported workspace config item: " + key);
     }
 
     /**

@@ -58,7 +58,7 @@ public class DomesticQrSetupService {
     /** 注入配置服务，用于调用对应业务能力。 */
     private final DashboardConfigService configService;
 
-    /** 注入消息网关运行时刷新服务，用于调用对应业务能力。 */
+    /** 注入消息网关工作区配置刷新服务，用于调用对应业务能力。 */
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
 

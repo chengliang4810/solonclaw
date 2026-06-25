@@ -34,23 +34,9 @@ public class DingTalkStreamConnectionLiveTest {
         config.setClientSecret(clientSecret);
         config.setRobotCode(robotCode);
         AppConfig appConfig = new AppConfig();
-        java.io.File runtimeHome = Files.createTempDirectory("solon-claw-dingtalk-stream").toFile();
+        java.io.File workspaceHome = Files.createTempDirectory("solonclaw-dingtalk-stream").toFile();
         appConfig.getChannels().setDingtalk(config);
-        appConfig.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        appConfig
-                .getRuntime()
-                .setContextDir(new java.io.File(runtimeHome, "context").getAbsolutePath());
-        appConfig
-                .getRuntime()
-                .setSkillsDir(new java.io.File(runtimeHome, "skills").getAbsolutePath());
-        appConfig
-                .getRuntime()
-                .setCacheDir(new java.io.File(runtimeHome, "cache").getAbsolutePath());
-        appConfig
-                .getRuntime()
-                .setStateDb(
-                        new java.io.File(new java.io.File(runtimeHome, "data"), "state.db")
-                                .getAbsolutePath());
+        appConfig.getWorkspace().setDir(workspaceHome.getAbsolutePath());
         appConfig.normalizePaths();
         ChannelStateRepository channelStateRepository =
                 new SqliteChannelStateRepository(new SqliteDatabase(appConfig));

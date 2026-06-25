@@ -229,10 +229,10 @@ public class CliAttachmentResolverTest {
 
     private AppConfig testConfig() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = Files.createTempDirectory("jimuqu-cli-attachment").toFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = Files.createTempDirectory("jimuqu-cli-attachment").toFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         return config;
     }
 

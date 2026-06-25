@@ -1,7 +1,7 @@
 export default {
   // Login
   login: {
-    title: 'SolonClaw Web UI',
+    title: 'solonclaw Web UI',
     description: 'Geben Sie Ihren Zugangs-Token ein, um fortzufahren. Finden Sie ihn in den Server-Startprotokollen.',
     placeholder: 'Zugangs-Token',
     submit: 'Anmelden',
@@ -93,7 +93,7 @@ export default {
   // Chat
   chat: {
     contextRemaining: 'übrig',
-    emptyState: 'Starten Sie eine Konversation mit SolonClaw Agent',
+    emptyState: 'Starten Sie eine Konversation mit solonclaw Agent',
     inputPlaceholder: 'Nachricht eingeben... (Enter zum Senden, Shift+Enter fur neue Zeile)',
     attachFiles: 'Dateien anhangen',
     stop: 'Stopp',

@@ -16,11 +16,11 @@ import org.noear.solon.core.Props;
 public class AppConfigProviderLoadTest {
     @Test
     void shouldLoadRepositoryConfigExample() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-config-example").toFile();
-        FileUtil.copy(new File("config.example.yml"), new File(runtimeHome, "config.yml"), true);
+        File workspaceHome = Files.createTempDirectory("solonclaw-config-example").toFile();
+        FileUtil.copy(new File("config.example.yml"), new File(workspaceHome, "config.yml"), true);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getProviders()).containsKeys("default", "local-ollama");
@@ -46,7 +46,7 @@ public class AppConfigProviderLoadTest {
 
     @Test
     void shouldLoadProvidersAndFallbacksFromRuntimeConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("jimuqu-provider-load").toFile();
+        File workspaceHome = Files.createTempDirectory("jimuqu-provider-load").toFile();
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  openai-direct:\n"
@@ -68,10 +68,10 @@ public class AppConfigProviderLoadTest {
                         + "  default: \n"
                         + "fallbackProviders:\n"
                         + "  - provider: backup\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getProviders()).containsKeys("openai-direct", "backup");
@@ -101,8 +101,8 @@ public class AppConfigProviderLoadTest {
     @Test
     void shouldResolveEffectiveProviderFromRuntimeConfigAfterTerminalSetupWrites()
             throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-provider-runtime").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-provider-runtime").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  default:\n"
@@ -117,10 +117,10 @@ public class AppConfigProviderLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
-        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
-        resolver.setFileValue("providers.default.name", "本地运行时配置");
+        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
+        resolver.setFileValue("providers.default.name", "本地工作区配置");
         resolver.setFileValue("providers.default.baseUrl", "https://api.xiaomimimo.com/v1");
         resolver.setFileValue("providers.default.apiKey", "runtime-key");
         resolver.setFileValue("providers.default.defaultModel", "mimo-v2.5-pro");
@@ -132,7 +132,7 @@ public class AppConfigProviderLoadTest {
                 new LlmProviderService(config).resolveEffectiveProvider(null);
 
         assertThat(resolved.getProviderKey()).isEqualTo("default");
-        assertThat(resolved.getLabel()).isEqualTo("本地运行时配置");
+        assertThat(resolved.getLabel()).isEqualTo("本地工作区配置");
         assertThat(resolved.getBaseUrl()).isEqualTo("https://api.xiaomimimo.com/v1");
         assertThat(resolved.getApiUrl()).isEqualTo("https://api.xiaomimimo.com/v1/chat/completions");
         assertThat(resolved.getApiKey()).isEqualTo("runtime-key");
@@ -142,7 +142,7 @@ public class AppConfigProviderLoadTest {
 
     @Test
     void shouldRejectUnknownFallbackProvider() throws Exception {
-        File runtimeHome = Files.createTempDirectory("jimuqu-provider-load-invalid").toFile();
+        File workspaceHome = Files.createTempDirectory("jimuqu-provider-load-invalid").toFile();
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  openai-direct:\n"
@@ -154,10 +154,10 @@ public class AppConfigProviderLoadTest {
                         + "  providerKey: openai-direct\n"
                         + "fallbackProviders:\n"
                         + "  - provider: missing-provider\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         assertThatThrownBy(() -> AppConfig.load(props))
                 .isInstanceOf(IllegalStateException.class)
@@ -166,7 +166,7 @@ public class AppConfigProviderLoadTest {
 
     @Test
     void shouldLoadPricingAliasesFromRuntimeConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("jimuqu-provider-load-pricing").toFile();
+        File workspaceHome = Files.createTempDirectory("jimuqu-provider-load-pricing").toFile();
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  openai-direct:\n"
@@ -187,10 +187,10 @@ public class AppConfigProviderLoadTest {
                         + "      sourceUrl: https://pricing.example/config\n"
                         + "      pricingVersion: config-pricing-2026-06\n"
                         + "      fetchedAt: 1800000000000\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getPricing().getPrices()).hasSize(1);
@@ -210,7 +210,7 @@ public class AppConfigProviderLoadTest {
 
     @Test
     void shouldRejectMalformedProviderBaseUrl() throws Exception {
-        File runtimeHome = Files.createTempDirectory("jimuqu-provider-load-bad-url").toFile();
+        File workspaceHome = Files.createTempDirectory("jimuqu-provider-load-bad-url").toFile();
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  local:\n"
@@ -220,10 +220,10 @@ public class AppConfigProviderLoadTest {
                         + "    dialect: openai\n"
                         + "model:\n"
                         + "  providerKey: local\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         assertThatThrownBy(() -> AppConfig.load(props))
                 .isInstanceOf(IllegalStateException.class)
@@ -233,7 +233,7 @@ public class AppConfigProviderLoadTest {
 
     @Test
     void shouldRejectProviderBaseUrlWithUserInfo() throws Exception {
-        File runtimeHome = Files.createTempDirectory("jimuqu-provider-load-userinfo").toFile();
+        File workspaceHome = Files.createTempDirectory("jimuqu-provider-load-userinfo").toFile();
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  custom:\n"
@@ -243,10 +243,10 @@ public class AppConfigProviderLoadTest {
                         + "    dialect: openai\n"
                         + "model:\n"
                         + "  providerKey: custom\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         assertThatThrownBy(() -> AppConfig.load(props))
                 .isInstanceOf(IllegalStateException.class)

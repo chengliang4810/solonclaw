@@ -239,7 +239,7 @@ public class SolonClawExecuteCodeWebRpcTest {
     void shouldRedactExecuteCodeRpcSearchPathErrors() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        java.io.File runtimeHome =
+        java.io.File workspaceHome =
                 new java.io.File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
@@ -263,7 +263,7 @@ public class SolonClawExecuteCodeWebRpcTest {
         assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(result.get("output").getString())
                 .contains("path escapes workspace")
-                .doesNotContain(runtimeHome.getParent())
+                .doesNotContain(workspaceHome.getParent())
                 .doesNotContain("ghp_rpcpath12345")
                 .doesNotContain("ghp_rpcescape12345");
     }

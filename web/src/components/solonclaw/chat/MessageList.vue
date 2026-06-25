@@ -111,7 +111,7 @@ watch(currentToolCalls, () => {
 <template>
   <div ref="listRef" class="message-list">
     <div v-if="chatStore.messages.length === 0" class="empty-state">
-      <img src="/logo.png" alt="SolonClaw" class="empty-logo" />
+      <img src="/logo.png" alt="solonclaw" class="empty-logo" />
       <p>{{ t("chat.emptyState") }}</p>
       <span class="empty-hint">{{ t("chat.emptyStateHint") }}</span>
     </div>

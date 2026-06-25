@@ -5586,14 +5586,14 @@ public class SecurityPolicyService {
             return value.substring(value.indexOf('/') + 1);
         }
         try {
-            Path runtimeHome =
+            Path workspaceHome =
                     appConfig == null || appConfig.getRuntime() == null
                             ? null
                             : Paths.get(appConfig.getRuntime().getHome())
                                     .toAbsolutePath()
                                     .normalize();
-            if (runtimeHome != null) {
-                String runtime = runtimeHome.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
+            if (workspaceHome != null) {
+                String runtime = workspaceHome.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
                 if (value.startsWith(runtime + "/")) {
                     return value.substring(runtime.length() + 1);
                 }
@@ -5765,14 +5765,14 @@ public class SecurityPolicyService {
             if (containsTraversal(normalizePathText(path))) {
                 return null;
             }
-            File runtimeHome =
+            File workspaceHome =
                     appConfig == null || appConfig.getRuntime() == null
                             ? new File(".")
                             : new File(
                                     StrUtil.blankToDefault(
                                             appConfig.getRuntime().getHome(),
-                                            RuntimePathConstants.RUNTIME_HOME));
-            File home = runtimeHome.getCanonicalFile();
+                                            RuntimePathConstants.WORKSPACE_HOME));
+            File home = workspaceHome.getCanonicalFile();
             File file = new File(home, path).getCanonicalFile();
             if (isInside(file, home)) {
                 return checkPath(file.getAbsolutePath(), false).isAllowed() ? file : null;

@@ -350,11 +350,11 @@ public class DashboardConfiguration {
     }
 
     /**
-     * 执行控制台运行时配置服务相关逻辑。
+     * 执行控制台工作区配置服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
      * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
-     * @return 返回控制台运行时配置服务结果。
+     * @return 返回控制台工作区配置服务结果。
      */
     @Bean
     public DashboardRuntimeConfigService dashboardRuntimeConfigService(

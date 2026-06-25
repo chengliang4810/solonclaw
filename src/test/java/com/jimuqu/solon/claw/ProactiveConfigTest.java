@@ -10,14 +10,14 @@ import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.core.Props;
 
-/** 主动协作配置加载测试，覆盖默认值和 runtime/config.yml 覆盖优先级。 */
+/** 主动协作配置加载测试，覆盖默认值和 workspace/config.yml 覆盖优先级。 */
 public class ProactiveConfigTest {
-    /** 验证未写入运行时配置时，主动协作配置使用产品默认值。 */
+    /** 验证未写入工作区配置时，主动协作配置使用产品默认值。 */
     @Test
     void shouldLoadDefaultProactiveConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-proactive-defaults").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-proactive-defaults").toFile();
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig.ProactiveConfig proactive = AppConfig.load(props).getProactive();
 
@@ -44,11 +44,11 @@ public class ProactiveConfigTest {
         assertThat(proactive.getDeliveryPreviewPrefix()).isEqualTo("主动协作");
     }
 
-    /** 验证 runtime/config.yml 中的 solonclaw.proactive 配置会覆盖 Props 中的同名键。 */
+    /** 验证 workspace/config.yml 中的 solonclaw.proactive 配置会覆盖 Props 中的同名键。 */
     @Test
     void shouldLoadProactiveConfigFromRuntimeConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-proactive-overrides").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-proactive-overrides").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  proactive:\n"
@@ -76,7 +76,7 @@ public class ProactiveConfigTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         props.put("solonclaw.proactive.enabled", "true");
         props.put("solonclaw.proactive.intervalMinutes", "99");
 
@@ -108,8 +108,8 @@ public class ProactiveConfigTest {
     /** 验证运行时写入接口接受全部主动协作配置键，并能被应用配置加载使用。 */
     @Test
     void shouldAcceptAllProactiveRuntimeOverrideKeys() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-proactive-runtime-keys").toFile();
-        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+        File workspaceHome = Files.createTempDirectory("solonclaw-proactive-runtime-keys").toFile();
+        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
         resolver.setFileValue("solonclaw.proactive.enabled", "false");
         resolver.setFileValue("solonclaw.proactive.intervalMinutes", "31");
         resolver.setFileValue("solonclaw.proactive.initialDelaySeconds", "62");
@@ -133,7 +133,7 @@ public class ProactiveConfigTest {
         resolver.setFileValue("solonclaw.proactive.deliveryPreviewPrefix", "协作观察");
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig.ProactiveConfig proactive = AppConfig.load(props).getProactive();
 

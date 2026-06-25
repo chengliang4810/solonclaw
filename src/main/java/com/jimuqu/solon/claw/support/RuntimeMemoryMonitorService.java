@@ -89,7 +89,7 @@ public class RuntimeMemoryMonitorService {
                                 public Thread newThread(Runnable runnable) {
                                     Thread thread =
                                             new Thread(
-                                                    runnable, "solon-claw-runtime-memory-monitor");
+                                                    runnable, "solonclaw-workspace-memory-monitor");
                                     thread.setDaemon(true);
                                     return thread;
                                 }

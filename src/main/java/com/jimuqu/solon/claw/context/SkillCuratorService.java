@@ -24,7 +24,7 @@ public class SkillCuratorService {
     /** 记录技能整理过程中的非关键读取失败，便于排查状态退化。 */
     private static final Logger log = LoggerFactory.getLogger(SkillCuratorService.class);
 
-    /** 技能整理运行目录时间戳格式，保持原有本地时间命名。 */
+    /** 技能整理工作目录时间戳格式，保持原有本地时间命名。 */
     private static final DateTimeFormatter RUN_DIR_TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss").withZone(ZoneId.systemDefault());
 

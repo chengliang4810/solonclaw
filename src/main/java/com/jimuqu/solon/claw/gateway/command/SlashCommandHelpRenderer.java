@@ -139,7 +139,7 @@ final class SlashCommandHelpRenderer {
         lines.add(
                 helpLine(
                         GatewayCommandConstants.SLASH_TRAJECTORY + " save [--failed] [user-query]",
-                        "追加保存 trajectory JSONL 到 runtime/artifacts"));
+                        "追加保存 trajectory JSONL 到 workspace/artifacts"));
         lines.add(helpLine(GatewayCommandConstants.SLASH_COMPACT + " [focus]", "压缩当前会话上下文"));
         lines.add(
                 helpLine(

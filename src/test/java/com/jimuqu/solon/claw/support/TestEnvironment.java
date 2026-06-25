@@ -171,7 +171,7 @@ public class TestEnvironment {
     }
 
     public static String runtimeConfigValue(String key, String defaultValue) {
-        String value = RuntimeConfigResolver.initialize(RuntimePathConstants.RUNTIME_HOME).get(key);
+        String value = RuntimeConfigResolver.initialize(RuntimePathConstants.WORKSPACE_HOME).get(key);
         return StrUtil.blankToDefault(value, defaultValue).trim();
     }
 
@@ -477,17 +477,17 @@ public class TestEnvironment {
     }
 
     private static AppConfig newConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-test").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-test").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
-        config.getWorkspace().setDir(runtimeHome.getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
+        config.getWorkspace().setDir(workspaceHome.getAbsolutePath());
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("DefaultProvider");
         provider.setBaseUrl("https://api.openai.com");

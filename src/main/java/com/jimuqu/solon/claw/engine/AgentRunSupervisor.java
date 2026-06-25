@@ -57,7 +57,7 @@ import org.noear.solon.ai.chat.message.ToolMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** SolonClaw 风格的外层 Agent run 状态机。 */
+/** solonclaw 风格的外层 Agent run 状态机。 */
 public class AgentRunSupervisor implements AgentRunControlService {
     /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(AgentRunSupervisor.class);

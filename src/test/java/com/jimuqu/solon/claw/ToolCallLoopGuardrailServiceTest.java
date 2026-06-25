@@ -275,8 +275,8 @@ public class ToolCallLoopGuardrailServiceTest {
 
     @Test
     void shouldLoadSolonClawReactToolLoopGuardrailConfigKeys() {
-        File runtimeHome = FileUtil.file(tempDir, "runtime");
-        FileUtil.mkdir(runtimeHome);
+        File workspaceHome = FileUtil.file(tempDir, "runtime");
+        FileUtil.mkdir(workspaceHome);
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  react:\n"
@@ -288,9 +288,9 @@ public class ToolCallLoopGuardrailServiceTest {
                         + "    toolLoopExactFailureBlockAfter: 7\n"
                         + "    toolLoopSameToolFailureHaltAfter: 8\n"
                         + "    toolLoopNoProgressBlockAfter: 9\n",
-                FileUtil.file(runtimeHome, "config.yml"));
+                FileUtil.file(workspaceHome, "config.yml"));
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
 
         AppConfig config = AppConfig.load(props);
 

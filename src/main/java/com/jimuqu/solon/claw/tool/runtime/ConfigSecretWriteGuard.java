@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** 保护对话式文件编辑，避免脱敏后的配置密钥占位符被写回运行时配置文件。 */
+/** 保护对话式文件编辑，避免脱敏后的配置密钥占位符被写回工作区配置文件。 */
 final class ConfigSecretWriteGuard {
     /** YAML 冒号配置行，覆盖 apiKey、token、secret 等敏感配置键。 */
     private static final Pattern YAML_SECRET_FIELD =

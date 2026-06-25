@@ -1,8 +1,8 @@
-# solon-claw
+# Solon Claw
 
 English | [简体中文](README.md)
 
-solon-claw is a single-instance Agent service built with Java, Solon, and Solon AI. The project aims to align with the core behavior and capabilities of an external reference Agent in the Java / Solon ecosystem, with a focus on the Agent loop, tool calling, sessions, memory, skills, scheduled tasks, Chinese messaging channels, and a dashboard-first setup and diagnostics experience.
+Solon Claw is a single-instance Agent service built with Java, Solon, and Solon AI. The project aims to align with the core behavior and capabilities of an external reference Agent in the Java / Solon ecosystem, with a focus on the Agent loop, tool calling, sessions, memory, skills, scheduled tasks, Chinese messaging channels, and a dashboard-first setup and diagnostics experience.
 
 > The project is under active development. APIs and configuration keys may change as the implementation evolves. Feedback and contributions are welcome.
 
@@ -12,7 +12,7 @@ solon-claw is a single-instance Agent service built with Java, Solon, and Solon 
 - **Model protocols**: supports common interfaces such as `openai`, `openai-responses`, `ollama`, `gemini`, and `anthropic`.
 - **Tool system**: built-in tools for file operations, search, patching, Shell/Python/JavaScript execution, Memory, scheduled jobs, web search/fetch, and message delivery.
 - **Chinese messaging channels**: focuses on Feishu, DingTalk, WeCom, Weixin, QQBot, and Yuanbao; websocket / stream first, with Weixin iLink long-poll retained.
-- **Dashboard-first operations**: status, sessions, configuration, channel doctor, runtime settings, logs, skills, and scheduled jobs.
+- **Dashboard-first operations**: status, sessions, workspace configuration, channel doctor, logs, skills, and scheduled jobs.
 - **Persistence**: SQLite-backed storage for sessions, policies, scheduled jobs, and channel states.
 - **Skills and memory**: local skills, Skills Hub imports, long-term memory, user context, and context file collaboration.
 - **Deployment**: supports `java -jar` and Docker / Docker Compose single-instance deployments.
@@ -41,8 +41,8 @@ solon-claw is a single-instance Agent service built with Java, Solon, and Solon 
 ### Clone and Build
 
 ```bash
-git clone https://github.com/chengliang4810/solon-claw.git
-cd solon-claw
+git clone https://github.com/chengliang4810/solonclaw.git
+cd solonclaw
 mvn -DskipTests package
 ```
 
@@ -55,7 +55,7 @@ mvn -DskipTests -Dskip.web.build=true package
 ### Run
 
 ```bash
-java -jar target/solon-claw-0.0.1.jar
+java -jar target/solonclaw-0.0.1.jar
 ```
 
 The default endpoint is:
@@ -64,7 +64,7 @@ The default endpoint is:
 http://127.0.0.1:8080
 ```
 
-On startup, the service creates a local `runtime/` directory for configuration, SQLite data, cache, logs, skills, and context files. Runtime children are derived by the program: `context/`, `skills/`, `cache/`, `logs/`, and `data/state.db`.
+On startup, the service creates a local `workspace/` directory for configuration, SQLite data, cache, logs, skills, and context files. Workspace children are derived by the program: `context/`, `skills/`, `cache/`, `logs/`, and `data/state.db`.
 
 ### Docker Compose
 
@@ -72,9 +72,9 @@ On startup, the service creates a local `runtime/` directory for configuration, 
 docker compose up -d
 ```
 
-The default Compose file mounts local `./runtime` to `/app/runtime` inside the container for persistent runtime data. The image runs the service as root by default. `/app/docker-entrypoint.sh` ensures the runtime directory exists, then starts `java -jar /app/solon-claw.jar` directly. The image includes `openssh-client`, so `ssh`, `scp`, and `sftp` are available inside the container.
+The default Compose file mounts local `./workspace` to `/app/workspace` inside the container for persistent workspace data. `/app/docker-entrypoint.sh` ensures the workspace directory exists, then starts `java -jar /app/solonclaw.jar` directly. The image includes `openssh-client`, so `ssh`, `scp`, and `sftp` are available inside the container.
 
-If you are migrating from an older non-root image, fixed UID/GID ownership for the host runtime directory is no longer part of the default runtime requirement. Custom deployment scripts can remove the previous user-mapping logic.
+If you are migrating from an older non-root image, fixed UID/GID ownership for the host workspace directory is no longer part of the default deployment requirement. Custom deployment scripts can remove the previous user-mapping logic.
 
 ## Configuration
 
@@ -84,15 +84,15 @@ Default configuration lives in:
 src/main/resources/app.yml
 ```
 
-Model providers are managed by the runtime configuration file and the Dashboard. The runtime file is created at:
+Model providers are managed by the workspace configuration file and the Dashboard. The workspace file is created at:
 
 ```text
-runtime/config.yml
+workspace/config.yml
 ```
 
-`runtime/config.yml` does not configure its own directory. The runtime directory is decided by startup-level configuration and defaults to `runtime/` under the current working directory.
+`workspace/config.yml` does not configure its own directory. The workspace directory is decided by startup-level `solonclaw.workspace` and defaults to `workspace/` under the current working directory.
 
-See `config.example.yml` at the repository root for the full example. Startup also syncs this file to `runtime/config.example.yml` as a read-only reference; the effective runtime configuration remains `runtime/config.yml`.
+See `config.example.yml` at the repository root for the full example. Startup also syncs this file to `workspace/config.example.yml` as a read-only reference; the effective configuration remains `workspace/config.yml`.
 
 Recommended model configuration structure:
 
@@ -125,7 +125,7 @@ solonclaw:
     accessToken: ""
 ```
 
-Common runtime settings:
+Common workspace settings:
 
 | Key | Default | Description |
 | --- | --- | --- |
@@ -154,7 +154,7 @@ Common runtime settings:
 | `approvals.timeoutSeconds` | `60` | Local/direct approval timeout in seconds |
 | `approvals.gatewayTimeoutSeconds` | `300` | Messaging-channel approval timeout in seconds |
 | `approvals.mcpReloadConfirm` | `true` | Whether `/reload-mcp` requires confirmation |
-| `solonclaw.terminal.credentialFiles` | empty | Runtime-relative credential files available to isolated execution |
+| `solonclaw.terminal.credentialFiles` | empty | Workspace-relative credential files available to isolated execution |
 | `solonclaw.terminal.envPassthrough` | empty | Third-party environment variables allowed for local subprocesses |
 | `solonclaw.terminal.sudoPassword` | empty | Optional sudo password for `sudo -S` rewriting; can also be supplied with `SOLONCLAW_SUDO_PASSWORD` |
 | `solonclaw.trace.retentionDays` | `14` | Run trace retention in days |
@@ -172,7 +172,7 @@ Common runtime settings:
 | `solonclaw.pricing.prices` | empty | Model pricing configuration; empty means token-only usage without cost calculation |
 | `solonclaw.plugins.enabled` / `disabled` | empty | Plugin allow/deny lists |
 
-Prefer the Dashboard for provider and default-model management, or edit `runtime/config.yml` directly. Keep secrets out of Git.
+Prefer the Dashboard for provider and default-model management, or edit `workspace/config.yml` directly. Keep secrets out of Git.
 
 ## Messaging Channels
 
@@ -198,7 +198,7 @@ Common in-conversation commands:
 - `/undo`: undo the previous turn
 - `/branch`: branch from the current session
 - `/resume`: resume a session
-- `/status`: show runtime status
+- `/status`: show workspace status
 - `/usage`: show token usage
 - `/model`: inspect or switch models
 - `/tools`: inspect tool state
@@ -211,13 +211,13 @@ Common in-conversation commands:
 
 Main HTTP endpoints:
 
-- `GET /api/status`: runtime status
+- `GET /api/status`: workspace status
 - `POST /api/gateway/message`: signed gateway message injection
 - `GET /api/gateway/doctor`: channel diagnostics
 - `GET /api/sessions`: session list
 - `POST /api/chat/runs`: Dashboard chat run
 - `GET /api/config`: read configuration
-- `GET /api/runtime-config`: runtime settings
+- `GET /api/workspace-config`: workspace-backed settings
 
 Dashboard APIs require a session token by default. Gateway injection uses HMAC signature headers.
 
@@ -227,16 +227,16 @@ Dashboard APIs require a session token by default. Gateway injection uses HMAC s
 src/main/java/com/jimuqu/solon/claw/
 ├── agent/          # Agent profiles
 ├── bootstrap/      # Solon startup, bean wiring, HTTP controllers
-├── config/         # Config-file loading, runtime overrides, path normalization
+├── config/         # Config-file loading, workspace overrides, path normalization
 ├── context/        # AGENTS / MEMORY / USER / Skills context
 ├── core/           # Domain models, repository interfaces, service interfaces
 ├── engine/         # Agent loop, compression, delegation
-├── gateway/        # Messaging channels, auth, delivery, runtime refresh
+├── gateway/        # Messaging channels, auth, delivery, workspace refresh
 ├── llm/            # Model protocol adapters and Solon AI integration
 ├── scheduler/      # Cron and heartbeat scheduling
 ├── skillhub/       # Skills Hub, imports, guardrails, sources
 ├── storage/        # SQLite repository implementations
-├── support/        # Runtime support utilities
+├── support/        # Workspace support utilities
 ├── tool/           # Built-in tool registry and implementations
 └── web/            # Dashboard backend services and controllers
 ```

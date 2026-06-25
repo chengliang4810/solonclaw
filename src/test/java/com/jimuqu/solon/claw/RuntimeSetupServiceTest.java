@@ -13,8 +13,8 @@ import org.junit.jupiter.api.Test;
 public class RuntimeSetupServiceTest {
     @Test
     void shouldPersistModelProviderThroughSharedSetupService() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-runtime-setup-model");
-        RuntimeSetupService service = new RuntimeSetupService(config(runtimeHome));
+        Path workspaceHome = Files.createTempDirectory("solonclaw-workspace-setup-model");
+        RuntimeSetupService service = new RuntimeSetupService(config(workspaceHome));
 
         RuntimeSetupService.ModelSetupRequest request =
                 new RuntimeSetupService.ModelSetupRequest();
@@ -26,7 +26,7 @@ public class RuntimeSetupServiceTest {
         request.setDialect("openai");
         RuntimeSetupService.SetupResult result = service.configureModel(request);
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getValues())
                 .containsEntry("provider", "local-openai")
@@ -46,8 +46,8 @@ public class RuntimeSetupServiceTest {
 
     @Test
     void shouldRejectPlaceholderModelSecretBeforeAnySetupWrite() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-runtime-setup-placeholder");
-        RuntimeSetupService service = new RuntimeSetupService(config(runtimeHome));
+        Path workspaceHome = Files.createTempDirectory("solonclaw-workspace-setup-placeholder");
+        RuntimeSetupService service = new RuntimeSetupService(config(workspaceHome));
 
         RuntimeSetupService.ModelSetupRequest request =
                 new RuntimeSetupService.ModelSetupRequest();
@@ -61,13 +61,13 @@ public class RuntimeSetupServiceTest {
 
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getMessage()).isEqualTo("placeholder_secret");
-        assertThat(runtimeHome.resolve("config.yml")).doesNotExist();
+        assertThat(workspaceHome.resolve("config.yml")).doesNotExist();
     }
 
     @Test
     void shouldPersistDomesticChannelThroughSharedSetupService() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-runtime-setup-channel");
-        RuntimeSetupService service = new RuntimeSetupService(config(runtimeHome));
+        Path workspaceHome = Files.createTempDirectory("solonclaw-workspace-setup-channel");
+        RuntimeSetupService service = new RuntimeSetupService(config(workspaceHome));
         Map<String, String> values = new LinkedHashMap<String, String>();
         values.put("enabled", "true");
         values.put("appId", "cli_test_app");
@@ -75,7 +75,7 @@ public class RuntimeSetupServiceTest {
 
         RuntimeSetupService.SetupResult result = service.configureGatewayChannel("feishu", values);
 
-        String file = Files.readString(runtimeHome.resolve("config.yml"));
+        String file = Files.readString(workspaceHome.resolve("config.yml"));
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getValues())
                 .containsEntry("channel", "feishu")
@@ -93,8 +93,8 @@ public class RuntimeSetupServiceTest {
 
     @Test
     void shouldRejectPlaceholderChannelSecretBeforeAnySetupWrite() throws Exception {
-        Path runtimeHome = Files.createTempDirectory("solonclaw-runtime-setup-channel-placeholder");
-        RuntimeSetupService service = new RuntimeSetupService(config(runtimeHome));
+        Path workspaceHome = Files.createTempDirectory("solonclaw-workspace-setup-channel-placeholder");
+        RuntimeSetupService service = new RuntimeSetupService(config(workspaceHome));
         Map<String, String> values = new LinkedHashMap<String, String>();
         values.put("enabled", "true");
         values.put("appId", "cli_test_app");
@@ -104,13 +104,13 @@ public class RuntimeSetupServiceTest {
 
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getMessage()).isEqualTo("placeholder_secret");
-        assertThat(runtimeHome.resolve("config.yml")).doesNotExist();
+        assertThat(workspaceHome.resolve("config.yml")).doesNotExist();
     }
 
-    private AppConfig config(Path runtimeHome) {
+    private AppConfig config(Path workspaceHome) {
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
-        config.getRuntime().setConfigFile(runtimeHome.resolve("config.yml").toString());
+        config.getRuntime().setHome(workspaceHome.toString());
+        config.getRuntime().setConfigFile(workspaceHome.resolve("config.yml").toString());
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("Default Provider");
         provider.setBaseUrl("https://api.openai.com/v1");

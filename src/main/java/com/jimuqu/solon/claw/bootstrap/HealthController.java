@@ -24,7 +24,7 @@ public class HealthController {
     private static final Logger log = LoggerFactory.getLogger(HealthController.class);
 
     /** 服务名称的统一常量值。 */
-    private static final String SERVICE_NAME = "solon-claw";
+    private static final String SERVICE_NAME = "solonclaw";
 
     /** 健康检查时间输出格式，保持原有本地时区偏移语义。 */
     private static final DateTimeFormatter ISO_OFFSET_SECONDS_FORMATTER =
@@ -239,7 +239,7 @@ public class HealthController {
         gateway.put("recent_active_sessions", status.get("active_sessions"));
         gateway.put("pid", parsePid());
         gateway.put("exit_reason", status.get("gateway_exit_reason"));
-        gateway.put("runtime_config_refresh", status.get("runtime_config_refresh"));
+        gateway.put("workspace_config_refresh", status.get("workspace_config_refresh"));
         gateway.put(
                 "updated_at",
                 status.get("gateway_updated_at") == null

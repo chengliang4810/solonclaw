@@ -18,13 +18,13 @@ public class AppUpdateServiceTest {
     @Test
     void shouldFallbackToTagsWhenReleaseApiReturns404() {
         AppConfig config = new AppConfig();
-        // 提供运行目录，避免写更新缓存时 runtimeHome() 因 home 为 null 抛 NPE（对齐生产运行时）
+        // 提供工作区目录，避免写更新缓存时 workspaceHome() 因 home 为 null 抛 NPE（对齐生产路径）
         config.getRuntime().setHome(new File("target/update-test-runtime").getAbsolutePath());
         FakeVersionService versionService = new FakeVersionService(config);
         versionService.setDeploymentMode("docker");
         versionService.setCurrentVersion("0.0.1");
         versionService.setCurrentTag("v0.0.1");
-        versionService.setReleaseRepo("chengliang4810/solon-claw");
+        versionService.setReleaseRepo("chengliang4810/solonclaw");
 
         FakeUpdateService service = new FakeUpdateService(config, versionService);
         service.setReleaseStatus(404);
@@ -44,7 +44,7 @@ public class AppUpdateServiceTest {
         versionService.setDeploymentMode("docker");
         versionService.setCurrentVersion("0.0.1");
         versionService.setCurrentTag("v0.0.1");
-        versionService.setReleaseRepo("chengliang4810/solon-claw");
+        versionService.setReleaseRepo("chengliang4810/solonclaw");
 
         FakeUpdateService service = new FakeUpdateService(new AppConfig(), versionService);
         service.setReleaseStatus(404);
@@ -65,7 +65,7 @@ public class AppUpdateServiceTest {
         versionService.setDeploymentMode("docker");
         versionService.setCurrentVersion("0.0.1");
         versionService.setCurrentTag("v0.0.1");
-        versionService.setReleaseRepo("chengliang4810/solon-claw");
+        versionService.setReleaseRepo("chengliang4810/solonclaw");
 
         FakeUpdateService service = new FakeUpdateService(new AppConfig(), versionService);
         service.setReleaseStatus(404);
@@ -104,7 +104,7 @@ public class AppUpdateServiceTest {
         assertThatThrownBy(
                         () ->
                                 service.exposeDownloadAsset(
-                                        "https://github.com/chengliang4810/solon-claw/releases/download/v1/app.jar",
+                                        "https://github.com/chengliang4810/solonclaw/releases/download/v1/app.jar",
                                         new File("target/update-test/app.jar")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Attachment download URL blocked")
@@ -173,7 +173,7 @@ public class AppUpdateServiceTest {
                 new DownloadFailingUpdateService(jarConfig, jarVersionService, downloadToken);
         ((FakeUpdateService) downloadService)
                 .setReleaseBody(
-                        "{\"tag_name\":\"v0.0.2\",\"assets\":[{\"name\":\"solon-claw-0.0.2.jar\",\"browser_download_url\":\"https://github.com/chengliang4810/solon-claw/releases/download/v0.0.2/app.jar\"}]}");
+                        "{\"tag_name\":\"v0.0.2\",\"assets\":[{\"name\":\"solonclaw-0.0.2.jar\",\"browser_download_url\":\"https://github.com/chengliang4810/solonclaw/releases/download/v0.0.2/app.jar\"}]}");
 
         AppUpdateService.UpdateResult downloadResult = downloadService.startUpdate();
 
@@ -388,7 +388,7 @@ public class AppUpdateServiceTest {
         private String deploymentMode = "dev";
         private String currentVersion = "0.0.1";
         private String currentTag = "v0.0.1";
-        private String releaseRepo = "chengliang4810/solon-claw";
+        private String releaseRepo = "chengliang4810/solonclaw";
         private String updateProxyUrl;
 
         private FakeVersionService(AppConfig appConfig) {

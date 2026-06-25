@@ -14,10 +14,10 @@ import lombok.RequiredArgsConstructor;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
 
-/** 运行时配置工具。 */
+/** 工作区配置工具。 */
 @RequiredArgsConstructor
 public class ConfigTools {
-    /** 运行时配置读写服务，负责白名单校验、密钥写入和配置文件落盘。 */
+    /** 工作区配置读写服务，负责白名单校验、密钥写入和配置文件落盘。 */
     private final RuntimeSettingsService runtimeSettingsService;
 
     /** 消息网关刷新服务，用于在配置校验通过后刷新或重连渠道运行时。 */
@@ -27,7 +27,7 @@ public class ConfigTools {
     private final AppConfig appConfig;
 
     /**
-     * 读取白名单内运行时配置，并对密钥类配置做脱敏展示。
+     * 读取白名单内工作区配置，并对密钥类配置做脱敏展示。
      *
      * @param key 配置键或映射键。
      * @return ToolResultEnvelope JSON，包含配置键、脱敏后的值和预览文本。
@@ -35,13 +35,13 @@ public class ConfigTools {
     @ToolMapping(
             name = "config_get",
             description =
-                    "Read a whitelisted runtime config key, such as llm.model or channels.weixin.enabled.")
+                    "Read a whitelisted workspace config key, such as llm.model or channels.weixin.enabled.")
     public String configGet(@Param(name = "key", description = "配置键，例如 llm.model") String key) {
         try {
             Object value = runtimeSettingsService.getConfigValue(key);
             Object safeValue = safeValue(key, value);
             String preview = safePreview(key, value);
-            return ToolResultEnvelope.ok("读取运行时配置：" + safeText(key, 400))
+            return ToolResultEnvelope.ok("读取工作区配置：" + safeText(key, 400))
                     .data("key", safeText(key, 400))
                     .data("value", safeValue)
                     .data(
@@ -55,7 +55,7 @@ public class ConfigTools {
     }
 
     /**
-     * 写入白名单内非密钥运行时配置。
+     * 写入白名单内非密钥工作区配置。
      *
      * @param key 配置键或映射键。
      * @param value 用户传入的新配置值，列表型配置仍由 RuntimeSettingsService 解析。
@@ -64,7 +64,7 @@ public class ConfigTools {
     @ToolMapping(
             name = "config_set",
             description =
-                    "Update a whitelisted runtime config key. Global config changes take effect on the next message.")
+                    "Update a whitelisted workspace config key. Global config changes take effect on the next message.")
     public String configSet(
             @Param(name = "key", description = "配置键，例如 llm.model 或 channels.weixin.enabled")
                     String key,
@@ -75,7 +75,7 @@ public class ConfigTools {
             }
             runtimeSettingsService.setConfigValue(key, value);
             Object current = runtimeSettingsService.getConfigValue(key);
-            return ToolResultEnvelope.ok("已更新运行时配置：" + safeText(key, 400))
+            return ToolResultEnvelope.ok("已更新工作区配置：" + safeText(key, 400))
                     .data("key", safeText(key, 400))
                     .data("value", safeValue(key, current))
                     .data("note", "takes effect on the next message")
@@ -87,7 +87,7 @@ public class ConfigTools {
     }
 
     /**
-     * 校验 runtime/config.yml 后刷新运行时配置。
+     * 校验 workspace/config.yml 后刷新工作区配置。
      *
      * @param reconnectChannels 是否在配置刷新后重连消息渠道。
      * @return ToolResultEnvelope JSON，包含刷新结果、配置文件路径和重连状态。
@@ -95,7 +95,7 @@ public class ConfigTools {
     @ToolMapping(
             name = "config_refresh",
             description =
-                    "Validate runtime/config.yml first, then refresh runtime config. If validation fails, do not refresh.")
+                    "Validate workspace/config.yml first, then refresh workspace config. If validation fails, do not refresh.")
     public String configRefresh(
             @Param(name = "reconnectChannels", description = "是否重连渠道连接；默认 false", required = false)
                     Boolean reconnectChannels) {
@@ -161,13 +161,13 @@ public class ConfigTools {
     @ToolMapping(
             name = "config_set_secret",
             description =
-                    "Update a whitelisted runtime secret key, such as providers.default.apiKey.")
+                    "Update a whitelisted workspace secret key, such as providers.default.apiKey.")
     public String configSetSecret(
             @Param(name = "key", description = "配置键，例如 providers.default.apiKey") String key,
             @Param(name = "value", description = "新的密钥值") String value) {
         try {
             runtimeSettingsService.setSecretValue(key, value);
-            return ToolResultEnvelope.ok("已更新运行时密钥：" + safeText(key, 400))
+            return ToolResultEnvelope.ok("已更新工作区密钥：" + safeText(key, 400))
                     .data("key", safeText(key, 400))
                     .data("note", "takes effect on the next message")
                     .preview(safeText(key, 400) + "=***")
@@ -322,7 +322,7 @@ public class ConfigTools {
         private final ConfigTools delegate;
 
         /**
-         * 读取白名单内运行时配置。
+         * 读取白名单内工作区配置。
          *
          * @param key 配置键或映射键。
          * @return 外层 configGet 生成的工具结果 JSON。
@@ -330,7 +330,7 @@ public class ConfigTools {
         @ToolMapping(
                 name = "config_get",
                 description =
-                        "Read a whitelisted runtime config key, such as llm.model or channels.weixin.enabled.")
+                        "Read a whitelisted workspace config key, such as llm.model or channels.weixin.enabled.")
         public String configGet(@Param(name = "key", description = "配置键，例如 llm.model") String key) {
             return delegate.configGet(key);
         }
@@ -359,7 +359,7 @@ public class ConfigTools {
         private final ConfigTools delegate;
 
         /**
-         * 写入白名单内非密钥运行时配置。
+         * 写入白名单内非密钥工作区配置。
          *
          * @param key 配置键或映射键。
          * @param value 新配置值。
@@ -368,7 +368,7 @@ public class ConfigTools {
         @ToolMapping(
                 name = "config_set",
                 description =
-                        "Update a whitelisted runtime config key. Global config changes take effect on the next message.")
+                        "Update a whitelisted workspace config key. Global config changes take effect on the next message.")
         public String configSet(
                 @Param(name = "key", description = "配置键，例如 llm.model 或 channels.weixin.enabled")
                         String key,
@@ -394,7 +394,7 @@ public class ConfigTools {
         @ToolMapping(
                 name = "config_set_secret",
                 description =
-                        "Update a whitelisted runtime secret key, such as providers.default.apiKey.")
+                        "Update a whitelisted workspace secret key, such as providers.default.apiKey.")
         public String configSetSecret(
                 @Param(name = "key", description = "配置键，例如 providers.default.apiKey") String key,
                 @Param(name = "value", description = "新的密钥值") String value) {
@@ -410,7 +410,7 @@ public class ConfigTools {
         private final ConfigTools delegate;
 
         /**
-         * 校验并刷新运行时配置。
+         * 校验并刷新工作区配置。
          *
          * @param reconnectChannels 是否重连消息渠道。
          * @return 外层 configRefresh 生成的工具结果 JSON。
@@ -418,7 +418,7 @@ public class ConfigTools {
         @ToolMapping(
                 name = "config_refresh",
                 description =
-                        "Validate runtime/config.yml first, then refresh runtime config. If validation fails, do not refresh.")
+                        "Validate workspace/config.yml first, then refresh workspace config. If validation fails, do not refresh.")
         public String configRefresh(
                 @Param(
                                 name = "reconnectChannels",

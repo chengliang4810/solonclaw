@@ -138,7 +138,7 @@ public class CronjobTools {
                     Boolean wrapResponse,
             @Param(
                             name = "script",
-                            description = "runtime/scripts 下的相对脚本路径；update 时传空字符串清空",
+                            description = "workspace/scripts 下的相对脚本路径；update 时传空字符串清空",
                             required = false)
                     String script,
             @Param(

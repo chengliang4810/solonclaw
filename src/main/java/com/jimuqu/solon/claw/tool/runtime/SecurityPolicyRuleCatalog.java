@@ -114,7 +114,7 @@ final class SecurityPolicyRuleCatalog {
                     ".cargo/credentials.toml",
                     ".terraform.d/credentials.tfrc.json");
 
-    /** 运行时凭据文件路径列表，用于拦截项目运行目录内的认证缓存文件。 */
+    /** 工作区凭据文件路径列表，用于拦截项目工作区内的认证缓存文件。 */
     static final List<String> RUNTIME_CREDENTIAL_FILE_PATHS =
             Arrays.asList("cache/bws_cache.json");
 

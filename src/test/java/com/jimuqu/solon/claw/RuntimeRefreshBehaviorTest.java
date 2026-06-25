@@ -273,9 +273,9 @@ public class RuntimeRefreshBehaviorTest {
                 .contains("credentials/oauth.json");
 
         assertCredentialPathRejected(configService, "../secret.json", "path traversal");
-        assertCredentialPathRejected(configService, "/tmp/secret.json", "runtime-relative");
-        assertCredentialPathRejected(configService, "C:\\Users\\secret.json", "runtime-relative");
-        assertCredentialPathRejected(configService, "~/.ssh/id_rsa", "runtime-relative");
+        assertCredentialPathRejected(configService, "/tmp/secret.json", "workspace-relative");
+        assertCredentialPathRejected(configService, "C:\\Users\\secret.json", "workspace-relative");
+        assertCredentialPathRejected(configService, "~/.ssh/id_rsa", "workspace-relative");
         assertCredentialPathRejected(configService, "credentials/\u0000secret.json", "control");
     }
 
@@ -353,19 +353,16 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldWriteWorkspaceRuntimeKeyWithoutReconnectingChannels() throws Exception {
+    void shouldRejectWorkspaceRuntimeKeyWithoutReconnectingChannels() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
         RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
 
-        runtimeSettingsService.setConfigValue("solonclaw.workspace", "./workspace");
-
-        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
-        assertThat(env.appConfig.getWorkspace().getDir()).endsWith("/workspace");
-        assertThat(config)
-                .contains("solonclaw:")
-                .contains("workspace: ./workspace")
-                .doesNotContain("writeSafeRoot");
+        assertThatThrownBy(
+                        () -> runtimeSettingsService.setConfigValue("solonclaw.workspace", "./workspace"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unsupported config key")
+                .hasMessageContaining("solonclaw.workspace");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
     }
@@ -423,7 +420,7 @@ public class RuntimeRefreshBehaviorTest {
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.isRefreshed()).isTrue();
-        assertThat(result.getConfigFile()).isEqualTo("runtime://config.yml");
+        assertThat(result.getConfigFile()).isEqualTo("workspace://config.yml");
         assertThat(result.getConfigFile())
                 .doesNotContain(env.appConfig.getRuntime().getHome())
                 .doesNotContain(env.appConfig.getRuntime().getConfigFile());
@@ -443,7 +440,7 @@ public class RuntimeRefreshBehaviorTest {
 
         assertThat(result.isSuccess()).isFalse();
         assertThat(result.getMessage()).contains("solonclaw.react.maxSteps");
-        assertThat(result.getConfigFile()).isEqualTo("runtime://config.yml");
+        assertThat(result.getConfigFile()).isEqualTo("workspace://config.yml");
         assertThat(result.getConfigFile())
                 .doesNotContain(env.appConfig.getRuntime().getHome())
                 .doesNotContain(env.appConfig.getRuntime().getConfigFile());
@@ -471,12 +468,12 @@ public class RuntimeRefreshBehaviorTest {
         assertThat(result.isSuccess()).isFalse();
         assertThat(failure)
                 .containsEntry("type", "validation")
-                .containsEntry("config_file", "runtime://config.yml")
+                .containsEntry("config_file", "workspace://config.yml")
                 .containsEntry("validation_failure", Boolean.TRUE);
         assertThat(failure.get("failed_at")).isInstanceOf(Long.class);
         String failureJson = org.noear.snack4.ONode.serialize(failure);
         assertThat(failureJson)
-                .contains("runtime/config.yml 格式错误")
+                .contains("workspace/config.yml 格式错误")
                 .contains("[REDACTED_PATH]")
                 .contains("***")
                 .doesNotContain(secretPath)
@@ -494,7 +491,7 @@ public class RuntimeRefreshBehaviorTest {
 
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.isRefreshed()).isFalse();
-        assertThat(result.getConfigFile()).isEqualTo("runtime://config.yml");
+        assertThat(result.getConfigFile()).isEqualTo("workspace://config.yml");
         assertThat(result.getConfigFile())
                 .doesNotContain(env.appConfig.getRuntime().getHome())
                 .doesNotContain(env.appConfig.getRuntime().getConfigFile());
@@ -543,7 +540,7 @@ public class RuntimeRefreshBehaviorTest {
                 env.gatewayRuntimeRefreshService.refreshConfigOnly();
 
         assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getMessage()).contains("runtime/config.yml 格式错误");
+        assertThat(result.getMessage()).contains("workspace/config.yml 格式错误");
         assertThat(result.getMessage()).contains("***");
         assertThat(result.getMessage()).doesNotContain("sk-test-refreshsecret12345");
     }

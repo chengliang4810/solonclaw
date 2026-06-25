@@ -143,7 +143,7 @@ public class CliShell {
         LineReader reader =
                 LineReaderBuilder.builder()
                         .terminal(terminal)
-                        .appName("solon-claw")
+                        .appName("solonclaw")
                         .completer(new StringsCompleter(COMMANDS))
                         .variable(LineReader.HISTORY_FILE, historyFile().toPath())
                         .build();
@@ -193,12 +193,12 @@ public class CliShell {
 
     /** 解析 CLI 历史文件路径，避免输入历史直接落到仓库工作目录。 */
     private File historyFile() {
-        String runtimeHome =
+        String workspaceHome =
                 appConfig == null || appConfig.getRuntime() == null
-                        ? RuntimePathConstants.RUNTIME_HOME
+                        ? RuntimePathConstants.WORKSPACE_HOME
                         : StrUtil.blankToDefault(
-                                appConfig.getRuntime().getHome(), RuntimePathConstants.RUNTIME_HOME);
-        File historyDir = FileUtil.file(runtimeHome, "history");
+                                appConfig.getRuntime().getHome(), RuntimePathConstants.WORKSPACE_HOME);
+        File historyDir = FileUtil.file(workspaceHome, "history");
         FileUtil.mkdir(historyDir);
         return FileUtil.file(historyDir, "cli.history");
     }

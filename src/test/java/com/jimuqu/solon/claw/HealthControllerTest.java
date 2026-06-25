@@ -16,7 +16,7 @@ public class HealthControllerTest {
 
         assertThat(response)
                 .containsEntry("ok", Boolean.TRUE)
-                .containsEntry("service", "solon-claw")
+                .containsEntry("service", "solonclaw")
                 .hasSize(2);
     }
 
@@ -30,7 +30,7 @@ public class HealthControllerTest {
         assertThat(response)
                 .containsEntry("ok", Boolean.TRUE)
                 .containsEntry("status", "ok")
-                .containsEntry("platform", "solon-claw")
+                .containsEntry("platform", "solonclaw")
                 .containsKeys(
                         "gateway_state",
                         "platforms",
@@ -57,7 +57,7 @@ public class HealthControllerTest {
                 (Map<String, Object>) response.get("runtime_capabilities");
         Map<String, Object> runtimeStatus = (Map<String, Object>) response.get("runtime_status");
 
-        assertThat(service).containsEntry("name", "solon-claw").containsEntry("status", "up");
+        assertThat(service).containsEntry("name", "solonclaw").containsEntry("status", "up");
         assertThat(runtime)
                 .containsKeys("startedAtEpochMs", "currentTimeEpochMs", "uptimeMs", "uptimeSeconds")
                 .containsEntry("pid", response.get("pid"))
@@ -71,7 +71,7 @@ public class HealthControllerTest {
                 .containsEntry("active_agents", Integer.valueOf(0));
         assertThat(capabilities)
                 .containsEntry("schema_version", Integer.valueOf(1))
-                .containsEntry("service", "solon-claw")
+                .containsEntry("service", "solonclaw")
                 .containsEntry("dashboard_first", Boolean.TRUE);
         assertThat((List<String>) capabilities.get("supported_model_protocols"))
                 .containsExactly("openai", "openai-responses", "ollama", "gemini", "anthropic");
@@ -79,7 +79,7 @@ public class HealthControllerTest {
                 .containsExactly("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao");
         assertThat(runtimeStatus)
                 .containsEntry("schema_version", Integer.valueOf(1))
-                .containsEntry("service", "solon-claw")
+                .containsEntry("service", "solonclaw")
                 .containsEntry("status", "ok")
                 .containsEntry("active_sessions", Integer.valueOf(0))
                 .containsKeys("gateway", "diagnostics");

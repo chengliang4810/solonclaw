@@ -31,22 +31,22 @@ public class SolonClawFileReadWriteSkillTest {
                 .hasMessageNotContaining("secret");
     }
 
-    /** 验证默认 runtime 工作区下的脚本写入不会落到嵌套 runtime 目录。 */
+    /** 验证默认 workspace 工作区下的脚本写入不会落到嵌套 workspace 目录。 */
     @Test
-    void shouldCollapseRuntimeRootPrefixForScriptWrites() throws Exception {
-        Path tempRoot = tempDir("file-runtime-prefix");
-        Path dir = tempRoot.resolve("runtime");
+    void shouldCollapseWorkspaceRootPrefixForScriptWrites() throws Exception {
+        Path tempRoot = tempDir("file-workspace-prefix");
+        Path dir = tempRoot.resolve("workspace");
         Files.createDirectories(dir);
         SolonClawFileReadWriteSkill skill = guardedFileSkill(dir);
 
-        ONode result = ONode.ofJson(skill.write("runtime/scripts/loop-probe.py", "print('ok')\n"));
+        ONode result = ONode.ofJson(skill.write("workspace/scripts/loop-probe.py", "print('ok')\n"));
         Path expected = dir.resolve("scripts/loop-probe.py");
 
         assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(result.get("resolved_path").getString())
                 .isEqualTo(expected.toRealPath().toString());
         assertThat(expected).exists();
-        assertThat(dir.resolve("runtime/scripts/loop-probe.py")).doesNotExist();
+        assertThat(dir.resolve("workspace/scripts/loop-probe.py")).doesNotExist();
     }
 
     /** 验证 read_file 当前入口只使用 path 参数读取文件。 */

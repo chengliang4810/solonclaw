@@ -1,6 +1,6 @@
 # Agent 请注意：这是只读参考模板，请不要修改本文件；需要变更运行配置时请修改同目录的 config.yml。
-# SolonClaw 运行配置示例。
-# 使用方式：复制为 runtime/config.yml，再按部署环境修改。
+# solonclaw 运行配置示例。
+# 使用方式：复制为 workspace/config.yml，再按部署环境修改。
 
 # HTTP 服务配置。
 server:
@@ -62,7 +62,7 @@ security:
     enabled: false
     # 阻断域名列表，支持 example.com 和 *.example.com。
     domains: []
-    # 共享阻断列表文件；相对路径按 runtime 目录解析。每行一个域名规则，支持注释和空行。
+    # 共享阻断列表文件；相对路径按 workspace 目录解析。每行一个域名规则，支持注释和空行。
     sharedFiles: []
   # 是否启用 Tirith 命令内容安全扫描；对齐对标行为 security.tirith_enabled。
   tirithEnabled: true
@@ -110,11 +110,7 @@ approvals:
   # 设为 false 后，/reload-mcp 将直接执行。
   mcpReloadConfirm: true
 
-# SolonClaw 运行时配置。
 solonclaw:
-  # Agent 工作区目录；相对路径按运行 Jar 所在目录解析。
-  workspace: ./workspace
-
   # Dashboard 与 API 访问配置。
   dashboard:
     # Dashboard 页面和 /api/* 请求共用的 Bearer Token；留空时非公开 API 拒绝鉴权。
@@ -226,7 +222,7 @@ solonclaw:
 
   # 技能后台维护配置。
   skills:
-    # 额外只读技能目录；可使用绝对路径或相对 runtime 的路径。
+    # 额外只读技能目录；可使用绝对路径或相对 workspace 的路径。
     externalDirs: []
     # 是否启用 SKILL.md 模板变量替换。
     templateVars: true
@@ -283,9 +279,9 @@ solonclaw:
     toolPreviewLength: 80
     # 中间态消息节流间隔，单位毫秒。
     progressThrottleMs: 1500
-    # 最终 agent 回复 runtime metadata footer；默认关闭，避免污染普通聊天。
-    runtimeFooter:
-      # 是否追加 runtime footer。
+    # 最终 agent 回复 metadata footer；默认关闭，避免污染普通聊天。
+    metadataFooter:
+      # 是否追加 metadata footer。
       enabled: false
       # footer 字段，可选 model、provider、context_pct、cwd、tokens。
       fields:
@@ -295,22 +291,22 @@ solonclaw:
     # 渠道级 footer 覆盖；未配置时继承全局开关。
     platforms:
       feishu:
-        runtimeFooter:
+        metadataFooter:
           enabled: false
       dingtalk:
-        runtimeFooter:
+        metadataFooter:
           enabled: false
       wecom:
-        runtimeFooter:
+        metadataFooter:
           enabled: false
       weixin:
-        runtimeFooter:
+        metadataFooter:
           enabled: false
       qqbot:
-        runtimeFooter:
+        metadataFooter:
           enabled: false
       yuanbao:
-        runtimeFooter:
+        metadataFooter:
           enabled: false
 
   # 运行轨迹配置。
@@ -371,7 +367,7 @@ solonclaw:
     subagentMaxConcurrency: 3
     # 子 Agent 最大 spawn 深度。
     subagentMaxDepth: 1
-    # 单个工具输出超过该字节数时写入 runtime/cache/tool-results，只把预览和 result_ref 放回上下文。
+    # 单个工具输出超过该字节数时写入 workspace/cache/tool-results，只把预览和 result_ref 放回上下文。
     toolOutputInlineLimit: 50000
     # 同一轮工具输出累计超过该字节数时，后续工具输出也会落盘，避免上下文被工具结果挤满。
     toolOutputTurnBudget: 200000
@@ -384,7 +380,7 @@ solonclaw:
 
   # 终端/沙箱执行配置。
   terminal:
-    # 这里的文件路径必须相对 runtime 目录，禁止绝对路径和 .. 穿越。
+    # 这里的文件路径必须相对 workspace 目录，禁止绝对路径和 .. 穿越。
     # 用于后续远程终端/沙箱执行时把本机凭据只读挂载到隔离环境内。
     credentialFiles: []
     # 默认本地子进程不会继承 API key/token/secret。
@@ -523,7 +519,7 @@ solonclaw:
       comment:
         enabled: false
         # 可选配对文件，JSON 形如 {"docx:file_token":["open_id"], "*":["open_id"]}。
-        pairingFile: runtime/feishu_comment_pairing.json
+        pairingFile: workspace/feishu_comment_pairing.json
 
     # 钉钉渠道配置。
     dingtalk:

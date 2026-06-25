@@ -33,7 +33,7 @@ public class ApprovalAuditObserverTest {
                 "execute_shell",
                 "recursive_delete",
                 "Security scan saw token=ghp_auditsecret123 and password=audit-password",
-                "rm -rf runtime/cache --token ghp_commandsecret123");
+                "rm -rf workspace/cache --token ghp_commandsecret123");
 
         assertThat(repository.events).hasSize(1);
         ApprovalAuditEvent event = repository.events.get(0);
@@ -95,7 +95,7 @@ public class ApprovalAuditObserverTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         service.approve(
                 session,
                 DangerousCommandApprovalService.ApprovalScope.ONCE,
@@ -129,7 +129,7 @@ public class ApprovalAuditObserverTest {
                 "execute_shell\u202E",
                 "tirith:token_ghp_patternsecret123\u202E",
                 "Security scan\u202E saw token=ghp_auditsecret123",
-                "rm -rf runtime/cache\u202E --token ghp_commandsecret123");
+                "rm -rf workspace/cache\u202E --token ghp_commandsecret123");
 
         assertThat(repository.events).hasSize(1);
         ApprovalAuditEvent event = repository.events.get(0);
@@ -148,7 +148,7 @@ public class ApprovalAuditObserverTest {
                 .doesNotContain("\u202E")
                 .doesNotContain("ghp_auditsecret123");
         assertThat(event.getCommandPreview())
-                .contains("rm -rf runtime/cache --token ***")
+                .contains("rm -rf workspace/cache --token ***")
                 .doesNotContain("\u202E")
                 .doesNotContain("ghp_commandsecret123");
     }
@@ -163,7 +163,7 @@ public class ApprovalAuditObserverTest {
         pending.setToolName("execute_shell");
         pending.setPatternKey("recursive_delete");
         pending.setDescription("recursive delete");
-        pending.setCommand("rm -rf runtime/cache");
+        pending.setCommand("rm -rf workspace/cache");
 
         Constructor<DangerousCommandApprovalService.ApprovalRequestEvent> constructor =
                 DangerousCommandApprovalService.ApprovalRequestEvent.class.getDeclaredConstructor(
@@ -189,7 +189,7 @@ public class ApprovalAuditObserverTest {
         pending.setToolName("execute_shell");
         pending.setPatternKey("recursive_delete");
         pending.setDescription("recursive delete");
-        pending.setCommand("rm -rf runtime/cache");
+        pending.setCommand("rm -rf workspace/cache");
         pending.setCommandHash("hash-ghp_audithash12345");
 
         Constructor<DangerousCommandApprovalService.ApprovalRequestEvent> constructor =
@@ -220,7 +220,7 @@ public class ApprovalAuditObserverTest {
         pending.setToolName("execute_shell");
         pending.setPatternKey("recursive_delete");
         pending.setDescription("recursive delete");
-        pending.setCommand("rm -rf runtime/cache");
+        pending.setCommand("rm -rf workspace/cache");
 
         Constructor<DangerousCommandApprovalService.ApprovalRequestEvent> constructor =
                 DangerousCommandApprovalService.ApprovalRequestEvent.class.getDeclaredConstructor(
@@ -248,7 +248,7 @@ public class ApprovalAuditObserverTest {
         pending.setToolName("execute_shell");
         pending.setPatternKey("recursive_delete");
         pending.setDescription("recursive delete");
-        pending.setCommand("rm -rf runtime/cache");
+        pending.setCommand("rm -rf workspace/cache");
 
         Constructor<DangerousCommandApprovalService.ApprovalResponseEvent> constructor =
                 DangerousCommandApprovalService.ApprovalResponseEvent.class.getDeclaredConstructor(
@@ -276,7 +276,7 @@ public class ApprovalAuditObserverTest {
         pending.setToolName("execute_shell");
         pending.setPatternKey("recursive_delete");
         pending.setDescription("recursive delete");
-        pending.setCommand("rm -rf runtime/cache");
+        pending.setCommand("rm -rf workspace/cache");
 
         Constructor<DangerousCommandApprovalService.ApprovalResponseEvent> constructor =
                 DangerousCommandApprovalService.ApprovalResponseEvent.class.getDeclaredConstructor(

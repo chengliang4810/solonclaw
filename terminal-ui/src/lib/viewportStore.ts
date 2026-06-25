@@ -1,4 +1,4 @@
-import type { ScrollBoxHandle } from '@solon-claw/ink'
+import type { ScrollBoxHandle } from '@solonclaw/ink'
 import type { RefObject } from 'react'
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 

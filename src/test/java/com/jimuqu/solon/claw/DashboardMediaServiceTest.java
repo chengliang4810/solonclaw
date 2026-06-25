@@ -19,14 +19,14 @@ import org.junit.jupiter.api.Test;
 public class DashboardMediaServiceTest {
     @Test
     void shouldRedactMediaReferenceFallbackPaths() throws Exception {
-        File runtimeHome = java.nio.file.Files.createTempDirectory("jimuqu-media-runtime").toFile();
+        File workspaceHome = java.nio.file.Files.createTempDirectory("jimuqu-media-runtime").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         SqliteDatabase database = new SqliteDatabase(config);
         DashboardMediaService service =
                 new DashboardMediaService(
@@ -59,17 +59,17 @@ public class DashboardMediaServiceTest {
 
         assertThat(detail)
                 .contains("media://unavailable/token=***")
-                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain(workspaceHome.getAbsolutePath())
                 .doesNotContain(cached.getAbsolutePath())
                 .doesNotContain("ghp_mediafallbacksecret");
         assertThat(download)
                 .contains("media://unavailable/token=***")
-                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain(workspaceHome.getAbsolutePath())
                 .doesNotContain(cached.getAbsolutePath())
                 .doesNotContain("ghp_mediafallbacksecret");
         assertThat(reference)
                 .contains("media://unavailable/token=***")
-                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain(workspaceHome.getAbsolutePath())
                 .doesNotContain(cached.getAbsolutePath())
                 .doesNotContain("ghp_mediafallbacksecret");
         assertThat(readStoredMediaMetadata(database, "media-fallback"))
@@ -79,14 +79,14 @@ public class DashboardMediaServiceTest {
 
     @Test
     void shouldRedactMediaIndexMetadataBeforeStorage() throws Exception {
-        File runtimeHome = java.nio.file.Files.createTempDirectory("jimuqu-media-storage").toFile();
+        File workspaceHome = java.nio.file.Files.createTempDirectory("jimuqu-media-storage").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         SqliteDatabase database = new SqliteDatabase(config);
         DashboardMediaService service =
                 new DashboardMediaService(

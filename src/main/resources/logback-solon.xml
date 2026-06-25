@@ -5,12 +5,12 @@
     <!-- Solon 日志桥接规则，用于把框架侧标签写入统一日志格式。 -->
     <conversionRule conversionWord="tags" converterClass="ch.qos.logback.solon.SolonTagsConverter" />
 
-    <!-- 应用名与运行目录来自 Solon 配置；日志文件统一落在 runtime/logs。 -->
-    <solonProperty name="APP_NAME" source="solon.app.name" defaultValue="solon-claw" />
-    <solonProperty name="RUNTIME_HOME" source="solonclaw.runtime.home" defaultValue="runtime" />
-    <property name="LOG_DIR" value="${RUNTIME_HOME}/logs" />
+    <!-- 应用名与工作区来自 Solon 配置；日志文件统一落在 workspace/logs。 -->
+    <solonProperty name="APP_NAME" source="solon.app.name" defaultValue="solonclaw" />
+    <solonProperty name="WORKSPACE_HOME" source="solonclaw.workspace" defaultValue="./workspace" />
+    <property name="LOG_DIR" value="${WORKSPACE_HOME}/logs" />
 
-    <!-- 控制台与文件日志格式分别可通过 app.yml 或 runtime/config.yml 覆盖。 -->
+    <!-- 控制台与文件日志格式分别可通过 app.yml 或 workspace/config.yml 覆盖。 -->
     <solonProperty name="CONSOLE_LOG_PATTERN" source="solon.logging.appender.console.pattern"
                    defaultValue="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{48} - %msg%n%ex" />
     <solonProperty name="CONSOLE_LOG_LEVEL" source="solon.logging.appender.console.level"

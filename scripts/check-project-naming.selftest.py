@@ -504,22 +504,22 @@ def main() -> int:
             raise AssertionError("Release notes generation did not classify scoped feat commits as features.")
         if not re.search(r"### 缺陷修复 / Fixes[\s\S]*- 共 2 项 / 2 item\(s\)[\s\S]*fix\(api\): scoped fix release note / Scoped fix release note", clean_release_text):
             raise AssertionError("Release notes generation did not classify scoped fix commits as fixes.")
-        if "`solon-claw.jar`" not in clean_release_text:
+        if "`solonclaw.jar`" not in clean_release_text:
             raise AssertionError("Release notes generation should document the fixed release jar asset name.")
-        if "`solon-claw-source.zip`" not in clean_release_text or "`solon-claw-source.tar.gz`" not in clean_release_text:
+        if "`solonclaw-source.zip`" not in clean_release_text or "`solonclaw-source.tar.gz`" not in clean_release_text:
             raise AssertionError("Release notes generation should document source archive assets.")
-        if "java -jar solon-claw.jar" not in clean_release_text:
+        if "java -jar solonclaw.jar" not in clean_release_text:
             raise AssertionError("Release notes generation should use the fixed release jar asset in quick start.")
         if "legacy-agent-0.0.0-test.jar" in clean_release_text:
             raise AssertionError("Release notes generation should not document the versioned repository jar asset name.")
 
         package_name_check = invoke_github_package_check(sandbox)
-        require_success(package_name_check, "GitHub package name check should pass for the configured solon-claw package image")
+        require_success(package_name_check, "GitHub package name check should pass for the configured solonclaw package image")
         unexpected_package_name_check = invoke_github_package_check(
             sandbox,
-            "images: ghcr.io/chengliang4810/not-solon-claw\n",
+            "images: ghcr.io/chengliang4810/not-solonclaw\n",
         )
-        require_failure(unexpected_package_name_check, "GitHub package name check should reject non solon-claw package images")
+        require_failure(unexpected_package_name_check, "GitHub package name check should reject non solonclaw package images")
 
         reset_sandbox(sandbox)
         release_dir = sandbox / "dist"
@@ -556,10 +556,10 @@ def main() -> int:
 
         reset_sandbox(sandbox)
         published_release_fixture = {
-            "name": "solon-claw v2099.01.04-def0123",
+            "name": "solonclaw v2099.01.04-def0123",
             "tag_name": "v2099.01.04-def0123",
             "body": "Published release body mentions " + BLOCKED_DEFAULT_ENV_FIXTURE,
-            "assets": [{"name": "solon-claw.jar", "label": "", "content_type": "application/java-archive"}],
+            "assets": [{"name": "solonclaw.jar", "label": "", "content_type": "application/java-archive"}],
         }
         published_release_path = sandbox / "published-release.json"
         published_release_path.write_text(json.dumps(published_release_fixture), encoding="utf-8")
@@ -568,10 +568,10 @@ def main() -> int:
         assert_no_raw_blocked_output(published_release.stdout + published_release.stderr, [BLOCKED_DEFAULT_ENV_FIXTURE], "published release metadata scan")
 
         clean_published_release_fixture = {
-            "name": "solon-claw v2099.01.05-ef01234",
+            "name": "solonclaw v2099.01.05-ef01234",
             "tag_name": "v2099.01.05-ef01234",
             "body": "Clean published release body",
-            "assets": [{"name": "solon-claw.jar", "label": "", "content_type": "application/java-archive"}],
+            "assets": [{"name": "solonclaw.jar", "label": "", "content_type": "application/java-archive"}],
         }
         clean_published_release_path = sandbox / "published-release-clean.json"
         clean_published_release_path.write_text(json.dumps(clean_published_release_fixture), encoding="utf-8")
@@ -604,7 +604,7 @@ def main() -> int:
         reset_sandbox(sandbox)
         clean_archive_root = sandbox / "clean-archive-root"
         clean_archive_path = sandbox / "clean-fixture.jar"
-        write_text(clean_archive_root / "app.properties", "app.name=solon-claw")
+        write_text(clean_archive_root / "app.properties", "app.name=solonclaw")
         create_zip(clean_archive_root, clean_archive_path)
         clean_archive_output = run(["python3", str(ARCHIVE_NAMING_SCRIPT), "--archive-path", str(clean_archive_path)])
         require_success(clean_archive_output, "Archive naming check should pass for clean packaged content")

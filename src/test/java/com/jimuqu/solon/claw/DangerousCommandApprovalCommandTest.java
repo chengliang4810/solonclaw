@@ -37,7 +37,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
 
         GatewayReply reply = env.send("room-1", "user-1", "/approve session");
         SessionRecord updated = env.sessionRepository.getBoundSession("MEMORY:room-1:user-1");
@@ -56,14 +56,14 @@ public class DangerousCommandApprovalCommandTest {
                                 updatedAgentSession,
                                 "execute_shell",
                                 "recursive_delete",
-                                "rm -rf runtime/cache"))
+                                "rm -rf workspace/cache"))
                 .isTrue();
         assertThat(
                         env.dangerousCommandApprovalService.isSessionApproved(
                                 updatedAgentSession,
                                 "execute_shell",
                                 "recursive_delete",
-                                "rm -rf runtime/logs"))
+                                "rm -rf workspace/logs"))
                 .isTrue();
     }
 
@@ -81,7 +81,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
 
         GatewayReply reply = env.send("room-2", "user-2", "/approve always");
 
@@ -90,11 +90,11 @@ public class DangerousCommandApprovalCommandTest {
                 .isTrue();
         assertThat(
                         env.dangerousCommandApprovalService.isAlwaysApproved(
-                                "execute_shell", "recursive_delete", "rm -rf runtime/cache"))
+                                "execute_shell", "recursive_delete", "rm -rf workspace/cache"))
                 .isTrue();
         assertThat(
                         env.dangerousCommandApprovalService.isAlwaysApproved(
-                                "execute_shell", "recursive_delete", "rm -rf runtime/logs"))
+                                "execute_shell", "recursive_delete", "rm -rf workspace/logs"))
                 .isTrue();
     }
 
@@ -125,7 +125,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSession,
                 "execute_shell",
@@ -144,7 +144,7 @@ public class DangerousCommandApprovalCommandTest {
                 .contains("#2")
                 .contains("#2 " + secondSelector)
                 .contains("pattern=recursive_delete")
-                .contains("command_preview=rm -rf runtime/cache")
+                .contains("command_preview=rm -rf workspace/cache")
                 .contains("scopes=once,session,always")
                 .contains("expires_in=")
                 .contains("expired=false")
@@ -212,7 +212,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSession,
                 "execute_shell",
@@ -249,13 +249,13 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "Security scan token=ghp_reasonsecret123",
-                "rm -rf runtime/cache --token ghp_commandsecret123");
+                "rm -rf workspace/cache --token ghp_commandsecret123");
 
         GatewayReply list = env.send("room-redact-list", "user-redact-list", "/approve list");
 
         assertThat(list.getContent())
                 .contains("token=***")
-                .contains("command_preview=rm -rf runtime/cache --token ***")
+                .contains("command_preview=rm -rf workspace/cache --token ***")
                 .doesNotContain("ghp_reasonsecret123")
                 .doesNotContain("ghp_commandsecret123");
     }
@@ -307,7 +307,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell\u202E",
                 "recursive_delete",
                 "Security scan\u202E reason",
-                "rm -rf runtime/cache\u202E --token ghp_commandsecret123");
+                "rm -rf workspace/cache\u202E --token ghp_commandsecret123");
 
         GatewayReply list = env.send("room-control-list", "user-control-list", "/approve list");
         String approvalId =
@@ -325,7 +325,7 @@ public class DangerousCommandApprovalCommandTest {
         assertThat(list.getContent())
                 .contains("tool=execute_shell")
                 .contains("reason=Security scan reason")
-                .contains("command_preview=rm -rf runtime/cache --token ***")
+                .contains("command_preview=rm -rf workspace/cache --token ***")
                 .doesNotContain("\u202E")
                 .doesNotContain("ghp_commandsecret123");
         assertThat(approved.getContent()).isEqualTo("echo:resume");
@@ -348,7 +348,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         List<Map<String, Object>> queue =
                 (List<Map<String, Object>>)
                         agentSession.getContext().get("_dangerous_command_pending_queue_");
@@ -387,7 +387,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         List<Map<String, Object>> queue =
                 (List<Map<String, Object>>)
                         agentSession.getContext().get("_dangerous_command_pending_queue_");
@@ -443,7 +443,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         List<Map<String, Object>> queue =
                 (List<Map<String, Object>>)
                         agentSession.getContext().get("_dangerous_command_pending_queue_");
@@ -513,7 +513,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         List<Map<String, Object>> queue =
                 (List<Map<String, Object>>)
                         agentSession.getContext().get("_dangerous_command_pending_queue_");
@@ -589,7 +589,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSession,
                 "execute_shell",
@@ -630,7 +630,7 @@ public class DangerousCommandApprovalCommandTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         env.dangerousCommandApprovalService.storePendingApproval(
                 agentSession,
                 "execute_shell",

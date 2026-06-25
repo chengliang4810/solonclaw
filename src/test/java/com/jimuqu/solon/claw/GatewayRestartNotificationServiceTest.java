@@ -53,7 +53,7 @@ public class GatewayRestartNotificationServiceTest {
         assertThat(request.getUserId()).isEqualTo("admin-user");
         assertThat(request.getChatType()).isEqualTo("group");
         assertThat(request.getThreadId()).isEqualTo("topic-7");
-        assertThat(request.getText()).contains("网关已恢复").contains("solon-claw");
+        assertThat(request.getText()).contains("网关已恢复").contains("solonclaw");
     }
 
     private static class CapturingDeliveryService implements DeliveryService {

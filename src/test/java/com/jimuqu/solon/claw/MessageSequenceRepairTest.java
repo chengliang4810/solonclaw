@@ -365,7 +365,7 @@ public class MessageSequenceRepairTest {
                 "<think>\n\n"
                         + "\u8bfb\u53d6\u5305\u542b\u4e2d\u6587\u8def\u5f84\u4e0e\u8f6c\u4e49 JSON \u7684\u5de5\u5177\u53c2\u6570\u3002"
                         + "</think>\n\n"
-                        + "\u53c2\u6570={\"path\":\"runtime/logs/\u4e01\\\"loop.json\"}";
+                        + "\u53c2\u6570={\"path\":\"workspace/logs/\u4e01\\\"loop.json\"}";
         AssistantMessage assistant =
                 new AssistantMessage(
                         content,

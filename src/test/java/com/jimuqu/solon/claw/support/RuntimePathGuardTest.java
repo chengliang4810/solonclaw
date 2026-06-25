@@ -11,9 +11,9 @@ import org.noear.solon.core.Props;
 public class RuntimePathGuardTest {
     @Test
     void shouldRedactRejectedMediaPathAndAllowedRoot() throws Exception {
-        File runtimeHome = Files.createTempDirectory("runtime-path-guard-home").toFile();
+        File workspaceHome = Files.createTempDirectory("runtime-path-guard-home").toFile();
         File outside = Files.createTempDirectory("runtime-path-token=ghp_pathguard12345").toFile();
-        AppConfig config = loadConfig(runtimeHome);
+        AppConfig config = loadConfig(workspaceHome);
         RuntimePathGuard guard = new RuntimePathGuard(config);
         File candidate = new File(outside, "credentials.json");
 
@@ -21,7 +21,7 @@ public class RuntimePathGuardTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Path is outside allowed root")
                 .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining(runtimeHome.getAbsolutePath())
+                .hasMessageNotContaining(workspaceHome.getAbsolutePath())
                 .hasMessageNotContaining(outside.getAbsolutePath())
                 .hasMessageNotContaining("ghp_pathguard12345")
                 .hasMessageNotContaining("credentials.json");
@@ -29,10 +29,10 @@ public class RuntimePathGuardTest {
 
     @Test
     void shouldRedactRejectedToolPathAndAllowedRoots() throws Exception {
-        File runtimeHome = Files.createTempDirectory("runtime-path-guard-tool-home").toFile();
+        File workspaceHome = Files.createTempDirectory("runtime-path-guard-tool-home").toFile();
         File outside =
                 Files.createTempDirectory("runtime-path-tool-token=ghp_toolpath12345").toFile();
-        AppConfig config = loadConfig(runtimeHome);
+        AppConfig config = loadConfig(workspaceHome);
         RuntimePathGuard guard = new RuntimePathGuard(config);
         File candidate = new File(outside, "private_key.pem");
 
@@ -40,29 +40,29 @@ public class RuntimePathGuardTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Path is outside allowed roots")
                 .hasMessageContaining("private_key.pem")
-                .hasMessageNotContaining(runtimeHome.getAbsolutePath())
+                .hasMessageNotContaining(workspaceHome.getAbsolutePath())
                 .hasMessageNotContaining(outside.getAbsolutePath())
                 .hasMessageNotContaining("ghp_toolpath12345");
     }
 
     @Test
     void shouldRedactInvalidCanonicalPathMessage() throws Exception {
-        File runtimeHome = Files.createTempDirectory("runtime-path-guard-invalid-home").toFile();
-        RuntimePathGuard guard = new RuntimePathGuard(loadConfig(runtimeHome));
+        File workspaceHome = Files.createTempDirectory("runtime-path-guard-invalid-home").toFile();
+        RuntimePathGuard guard = new RuntimePathGuard(loadConfig(workspaceHome));
         File invalid =
-                new File(runtimeHome, "media/token=ghp_pathguardinvalid12345/\u0000/secret.txt");
+                new File(workspaceHome, "media/token=ghp_pathguardinvalid12345/\u0000/secret.txt");
 
         assertThatThrownBy(() -> guard.requireUnderMedia(invalid))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Invalid path")
                 .hasMessageContaining("secret.txt")
-                .hasMessageNotContaining(runtimeHome.getAbsolutePath())
+                .hasMessageNotContaining(workspaceHome.getAbsolutePath())
                 .hasMessageNotContaining("ghp_pathguardinvalid12345");
     }
 
-    private static AppConfig loadConfig(File runtimeHome) {
+    private static AppConfig loadConfig(File workspaceHome) {
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         return AppConfig.load(props);
     }
 }

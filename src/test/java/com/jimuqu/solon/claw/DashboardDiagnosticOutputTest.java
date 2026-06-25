@@ -60,12 +60,12 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldExposeManagedProcessRuntimeDiagnosticsWithoutDrainingEvents() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/diagnostic-process-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
-        FileUtil.mkdir(runtimeHome);
+        File workspaceHome = new File("target/diagnostic-process-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
+        FileUtil.mkdir(workspaceHome);
 
         ProcessRegistry processRegistry = new ProcessRegistry(config);
         List<ProcessRegistry.ManagedProcess> managedProcesses =
@@ -78,12 +78,12 @@ public class DashboardDiagnosticOutputTest {
                             + "printf 'tail-preview token=ghp_diagnosticlongsecret12345\\n'";
             ProcessRegistry.ManagedProcess completed =
                     processRegistry.start(
-                            longOutputCommand, runtimeHome, true, Collections.<String>emptyList());
+                            longOutputCommand, workspaceHome, true, Collections.<String>emptyList());
             processRegistry.waitFor(completed.getId(), 5000L);
             for (int i = 0; i < 7; i++) {
                 managedProcesses.add(
                         processRegistry.start(
-                                "sleep 30 # token=ghp_diagnosticprocess" + i, runtimeHome));
+                                "sleep 30 # token=ghp_diagnosticprocess" + i, workspaceHome));
             }
 
             DashboardDiagnosticsService diagnosticsService =
@@ -148,19 +148,19 @@ public class DashboardDiagnosticOutputTest {
     @Test
     void shouldRedactGatewayDoctorAndDiagnosticsOutput() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/diagnostic-secret-runtime").getAbsoluteFile();
+        File workspaceHome = new File("target/diagnostic-secret-runtime").getAbsoluteFile();
         File externalState =
                 new File("target/diagnostic-external-token=ghp_diagnosticexternal123/state.db")
                         .getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getRuntime().setStateDb(externalState.getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         config.getLlm().setStream(true);
-        FileUtil.mkdir(runtimeHome);
+        FileUtil.mkdir(workspaceHome);
         String refreshSecretPath =
-                new File(runtimeHome, "secrets/refresh-token.txt").getAbsolutePath();
+                new File(workspaceHome, "secrets/refresh-token.txt").getAbsolutePath();
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  default:\n"
@@ -192,7 +192,7 @@ public class DashboardDiagnosticOutputTest {
                         true,
                         false,
                         "failed at "
-                                + new File(runtimeHome, "secrets/token.txt").getAbsolutePath()
+                                + new File(workspaceHome, "secrets/token.txt").getAbsolutePath()
                                 + " token=ghp_doctordetail123");
         channelStatus.setSetupState("error");
         channelStatus.setConnectionMode("websocket");
@@ -217,8 +217,8 @@ public class DashboardDiagnosticOutputTest {
                 new DashboardGatewayDoctorService(
                         config, deliveryService, new LlmProviderService(config), refreshService);
         String doctorJson = ONode.serialize(doctorService.doctor());
-        assertThat(doctorJson).contains("runtime://");
-        assertThat(doctorJson).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(doctorJson).contains("workspace://");
+        assertThat(doctorJson).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(doctorJson).doesNotContain("ghp_doctordetail123");
         assertThat(doctorJson).doesNotContain("ghp_doctorerror123");
         assertThat(doctorJson).doesNotContain("ghp_doctorretry123");
@@ -228,7 +228,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(doctorJson).doesNotContain("retry-password");
         assertThat(doctorJson)
                 .contains("last_refresh_failure")
-                .contains("runtime/config.yml 格式错误")
+                .contains("workspace/config.yml 格式错误")
                 .contains("[REDACTED_PATH]");
         assertThat(doctorJson)
                 .contains("\"reconnecting\":true")
@@ -270,7 +270,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).contains("path://state.db");
         assertThat(diagnosticsJson).contains("config_refresh");
         assertThat(diagnosticsJson).contains("last_failure");
-        assertThat(diagnosticsJson).contains("runtime/config.yml 格式错误");
+        assertThat(diagnosticsJson).contains("workspace/config.yml 格式错误");
         assertThat(diagnosticsJson).contains("[REDACTED_PATH]");
         assertThat(diagnosticsJson).contains("stream_health");
         assertThat(diagnosticsJson).contains("audit_policy");
@@ -295,7 +295,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticsJson).contains("\"sensitive_query\"");
         assertThat(diagnosticsJson).contains("\"tool_args_url\"");
         assertThat(diagnosticsJson).contains("\"passed\":true");
-        assertThat(diagnosticsJson).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(diagnosticsJson).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(diagnosticsJson).doesNotContain(refreshSecretPath);
         assertThat(diagnosticsJson).doesNotContain("ghp_doctorrefresh12345");
         assertThat(diagnosticsJson).doesNotContain(externalState.getParentFile().getAbsolutePath());
@@ -321,9 +321,9 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldExposeStaticModelDoctorWithoutLeakingSecrets() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/diagnostic-model-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = new File("target/diagnostic-model-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("");
 
@@ -401,16 +401,16 @@ public class DashboardDiagnosticOutputTest {
         assertThat(doctorJson)
                 .doesNotContain("provider-pass")
                 .doesNotContain("provider-token")
-                .doesNotContain(runtimeHome.getAbsolutePath());
+                .doesNotContain(workspaceHome.getAbsolutePath());
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeDedicatedProviderHealthCheckSkipLogic() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome =
+        File workspaceHome =
                 new File("target/diagnostic-dedicated-provider-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getModel().setProviderKey("anthropic-main");
         config.getModel().setDefault("claude-sonnet-4.6");
 
@@ -432,7 +432,7 @@ public class DashboardDiagnosticOutputTest {
 
         Map<String, Object> doctor = doctorService.doctor();
 
-        assertThat(doctor.get("runtime_home")).isEqualTo("runtime://");
+        assertThat(doctor.get("workspace_home")).isEqualTo("workspace://");
         assertThat(doctor).containsKeys("generated_at", "model", "last_shutdown", "platforms");
         Map<String, Object> shutdown = (Map<String, Object>) doctor.get("last_shutdown");
         assertThat(shutdown).isNotNull();
@@ -466,15 +466,15 @@ public class DashboardDiagnosticOutputTest {
 
         String doctorJson = ONode.serialize(doctor);
         assertThat(doctorJson).doesNotContain("sk-ant-test-providersecret");
-        assertThat(doctorJson).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(doctorJson).doesNotContain(workspaceHome.getAbsolutePath());
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void shouldServeDoctorPayloadThroughDiagnosticsController() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/diagnostic-controller-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        File workspaceHome = new File("target/diagnostic-controller-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getModel().setProviderKey("anthropic-main");
         config.getModel().setDefault("claude-sonnet-4.6");
 
@@ -515,7 +515,7 @@ public class DashboardDiagnosticOutputTest {
 
         Map<String, Object> data = (Map<String, Object>) response.get("data");
         assertThat(data).isNotNull();
-        assertThat(data.get("runtime_home")).isEqualTo("runtime://");
+        assertThat(data.get("workspace_home")).isEqualTo("workspace://");
         assertThat(data).containsKeys("generated_at", "model", "last_shutdown", "platforms");
         Map<String, Object> model = (Map<String, Object>) data.get("model");
         assertThat(model).isNotNull();
@@ -525,15 +525,15 @@ public class DashboardDiagnosticOutputTest {
 
         String json = ONode.serialize(response);
         assertThat(json).doesNotContain("sk-ant-test-controllersecret");
-        assertThat(json).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(json).doesNotContain(workspaceHome.getAbsolutePath());
     }
 
     @Test
     @SuppressWarnings("unchecked")
     void shouldIncludeQqbotAndYuanbaoInDoctorPlatforms() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/diagnostic-domestic-platforms-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        File workspaceHome = new File("target/diagnostic-domestic-platforms-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("gpt-test");
 
@@ -569,14 +569,14 @@ public class DashboardDiagnosticOutputTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeRedactedShutdownForensicsSummary() throws Exception {
-        Path parent = Files.createTempDirectory("solon-claw-dashboard-forensics");
-        Path runtimeHome =
+        Path parent = Files.createTempDirectory("solonclaw-dashboard-forensics");
+        Path workspaceHome =
                 Files.createDirectory(parent.resolve("runtime-token=ghp_forensicshome123"));
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
-        config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
-        config.getRuntime().setCacheDir(runtimeHome.resolve("cache").toString());
-        config.getRuntime().setLogsDir(runtimeHome.resolve("logs").toString());
+        config.getRuntime().setHome(workspaceHome.toString());
+        config.getRuntime().setStateDb(workspaceHome.resolve("state.db").toString());
+        config.getRuntime().setCacheDir(workspaceHome.resolve("cache").toString());
+        config.getRuntime().setLogsDir(workspaceHome.resolve("logs").toString());
 
         ShutdownForensicsService forensicsService = new ShutdownForensicsService(config);
         forensicsService.persistShutdownRecord("SIGTERM token=ghp_shutdownsecret123");
@@ -614,7 +614,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(shutdown).isNotNull();
         assertThat(shutdown.get("available")).isEqualTo(Boolean.TRUE);
         assertThat(shutdown.get("record"))
-                .isEqualTo("runtime://forensics/" + latestShutdownFile(runtimeHome));
+                .isEqualTo("workspace://forensics/" + latestShutdownFile(workspaceHome));
         assertThat(shutdown.get("reason")).isEqualTo("SIGTERM token=***");
         assertThat(shutdown)
                 .containsKeys(
@@ -628,8 +628,8 @@ public class DashboardDiagnosticOutputTest {
         assertThat(diagnosticShutdown.get("record")).isEqualTo(shutdown.get("record"));
 
         String json = ONode.serialize(diagnostics);
-        assertThat(json).contains("runtime://forensics/shutdown-");
-        assertThat(json).doesNotContain(runtimeHome.toString());
+        assertThat(json).contains("workspace://forensics/shutdown-");
+        assertThat(json).doesNotContain(workspaceHome.toString());
         assertThat(json).doesNotContain("ghp_forensicshome123");
         assertThat(json).doesNotContain("ghp_shutdownsecret123");
     }
@@ -637,14 +637,14 @@ public class DashboardDiagnosticOutputTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldSummarizeDoctorIssuesAndNextActionsInStableOrder() throws Exception {
-        Path parent = Files.createTempDirectory("solon-claw-dashboard-doctor-summary");
-        Path runtimeHome =
+        Path parent = Files.createTempDirectory("solonclaw-dashboard-doctor-summary");
+        Path workspaceHome =
                 Files.createDirectory(parent.resolve("runtime-token=ghp_summaryhome123"));
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
-        config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
-        config.getRuntime().setCacheDir(runtimeHome.resolve("cache").toString());
-        config.getRuntime().setLogsDir(runtimeHome.resolve("logs").toString());
+        config.getRuntime().setHome(workspaceHome.toString());
+        config.getRuntime().setStateDb(workspaceHome.resolve("state.db").toString());
+        config.getRuntime().setCacheDir(workspaceHome.resolve("cache").toString());
+        config.getRuntime().setLogsDir(workspaceHome.resolve("logs").toString());
         config.getModel().setProviderKey("default");
 
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
@@ -696,7 +696,7 @@ public class DashboardDiagnosticOutputTest {
 
         String json = ONode.serialize(doctor);
         assertThat(json)
-                .doesNotContain(runtimeHome.toString())
+                .doesNotContain(workspaceHome.toString())
                 .doesNotContain("ghp_summaryhome123")
                 .doesNotContain("ghp_summaryerror123")
                 .doesNotContain("summary-pass")
@@ -707,11 +707,11 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldReportDegradedStreamHealthForDisconnectedStreamGateway() {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/diagnostic-stream-health-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        File workspaceHome = new File("target/diagnostic-stream-health-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         config.getLlm().setStream(true);
         config.getModel().setProviderKey("default");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
@@ -765,14 +765,14 @@ public class DashboardDiagnosticOutputTest {
     @Test
     @SuppressWarnings("unchecked")
     void shouldExposeRuntimeMemoryMonitorSummaryWithoutLeakingPaths() {
-        Path runtimeHome =
+        Path workspaceHome =
                 Paths.get("target/dashboard-memory-monitor-token=ghp_memorysecret123")
                         .toAbsolutePath();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
-        config.getRuntime().setStateDb(runtimeHome.resolve("state.db").toString());
-        config.getRuntime().setCacheDir(runtimeHome.resolve("cache").toString());
-        config.getRuntime().setLogsDir(runtimeHome.resolve("logs").toString());
+        config.getRuntime().setHome(workspaceHome.toString());
+        config.getRuntime().setStateDb(workspaceHome.resolve("state.db").toString());
+        config.getRuntime().setCacheDir(workspaceHome.resolve("cache").toString());
+        config.getRuntime().setLogsDir(workspaceHome.resolve("logs").toString());
 
         RuntimeMemoryMonitorService monitorService = new RuntimeMemoryMonitorService();
         monitorService.start();
@@ -819,7 +819,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(latest.get("tag")).isEqualTo("periodic");
 
         String json = ONode.serialize(diagnostics);
-        assertThat(json).doesNotContain(runtimeHome.toString());
+        assertThat(json).doesNotContain(workspaceHome.toString());
         assertThat(json).doesNotContain("ghp_memorysecret123");
         assertThat(json).doesNotContain("javaVersion");
         assertThat(json).doesNotContain("osName");
@@ -831,11 +831,11 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldExposeRecoverableRunSummaryWithoutLeakingIdentifiersOrHints() {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/diagnostic-recoverable-runs").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        File workspaceHome = new File("target/diagnostic-recoverable-runs").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         FixedAgentRunRepository repository = new FixedAgentRunRepository();
         String runSecret = "ghp_dashboardrunsecret12345";
         String sessionSecret = "ghp_dashboardsessionsecret12345";
@@ -920,13 +920,13 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldExposeWebsiteSharedPolicyDiagnosticsWithoutLeakingPaths() throws Exception {
         Path parent = Files.createTempDirectory("jimuqu-dashboard-website-policy");
-        Path runtimeHome =
+        Path workspaceHome =
                 Files.createDirectory(parent.resolve("runtime-token=ghp_dashboardwebsecret123"));
-        File shared = runtimeHome.resolve("shared-token=sk-dashboard-secret.txt").toFile();
+        File shared = workspaceHome.resolve("shared-token=sk-dashboard-secret.txt").toFile();
         FileUtil.writeUtf8String(
                 "blocked.example\nshared-token-sk-dashboardsecret.example\n", shared);
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.toString());
+        config.getRuntime().setHome(workspaceHome.toString());
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
         config.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("inline.example"));
         config.getSecurity()
@@ -964,7 +964,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(security.get("websiteBlocklistSharedRuleCount")).isEqualTo(Integer.valueOf(2));
         String json = ONode.serialize(result);
         assertThat(json)
-                .doesNotContain(runtimeHome.toString())
+                .doesNotContain(workspaceHome.toString())
                 .doesNotContain(shared.getAbsolutePath())
                 .doesNotContain("ghp_dashboardwebsecret123")
                 .doesNotContain("sk-dashboard-secret");
@@ -1194,11 +1194,11 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldExposeApprovalSecurityProbesWhenApprovalServiceIsAvailable() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/dashboard-security-probes").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        File workspaceHome = new File("target/dashboard-security-probes").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         config.getSecurity().setAllowPrivateUrls(false);
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
         config.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("blocked.example"));
@@ -3521,7 +3521,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(findDelete.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(findDelete.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(findDelete.get("skipped")).isNull();
-        assertThat(String.valueOf(findDelete)).contains("find runtime/cache -delete");
+        assertThat(String.valueOf(findDelete)).contains("find workspace/cache -delete");
         assertThat(recursiveDelete.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(recursiveDelete.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(recursiveDelete.get("skipped")).isNull();
@@ -3597,7 +3597,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(copyIntoProjectSensitive.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(copyIntoProjectSensitive.get("skipped")).isNull();
-        assertThat(String.valueOf(copyIntoProjectSensitive)).contains("cp runtime/config.yml");
+        assertThat(String.valueOf(copyIntoProjectSensitive)).contains("cp workspace/config.yml");
         assertThat(chmodSetuidSetgid.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(chmodSetuidSetgid.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(chmodSetuidSetgid.get("skipped")).isNull();
@@ -4014,11 +4014,11 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldSkipWebsitePolicyProbeWhenWebsiteBlocklistHasNoRules() {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/dashboard-security-probes-skip").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        File workspaceHome = new File("target/dashboard-security-probes-skip").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
@@ -4052,11 +4052,11 @@ public class DashboardDiagnosticOutputTest {
     void shouldSkipPrivateUrlProbeWhenPrivateUrlsAreAllowed() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(true);
-        File runtimeHome = new File("target/dashboard-private-url-probes-skip").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        File workspaceHome = new File("target/dashboard-private-url-probes-skip").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
@@ -4107,11 +4107,11 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldRunCodeExecutionSandboxProbeWithDefaultPythonCommand() {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/dashboard-code-sandbox-default-python").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(runtimeHome, "state.db").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
+        File workspaceHome = new File("target/dashboard-code-sandbox-default-python").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setStateDb(new File(workspaceHome, "state.db").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
@@ -4215,7 +4215,7 @@ public class DashboardDiagnosticOutputTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
 
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
@@ -4404,7 +4404,8 @@ public class DashboardDiagnosticOutputTest {
                 .contains("execute_js");
         Map<String, Object> credentialMountPolicyDetails =
                 (Map<String, Object>) coverage.get("credentialMountPolicyDetails");
-        assertThat(credentialMountPolicyDetails.get("runtimeRelativeOnly")).isEqualTo(Boolean.TRUE);
+        assertThat(credentialMountPolicyDetails.get("workspaceRelativeOnly"))
+                .isEqualTo(Boolean.TRUE);
         assertThat(credentialMountPolicyDetails.get("absolutePathRejected"))
                 .isEqualTo(Boolean.TRUE);
         assertThat(credentialMountPolicyDetails.get("rejectedPathsRedacted"))
@@ -4540,7 +4541,7 @@ public class DashboardDiagnosticOutputTest {
                 "execute_shell",
                 "recursive_delete",
                 "需要确认",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         records.add(pending);
 
         DashboardDiagnosticsService diagnosticsService =
@@ -4588,7 +4589,7 @@ public class DashboardDiagnosticOutputTest {
                     "execute_shell",
                     "recursive_delete_" + i,
                     "需要确认",
-                    "rm -rf runtime/cache-" + i);
+                    "rm -rf workspace/cache-" + i);
             records.add(record);
         }
 
@@ -4933,7 +4934,7 @@ public class DashboardDiagnosticOutputTest {
                 "execute_shell\u202E",
                 "token_ghp_pendingpattern123\u202E",
                 "pending password=pending-secret\u202E",
-                "rm -rf runtime/cache --token ghp_pendingcommand123\u202E");
+                "rm -rf workspace/cache --token ghp_pendingcommand123\u202E");
 
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
@@ -4960,7 +4961,7 @@ public class DashboardDiagnosticOutputTest {
                 .contains("\"tool_name\":\"execute_shell\"")
                 .contains("token_ghp_***")
                 .contains("password=***")
-                .contains("command_preview\":\"rm -rf runtime/cache --token ***")
+                .contains("command_preview\":\"rm -rf workspace/cache --token ***")
                 .doesNotContain("\\u202E")
                 .doesNotContain("\"approval_key\":")
                 .doesNotContain("ghp_titlepending123")
@@ -5072,7 +5073,7 @@ public class DashboardDiagnosticOutputTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         DangerousCommandApprovalService.PendingApproval pending =
                 approvalService.getPendingApproval(session);
         String approvalKey = pending.approvalKey();
@@ -5144,7 +5145,7 @@ public class DashboardDiagnosticOutputTest {
                 "execute_shell",
                 "recursive_delete",
                 "resolve approval",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
 
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
@@ -5259,7 +5260,7 @@ public class DashboardDiagnosticOutputTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         assertThat(
                         approvalService.approve(
                                 session,
@@ -5361,7 +5362,7 @@ public class DashboardDiagnosticOutputTest {
                 "execute_shell",
                 "recursive_delete",
                 "recursive delete",
-                "rm -rf runtime/cache");
+                "rm -rf workspace/cache");
         assertThat(
                         approvalService.approve(
                                 session,
@@ -5391,7 +5392,7 @@ public class DashboardDiagnosticOutputTest {
         assertThat(result.get("code")).isEqualTo("missing_approval");
         assertThat(
                         approvalService.isAlwaysApproved(
-                                "execute_shell", "recursive_delete", "rm -rf runtime/cache"))
+                                "execute_shell", "recursive_delete", "rm -rf workspace/cache"))
                 .isTrue();
     }
 
@@ -5542,8 +5543,8 @@ public class DashboardDiagnosticOutputTest {
         return config;
     }
 
-    private static String latestShutdownFile(Path runtimeHome) {
-        File[] files = runtimeHome.resolve("forensics").toFile().listFiles();
+    private static String latestShutdownFile(Path workspaceHome) {
+        File[] files = workspaceHome.resolve("forensics").toFile().listFiles();
         assertThat(files).isNotNull();
         return Arrays.stream(files)
                 .filter(file -> file.getName().startsWith("shutdown-"))

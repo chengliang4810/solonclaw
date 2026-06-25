@@ -66,9 +66,9 @@ public class ShutdownForensicsServiceTest {
         assertThat(service.lastShutdownRecordFile()).isNull();
     }
 
-    private static AppConfig loadConfig(File runtimeHome) {
+    private static AppConfig loadConfig(File workspaceHome) {
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         return AppConfig.load(props);
     }
 }

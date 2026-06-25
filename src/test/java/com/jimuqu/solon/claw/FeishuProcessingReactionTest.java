@@ -72,7 +72,7 @@ public class FeishuProcessingReactionTest {
     }
 
     private RecordingFeishuAdapter adapter() throws Exception {
-        File home = Files.createTempDirectory("solon-claw-feishu-reaction").toFile();
+        File home = Files.createTempDirectory("solonclaw-feishu-reaction").toFile();
         AppConfig appConfig = new AppConfig();
         appConfig.getRuntime().setHome(home.getAbsolutePath());
         appConfig.getRuntime().setCacheDir(new File(home, "cache").getAbsolutePath());

@@ -1,7 +1,7 @@
 export default {
   // Login
   login: {
-    title: 'SolonClaw Web UI',
+    title: 'solonclaw Web UI',
     description: 'Entrez votre jeton d\'acces pour continuer. Retrouvez-le dans les journaux de demarrage du serveur.',
     placeholder: 'Jeton d\'acces',
     submit: 'Connexion',
@@ -93,7 +93,7 @@ export default {
   // Chat
   chat: {
     contextRemaining: 'restant',
-    emptyState: 'Demarrer une conversation avec SolonClaw Agent',
+    emptyState: 'Demarrer une conversation avec solonclaw Agent',
     inputPlaceholder: 'Tapez un message... (Entree pour envoyer, Shift+Entree pour un saut de ligne)',
     attachFiles: 'Joindre des fichiers',
     stop: 'Arreter',

@@ -26,7 +26,7 @@ public class MessageAttachmentSupportTest {
     void shouldKeepOnlySafeAttachmentFileNameInMissingFileMessage() {
         MessageAttachment attachment = new MessageAttachment();
         attachment.setOriginalName("report.pdf");
-        attachment.setLocalPath("D:/runtime/cache/media/report.pdf");
+        attachment.setLocalPath("D:/workspace/cache/media/report.pdf");
 
         String message = MessageAttachmentSupport.fileNotFoundMessage("WeCom", attachment);
 
@@ -37,7 +37,7 @@ public class MessageAttachmentSupportTest {
     void shouldRedactTokenLikeAttachmentPathInMissingFileMessage() {
         MessageAttachment attachment = new MessageAttachment();
         attachment.setOriginalName("");
-        attachment.setLocalPath("D:/runtime/cache/token=ghp_attachmentmissing12345/secret.txt");
+        attachment.setLocalPath("D:/workspace/cache/token=ghp_attachmentmissing12345/secret.txt");
 
         String message = MessageAttachmentSupport.fileNotFoundMessage("QQBot", attachment);
 
@@ -55,7 +55,7 @@ public class MessageAttachmentSupportTest {
         attachment.setKind("file");
         attachment.setOriginalName("report.pdf");
         attachment.setMimeType("application/pdf");
-        attachment.setLocalPath("D:/runtime/cache/media/report.pdf");
+        attachment.setLocalPath("D:/workspace/cache/media/report.pdf");
         com.jimuqu.solon.claw.core.model.GatewayMessage message =
                 new com.jimuqu.solon.claw.core.model.GatewayMessage(
                         com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
@@ -70,7 +70,7 @@ public class MessageAttachmentSupportTest {
                 .contains("localPath=path://report.pdf")
                 .contains("payloadMode=metadata_only")
                 .contains("signal=degrade_to_metadata")
-                .doesNotContain("D:/runtime/cache/media");
+                .doesNotContain("D:/workspace/cache/media");
     }
 
     @Test

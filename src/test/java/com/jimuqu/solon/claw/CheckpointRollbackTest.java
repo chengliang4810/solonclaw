@@ -146,13 +146,13 @@ public class CheckpointRollbackTest {
     @Test
     void shouldRedactUnsafeCheckpointRollbackPaths() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File checkpointDir =
                 FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "checkpoints", "unsafe");
         File manifest = FileUtil.file(checkpointDir, "manifest.json");
         File outside =
                 new File(
-                        runtimeHome.getParentFile(),
+                        workspaceHome.getParentFile(),
                         "checkpoint-token=ghp_checkpointsecret-report.txt");
         String manifestJson =
                 "{\"files\":[{\"path\":\""
@@ -165,21 +165,21 @@ public class CheckpointRollbackTest {
                         () -> env.checkpointService.rollback("unsafe-checkpoint"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("outside allowed roots")
-                .hasMessageNotContaining(runtimeHome.getParent())
+                .hasMessageNotContaining(workspaceHome.getParent())
                 .hasMessageNotContaining("ghp_checkpointsecret");
     }
 
     @Test
     void shouldRedactUnsafeCheckpointSnapshotPaths() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File checkpointDir =
                 FileUtil.file(
                         env.appConfig.getRuntime().getCacheDir(), "checkpoints", "unsafe-snapshot");
         File target = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "restore-target.txt");
         File manifest = FileUtil.file(checkpointDir, "manifest.json");
         File outsideSnapshot =
-                new File(runtimeHome.getParentFile(), "snapshot-token=ghp_snapshotsecret.bak");
+                new File(workspaceHome.getParentFile(), "snapshot-token=ghp_snapshotsecret.bak");
         FileUtil.writeUtf8String("snapshot", outsideSnapshot);
         String manifestJson =
                 "{\"files\":[{\"path\":\""
@@ -194,7 +194,7 @@ public class CheckpointRollbackTest {
                         () -> env.checkpointService.rollback("unsafe-snapshot"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("outside checkpoint directory")
-                .hasMessageNotContaining(runtimeHome.getParent())
+                .hasMessageNotContaining(workspaceHome.getParent())
                 .hasMessageNotContaining("ghp_snapshotsecret");
     }
 

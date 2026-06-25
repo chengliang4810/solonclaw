@@ -49,7 +49,7 @@ public class DashboardAuthFilter implements Filter {
         boolean signedGatewayInjection =
                 "/api/gateway/message".equals(path)
                         && "POST".equalsIgnoreCase(ctx.method())
-                        && ctx.header("X-SolonClaw-Signature") != null;
+                        && ctx.header("X-solonclaw-Signature") != null;
         if (path.startsWith("/api/")
                 && !signedGatewayInjection
                 && !authService.isPublicApiPath(path, ctx.method())

@@ -39,7 +39,7 @@ public class DashboardAuthServiceTest {
     void shouldAllowCorsOriginMatchingExplicitNonLoopbackBindHost() throws Exception {
         Props props = new Props();
         props.put(
-                "solonclaw.runtime.home",
+                "solonclaw.workspace",
                 Files.createDirectory(tempDir.resolve("runtime")).toString());
         props.put("server.host", "100.64.0.10");
         props.put("server.port", "9119");

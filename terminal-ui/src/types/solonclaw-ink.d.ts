@@ -1,6 +1,6 @@
 import type * as React from 'react'
 
-declare module '@solon-claw/ink' {
+declare module '@solonclaw/ink' {
   export type Key = {
     readonly ctrl: boolean
     readonly meta: boolean

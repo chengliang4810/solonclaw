@@ -29,9 +29,9 @@ public class DashboardStatusServiceTest {
     @Test
     void shouldRedactSensitiveDashboardStatusFields() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/status-secret-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = new File("target/status-secret-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getLlm().setContextWindowTokens(128000);
         config.getLlm().setMaxTokens(4096);
         config.getModel().setProviderKey("default-ghp_statusprovider12345");
@@ -53,7 +53,7 @@ public class DashboardStatusServiceTest {
                         true,
                         false,
                         "failed at "
-                                + new File(runtimeHome, "secrets/token.txt").getAbsolutePath()
+                                + new File(workspaceHome, "secrets/token.txt").getAbsolutePath()
                                 + " token=ghp_channelstatus123");
         channelStatus.setLastErrorCode("auth_failed");
         channelStatus.setLastErrorMessage(
@@ -71,9 +71,9 @@ public class DashboardStatusServiceTest {
                         new LlmProviderService(config));
 
         String statusJson = ONode.serialize(service.getStatus(true));
-        assertThat(statusJson).contains("runtime://config.yml");
-        assertThat(statusJson).contains("runtime://");
-        assertThat(statusJson).doesNotContain(runtimeHome.getAbsolutePath());
+        assertThat(statusJson).contains("workspace://config.yml");
+        assertThat(statusJson).contains("workspace://");
+        assertThat(statusJson).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(statusJson).doesNotContain("ghp_channelstatus123");
         assertThat(statusJson).doesNotContain("ghp_channelerror123");
         assertThat(statusJson).doesNotContain("channel-password");
@@ -100,11 +100,11 @@ public class DashboardStatusServiceTest {
     @SuppressWarnings("unchecked")
     void shouldExposeReasoningCapabilityFromModelMetadata() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/status-reasoning-runtime").getAbsoluteFile();
-        FileUtil.del(runtimeHome);
-        FileUtil.mkdir(runtimeHome);
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = new File("target/status-reasoning-runtime").getAbsoluteFile();
+        FileUtil.del(workspaceHome);
+        FileUtil.mkdir(workspaceHome);
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getModel().setProviderKey("default");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setDefaultModel("custom/unknown-small-model");
@@ -132,11 +132,11 @@ public class DashboardStatusServiceTest {
     @Test
     void shouldExposeRuntimeRefreshFailureInStatusAndHealthWithoutSecrets() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/status-refresh-failure-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
-        FileUtil.mkdir(runtimeHome);
-        String secretPath = new File(runtimeHome, "secrets/token-file.txt").getAbsolutePath();
+        File workspaceHome = new File("target/status-refresh-failure-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        FileUtil.mkdir(workspaceHome);
+        String secretPath = new File(workspaceHome, "secrets/token-file.txt").getAbsolutePath();
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  default:\n"
@@ -164,20 +164,20 @@ public class DashboardStatusServiceTest {
         String healthJson = ONode.serialize(service.getHealthRuntimeSnapshot());
 
         assertThat(statusJson)
-                .contains("runtime_config_refresh")
+                .contains("workspace_config_refresh")
                 .contains("last_failure")
                 .contains("validation_failure")
-                .contains("runtime/config.yml 格式错误")
+                .contains("workspace/config.yml 格式错误")
                 .contains("[REDACTED_PATH]")
                 .doesNotContain(secretPath)
-                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain(workspaceHome.getAbsolutePath())
                 .doesNotContain(config.getRuntime().getConfigFile())
                 .doesNotContain("ghp_statusrefresh12345");
         assertThat(healthJson)
-                .contains("runtime_config_refresh")
+                .contains("workspace_config_refresh")
                 .contains("last_failure")
                 .doesNotContain(secretPath)
-                .doesNotContain(runtimeHome.getAbsolutePath())
+                .doesNotContain(workspaceHome.getAbsolutePath())
                 .doesNotContain("ghp_statusrefresh12345");
     }
 
@@ -185,9 +185,9 @@ public class DashboardStatusServiceTest {
     @SuppressWarnings("unchecked")
     void shouldExposeHealthRuntimeSnapshotFromGatewayStatus() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/status-health-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = new File("target/status-health-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         ChannelStatus channelStatus =
                 new ChannelStatus(PlatformType.FEISHU, true, true, "connected");
         channelStatus.setConnectionMode("websocket");
@@ -231,7 +231,7 @@ public class DashboardStatusServiceTest {
         assertThat(runtimeStatus)
                 .containsKeys(
                         "gateway",
-                        "runtime_config",
+                        "workspace_config",
                         "diagnostics",
                         "cron",
                         "skills",
@@ -249,9 +249,9 @@ public class DashboardStatusServiceTest {
     @SuppressWarnings("unchecked")
     void shouldSeparateRecentSessionsFromRunningAgentRuns() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/status-running-runs-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = new File("target/status-running-runs-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         ChannelStatus channelStatus =
                 new ChannelStatus(PlatformType.FEISHU, false, false, "disabled");
         SessionRecord activeSession = new SessionRecord();
@@ -287,14 +287,14 @@ public class DashboardStatusServiceTest {
     @SuppressWarnings("unchecked")
     void shouldExposeStableRuntimeCapabilitiesInDetailedStatus() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/status-capabilities-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setContextDir(new File(runtimeHome, "context").getAbsolutePath());
-        config.getRuntime().setSkillsDir(new File(runtimeHome, "skills").getAbsolutePath());
-        config.getRuntime().setCacheDir(new File(runtimeHome, "cache").getAbsolutePath());
-        config.getRuntime().setLogsDir(new File(runtimeHome, "logs").getAbsolutePath());
-        config.getRuntime().setStateDb(new File(runtimeHome, "data/state.db").getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = new File("target/status-capabilities-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setContextDir(new File(workspaceHome, "context").getAbsolutePath());
+        config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
+        config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+        config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
+        config.getRuntime().setStateDb(new File(workspaceHome, "data/state.db").getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getLlm().setContextWindowTokens(32000);
         config.getLlm().setMaxTokens(2048);
         config.getSecurity().setGuardrailMode("approval");
@@ -331,10 +331,10 @@ public class DashboardStatusServiceTest {
         Map<String, Object> runtimeStatus = (Map<String, Object>) status.get("runtime_status");
         assertThat(capabilities)
                 .containsEntry("schema_version", Integer.valueOf(1))
-                .containsEntry("service", "solon-claw")
+                .containsEntry("service", "solonclaw")
                 .containsEntry("dashboard_first", Boolean.TRUE)
                 .containsKeys(
-                        "runtime_config",
+                        "workspace_config",
                         "diagnostics",
                         "cron",
                         "skills",
@@ -346,7 +346,7 @@ public class DashboardStatusServiceTest {
                 .containsExactly("openai", "openai-responses", "ollama", "gemini", "anthropic");
         assertThat((List<String>) capabilities.get("supported_channels"))
                 .containsExactly("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao");
-        assertThat((Map<String, Object>) capabilities.get("runtime_config"))
+        assertThat((Map<String, Object>) capabilities.get("workspace_config"))
                 .containsEntry("dashboard_editable", Boolean.TRUE)
                 .containsEntry("secret_redaction", Boolean.TRUE);
         assertThat((Map<String, Object>) capabilities.get("multimodal"))
@@ -373,10 +373,10 @@ public class DashboardStatusServiceTest {
                 .doesNotContainKeys("approval_mode", "cron_approval_mode");
         assertThat(runtimeStatus)
                 .containsEntry("schema_version", Integer.valueOf(1))
-                .containsEntry("service", "solon-claw")
+                .containsEntry("service", "solonclaw")
                 .containsKeys(
                         "gateway",
-                        "runtime_config",
+                        "workspace_config",
                         "diagnostics",
                         "cron",
                         "skills",
@@ -385,9 +385,9 @@ public class DashboardStatusServiceTest {
                         "multimodal",
                         "pricing",
                         "model");
-        assertThat((Map<String, Object>) runtimeStatus.get("runtime_config"))
-                .containsEntry("config_path", "runtime://config.yml")
-                .containsEntry("runtime_home", "runtime://");
+        assertThat((Map<String, Object>) runtimeStatus.get("workspace_config"))
+                .containsEntry("config_path", "workspace://config.yml")
+                .containsEntry("workspace_home", "workspace://");
         Map<String, Object> pricingStatus = (Map<String, Object>) runtimeStatus.get("pricing");
         assertThat(pricingStatus)
                 .containsEntry("configured_price_count", Integer.valueOf(1))
@@ -418,9 +418,9 @@ public class DashboardStatusServiceTest {
     @Test
     void shouldReportPricingAvailabilityForCurrentModel() throws Exception {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/status-pricing-runtime").getAbsoluteFile();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = new File("target/status-pricing-runtime").getAbsoluteFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getModel().setProviderKey("custom");
         config.getModel().setDefault("unknown-model");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
@@ -462,11 +462,11 @@ public class DashboardStatusServiceTest {
     @Test
     void shouldAdvertiseVisionCapabilityWhenImageInputsAreSupported() {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/status-vision-runtime").getAbsoluteFile();
-        FileUtil.del(runtimeHome);
-        FileUtil.mkdir(runtimeHome);
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = new File("target/status-vision-runtime").getAbsoluteFile();
+        FileUtil.del(workspaceHome);
+        FileUtil.mkdir(workspaceHome);
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("gpt-4o");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
@@ -497,11 +497,11 @@ public class DashboardStatusServiceTest {
     @Test
     void shouldNotAdvertiseVisionCapabilityForUnknownTextModels() {
         AppConfig config = new AppConfig();
-        File runtimeHome = new File("target/status-text-model-runtime").getAbsoluteFile();
-        FileUtil.del(runtimeHome);
-        FileUtil.mkdir(runtimeHome);
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
-        config.getRuntime().setConfigFile(new File(runtimeHome, "config.yml").getAbsolutePath());
+        File workspaceHome = new File("target/status-text-model-runtime").getAbsoluteFile();
+        FileUtil.del(workspaceHome);
+        FileUtil.mkdir(workspaceHome);
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("custom-text-model");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();

@@ -1,4 +1,4 @@
-import { Box, Link, stringWidth, Text } from '@solon-claw/ink'
+import { Box, Link, stringWidth, Text } from '@solonclaw/ink'
 import { Fragment, memo, type ReactNode, useMemo } from 'react'
 
 import { ensureEmojiPresentation } from '../lib/emoji.js'

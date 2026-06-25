@@ -151,7 +151,7 @@ public class GatewayConfiguration {
      * @param globalSettingRepository globalSetting仓储依赖。
      * @param deliveryService 投递服务依赖。
      * @param dashboardConfigService dashboard配置Service配置对象。
-     * @param dashboardRuntimeConfigService dashboard运行时配置Service配置对象。
+     * @param dashboardRuntimeConfigService dashboard工作区配置Service配置对象。
      * @param appVersionService 应用版本服务依赖。
      * @param llmProviderService LLM提供方Service标识或键值。
      * @param dashboardProviderService dashboard提供方Service标识或键值。
@@ -191,11 +191,11 @@ public class GatewayConfiguration {
     }
 
     /**
-     * 执行消息网关运行时刷新服务相关逻辑。
+     * 执行消息网关工作区配置刷新服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
      * @param channelConnectionManager 渠道连接Manager参数。
-     * @return 返回消息网关运行时刷新服务结果。
+     * @return 返回消息网关工作区配置刷新服务结果。
      */
     @Bean
     public GatewayRuntimeRefreshService gatewayRuntimeRefreshService(

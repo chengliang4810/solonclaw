@@ -46,7 +46,7 @@ async function saveChannel(platform: string, field: string, values: Record<strin
   immediateSave(platform, field, () => settingsStore.saveSection(platform, values))
 }
 
-// Save credentials to runtime/config.yml through the dashboard API
+// Save credentials to workspace/config.yml through the dashboard API
 async function saveCredentials(platform: string, field: string, values: Record<string, any>) {
   immediateSave(platform, field, async () => {
     await saveCredsApi(platform, values)

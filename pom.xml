@@ -5,12 +5,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.jimuqu.solon.claw</groupId>
-    <artifactId>solon-claw</artifactId>
+    <artifactId>solonclaw</artifactId>
     <version>0.0.1</version>
     <packaging>jar</packaging>
 
-    <name>solon-claw</name>
-    <description>solon-claw Java agent built with Solon and Solon AI</description>
+    <name>solonclaw</name>
+    <description>solonclaw Java agent built with Solon and Solon AI</description>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -387,14 +387,14 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>copy-runtime-launcher</id>
+                        <id>copy-workspace-launcher</id>
                         <phase>package</phase>
                         <goals>
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
                             <skip>${skip.web.build}</skip>
-                            <outputDirectory>${project.build.directory}/solon-claw-runtime/bin</outputDirectory>
+                            <outputDirectory>${project.build.directory}/solonclaw-workspace/bin</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${project.basedir}/bin</directory>
@@ -407,14 +407,14 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>copy-runtime-terminal-ui</id>
+                        <id>copy-workspace-terminal-ui</id>
                         <phase>package</phase>
                         <goals>
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
                             <skip>${skip.web.build}</skip>
-                            <outputDirectory>${project.build.directory}/solon-claw-runtime/terminal-ui/dist</outputDirectory>
+                            <outputDirectory>${project.build.directory}/solonclaw-workspace/terminal-ui/dist</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${project.basedir}/terminal-ui/dist</directory>
@@ -424,14 +424,14 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>copy-runtime-jar</id>
+                        <id>copy-workspace-jar</id>
                         <phase>package</phase>
                         <goals>
                             <goal>copy-resources</goal>
                         </goals>
                         <configuration>
                             <skip>${skip.web.build}</skip>
-                            <outputDirectory>${project.build.directory}/solon-claw-runtime</outputDirectory>
+                            <outputDirectory>${project.build.directory}/solonclaw-workspace</outputDirectory>
                             <resources>
                                 <resource>
                                     <directory>${project.build.directory}</directory>

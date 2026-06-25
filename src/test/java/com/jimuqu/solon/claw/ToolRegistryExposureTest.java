@@ -303,7 +303,7 @@ public class ToolRegistryExposureTest {
                         tools.audit(
                                 "command",
                                 "execute_shell",
-                                "rm -rf runtime/cache",
+                                "rm -rf workspace/cache",
                                 null,
                                 null,
                                 null,
@@ -323,7 +323,7 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 null,
-                                "{\"command\":[\"rm\",\"-rf\",\"runtime/cache\"]}"));
+                                "{\"command\":[\"rm\",\"-rf\",\"workspace/cache\"]}"));
         assertThat(structuredCommandArgs.get("decision").getString()).isEqualTo("block");
         assertThat(structuredCommandArgs.get("blocking").getBoolean()).isTrue();
         assertThat(structuredCommandArgs.get("approval_required").getBoolean()).isTrue();
@@ -340,7 +340,7 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 null,
-                                "{\"command\":[\"echo ready\",{\"cmd\":\"rm -rf runtime/cache\"}]}"));
+                                "{\"command\":[\"echo ready\",{\"cmd\":\"rm -rf workspace/cache\"}]}"));
         assertThat(nestedStructuredCommandArgs.get("decision").getString()).isEqualTo("block");
         assertThat(nestedStructuredCommandArgs.get("blocking").getBoolean()).isTrue();
         assertThat(nestedStructuredCommandArgs.get("approval_required").getBoolean()).isTrue();
@@ -836,7 +836,7 @@ public class ToolRegistryExposureTest {
                                 .get("policy")
                                 .get("terminal")
                                 .get("credentialMountPolicy")
-                                .get("runtimeRelativeOnly")
+                                .get("workspaceRelativeOnly")
                                 .getBoolean())
                 .isTrue();
         assertThat(
@@ -1361,7 +1361,8 @@ public class ToolRegistryExposureTest {
                 policyStatus.get("policy").get("coverage").get("credentialMountPolicyDetails");
         assertThat(credentialMountPolicyDetails.get("configCredentialFileCount").getInt())
                 .isEqualTo(1);
-        assertThat(credentialMountPolicyDetails.get("runtimeRelativeOnly").getBoolean()).isTrue();
+        assertThat(credentialMountPolicyDetails.get("workspaceRelativeOnly").getBoolean())
+                .isTrue();
         assertThat(credentialMountPolicyDetails.get("absolutePathRejected").getBoolean()).isTrue();
         assertThat(credentialMountPolicyDetails.get("pathTraversalRejected").getBoolean()).isTrue();
         assertThat(credentialMountPolicyDetails.get("hostPathsOmittedFromMetadata").getBoolean())
@@ -1967,7 +1968,7 @@ public class ToolRegistryExposureTest {
                                 .getBoolean())
                 .isTrue();
         assertThat(String.valueOf(attachmentPolicy))
-                .contains("runtime://cache/media")
+                .contains("workspace://cache/media")
                 .doesNotContain(env.appConfig.getRuntime().getHome());
         assertThat(
                         policyStatus
@@ -3394,7 +3395,7 @@ public class ToolRegistryExposureTest {
                                 null,
                                 sessionId,
                                 null,
-                                "rm -rf runtime/cache",
+                                "rm -rf workspace/cache",
                                 Integer.valueOf(1),
                                 null,
                                 null));
@@ -3446,9 +3447,9 @@ public class ToolRegistryExposureTest {
                         env.processRegistry,
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig));
-        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File missing =
-                new File(runtimeHome.getParentFile(), "process-token=ghp_processcwd12345-missing");
+                new File(workspaceHome.getParentFile(), "process-token=ghp_processcwd12345-missing");
 
         ONode result =
                 ONode.ofJson(
@@ -3464,7 +3465,7 @@ public class ToolRegistryExposureTest {
 
         assertToolError(result);
         assertThat(result.get("error").getString()).contains("cwd is not a directory");
-        assertThat(result.get("error").getString()).doesNotContain(runtimeHome.getParent());
+        assertThat(result.get("error").getString()).doesNotContain(workspaceHome.getParent());
         assertThat(result.get("error").getString()).doesNotContain("ghp_processcwd12345");
     }
 
@@ -3476,8 +3477,8 @@ public class ToolRegistryExposureTest {
                         env.processRegistry,
                         env.appConfig.getRuntime().getHome(),
                         new SecurityPolicyService(env.appConfig));
-        File runtimeHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
-        File credentialDir = new File(runtimeHome, ".ssh");
+        File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+        File credentialDir = new File(workspaceHome, ".ssh");
         assertThat(credentialDir.mkdirs() || credentialDir.isDirectory()).isTrue();
 
         ONode result =
@@ -3497,7 +3498,7 @@ public class ToolRegistryExposureTest {
                 .contains("workdir path")
                 .contains("敏感系统/凭据文件")
                 .doesNotContain(".ssh")
-                .doesNotContain(runtimeHome.getAbsolutePath());
+                .doesNotContain(workspaceHome.getAbsolutePath());
     }
 
     @Test
@@ -5202,8 +5203,8 @@ public class ToolRegistryExposureTest {
                         new SecurityPolicyService(env.appConfig));
 
         ONode read =
-                ONode.ofJson(fileSkill.read("runtime://tool-results/run-1/call-1.txt", 1, 2));
-        ONode write = ONode.ofJson(fileSkill.write("runtime://notes/out.txt", "saved\n"));
+                ONode.ofJson(fileSkill.read("workspace://tool-results/run-1/call-1.txt", 1, 2));
+        ONode write = ONode.ofJson(fileSkill.write("workspace://notes/out.txt", "saved\n"));
 
         assertToolSuccess(read);
         assertThat(read.get("content").getString()).contains("1|runtime ref");

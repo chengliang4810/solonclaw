@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { useStore } from '@nanostores/react'
-import { useStdin, withInkSuspended } from '@solon-claw/ink'
+import { useStdin, withInkSuspended } from '@solonclaw/ink'
 import { useCallback, useMemo, useState } from 'react'
 
 import type { PasteEvent } from '../components/textInput.js'

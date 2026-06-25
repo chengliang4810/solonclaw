@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 /** 应用版本与部署形态识别服务。 */
 public class AppVersionService {
     /** 默认REPO的统一常量值。 */
-    private static final String DEFAULT_REPO = "chengliang4810/solon-claw";
+    private static final String DEFAULT_REPO = "chengliang4810/solonclaw";
 
     /** 注入应用配置，用于应用版本。 */
     private final AppConfig appConfig;
@@ -204,7 +204,7 @@ public class AppVersionService {
      *
      * @return 返回运行时主渠道结果。
      */
-    public File runtimeHome() {
+    public File workspaceHome() {
         return new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
     }
 
@@ -270,7 +270,7 @@ public class AppVersionService {
                     SolonClawApp.class
                             .getClassLoader()
                             .getResourceAsStream(
-                                    "META-INF/maven/com.jimuqu.solon.claw/solon-claw/pom.properties");
+                                    "META-INF/maven/com.jimuqu.solon.claw/solonclaw/pom.properties");
             if (inputStream == null) {
                 return null;
             }

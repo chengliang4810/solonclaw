@@ -36,6 +36,7 @@ import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.TuiRuntimeProtocolService;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -60,7 +61,7 @@ public class TerminalUiRpcService {
     /** TUI RPC 降级路径日志，默认只在 debug 下输出，避免污染交互式终端。 */
     private static final Logger log = LoggerFactory.getLogger(TerminalUiRpcService.class);
 
-    /** 应用运行配置，用于读取当前模型、运行目录等展示信息。 */
+    /** 应用运行配置，用于读取当前模型、工作区等展示信息。 */
     private final AppConfig appConfig;
     /** 会话仓储，用于让终端 UI 的会话生命周期落到 Java 持久化会话上。 */
     private final SessionRepository sessionRepository;
@@ -92,7 +93,7 @@ public class TerminalUiRpcService {
     private final AgentRunControlService agentRunControlService;
     /** Agent run 仓储，用于从现有运行轨迹生成 TUI 可读取的 spawn tree 归档列表。 */
     private final AgentRunRepository agentRunRepository;
-    /** 运行时配置服务，用于让 TUI 配置命令写入真实后端配置。 */
+    /** 工作区配置服务，用于让 TUI 配置命令写入真实后端配置。 */
     private final RuntimeSettingsService runtimeSettingsService;
     /** 共享初始化协议服务，用于复用模型与国内渠道 setup 写入规则。 */
     private final TuiRuntimeProtocolService runtimeProtocolService;
@@ -152,12 +153,12 @@ public class TerminalUiRpcService {
         this.globalSettingRepository = globalSettingRepository;
     }
 
-    /** 返回模型与运行目录等当前会话展示信息。 */
+    /** 返回模型与工作区等当前会话展示信息。 */
     public Map<String, Object> sessionInfo() {
         return sessionInfo(null);
     }
 
-    /** 返回指定会话的模型、运行目录与累计用量等展示信息。 */
+    /** 返回指定会话的模型、工作区与累计用量等展示信息。 */
     private Map<String, Object> sessionInfo(SessionRecord session) {
         Map<String, Object> info = new LinkedHashMap<String, Object>();
         info.put("cwd", new File(System.getProperty("user.dir")).getAbsolutePath());
@@ -319,7 +320,7 @@ public class TerminalUiRpcService {
             item.put("meta", descriptor.getDescription());
             items.add(item);
         }
-        appendLocalSlashCompletion(items, query, "doctor", "检查模型、渠道与运行时配置");
+        appendLocalSlashCompletion(items, query, "doctor", "检查模型、渠道与工作区配置");
         appendLocalSlashCompletion(items, query, "setup", "配置模型、消息渠道与初始化设置");
         appendLocalSlashCompletion(items, query, "config", "查看或写入本地运行配置");
         appendLocalSlashCompletion(items, query, "gateway", "查看或配置国内消息渠道");
@@ -393,7 +394,7 @@ public class TerminalUiRpcService {
         config.put("display", display);
         config.put("model", runtimeConfig.get("model"));
         config.put("provider", runtimeConfig.get("provider"));
-        config.put("runtime_config", runtimeConfig.get("runtime_config"));
+        config.put("workspace_config", runtimeConfig.get("workspace_config"));
         config.put("providers", runtimeConfig.get("providers"));
         config.put("paste_collapse_char_threshold", Integer.valueOf(2000));
         config.put("paste_collapse_threshold", Integer.valueOf(5));
@@ -512,7 +513,7 @@ public class TerminalUiRpcService {
         } else {
             result.put("value", "");
         }
-        result.put("home", runtimeHome());
+        result.put("home", workspaceHome());
         return result;
     }
 
@@ -526,7 +527,7 @@ public class TerminalUiRpcService {
     /** 返回终端 UI 皮肤切换事件载荷，保持前端原生主题系统接管具体渲染。 */
     public Map<String, Object> skinPayload(String skin) {
         Map<String, Object> branding = new LinkedHashMap<String, Object>();
-        branding.put("agent_name", "SolonClaw Agent");
+        branding.put("agent_name", "solonclaw Agent");
 
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("name", StrUtil.blankToDefault(skin, "default"));
@@ -582,7 +583,7 @@ public class TerminalUiRpcService {
     /** 返回会话保存文件路径；当前 Java 后端会话已经实时持久化。 */
     public Map<String, Object> sessionSave(String sessionId) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("file", runtimeHome() + "/state.db");
+        result.put("file", workspaceHome() + "/state.db");
         result.put("session_id", StrUtil.nullToEmpty(sessionId));
         return result;
     }
@@ -718,7 +719,7 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 重新读取运行时配置文件。 */
+    /** 重新读取工作区配置文件。 */
     public Map<String, Object> reloadEnv() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (gatewayRuntimeRefreshService == null) {
@@ -1307,7 +1308,7 @@ public class TerminalUiRpcService {
         return reasoningEffort();
     }
 
-    /** 写入运行时配置；配置服务不存在时直接更新内存配置的可识别项。 */
+    /** 写入工作区配置；配置服务不存在时直接更新内存配置的可识别项。 */
     private void setRuntimeConfig(String key, String value) {
         if (runtimeSettingsService != null) {
             runtimeSettingsService.setConfigValue(key, value);
@@ -1336,7 +1337,7 @@ public class TerminalUiRpcService {
             runtimeSettingsService.setSecretValue(key, value);
             return true;
         } catch (IllegalStateException e) {
-            if (StrUtil.containsIgnoreCase(e.getMessage(), "Unsupported runtime config item")) {
+            if (StrUtil.containsIgnoreCase(e.getMessage(), "Unsupported workspace config item")) {
                 return false;
             }
             throw e;
@@ -1344,7 +1345,7 @@ public class TerminalUiRpcService {
     }
 
     /**
-     * 判断配置键是否应写入 runtime/config.yml，而不是仅作为终端 UI 偏好保存。
+     * 判断配置键是否应写入 workspace/config.yml，而不是仅作为终端 UI 偏好保存。
      *
      * @param key 配置键。
      * @return runtime 配置键返回 true。
@@ -1976,14 +1977,14 @@ public class TerminalUiRpcService {
         return "medium";
     }
 
-    /** 返回运行目录，用于配置与保存提示。 */
-    private String runtimeHome() {
+    /** 返回工作区目录，用于配置与保存提示。 */
+    private String workspaceHome() {
         if (appConfig != null
                 && appConfig.getRuntime() != null
                 && StrUtil.isNotBlank(appConfig.getRuntime().getHome())) {
             return appConfig.getRuntime().getHome().trim();
         }
-        return new File("runtime").getAbsolutePath();
+        return new File(RuntimePathConstants.WORKSPACE_HOME).getAbsolutePath();
     }
 
     /** 生成终端 UI 默认会话编号。 */

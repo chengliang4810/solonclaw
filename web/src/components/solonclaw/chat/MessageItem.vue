@@ -232,7 +232,7 @@ const renderedToolResult = computed(() => {
         <img
           v-if="message.role === 'assistant'"
           src="/logo.png"
-          alt="SolonClaw"
+          alt="solonclaw"
           class="msg-avatar"
         />
         <div class="msg-content" :class="message.role">

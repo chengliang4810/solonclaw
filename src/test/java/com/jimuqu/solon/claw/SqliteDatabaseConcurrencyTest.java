@@ -21,11 +21,11 @@ import org.junit.jupiter.api.Test;
 class SqliteDatabaseConcurrencyTest {
     @Test
     void shouldSerializeConcurrentSqliteAccess() throws Exception {
-        File runtimeHome = Files.createTempDirectory("jimuqu-sqlite-concurrency").toFile();
+        File workspaceHome = Files.createTempDirectory("jimuqu-sqlite-concurrency").toFile();
         AppConfig config = new AppConfig();
-        config.getRuntime().setHome(runtimeHome.getAbsolutePath());
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(runtimeHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
 
         SqliteChannelStateRepository repository =
                 new SqliteChannelStateRepository(new SqliteDatabase(config));

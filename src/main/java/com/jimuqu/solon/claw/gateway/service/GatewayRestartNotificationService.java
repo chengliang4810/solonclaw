@@ -25,10 +25,10 @@ public class GatewayRestartNotificationService {
             LoggerFactory.getLogger(GatewayRestartNotificationService.class);
 
     /** 重启完成后发送给原请求会话的固定提示文本。 */
-    private static final String ONLINE_MESSAGE = "solon-claw 网关已恢复，之前的重启请求已完成。";
+    private static final String ONLINE_MESSAGE = "solonclaw 网关已恢复，之前的重启请求已完成。";
 
     /** 运行时目录，marker 文件随 java -jar 或 Docker 运行环境落在这里。 */
-    private final File runtimeHome;
+    private final File workspaceHome;
 
     /** 国内消息渠道投递入口，用于把上线通知发回原会话。 */
     private final DeliveryService deliveryService;
@@ -40,11 +40,11 @@ public class GatewayRestartNotificationService {
      * @param deliveryService 投递服务依赖。
      */
     public GatewayRestartNotificationService(AppConfig appConfig, DeliveryService deliveryService) {
-        this.runtimeHome =
+        this.workspaceHome =
                 FileUtil.file(
                                 StrUtil.blankToDefault(
                                         appConfig == null ? null : appConfig.getRuntime().getHome(),
-                                        RuntimePathConstants.RUNTIME_HOME))
+                                        RuntimePathConstants.WORKSPACE_HOME))
                         .getAbsoluteFile();
         this.deliveryService = deliveryService;
     }
@@ -87,7 +87,7 @@ public class GatewayRestartNotificationService {
      * @return runtime home 下的 marker 文件路径。
      */
     private File markerFile() {
-        return FileUtil.file(runtimeHome, GatewayRestartCoordinator.RESTART_REQUESTER_MARKER);
+        return FileUtil.file(workspaceHome, GatewayRestartCoordinator.RESTART_REQUESTER_MARKER);
     }
 
     /**

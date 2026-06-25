@@ -12,7 +12,7 @@
 
 ## Scope And Non-Negotiable Constraints
 
-- Keep project naming as `solon-claw` / `solonclaw`; do not write old project names or copied upstream names into code, tests, docs, release notes, or prompt text.
+- Keep project naming as `solonclaw`; do not write old project names or copied upstream names into code, tests, docs, release notes, or prompt text.
 - Main implementation language is Java. Prefer Solon/Solon AI, Hutool, and Snack4. Do not introduce Spring, Jackson, Fastjson, Gson, LangChain4j, or Spring AI.
 - Domestic-channel scope only. Delivery must reuse existing home-channel and `DeliveryService` paths for Feishu, DingTalk, WeCom, Weixin, QQ bot, and Yuanbao as currently supported by the project.
 - This feature is not a medical reminder or a hard-coded habit system. It is a general proactive collaboration layer: work continuation, knowledge-based check-ins, external update opportunities, cron/run follow-up, and gentle user-care prompts.
@@ -522,7 +522,7 @@ Add tests:
   - `/proactive less`
   - `/proactive more`
   - `/proactive ignore <candidateId>`
-- [ ] Commands should update runtime config or candidate status through repository/settings, not edit YAML directly.
+- [ ] Commands should update workspace config or candidate status through repository/settings, not edit YAML directly.
 - [ ] `/proactive why` returns the latest decision and skip/send reason.
 - [ ] `/proactive less` increases cooldown or lowers daily max within bounded values.
 - [ ] `/proactive more` decreases cooldown or raises daily max within bounded values.

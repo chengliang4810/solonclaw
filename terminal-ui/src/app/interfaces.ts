@@ -1,4 +1,4 @@
-import type { MouseTrackingMode, ScrollBoxHandle } from '@solon-claw/ink'
+import type { MouseTrackingMode, ScrollBoxHandle } from '@solonclaw/ink'
 import type { MutableRefObject, ReactNode, RefObject, SetStateAction } from 'react'
 
 import type { PasteEvent } from '../components/textInput.js'

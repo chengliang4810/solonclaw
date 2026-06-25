@@ -15,8 +15,8 @@ import { appendFileSync, mkdirSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import type { FrameEvent } from '@solon-claw/ink'
-import { scrollFastPathStats } from '@solon-claw/ink'
+import type { FrameEvent } from '@solonclaw/ink'
+import { scrollFastPathStats } from '@solonclaw/ink'
 import { Profiler, type ProfilerOnRenderCallback, type ReactNode } from 'react'
 
 const ENABLED = /^(?:1|true|yes|on)$/i.test((process.env.SOLONCLAW_DEV_PERF ?? '').trim())

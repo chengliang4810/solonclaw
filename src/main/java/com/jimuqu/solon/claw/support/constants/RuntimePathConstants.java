@@ -1,9 +1,9 @@
 package com.jimuqu.solon.claw.support.constants;
 
-/** 运行时目录与默认值常量。 */
+/** 工作区目录与默认值常量。 */
 public interface RuntimePathConstants {
-    /** 运行时主渠道的统一常量值。 */
-    String RUNTIME_HOME = "runtime";
+    /** 工作区根目录默认值；当前所有工作文件都由 Agent 工作区承载。 */
+    String WORKSPACE_HOME = "workspace";
 
     /** 默认 Agent 工作区目录，按运行 Jar 所在目录解析。 */
     String DEFAULT_WORKSPACE = "./workspace";
@@ -36,25 +36,25 @@ public interface RuntimePathConstants {
     String LOGS_DIR_NAME = "logs";
 
     /** 上下文目录的统一常量值。 */
-    String CONTEXT_DIR = RUNTIME_HOME + "/" + CONTEXT_DIR_NAME;
+    String CONTEXT_DIR = WORKSPACE_HOME + "/" + CONTEXT_DIR_NAME;
 
     /** 技能目录的统一常量值。 */
-    String SKILLS_DIR = RUNTIME_HOME + "/" + SKILLS_DIR_NAME;
+    String SKILLS_DIR = WORKSPACE_HOME + "/" + SKILLS_DIR_NAME;
 
     /** 缓存目录的统一常量值。 */
-    String CACHE_DIR = RUNTIME_HOME + "/" + CACHE_DIR_NAME;
+    String CACHE_DIR = WORKSPACE_HOME + "/" + CACHE_DIR_NAME;
 
     /** ARTIFACTS目录的统一常量值。 */
-    String ARTIFACTS_DIR = RUNTIME_HOME + "/" + ARTIFACTS_DIR_NAME;
+    String ARTIFACTS_DIR = WORKSPACE_HOME + "/" + ARTIFACTS_DIR_NAME;
 
     /** 状态DB的统一常量值。 */
-    String STATE_DB = RUNTIME_HOME + "/" + DATA_DIR_NAME + "/" + STATE_DB_FILE_NAME;
+    String STATE_DB = WORKSPACE_HOME + "/" + DATA_DIR_NAME + "/" + STATE_DB_FILE_NAME;
 
     /** 配置文件的统一常量值。 */
-    String CONFIG_FILE = RUNTIME_HOME + "/" + CONFIG_FILE_NAME;
+    String CONFIG_FILE = WORKSPACE_HOME + "/" + CONFIG_FILE_NAME;
 
     /** LOGS目录的统一常量值。 */
-    String LOGS_DIR = RUNTIME_HOME + "/" + LOGS_DIR_NAME;
+    String LOGS_DIR = WORKSPACE_HOME + "/" + LOGS_DIR_NAME;
 
     /** 默认提供方键的统一常量值。 */
     String DEFAULT_PROVIDER_KEY = "default";

@@ -1,7 +1,7 @@
 export default {
   // Login
   login: {
-    title: 'SolonClaw Web UI',
+    title: 'solonclaw Web UI',
     description: 'Enter your access token to continue. Find it in the server startup logs.',
     placeholder: 'Access token',
     submit: 'Login',
@@ -77,7 +77,7 @@ export default {
   // Sidebar
   account: {
     dashboardAccessToken: 'Dashboard Access Token',
-    accessTokenDescription: 'Only one runtime config item is managed here: solonclaw.dashboard.accessToken. It is used as the Bearer Token for Dashboard pages and /api/* requests.',
+    accessTokenDescription: 'Only one workspace config item is managed here: solonclaw.dashboard.accessToken. It is used as the Bearer Token for Dashboard pages and /api/* requests.',
     accessTokenPlaceholder: 'Enter a new access token',
     accessTokenRequired: 'Access token is required',
     accessTokenSaved: 'Access token saved',
@@ -131,7 +131,7 @@ export default {
   // Chat
   chat: {
     contextRemaining: 'remaining',
-    emptyState: 'Start a conversation with SolonClaw Agent',
+    emptyState: 'Start a conversation with solonclaw Agent',
     inputPlaceholder: 'Type a message... (Enter to send, Shift+Enter for new line)',
     attachFiles: 'Attach files',
     stop: 'Stop',
@@ -199,7 +199,7 @@ export default {
     builtin: 'Built-in',
     current: 'Current',
     globalDefaultModel: 'Use global default model',
-    readonlyHint: 'Built-in agents map to the runtime root and are available in read-only mode.',
+    readonlyHint: 'Built-in agents map to the workspace root and are available in read-only mode.',
     editableHint: 'These settings affect only the named agent and do not modify global configuration.',
     activate: 'Use for current session',
     displayName: 'Display name',
@@ -289,7 +289,7 @@ export default {
     toolsSnapshot: 'Tool snapshot',
     noDescription: 'No description',
     capabilitiesAndSecurity: 'Capabilities and security',
-    participateInRuntimeDiscovery: 'Include in runtime tool discovery',
+    participateInRuntimeDiscovery: 'Include in workspace tool discovery',
     deleteTitle: 'Delete MCP service',
     deleteConfirm: 'Delete {name}?',
     oauthStatusLoadFailed: 'Failed to read OAuth status',
@@ -358,8 +358,8 @@ export default {
 
   diagnostics: {
     title: 'Diagnostics',
-    description: 'Review runtime paths, model providers, channels, security policies, and pending approvals in one place.',
-    runtime: 'Runtime',
+    description: 'Review workspace paths, model providers, channels, security policies, and pending approvals in one place.',
+    runtime: 'Workspace',
     providers: 'Model providers',
     channels: 'Channels',
     toolsAndMcp: 'Tools and MCP',
@@ -413,7 +413,7 @@ export default {
     auditToolPlaceholder: 'execute_shell',
     auditCommandPlaceholder: 'Enter a command to audit',
     auditUrlPlaceholder: 'https://example.com',
-    auditPathPlaceholder: 'runtime/config.yml',
+    auditPathPlaceholder: 'workspace/config.yml',
     auditArgsPlaceholder: '{"url":"https://example.com"}',
     auditStatusHint: 'Reads only the current security policy summary. Does not execute commands, access URLs, or read files.',
     auditRun: 'Audit',
@@ -864,7 +864,7 @@ export default {
     clearSkillsNotice: 'Saving will clear all skill bindings for this job',
     wrapResponse: 'Wrap Delivery Response',
     script: 'Script',
-    scriptPlaceholder: 'Relative path under runtime/scripts, e.g. watchdog.sh',
+    scriptPlaceholder: 'Relative path under workspace/scripts, e.g. watchdog.sh',
     scriptRequiredForNoAgent: 'No-agent mode requires a script',
     promptOrSkillRequired: 'Prompt or at least one skill is required when not using no-agent mode',
     noAgent: 'Skip Agent',
@@ -917,7 +917,7 @@ export default {
     pageGuideExpand: 'Expand guide',
     pageGuideMetaFields: '{count} fields',
     pageRuntimeAgentMode: 'Agent mode / No-agent mode',
-    pageRuntimeIsolation: 'Runtime isolation',
+    pageRuntimeIsolation: 'Workspace isolation',
     pageSecurityPolicy: 'Security policy',
     pageActionSyntax: 'Action syntax',
     pageUpdatableFields: 'Updatable fields',
@@ -1115,7 +1115,7 @@ export default {
   models: {
     title: 'Models',
     pageTitle: 'Model Providers',
-    pageDescription: 'Manage provider connections, base URLs, API keys, and default models here. Runtime defaults and fallback chains belong in Settings > Models.',
+    pageDescription: 'Manage provider connections, base URLs, API keys, and default models here. Workspace defaults and fallback chains belong in Settings > Models.',
     searchPlaceholder: 'Search models...',
     addProvider: 'Add Provider',
     editProvider: 'Edit Provider',

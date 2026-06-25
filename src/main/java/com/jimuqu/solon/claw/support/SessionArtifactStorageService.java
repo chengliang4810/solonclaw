@@ -33,7 +33,7 @@ public class SessionArtifactStorageService {
 
     /** 创建会话Artifact Storage服务实例。 */
     public SessionArtifactStorageService() {
-        this(new File(RuntimePathConstants.RUNTIME_HOME, RuntimePathConstants.ARTIFACTS_DIR_NAME));
+        this(new File(RuntimePathConstants.WORKSPACE_HOME, RuntimePathConstants.ARTIFACTS_DIR_NAME));
     }
 
     /**
@@ -48,7 +48,7 @@ public class SessionArtifactStorageService {
                                 appConfig == null || appConfig.getRuntime() == null
                                         ? null
                                         : appConfig.getRuntime().getHome(),
-                                RuntimePathConstants.RUNTIME_HOME),
+                                RuntimePathConstants.WORKSPACE_HOME),
                         RuntimePathConstants.ARTIFACTS_DIR_NAME));
     }
 
@@ -61,7 +61,7 @@ public class SessionArtifactStorageService {
         this.artifactsDir =
                 artifactsDir == null
                         ? new File(
-                                RuntimePathConstants.RUNTIME_HOME,
+                                RuntimePathConstants.WORKSPACE_HOME,
                                 RuntimePathConstants.ARTIFACTS_DIR_NAME)
                         : artifactsDir;
     }
@@ -92,7 +92,7 @@ public class SessionArtifactStorageService {
         result.put("format", "jsonl");
         result.put("completed", Boolean.valueOf(completed));
         result.put("file_name", target.getName());
-        result.put("path", "runtime://artifacts/" + target.getName());
+        result.put("path", "workspace://artifacts/" + target.getName());
         result.put("bytes_appended", Integer.valueOf(line.getBytes(StandardCharsets.UTF_8).length));
         result.put("timestamp", entry.get("timestamp"));
         result.put("session_id", entry.get("session_id"));

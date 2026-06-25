@@ -129,14 +129,18 @@ public class AppConfig {
     public static AppConfig load(Props props) {
         AppConfig config = new AppConfig();
         File userDir = new File(System.getProperty("user.dir"));
-        File runtimeHome = asAbsoluteStatic(new File(resolveInitialRuntimeHome(props)), userDir);
-        initializeRuntimeConfigIfMissing(runtimeHome);
-        Map<String, Object> overrides = loadFlatOverrides(runtimeHome);
-        Map<String, Object> structuredOverrides = loadStructuredOverrides(runtimeHome);
+        File workspaceBase = jarBaseDir(userDir);
+        File workspaceHome =
+                asAbsoluteStatic(
+                        new File(resolveInitialWorkspace(props, Collections.emptyMap())),
+                        workspaceBase);
+        initializeRuntimeConfigIfMissing(workspaceHome);
+        Map<String, Object> overrides = loadFlatOverrides(workspaceHome);
+        Map<String, Object> structuredOverrides = loadStructuredOverrides(workspaceHome);
         RuntimeConfigResolver configResolver =
-                RuntimeConfigResolver.initialize(runtimeHome.getAbsolutePath());
+                RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
 
-        config.getRuntime().setHome(resolveConfigString(runtimeHome.getPath()));
+        config.getRuntime().setHome(resolveConfigString(workspaceHome.getPath()));
         config.getRuntime()
                 .setContextDir(
                         runtimeChildPath(
@@ -166,11 +170,7 @@ public class AppConfig {
         config.getWorkspace()
                 .setDir(
                         resolveConfigString(
-                                readString(
-                                        props,
-                                        overrides,
-                                        "solonclaw.workspace",
-                                        RuntimePathConstants.DEFAULT_WORKSPACE)));
+                                workspaceHome.getPath()));
 
         config.getLlm()
                 .setStream(
@@ -487,7 +487,7 @@ public class AppConfig {
                                 readBoolean(
                                         props,
                                         overrides,
-                                        "solonclaw.display.runtimeFooter.enabled",
+                                        "solonclaw.display.metadataFooter.enabled",
                                         false)));
         config.getDisplay()
                 .getRuntimeFooter()
@@ -496,7 +496,7 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.display.runtimeFooter.fields",
+                                        "solonclaw.display.metadataFooter.fields",
                                         "model,context_pct,cwd")));
 
         applyChannelConfig(
@@ -609,7 +609,7 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.display.platforms.feishu.runtimeFooter.enabled",
+                                        "solonclaw.display.platforms.feishu.metadataFooter.enabled",
                                         null)));
 
         applyChannelConfig(
@@ -707,7 +707,7 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.display.platforms.dingtalk.runtimeFooter.enabled",
+                                        "solonclaw.display.platforms.dingtalk.metadataFooter.enabled",
                                         null)));
 
         applyChannelConfig(
@@ -771,7 +771,7 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.display.platforms.wecom.runtimeFooter.enabled",
+                                        "solonclaw.display.platforms.wecom.metadataFooter.enabled",
                                         null)));
 
         applyChannelConfig(
@@ -904,7 +904,7 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.display.platforms.weixin.runtimeFooter.enabled",
+                                        "solonclaw.display.platforms.weixin.metadataFooter.enabled",
                                         null)));
 
         applyChannelConfig(
@@ -981,7 +981,7 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.display.platforms.qqbot.runtimeFooter.enabled",
+                                        "solonclaw.display.platforms.qqbot.metadataFooter.enabled",
                                         null)));
 
         applyChannelConfig(
@@ -1055,7 +1055,7 @@ public class AppConfig {
                                 readRaw(
                                         props,
                                         overrides,
-                                        "solonclaw.display.platforms.yuanbao.runtimeFooter.enabled",
+                                        "solonclaw.display.platforms.yuanbao.metadataFooter.enabled",
                                         null)));
 
         config.getGateway()
@@ -1751,39 +1751,33 @@ public class AppConfig {
         return config;
     }
 
-    /** 标准化运行时路径与工作区路径，运行时基于进程目录，工作区相对运行 Jar 所在目录。 */
+    /** 标准化路径：所有工作文件由 Agent 工作区统一承载。 */
     public void normalizePaths() {
         File userDir = new File(System.getProperty("user.dir"));
-        File runtimeHome =
-                asAbsolute(
-                        new File(
-                                StrUtil.blankToDefault(
-                                        runtime.getHome(), RuntimePathConstants.RUNTIME_HOME)),
-                        userDir);
-        runtime.setHome(runtimeHome.getAbsolutePath());
-        runtime.setContextDir(
-                new File(runtimeHome, RuntimePathConstants.CONTEXT_DIR_NAME).getAbsolutePath());
-        runtime.setSkillsDir(
-                new File(runtimeHome, RuntimePathConstants.SKILLS_DIR_NAME).getAbsolutePath());
-        runtime.setCacheDir(
-                new File(runtimeHome, RuntimePathConstants.CACHE_DIR_NAME).getAbsolutePath());
-        runtime.setStateDb(
-                new File(
-                                new File(runtimeHome, RuntimePathConstants.DATA_DIR_NAME),
-                                RuntimePathConstants.STATE_DB_FILE_NAME)
-                        .getAbsolutePath());
-        runtime.setConfigFile(
-                new File(runtimeHome, RuntimePathConstants.CONFIG_FILE_NAME).getAbsolutePath());
-        runtime.setLogsDir(
-                new File(runtimeHome, RuntimePathConstants.LOGS_DIR_NAME).getAbsolutePath());
         File workspaceBase = jarBaseDir(userDir);
-        File workspaceDir =
+        File workspaceHome =
                 asAbsolute(
                         new File(
                                 StrUtil.blankToDefault(
                                         workspace.getDir(), RuntimePathConstants.DEFAULT_WORKSPACE)),
                         workspaceBase);
-        workspace.setDir(workspaceDir.getAbsolutePath());
+        workspace.setDir(workspaceHome.getAbsolutePath());
+        runtime.setHome(workspaceHome.getAbsolutePath());
+        runtime.setContextDir(
+                new File(workspaceHome, RuntimePathConstants.CONTEXT_DIR_NAME).getAbsolutePath());
+        runtime.setSkillsDir(
+                new File(workspaceHome, RuntimePathConstants.SKILLS_DIR_NAME).getAbsolutePath());
+        runtime.setCacheDir(
+                new File(workspaceHome, RuntimePathConstants.CACHE_DIR_NAME).getAbsolutePath());
+        runtime.setStateDb(
+                new File(
+                                new File(workspaceHome, RuntimePathConstants.DATA_DIR_NAME),
+                                RuntimePathConstants.STATE_DB_FILE_NAME)
+                        .getAbsolutePath());
+        runtime.setConfigFile(
+                new File(workspaceHome, RuntimePathConstants.CONFIG_FILE_NAME).getAbsolutePath());
+        runtime.setLogsDir(
+                new File(workspaceHome, RuntimePathConstants.LOGS_DIR_NAME).getAbsolutePath());
     }
 
     /** 用新的配置快照覆盖当前实例，保留对象引用稳定。 */
@@ -3159,6 +3153,10 @@ public class AppConfig {
         if (override != null) {
             return String.valueOf(override).trim();
         }
+        Object direct = props.get((Object) key);
+        if (direct != null) {
+            return String.valueOf(direct).trim();
+        }
         return props.get(key, defaultValue);
     }
 
@@ -3620,11 +3618,11 @@ public class AppConfig {
     /**
      * 加载Structured Overrides。
      *
-     * @param runtimeHome 运行时主渠道参数。
+     * @param workspaceHome 运行时主渠道参数。
      * @return 返回Structured Overrides结果。
      */
-    private static Map<String, Object> loadStructuredOverrides(File runtimeHome) {
-        File configFile = new File(runtimeHome, "config.yml");
+    private static Map<String, Object> loadStructuredOverrides(File workspaceHome) {
+        File configFile = new File(workspaceHome, "config.yml");
         if (!configFile.exists()) {
             return Collections.emptyMap();
         }
@@ -3689,11 +3687,11 @@ public class AppConfig {
     /**
      * 加载Flat Overrides。
      *
-     * @param runtimeHome 运行时主渠道参数。
+     * @param workspaceHome 运行时主渠道参数。
      * @return 返回Flat Overrides结果。
      */
-    private static Map<String, Object> loadFlatOverrides(File runtimeHome) {
-        File configFile = new File(runtimeHome, "config.yml");
+    private static Map<String, Object> loadFlatOverrides(File workspaceHome) {
+        File configFile = new File(workspaceHome, "config.yml");
         if (!configFile.exists()) {
             return Collections.emptyMap();
         }
@@ -3777,22 +3775,23 @@ public class AppConfig {
     }
 
     /**
-     * 解析Initial运行时主渠道。
+     * 解析启动阶段的工作区目录；工作区配置文件也放在该目录下。
      *
-     * @param props props 参数。
-     * @return 返回解析后的Initial运行时主渠道。
+     * @param props Solon 启动配置。
+     * @param overrides 已读取的工作区配置覆盖项，首次探测时可为空。
+     * @return 工作区目录配置值。
      */
-    private static String resolveInitialRuntimeHome(Props props) {
-        return props.get("solonclaw.runtime.home", RuntimePathConstants.RUNTIME_HOME);
+    private static String resolveInitialWorkspace(Props props, Map<String, Object> overrides) {
+        return readString(props, overrides, "solonclaw.workspace", RuntimePathConstants.DEFAULT_WORKSPACE);
     }
 
     /**
-     * 执行initialize运行时配置IfMissing相关逻辑。
+     * 执行initialize工作区配置IfMissing相关逻辑。
      *
-     * @param runtimeHome 运行时主渠道参数。
+     * @param workspaceHome 工作区根目录。
      */
-    private static void initializeRuntimeConfigIfMissing(File runtimeHome) {
-        File configFile = new File(runtimeHome, RuntimePathConstants.CONFIG_FILE_NAME);
+    private static void initializeRuntimeConfigIfMissing(File workspaceHome) {
+        File configFile = new File(workspaceHome, RuntimePathConstants.CONFIG_FILE_NAME);
         if (configFile.exists()) {
             return;
         }
@@ -3806,12 +3805,12 @@ public class AppConfig {
     }
 
     /**
-     * 执行默认运行时配置Content相关逻辑。
+     * 执行默认工作区配置Content相关逻辑。
      *
-     * @return 返回默认运行时配置Content结果。
+     * @return 返回默认工作区配置Content结果。
      */
     private static String defaultRuntimeConfigContent() {
-        return "# SolonClaw 最小运行配置。\n"
+        return "# solonclaw 最小运行配置。\n"
                 + "# 启动时自动创建；可通过 Dashboard 或直接编辑本文件继续完善。\n"
                 + "providers:\n"
                 + "  default:\n"
@@ -3828,19 +3827,17 @@ public class AppConfig {
                 + "fallbackProviders: []\n"
                 + "\n"
                 + "solonclaw:\n"
-                + "  # Agent 默认工作区；相对路径按运行 Jar 所在目录解析。\n"
-                + "  workspace: ./workspace\n"
                 + "  dashboard:\n"
                 + "    # Dashboard 访问令牌必须由部署方设置；留空时拒绝非公开 API 鉴权。\n"
                 + "    accessToken: \"\"\n";
     }
 
     /**
-     * 执行同步运行时配置Example相关逻辑。
+     * 执行同步工作区配置Example相关逻辑。
      *
-     * @param runtimeHome 运行时主渠道参数。
+     * @param workspaceHome 工作区根目录。
      */
-    private static void syncRuntimeConfigExample(String runtimeHome) {
+    private static void syncRuntimeConfigExample(String workspaceHome) {
         try (InputStream stream =
                 AppConfig.class
                         .getClassLoader()
@@ -3850,12 +3847,12 @@ public class AppConfig {
             }
             File target =
                     new File(
-                            StrUtil.blankToDefault(runtimeHome, RuntimePathConstants.RUNTIME_HOME),
+                            StrUtil.blankToDefault(workspaceHome, RuntimePathConstants.WORKSPACE_HOME),
                             RuntimePathConstants.CONFIG_EXAMPLE_FILE_NAME);
             FileUtil.mkParentDirs(target);
             Files.copy(stream, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
         } catch (Exception e) {
-            log.debug("运行时示例配置同步失败，跳过非关键参考文件写入: {}", exceptionSummary(e));
+            log.debug("工作区示例配置同步失败，跳过非关键参考文件写入: {}", exceptionSummary(e));
         }
     }
 
@@ -3870,37 +3867,37 @@ public class AppConfig {
     }
 
     /**
-     * 执行运行时Child路径相关逻辑。
+     * 执行工作区Child路径相关逻辑。
      *
-     * @param runtimeHome 运行时主渠道参数。
+     * @param workspaceHome 工作区根目录。
      * @param childName child名称参数。
-     * @return 返回运行时Child路径。
+     * @return 返回工作区Child路径。
      */
-    private static String runtimeChildPath(String runtimeHome, String childName) {
+    private static String runtimeChildPath(String workspaceHome, String childName) {
         return new File(
-                        StrUtil.blankToDefault(runtimeHome, RuntimePathConstants.RUNTIME_HOME),
+                        StrUtil.blankToDefault(workspaceHome, RuntimePathConstants.WORKSPACE_HOME),
                         childName)
                 .getPath();
     }
 
     /**
-     * 执行运行时Child路径相关逻辑。
+     * 执行工作区Child路径相关逻辑。
      *
-     * @param runtimeHome 运行时主渠道参数。
+     * @param workspaceHome 工作区根目录。
      * @param childName child名称参数。
      * @param fileName 文件或目录路径参数。
-     * @return 返回运行时Child路径。
+     * @return 返回工作区Child路径。
      */
-    private static String runtimeChildPath(String runtimeHome, String childName, String fileName) {
-        return new File(runtimeChildPath(runtimeHome, childName), fileName).getPath();
+    private static String runtimeChildPath(String workspaceHome, String childName, String fileName) {
+        return new File(runtimeChildPath(workspaceHome, childName), fileName).getPath();
     }
 
-    /** 运行时目录配置。 */
+    /** 工作区派生目录配置。 */
     @Getter
     @Setter
     @NoArgsConstructor
     public static class RuntimeConfig {
-        /** 运行时根目录。 */
+        /** 工作区根目录。 */
         private String home;
 
         /** 上下文文件目录。 */
@@ -3915,10 +3912,10 @@ public class AppConfig {
         /** SQLite 状态库路径。 */
         private String stateDb;
 
-        /** runtime/config.yml 路径。 */
+        /** workspace/config.yml 路径。 */
         private String configFile;
 
-        /** runtime/logs 目录。 */
+        /** workspace/logs 目录。 */
         private String logsDir;
     }
 
@@ -4475,7 +4472,7 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class TerminalConfig {
-        /** 相对 runtime home 的凭据文件挂载清单。 */
+        /** 相对 workspace 的凭据文件挂载清单。 */
         private List<String> credentialFiles = new ArrayList<String>();
 
         /** 允许技能显式传给本地子进程的第三方环境变量名。 */
@@ -4586,7 +4583,7 @@ public class AppConfig {
         /** 阻断域名列表，支持 example.com 和 *.example.com。 */
         private List<String> domains = new ArrayList<String>();
 
-        /** 共享阻断列表文件，支持相对 runtime home 或绝对路径。 */
+        /** 共享阻断列表文件，支持相对 workspace 或绝对路径。 */
         private List<String> sharedFiles = new ArrayList<String>();
     }
 
@@ -4828,7 +4825,7 @@ public class AppConfig {
         /** 钉钉长任务进度卡模板 ID。 */
         private String progressCardTemplateId;
 
-        /** 渠道级 runtime footer 开关，null 表示继承全局。 */
+        /** 渠道级 metadata footer 开关，null 表示继承全局。 */
         private Boolean runtimeFooterEnabled;
 
         /** 飞书文档评论智能回复开关。 */

@@ -16,7 +16,7 @@ public class AppConfigPlatformToolsetLoadTest {
 
     @Test
     void shouldLoadPlatformToolsetConfigFromYaml() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-platform-toolset").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-platform-toolset").toFile();
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
                         + "  gateway:\n"
@@ -31,10 +31,10 @@ public class AppConfigPlatformToolsetLoadTest {
                         + "          - terminal\n"
                         + "          - file\n"
                         + "        approvalRequired: true\n",
-                new File(runtimeHome, "config.yml"));
+                new File(workspaceHome, "config.yml"));
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
 
         AppConfig.GatewayConfig gateway = config.getGateway();
@@ -51,9 +51,9 @@ public class AppConfigPlatformToolsetLoadTest {
 
     @Test
     void shouldReturnEmptyPlatformsWhenNotConfigured() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-platform-empty").toFile();
+        File workspaceHome = Files.createTempDirectory("solonclaw-platform-empty").toFile();
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getGateway().getPlatforms()).isEmpty();

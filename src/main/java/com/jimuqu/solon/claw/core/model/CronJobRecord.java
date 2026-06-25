@@ -45,7 +45,7 @@ public class CronJobRecord {
     /** 已完成次数。 */
     private int repeatCompleted;
 
-    /** 任务脚本，相对 runtime/scripts。 */
+    /** 任务脚本，相对 workspace/scripts。 */
     private String script;
 
     /** 脚本工作目录。 */

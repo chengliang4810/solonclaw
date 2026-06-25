@@ -12,8 +12,8 @@ import org.noear.solon.core.Props;
 public class LlmConfigOverrideLoadTest {
     @Test
     void shouldLoadStructuredProviderModelAndApiKeyFromRuntimeConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-llm-config").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-llm-config").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "providers:\n"
                         + "  default:\n"
@@ -28,7 +28,7 @@ public class LlmConfigOverrideLoadTest {
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         props.put("providers.default.dialect", "ollama");
         props.put("providers.default.baseUrl", "http://127.0.0.1:11434");
         props.put("providers.default.defaultModel", "qwen");
@@ -44,14 +44,14 @@ public class LlmConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalLlmMaxTokensFromRuntimeConfig() throws Exception {
-        File runtimeHome = Files.createTempDirectory("solon-claw-llm-max-tokens").toFile();
-        File configFile = new File(runtimeHome, "config.yml");
+        File workspaceHome = Files.createTempDirectory("solonclaw-llm-max-tokens").toFile();
+        File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n" + "  llm:\n" + "    maxTokens: 8192\n",
                 configFile);
 
         Props props = new Props();
-        props.put("solonclaw.runtime.home", runtimeHome.getAbsolutePath());
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         props.put("providers.default.baseUrl", "https://api.openai.com");
         props.put("providers.default.defaultModel", "gpt-5.4");
         props.put("providers.default.dialect", "openai-responses");

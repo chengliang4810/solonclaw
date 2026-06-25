@@ -1,7 +1,7 @@
 export default {
   // Login
   login: {
-    title: 'SolonClaw Web UI',
+    title: 'solonclaw Web UI',
     description: 'Introduce tu token de acceso para continuar. Encuentralo en los registros de inicio del servidor.',
     placeholder: 'Token de acceso',
     submit: 'Iniciar sesion',
@@ -93,7 +93,7 @@ export default {
   // Chat
   chat: {
     contextRemaining: 'restante',
-    emptyState: 'Inicia una conversacion con SolonClaw Agent',
+    emptyState: 'Inicia una conversacion con solonclaw Agent',
     inputPlaceholder: 'Escribe un mensaje... (Enter para enviar, Shift+Enter para nueva linea)',
     attachFiles: 'Adjuntar archivos',
     stop: 'Detener',

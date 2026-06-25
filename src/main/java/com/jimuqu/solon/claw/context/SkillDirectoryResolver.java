@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.context;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -20,8 +21,8 @@ public class SkillDirectoryResolver {
     /** 注入应用配置，用于技能目录Resolver。 */
     private final AppConfig appConfig;
 
-    /** 记录技能目录Resolver中的运行时主渠道。 */
-    private final File runtimeHome;
+    /** 记录技能目录Resolver中的工作区目录。 */
+    private final File workspaceHome;
 
     /** 记录技能目录Resolver中的技能目录。 */
     private final File skillsDir;
@@ -111,15 +112,17 @@ public class SkillDirectoryResolver {
         this.appConfig = appConfig;
         String home =
                 appConfig == null || appConfig.getRuntime() == null
-                        ? "runtime"
-                        : StrUtil.blankToDefault(appConfig.getRuntime().getHome(), "runtime");
-        this.runtimeHome = FileUtil.file(home).getAbsoluteFile();
+                        ? RuntimePathConstants.WORKSPACE_HOME
+                        : StrUtil.blankToDefault(
+                                appConfig.getRuntime().getHome(),
+                                RuntimePathConstants.WORKSPACE_HOME);
+        this.workspaceHome = FileUtil.file(home).getAbsoluteFile();
         String skills =
                 appConfig == null || appConfig.getRuntime() == null
-                        ? new File(this.runtimeHome, "skills").getPath()
+                        ? new File(this.workspaceHome, "skills").getPath()
                         : StrUtil.blankToDefault(
                                 appConfig.getRuntime().getSkillsDir(),
-                                new File(this.runtimeHome, "skills").getPath());
+                                new File(this.workspaceHome, "skills").getPath());
         this.skillsDir = FileUtil.file(skills).getAbsoluteFile();
     }
 
@@ -208,7 +211,7 @@ public class SkillDirectoryResolver {
         String expanded = expandPathVariables(rawPath);
         File file = FileUtil.file(expanded);
         if (!file.isAbsolute()) {
-            file = FileUtil.file(runtimeHome, expanded);
+            file = FileUtil.file(workspaceHome, expanded);
         }
         return file.getAbsoluteFile();
     }

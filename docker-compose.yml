@@ -1,8 +1,8 @@
 services:
-  solon-claw:
+  solonclaw:
     # 默认使用 GitHub Packages 发布的单实例运行镜像。
-    image: ghcr.io/chengliang4810/solon-claw:latest
-    container_name: solon-claw
+    image: ghcr.io/chengliang4810/solonclaw:latest
+    container_name: solonclaw
     restart: unless-stopped
     ports:
       # 左侧为宿主机端口，右侧为容器内 Solon HTTP 端口。
@@ -21,5 +21,5 @@ services:
       # 只读根文件系统下为 JVM、脚本工具和临时文件处理提供受限临时目录。
       - /tmp
     volumes:
-      # runtime 目录持久化保存配置、SQLite 数据、日志、缓存、技能和上下文文件。
-      - ./runtime:/app/runtime
+      # workspace 目录持久化保存配置、SQLite 数据、日志、缓存、技能和上下文文件。
+      - ./workspace:/app/workspace

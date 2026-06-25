@@ -3,7 +3,7 @@ import { onMounted, ref } from "vue";
 import { NButton, NInput, NPopconfirm, useMessage } from "naive-ui";
 import { useI18n } from "vue-i18n";
 import { clearApiKey, setApiKey } from "@/api/client";
-import { fetchRuntimeConfigItems, revealRuntimeConfigItem, setRuntimeConfigItem } from "@/api/solonclaw/config";
+import { fetchWorkspaceConfigItems, revealWorkspaceConfigItem, setWorkspaceConfigItem } from "@/api/solonclaw/config";
 
 const ACCESS_TOKEN_KEY = "solonclaw.dashboard.accessToken";
 
@@ -22,7 +22,7 @@ onMounted(loadTokenStatus);
 async function loadTokenStatus() {
   loading.value = true;
   try {
-    const items = await fetchRuntimeConfigItems();
+    const items = await fetchWorkspaceConfigItems();
     const item = items[ACCESS_TOKEN_KEY];
     configured.value = !!item?.is_set;
     tokenPreview.value = item?.redacted_value || "";
@@ -42,7 +42,7 @@ async function saveAccessToken() {
 
   saving.value = true;
   try {
-    await setRuntimeConfigItem(ACCESS_TOKEN_KEY, nextToken);
+    await setWorkspaceConfigItem(ACCESS_TOKEN_KEY, nextToken);
     setApiKey(nextToken);
     accessToken.value = "";
     await loadTokenStatus();
@@ -58,7 +58,7 @@ async function saveAccessToken() {
 async function revealAccessToken() {
   revealing.value = true;
   try {
-    accessToken.value = await revealRuntimeConfigItem(ACCESS_TOKEN_KEY);
+    accessToken.value = await revealWorkspaceConfigItem(ACCESS_TOKEN_KEY);
   } catch (err: any) {
     message.error(err.message || t("account.accessTokenRevealFailed"));
   } finally {
@@ -69,7 +69,7 @@ async function revealAccessToken() {
 async function clearAccessToken() {
   saving.value = true;
   try {
-    await setRuntimeConfigItem(ACCESS_TOKEN_KEY, "");
+    await setWorkspaceConfigItem(ACCESS_TOKEN_KEY, "");
     accessToken.value = "";
     tokenPreview.value = "";
     configured.value = false;
@@ -216,4 +216,3 @@ async function clearAccessToken() {
   margin-top: 12px;
 }
 </style>
-

@@ -7,7 +7,7 @@
 - 这是一个 Java 8 源码兼容的单实例 Agent 服务，基于 Solon、Solon AI、Hutool、Snack4 和 SQLite；不要按 Spring Boot / Spring AI / Jackson / LangChain4j 习惯实现。
 - 项目目标是用 Java / Solon 生态对齐外部对标 Agent 的核心行为与能力，重点是 Agent 主循环、工具调用、会话/记忆、技能、定时任务、国内消息渠道、Dashboard-first 配置与诊断。
 - 新任务开始前先明确它对应外部对标仓库的哪个能力点；如果对应不上，先暂停确认，不要扩展成泛用聊天应用、泛工作流平台或无关 AI Demo。
-- 仓库文件、配置、测试、路由、环境变量、文档、提交信息、Release notes 和用户可见输出中不得写入旧项目关键词；本项目命名以 `solon-claw` / `solonclaw` 为准，代码包名可沿用当前 `com.jimuqu.solon.claw` 结构。
+- 仓库文件、配置、测试、路由、环境变量、文档、提交信息、Release notes 和用户可见输出中不得写入旧项目关键词；本项目命名以 `solonclaw` 为准，代码包名可沿用当前 `com.jimuqu.solon.claw` 结构。
 - 国内消息渠道范围：保留 `feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`；明确不做 `sms`、`webhook`；海外渠道默认不做。
 - 模型协议范围：`openai`、`openai-responses`、`ollama`、`gemini`、`anthropic`；其他 provider 默认不做，除非用户明确要求。
 - 已确认不做：研究实验能力、Docker 之外执行后端、运行时 worktree 执行后端、OpenAI 兼容 API Server、Profiles、多实例/多租户/多机器人隔离。
@@ -29,10 +29,10 @@ mvn test
 mvn "-Dtest=DashboardControllerHttpTest" test
 mvn spotless:check
 mvn spotless:apply
-java -jar target/solon-claw-0.0.1.jar
+java -jar target/solonclaw-0.0.1.jar
 ```
 
-Windows PowerShell 中 `-Dtest=...` 建议加引号。后端服务默认监听 `http://127.0.0.1:8080`，运行后在当前目录创建 `runtime/`。
+Windows PowerShell 中 `-Dtest=...` 建议加引号。后端服务默认监听 `http://127.0.0.1:8080`，运行后在当前目录创建 `workspace/`。
 
 ### 前端 Dashboard
 
@@ -60,7 +60,7 @@ python3 scripts/check-raw-exception-logging.py
 
 - 启动入口是 `com.jimuqu.solon.claw.SolonClawApp`：解析 CLI 模式，启用 WebSocket；console 模式关闭 HTTP 并交给 `CliRunner`，服务模式会经过 Docker root guard。
 - `bootstrap/` 是 Solon 装配层，集中创建配置、存储、工具、调度器、Dashboard、Gateway 等 Bean；业务逻辑不要塞进配置类。
-- `config/` 负责 `app.yml`、`runtime/config.yml` 与运行目录解析；默认运行目录是 `runtime/`，运行态数据包括 `context/`、`skills/`、`cache/`、`logs/` 和 `data/state.db`。
+- `config/` 负责 `app.yml`、`workspace/config.yml` 与工作区目录解析；默认工作区目录是 `workspace/`，运行态数据包括 `context/`、`skills/`、`cache/`、`logs/` 和 `data/state.db`。
 - `core/` 定义会话、消息、工具、渠道、配置、审批等领域模型与仓储/服务接口；`storage/repository/` 是 SQLite 实现。
 - `engine/` 承载 Agent 会话编排主链路：多轮会话、工具调用循环、上下文预算/压缩、委托、pending run 恢复和会话搜索。
 - `llm/` 是模型协议边界，`SolonAiLlmGateway` 通过 Solon AI 接入 provider/dialect、流式输出、工具调用、失败分类和使用量统计。

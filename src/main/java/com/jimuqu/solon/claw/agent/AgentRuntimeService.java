@@ -11,10 +11,10 @@ import org.noear.snack4.ONode;
 
 /** 解析会话当前激活 Agent，并在单轮运行开始前冻结目录、技能、记忆与模型配置。 */
 public class AgentRuntimeService {
-    /** 自定义 Agent 名称允许的字符范围，避免把路径片段写入运行目录。 */
+    /** 自定义 Agent 名称允许的字符范围，避免把路径片段写入工作区目录。 */
     private static final String VALID_NAME_PATTERN = "^[a-zA-Z0-9][a-zA-Z0-9._-]*$";
 
-    /** 应用配置提供 runtime 根目录、技能目录和缓存目录等默认路径。 */
+    /** 应用配置提供工作区根目录、技能目录和缓存目录等默认路径。 */
     private final AppConfig appConfig;
 
     /** Agent 角色仓储，负责读取和保存用户创建的命名 Agent 配置。 */
@@ -23,7 +23,7 @@ public class AgentRuntimeService {
     /**
      * 创建 Agent 运行时服务实例。
      *
-     * @param appConfig 应用运行配置，提供默认 runtime 路径。
+     * @param appConfig 应用运行配置，提供默认工作区路径。
      * @param repository Agent 角色配置仓储。
      */
     public AgentRuntimeService(AppConfig appConfig, AgentProfileRepository repository) {
@@ -43,7 +43,7 @@ public class AgentRuntimeService {
     }
 
     /**
-     * 按名称解析 Agent 运行范围，命名 Agent 会检查启用状态并初始化运行目录。
+     * 按名称解析 Agent 运行范围，命名 Agent 会检查启用状态并初始化工作区目录。
      *
      * @param rawName 用户输入或会话中保存的 Agent 名称。
      * @return 返回冻结后的运行范围。
@@ -87,7 +87,7 @@ public class AgentRuntimeService {
     }
 
     /**
-     * 创建命名 Agent 角色配置，并初始化该 Agent 的运行目录。
+     * 创建命名 Agent 角色配置，并初始化该 Agent 的工作区目录。
      *
      * @param name Agent 名称。
      * @param rolePrompt 该 Agent 的默认角色提示词，空值时使用通用任务 Agent 提示。
@@ -174,7 +174,7 @@ public class AgentRuntimeService {
      * 计算命名 Agent 的根目录。
      *
      * @param name Agent 名称。
-     * @return 返回 runtime/agents/{name} 对应目录。
+     * @return 返回 workspace/agents/{name} 对应目录。
      */
     public File agentRoot(String name) {
         return FileUtil.file(appConfig.getRuntime().getHome(), "agents", normalizeName(name));
@@ -246,7 +246,7 @@ public class AgentRuntimeService {
     }
 
     /**
-     * 确保命名 Agent 的运行目录三件套存在。
+     * 确保命名 Agent 的工作区目录三件套存在。
      *
      * @param name Agent 名称。
      */
@@ -327,7 +327,7 @@ public class AgentRuntimeService {
 
     /** 命名 Agent 的固定目录布局，集中描述避免不同路径拼装逻辑漂移。 */
     private static class AgentDirectories {
-        /** Agent 根目录，对应 runtime/agents/{name}。 */
+        /** Agent 根目录，对应 workspace/agents/{name}。 */
         private final File root;
 
         /** Agent 专属工作区目录，用于隔离文件读写上下文。 */

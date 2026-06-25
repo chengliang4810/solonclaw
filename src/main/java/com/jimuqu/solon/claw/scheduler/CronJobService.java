@@ -102,10 +102,10 @@ public class CronJobService {
                 threat("destructive_root_rm", "rm\\s+-rf\\s+/"),
                 threat(
                         "gateway_lifecycle",
-                        "(?:\\b(?:solon-claw|solonclaw)\\s+gateway\\s+(?:restart|stop|start)\\b)"
+                        "(?:\\b(?:solonclaw)\\s+gateway\\s+(?:restart|stop|start)\\b)"
                                 + "|(?:\\blaunchctl\\s+(?:kickstart|unload|load|stop|restart)\\b[^\\n]*solon-?claw)"
                                 + "|(?:\\bsystemctl\\s+(?:restart|stop|start)\\b[^\\n]*solon-?claw)"
-                                + "|(?:\\b(?:pkill|killall)\\b[^\\n]*(?:solon-claw|solonclaw|gateway))"
+                                + "|(?:\\b(?:pkill|killall)\\b[^\\n]*(?:solonclaw|gateway))"
                                 + "|(?:\\bkill\\b[^\\n]*(?:\\$\\(\\s*(?:pgrep|pidof)\\b|`\\s*(?:pgrep|pidof)\\b))")
             };
 
@@ -889,7 +889,7 @@ public class CronJobService {
                         "/cron edit <job-id> --clear-skills",
                         "/cron edit <job-id> --clear-repeat",
                         "/cron add \"every 2h\" \"task\" --deliver feishu --deliver-chat-id chat --deliver-thread-id thread",
-                        "/cron edit <job-id> --no-agent --script collect.py --workdir runtime/projects/demo",
+                        "/cron edit <job-id> --no-agent --script collect.py --workdir workspace/projects/demo",
                         "/cron edit <job-id> --context-from upstream-job --enabled-toolsets web,terminal",
                         "/cron edit <job-id> --clear-context-from --clear-enabled-toolsets",
                         "/cron run <job-id>",
@@ -1119,7 +1119,7 @@ public class CronJobService {
         isolation.put("autoDeliveryContext", Boolean.TRUE);
         isolation.put("selfDeliveryDiscouraged", Boolean.TRUE);
         isolation.put("localDeliveryHistoryOnly", Boolean.TRUE);
-        isolation.put("tickLockFile", "runtime/jobs/cron.tick.lock");
+        isolation.put("tickLockFile", "workspace/jobs/cron.tick.lock");
         isolation.put("workdirJobsSerialized", Boolean.TRUE);
         isolation.put("parallelBySourceWithoutWorkdir", Boolean.TRUE);
         isolation.put("inactivityTimeoutSeconds", Integer.valueOf(cronInactivityTimeoutSeconds()));
@@ -1392,7 +1392,7 @@ public class CronJobService {
                         "sudoers_mod",
                         "destructive_root_rm"));
         result.put("script_validation", "script 禁止绝对路径、父目录跳转、shell 片段、控制字符和 URL。");
-        result.put("workdir_validation", "workdir 会规范化到 runtime home 内部，禁止逃逸工作目录。");
+        result.put("workdir_validation", "workdir 会规范化到 workspace 内部，禁止逃逸工作目录。");
         result.put("delivery_validation", "deliver 只允许本地、origin 或已支持平台。");
         result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
         result.put(
@@ -1557,7 +1557,7 @@ public class CronJobService {
             }
         }
         if (value.startsWith("~")) {
-            throw new IllegalStateException("script must stay within runtime/scripts");
+            throw new IllegalStateException("script must stay within workspace/scripts");
         }
         try {
             File scriptsDir =
@@ -1567,7 +1567,7 @@ public class CronJobService {
                     (requested.isAbsolute() ? requested : new File(scriptsDir, value))
                             .getCanonicalFile();
             if (!CronJobSupport.isUnderDirectory(scriptsDir, target)) {
-                throw new IllegalStateException("script must stay within runtime/scripts");
+                throw new IllegalStateException("script must stay within workspace/scripts");
             }
         } catch (java.io.IOException e) {
             throw new IllegalStateException("script path could not be validated: " + CronJobSupport.safeError(e));
@@ -1590,7 +1590,7 @@ public class CronJobService {
     }
 
     /**
-     * 识别脚本缺失或越界错误，给出保持在 runtime/scripts 下的恢复建议。
+     * 识别脚本缺失或越界错误，给出保持在 workspace/scripts 下的恢复建议。
      *
      * @param record 定时任务记录。
      * @return 命中时返回诊断项，否则返回 null。
@@ -1607,10 +1607,10 @@ public class CronJobService {
         String script = safeViewText(record.getScript());
         item.put("code", "cron_script_missing");
         item.put("level", "error");
-        item.put("message", "定时任务脚本缺失或不在 runtime/scripts 下");
+        item.put("message", "定时任务脚本缺失或不在 workspace/scripts 下");
         item.put("script", script);
-        item.put("runtime_dir", "runtime://scripts");
-        item.put("suggestion", "请恢复脚本到 runtime/scripts 后重试，或编辑任务选择新的脚本。");
+        item.put("workspace_dir", "workspace://scripts");
+        item.put("suggestion", "请恢复脚本到 workspace/scripts 后重试，或编辑任务选择新的脚本。");
         item.put("retryable_after_fix", Boolean.TRUE);
         return item;
     }
@@ -1623,8 +1623,8 @@ public class CronJobService {
      */
     private boolean isMissingCronScriptError(String error) {
         String value = StrUtil.nullToEmpty(error);
-        return value.startsWith("定时任务脚本不在 runtime/scripts 下")
-                || value.startsWith("Cron script not found under runtime/scripts");
+        return value.startsWith("定时任务脚本不在 workspace/scripts 下")
+                || value.startsWith("Cron script not found under workspace/scripts");
     }
 
     /**
@@ -1697,15 +1697,15 @@ public class CronJobService {
             return null;
         }
         try {
-            File runtimeHome = FileUtil.file(appConfig.getRuntime().getHome()).getCanonicalFile();
+            File workspaceHome = FileUtil.file(appConfig.getRuntime().getHome()).getCanonicalFile();
             File file = FileUtil.file(value).getCanonicalFile();
-            String homePath = normalizedPath(runtimeHome);
+            String homePath = normalizedPath(workspaceHome);
             String filePath = normalizedPath(file);
             if (filePath.equals(homePath)) {
-                return "runtime://";
+                return "workspace://";
             }
             if (filePath.startsWith(homePath + File.separator)) {
-                return "runtime://" + filePath.substring(homePath.length() + 1).replace('\\', '/');
+                return "workspace://" + filePath.substring(homePath.length() + 1).replace('\\', '/');
             }
         } catch (Exception e) {
             logCronBestEffortFailure(jobId, "workdir_reference", e);

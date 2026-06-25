@@ -440,13 +440,13 @@ public class CliModeParserTest {
 
         assertThat(bash)
                 .contains("_solon_claw_completion()")
-                .contains("complete -F _solon_claw_completion solon-claw")
+                .contains("complete -F _solon_claw_completion solonclaw")
                 .contains("completion|--completion")
                 .contains("bash zsh fish")
                 .contains("--session --ask -p")
                 .contains("/reload-mcp");
         assertThat(zsh)
-                .contains("#compdef solon-claw")
+                .contains("#compdef solonclaw")
                 .contains("completion:Print shell completion script")
                 .contains("shells=(bash zsh fish)")
                 .contains("_describe 'shell' shells")
@@ -454,7 +454,7 @@ public class CliModeParserTest {
                 .contains("/reload-mcp")
                 .doesNotContain("'[Send one prompt]:prompt:'");
         assertThat(fish)
-                .contains("complete -c solon-claw -f")
+                .contains("complete -c solonclaw -f")
                 .contains("__fish_seen_subcommand_from completion")
                 .contains("bash zsh fish")
                 .contains("__fish_seen_argument -s p -l ask")

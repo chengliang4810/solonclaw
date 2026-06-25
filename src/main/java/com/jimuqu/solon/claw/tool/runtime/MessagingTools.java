@@ -297,11 +297,11 @@ public class MessagingTools {
     private List<File> fallbackCandidates(String fileName) {
         List<File> candidates = new ArrayList<File>();
         if (appConfig != null && appConfig.getRuntime() != null) {
-            File runtimeHome = new File(appConfig.getRuntime().getHome());
+            File workspaceHome = new File(appConfig.getRuntime().getHome());
             File cacheDir = new File(appConfig.getRuntime().getCacheDir());
             candidates.add(new File(cacheDir, "pdf/" + fileName));
             candidates.add(new File(cacheDir, fileName));
-            candidates.add(new File(runtimeHome, fileName));
+            candidates.add(new File(workspaceHome, fileName));
         }
         candidates.add(new File(System.getProperty("user.dir"), fileName));
         return candidates;

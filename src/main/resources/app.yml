@@ -1,5 +1,5 @@
 server.port: 8080
-solon.app.name: solon-claw
+solon.app.name: solonclaw
 
 solon.logging.appender.console.level: INFO
 solon.logging.appender.console.pattern: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{48} - %msg%n%ex"
@@ -9,10 +9,7 @@ solon.logging.appender.file.maxFileSize: 10 MB
 solon.logging.appender.file.maxHistory: 7
 solon.logging.logger.root.level: INFO
 
-# 运行时目录配置
-solonclaw.runtime.home: runtime
-
-# Agent 默认工作区；相对路径按运行 Jar 所在目录解析。
+# Agent 默认工作区；运行态配置、数据、缓存、日志、技能和上下文也统一落在此目录。
 solonclaw.workspace: ./workspace
 
 # Dashboard 页面与 /api/* 接口共用的访问令牌；留空时非公开 API 拒绝鉴权。
@@ -24,7 +21,7 @@ solonclaw.dashboard.accessToken:
 providers.default.name: DefaultProvider
 # 默认模型服务基础地址。
 providers.default.baseUrl: https://api.openai.com
-# 默认模型服务密钥，建议通过 runtime/config.yml 或环境注入，不要提交真实密钥。
+# 默认模型服务密钥，建议通过 workspace/config.yml 或环境注入，不要提交真实密钥。
 providers.default.apiKey:
 # 默认模型名称；model.default 为空时使用该值。
 providers.default.defaultModel: gpt-5.4

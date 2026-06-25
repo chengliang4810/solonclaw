@@ -9,7 +9,7 @@ import java.io.IOException;
 /** 校验运行时路径安全边界，阻止不符合约束的运行路径。 */
 public class RuntimePathGuard {
     /** 记录运行时路径中的运行时主渠道。 */
-    private final File runtimeHome;
+    private final File workspaceHome;
 
     /** 记录运行时路径中的上下文目录。 */
     private final File contextDir;
@@ -35,7 +35,7 @@ public class RuntimePathGuard {
      * @param appConfig 应用运行配置。
      */
     public RuntimePathGuard(AppConfig appConfig) {
-        this.runtimeHome = canonical(new File(appConfig.getRuntime().getHome()));
+        this.workspaceHome = canonical(new File(appConfig.getRuntime().getHome()));
         this.contextDir = canonical(new File(appConfig.getRuntime().getContextDir()));
         this.skillsDir = canonical(new File(appConfig.getRuntime().getSkillsDir()));
         this.cacheDir = canonical(new File(appConfig.getRuntime().getCacheDir()));
@@ -52,7 +52,7 @@ public class RuntimePathGuard {
      */
     public File requireAllowedToolPath(String path) {
         File file = canonical(resolve(path));
-        requireUnderAny(file, projectDir, runtimeHome);
+        requireUnderAny(file, projectDir, workspaceHome);
         return file;
     }
 

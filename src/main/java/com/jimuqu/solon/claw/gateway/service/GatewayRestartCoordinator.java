@@ -35,7 +35,7 @@ public class GatewayRestartCoordinator {
     private final RestartExitHandler exitHandler;
 
     /** 记录消息网关重启Coordinator中的运行时主渠道。 */
-    private final File runtimeHome;
+    private final File workspaceHome;
 
     /** 是否启用重启Requested。 */
     private volatile boolean restartRequested;
@@ -84,11 +84,11 @@ public class GatewayRestartCoordinator {
             RestartExitHandler exitHandler) {
         this.agentRunControlService = agentRunControlService;
         this.exitHandler = exitHandler == null ? new SystemExitRestartHandler() : exitHandler;
-        this.runtimeHome =
+        this.workspaceHome =
                 FileUtil.file(
                                 StrUtil.blankToDefault(
                                         appConfig == null ? null : appConfig.getRuntime().getHome(),
-                                        RuntimePathConstants.RUNTIME_HOME))
+                                        RuntimePathConstants.WORKSPACE_HOME))
                         .getAbsoluteFile();
         this.drainTimeoutSeconds =
                 appConfig == null
@@ -247,8 +247,8 @@ public class GatewayRestartCoordinator {
         payload.put("requested_at", Long.valueOf(requestedAtMillis));
         payload.put("drain_timeout_seconds", Integer.valueOf(drainTimeoutSeconds));
 
-        File marker = FileUtil.file(runtimeHome, RESTART_REQUESTER_MARKER);
-        File temp = FileUtil.file(runtimeHome, RESTART_REQUESTER_MARKER + ".tmp");
+        File marker = FileUtil.file(workspaceHome, RESTART_REQUESTER_MARKER);
+        File temp = FileUtil.file(workspaceHome, RESTART_REQUESTER_MARKER + ".tmp");
         FileUtil.mkParentDirs(marker);
         FileUtil.writeString(ONode.serialize(payload), temp, StandardCharsets.UTF_8);
         if (!temp.renameTo(marker)) {
