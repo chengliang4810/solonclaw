@@ -97,11 +97,12 @@ read -rp "  请输入 [1/2]（默认 1）: " DEPLOY_CHOICE < /dev/tty
 DEPLOY_CHOICE="${DEPLOY_CHOICE:-1}"
 
 # ─── sdkman / jabba 等 Java 版本管理器自动加载 ───────────────────────────────
+# sdkman-init.sh 内部引用 ZSH_VERSION 等未定义变量，需临时关闭 set -u 避免退出
 if [ -s "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
-    source "$HOME/.sdkman/bin/sdkman-init.sh" 2>/dev/null || true
+    set +u; source "$HOME/.sdkman/bin/sdkman-init.sh" 2>/dev/null; set -u
 fi
 if [ -s "$HOME/.jabba/jabba.sh" ]; then
-    source "$HOME/.jabba/jabba.sh" 2>/dev/null || true
+    set +u; source "$HOME/.jabba/jabba.sh" 2>/dev/null; set -u
 fi
 
 # ─── GitHub 代理检测 ─────────────────────────────────────────────────────────
