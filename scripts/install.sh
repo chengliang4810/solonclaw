@@ -273,23 +273,52 @@ deploy_native() {
 
     if ! check_node; then
         warn "未检测到 Node.js 20+，正在尝试安装..."
+        NODE_INSTALLED=0
         if [ "$PLATFORM" = "darwin" ]; then
             if command -v brew &>/dev/null; then
-                brew install node
+                brew install node && NODE_INSTALLED=1
             else
                 error "请先安装 Homebrew（https://brew.sh），然后运行: brew install node"
             fi
         elif [ "$PLATFORM" = "linux" ]; then
-            curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null || true
-            if command -v apt-get &>/dev/null; then
-                sudo apt-get install -y -qq nodejs
-            elif command -v yum &>/dev/null; then
-                sudo yum install -y nodejs
-            elif command -v dnf &>/dev/null; then
-                sudo dnf install -y nodejs
+            # 方式 1: NodeSource（海外优先）
+            if [ -z "$GITHUB_PROXY" ]; then
+                info "通过 NodeSource 安装 Node.js 20..."
+                curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null && \
+                (command -v apt-get &>/dev/null && sudo apt-get install -y -qq nodejs || \
+                 command -v yum &>/dev/null && sudo yum install -y nodejs || \
+                 command -v dnf &>/dev/null && sudo dnf install -y nodejs) && NODE_INSTALLED=1 || true
+            fi
+            # 方式 2: 二进制包直接安装（国内环境，从 npmmirror 下载）
+            if [ "$NODE_INSTALLED" -eq 0 ]; then
+                info "通过二进制包安装 Node.js 20..."
+                NODE_VERSION="v20.19.2"
+                NODE_ARCH="x64"
+                [ "$ARCH" = "arm64" ] && NODE_ARCH="arm64"
+                NODE_DISTRO="linux-${NODE_ARCH}"
+                NODE_TAR="node-${NODE_VERSION}-${NODE_DISTRO}.tar.xz"
+                # 优先用 npmmirror，回退官方
+                NODE_MIRRORS=(
+                    "https://npmmirror.com/mirrors/node/${NODE_VERSION}/${NODE_TAR}"
+                    "https://nodejs.org/dist/${NODE_VERSION}/${NODE_TAR}"
+                )
+                for url in "${NODE_MIRRORS[@]}"; do
+                    info "下载: $url"
+                    if curl -fSL --connect-timeout 10 --max-time 120 -o "/tmp/$NODE_TAR" "$url" 2>/dev/null; then
+                        sudo tar -xJf "/tmp/$NODE_TAR" -C /usr/local --strip-components=1
+                        rm -f "/tmp/$NODE_TAR"
+                        NODE_INSTALLED=1
+                        break
+                    fi
+                done
+            fi
+            # 方式 3: apt 默认源（版本可能较低，但能用）
+            if [ "$NODE_INSTALLED" -eq 0 ] && command -v apt-get &>/dev/null; then
+                info "通过 apt 默认源安装 Node.js..."
+                sudo apt-get update -qq && sudo apt-get install -y -qq nodejs npm && NODE_INSTALLED=1 || true
             fi
         fi
-        check_node || error "Node.js 安装后仍未检测到 node 命令，请手动安装 Node.js 20+（https://nodejs.org）"
+        check_node || error "Node.js 安装失败，请手动安装 Node.js 20+（https://nodejs.org 或 https://npmmirror.com）"
     fi
 
     command -v npm &>/dev/null || error "npm 未找到，请重新安装 Node.js"
