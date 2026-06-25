@@ -71,9 +71,21 @@ esac
 info "平台: $PLATFORM/$ARCH"
 
 # ─── 安装目录 ────────────────────────────────────────────────────────────────
-INSTALL_DIR="${SOLONCLAW_HOME:-$HOME/.solonclaw}"
+DEFAULT_INSTALL_DIR="$HOME/.solonclaw"
+echo ""
+read -rp "  安装目录（默认 $DEFAULT_INSTALL_DIR）: " CUSTOM_DIR < /dev/tty
+INSTALL_DIR="${CUSTOM_DIR:-$DEFAULT_INSTALL_DIR}"
 WORKSPACE_DIR="$INSTALL_DIR/workspace"
 mkdir -p "$INSTALL_DIR" "$WORKSPACE_DIR"
+info "安装目录: $INSTALL_DIR"
+
+# ─── Dashboard 访问令牌 ──────────────────────────────────────────────────────
+echo ""
+echo "  设置 Dashboard 登录密钥（留空则无法登录 Web 管理页面）"
+read -rp "  请输入访问令牌: " DASHBOARD_TOKEN < /dev/tty
+if [ -z "$DASHBOARD_TOKEN" ]; then
+    warn "未设置访问令牌，Dashboard 将无法登录（后续可通过 config.yml 配置）"
+fi
 
 # ─── 选择部署方式 ────────────────────────────────────────────────────────────
 echo ""
@@ -199,7 +211,12 @@ COMPOSE_EOF
     echo "    停止:   docker compose -f $COMPOSE_FILE down"
     echo "    日志:   docker compose -f $COMPOSE_FILE logs -f"
     echo "    重启:   docker compose -f $COMPOSE_FILE restart"
-    echo "    TUI:    solonclaw"
+    echo ""
+    echo "  TUI 交互:    solonclaw"
+    echo ""
+    echo "  模型配置（二选一）:"
+    echo "    1. TUI 命令:    启动 solonclaw 后输入 /setup model"
+    echo "    2. Web 管理:    打开 http://127.0.0.1:8080 登录后在「模型」页面配置"
     echo ""
 }
 
@@ -423,11 +440,12 @@ ENV_EOF
         echo "    启动: launchctl start com.solonclaw.agent"
     fi
     echo ""
-    echo "  启动 TUI:   solonclaw"
+    echo "  TUI 交互:   solonclaw"
     echo "  远程连接:   SOLONCLAW_SERVER_URL=http://IP:8080 solonclaw"
     echo ""
-    echo "  首次使用请编辑配置文件填入 API Key:"
-    echo "    vim $WORKSPACE_DIR/config.yml"
+    echo "  模型配置（二选一）:"
+    echo "    1. TUI 命令:   启动 solonclaw 后输入 /setup model"
+    echo "    2. Web 管理:   打开 http://127.0.0.1:8080 登录后在「模型」页面配置"
     echo ""
 }
 
@@ -437,7 +455,7 @@ ENV_EOF
 create_config() {
     CONFIG_FILE="$WORKSPACE_DIR/config.yml"
     if [ ! -f "$CONFIG_FILE" ]; then
-        cat > "$CONFIG_FILE" << 'EOF'
+        cat > "$CONFIG_FILE" << EOF
 # solonclaw 运行配置
 # 完整配置参考: https://github.com/chengliang4810/solon-claw/blob/main/config.example.yml
 
@@ -458,10 +476,9 @@ model:
 
 solonclaw:
   dashboard:
-    accessToken: ""
+    accessToken: "${DASHBOARD_TOKEN}"
 EOF
         ok "默认配置已创建: $CONFIG_FILE"
-        warn "请编辑 $CONFIG_FILE 填入你的 API Key"
     else
         ok "配置文件已存在: $CONFIG_FILE"
     fi

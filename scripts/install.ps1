@@ -9,10 +9,20 @@ function Write-Warn  { Write-Host "[WARN] $args" -ForegroundColor Yellow }
 function Write-Err   { Write-Host "[ERROR] $args" -ForegroundColor Red; exit 1 }
 
 # ─── 安装目录 ────────────────────────────────────────────────────────────────
-$InstallDir = if ($env:SOLONCLAW_HOME) { $env:SOLONCLAW_HOME } else { Join-Path $env:USERPROFILE ".solonclaw" }
+$DefaultDir = if ($env:SOLONCLAW_HOME) { $env:SOLONCLAW_HOME } else { Join-Path $env:USERPROFILE ".solonclaw" }
+$CustomDir = Read-Host "  安装目录（默认 $DefaultDir）"
+$InstallDir = if ([string]::IsNullOrEmpty($CustomDir)) { $DefaultDir } else { $CustomDir }
 $WorkspaceDir = Join-Path $InstallDir "workspace"
 New-Item -ItemType Directory -Force -Path $InstallDir, $WorkspaceDir | Out-Null
 Write-Info "安装目录: $InstallDir"
+
+# ─── Dashboard 访问令牌 ──────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "  设置 Dashboard 登录密钥（留空则无法登录 Web 管理页面）"
+$DashboardToken = Read-Host "  请输入访问令牌"
+if ([string]::IsNullOrEmpty($DashboardToken)) {
+    Write-Warn "未设置访问令牌，Dashboard 将无法登录（后续可通过 config.yml 配置）"
+}
 
 # ─── 选择部署方式 ────────────────────────────────────────────────────────────
 Write-Host ""
@@ -40,6 +50,7 @@ Write-Info "最新版本: $tag"
 function New-DefaultConfig {
     $ConfigFile = Join-Path $WorkspaceDir "config.yml"
     if (-not (Test-Path $ConfigFile)) {
+        $tokenValue = if ([string]::IsNullOrEmpty($DashboardToken)) { "" } else { $DashboardToken }
         @"
 # solonclaw 运行配置
 # 完整配置参考: https://github.com/chengliang4810/solon-claw/blob/main/config.example.yml
@@ -61,10 +72,9 @@ model:
 
 solonclaw:
   dashboard:
-    accessToken: ""
+    accessToken: "$tokenValue"
 "@ | Out-File -Encoding utf8 $ConfigFile
         Write-Ok "默认配置已创建: $ConfigFile"
-        Write-Warn "请编辑 $ConfigFile 填入你的 API Key"
     } else {
         Write-Ok "配置文件已存在: $ConfigFile"
     }
@@ -129,7 +139,12 @@ services:
     Write-Host "    启动: docker compose -f $ComposeFile up -d"
     Write-Host "    停止: docker compose -f $ComposeFile down"
     Write-Host "    日志: docker compose -f $ComposeFile logs -f"
-    Write-Host "    TUI:  solonclaw"
+    Write-Host ""
+    Write-Host "  TUI 交互:   solonclaw"
+    Write-Host ""
+    Write-Host "  模型配置（二选一）:"
+    Write-Host "    1. TUI 命令:   启动 solonclaw 后输入 /setup model"
+    Write-Host "    2. Web 管理:   打开 http://127.0.0.1:8080 登录后在「模型」页面配置"
     Write-Host ""
 }
 
@@ -261,11 +276,12 @@ function Install-Native {
     Write-Host "    停止: nssm stop solonclaw"
     Write-Host "    启动: nssm start solonclaw"
     Write-Host ""
-    Write-Host "  启动 TUI:   solonclaw"
+    Write-Host "  TUI 交互:   solonclaw"
     Write-Host "  远程连接:   `$env:SOLONCLAW_SERVER_URL='http://IP:8080'; solonclaw"
     Write-Host ""
-    Write-Host "  首次使用请编辑配置文件填入 API Key:"
-    Write-Host "    notepad $WorkspaceDir\config.yml"
+    Write-Host "  模型配置（二选一）:"
+    Write-Host "    1. TUI 命令:   启动 solonclaw 后输入 /setup model"
+    Write-Host "    2. Web 管理:   打开 http://127.0.0.1:8080 登录后在「模型」页面配置"
     Write-Host ""
 }
 
