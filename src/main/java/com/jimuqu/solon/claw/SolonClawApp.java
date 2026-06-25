@@ -1,9 +1,5 @@
 package com.jimuqu.solon.claw;
 
-import com.jimuqu.solon.claw.cli.CliMode;
-import com.jimuqu.solon.claw.cli.CliModeParser;
-import com.jimuqu.solon.claw.cli.CliRunner;
-import com.jimuqu.solon.claw.bootstrap.StartupModeContext;
 import org.noear.solon.Solon;
 import org.noear.solon.annotation.SolonMain;
 
@@ -20,32 +16,7 @@ public class SolonClawApp {
      */
     public static void main(String[] args) {
         startupArgs = args == null ? new String[0] : args.clone();
-        final CliMode cliMode = CliModeParser.parse(startupArgs);
-        StartupModeContext.set(cliMode);
-        configureConsoleLogging(cliMode);
-        Solon.start(
-                SolonClawApp.class,
-                args,
-                app -> {
-                    app.enableWebSocket(cliMode.shouldStartNetworkListeners());
-                    if (cliMode.isConsoleMode()) {
-                        app.enableHttp(false);
-                    }
-                });
-        if (cliMode.isConsoleMode()) {
-            int exitCode = 0;
-            try {
-                exitCode = Solon.context().getBean(CliRunner.class).run(cliMode);
-            } catch (Throwable e) {
-                e.printStackTrace(System.err);
-                exitCode = 1;
-            } finally {
-                Solon.stopBlock(false, 0);
-            }
-            if (exitCode != 0) {
-                System.exit(exitCode);
-            }
-        }
+        Solon.start(SolonClawApp.class, args);
     }
 
     /**
@@ -55,19 +26,5 @@ public class SolonClawApp {
      */
     public static String[] startupArgs() {
         return startupArgs == null ? new String[0] : startupArgs.clone();
-    }
-
-    /**
-     * 为一次性终端命令关闭框架控制台日志，避免 setup/config/model 输出被启动日志打断。
-     *
-     * @param cliMode 已解析的启动模式。
-     */
-    static void configureConsoleLogging(CliMode cliMode) {
-        if (cliMode == null || !cliMode.isConsoleMode()) {
-            return;
-        }
-        if (System.getProperty("solon.logging.appender.console.level") == null) {
-            System.setProperty("solon.logging.appender.console.level", "OFF");
-        }
     }
 }

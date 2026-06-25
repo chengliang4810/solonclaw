@@ -37,18 +37,14 @@ require_jar() {
     fi
 }
 
-# server/completion 命令由后端 Java 进程处理，其余交互默认进入 Node TUI。
+# server 命令由后端 Java 进程处理。
 if [ "${1:-}" = "server" ]; then
     shift
-    require_jar
-    exec java "${JAVA_RUNTIME_ARGS[@]}" -jar "$JAR" server "$@"
-fi
-
-if [ "${1:-}" = "completion" ] || [ "${1:-}" = "--completion" ]; then
     require_jar
     exec java "${JAVA_RUNTIME_ARGS[@]}" -jar "$JAR" "$@"
 fi
 
+# 其余交互默认进入 Node TUI。
 if [ ! -f "$TERMINAL_UI" ]; then
     echo "Error: terminal UI is not built: $TERMINAL_UI" >&2
     echo "Run: mvn -DskipTests package" >&2

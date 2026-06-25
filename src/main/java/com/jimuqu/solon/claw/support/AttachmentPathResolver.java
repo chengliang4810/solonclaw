@@ -1,4 +1,4 @@
-package com.jimuqu.solon.claw.cli;
+package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
@@ -23,10 +23,10 @@ import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** 承载CLI附件Resolver相关状态和辅助逻辑。 */
-public class CliAttachmentResolver {
+/** 承载附件Resolver相关状态和辅助逻辑。 */
+public class AttachmentPathResolver {
     /** 记录附件解析中的可恢复降级事件，日志不得包含路径、token或文件内容。 */
-    private static final Logger log = LoggerFactory.getLogger(CliAttachmentResolver.class);
+    private static final Logger log = LoggerFactory.getLogger(AttachmentPathResolver.class);
 
     /** 最大附件字节的统一常量值。 */
     private static final long MAX_ATTACHMENT_BYTES = 32L * 1024L * 1024L;
@@ -65,7 +65,7 @@ public class CliAttachmentResolver {
      * @param appConfig 应用运行配置。
      * @param attachmentCacheService 附件缓存服务依赖。
      */
-    public CliAttachmentResolver(
+    public AttachmentPathResolver(
             AppConfig appConfig, AttachmentCacheService attachmentCacheService) {
         this(
                 attachmentCacheService == null
@@ -80,7 +80,7 @@ public class CliAttachmentResolver {
      * @param attachmentCacheService 附件缓存服务依赖。
      * @param securityPolicyService 安全策略服务依赖。
      */
-    public CliAttachmentResolver(
+    public AttachmentPathResolver(
             AttachmentCacheService attachmentCacheService,
             SecurityPolicyService securityPolicyService) {
         this.attachmentCacheService = attachmentCacheService;
@@ -479,7 +479,7 @@ public class CliAttachmentResolver {
      * @param error 触发降级的异常。
      */
     private static void logRecoverableFailure(String action, Exception error) {
-        log.debug("CLI附件解析降级：action={} error={}", action, exceptionType(error));
+        log.debug("附件解析降级：action={} error={}", action, exceptionType(error));
     }
 
     /**

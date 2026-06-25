@@ -2,7 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HtmlUtil;
-import com.jimuqu.solon.claw.cli.CliAttachmentResolver;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
@@ -325,7 +325,7 @@ public class SecurityAuditTools {
         Map<String, Object> attachmentPolicy = new LinkedHashMap<String, Object>();
         attachmentPolicy.put("downloadIo", BoundedAttachmentIO.policySummary());
         attachmentPolicy.put("mediaCache", new AttachmentCacheService(appConfig).policySummary());
-        attachmentPolicy.put("terminalPaste", CliAttachmentResolver.policySummary());
+        attachmentPolicy.put("terminalPaste", AttachmentPathResolver.policySummary());
         coverage.put("attachmentPolicy", attachmentPolicy);
         if (toolResultStorageService != null) {
             coverage.put("toolResultStoragePolicy", toolResultStorageService.policySummary());
