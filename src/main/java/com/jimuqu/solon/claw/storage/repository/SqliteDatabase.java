@@ -1009,7 +1009,7 @@ public class SqliteDatabase {
             return "unknown";
         }
         String message = error.getMessage();
-        if (message == null || message.isBlank()) {
+        if (message == null || message.trim().isEmpty()) {
             return error.getClass().getSimpleName();
         }
         return error.getClass().getSimpleName() + ": " + message;

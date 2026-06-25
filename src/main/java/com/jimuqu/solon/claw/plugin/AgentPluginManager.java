@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.plugin;
 
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.IOException;
@@ -261,7 +262,7 @@ public class AgentPluginManager {
     @SuppressWarnings("unchecked")
     private AgentPluginManifest parseManifest(Path manifestFile, Path pluginDir, String source)
             throws IOException {
-        String content = Files.readString(manifestFile);
+        String content = FileUtil.readString(manifestFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
         Object root = new Yaml().load(content);
         Map<String, Object> props =
                 root instanceof Map ? (Map<String, Object>) root : Collections.emptyMap();
@@ -362,7 +363,7 @@ public class AgentPluginManager {
 
             DynamicCompiler compiler = new DynamicCompiler();
             for (Path javaFile : javaFiles) {
-                String source = Files.readString(javaFile);
+                String source = FileUtil.readString(javaFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
                 String className = sourceClassName(javaFile, source);
                 compiler.addSource(className, source);
             }
@@ -376,7 +377,7 @@ public class AgentPluginManager {
                 classNames.add(manifest.getEntry());
             }
             for (Path javaFile : javaFiles) {
-                String source = Files.readString(javaFile);
+                String source = FileUtil.readString(javaFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
                 String className = sourceClassName(javaFile, source);
                 if (!classNames.contains(className)) {
                     classNames.add(className);

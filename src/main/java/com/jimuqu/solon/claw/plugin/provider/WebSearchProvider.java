@@ -95,7 +95,11 @@ public interface WebSearchProvider {
          * @return 返回转换后的Map。
          */
         public Map<String, String> toMap() {
-            return Map.of("title", title, "url", url, "description", description);
+            Map<String, String> map = new java.util.LinkedHashMap<String, String>();
+            map.put("title", title);
+            map.put("url", url);
+            map.put("description", description);
+            return map;
         }
     }
 }
