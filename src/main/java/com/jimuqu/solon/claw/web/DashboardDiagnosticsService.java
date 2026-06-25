@@ -12,7 +12,7 @@ import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safePat
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
-import com.jimuqu.solon.claw.cli.CliAttachmentResolver;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -2045,7 +2045,7 @@ public class DashboardDiagnosticsService {
      */
     private Map<String, Object> safeAttachmentTerminalPastePolicySummary() {
         try {
-            Map<String, Object> summary = CliAttachmentResolver.policySummary();
+            Map<String, Object> summary = AttachmentPathResolver.policySummary();
             Map<String, Object> safe = new LinkedHashMap<String, Object>();
             copyPolicyValue(summary, safe, "pastedLocalPathDetection");
             copyPolicyValue(summary, safe, "fileUriDetection");

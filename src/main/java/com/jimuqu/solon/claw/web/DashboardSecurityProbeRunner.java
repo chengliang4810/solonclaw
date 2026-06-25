@@ -9,7 +9,7 @@ import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safePat
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
-import com.jimuqu.solon.claw.cli.CliAttachmentResolver;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -3931,20 +3931,20 @@ final class DashboardSecurityProbeRunner {
             File privateKey = new File(secretDir, "id_ed25519-token=" + secret);
             Files.write(privateKey.toPath(), "secret".getBytes("UTF-8"));
             File missing = new File(workspaceHome, "missing-token=" + secret + ".txt");
-            CliAttachmentResolver resolver =
-                    new CliAttachmentResolver(
+            AttachmentPathResolver resolver =
+                    new AttachmentPathResolver(
                             new AttachmentCacheService(probeConfig),
                             new SecurityPolicyService(probeConfig));
             String fileUri =
                     "file:///" + safeFile.getAbsolutePath().replace('\\', '/').replace(" ", "%20");
-            CliAttachmentResolver.ResolvedInput resolved = resolver.resolve("分析 " + fileUri);
+            AttachmentPathResolver.ResolvedInput resolved = resolver.resolve("分析 " + fileUri);
             String preview =
                     resolver.renderPreview(
                             privateKey.getAbsolutePath() + " " + missing.getAbsolutePath());
-            List<CliAttachmentResolver.AttachmentPreview> windowsPreviews =
+            List<AttachmentPathResolver.AttachmentPreview> windowsPreviews =
                     resolver.preview(
                             "查看 C:\\Users\\demo\\Pictures\\shot.png 和 D:/reports/result.pdf");
-            Map<String, Object> summary = CliAttachmentResolver.policySummary();
+            Map<String, Object> summary = AttachmentPathResolver.policySummary();
             boolean fileUriResolved =
                     resolved.getAttachments().size() == 1
                             && StrUtil.contains(resolved.getText(), "[附件: diagram space.png]")

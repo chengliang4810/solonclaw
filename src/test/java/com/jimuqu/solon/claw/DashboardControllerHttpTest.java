@@ -176,19 +176,6 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
-    void shouldAllowTerminalUiHandshakeWithoutDashboardToken() throws Exception {
-        HttpResult handshake = request("GET", "/api/tui/handshake", null, null);
-        assertThat(handshake.status).isEqualTo(200);
-        assertThat(handshake.body)
-                .contains("\"protocol_version\"")
-                .contains("\"ws_url\"")
-                .contains("/ws/tui");
-
-        HttpResult runtimeConfig = request("GET", "/api/workspace-config", null, null);
-        assertThat(runtimeConfig.status).isEqualTo(401);
-    }
-
-    @Test
     void shouldReturnStructuredErrorForInvalidDiagnosticsJson() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
 
@@ -426,117 +413,6 @@ public class DashboardControllerHttpTest {
             }
             RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath()).reload();
         }
-    }
-
-    @Test
-    void shouldExposeTuiRuntimeRpcForSetupAndModelConfiguration() throws Exception {
-        String token = DASHBOARD_TEST_TOKEN;
-        File overrideFile = new File(workspaceHome, "config.yml");
-
-        HttpResult unauthorized =
-                request("POST", "/api/tui/rpc", "{\"method\":\"setup.status\",\"params\":{}}", null);
-        assertThat(unauthorized.status).isEqualTo(401);
-
-        HttpResult setup =
-                request(
-                        "POST",
-                        "/api/tui/rpc",
-                        "{\"id\":\"setup-1\",\"method\":\"setup.status\",\"params\":{}}",
-                        token);
-        assertThat(setup.status).isEqualTo(200);
-        assertThat(setup.body)
-                .contains("\"jsonrpc\":\"2.0\"")
-                .contains("\"id\":\"setup-1\"")
-                .contains("\"result\"")
-                .contains("\"provider_configured\"");
-
-        HttpResult saveKey =
-                request(
-                        "POST",
-                        "/api/tui/rpc",
-                        "{\"id\":\"save-key-1\",\"method\":\"model.save_key\",\"params\":{\"slug\":\"default\",\"api_key\":\"sk-tui-http-secret-123456\"}}",
-                        token);
-        assertThat(saveKey.status).isEqualTo(200);
-        assertThat(saveKey.body)
-                .contains("\"id\":\"save-key-1\"")
-                .contains("\"result\"")
-                .contains("\"provider\"")
-                .contains("\"authenticated\":true")
-                .doesNotContain("sk-tui-http-secret-123456");
-        assertThat(overrideFile).exists();
-        assertThat(FileUtil.readUtf8String(overrideFile)).contains("apiKey: sk-tui-http-secret-123456");
-
-        HttpResult setModel =
-                request(
-                        "POST",
-                        "/api/tui/rpc",
-                        "{\"id\":\"set-model-1\",\"method\":\"config.set\",\"params\":{\"key\":\"model\",\"value\":\"mimo-v2.5-pro --provider default\"}}",
-                        token);
-        assertThat(setModel.status).isEqualTo(200);
-        assertThat(setModel.body)
-                .contains("\"id\":\"set-model-1\"")
-                .contains("\"value\":\"mimo-v2.5-pro\"")
-                .contains("\"provider\":\"default\"");
-
-        HttpResult fullConfig =
-                request(
-                        "POST",
-                        "/api/tui/rpc",
-                        "{\"id\":\"full-1\",\"method\":\"config.get\",\"params\":{\"key\":\"full\"}}",
-                        token);
-        assertThat(fullConfig.status).isEqualTo(200);
-        assertThat(fullConfig.body)
-                .contains("\"id\":\"full-1\"")
-                .contains("\"config\"")
-                .contains("\"model\":\"mimo-v2.5-pro\"")
-                .contains("\"provider\":\"default\"")
-                .doesNotContain("sk-tui-http-secret-123456");
-
-        HttpResult channelOptions =
-                request(
-                        "POST",
-                        "/api/tui/rpc",
-                        "{\"id\":\"channels-1\",\"method\":\"channel.options\",\"params\":{}}",
-                        token);
-        assertThat(channelOptions.status).isEqualTo(200);
-        assertThat(channelOptions.body)
-                .contains("\"id\":\"channels-1\"")
-                .contains("\"channels\"")
-                .contains("\"channel\":\"feishu\"")
-                .contains("\"channel\":\"dingtalk\"")
-                .doesNotContain("sms")
-                .doesNotContain("webhook");
-
-        HttpResult saveChannel =
-                request(
-                        "POST",
-                        "/api/tui/rpc",
-                        "{\"id\":\"channel-save-1\",\"method\":\"channel.save\",\"params\":{\"channel\":\"feishu\",\"values\":{\"enabled\":true,\"appId\":\"tui_http_app\",\"appSecret\":\"sk-tui-http-channel-secret-123456\"}}}",
-                        token);
-        assertThat(saveChannel.status).isEqualTo(200);
-        assertThat(saveChannel.body)
-                .contains("\"id\":\"channel-save-1\"")
-                .contains("\"ok\":true")
-                .contains("\"channel\":\"feishu\"")
-                .contains("\"status\":\"configured\"")
-                .contains("\"appSecret\":\"***\"")
-                .doesNotContain("sk-tui-http-channel-secret-123456");
-        assertThat(FileUtil.readUtf8String(overrideFile))
-                .contains("feishu:")
-                .contains("appSecret: sk-tui-http-channel-secret-123456");
-
-        HttpResult unknown =
-                request(
-                        "POST",
-                        "/api/tui/rpc",
-                        "{\"id\":\"unknown-1\",\"method\":\"unknown.method\",\"params\":{}}",
-                        token);
-        assertThat(unknown.status).isEqualTo(400);
-        assertThat(unknown.body)
-                .contains("\"jsonrpc\":\"2.0\"")
-                .contains("\"id\":\"unknown-1\"")
-                .contains("\"error\"")
-                .contains("\"code\":-32601");
     }
 
     @Test
