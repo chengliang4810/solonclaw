@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # solonclaw 一键安装脚本（Linux / macOS）
 # 用法: curl -fsSL https://raw.githubusercontent.com/chengliang4810/solon-claw/main/scripts/install.sh | bash
+# 国内用户: curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/chengliang4810/solon-claw/main/scripts/install.sh | bash
 set -euo pipefail
 
 # ─── 颜色 ────────────────────────────────────────────────────────────────────
@@ -14,6 +15,61 @@ info()  { echo -e "${CYAN}[INFO]${NC} $*"; }
 ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+
+# ─── GitHub 代理（国内用户自动检测）──────────────────────────────────────────
+# 可通过环境变量 GITHUB_PROXY 自定义代理前缀，留空表示不使用代理。
+# 示例: GITHUB_PROXY="https://ghfast.top/" bash install.sh
+GITHUB_MIRRORS=(
+    "https://ghfast.top/"
+    "https://gh-proxy.com/"
+    "https://mirror.ghproxy.com/"
+    "https://ghproxy.net/"
+)
+
+detect_github_proxy() {
+    # 用户显式指定
+    if [ -n "${GITHUB_PROXY+x}" ]; then
+        if [ -n "$GITHUB_PROXY" ]; then
+            info "使用自定义代理: $GITHUB_PROXY"
+        else
+            info "已禁用代理，直连 GitHub"
+        fi
+        return
+    fi
+    # 检测 GitHub API 是否可直连（3秒超时）
+    if curl -fsSL --connect-timeout 3 --max-time 5 "https://api.github.com" >/dev/null 2>&1; then
+        GITHUB_PROXY=""
+        info "GitHub 直连可用"
+        return
+    fi
+    info "GitHub 直连不可用，正在寻找代理..."
+    for mirror in "${GITHUB_MIRRORS[@]}"; do
+        if curl -fsSL --connect-timeout 3 --max-time 5 "${mirror}https://api.github.com/repos/chengliang4810/solon-claw/releases/latest" >/dev/null 2>&1; then
+            GITHUB_PROXY="$mirror"
+            ok "找到可用代理: $GITHUB_PROXY"
+            return
+        fi
+    done
+    GITHUB_PROXY=""
+    warn "未找到可用代理，将直连 GitHub（可能较慢或失败）"
+    warn "可手动设置: export GITHUB_PROXY=\"https://ghfast.top/\""
+}
+
+# GitHub 下载封装：自动加代理前缀
+gh_url() {
+    local url="$1"
+    if [ -n "$GITHUB_PROXY" ]; then
+        echo "${GITHUB_PROXY}${url}"
+    else
+        echo "$url"
+    fi
+}
+
+# GitHub API 封装
+gh_api() {
+    local path="$1"
+    curl -fsSL --connect-timeout 10 --max-time 30 "$(gh_url "https://api.github.com${path}")"
+}
 
 # ─── 平台检测 ────────────────────────────────────────────────────────────────
 OS="$(uname -s)"
@@ -34,6 +90,9 @@ info "平台: $PLATFORM/$ARCH"
 INSTALL_DIR="${SOLONCLAW_HOME:-$HOME/.solonclaw}"
 WORKSPACE_DIR="$INSTALL_DIR/workspace"
 mkdir -p "$INSTALL_DIR" "$WORKSPACE_DIR"
+
+# ─── GitHub 代理检测 ─────────────────────────────────────────────────────────
+detect_github_proxy
 
 # ─── 检查 Java ──────────────────────────────────────────────────────────────
 check_java() {
@@ -96,8 +155,14 @@ if ! check_node; then
             error "请先安装 Homebrew（https://brew.sh），然后运行: brew install node"
         fi
     elif [ "$PLATFORM" = "linux" ]; then
+        # 国内镜像源加速
+        NODESOURCE_URL="https://deb.nodesource.com/setup_20.x"
+        if [ -n "$GITHUB_PROXY" ]; then
+            # NodeSource 不走 GitHub 代理，用国内 npm 镜像
+            NPM_REGISTRY="https://registry.npmmirror.com"
+        fi
         info "通过 NodeSource 安装 Node.js 20..."
-        curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - 2>/dev/null || true
+        curl -fsSL "$NODESOURCE_URL" | sudo -E bash - 2>/dev/null || true
         if command -v apt-get &>/dev/null; then
             sudo apt-get install -y -qq nodejs
         elif command -v yum &>/dev/null; then
@@ -112,6 +177,15 @@ fi
 # ─── 检查 npm ────────────────────────────────────────────────────────────────
 command -v npm &>/dev/null || error "npm 未找到，请重新安装 Node.js"
 
+# 国内 npm 镜像加速
+if [ -n "${NPM_REGISTRY:-}" ]; then
+    info "设置 npm 镜像: $NPM_REGISTRY"
+    npm config set registry "$NPM_REGISTRY" 2>/dev/null || true
+elif [ -n "$GITHUB_PROXY" ]; then
+    info "检测到国内环境，设置 npm 镜像..."
+    npm config set registry "https://registry.npmmirror.com" 2>/dev/null || true
+fi
+
 # ─── 安装 TUI（npm 全局包）──────────────────────────────────────────────────
 info "安装 solonclaw TUI..."
 npm install -g solonclaw --silent 2>/dev/null || npm install -g solonclaw
@@ -123,16 +197,21 @@ JAR_NAME="solonclaw.jar"
 JAR_PATH="$INSTALL_DIR/$JAR_NAME"
 
 info "获取最新版本..."
-LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/$GITHUB_REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/')
+LATEST_TAG=$(gh_api "/repos/$GITHUB_REPO/releases/latest" | grep '"tag_name"' | sed -E 's/.*"([^"]+)".*/\1/') || true
 if [ -z "$LATEST_TAG" ]; then
-    warn "无法获取最新版本，使用 main 分支构建信息"
+    warn "无法获取最新版本号，尝试直接下载 latest"
     LATEST_TAG="latest"
 fi
 info "最新版本: $LATEST_TAG"
 
-DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_TAG/$JAR_NAME"
-info "下载 jar: $DOWNLOAD_URL"
-curl -fSL --progress-bar -o "$JAR_PATH" "$DOWNLOAD_URL"
+if [ "$LATEST_TAG" = "latest" ]; then
+    DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/latest/download/$JAR_NAME"
+else
+    DOWNLOAD_URL="https://github.com/$GITHUB_REPO/releases/download/$LATEST_TAG/$JAR_NAME"
+fi
+FULL_URL=$(gh_url "$DOWNLOAD_URL")
+info "下载 jar: $FULL_URL"
+curl -fSL --progress-bar -o "$JAR_PATH" "$FULL_URL"
 ok "jar 已下载: $JAR_PATH ($(du -h "$JAR_PATH" | cut -f1))"
 
 # ─── 创建默认配置 ───────────────────────────────────────────────────────────
