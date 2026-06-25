@@ -218,7 +218,7 @@ public class SecurityPolicyService {
      * @param allowPrivateOverride allowPrivateOverride标识或键值。
      * @return 返回URL结果。
      */
-    private UrlVerdict checkUrlSafety(String url, Boolean allowPrivateOverride) {
+    public UrlVerdict checkUrlSafety(String url, Boolean allowPrivateOverride) {
         String raw = normalizeUrlText(url);
         if (raw.length() == 0) {
             return UrlVerdict.block(raw, "URL 缺少内容");
