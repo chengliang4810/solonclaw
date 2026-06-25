@@ -4,7 +4,7 @@
 // GATEWAY_RECOVERY_WINDOW_MS; past the budget the app falls back to the inert
 // "gateway exited" state. Kept pure (no refs/UI) so the bound — including the
 // crash-loop case — is unit-testable.
-export const GATEWAY_RECOVERY_LIMIT = 3
+export const GATEWAY_RECOVERY_LIMIT = 10
 export const GATEWAY_RECOVERY_WINDOW_MS = 60_000
 
 export interface RecoveryPlan {
