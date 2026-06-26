@@ -226,11 +226,13 @@ onMounted(async () => {
   align-items: center;
   flex-wrap: wrap;
   min-width: 0;
+  max-width: 100%;
 }
 
 .session-select {
   width: 320px;
   max-width: 100%;
+  min-width: 0;
 }
 
 .runs-layout {
@@ -394,13 +396,31 @@ h3 {
 }
 
 @media (max-width: $breakpoint-mobile) {
+  .page-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    > div:first-child {
+      min-width: 0;
+    }
+  }
+
   .header-actions {
+    flex: 1 1 100%;
     width: 100%;
+    align-items: stretch;
   }
 
   .session-select {
-    flex: 1 1 220px;
-    width: auto;
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .session-select :deep(.ant-select-selection-item) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .runs-layout {

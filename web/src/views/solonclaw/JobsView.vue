@@ -346,6 +346,10 @@ function policyFlags(): string[] {
   gap: 14px;
   align-items: center;
   padding: 12px 14px;
+
+  > div {
+    min-width: 0;
+  }
 }
 
 .guide-title {
@@ -367,6 +371,7 @@ function policyFlags(): string[] {
   justify-content: flex-end;
   gap: 6px;
   max-width: 520px;
+  min-width: 0;
 
   span {
     max-width: 180px;
@@ -497,6 +502,8 @@ function policyFlags(): string[] {
 
     span {
       max-width: 100%;
+      overflow-wrap: anywhere;
+      white-space: normal;
     }
   }
 }
@@ -510,6 +517,14 @@ function policyFlags(): string[] {
   .guide-panel {
     margin-left: 12px;
     margin-right: 12px;
+  }
+
+  .guide-summary {
+    gap: 10px;
+  }
+
+  .guide-meta span {
+    width: 100%;
   }
 
   .status-grid,
