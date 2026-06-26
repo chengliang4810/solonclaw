@@ -50,12 +50,13 @@ await build({
 
 // esbuild preserves the shebang from src/entry.tsx into the bundle, but Nix's
 // patchShebangs phase mangles `/usr/bin/env -S node --foo --bar` (it strips
-// the `node` token, leaving a broken interpreter). The solonclaw launcher
-// always invokes this file as `node dist/entry.js`, so the shebang is
-// redundant — strip it.
-const body = readFileSync(out, 'utf8')
+// the `node` token, leaving a broken interpreter). Replace with a simple
+// shebang so `./dist/entry.js` works directly and `npm pack` includes it.
+let body = readFileSync(out, 'utf8')
 if (body.startsWith('#!')) {
-  writeFileSync(out, body.slice(body.indexOf('\n') + 1))
+  body = body.slice(body.indexOf('\n') + 1)
 }
+// 始终添加标准 shebang，确保 ./dist/entry.js 可直接执行
+writeFileSync(out, '#!/usr/bin/env node\n' + body)
 
 console.log(`built ${out}`)

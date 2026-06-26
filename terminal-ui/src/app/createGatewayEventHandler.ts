@@ -29,7 +29,7 @@ import { getUiState, patchUiState } from './uiStore.js'
 
 const NO_PROVIDER_RE = /\bNo (?:LLM|inference) provider configured\b/i
 
-const statusFromBusy = () => (getUiState().busy ? 'running…' : 'ready')
+const statusFromBusy = () => (getUiState().busy ? '运行中…' : 'ready')
 
 const applySkin = (s: GatewaySkin) =>
   patchUiState({
@@ -382,7 +382,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         patchUiState(state => ({
           ...state,
           info,
-          status: state.status === 'starting agent…' ? 'ready' : state.status,
+          status: state.status === '正在启动…' ? 'ready' : state.status,
           usage: info.usage ? { ...state.usage, ...info.usage } : state.usage
         }))
 
@@ -647,21 +647,21 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         patchOverlayState({
           clarify: { choices: ev.payload.choices, question: ev.payload.question, requestId: ev.payload.request_id }
         })
-        setStatus('waiting for input…')
+        setStatus('等待输入…')
 
         return
       case 'approval.request': {
         const description = String(ev.payload.description ?? 'dangerous command')
 
         patchOverlayState({ approval: { command: String(ev.payload.command ?? ''), description } })
-        setStatus('approval needed')
+        setStatus('需要审批')
 
         return
       }
 
       case 'sudo.request':
         patchOverlayState({ sudo: { requestId: ev.payload.request_id } })
-        setStatus('sudo password needed')
+        setStatus('需要 sudo 密码')
 
         return
 
@@ -669,7 +669,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         patchOverlayState({
           secret: { envVar: ev.payload.env_var, prompt: ev.payload.prompt, requestId: ev.payload.request_id }
         })
-        setStatus('secret input needed')
+        setStatus('需要输入密钥')
 
         return
 

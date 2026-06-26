@@ -211,14 +211,14 @@ class TurnController {
     if (partial || tools.length) {
       appendMessage({
         role: 'assistant',
-        text: partial ? `${partial}\n\n*[interrupted]*` : '*[interrupted]*',
+        text: partial ? `${partial}\n\n*[已中断]*` : '*[已中断]*',
         ...(tools.length && { tools })
       })
     } else {
-      sys('interrupted')
+      sys('已中断')
     }
 
-    patchUiState({ status: 'interrupted' })
+    patchUiState({ status: '已中断' })
     this.clearStatusTimer()
 
     this.statusTimer = setTimeout(() => {

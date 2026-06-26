@@ -68,7 +68,7 @@ const statusColorOf = (status: string, t: { error: string; muted: string; ok: st
     return t.error
   }
 
-  if (status === 'interrupted') {
+  if (status === '已中断') {
     return t.warn
   }
 
@@ -766,20 +766,20 @@ export function useMainApp(gw: GatewayClient) {
       // dead/respawning gateway. recoverSidRef carries the session forward, and
       // resumeById restores sid once the fresh gateway is ready.
       recoveryAtRef.current = plan.attempts
-      patchUiState({ busy: false, sid: null, status: 'gateway exited' })
+      patchUiState({ busy: false, sid: null, status: '后端已断开' })
 
       if (plan.recover && plan.sid) {
         recoverSidRef.current = plan.sid
-        turnController.pushActivity('gateway exited · recovering session…', 'warn')
-        sys('gateway exited — recovering your session (any in-flight reply was lost)')
+        turnController.pushActivity('后端已断开 · 正在恢复会话…', 'warn')
+        sys('后端已断开 — 正在恢复会话（进行中的回复可能丢失）')
         gw.start()
 
         return
       }
 
       recoverSidRef.current = null
-      turnController.pushActivity('gateway exited · /logs to inspect', 'error')
-      sys('error: gateway exited')
+      turnController.pushActivity('后端已断开 · /logs 查看详情', 'error')
+      sys('错误：后端已断开')
     }
 
     gw.on('event', handler)
