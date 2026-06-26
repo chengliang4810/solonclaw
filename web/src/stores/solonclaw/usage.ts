@@ -1,4 +1,11 @@
-import { fetchUsageAnalytics, type UsageAnalytics } from '@/api/solonclaw/usage'
+import {
+  fetchInsightsOverview,
+  fetchSkillInsights,
+  fetchUsageAnalytics,
+  type InsightsOverview,
+  type SkillInsight,
+  type UsageAnalytics,
+} from '@/api/solonclaw/usage'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
@@ -34,12 +41,21 @@ interface ModelUsage {
 
 export const useUsageStore = defineStore('usage', () => {
   const analytics = ref<UsageAnalytics | null>(null)
+  const insights = ref<InsightsOverview | null>(null)
+  const skillInsights = ref<Record<string, SkillInsight>>({})
   const isLoading = ref(false)
 
   async function loadUsage() {
     isLoading.value = true
     try {
-      analytics.value = await fetchUsageAnalytics(30)
+      const [usage, overview, skills] = await Promise.all([
+        fetchUsageAnalytics(30),
+        fetchInsightsOverview(),
+        fetchSkillInsights(),
+      ])
+      analytics.value = usage
+      insights.value = overview
+      skillInsights.value = skills || {}
     } catch (err) {
       console.error('Failed to load usage analytics:', err)
     } finally {
@@ -130,8 +146,24 @@ export const useUsageStore = defineStore('usage', () => {
     return totalSessions.value / days
   })
 
+  const skillInsightRows = computed(() =>
+    Object.entries(skillInsights.value)
+      .map(([name, item]) => ({
+        name,
+        state: item.state || 'active',
+        views: item.viewCount || 0,
+        invokes: item.invokeCount || 0,
+        manages: item.manageCount || 0,
+        pinned: !!item.pinned,
+        lastActiveAt: Math.max(item.lastViewedAt || 0, item.lastInvokedAt || 0, item.lastManagedAt || 0),
+      }))
+      .sort((a, b) => b.invokes - a.invokes || b.views - a.views || b.lastActiveAt - a.lastActiveAt),
+  )
+
   return {
     analytics,
+    insights,
+    skillInsights,
     isLoading,
     loadUsage,
     totalInputTokens,
@@ -150,5 +182,6 @@ export const useUsageStore = defineStore('usage', () => {
     modelUsage,
     dailyUsage,
     avgSessionsPerDay,
+    skillInsightRows,
   }
 })

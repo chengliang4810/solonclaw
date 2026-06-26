@@ -50,6 +50,31 @@ export interface UsageAnalytics {
   totals: UsageTotals
 }
 
+export interface InsightsOverview {
+  sessions?: Record<string, unknown>
+  skills?: Record<string, unknown>
+  runtime?: Record<string, unknown>
+}
+
+export interface SkillInsight {
+  state?: string
+  viewCount?: number
+  invokeCount?: number
+  manageCount?: number
+  pinned?: boolean
+  lastViewedAt?: number
+  lastInvokedAt?: number
+  lastManagedAt?: number
+}
+
 export async function fetchUsageAnalytics(days = 30): Promise<UsageAnalytics> {
   return request<UsageAnalytics>(`/api/analytics/usage?days=${days}`)
+}
+
+export async function fetchInsightsOverview(): Promise<InsightsOverview> {
+  return request<InsightsOverview>('/api/insights/overview')
+}
+
+export async function fetchSkillInsights(): Promise<Record<string, SkillInsight>> {
+  return request<Record<string, SkillInsight>>('/api/insights/skills')
 }

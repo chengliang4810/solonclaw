@@ -1442,6 +1442,10 @@ export default {
   usage: {
     title: 'Usage Statistics',
     refresh: 'Refresh',
+    persistedSessions: 'Persisted Sessions',
+    trackedSkills: 'Tracked Skills',
+    activeSkills: 'Active Skills',
+    usedMemory: 'Used Memory',
     totalTokens: 'Total Tokens',
     inputTokens: 'Input',
     outputTokens: 'Output',
@@ -1461,6 +1465,12 @@ export default {
     unpriced: 'Unpriced',
     unpricedTokens: 'unpriced tokens',
     sessions: 'Sessions',
+    skillInsights: 'Skill Usage Insights',
+    skillName: 'Skill',
+    views: 'Views',
+    invokes: 'Invokes',
+    state: 'State',
+    lastActive: 'Last active',
     noData: 'No usage data',
   },
   personaDiary: {
