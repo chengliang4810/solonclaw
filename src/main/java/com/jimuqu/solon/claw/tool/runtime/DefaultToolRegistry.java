@@ -39,6 +39,7 @@ import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardSessionService;
+import com.jimuqu.solon.claw.web.DashboardStatusService;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -91,6 +92,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.ANALYTICS_MANAGE,
                     ToolNameConstants.LOGS_MANAGE,
                     ToolNameConstants.MEDIA_MANAGE,
+                    ToolNameConstants.STATUS_MANAGE,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
@@ -191,6 +193,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** Dashboard provider 服务，用于给 Agent 暴露模型提供方管理工具。 */
     private final DashboardProviderService dashboardProviderService;
 
+    /** Dashboard 状态服务，用于给 Agent 暴露运行状态查询工具。 */
+    private final DashboardStatusService dashboardStatusService;
+
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
 
@@ -280,6 +285,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardCuratorService) null,
                 (DashboardPlatformToolsetsService) null,
                 (DashboardProviderService) null,
+                (DashboardStatusService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -366,6 +372,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 dashboardCuratorService,
                 dashboardPlatformToolsetsService,
                 dashboardProviderService,
+                (DashboardStatusService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -438,6 +445,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardCuratorService) null,
                 (DashboardPlatformToolsetsService) null,
                 (DashboardProviderService) null,
+                (DashboardStatusService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -512,6 +520,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardCuratorService) null,
                 (DashboardPlatformToolsetsService) null,
                 (DashboardProviderService) null,
+                (DashboardStatusService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -588,6 +597,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardCuratorService) null,
                 (DashboardPlatformToolsetsService) null,
                 (DashboardProviderService) null,
+                (DashboardStatusService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -668,6 +678,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardCuratorService) null,
                 (DashboardPlatformToolsetsService) null,
                 (DashboardProviderService) null,
+                (DashboardStatusService) null,
                 (BrowserRuntimeService) null,
                 imageGenerationService,
                 speechService,
@@ -746,6 +757,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardCuratorService) null,
                 (DashboardPlatformToolsetsService) null,
                 (DashboardProviderService) null,
+                (DashboardStatusService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -824,6 +836,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardCuratorService) null,
                 (DashboardPlatformToolsetsService) null,
                 (DashboardProviderService) null,
+                (DashboardStatusService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -906,6 +919,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardCuratorService) null,
                 (DashboardPlatformToolsetsService) null,
                 (DashboardProviderService) null,
+                (DashboardStatusService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -991,6 +1005,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardCuratorService) null,
                 (DashboardPlatformToolsetsService) null,
                 (DashboardProviderService) null,
+                (DashboardStatusService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -1061,6 +1076,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             DashboardCuratorService dashboardCuratorService,
             DashboardPlatformToolsetsService dashboardPlatformToolsetsService,
             DashboardProviderService dashboardProviderService,
+            DashboardStatusService dashboardStatusService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -1092,6 +1108,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.dashboardCuratorService = dashboardCuratorService;
         this.dashboardPlatformToolsetsService = dashboardPlatformToolsetsService;
         this.dashboardProviderService = dashboardProviderService;
+        this.dashboardStatusService = dashboardStatusService;
         this.processRegistry = processRegistry;
         this.browserRuntimeService =
                 browserRuntimeService == null
@@ -1197,6 +1214,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         PlatformToolsetsManageTools platformToolsetsManageTools =
                 new PlatformToolsetsManageTools(dashboardPlatformToolsetsService);
         ProviderManageTools providerManageTools = new ProviderManageTools(dashboardProviderService);
+        StatusManageTools statusManageTools = new StatusManageTools(dashboardStatusService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
@@ -1315,6 +1333,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(logsManageTools);
             } else if (ToolNameConstants.MEDIA_MANAGE.equals(toolName)) {
                 tools.add(mediaManageTools);
+            } else if (ToolNameConstants.STATUS_MANAGE.equals(toolName)) {
+                tools.add(statusManageTools);
             } else if (ToolNameConstants.SKILLS_LIST.equals(toolName)) {
                 tools.add(new SkillTools.SkillsListTool(skillTools));
             } else if (ToolNameConstants.SKILL_VIEW.equals(toolName)) {

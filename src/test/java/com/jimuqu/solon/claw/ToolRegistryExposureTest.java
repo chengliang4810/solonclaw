@@ -109,6 +109,7 @@ public class ToolRegistryExposureTest {
                         "analytics_manage",
                         "logs_manage",
                         "media_manage",
+                        "status_manage",
                         "skills_list",
                         "skill_view",
                         "skill_manage",
@@ -3646,6 +3647,16 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("media_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("MediaManageTools");
+    }
+
+    @Test
+    void shouldExposeStatusManagementToolForNaturalLanguageRuntimeInspection() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("status_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("StatusManageTools");
     }
 
     @Test

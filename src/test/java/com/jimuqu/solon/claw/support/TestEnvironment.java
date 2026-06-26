@@ -93,6 +93,7 @@ import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
+import com.jimuqu.solon.claw.web.DashboardStatusService;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -307,6 +308,17 @@ public class TestEnvironment {
         DashboardSkillsService dashboardSkillsService =
                 new DashboardSkillsService(localSkillService, preferenceStore);
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(config);
+        DashboardStatusService dashboardStatusService =
+                new DashboardStatusService(
+                        config,
+                        sessionRepository,
+                        deliveryService,
+                        null,
+                        refreshService,
+                        appVersionService,
+                        appUpdateService,
+                        llmProviderService,
+                        null);
         BrowserRuntimeService browserRuntimeService =
                 new BrowserRuntimeService(
                         config,
@@ -338,6 +350,7 @@ public class TestEnvironment {
                         dashboardCuratorService,
                         dashboardPlatformToolsetsService,
                         dashboardProviderService,
+                        dashboardStatusService,
                         browserRuntimeService,
                         null,
                         null,
