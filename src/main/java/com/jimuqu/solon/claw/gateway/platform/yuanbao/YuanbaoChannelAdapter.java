@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -120,7 +121,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         try {
             String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL);
-            assertSafeUrl(wsUrl, "Yuanbao websocket URL");
+            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, wsUrl, "Yuanbao websocket URL");
             callbackExecutor = Executors.newSingleThreadExecutor();
             Request request =
                     new Request.Builder()
@@ -265,7 +266,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private ONode postJson(String path, String body) throws Exception {
         String url = apiDomain() + path;
-        assertSafeUrl(url, "Yuanbao API URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Yuanbao API URL");
         Request request =
                 new Request.Builder()
                         .url(url)
@@ -315,26 +316,6 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         return value;
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
-    private void assertSafeUrl(String url, String purpose) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " blocked: "
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
-    }
 
     /**
      * 执行sign相关逻辑。

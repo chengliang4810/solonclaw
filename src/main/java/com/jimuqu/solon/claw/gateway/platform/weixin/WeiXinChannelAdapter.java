@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
+import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -2017,7 +2018,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private HttpResponse executeApiPost(
             String url, String body, int timeoutMs, String initialUrl, int redirectCount) {
-        assertSafeUrl(url, "Weixin API URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Weixin API URL");
         HttpRequest request =
                 HttpRequest.post(url)
                         .header("AuthorizationType", "ilink_bot_token")
@@ -2063,7 +2064,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private HttpResponse executeBinaryPost(
             String url, byte[] body, String initialUrl, int redirectCount) {
-        assertSafeUrl(url, "Weixin CDN upload URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Weixin CDN upload URL");
         HttpRequest request =
                 HttpRequest.post(url)
                         .body(body)
@@ -2109,7 +2110,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         try {
             String nextUrl = URI.create(url).resolve(location.trim()).toString();
-            assertSafeUrl(nextUrl, purpose);
+            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, nextUrl, purpose);
             return nextUrl;
         } catch (RuntimeException e) {
             throw e;
@@ -2119,26 +2120,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
-    private void assertSafeUrl(String url, String purpose) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " blocked: "
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
-    }
 
     /**
      * 生成安全展示用的JSON。

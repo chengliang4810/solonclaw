@@ -53,6 +53,7 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
+import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -1161,7 +1162,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         attachment.getMimeType());
         String type = "image".equals(kind) ? "image" : ("voice".equals(kind) ? "voice" : "file");
         String uploadUrl = MEDIA_UPLOAD_URL + "?access_token=" + accessToken + "&type=" + type;
-        assertSafeUrl(uploadUrl, "DingTalk media upload URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, uploadUrl, "DingTalk media upload URL");
         HttpResponse uploadResponse =
                 HttpRequest.post(uploadUrl)
                         .form("media", file)
@@ -1560,7 +1561,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             throw new IllegalStateException("DingTalk upload info missing signed resource url");
         }
         String uploadUrl = body.getHeaderSignatureInfo().getResourceUrls().get(0);
-        assertSafeUrl(uploadUrl, "DingTalk signed upload URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, uploadUrl, "DingTalk signed upload URL");
         HttpRequest request =
                 HttpRequest.put(uploadUrl).timeout(120000).setFollowRedirects(false).body(data);
         Map<String, String> headers = body.getHeaderSignatureInfo().getHeaders();
@@ -1694,26 +1695,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
-    private void assertSafeUrl(String url, String purpose) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " blocked: "
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
-    }
 
     /**
      * 解析Markdown标题。

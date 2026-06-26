@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -168,7 +169,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         try {
             String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL).trim();
-            assertSafeUrl(wsUrl, "WeCom websocket URL");
+            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, wsUrl, "WeCom websocket URL");
             callbackExecutor = Executors.newSingleThreadExecutor();
             CountDownLatch latch = new CountDownLatch(1);
             Request request = new Request.Builder().url(wsUrl).build();
@@ -553,26 +554,6 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return BoundedAttachmentIO.downloadOkHttp(client, url, maxBytes, securityPolicyService);
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
-    private void assertSafeUrl(String url, String purpose) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " blocked: "
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
-    }
 
     /**
      * 发送附件。
