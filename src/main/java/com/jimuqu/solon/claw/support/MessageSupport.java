@@ -258,7 +258,7 @@ public final class MessageSupport {
      * @param message assistant 消息。
      * @return 返回可比较的信息量分数。
      */
-    private static int assistantInformationScore(AssistantMessage message) {
+    public static int assistantInformationScore(AssistantMessage message) {
         if (message == null) {
             return 0;
         }

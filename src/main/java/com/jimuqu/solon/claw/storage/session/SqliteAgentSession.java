@@ -388,8 +388,8 @@ public class SqliteAgentSession implements AgentSession {
             int lastIndex = messages.size() - 1;
             ChatMessage previous = messages.get(lastIndex);
             if (sameAssistantToolCalls(previous, message)) {
-                if (assistantInformationScore((AssistantMessage) message)
-                        > assistantInformationScore((AssistantMessage) previous)) {
+                if (MessageSupport.assistantInformationScore((AssistantMessage) message)
+                        > MessageSupport.assistantInformationScore((AssistantMessage) previous)) {
                     messages.set(lastIndex, message);
                     return true;
                 }
@@ -447,23 +447,6 @@ public class SqliteAgentSession implements AgentSession {
                 && StrUtil.equals(
                         String.valueOf(previous.getArguments()),
                         String.valueOf(incoming.getArguments()));
-    }
-
-    /**
-     * 计算 assistant 消息的信息量，重复工具调用去重时优先保留文本和推理内容更完整的一条。
-     *
-     * @param message assistant 消息。
-     * @return 返回可比较的信息量分数。
-     */
-    private int assistantInformationScore(AssistantMessage message) {
-        if (message == null) {
-            return 0;
-        }
-        return StrUtil.nullToEmpty(message.getContent()).length()
-                + StrUtil.nullToEmpty(message.getResultContent()).length()
-                + StrUtil.nullToEmpty(message.getReasoning()).length()
-                + (message.getContentRaw() == null ? 0 : 1)
-                + (message.getToolCallsRaw() == null ? 0 : message.getToolCallsRaw().size());
     }
 
     /**
