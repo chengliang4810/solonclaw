@@ -1,4 +1,5 @@
 import { request } from '../client'
+import { fetchWorkspaceFiles, type WorkspaceFile } from './files'
 
 export interface SkillInfo {
   name: string
@@ -40,12 +41,6 @@ interface DashboardSkill {
 }
 
 interface SkillContentResponse {
-  content: string
-}
-
-interface WorkspaceFile {
-  key: string
-  path: string
   content: string
 }
 
@@ -98,8 +93,8 @@ export async function fetchSkillFiles(category: string, skill: string): Promise<
 }
 
 async function getWorkspaceFile(key: string): Promise<WorkspaceFile | null> {
-  const res = await request<{ files: WorkspaceFile[] }>('/api/workspace/files')
-  return (res.files || []).find((item) => item.key === key) || null
+  const files = await fetchWorkspaceFiles()
+  return files.find((item) => item.key === key) || null
 }
 
 export async function fetchMemory(): Promise<MemoryData> {

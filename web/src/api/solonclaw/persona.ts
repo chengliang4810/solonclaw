@@ -1,5 +1,6 @@
 import { request } from '../client'
 import { getPersonaMeta } from '@/shared/personaMeta'
+import { fetchWorkspaceFile } from './files'
 
 export interface PersonaFileData {
   key: string
@@ -16,20 +17,12 @@ export interface PersonaDiaryEntry {
   path: string
 }
 
-interface WorkspaceFile {
-  key: string
-  name: string
-  path: string
-  exists: boolean
-  content: string
-}
-
 export function personaMeta(key: string) {
   return getPersonaMeta(key)
 }
 
 export async function fetchPersonaFile(key: string): Promise<PersonaFileData> {
-  const file = await request<WorkspaceFile>(`/api/workspace/files/${encodeURIComponent(key)}`)
+  const file = await fetchWorkspaceFile(key)
   const meta = personaMeta(key)
   return {
     key,

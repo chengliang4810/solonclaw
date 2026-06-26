@@ -17,7 +17,7 @@ export interface FileStat {
   permissions?: string
 }
 
-interface WorkspaceFile {
+export interface WorkspaceFile {
   key: string
   name: string
   path: string
@@ -45,9 +45,13 @@ function keyForPath(path: string): string {
   return Object.entries(PATH_TO_KEY).find(([, key]) => key === path)?.[1] || path
 }
 
-async function workspaceFiles(): Promise<WorkspaceFile[]> {
+export async function fetchWorkspaceFiles(): Promise<WorkspaceFile[]> {
   const res = await request<{ files: WorkspaceFile[] }>('/api/workspace/files')
   return res.files || []
+}
+
+export async function fetchWorkspaceFile(key: string): Promise<WorkspaceFile> {
+  return request<WorkspaceFile>(`/api/workspace/files/${encodeURIComponent(key)}`)
 }
 
 export async function listFiles(path: string = ''): Promise<{ entries: FileEntry[]; path: string }> {
@@ -55,7 +59,7 @@ export async function listFiles(path: string = ''): Promise<{ entries: FileEntry
     return { entries: [], path }
   }
 
-  const files = await workspaceFiles()
+  const files = await fetchWorkspaceFiles()
   return {
     path: '',
     entries: files.map((file) => ({
@@ -69,7 +73,7 @@ export async function listFiles(path: string = ''): Promise<{ entries: FileEntry
 }
 
 export async function statFile(path: string): Promise<FileStat> {
-  const files = await workspaceFiles()
+  const files = await fetchWorkspaceFiles()
   const file = files.find((item) => item.name === path || item.path === path)
   if (!file) throw new Error('File not found')
   return {
@@ -83,7 +87,7 @@ export async function statFile(path: string): Promise<FileStat> {
 
 export async function readFile(path: string): Promise<{ content: string; path: string; size: number }> {
   const key = keyForPath(path)
-  const file = await request<WorkspaceFile>(`/api/workspace/files/${encodeURIComponent(key)}`)
+  const file = await fetchWorkspaceFile(key)
   return {
     content: file.content || '',
     path,
