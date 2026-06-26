@@ -68,6 +68,9 @@ public interface ToolNameConstants {
     /** 会话管理的统一常量值。 */
     String SESSION_MANAGE = "session_manage";
 
+    /** 用量分析管理的统一常量值。 */
+    String ANALYTICS_MANAGE = "analytics_manage";
+
     /** 技能列表的统一常量值。 */
     String SKILLS_LIST = "skills_list";
 

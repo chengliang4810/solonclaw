@@ -295,6 +295,7 @@ public class ToolConfiguration {
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
      * @param dashboardRunService Dashboard运行服务依赖。
+     * @param usageEventRepository 用量事件仓储依赖。
      * @param pluginTools 插件Tools参数。
      * @return 返回工具注册表结果。
      */
@@ -327,6 +328,7 @@ public class ToolConfiguration {
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
             DashboardRunService dashboardRunService,
+            UsageEventRepository usageEventRepository,
             List<ToolRegistration> pluginTools) {
         return new DefaultToolRegistry(
                 appConfig,
@@ -356,6 +358,7 @@ public class ToolConfiguration {
                 imageGenerationService,
                 speechService,
                 dashboardRunService,
+                usageEventRepository,
                 pluginTools);
     }
 

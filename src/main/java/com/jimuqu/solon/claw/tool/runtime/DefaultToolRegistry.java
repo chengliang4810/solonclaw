@@ -26,6 +26,8 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
+import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
@@ -81,6 +83,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.MEMORY,
                     ToolNameConstants.SESSION_SEARCH,
                     ToolNameConstants.SESSION_MANAGE,
+                    ToolNameConstants.ANALYTICS_MANAGE,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
@@ -199,6 +202,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** Dashboard 运行服务，用于给 Agent 暴露一等运行管理工具。 */
     private final DashboardRunService dashboardRunService;
 
+    /** 用量事件仓储，用于给 Agent 暴露与 Dashboard 一致的用量分析。 */
+    private final UsageEventRepository usageEventRepository;
+
     /**
      * 创建默认工具注册表实例，并注入运行所需依赖。
      *
@@ -262,6 +268,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -344,6 +351,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -412,6 +420,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -482,6 +491,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -554,6 +564,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -630,6 +641,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 imageGenerationService,
                 speechService,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -704,6 +716,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -778,6 +791,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 pluginTools);
     }
 
@@ -856,6 +870,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 imageGenerationService,
                 speechService,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -937,6 +952,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 imageGenerationService,
                 speechService,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 pluginTools);
     }
 
@@ -969,6 +985,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
      * @param dashboardRunService Dashboard运行服务依赖。
+     * @param usageEventRepository 用量事件仓储依赖。
      * @param pluginTools 插件Tools参数。
      */
     public DefaultToolRegistry(
@@ -999,6 +1016,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
             DashboardRunService dashboardRunService,
+            UsageEventRepository usageEventRepository,
             List<ToolRegistration> pluginTools) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
@@ -1033,6 +1051,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.imageGenerationService = imageGenerationService;
         this.speechService = speechService;
         this.dashboardRunService = dashboardRunService;
+        this.usageEventRepository = usageEventRepository;
         this.pluginTools =
                 pluginTools == null
                         ? Collections.<ToolRegistration>emptyList()
@@ -1088,6 +1107,9 @@ public class DefaultToolRegistry implements ToolRegistry {
         SessionManageTools sessionManageTools =
                 new SessionManageTools(
                         new DashboardSessionService(sessionRepository, checkpointService));
+        AnalyticsManageTools analyticsManageTools =
+                new AnalyticsManageTools(
+                        new DashboardAnalyticsService(sessionRepository, usageEventRepository));
         SkillTools skillTools =
                 new SkillTools(
                         localSkillService,
@@ -1220,6 +1242,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(sessionSearchTools);
             } else if (ToolNameConstants.SESSION_MANAGE.equals(toolName)) {
                 tools.add(sessionManageTools);
+            } else if (ToolNameConstants.ANALYTICS_MANAGE.equals(toolName)) {
+                tools.add(analyticsManageTools);
             } else if (ToolNameConstants.SKILLS_LIST.equals(toolName)) {
                 tools.add(new SkillTools.SkillsListTool(skillTools));
             } else if (ToolNameConstants.SKILL_VIEW.equals(toolName)) {

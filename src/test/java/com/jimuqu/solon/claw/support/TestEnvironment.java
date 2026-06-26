@@ -76,6 +76,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteUsageEventRepository;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
@@ -193,6 +194,7 @@ public class TestEnvironment {
         GlobalSettingRepository globalSettingRepository =
                 new SqliteGlobalSettingRepository(database);
         SessionRepository sessionRepository = new SqliteSessionRepository(database);
+        SqliteUsageEventRepository usageEventRepository = new SqliteUsageEventRepository(database);
         AgentRunRepository agentRunRepository = new SqliteAgentRunRepository(database);
         CronJobRepository cronJobRepository = new SqliteCronJobRepository(database);
         GatewayPolicyRepository gatewayPolicyRepository =
@@ -329,13 +331,19 @@ public class TestEnvironment {
                         runtimeSettingsService,
                         refreshService,
                         securityPolicyService,
+                        dangerousCommandApprovalService,
                         processRegistry,
                         null,
                         dashboardMcpService,
                         dashboardCuratorService,
                         dashboardPlatformToolsetsService,
                         dashboardProviderService,
-                        browserRuntimeService);
+                        browserRuntimeService,
+                        null,
+                        null,
+                        null,
+                        usageEventRepository,
+                        null);
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);
         AgentRunSupervisor agentRunSupervisor =
                 new AgentRunSupervisor(
