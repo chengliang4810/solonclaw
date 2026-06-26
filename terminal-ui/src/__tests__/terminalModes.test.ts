@@ -36,4 +36,19 @@ describe('terminal mode reset', () => {
     expect(resetTerminalModes({ isTTY: false, write } as unknown as NodeJS.WriteStream)).toBe(false)
     expect(write).not.toHaveBeenCalled()
   })
+
+  it('disarms mouse tracking from a synchronous exit-style handler', () => {
+    const write = vi.fn()
+    const stream = { isTTY: true, write } as unknown as NodeJS.WriteStream
+
+    const onExit = () => resetTerminalModes(stream)
+    onExit()
+
+    expect(write).toHaveBeenCalledTimes(1)
+    const written = write.mock.calls[0]?.[0] as string
+
+    for (const mode of ['\x1b[?1006l', '\x1b[?1003l', '\x1b[?1002l', '\x1b[?1000l']) {
+      expect(written).toContain(mode)
+    }
+  })
 })

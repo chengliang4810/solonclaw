@@ -8,8 +8,11 @@ import { recordParentLifecycle } from './lib/parentLog.js'
 import { WebSocket as WsWebSocket } from 'ws'
 
 // Node.js 20 没有全局 WebSocket，用 ws 模块补全
-const ResolvedWebSocket: typeof WebSocket =
-  typeof WebSocket !== 'undefined' ? WebSocket : (WsWebSocket as unknown as typeof WebSocket)
+// 懒解析：每次调用时检查全局 WebSocket（测试会动态 mock/delete）
+const _wsModuleFallback: typeof WebSocket = WsWebSocket as unknown as typeof WebSocket
+function resolveWsCtor(): typeof WebSocket {
+  return typeof WebSocket !== 'undefined' ? WebSocket : _wsModuleFallback
+}
 
 const MAX_GATEWAY_LOG_LINES = 200
 const MAX_LOG_LINE_BYTES = 4096
@@ -296,14 +299,14 @@ export class GatewayClient extends EventEmitter {
       return
     }
 
-    if (typeof ResolvedWebSocket === 'undefined') {
+    if (typeof resolveWsCtor() === 'undefined') {
       this.pushLog(`[sidecar] WebSocket unavailable; skipping mirror to ${redactUrl(this.sidecarUrl)}`)
 
       return
     }
 
     try {
-      const ws = new ResolvedWebSocket(this.sidecarUrl)
+      const ws = new (resolveWsCtor())(this.sidecarUrl)
 
       this.sidecarWs = ws
       ws.addEventListener('close', () => {
@@ -376,7 +379,7 @@ export class GatewayClient extends EventEmitter {
     this.clearReadyTimer()
     this.startReadyTimer('websocket', safeAttachUrl)
 
-    if (typeof ResolvedWebSocket === 'undefined') {
+    if (typeof resolveWsCtor() === 'undefined') {
       const line = `[startup] WebSocket API unavailable; cannot attach to ${safeAttachUrl}`
 
       this.pushLog(line)
@@ -387,7 +390,7 @@ export class GatewayClient extends EventEmitter {
     }
 
     try {
-      const ws = new ResolvedWebSocket(attachUrl)
+      const ws = new (resolveWsCtor())(attachUrl)
       let settled = false
 
       this.ws = ws
@@ -467,7 +470,12 @@ export class GatewayClient extends EventEmitter {
 
       return connectPromise
     } catch (err) {
-      this.pushLog(`[startup] failed to connect websocket gateway ${safeAttachUrl} (constructor error)`)
+      const rawMessage = err instanceof Error ? err.message : String(err)
+      const safeMessage = redactUrl(rawMessage)
+      const line = `[startup] failed to connect websocket gateway ${safeAttachUrl} (constructor error: ${safeMessage})`
+
+      this.pushLog(line)
+      this.publish({ type: 'gateway.stderr', payload: { line } })
       this.handleTransportExit(1, 'gateway websocket startup failed')
 
       return Promise.reject(err instanceof Error ? err : new Error(String(err)))

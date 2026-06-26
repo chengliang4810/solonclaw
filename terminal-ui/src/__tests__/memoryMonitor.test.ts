@@ -99,4 +99,19 @@ describe('startMemoryMonitor thresholds (#34095)', () => {
 
     expect(onWarn).not.toHaveBeenCalled()
   })
+
+  it('throttles automatic heap dumps while heap stays above threshold', async () => {
+    const onHigh = vi.fn()
+    withHeap(2 * GB)
+    stop = startMemoryMonitor({
+      criticalBytes: 3 * GB,
+      highBytes: 1 * GB,
+      intervalMs: 1,
+      onHigh
+    })
+
+    await vi.advanceTimersByTimeAsync(5)
+
+    expect(onHigh).toHaveBeenCalledTimes(1)
+  })
 })

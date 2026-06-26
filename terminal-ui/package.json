@@ -1,6 +1,6 @@
 {
   "name": "solonclaw",
-  "version": "0.0.3",
+  "version": "0.0.5",
   "description": "Terminal UI for solonclaw agent service",
   "type": "module",
   "bin": {
@@ -69,5 +69,8 @@
     "terminal",
     "agent",
     "ai"
-  ]
+  ],
+  "dependencies": {
+    "ws": "^8.21.0"
+  }
 }

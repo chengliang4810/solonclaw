@@ -103,14 +103,14 @@ export function useSubmission(opts: UseSubmissionOptions) {
           appendMessage({ role: 'user', text: displayText })
         }
 
-        patchUiState({ busy: true, status: 'running…' })
+        patchUiState({ busy: true, status: '运行中…' })
         turnController.bufRef = ''
         turnController.interrupted = false
 
         gw.request<PromptSubmitResponse>('prompt.submit', { session_id: sid, text: submitText }).catch((e: Error) => {
           if (isSessionBusyError(e)) {
             composerActions.enqueue(submitText)
-            patchUiState({ busy: true, status: 'queued for next turn' })
+            patchUiState({ busy: true, status: '已排队等待下一轮' })
 
             return sys(`queued: "${submitText.slice(0, 50)}${submitText.length > 50 ? '…' : ''}"`)
           }
@@ -151,7 +151,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
   const shellExec = useCallback(
     (cmd: string) => {
       appendMessage({ role: 'user', text: `!${cmd}` })
-      patchUiState({ busy: true, status: 'running…' })
+      patchUiState({ busy: true, status: '运行中…' })
 
       gw.request<ShellExecResponse>('shell.exec', { command: cmd })
         .then(raw => {
@@ -252,10 +252,10 @@ export function useSubmission(opts: UseSubmissionOptions) {
             const r = asRpcResult<SessionSteerResponse>(raw)
 
             if (r?.status !== 'queued') {
-              fallback('steer rejected — message queued for next turn')
+              fallback('steer rejected — message 已排队等待下一轮')
             }
           })
-          .catch(() => fallback('steer failed — message queued for next turn'))
+          .catch(() => fallback('steer failed — message 已排队等待下一轮'))
 
         return
       }

@@ -237,13 +237,13 @@ function normalizeAnsiForeground(color: string): string {
 // ── Defaults ─────────────────────────────────────────────────────────
 
 const BRAND: ThemeBrand = {
-  name: 'solonclaw Agent',
+  name: 'SolonClaw Agent',
   icon: '⚕',
   prompt: '❯',
-  welcome: 'Type your message or /help for commands.',
-  goodbye: 'Goodbye! ⚕',
+  welcome: '输入消息或 /help 查看命令。',
+  goodbye: '再见！⚕',
   tool: '┊',
-  helpHeader: '(^_^)? Commands'
+  helpHeader: '(^_^)? 命令'
 }
 
 const cleanPromptSymbol = (s: string | undefined, fallback: string) => {

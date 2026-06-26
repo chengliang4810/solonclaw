@@ -69,7 +69,7 @@ describe('cleanThinkingText', () => {
   it('removes face/status ticker fragments while preserving real reasoning', () => {
     expect(
       cleanThinkingText(
-        '(¬_¬) synthesizing...**Resolving comments on GitHub**\n( ͡° ͜ʖ ͡°) musing...\nActual step\n٩(๑❛ᴗ❛๑)۶ contemplating...next step'
+        '(¬_¬) 思考中...**Resolving comments on GitHub**\n( ͡° ͜ʖ ͡°) 分析中...\nActual step\n٩(๑❛ᴗ❛๑)۶ 推理中...next step'
       )
     ).toBe('**Resolving comments on GitHub**\nActual step\nnext step')
   })
