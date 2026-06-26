@@ -2,11 +2,14 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
+import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -135,6 +138,48 @@ final class DashboardDiagnosticTextFormatter {
         item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
         item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
         return item;
+    }
+
+    /**
+     * 生成最近一次关闭取证摘要，路径展示由调用方按自身 runtime 根目录转换。
+     *
+     * @param shutdownForensicsService 关闭取证服务。
+     * @param pathReference 文件路径展示转换函数。
+     * @return 返回关闭取证摘要。
+     */
+    static Map<String, Object> shutdownSummary(
+            ShutdownForensicsService shutdownForensicsService,
+            Function<String, String> pathReference) {
+        if (shutdownForensicsService == null) {
+            return unavailableShutdownSummary();
+        }
+        Map<String, Object> record = shutdownForensicsService.lastShutdownRecord();
+        File file = shutdownForensicsService.lastShutdownRecordFile();
+        if (record == null || file == null) {
+            return unavailableShutdownSummary();
+        }
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.TRUE);
+        summary.put("record", pathReference.apply(file.getAbsolutePath()));
+        summary.put("timestamp", record.get("timestamp"));
+        summary.put("timestamp_iso", safeObjectText(record.get("timestampIso"), 80));
+        summary.put("reason", safeObjectText(record.get("reason"), 200));
+        summary.put("uptime_ms", record.get("uptimeMs"));
+        summary.put("pid", safeObjectText(record.get("pid"), 80));
+        summary.put("memory", record.get("memory"));
+        summary.put("threads", record.get("threads"));
+        return summary;
+    }
+
+    /**
+     * 生成关闭取证不可用摘要，保持 Dashboard 字段契约稳定。
+     *
+     * @return 返回不可用摘要。
+     */
+    static Map<String, Object> unavailableShutdownSummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.FALSE);
+        return summary;
     }
 
     /**

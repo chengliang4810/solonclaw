@@ -599,36 +599,8 @@ public class DashboardGatewayDoctorService {
      * @return 返回shutdown Summary结果。
      */
     private Map<String, Object> shutdownSummary() {
-        if (shutdownForensicsService == null) {
-            return unavailableShutdownSummary();
-        }
-        Map<String, Object> record = shutdownForensicsService.lastShutdownRecord();
-        File file = shutdownForensicsService.lastShutdownRecordFile();
-        if (record == null || file == null) {
-            return unavailableShutdownSummary();
-        }
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("available", Boolean.TRUE);
-        summary.put("record", runtimeReference(file.getAbsolutePath()));
-        summary.put("timestamp", record.get("timestamp"));
-        summary.put("timestamp_iso", safeObjectText(record.get("timestampIso"), 80));
-        summary.put("reason", safeObjectText(record.get("reason"), 200));
-        summary.put("uptime_ms", record.get("uptimeMs"));
-        summary.put("pid", safeObjectText(record.get("pid"), 80));
-        summary.put("memory", record.get("memory"));
-        summary.put("threads", record.get("threads"));
-        return summary;
-    }
-
-    /**
-     * 执行unavailable关闭摘要相关逻辑。
-     *
-     * @return 返回unavailable Shutdown Summary结果。
-     */
-    private Map<String, Object> unavailableShutdownSummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("available", Boolean.FALSE);
-        return summary;
+        return DashboardDiagnosticTextFormatter.shutdownSummary(
+                shutdownForensicsService, this::runtimeReference);
     }
 
     /**
