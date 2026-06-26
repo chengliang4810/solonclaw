@@ -3845,6 +3845,33 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldProbeSubprocessEnvironmentThroughNaturalLanguageDiagnosticsTool()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof DiagnosticsManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("diagnostics manage tool missing"));
+
+        ONode result =
+                ONode.ofJson(
+                        ((DiagnosticsManageTools) tool)
+                                .diagnosticsManage(
+                                        "subprocess_environment",
+                                        "[\"PATH\",\"OPENAI_API_KEY\",\"ghp_diagprobe12345\"]"));
+
+        assertToolSuccess(result);
+        assertThat(result.get("result").get("surface").getString())
+                .isEqualTo("subprocess_environment");
+        assertThat(result.get("result").get("requested_count").getInt()).isEqualTo(3);
+        assertThat(result.toJson())
+                .contains("provider-blocked")
+                .contains("***")
+                .doesNotContain("ghp_diagprobe12345");
+    }
+
+    @Test
     void shouldExposeApprovalEventsManagementToolForNaturalLanguageApprovalInspection()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
