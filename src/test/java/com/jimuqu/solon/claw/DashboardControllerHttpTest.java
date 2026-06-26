@@ -139,16 +139,12 @@ public class DashboardControllerHttpTest {
                 .contains("solonclaw.task.toolOutputMaxLineLength")
                 .doesNotContain("tool_output.max_bytes");
 
-        HttpResult unauthorizedDoctor = request("GET", "/api/gateway/doctor", null, null);
+        HttpResult unauthorizedDoctor = request("GET", "/api/diagnostics/doctor", null, null);
         assertThat(unauthorizedDoctor.status).isEqualTo(401);
 
-        HttpResult authorizedDoctor = request("GET", "/api/gateway/doctor", null, token);
+        HttpResult authorizedDoctor = request("GET", "/api/diagnostics/doctor", null, token);
         assertThat(authorizedDoctor.status).isEqualTo(200);
-        assertThat(authorizedDoctor.body).contains("\"platforms\"");
-
-        HttpResult diagnosticsDoctor = request("GET", "/api/diagnostics/doctor", null, token);
-        assertThat(diagnosticsDoctor.status).isEqualTo(200);
-        assertThat(diagnosticsDoctor.body)
+        assertThat(authorizedDoctor.body)
                 .contains("\"workspace_home\"")
                 .contains("\"model\"")
                 .contains("\"health_checks\"")
