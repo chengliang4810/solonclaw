@@ -173,6 +173,23 @@
       - 增加工具暴露测试，证明默认工具列表包含 `logs_manage` 且能解析到 `LogsManageTools`。
     - 提交：`b01245c28`
 
+11. 增加媒体管理一等工具
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/MediaManageTools.java`
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+      - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+      - `src/main/java/com/jimuqu/solon/claw/bootstrap/ToolConfiguration.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+      - `src/test/java/com/jimuqu/solon/claw/support/TestEnvironment.java`
+    - 改造前：
+      - Dashboard 已有媒体缓存列表、详情、索引刷新、下载和引用生成能力。
+      - Agent 自然语言路径没有一等 `media_manage` 工具，查看或刷新媒体缓存时需要绕到 UI 或底层数据库/文件。
+    - 改造后：
+      - 新增 `media_manage` 工具，复用 `DashboardMediaService`，支持 `list`、`detail`、`index`、`refresh`、`download`、`reference`。
+      - 工具沿用 Dashboard 媒体服务的路径保护、媒体索引和附件引用逻辑，不重复实现本地文件扫描。
+      - 增加工具暴露测试，证明默认工具列表包含 `media_manage` 且能解析到 `MediaManageTools`。
+    - 提交：`5d11dc000`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -185,6 +202,7 @@
 - `mvn -Dskip.web.build=true -Dtest=DashboardSessionServiceTest,ToolRegistryExposureTest#shouldExposeSessionManagementToolForNaturalLanguageSessionInspection test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=SessionUsageTrackingTest,UsagePricingTest#analyticsUsesUsageEventsForCostsAndFallsBackToSessionTokensWithoutPricing,UsagePricingTest#analyticsCountsAllUsageEventsWithoutRepositoryLimitTruncation,ToolRegistryExposureTest#shouldExposeAnalyticsManagementToolForNaturalLanguageUsageInspection test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=DashboardLogsServiceTest,ToolRegistryExposureTest#shouldExposeLogsManagementToolForNaturalLanguageLogInspection test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=DashboardMediaServiceTest,ToolRegistryExposureTest#shouldExposeMediaManagementToolForNaturalLanguageMediaInspection test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -197,6 +215,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、用量分析、日志查询入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、用量分析、日志查询、媒体管理入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚、会话删除和会话更新暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
