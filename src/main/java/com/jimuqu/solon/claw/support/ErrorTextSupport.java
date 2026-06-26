@@ -21,4 +21,21 @@ public final class ErrorTextSupport {
         String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
         return SecretRedactor.redact(value, 1000);
     }
+
+    /**
+     * 将异常转换为包含异常类型的脱敏摘要，适合 debug 日志定位降级原因。
+     *
+     * @param error 捕获到的异常。
+     * @return 异常类型与脱敏消息摘要。
+     */
+    public static String summaryWithType(Throwable error) {
+        if (error == null) {
+            return "";
+        }
+        String message =
+                SecretRedactor.redact(
+                        StrUtil.blankToDefault(error.getMessage(), error.getClass().getName()),
+                        500);
+        return error.getClass().getSimpleName() + ": " + message;
+    }
 }

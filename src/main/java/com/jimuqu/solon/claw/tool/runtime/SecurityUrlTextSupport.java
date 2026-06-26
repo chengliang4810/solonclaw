@@ -4,6 +4,7 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SENSI
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HtmlUtil;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.net.IDN;
 import java.net.URI;
@@ -132,7 +133,9 @@ static URI parseUri(String url) {
     try {
         return URI.create(url);
     } catch (Exception e) {
-        log.debug("URI parsing failed; treating URL text as unparsable: {}", exceptionSummary(e));
+        log.debug(
+                "URI parsing failed; treating URL text as unparsable: {}",
+                ErrorTextSupport.summaryWithType(e));
         return null;
     }
 }
@@ -514,7 +517,9 @@ private static String decodeUrlComponent(String raw) {
         try {
             decoded = URLDecoder.decode(value, StandardCharsets.UTF_8.name());
         } catch (Exception e) {
-            log.debug("URL component decoding failed; returning current normalized text: {}", exceptionSummary(e));
+            log.debug(
+                    "URL component decoding failed; returning current normalized text: {}",
+                    ErrorTextSupport.summaryWithType(e));
             return value;
         }
         decoded = normalizeUrlText(decoded);
@@ -635,7 +640,9 @@ private static String decodeHostText(String host) {
         try {
             decoded = URLDecoder.decode(value, StandardCharsets.UTF_8.name());
         } catch (Exception e) {
-            log.debug("Host text decoding failed; returning current normalized host: {}", exceptionSummary(e));
+            log.debug(
+                    "Host text decoding failed; returning current normalized host: {}",
+                    ErrorTextSupport.summaryWithType(e));
             return value;
         }
         decoded = normalizeUrlText(decoded);
@@ -665,26 +672,10 @@ private static String toAsciiHost(String host) {
     } catch (Exception e) {
         log.debug(
                 "Host ASCII normalization failed; keeping normalized host: {}",
-                exceptionSummary(e));
+                ErrorTextSupport.summaryWithType(e));
         return host;
     }
 }
 
 
-    /**
-     * 将安全解析异常压缩成单行脱敏摘要，避免 debug 日志输出完整栈或敏感路径。
-     *
-     * @param error 解析或规范化过程中捕获的异常。
-     * @return 返回异常类型与脱敏消息摘要。
-     */
-    private static String exceptionSummary(Exception error) {
-        if (error == null) {
-            return "";
-        }
-        String message =
-                SecretRedactor.redact(
-                        StrUtil.blankToDefault(error.getMessage(), error.getClass().getName()),
-                        500);
-        return error.getClass().getSimpleName() + ": " + message;
-    }
 }

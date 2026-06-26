@@ -59,6 +59,7 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HtmlUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -446,7 +447,9 @@ public class SecurityPolicyService {
         try {
             return InetAddress.getByName(value);
         } catch (Exception e) {
-            log.debug("Address literal parsing failed; treating host as a regular name: {}", exceptionSummary(e));
+            log.debug(
+                    "Address literal parsing failed; treating host as a regular name: {}",
+                    ErrorTextSupport.summaryWithType(e));
             return null;
         }
     }
@@ -2344,7 +2347,9 @@ public class SecurityPolicyService {
             File target = resolveWorkspaceRelativePath(rawPath);
             return !isInside(target.getCanonicalFile(), workspace.getCanonicalFile());
         } catch (Exception e) {
-            log.debug("Workspace boundary resolution failed; treating path as outside workspace: {}", exceptionSummary(e));
+            log.debug(
+                    "Workspace boundary resolution failed; treating path as outside workspace: {}",
+                    ErrorTextSupport.summaryWithType(e));
             return true;
         }
     }
@@ -2387,7 +2392,9 @@ public class SecurityPolicyService {
                 return parent == null ? fallbackBase : parent;
             }
         } catch (Exception e) {
-            log.debug("Jar base directory resolution failed; falling back to process directory: {}", exceptionSummary(e));
+            log.debug(
+                    "Jar base directory resolution failed; falling back to process directory: {}",
+                    ErrorTextSupport.summaryWithType(e));
             // 运行环境可能没有 code source，保持启动路径可预测。
         }
         return fallbackBase;
@@ -2688,7 +2695,9 @@ public class SecurityPolicyService {
             try {
                 decoded = URLDecoder.decode(value, StandardCharsets.UTF_8.name());
             } catch (Exception e) {
-                log.debug("Path text decoding failed; returning original normalized path text: {}", exceptionSummary(e));
+                log.debug(
+                        "Path text decoding failed; returning original normalized path text: {}",
+                        ErrorTextSupport.summaryWithType(e));
                 return value;
             }
             decoded = TerminalAnsiSanitizer.stripAnsi(decoded);
@@ -3155,7 +3164,9 @@ public class SecurityPolicyService {
                             .normalize();
             return path.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
         } catch (Exception e) {
-            log.debug("Runtime relative path normalization failed; returning empty path: {}", exceptionSummary(e));
+            log.debug(
+                    "Runtime relative path normalization failed; returning empty path: {}",
+                    ErrorTextSupport.summaryWithType(e));
             return "";
         }
     }
@@ -3277,7 +3288,7 @@ public class SecurityPolicyService {
             } catch (Exception fallbackError) {
                 log.debug(
                         "Comparable path fallback normalization failed; returning null: {}",
-                        exceptionSummary(fallbackError));
+                        ErrorTextSupport.summaryWithType(fallbackError));
                 return null;
             }
         }
@@ -3359,7 +3370,9 @@ public class SecurityPolicyService {
                 }
             }
         } catch (Exception e) {
-            log.debug("Runtime prefix stripping failed; keeping normalized path: {}", exceptionSummary(e));
+            log.debug(
+                    "Runtime prefix stripping failed; keeping normalized path: {}",
+                    ErrorTextSupport.summaryWithType(e));
         }
         return value;
     }
@@ -3382,7 +3395,9 @@ public class SecurityPolicyService {
                             .normalize();
             return path.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
         } catch (Exception e) {
-            log.debug("Runtime path normalization failed; returning empty path: {}", exceptionSummary(e));
+            log.debug(
+                    "Runtime path normalization failed; returning empty path: {}",
+                    ErrorTextSupport.summaryWithType(e));
             return "";
         }
     }
@@ -3496,7 +3511,9 @@ public class SecurityPolicyService {
                     }
                 }
             } catch (Exception e) {
-                log.debug("Shared rule file loading failed; skipping unreadable rule file: {}", exceptionSummary(e));
+                log.debug(
+                        "Shared rule file loading failed; skipping unreadable rule file: {}",
+                        ErrorTextSupport.summaryWithType(e));
                 summary.skippedFileCount++;
             }
         }
@@ -3539,7 +3556,9 @@ public class SecurityPolicyService {
             }
             return null;
         } catch (Exception e) {
-            log.debug("Shared file resolution failed; rejecting shared file path: {}", exceptionSummary(e));
+            log.debug(
+                    "Shared file resolution failed; rejecting shared file path: {}",
+                    ErrorTextSupport.summaryWithType(e));
             return null;
         }
     }
@@ -3592,22 +3611,6 @@ public class SecurityPolicyService {
         return host.equals(rule) || host.endsWith("." + rule);
     }
 
-    /**
-     * 将安全解析异常压缩成单行脱敏摘要，避免 debug 日志输出完整栈或敏感路径。
-     *
-     * @param error 解析或规范化过程中捕获的异常。
-     * @return 返回异常类型与脱敏消息摘要。
-     */
-    private static String exceptionSummary(Exception error) {
-        if (error == null) {
-            return "";
-        }
-        String message =
-                SecretRedactor.redact(
-                        StrUtil.blankToDefault(error.getMessage(), error.getClass().getName()),
-                        500);
-        return error.getClass().getSimpleName() + ": " + message;
-    }
 
     /**
      * 解析Allow私聊Urls。

@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.util.ArrayList;
@@ -331,7 +332,7 @@ public class McpPackageSecurityService {
                 } catch (Exception e) {
                     log.debug(
                             "MCP package args JSON parsing failed; falling back to whitespace split: {}",
-                            exceptionSummary(e));
+                            ErrorTextSupport.summaryWithType(e));
                 }
             }
             for (String item : text.split("\\s+")) {
@@ -460,23 +461,6 @@ public class McpPackageSecurityService {
             }
         }
         return malware;
-    }
-
-    /**
-     * 将 MCP 包参数解析异常压缩成单行脱敏摘要，避免 fallback 日志输出完整栈或敏感参数。
-     *
-     * @param error 参数解析过程中捕获的异常。
-     * @return 返回异常类型与脱敏消息摘要。
-     */
-    private static String exceptionSummary(Exception error) {
-        if (error == null) {
-            return "";
-        }
-        String message =
-                SecretRedactor.redact(
-                        StrUtil.blankToDefault(error.getMessage(), error.getClass().getName()),
-                        500);
-        return error.getClass().getSimpleName() + ": " + message;
     }
 
     /** 承载包Ref相关状态和辅助逻辑。 */
