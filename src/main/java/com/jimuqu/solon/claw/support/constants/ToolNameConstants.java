@@ -134,6 +134,9 @@ public interface ToolNameConstants {
     /** 平台工具集管理的统一常量值。 */
     String PLATFORM_TOOLSETS_MANAGE = "platform_toolsets_manage";
 
+    /** 模型提供方管理的统一常量值。 */
+    String PROVIDER_MANAGE = "provider_manage";
+
     /** CODESEARCH的统一常量值。 */
     String CODESEARCH = "codesearch";
 

@@ -334,6 +334,7 @@ public class TestEnvironment {
                         dashboardMcpService,
                         dashboardCuratorService,
                         dashboardPlatformToolsetsService,
+                        dashboardProviderService,
                         browserRuntimeService);
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);
         AgentRunSupervisor agentRunSupervisor =
