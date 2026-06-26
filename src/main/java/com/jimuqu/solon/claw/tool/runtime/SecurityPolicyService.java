@@ -60,6 +60,7 @@ import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HtmlUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
+import com.jimuqu.solon.claw.support.FilePathSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -2345,7 +2346,8 @@ public class SecurityPolicyService {
         try {
             File workspace = workspaceRoot();
             File target = resolveWorkspaceRelativePath(rawPath);
-            return !isInside(target.getCanonicalFile(), workspace.getCanonicalFile());
+            return !FilePathSupport.isUnderPath(
+                    target.getCanonicalFile(), workspace.getCanonicalFile());
         } catch (Exception e) {
             log.debug(
                     "Workspace boundary resolution failed; treating path as outside workspace: {}",
@@ -3551,7 +3553,7 @@ public class SecurityPolicyService {
                                             RuntimePathConstants.WORKSPACE_HOME));
             File home = workspaceHome.getCanonicalFile();
             File file = new File(home, path).getCanonicalFile();
-            if (isInside(file, home)) {
+            if (FilePathSupport.isUnderPath(file, home)) {
                 return checkPath(file.getAbsolutePath(), false).isAllowed() ? file : null;
             }
             return null;
@@ -3561,25 +3563,6 @@ public class SecurityPolicyService {
                     ErrorTextSupport.summaryWithType(e));
             return null;
         }
-    }
-
-    /**
-     * 判断是否Inside。
-     *
-     * @param child child 参数。
-     * @param parent parent 参数。
-     * @return 如果Inside满足条件则返回 true，否则返回 false。
-     */
-    private boolean isInside(File child, File parent) {
-        String childPath = child.getAbsolutePath();
-        String parentPath = parent.getAbsolutePath();
-        if (childPath.equals(parentPath)) {
-            return true;
-        }
-        if (!parentPath.endsWith(File.separator)) {
-            parentPath = parentPath + File.separator;
-        }
-        return childPath.startsWith(parentPath);
     }
 
     /**

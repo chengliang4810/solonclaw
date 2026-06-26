@@ -16,4 +16,12 @@ class FilePathSupportTest {
         assertTrue(FilePathSupport.isUnderPath(new File("/tmp/cache/media/a/b.png"), root));
         assertFalse(FilePathSupport.isUnderPath(new File("/tmp/cache/media-other/b.png"), root));
     }
+
+    /** 规范化后逃逸根目录的路径不能通过。 */
+    @Test
+    void shouldRejectNormalizedEscapes() {
+        File root = new File("/tmp/cache/media");
+
+        assertFalse(FilePathSupport.isUnderPath(new File("/tmp/cache/media/../secret.txt"), root));
+    }
 }
