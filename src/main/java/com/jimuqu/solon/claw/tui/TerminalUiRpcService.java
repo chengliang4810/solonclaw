@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
@@ -166,7 +167,7 @@ public class TerminalUiRpcService {
         info.put("skills", new LinkedHashMap<String, Object>());
         info.put("tools", new LinkedHashMap<String, Object>());
         info.put("usage", session == null ? usage() : usage(session));
-        info.put("version", "");
+        info.put("version", new AppVersionService(appConfig).currentVersion());
         return info;
     }
 
