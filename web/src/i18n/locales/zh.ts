@@ -581,6 +581,14 @@ export default {
     loadFailed: '加载技能失败',
     fileLoadFailed: '加载文件失败',
     toggleFailed: '切换技能状态失败',
+    curatorImprovements: '技能改进记录',
+    noCuratorImprovements: '暂无技能改进记录',
+    needsReview: '需复核',
+    markApplied: '标记已应用',
+    ignoreSuggestion: '忽略',
+    curatorMarkedApplied: '已标记为已应用',
+    curatorMarkedIgnored: '已标记为已忽略',
+    curatorActionFailed: '更新技能改进状态失败',
   },
 
   // 记忆

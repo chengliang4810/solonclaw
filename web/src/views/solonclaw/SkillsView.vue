@@ -1,14 +1,24 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { NInput } from 'naive-ui'
+import { NButton, NInput, NTag, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import SkillList from '@/components/solonclaw/skills/SkillList.vue'
 import SkillDetail from '@/components/solonclaw/skills/SkillDetail.vue'
 import { fetchSkills, type SkillCategory } from '@/api/solonclaw/skills'
+import {
+  fetchCuratorImprovements,
+  ignoreCuratorSuggestion,
+  markCuratorSuggestionApplied,
+  type CuratorImprovement,
+} from '@/api/solonclaw/curator'
 
 const { t } = useI18n()
+const message = useMessage()
 const categories = ref<SkillCategory[]>([])
+const improvements = ref<CuratorImprovement[]>([])
 const loading = ref(false)
+const improvementsLoading = ref(false)
+const actionKey = ref('')
 const selectedCategory = ref('')
 const selectedSkill = ref('')
 const searchQuery = ref('')
@@ -24,6 +34,7 @@ onMounted(() => {
   handleMobileChange(mobileQuery)
   mobileQuery.addEventListener('change', handleMobileChange)
   loadSkills()
+  loadImprovements()
 })
 
 onUnmounted(() => {
@@ -38,6 +49,36 @@ async function loadSkills() {
     console.error('Failed to load skills:', err)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadImprovements() {
+  improvementsLoading.value = true
+  try {
+    improvements.value = await fetchCuratorImprovements(20)
+  } finally {
+    improvementsLoading.value = false
+  }
+}
+
+async function updateSuggestion(item: CuratorImprovement, action: 'apply' | 'ignore') {
+  const key = `${action}:${item.improvement_id}`
+  actionKey.value = key
+  try {
+    const skill = item.skill_name || ''
+    const suggestion = item.summary || item.action || ''
+    if (action === 'apply') {
+      await markCuratorSuggestionApplied(skill, suggestion)
+      message.success(t('skills.curatorMarkedApplied'))
+    } else {
+      await ignoreCuratorSuggestion(skill, suggestion)
+      message.success(t('skills.curatorMarkedIgnored'))
+    }
+    await loadImprovements()
+  } catch (err: any) {
+    message.error(err.message || t('skills.curatorActionFailed'))
+  } finally {
+    actionKey.value = ''
   }
 }
 
@@ -79,6 +120,43 @@ function handleSelect(category: string, skill: string) {
               :search-query="searchQuery"
               @select="handleSelect"
             />
+            <section class="curator-panel">
+              <div class="curator-header">
+                <span>{{ t('skills.curatorImprovements') }}</span>
+                <NButton size="tiny" quaternary :loading="improvementsLoading" @click="loadImprovements">
+                  {{ t('common.refresh') }}
+                </NButton>
+              </div>
+              <div v-if="improvements.length" class="curator-list">
+                <article v-for="item in improvements" :key="item.improvement_id" class="curator-item">
+                  <div class="curator-item__head">
+                    <strong>{{ item.skill_name || '-' }}</strong>
+                    <NTag v-if="item.needs_review" size="small" type="warning">{{ t('skills.needsReview') }}</NTag>
+                  </div>
+                  <p>{{ item.summary || item.action || '-' }}</p>
+                  <div class="curator-actions">
+                    <NButton
+                      size="tiny"
+                      quaternary
+                      type="primary"
+                      :loading="actionKey === `apply:${item.improvement_id}`"
+                      @click="updateSuggestion(item, 'apply')"
+                    >
+                      {{ t('skills.markApplied') }}
+                    </NButton>
+                    <NButton
+                      size="tiny"
+                      quaternary
+                      :loading="actionKey === `ignore:${item.improvement_id}`"
+                      @click="updateSuggestion(item, 'ignore')"
+                    >
+                      {{ t('skills.ignoreSuggestion') }}
+                    </NButton>
+                  </div>
+                </article>
+              </div>
+              <div v-else class="curator-empty">{{ t('skills.noCuratorImprovements') }}</div>
+            </section>
           </div>
           <div class="skills-main">
             <SkillDetail
@@ -144,6 +222,65 @@ function handleSelect(category: string, skill: string) {
   flex-direction: column;
   overflow: hidden;
   min-height: 0;
+}
+
+.curator-panel {
+  border-top: 1px solid $border-color;
+  padding: 10px;
+  flex-shrink: 0;
+  max-height: 42%;
+  overflow-y: auto;
+}
+
+.curator-header,
+.curator-item__head,
+.curator-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.curator-header {
+  color: $text-muted;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.curator-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.curator-item {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  padding: 8px;
+
+  strong {
+    color: $text-primary;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  p {
+    color: $text-secondary;
+    font-size: 12px;
+    line-height: 1.4;
+    margin: 6px 0;
+  }
+}
+
+.curator-actions {
+  justify-content: flex-start;
+}
+
+.curator-empty {
+  color: $text-muted;
+  font-size: 12px;
+  padding: 10px 0;
 }
 
 .skills-main {

@@ -1101,6 +1101,14 @@ export default {
     loadFailed: 'Failed to load skill',
     fileLoadFailed: 'Failed to load file',
     toggleFailed: 'Failed to toggle skill',
+    curatorImprovements: 'Skill Improvements',
+    noCuratorImprovements: 'No skill improvements',
+    needsReview: 'Needs review',
+    markApplied: 'Mark applied',
+    ignoreSuggestion: 'Ignore',
+    curatorMarkedApplied: 'Marked as applied',
+    curatorMarkedIgnored: 'Marked as ignored',
+    curatorActionFailed: 'Failed to update skill improvement',
   },
 
   // Memory
