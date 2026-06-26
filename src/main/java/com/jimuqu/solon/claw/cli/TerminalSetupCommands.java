@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.RuntimeProviderSetupSpec;
+import com.jimuqu.solon.claw.support.RuntimeConfigResolverSupport;
 import com.jimuqu.solon.claw.support.RuntimeSetupService;
 import com.jimuqu.solon.claw.support.RuntimeSetupSpec;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -1506,11 +1507,7 @@ public class TerminalSetupCommands {
 
     /** 读取当前工作区配置解析器。 */
     private RuntimeConfigResolver configResolver() {
-        String home =
-                appConfig == null || appConfig.getRuntime() == null
-                        ? ""
-                        : appConfig.getRuntime().getHome();
-        return RuntimeConfigResolver.initialize(home);
+        return RuntimeConfigResolverSupport.fromAppConfig(appConfig);
     }
 
     /** 创建共享初始化配置服务，保证终端命令与后续 TUI/slash 配置入口共用写入规则。 */

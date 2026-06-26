@@ -663,8 +663,7 @@ public class TuiRuntimeProtocolService {
 
     /** 读取当前工作区配置解析器。 */
     private RuntimeConfigResolver configResolver() {
-        String home = appConfig.getRuntime() == null ? "" : appConfig.getRuntime().getHome();
-        return RuntimeConfigResolver.initialize(home);
+        return RuntimeConfigResolverSupport.fromAppConfig(appConfig);
     }
 
     /** 返回运行时覆盖后的当前 provider key。 */

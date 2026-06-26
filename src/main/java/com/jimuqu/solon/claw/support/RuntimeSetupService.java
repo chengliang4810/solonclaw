@@ -126,9 +126,7 @@ public class RuntimeSetupService {
 
     /** 读取当前工作区配置解析器。 */
     private RuntimeConfigResolver configResolver() {
-        String home =
-                appConfig.getRuntime() == null ? "" : appConfig.getRuntime().getHome();
-        return RuntimeConfigResolver.initialize(home);
+        return RuntimeConfigResolverSupport.fromAppConfig(appConfig);
     }
 
     /**
