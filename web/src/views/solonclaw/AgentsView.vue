@@ -88,20 +88,28 @@ function formatTime(ms?: number) {
 }
 
 async function load() {
-  await Promise.all([
-    agentsStore.fetchAgents(chatStore.activeSessionId),
-    modelsStore.fetchProviders(),
-  ])
-  if (agentsStore.selectedAgentName) {
-    await agentsStore.fetchAgent(agentsStore.selectedAgentName, chatStore.activeSessionId)
+  try {
+    await Promise.all([
+      agentsStore.fetchAgents(chatStore.activeSessionId),
+      modelsStore.fetchProviders(),
+    ])
+    if (agentsStore.selectedAgentName) {
+      await agentsStore.fetchAgent(agentsStore.selectedAgentName, chatStore.activeSessionId)
+    }
+    copyAgent(selectedAgent.value)
+  } catch (err: any) {
+    message.error(err?.message || t('common.fetchFailed'))
   }
-  copyAgent(selectedAgent.value)
 }
 
 async function selectAgent(name: string) {
   agentsStore.selectedAgentName = name
-  await agentsStore.fetchAgent(name, chatStore.activeSessionId)
-  copyAgent(selectedAgent.value)
+  try {
+    await agentsStore.fetchAgent(name, chatStore.activeSessionId)
+    copyAgent(selectedAgent.value)
+  } catch (err: any) {
+    message.error(err?.message || t('common.fetchFailed'))
+  }
 }
 
 async function saveAgent() {
@@ -202,7 +210,11 @@ async function activateSelected() {
 }
 
 watch(() => chatStore.activeSessionId, async sessionId => {
-  await agentsStore.fetchAgents(sessionId)
+  try {
+    await agentsStore.fetchAgents(sessionId)
+  } catch (err: any) {
+    message.error(err?.message || t('common.fetchFailed'))
+  }
 })
 
 watch(selectedAgent, agent => {
