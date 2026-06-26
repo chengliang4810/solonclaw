@@ -212,7 +212,7 @@ public final class MessageSupport {
      * @param current 当前待检查消息。
      * @return 如果工具调用签名完全一致则返回 true。
      */
-    private static boolean sameAssistantToolCalls(ChatMessage previous, ChatMessage current) {
+    public static boolean sameAssistantToolCalls(ChatMessage previous, ChatMessage current) {
         if (!(previous instanceof AssistantMessage) || !(current instanceof AssistantMessage)) {
             return false;
         }
