@@ -1,9 +1,12 @@
 package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,6 +108,33 @@ final class DashboardDiagnosticTextFormatter {
      */
     static String redactedIdentifier(String value) {
         return StrUtil.isBlank(value) ? "" : "***";
+    }
+
+    /**
+     * 生成诊断响应中的审批审计脱敏条目，统一 Dashboard 历史输出和安全探针输出字段。
+     *
+     * @param event 审批审计事件。
+     * @return 返回脱敏后的审批审计条目。
+     */
+    static Map<String, Object> approvalAuditItem(ApprovalAuditEvent event) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("event_id", safeAuditPreview(event.getEventId(), 120));
+        item.put("session_id", safeAuditPreview(event.getSessionId(), 240));
+        item.put("event_type", safeAuditPreview(event.getEventType(), 80));
+        item.put("choice", safeAuditPreview(event.getChoice(), 80));
+        item.put("outcome", safeAuditPreview(event.getOutcome(), 80));
+        item.put("status", safeAuditPreview(event.getStatus(), 80));
+        item.put("approved", Boolean.valueOf(event.isApproved()));
+        item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
+        item.put("tool_name", safeAuditPreview(event.getToolName(), 160));
+        item.put("command_hash", redactedIdentifier(event.getCommandHash()));
+        item.put("command_preview", safeAuditPreview(event.getCommandPreview(), 800));
+        item.put("description", safeAuditPreview(event.getDescription(), 1000));
+        item.put("pattern_keys", redactedJsonList(event.getPatternKeysJson(), 400));
+        item.put("created_at", Long.valueOf(event.getCreatedAt()));
+        item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
+        item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
+        return item;
     }
 
     /**
