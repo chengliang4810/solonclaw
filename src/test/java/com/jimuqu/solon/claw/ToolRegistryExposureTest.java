@@ -28,6 +28,7 @@ import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolsetsManageTools;
 import com.jimuqu.solon.claw.tool.runtime.WorkspaceConfigManageTools;
+import com.jimuqu.solon.claw.tool.runtime.WorkspaceManageTools;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -3885,6 +3886,38 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("workspace_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("WorkspaceManageTools");
+    }
+
+    @Test
+    void shouldSaveAndRestoreWorkspaceFileThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof WorkspaceManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("workspace manage tool missing"));
+
+        ONode saved =
+                ONode.ofJson(
+                        ((WorkspaceManageTools) tool)
+                                .workspaceManage(
+                                        "save_file",
+                                        "agents",
+                                        null,
+                                        "# Test Agents\n\n- temporary test content"));
+        ONode restored =
+                ONode.ofJson(
+                        ((WorkspaceManageTools) tool)
+                                .workspaceManage("restore_file", "agents", null, null));
+
+        assertToolSuccess(saved);
+        assertThat(saved.get("result").get("ok").getBoolean()).isTrue();
+        assertThat(saved.get("result").get("file").get("content").getString())
+                .contains("temporary test content");
+        assertToolSuccess(restored);
+        assertThat(restored.get("result").get("ok").getBoolean()).isTrue();
+        assertThat(restored.get("result").get("file").get("content").getString())
+                .doesNotContain("temporary test content");
     }
 
     @Test
