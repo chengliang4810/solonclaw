@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.enums.ProcessingOutcome;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -698,7 +699,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (!config.isCommentEnabled()) {
             return false;
         }
-        if (config.isAllowAllUsers() || contains(config.getAllowedUsers(), userId)) {
+        if (config.isAllowAllUsers()
+                || ChannelAllowListSupport.contains(config.getAllowedUsers(), userId)) {
             return true;
         }
         Map<String, List<String>> pairings = loadCommentPairings();
@@ -707,7 +709,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             return true;
         }
         String key = fileType + ":" + fileToken;
-        return contains(pairings.get(key), userId) || contains(pairings.get("*"), userId);
+        return ChannelAllowListSupport.contains(pairings.get(key), userId)
+                || ChannelAllowListSupport.contains(pairings.get("*"), userId);
     }
 
     /**
@@ -930,8 +933,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return false;
             }
             if (GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(policy)
-                    && !contains(config.getGroupAllowedUsers(), chatId)
-                    && !contains(config.getAllowedUsers(), userId)) {
+                    && !ChannelAllowListSupport.contains(config.getGroupAllowedUsers(), chatId)
+                    && !ChannelAllowListSupport.contains(config.getAllowedUsers(), userId)) {
                 return false;
             }
             discoverBotName(mentions);
@@ -945,29 +948,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
         if (GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(dmPolicy)) {
-            return contains(config.getAllowedUsers(), userId);
+            return ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
         }
         return true;
-    }
-
-    /**
-     * 执行contains相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param target target 参数。
-     * @return 返回contains结果。
-     */
-    private boolean contains(List<String> values, String target) {
-        if (values == null || target == null) {
-            return false;
-        }
-        for (String value : values) {
-            String normalized = StrUtil.nullToEmpty(value).trim();
-            if ("*".equals(normalized) || target.equalsIgnoreCase(normalized)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

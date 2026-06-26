@@ -53,6 +53,7 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
+import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -1293,7 +1294,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             ChatbotMessage message, String conversationId, String chatType, String userId) {
         if ("group".equals(chatType)) {
             if (!config.getAllowedChats().isEmpty()
-                    && !contains(config.getAllowedChats(), conversationId)) {
+                    && !ChannelAllowListSupport.contains(
+                            config.getAllowedChats(), conversationId)) {
                 return false;
             }
             if (!Boolean.TRUE.equals(message.getInAtList())) {
@@ -1308,7 +1310,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return false;
             }
             if (GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(groupPolicy)
-                    && !contains(config.getGroupAllowedUsers(), conversationId)) {
+                    && !ChannelAllowListSupport.contains(
+                            config.getGroupAllowedUsers(), conversationId)) {
                 return false;
             }
             return true;
@@ -1321,29 +1324,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
         if (GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(dmPolicy)) {
-            return contains(config.getAllowedUsers(), userId);
+            return ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
         }
         return true;
-    }
-
-    /**
-     * 执行contains相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param target target 参数。
-     * @return 返回contains结果。
-     */
-    private boolean contains(List<String> values, String target) {
-        if (values == null || target == null) {
-            return false;
-        }
-        for (String value : values) {
-            String normalized = StrUtil.nullToEmpty(value).trim();
-            if ("*".equals(normalized) || target.equalsIgnoreCase(normalized)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**

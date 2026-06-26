@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -499,7 +500,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return false;
             }
             return !GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(policy)
-                    || contains(config.getGroupAllowedUsers(), chatId);
+                    || ChannelAllowListSupport.contains(config.getGroupAllowedUsers(), chatId);
         }
         String policy =
                 StrUtil.blankToDefault(
@@ -509,27 +510,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
         return !GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(policy)
-                || contains(config.getAllowedUsers(), userId);
-    }
-
-    /**
-     * 执行contains相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param target target 参数。
-     * @return 返回contains结果。
-     */
-    private boolean contains(List<String> values, String target) {
-        if (values == null || target == null) {
-            return false;
-        }
-        for (String value : values) {
-            String normalized = StrUtil.nullToEmpty(value).trim();
-            if ("*".equals(normalized) || target.equalsIgnoreCase(normalized)) {
-                return true;
-            }
-        }
-        return false;
+                || ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
     }
 
     /**
