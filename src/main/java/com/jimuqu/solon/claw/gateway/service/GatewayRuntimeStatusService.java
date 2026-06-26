@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.RuntimeProcessSupport;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.Charset;
@@ -155,7 +156,7 @@ public class GatewayRuntimeStatusService {
     public Map<String, Object> currentStatus() {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("running", Boolean.valueOf(isRunning()));
-        status.put("pid", Long.valueOf(getCurrentPid()));
+        status.put("pid", Long.valueOf(RuntimeProcessSupport.currentPidOrUnknown()));
         status.put("startedAt", Long.valueOf(startedAt));
         status.put("startTime", Long.valueOf(getCurrentJvmStartTime()));
         status.put("startInstant", Instant.ofEpochMilli(getCurrentJvmStartTime()).toString());
@@ -172,7 +173,7 @@ public class GatewayRuntimeStatusService {
     private Map<String, Object> buildRuntimeRecord() {
         Map<String, Object> record = new LinkedHashMap<String, Object>();
         long startTime = getCurrentJvmStartTime();
-        record.put("pid", Long.valueOf(getCurrentPid()));
+        record.put("pid", Long.valueOf(RuntimeProcessSupport.currentPidOrUnknown()));
         record.put("kind", GATEWAY_KIND);
         record.put("startTime", Long.valueOf(startTime));
         record.put("startInstant", Instant.ofEpochMilli(startTime).toString());
@@ -223,7 +224,7 @@ public class GatewayRuntimeStatusService {
             return false;
         }
 
-        long currentPid = getCurrentPid();
+        long currentPid = RuntimeProcessSupport.currentPidOrUnknown();
         if (pid.longValue() == currentPid) {
             return matchesCurrentProcess(record);
         }
@@ -324,21 +325,6 @@ public class GatewayRuntimeStatusService {
         return normalized.contains("solonclaw")
                 || normalized.contains("com.jimuqu.solon.claw")
                 || normalized.contains("gateway");
-    }
-
-    /**
-     * 读取当前Pid。
-     *
-     * @return 返回读取到的当前Pid。
-     */
-    private long getCurrentPid() {
-        try {
-            String name = ManagementFactory.getRuntimeMXBean().getName();
-            String pid = name.contains("@") ? name.substring(0, name.indexOf('@')) : name;
-            return Long.parseLong(pid);
-        } catch (Exception e) {
-            return -1L;
-        }
     }
 
     /**

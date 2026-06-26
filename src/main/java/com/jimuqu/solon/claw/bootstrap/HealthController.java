@@ -1,7 +1,7 @@
 package com.jimuqu.solon.claw.bootstrap;
 
+import com.jimuqu.solon.claw.support.RuntimeProcessSupport;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
-import java.lang.management.ManagementFactory;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -76,7 +76,7 @@ public class HealthController {
         runtime.put("currentTimeEpochMs", Long.valueOf(nowEpochMs));
         runtime.put("uptimeMs", Long.valueOf(Math.max(0L, uptimeMs)));
         runtime.put("uptimeSeconds", Long.valueOf(Math.max(0L, uptimeMs / 1000L)));
-        runtime.put("pid", parsePid());
+        runtime.put("pid", RuntimeProcessSupport.currentPid());
         runtime.put("updated_at", updatedAt);
         runtime.put("gateway", gatewaySummary(status, updatedAt));
         runtime.put("capabilities", status.get("runtime_capabilities"));
@@ -237,7 +237,7 @@ public class HealthController {
         gateway.put("platforms", status.get("gateway_platforms"));
         gateway.put("active_agents", status.get("running_agent_runs"));
         gateway.put("recent_active_sessions", status.get("active_sessions"));
-        gateway.put("pid", parsePid());
+        gateway.put("pid", RuntimeProcessSupport.currentPid());
         gateway.put("exit_reason", status.get("gateway_exit_reason"));
         gateway.put("workspace_config_refresh", status.get("workspace_config_refresh"));
         gateway.put(
@@ -246,22 +246,6 @@ public class HealthController {
                         ? fallbackUpdatedAt
                         : status.get("gateway_updated_at"));
         return gateway;
-    }
-
-    /**
-     * 解析Pid。
-     *
-     * @return 返回解析后的Pid。
-     */
-    private Integer parsePid() {
-        try {
-            String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
-            int index = runtimeName.indexOf('@');
-            String pid = index > 0 ? runtimeName.substring(0, index) : runtimeName;
-            return Integer.valueOf(pid);
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     /**
