@@ -85,6 +85,19 @@ const oauthForm = reactive({
   state: '',
 })
 
+function resetOAuthState() {
+  oauthStatus.value = null
+  oauthBeginUrl.value = ''
+  oauthForm.authorization_endpoint = ''
+  oauthForm.token_endpoint = ''
+  oauthForm.client_id = ''
+  oauthForm.client_secret = ''
+  oauthForm.redirect_uri = ''
+  oauthForm.scopes = ''
+  oauthForm.code = ''
+  oauthForm.state = ''
+}
+
 const selectedServer = computed(() => {
   return servers.value.find((server) => server.server_id === selectedId.value) || null
 })
@@ -112,7 +125,7 @@ async function load() {
     if (selectedId.value) {
       await loadOAuthStatus()
     } else {
-      oauthStatus.value = null
+      resetOAuthState()
     }
   } catch (err: any) {
     message.error(err.message || t('mcp.loadFailed'))
@@ -124,7 +137,7 @@ async function load() {
 function selectServer(server: McpServer) {
   selectedId.value = server.server_id
   lastAction.value = null
-  oauthBeginUrl.value = ''
+  resetOAuthState()
   loadOAuthStatus()
 }
 
@@ -272,7 +285,7 @@ async function reloadAllServers() {
 
 async function loadOAuthStatus() {
   if (!selectedId.value) {
-    oauthStatus.value = null
+    resetOAuthState()
     return
   }
   oauthLoading.value = true
