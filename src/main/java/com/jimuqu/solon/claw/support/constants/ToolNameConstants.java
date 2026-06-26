@@ -83,6 +83,9 @@ public interface ToolNameConstants {
     /** 运行状态管理的统一常量值。 */
     String STATUS_MANAGE = "status_manage";
 
+    /** 诊断总览管理的统一常量值。 */
+    String DIAGNOSTICS_MANAGE = "diagnostics_manage";
+
     /** Doctor 诊断管理的统一常量值。 */
     String DOCTOR_MANAGE = "doctor_manage";
 

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ApprovalQueueManageTools;
+import com.jimuqu.solon.claw.tool.runtime.DiagnosticsManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
@@ -115,6 +116,7 @@ public class ToolRegistryExposureTest {
                         "logs_manage",
                         "media_manage",
                         "status_manage",
+                        "diagnostics_manage",
                         "doctor_manage",
                         "tui_runtime_manage",
                         "insights_manage",
@@ -3691,6 +3693,35 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("insights_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("InsightsManageTools");
+    }
+
+    @Test
+    void shouldExposeDiagnosticsManagementToolForNaturalLanguageDiagnosticsInspection()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey))
+                .contains("diagnostics_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("DiagnosticsManageTools");
+    }
+
+    @Test
+    void shouldInspectDashboardDiagnosticsThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof DiagnosticsManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("diagnostics manage tool missing"));
+
+        ONode result = ONode.ofJson(((DiagnosticsManageTools) tool).diagnosticsManage());
+
+        assertToolSuccess(result);
+        assertThat(result.get("result").get("runtime").isNull()).isFalse();
+        assertThat(result.get("result").get("tools").isNull()).isFalse();
+        assertThat(result.get("result").get("security").isNull()).isFalse();
     }
 
     @Test

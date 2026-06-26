@@ -103,6 +103,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.LOGS_MANAGE,
                     ToolNameConstants.MEDIA_MANAGE,
                     ToolNameConstants.STATUS_MANAGE,
+                    ToolNameConstants.DIAGNOSTICS_MANAGE,
                     ToolNameConstants.DOCTOR_MANAGE,
                     ToolNameConstants.TUI_RUNTIME_MANAGE,
                     ToolNameConstants.INSIGHTS_MANAGE,
@@ -1385,6 +1386,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new PlatformToolsetsManageTools(dashboardPlatformToolsetsService);
         ProviderManageTools providerManageTools = new ProviderManageTools(dashboardProviderService);
         StatusManageTools statusManageTools = new StatusManageTools(dashboardStatusService);
+        DiagnosticsManageTools diagnosticsManageTools =
+                new DiagnosticsManageTools(dashboardDiagnosticsService);
         DoctorManageTools doctorManageTools = new DoctorManageTools(dashboardGatewayDoctorService);
         TuiRuntimeManageTools tuiRuntimeManageTools = new TuiRuntimeManageTools(appConfig);
         InsightsManageTools insightsManageTools = new InsightsManageTools(dashboardInsightsService);
@@ -1521,6 +1524,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(mediaManageTools);
             } else if (ToolNameConstants.STATUS_MANAGE.equals(toolName)) {
                 tools.add(statusManageTools);
+            } else if (ToolNameConstants.DIAGNOSTICS_MANAGE.equals(toolName)) {
+                tools.add(diagnosticsManageTools);
             } else if (ToolNameConstants.DOCTOR_MANAGE.equals(toolName)) {
                 tools.add(doctorManageTools);
             } else if (ToolNameConstants.TUI_RUNTIME_MANAGE.equals(toolName)) {
