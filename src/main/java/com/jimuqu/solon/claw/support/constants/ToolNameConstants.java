@@ -128,6 +128,9 @@ public interface ToolNameConstants {
     /** MCP管理的统一常量值。 */
     String MCP_MANAGE = "mcp_manage";
 
+    /** 技能维护管理的统一常量值。 */
+    String CURATOR_MANAGE = "curator_manage";
+
     /** CODESEARCH的统一常量值。 */
     String CODESEARCH = "codesearch";
 

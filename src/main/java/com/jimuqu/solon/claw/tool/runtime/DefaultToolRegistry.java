@@ -26,6 +26,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import java.sql.SQLException;
@@ -97,6 +98,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.TOOL_GATEWAY,
                     ToolNameConstants.MCP,
                     ToolNameConstants.MCP_MANAGE,
+                    ToolNameConstants.CURATOR_MANAGE,
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
@@ -163,6 +165,9 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** Dashboard MCP 服务，用于给 Agent 暴露服务端管理工具。 */
     private final DashboardMcpService dashboardMcpService;
+
+    /** Dashboard 技能维护服务，用于给 Agent 暴露维护建议管理工具。 */
+    private final DashboardCuratorService dashboardCuratorService;
 
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
@@ -238,6 +243,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ProcessRegistry) null,
                 (McpRuntimeService) null,
                 (DashboardMcpService) null,
+                (DashboardCuratorService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -267,6 +273,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param processRegistry 进程注册表依赖组件。
      * @param mcpRuntimeService MCP运行时服务依赖。
      * @param dashboardMcpService Dashboard MCP服务依赖。
+     * @param dashboardCuratorService Dashboard 技能维护服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      */
     public DefaultToolRegistry(
@@ -289,6 +296,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService,
             DashboardMcpService dashboardMcpService,
+            DashboardCuratorService dashboardCuratorService,
             BrowserRuntimeService browserRuntimeService) {
         this(
                 appConfig,
@@ -311,6 +319,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 processRegistry,
                 mcpRuntimeService,
                 dashboardMcpService,
+                dashboardCuratorService,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -376,6 +385,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ProcessRegistry) null,
                 (McpRuntimeService) null,
                 (DashboardMcpService) null,
+                (DashboardCuratorService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -443,6 +453,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ProcessRegistry) null,
                 mcpRuntimeService,
                 (DashboardMcpService) null,
+                (DashboardCuratorService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -512,6 +523,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 processRegistry,
                 mcpRuntimeService,
                 (DashboardMcpService) null,
+                (DashboardCuratorService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -585,6 +597,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 processRegistry,
                 mcpRuntimeService,
                 (DashboardMcpService) null,
+                (DashboardCuratorService) null,
                 (BrowserRuntimeService) null,
                 imageGenerationService,
                 speechService,
@@ -656,6 +669,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 processRegistry,
                 mcpRuntimeService,
                 (DashboardMcpService) null,
+                (DashboardCuratorService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -727,6 +741,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 processRegistry,
                 mcpRuntimeService,
                 (DashboardMcpService) null,
+                (DashboardCuratorService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -802,6 +817,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 processRegistry,
                 mcpRuntimeService,
                 (DashboardMcpService) null,
+                (DashboardCuratorService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -880,6 +896,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 processRegistry,
                 mcpRuntimeService,
                 (DashboardMcpService) null,
+                (DashboardCuratorService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -909,6 +926,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param approvalService 审批服务依赖。
      * @param processRegistry 进程注册表依赖组件。
      * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param dashboardCuratorService Dashboard 技能维护服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
@@ -936,6 +954,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService,
             DashboardMcpService dashboardMcpService,
+            DashboardCuratorService dashboardCuratorService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -960,6 +979,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.approvalService = approvalService;
         this.mcpRuntimeService = mcpRuntimeService;
         this.dashboardMcpService = dashboardMcpService;
+        this.dashboardCuratorService = dashboardCuratorService;
         this.processRegistry = processRegistry;
         this.browserRuntimeService =
                 browserRuntimeService == null
@@ -1039,6 +1059,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         AgentTools agentTools = new AgentTools(agentProfileService, sessionRepository, sourceKey);
         RunTools runTools = new RunTools(dashboardRunService);
         McpManageTools mcpManageTools = new McpManageTools(dashboardMcpService);
+        CuratorManageTools curatorManageTools = new CuratorManageTools(dashboardCuratorService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
@@ -1139,6 +1160,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 }
             } else if (ToolNameConstants.MCP_MANAGE.equals(toolName)) {
                 tools.add(mcpManageTools);
+            } else if (ToolNameConstants.CURATOR_MANAGE.equals(toolName)) {
+                tools.add(curatorManageTools);
             } else if (ToolNameConstants.MEMORY.equals(toolName)) {
                 tools.add(memoryTools);
             } else if (ToolNameConstants.SESSION_SEARCH.equals(toolName)) {

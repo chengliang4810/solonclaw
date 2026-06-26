@@ -102,6 +102,7 @@ public class ToolRegistryExposureTest {
                         "get_current_time",
                         "agent_manage",
                         "mcp_manage",
+                        "curator_manage",
                         "skills_list",
                         "skill_view",
                         "skill_manage",
@@ -3564,6 +3565,16 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("mcp_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("McpManageTools");
+    }
+
+    @Test
+    void shouldExposeCuratorManagementToolForNaturalLanguageSkillMaintenance() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("curator_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("CuratorManageTools");
     }
 
     @Test
