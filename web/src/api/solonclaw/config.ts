@@ -122,6 +122,31 @@ function credentialValue(values: Record<string, any>, path: string[]): string | 
   return current
 }
 
+function assignCredentialPreview(target: Record<string, any>, path: string[], value: string): void {
+  if (path[0] === 'enabled') return
+  let current = target
+  for (let i = 0; i < path.length - 1; i += 1) {
+    const part = path[i]
+    current[part] = current[part] || {}
+    current = current[part]
+  }
+  current[path[path.length - 1]] = value
+}
+
+function platformCredentials(
+  platform: string,
+  channelConfig: Record<string, any>,
+  runtimeConfig: Record<string, WorkspaceConfigInfo>,
+): Record<string, any> {
+  const result: Record<string, any> = {
+    enabled: configBoolean(channelConfig?.enabled),
+  }
+  for (const field of CHANNEL_CREDENTIAL_FIELDS[platform] || []) {
+    assignCredentialPreview(result, field.path, configPreview(runtimeConfig, field.key))
+  }
+  return result
+}
+
 
 export async function fetchWorkspaceConfigItems(): Promise<Record<string, WorkspaceConfigInfo>> {
   return request<Record<string, WorkspaceConfigInfo>>('/api/workspace-config')
@@ -177,49 +202,12 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
     qqbot: data.channels?.qqbot || {},
     yuanbao: data.channels?.yuanbao || {},
     platforms: {
-      feishu: {
-        enabled: configBoolean(data.channels?.feishu?.enabled),
-        extra: {
-          app_id: configPreview(runtimeConfig, 'solonclaw.channels.feishu.appId'),
-          app_secret: configPreview(runtimeConfig, 'solonclaw.channels.feishu.appSecret'),
-        },
-      },
-      dingtalk: {
-        enabled: configBoolean(data.channels?.dingtalk?.enabled),
-        extra: {
-          client_id: configPreview(runtimeConfig, 'solonclaw.channels.dingtalk.clientId'),
-          client_secret: configPreview(runtimeConfig, 'solonclaw.channels.dingtalk.clientSecret'),
-          robot_code: configPreview(runtimeConfig, 'solonclaw.channels.dingtalk.robotCode'),
-        },
-      },
-      wecom: {
-        enabled: configBoolean(data.channels?.wecom?.enabled),
-        extra: {
-          bot_id: configPreview(runtimeConfig, 'solonclaw.channels.wecom.botId'),
-          secret: configPreview(runtimeConfig, 'solonclaw.channels.wecom.secret'),
-        },
-      },
-      weixin: {
-        enabled: configBoolean(data.channels?.weixin?.enabled),
-        token: configPreview(runtimeConfig, 'solonclaw.channels.weixin.token'),
-        extra: {
-          account_id: configPreview(runtimeConfig, 'solonclaw.channels.weixin.accountId'),
-        },
-      },
-      qqbot: {
-        enabled: configBoolean(data.channels?.qqbot?.enabled),
-        extra: {
-          app_id: configPreview(runtimeConfig, 'solonclaw.channels.qqbot.appId'),
-          client_secret: configPreview(runtimeConfig, 'solonclaw.channels.qqbot.clientSecret'),
-        },
-      },
-      yuanbao: {
-        enabled: configBoolean(data.channels?.yuanbao?.enabled),
-        extra: {
-          app_id: configPreview(runtimeConfig, 'solonclaw.channels.yuanbao.appId'),
-          app_secret: configPreview(runtimeConfig, 'solonclaw.channels.yuanbao.appSecret'),
-        },
-      },
+      feishu: platformCredentials('feishu', data.channels?.feishu || {}, runtimeConfig),
+      dingtalk: platformCredentials('dingtalk', data.channels?.dingtalk || {}, runtimeConfig),
+      wecom: platformCredentials('wecom', data.channels?.wecom || {}, runtimeConfig),
+      weixin: platformCredentials('weixin', data.channels?.weixin || {}, runtimeConfig),
+      qqbot: platformCredentials('qqbot', data.channels?.qqbot || {}, runtimeConfig),
+      yuanbao: platformCredentials('yuanbao', data.channels?.yuanbao || {}, runtimeConfig),
     },
   }
 }
