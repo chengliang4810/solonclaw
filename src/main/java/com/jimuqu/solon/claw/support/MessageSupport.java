@@ -410,7 +410,7 @@ public final class MessageSupport {
      * @param right 右侧消息。
      * @return 如果文本相同则返回 true。
      */
-    private static boolean sameVisibleContent(AssistantMessage left, AssistantMessage right) {
+    public static boolean sameVisibleContent(AssistantMessage left, AssistantMessage right) {
         String leftText = StrUtil.nullToEmpty(left.getContent()).trim();
         String rightText = StrUtil.nullToEmpty(right.getContent()).trim();
         return StrUtil.isNotBlank(leftText) && StrUtil.equals(leftText, rightText);
