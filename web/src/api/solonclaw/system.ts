@@ -160,11 +160,12 @@ function toGroup(provider: ProviderRecord, defaultModel: string): AvailableModel
 
 export async function fetchConfigModels(): Promise<ConfigModelsResponse> {
   const payload = await request<ProvidersPayload>('/api/providers')
+  const groups = payload.providers.map(p => toGroup(p, payload.defaultModel))
   return {
     default: payload.defaultModel || '',
-    groups: payload.providers.map(p => ({
-      provider: p.providerKey,
-      models: (p.defaultModel ? [p.defaultModel] : []).map(model => ({ id: model, label: model })),
+    groups: groups.map(group => ({
+      provider: group.providerKey,
+      models: group.models.map(model => ({ id: model, label: model })),
     })),
   }
 }
