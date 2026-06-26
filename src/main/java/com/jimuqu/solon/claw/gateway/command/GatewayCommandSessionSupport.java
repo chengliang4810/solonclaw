@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.gateway.command;
 
+import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 
@@ -22,5 +23,18 @@ final class GatewayCommandSessionSupport {
             session = sessionRepository.bindNewSession(sourceKey);
         }
         return session;
+    }
+
+    /**
+     * 判断会话是否使用 priority 服务层级。
+     *
+     * @param session 会话记录。
+     * @return 会话覆盖值为 priority 时返回 true。
+     */
+    static boolean isPriorityServiceTier(SessionRecord session) {
+        return session != null
+                && "priority"
+                        .equalsIgnoreCase(
+                                StrUtil.nullToEmpty(session.getServiceTierOverride()).trim());
     }
 }

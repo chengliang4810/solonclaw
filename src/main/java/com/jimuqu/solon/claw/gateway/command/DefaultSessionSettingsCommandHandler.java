@@ -269,10 +269,7 @@ final class DefaultSessionSettingsCommandHandler {
      * @return 如果Priority服务Tier满足条件则返回 true，否则返回 false。
      */
     private boolean isPriorityServiceTier(SessionRecord session) {
-        return session != null
-                && "priority"
-                        .equalsIgnoreCase(
-                                StrUtil.nullToEmpty(session.getServiceTierOverride()).trim());
+        return GatewayCommandSessionSupport.isPriorityServiceTier(session);
     }
 
     /** 承载模型命令输入相关状态和辅助逻辑。 */
