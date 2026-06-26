@@ -63,7 +63,14 @@
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 - `git diff --check`：通过。
 
+## 已扫描但暂不处理
+
+- `MarkdownRenderer`、`highlight.ts`、剪贴板复制等局部 catch：属于非致命降级或已有用户提示，继续加提示会制造噪音。
+- 文件编辑、文件树、文件菜单相关 catch：已有后端错误提示或只影响单次局部操作，后续统一放入阶段 5 的文件体验优化处理。
+- `modelsStore.fetchProviders()`：当前 store 内部吞掉 provider 拉取错误，多个页面依赖该行为；阶段 3.4 不改跨页面 store 语义。
+- Job 表单和 Job 卡片动作：已有错误提示，未发现旧状态误导或无反馈的明确问题。
+
 ## 剩余风险
 
-- 本文档只覆盖阶段 3.4 已完成的增强项，不代表阶段 3.4 全部完成。
+- 阶段 3.4 本轮只处理融合后入口里明确、低风险、用户可感知的边界增强；更大范围的 UI/UX 与数据持久显示留到阶段 5。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
