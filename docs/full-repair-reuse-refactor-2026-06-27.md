@@ -53,6 +53,20 @@
      - 粘贴图片过滤统一复用 `isImageMimeType()`。
    - 提交：`17318e76d`
 
+5. 本地时间格式化复用
+   - 位置：
+     - `web/src/shared/session-display.ts`
+     - `web/src/views/solonclaw/UsageView.vue`
+     - `web/src/views/solonclaw/RunsView.vue`
+     - `web/src/views/solonclaw/McpView.vue`
+     - `web/src/views/solonclaw/DiagnosticsView.vue`
+   - 改造前：
+     - 多个页面重复实现“毫秒时间戳转本地时间，空值显示 `-`”。
+   - 改造后：
+     - 新增 `formatLocalDateTimeMs()` 并复用到同语义页面。
+     - 暂不合并 `AgentsView.vue`、日志、文件和搜索弹窗时间格式，因为它们的 locale、输入单位或展示规则不同。
+   - 提交：`1a21f5c54`
+
 ## 验证
 
 - `npm run build`：阶段内多次通过。
