@@ -18,4 +18,21 @@ public final class TimeSupport {
         long remaining = expiresAt - System.currentTimeMillis();
         return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
     }
+
+    /**
+     * 将对象解析为毫秒时间戳；解析失败时返回当前时间，避免运行报告落入0时间。
+     *
+     * @param value 待解析的时间值。
+     * @return 解析出的毫秒时间戳，失败时返回当前时间。
+     */
+    public static long millisOrNow(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        try {
+            return Long.parseLong(String.valueOf(value));
+        } catch (Exception e) {
+            return System.currentTimeMillis();
+        }
+    }
 }

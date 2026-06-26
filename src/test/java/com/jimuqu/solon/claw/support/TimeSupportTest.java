@@ -14,4 +14,12 @@ class TimeSupportTest {
         assertThat(TimeSupport.expiresInSeconds(System.currentTimeMillis() + 1_100L))
                 .isBetween(1L, 2L);
     }
+
+    /** 毫秒时间解析失败时应回退当前时间。 */
+    @Test
+    void shouldParseMillisOrFallbackToNow() {
+        assertThat(TimeSupport.millisOrNow(Long.valueOf(12L))).isEqualTo(12L);
+        assertThat(TimeSupport.millisOrNow("34")).isEqualTo(34L);
+        assertThat(TimeSupport.millisOrNow("bad")).isGreaterThan(0L);
+    }
 }
