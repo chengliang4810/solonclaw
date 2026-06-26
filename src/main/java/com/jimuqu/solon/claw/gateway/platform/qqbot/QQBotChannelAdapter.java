@@ -623,25 +623,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回post JSON结果。
      */
     private ONode postJson(String path, String body) throws Exception {
-        String url = apiDomain() + path;
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "QQBot API URL");
-        Request request =
-                new Request.Builder()
-                        .url(url)
-                        .header("Authorization", "QQBot " + accessToken)
-                        .post(RequestBody.create(JSON, body))
-                        .build();
-        Response response = client.newCall(request).execute();
-        try {
-            String raw = safeBody(response);
-            if (!response.isSuccessful()) {
-                throw new IllegalStateException(
-                        "QQBot HTTP " + response.code() + ": " + safeHttpErrorBody(raw));
-            }
-            return StrUtil.isBlank(raw) ? new ONode() : ONode.ofJson(raw);
-        } finally {
-            response.close();
-        }
+        return requestJson("POST", path, body);
     }
 
     /**
@@ -652,13 +634,26 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回JSON结果。
      */
     private ONode putJson(String path, String body) throws Exception {
+        return requestJson("PUT", path, body);
+    }
+
+    /**
+     * 执行QQ机器人JSON请求，统一复用安全URL校验、响应限流读取与错误脱敏。
+     *
+     * @param method HTTP请求方法。
+     * @param path API路径。
+     * @param body 请求体或消息正文内容。
+     * @return 返回解析后的JSON结果，空响应返回空节点。
+     */
+    private ONode requestJson(String method, String path, String body) throws Exception {
         String url = apiDomain() + path;
         ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "QQBot API URL");
+        RequestBody requestBody = RequestBody.create(JSON, body);
         Request request =
                 new Request.Builder()
                         .url(url)
                         .header("Authorization", "QQBot " + accessToken)
-                        .put(RequestBody.create(JSON, body))
+                        .method(method, requestBody)
                         .build();
         Response response = client.newCall(request).execute();
         try {
