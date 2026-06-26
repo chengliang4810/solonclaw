@@ -74,6 +74,7 @@ import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
+import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import com.jimuqu.solon.claw.web.DomesticQrSetupService;
@@ -308,6 +309,7 @@ public class ToolConfiguration {
      * @param dashboardDiagnosticsService Dashboard 诊断服务依赖。
      * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
      * @param dashboardConfigService Dashboard 配置服务依赖。
+     * @param dashboardRuntimeConfigService Dashboard 工作区配置服务依赖。
      * @param weixinQrSetupService 微信二维码 setup 服务依赖。
      * @param domesticQrSetupService 国内二维码 setup 服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
@@ -353,6 +355,7 @@ public class ToolConfiguration {
             DashboardDiagnosticsService dashboardDiagnosticsService,
             DashboardWorkspaceService dashboardWorkspaceService,
             DashboardConfigService dashboardConfigService,
+            DashboardRuntimeConfigService dashboardRuntimeConfigService,
             WeixinQrSetupService weixinQrSetupService,
             DomesticQrSetupService domesticQrSetupService,
             BrowserRuntimeService browserRuntimeService,
@@ -395,6 +398,7 @@ public class ToolConfiguration {
                 dashboardDiagnosticsService,
                 dashboardWorkspaceService,
                 dashboardConfigService,
+                dashboardRuntimeConfigService,
                 weixinQrSetupService,
                 domesticQrSetupService,
                 browserRuntimeService,

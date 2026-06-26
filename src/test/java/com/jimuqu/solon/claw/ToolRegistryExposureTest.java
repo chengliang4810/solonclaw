@@ -24,6 +24,7 @@ import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.TuiRuntimeManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
+import com.jimuqu.solon.claw.tool.runtime.WorkspaceConfigManageTools;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -120,6 +121,7 @@ public class ToolRegistryExposureTest {
                         "approval_events_manage",
                         "approval_queue_manage",
                         "workspace_manage",
+                        "workspace_config_manage",
                         "config_manage",
                         "gateway_setup_manage",
                         "skills_list",
@@ -3824,6 +3826,45 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("config_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("ConfigManageTools");
+    }
+
+    @Test
+    void shouldExposeWorkspaceConfigManagementToolForNaturalLanguageConfigInspection()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey))
+                .contains("workspace_config_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("WorkspaceConfigManageTools");
+    }
+
+    @Test
+    void shouldInspectWorkspaceConfigItemsThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof WorkspaceConfigManageTools)
+                        .findFirst()
+                        .orElseThrow(
+                                () ->
+                                        new AssertionError(
+                                                "workspace config manage tool missing"));
+
+        ONode result =
+                ONode.ofJson(((WorkspaceConfigManageTools) tool).workspaceConfigManage("items"));
+
+        assertToolSuccess(result);
+        assertThat(result.get("result").get("items").get("providers.default.apiKey").isNull())
+                .isFalse();
+        assertThat(
+                        result.get("result")
+                                .get("items")
+                                .get("providers.default.apiKey")
+                                .get("is_password")
+                                .getBoolean())
+                .isTrue();
     }
 
     @Test

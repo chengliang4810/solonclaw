@@ -397,6 +397,7 @@ public class TestEnvironment {
                         dashboardDiagnosticsService,
                         dashboardWorkspaceService,
                         dashboardConfigService,
+                        dashboardRuntimeConfigService,
                         weixinQrSetupService,
                         domesticQrSetupService,
                         browserRuntimeService,
