@@ -532,28 +532,7 @@ public class TuiRuntimeProtocolService {
 
     /** 读取指定国内渠道的启动时配置。 */
     private AppConfig.ChannelConfig channelConfig(String channel) {
-        if (appConfig.getChannels() == null) {
-            return null;
-        }
-        if ("feishu".equals(channel)) {
-            return appConfig.getChannels().getFeishu();
-        }
-        if ("dingtalk".equals(channel)) {
-            return appConfig.getChannels().getDingtalk();
-        }
-        if ("wecom".equals(channel)) {
-            return appConfig.getChannels().getWecom();
-        }
-        if ("weixin".equals(channel)) {
-            return appConfig.getChannels().getWeixin();
-        }
-        if ("qqbot".equals(channel)) {
-            return appConfig.getChannels().getQqbot();
-        }
-        if ("yuanbao".equals(channel)) {
-            return appConfig.getChannels().getYuanbao();
-        }
-        return null;
+        return ChannelConfigSupport.get(appConfig, channel);
     }
 
     /** 归一化渠道标识。 */

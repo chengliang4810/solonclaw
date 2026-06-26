@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.support.ChannelConfigSupport;
 import com.jimuqu.solon.claw.support.RuntimeProviderSetupSpec;
 import com.jimuqu.solon.claw.support.RuntimeConfigResolverSupport;
 import com.jimuqu.solon.claw.support.RuntimeSetupService;
@@ -1641,28 +1642,7 @@ public class TerminalSetupCommands {
      * @return 渠道配置。
      */
     private AppConfig.ChannelConfig channelConfig(String channel) {
-        if (appConfig == null || appConfig.getChannels() == null) {
-            return null;
-        }
-        if ("feishu".equals(channel)) {
-            return appConfig.getChannels().getFeishu();
-        }
-        if ("dingtalk".equals(channel)) {
-            return appConfig.getChannels().getDingtalk();
-        }
-        if ("wecom".equals(channel)) {
-            return appConfig.getChannels().getWecom();
-        }
-        if ("weixin".equals(channel)) {
-            return appConfig.getChannels().getWeixin();
-        }
-        if ("qqbot".equals(channel)) {
-            return appConfig.getChannels().getQqbot();
-        }
-        if ("yuanbao".equals(channel)) {
-            return appConfig.getChannels().getYuanbao();
-        }
-        return null;
+        return ChannelConfigSupport.get(appConfig, channel);
     }
 
     /**

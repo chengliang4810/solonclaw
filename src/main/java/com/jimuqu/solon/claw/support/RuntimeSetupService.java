@@ -194,28 +194,7 @@ public class RuntimeSetupService {
      * @return 对应渠道配置；未知渠道返回 null。
      */
     private AppConfig.ChannelConfig channelConfig(String channel) {
-        if (appConfig.getChannels() == null) {
-            appConfig.setChannels(new AppConfig.ChannelsConfig());
-        }
-        if ("feishu".equals(channel)) {
-            return appConfig.getChannels().getFeishu();
-        }
-        if ("dingtalk".equals(channel)) {
-            return appConfig.getChannels().getDingtalk();
-        }
-        if ("wecom".equals(channel)) {
-            return appConfig.getChannels().getWecom();
-        }
-        if ("weixin".equals(channel)) {
-            return appConfig.getChannels().getWeixin();
-        }
-        if ("qqbot".equals(channel)) {
-            return appConfig.getChannels().getQqbot();
-        }
-        if ("yuanbao".equals(channel)) {
-            return appConfig.getChannels().getYuanbao();
-        }
-        return null;
+        return ChannelConfigSupport.getOrCreate(appConfig, channel);
     }
 
     /**
