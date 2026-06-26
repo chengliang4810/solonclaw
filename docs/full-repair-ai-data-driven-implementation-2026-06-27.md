@@ -103,6 +103,23 @@
      - 增加工具暴露测试，证明默认工具列表包含 `platform_toolsets_manage` 且能解析到 `PlatformToolsetsManageTools`。
    - 提交：`b5f6c2cfe`
 
+7. 增加模型 provider 管理一等工具
+   - 位置：
+     - `src/main/java/com/jimuqu/solon/claw/tool/runtime/ProviderManageTools.java`
+     - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+     - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+     - `src/main/java/com/jimuqu/solon/claw/bootstrap/ToolConfiguration.java`
+     - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+     - `src/test/java/com/jimuqu/solon/claw/support/TestEnvironment.java`
+   - 改造前：
+     - Dashboard 已有 provider 列表、模型列表、健康检查、创建、更新、删除、默认模型、fallback、远端模型拉取和校验能力。
+     - Agent 自然语言路径只能通过配置键或 UI 间接操作，不能复用 Dashboard provider 的 URL 安全、provider 校验、fallback 校验和模型列表逻辑。
+   - 改造后：
+     - 新增 `provider_manage` 工具，复用 `DashboardProviderService`，支持 `list`、`models`、`health`、`create`、`update`、`delete`、`default_model`、`fallbacks`、`remote_models`、`validate`。
+     - 工具结果统一脱敏预览，不暴露 API key 或带密 URL。
+     - 增加工具暴露测试，证明默认工具列表包含 `provider_manage` 且能解析到 `ProviderManageTools`。
+   - 提交：`73032a5ee`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -111,6 +128,7 @@
 - `mvn -Dskip.web.build=true -Dtest=McpRuntimeServiceTest,ToolRegistryExposureTest#shouldExposeMcpManagementToolForNaturalLanguageServerControl test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=DashboardCuratorServiceTest,SkillCuratorServiceTest,ToolRegistryExposureTest#shouldExposeCuratorManagementToolForNaturalLanguageSkillMaintenance test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposePlatformToolsetsManagementToolForNaturalLanguageChannelPolicy test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=ProviderDisplayGroupingTest,RuntimeSetupServiceTest,ToolRegistryExposureTest#shouldExposeProviderManagementToolForNaturalLanguageModelConfiguration test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -123,5 +141,5 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理和平台工具集管理入口，但仍需要继续盘点 provider 等 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理和 provider 管理入口，但仍需要继续盘点 checkpoint/session 等 Dashboard 专属能力是否需要一等工具。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
