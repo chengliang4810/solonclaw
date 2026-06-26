@@ -45,6 +45,14 @@
      - 暂不合并 `FileList.vue` 的文件大小格式化，因为空值和 0 字节展示语义不同。
    - 提交：`3b85d545b`
 
+4. 粘贴图片类型判断复用
+   - 位置：`web/src/components/solonclaw/chat/ChatInput.vue`
+   - 改造前：
+     - 附件预览已复用 `isImageMimeType()`，粘贴图片过滤仍直接使用 `startsWith('image/')`。
+   - 改造后：
+     - 粘贴图片过滤统一复用 `isImageMimeType()`。
+   - 提交：`17318e76d`
+
 ## 验证
 
 - `npm run build`：阶段内多次通过。
