@@ -193,12 +193,18 @@ export async function fetchSessions(source?: string, limit?: number): Promise<Se
 export async function searchSessions(q: string, source?: string, limit?: number): Promise<SessionSearchResult[]> {
   const res = await request<{ results: Array<{
     session_id: string
-    snippet: string
-    role: string | null
-    source: string | null
+    branch_name?: string | null
+    title?: string | null
+    updated_at?: number
+    match_preview?: string
+    summary?: string
+    run_id?: string | null
+    tool_name?: string | null
+    channel?: string | null
     model: string | null
-    session_started: number | null
-  }> }>(`/api/sessions/search?q=${encodeURIComponent(q)}`)
+    source?: string | null
+    session_started?: number | null
+  }> }>(`/api/search?q=${encodeURIComponent(q)}&limit=${encodeURIComponent(String(limit || 10))}&summarize=true`)
 
   const sessions = await fetchSessions(source, limit || 200)
   const map = new Map(sessions.map((session) => [session.id, session]))
@@ -208,16 +214,17 @@ export async function searchSessions(q: string, source?: string, limit?: number)
     .slice(0, limit || 200)
     .map((item, index) => {
       const base = map.get(item.session_id)
+      const snippet = item.match_preview || item.summary || ''
       return {
         ...(base || {
           id: item.session_id,
-          source: item.source || 'local',
+          source: item.source || item.channel || 'local',
           model: item.model || '',
-          title: null,
-          preview: '',
-          started_at: item.session_started || 0,
+          title: item.title || null,
+          preview: snippet,
+          started_at: item.session_started || item.updated_at || 0,
           ended_at: null,
-          last_active: item.session_started || 0,
+          last_active: item.updated_at || item.session_started || 0,
           message_count: 0,
           tool_call_count: 0,
           input_tokens: 0,
@@ -227,14 +234,14 @@ export async function searchSessions(q: string, source?: string, limit?: number)
           reasoning_tokens: 0,
           provider: null,
           parent_session_id: null,
-          branch_name: null,
+          branch_name: item.branch_name || null,
           compressed_summary: null,
           last_compression_at: 0,
           last_compression_input_tokens: 0,
           compression_failure_count: 0,
         }),
         matched_message_id: null,
-        snippet: item.snippet,
+        snippet,
         rank: index + 1,
       }
     })
