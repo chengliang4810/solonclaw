@@ -47,6 +47,7 @@ async function loadSkills() {
     categories.value = await fetchSkills()
   } catch (err: any) {
     console.error('Failed to load skills:', err)
+    message.error(err?.message || t('skills.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -56,6 +57,8 @@ async function loadImprovements() {
   improvementsLoading.value = true
   try {
     improvements.value = await fetchCuratorImprovements(20)
+  } catch (err: any) {
+    message.error(err?.message || t('skills.curatorActionFailed'))
   } finally {
     improvementsLoading.value = false
   }
