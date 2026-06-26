@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.config;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
@@ -274,7 +275,7 @@ public class RuntimeConfigResolver {
             Map<String, Object> flattened = new LinkedHashMap<String, Object>();
             Object parsed = new Yaml().load(FileUtil.readUtf8String(configFile));
             if (parsed instanceof Map) {
-                flatten("", sanitizeMap((Map<?, ?>) parsed), flattened);
+                flatten("", BasicValueSupport.sanitizeMap((Map<?, ?>) parsed), flattened);
             }
             fileValues = flattened;
             lastLoadedAt = configFile.lastModified();
@@ -313,7 +314,7 @@ public class RuntimeConfigResolver {
         if (!(parsed instanceof Map)) {
             return new LinkedHashMap<String, Object>();
         }
-        return sanitizeMap((Map<?, ?>) parsed);
+        return BasicValueSupport.sanitizeMap((Map<?, ?>) parsed);
     }
 
     /**
@@ -889,51 +890,6 @@ public class RuntimeConfigResolver {
             }
         }
         return true;
-    }
-
-    /**
-     * 清理Map。
-     *
-     * @param input 输入参数。
-     * @return 返回Map结果。
-     */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> sanitizeMap(Map<?, ?> input) {
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        for (Map.Entry<?, ?> entry : input.entrySet()) {
-            if (entry.getKey() == null) {
-                continue;
-            }
-            Object value = entry.getValue();
-            if (value instanceof Map) {
-                value = sanitizeMap((Map<?, ?>) value);
-            } else if (value instanceof List) {
-                value = sanitizeList((List<?>) value);
-            }
-            result.put(String.valueOf(entry.getKey()), value);
-        }
-        return result;
-    }
-
-    /**
-     * 清理List。
-     *
-     * @param input 输入参数。
-     * @return 返回List结果。
-     */
-    @SuppressWarnings("unchecked")
-    private static List<Object> sanitizeList(List<?> input) {
-        List<Object> result = new ArrayList<Object>();
-        for (Object item : input) {
-            if (item instanceof Map) {
-                result.add(sanitizeMap((Map<?, ?>) item));
-            } else if (item instanceof List) {
-                result.add(sanitizeList((List<?>) item));
-            } else {
-                result.add(item);
-            }
-        }
-        return result;
     }
 
     /**
