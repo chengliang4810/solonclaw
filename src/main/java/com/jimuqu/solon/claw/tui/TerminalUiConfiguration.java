@@ -53,9 +53,15 @@ public class TerminalUiConfiguration {
             RuntimeSettingsService runtimeSettingsService,
             GlobalSettingRepository globalSettingRepository,
             DangerousCommandApprovalService approvalService) {
+        // 终端 UI 的 prompt.submit 必须使用 terminal-ui 来源键前缀，与会话管理
+        // (TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX) 对齐；否则后端会按 cli 前缀
+        // 查不到会话而新建，回复事件 session_id 与前端当前会话不匹配而被丢弃，表现为
+        // "一直运行中不回复"。这里从共享 CLI 运行时派生一个独立前缀实例注入监听器。
+        CliRuntime terminalRuntime =
+                runtime.withSourceKeyPrefix(TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
         TerminalUiWebSocketListener listener =
                 new TerminalUiWebSocketListener(
-                        runtime,
+                        terminalRuntime,
                         appConfig,
                         sessionRepository,
                         securityPolicyService,

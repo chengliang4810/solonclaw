@@ -17,6 +17,9 @@ import java.util.Locale;
 
 /** 承载CLI运行时相关状态和辅助逻辑。 */
 public class CliRuntime {
+    /** CLI 运行时默认的来源键前缀，绑定到 MEMORY 渠道的 cli 子命名空间。 */
+    private static final String DEFAULT_SOURCE_KEY_PREFIX = "MEMORY:cli:";
+
     /** 注入命令服务，用于调用对应业务能力。 */
     private final CommandService commandService;
 
@@ -25,6 +28,9 @@ public class CliRuntime {
 
     /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
+
+    /** 来源键前缀，决定 send/stop 把会话绑定到哪个 source 命名空间；默认 cli，终端 UI 注入 terminal-ui。 */
+    private final String sourceKeyPrefix;
 
     /**
      * 创建Cli运行时实例，并注入运行所需依赖。
@@ -48,9 +54,48 @@ public class CliRuntime {
             CommandService commandService,
             ConversationOrchestrator conversationOrchestrator,
             AgentRunControlService agentRunControlService) {
+        this(commandService, conversationOrchestrator, agentRunControlService, DEFAULT_SOURCE_KEY_PREFIX);
+    }
+
+    /**
+     * 创建带自定义来源键前缀的Cli运行时实例。
+     *
+     * <p>终端 UI 通过 /ws/tui 发起 prompt.submit 时，必须与自身的会话管理（MEMORY:terminal-ui:*）
+     * 使用同一来源键前缀，否则后端会按 cli 前缀查不到会话而新建，导致回复事件的 session_id 与
+     * 前端当前会话不匹配，被前端按 session_id 过滤丢弃，表现为"一直运行中不回复"。
+     *
+     * @param commandService 命令服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param sourceKeyPrefix 来源键前缀，例如 "MEMORY:cli:" 或 "MEMORY:terminal-ui:"。
+     */
+    public CliRuntime(
+            CommandService commandService,
+            ConversationOrchestrator conversationOrchestrator,
+            AgentRunControlService agentRunControlService,
+            String sourceKeyPrefix) {
         this.commandService = commandService;
         this.conversationOrchestrator = conversationOrchestrator;
         this.agentRunControlService = agentRunControlService;
+        this.sourceKeyPrefix =
+                StrUtil.isBlank(sourceKeyPrefix) ? DEFAULT_SOURCE_KEY_PREFIX : sourceKeyPrefix;
+    }
+
+    /**
+     * 派生一个仅替换来源键前缀的 CliRuntime，复用同一套命令服务、对话编排器与运行控制服务。
+     *
+     * <p>终端 UI 需要用 terminal-ui 前缀与自身会话管理对齐，但不应改动全局共享的 CLI 运行时，
+     * 因此通过本方法派生独立的实例注入到 TerminalUiWebSocketListener。
+     *
+     * @param newSourceKeyPrefix 新的来源键前缀。
+     * @return 返回使用指定前缀的新 CliRuntime 实例。
+     */
+    public CliRuntime withSourceKeyPrefix(String newSourceKeyPrefix) {
+        return new CliRuntime(
+                this.commandService,
+                this.conversationOrchestrator,
+                this.agentRunControlService,
+                newSourceKeyPrefix);
     }
 
     /**
@@ -135,7 +180,16 @@ public class CliRuntime {
      * @return 返回来源键结果。
      */
     public String sourceKey(String sessionId) {
-        return "MEMORY:cli:" + StrUtil.blankToDefault(sessionId, "cli");
+        return sourceKeyPrefix + StrUtil.blankToDefault(sessionId, defaultSourceKeySuffix());
+    }
+
+    /**
+     * 读取来源键在会话标识为空时使用的兜底后缀，保持与构造前缀所属命名空间一致。
+     *
+     * @return 返回默认来源键后缀。
+     */
+    private String defaultSourceKeySuffix() {
+        return DEFAULT_SOURCE_KEY_PREFIX.equals(sourceKeyPrefix) ? "cli" : "terminal-ui";
     }
 
     /**
