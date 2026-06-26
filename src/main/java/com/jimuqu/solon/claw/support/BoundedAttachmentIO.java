@@ -275,7 +275,7 @@ public final class BoundedAttachmentIO {
                                 HttpRequest.get(url)
                                         .timeout(timeoutMillis)
                                         .setFollowRedirects(false),
-                                shouldForwardHeaders(initialUrl, url) ? headers : null)
+                                UrlOriginSupport.sameOrigin(initialUrl, url) ? headers : null)
                         .executeAsync();
         try {
             int status = response.getStatus();
@@ -352,44 +352,6 @@ public final class BoundedAttachmentIO {
             request.header(entry.getKey(), entry.getValue());
         }
         return request;
-    }
-
-    /**
-     * 判断是否需要Forward Headers。
-     *
-     * @param initialUrl 待校验或访问的地址参数。
-     * @param url 待校验或访问的 URL。
-     * @return 如果Forward Headers满足条件则返回 true，否则返回 false。
-     */
-    private static boolean shouldForwardHeaders(String initialUrl, String url) {
-        try {
-            URI initial = URI.create(initialUrl);
-            URI current = URI.create(url);
-            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
-                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
-                    && effectivePort(initial) == effectivePort(current);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * 执行生效端口相关逻辑。
-     *
-     * @param uri 待校验或访问的地址参数。
-     * @return 返回生效Port结果。
-     */
-    private static int effectivePort(URI uri) {
-        if (uri.getPort() >= 0) {
-            return uri.getPort();
-        }
-        if ("http".equalsIgnoreCase(uri.getScheme())) {
-            return 80;
-        }
-        if ("https".equalsIgnoreCase(uri.getScheme())) {
-            return 443;
-        }
-        return -1;
     }
 
     /**

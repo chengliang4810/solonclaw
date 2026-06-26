@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -1482,7 +1483,7 @@ public class DashboardMcpService {
                         .timeout(15000)
                         .contentType("application/x-www-form-urlencoded")
                         .setFollowRedirects(false);
-        if (sameOrigin(initialUrl, url)) {
+        if (UrlOriginSupport.sameOrigin(initialUrl, url)) {
             request.body(form);
         }
         HttpResponse response = request.execute();
@@ -1535,44 +1536,6 @@ public class DashboardMcpService {
                             + SecretRedactor.maskUrl(location),
                     e);
         }
-    }
-
-    /**
-     * 执行sameOrigin相关逻辑。
-     *
-     * @param initialUrl 待校验或访问的地址参数。
-     * @param url 待校验或访问的 URL。
-     * @return 返回same Origin结果。
-     */
-    private boolean sameOrigin(String initialUrl, String url) {
-        try {
-            URI initial = URI.create(initialUrl);
-            URI current = URI.create(url);
-            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
-                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
-                    && effectivePort(initial) == effectivePort(current);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * 执行生效端口相关逻辑。
-     *
-     * @param uri 待校验或访问的地址参数。
-     * @return 返回生效Port结果。
-     */
-    private int effectivePort(URI uri) {
-        if (uri.getPort() >= 0) {
-            return uri.getPort();
-        }
-        if ("http".equalsIgnoreCase(uri.getScheme())) {
-            return 80;
-        }
-        if ("https".equalsIgnoreCase(uri.getScheme())) {
-            return 443;
-        }
-        return -1;
     }
 
     /**

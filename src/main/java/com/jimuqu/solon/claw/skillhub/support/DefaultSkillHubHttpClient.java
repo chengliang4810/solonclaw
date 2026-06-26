@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.skillhub.support;
 
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URI;
 import java.util.Collections;
@@ -185,7 +186,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
      */
     private Request redirectRequest(
             Request request, String currentUrl, String nextUrl, int status) {
-        boolean sameOrigin = sameOrigin(currentUrl, nextUrl);
+        boolean sameOrigin = UrlOriginSupport.sameOrigin(currentUrl, nextUrl);
         Request.Builder builder =
                 sameOrigin ? request.newBuilder().url(nextUrl) : new Request.Builder().url(nextUrl);
         if (status == 303
@@ -202,55 +203,6 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
             }
         }
         return builder.build();
-    }
-
-    /**
-     * 执行sameOrigin相关逻辑。
-     *
-     * @param left 左侧比较对象。
-     * @param right 右侧比较对象。
-     * @return 返回same Origin结果。
-     */
-    private boolean sameOrigin(String left, String right) {
-        try {
-            URI a = URI.create(left);
-            URI b = URI.create(right);
-            return equalsIgnoreCase(a.getScheme(), b.getScheme())
-                    && equalsIgnoreCase(a.getHost(), b.getHost())
-                    && effectivePort(a) == effectivePort(b);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * 执行equals忽略Case相关逻辑。
-     *
-     * @param left 左侧比较对象。
-     * @param right 右侧比较对象。
-     * @return 返回equals忽略Case结果。
-     */
-    private boolean equalsIgnoreCase(String left, String right) {
-        return left == null ? right == null : left.equalsIgnoreCase(right);
-    }
-
-    /**
-     * 执行生效端口相关逻辑。
-     *
-     * @param uri 待校验或访问的地址参数。
-     * @return 返回生效Port结果。
-     */
-    private int effectivePort(URI uri) {
-        if (uri.getPort() >= 0) {
-            return uri.getPort();
-        }
-        if ("http".equalsIgnoreCase(uri.getScheme())) {
-            return 80;
-        }
-        if ("https".equalsIgnoreCase(uri.getScheme())) {
-            return 443;
-        }
-        return -1;
     }
 
     /**
