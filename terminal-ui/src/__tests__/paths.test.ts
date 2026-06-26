@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { fmtCwdBranch, shortCwd } from '../domain/paths.js'
+import { composeTabTitle, fmtCwdBranch, shortCwd } from '../domain/paths.js'
 
 describe('shortCwd', () => {
   const origHome = process.env.HOME
@@ -66,5 +66,25 @@ describe('fmtCwdBranch', () => {
     const out = fmtCwdBranch('/Users/bb/p', 'a-very-long-feature-branch-name')
     expect(out).toMatch(/^~\/p \(…/)
     expect(out).toContain(')')
+  })
+})
+
+describe('composeTabTitle', () => {
+  it('joins marker, session name, model, and cwd in order', () => {
+    expect(composeTabTitle('✓', 'auth refactor', 'opus-4', '~/proj')).toBe('✓ auth refactor · opus-4 · ~/proj')
+  })
+
+  it('omits empty session names and cwd segments', () => {
+    expect(composeTabTitle('✓', '   ', 'opus-4', '')).toBe('✓ opus-4')
+  })
+
+  it('falls back to the marker when every segment is empty', () => {
+    expect(composeTabTitle('⚠', '', '', '')).toBe('⚠')
+  })
+
+  it('truncates long session names', () => {
+    const out = composeTabTitle('✓', 'a'.repeat(40), 'opus-4', '', 12)
+
+    expect(out).toBe(`✓ ${'a'.repeat(11)}… · opus-4`)
   })
 })

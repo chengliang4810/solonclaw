@@ -7,7 +7,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { turnController } from '../app/turnController.js'
 import { getTurnState, resetTurnState } from '../app/turnStore.js'
 import { patchUiState, resetUiState } from '../app/uiStore.js'
-import { hydrateLiveSessionInflight, liveSessionInflightMessages, writeActiveSessionFile } from '../app/useSessionLifecycle.js'
+import {
+  hydrateLiveSessionInflight,
+  isLiveSessionRunning,
+  liveSessionInflightMessages,
+  writeActiveSessionFile
+} from '../app/useSessionLifecycle.js'
 
 describe('writeActiveSessionFile', () => {
   let dir = ''
@@ -56,5 +61,14 @@ describe('live session activation in-flight state', () => {
 
     expect(turnController.bufRef).toBe('')
     expect(getTurnState().streaming).toBe('')
+  })
+})
+
+describe('live session resume status', () => {
+  it('treats resumed waiting and working sessions as running', () => {
+    expect(isLiveSessionRunning(false, 'waiting')).toBe(true)
+    expect(isLiveSessionRunning(false, 'working')).toBe(true)
+    expect(isLiveSessionRunning(true, 'idle')).toBe(true)
+    expect(isLiveSessionRunning(false, 'idle')).toBe(false)
   })
 })

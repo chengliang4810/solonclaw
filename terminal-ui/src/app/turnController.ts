@@ -182,7 +182,7 @@ class TurnController {
     resetFlowOverlays()
   }
 
-  interruptTurn({ appendMessage, gw, sid, sys }: InterruptDeps) {
+  interruptTurn({ appendMessage, gw, sid, sys }: InterruptDeps, opts: { keepBusy?: boolean } = {}) {
     this.interrupted = true
     gw.request<SessionInterruptResponse>('session.interrupt', { session_id: sid }).catch(() => {})
 
@@ -218,8 +218,15 @@ class TurnController {
       sys('已中断')
     }
 
-    patchUiState({ status: '已中断' })
     this.clearStatusTimer()
+
+    if (opts.keepBusy) {
+      patchUiState({ busy: true, status: '正在中断…' })
+
+      return
+    }
+
+    patchUiState({ status: '已中断' })
 
     this.statusTimer = setTimeout(() => {
       this.statusTimer = null

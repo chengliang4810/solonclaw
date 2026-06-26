@@ -75,10 +75,56 @@ export function createSlashHandler(ctx: SlashHandlerContext): (cmd: string) => b
       }
     }
 
+    const handleDispatch = (raw: unknown): void => {
+      const d = asCommandDispatch(raw)
+
+      if (!d) {
+        return sys('error: invalid response: command.dispatch')
+      }
+
+      if (d.type === 'exec' || d.type === 'plugin') {
+        return sys(d.output || '(no output)')
+      }
+
+      if (d.type === 'alias') {
+        return void handler(`/${d.target}${argTail}`)
+      }
+
+      if (d.type === 'skill') {
+        sys(`⚡ loading skill: ${d.name}`)
+
+        return d.message?.trim() ? send(d.message) : sys(`/${parsed.name}: skill payload missing message`)
+      }
+
+      if (d.type === 'send') {
+        if (d.notice?.trim()) {
+          sys(d.notice)
+        }
+
+        return d.message?.trim() ? send(d.message) : sys(`/${parsed.name}: empty message`)
+      }
+
+      if (d.type === 'prefill') {
+        // /undo returns prefill: drop the backed-up message text into the
+        // composer so the user can edit and resubmit.
+        if (d.notice?.trim()) {
+          sys(d.notice)
+        }
+
+        if (d.message) {
+          ctx.composer.setInput(d.message)
+        }
+      }
+    }
+
     gw.request<SlashExecResponse>('slash.exec', { command: cmd.slice(1), session_id: sid })
       .then(r => {
         if (stale()) {
           return
+        }
+
+        if (asCommandDispatch(r)) {
+          return handleDispatch(r)
         }
 
         renderSlashExecOutput(ctx.transcript, r, `/${parsed.name}: no output`, parsed.name[0]!.toUpperCase() + parsed.name.slice(1))
@@ -90,48 +136,7 @@ export function createSlashHandler(ctx: SlashHandlerContext): (cmd: string) => b
               return
             }
 
-            const d = asCommandDispatch(raw)
-
-            if (!d) {
-              return sys('error: invalid response: command.dispatch')
-            }
-
-            if (d.type === 'exec' || d.type === 'plugin') {
-              return sys(d.output || '(no output)')
-            }
-
-            if (d.type === 'alias') {
-              return handler(`/${d.target}${argTail}`)
-            }
-
-            if (d.type === 'skill') {
-              sys(`⚡ loading skill: ${d.name}`)
-
-              return d.message?.trim() ? send(d.message) : sys(`/${parsed.name}: skill payload missing message`)
-            }
-
-            if (d.type === 'send') {
-              if (d.notice?.trim()) {
-                sys(d.notice)
-              }
-
-              return d.message?.trim() ? send(d.message) : sys(`/${parsed.name}: empty message`)
-            }
-
-            if (d.type === 'prefill') {
-              // /undo returns prefill: drop the backed-up message text into
-              // the composer so the user can edit and resubmit, instead of
-              // submitting it immediately like 'send'.
-              if (d.notice?.trim()) {
-                sys(d.notice)
-              }
-
-              if (d.message) {
-                ctx.composer.setInput(d.message)
-              }
-
-              return
-            }
+            handleDispatch(raw)
           })
           .catch(guardedErr)
       })

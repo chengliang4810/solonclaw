@@ -54,6 +54,34 @@ const findClickableWithText = (node: ReactNodeLike, needle: string): React.React
   return findClickableWithText(node.props.children, needle)
 }
 
+const findComponentByName = (node: ReactNodeLike, name: string): React.ReactElement | null => {
+  if (node === null || node === undefined || typeof node === 'boolean') {
+    return null
+  }
+
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findComponentByName(child, name)
+
+      if (found) {
+        return found
+      }
+    }
+
+    return null
+  }
+
+  if (!React.isValidElement(node)) {
+    return null
+  }
+
+  if (typeof node.type === 'function' && node.type.name === name) {
+    return node
+  }
+
+  return findComponentByName(node.props.children, name)
+}
+
 describe('StatusRule session count click target', () => {
   it('makes the live session count itself clickable', () => {
     const openSwitcher = vi.fn()
@@ -110,5 +138,76 @@ describe('StatusRule session count click target', () => {
     // … while the low-value tail (session count, cost) is dropped, not truncated.
     expect(rendered).not.toContain('3 sessions')
     expect(rendered).not.toContain('$0.5000')
+  })
+
+  it('shows active subagents from usage when no local background task is tracked', () => {
+    const element = StatusRule({
+      bgCount: 0,
+      busy: false,
+      cols: 100,
+      cwdLabel: '~/repo',
+      liveSessionCount: 0,
+      model: 'kimi-k2.6',
+      sessionStartedAt: null,
+      showCost: false,
+      status: 'ready',
+      statusColor: DEFAULT_THEME.color.ok,
+      t: DEFAULT_THEME,
+      turnStartedAt: null,
+      usage: { active_subagents: 2, total: 0 },
+      voiceLabel: ''
+    })
+
+    expect(textContent(element)).toContain('2 bg')
+  })
+})
+
+describe('StatusRule idle-since readout', () => {
+  it('shows time since the last final response while idle', () => {
+    const endedAt = Date.now() - 42_000
+    const element = StatusRule({
+      bgCount: 0,
+      busy: false,
+      cols: 120,
+      cwdLabel: '~/repo',
+      lastTurnEndedAt: endedAt,
+      liveSessionCount: 0,
+      model: 'kimi-k2.6',
+      sessionStartedAt: null,
+      showCost: false,
+      status: 'ready',
+      statusColor: DEFAULT_THEME.color.ok,
+      t: DEFAULT_THEME,
+      turnStartedAt: null,
+      usage: { total: 0 },
+      voiceLabel: ''
+    })
+
+    const idle = findComponentByName(element, 'IdleSince')
+
+    expect(idle).not.toBeNull()
+    expect(idle!.props.endedAt).toBe(endedAt)
+  })
+
+  it('hides idle-since while a turn is busy', () => {
+    const element = StatusRule({
+      bgCount: 0,
+      busy: true,
+      cols: 120,
+      cwdLabel: '~/repo',
+      lastTurnEndedAt: Date.now() - 42_000,
+      liveSessionCount: 0,
+      model: 'kimi-k2.6',
+      sessionStartedAt: null,
+      showCost: false,
+      status: 'running…',
+      statusColor: DEFAULT_THEME.color.ok,
+      t: DEFAULT_THEME,
+      turnStartedAt: Date.now(),
+      usage: { total: 0 },
+      voiceLabel: ''
+    })
+
+    expect(findComponentByName(element, 'IdleSince')).toBeNull()
   })
 })

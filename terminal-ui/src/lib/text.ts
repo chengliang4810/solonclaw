@@ -187,6 +187,13 @@ const countNewlines = (text: string, end: number) => {
 
 export const stripTrailingPasteNewlines = (text: string) => (/[^\n]/.test(text) ? text.replace(/\n+$/, '') : text)
 
+export const formatAbandonedClarify = (question: string, choices: null | string[] | undefined, reason: string) => {
+  const head = `ask ${question.trim()}`
+  const opts = (choices ?? []).map((choice, index) => `  ${index + 1}. ${choice}`)
+
+  return [head, ...opts, `  (${reason} — no selection)`].join('\n')
+}
+
 export const toolTrailLabel = (name: string) =>
   name
     .split('_')

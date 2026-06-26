@@ -190,9 +190,9 @@ public class TerminalUiRpcService {
     /** 激活指定会话并返回终端 UI 可重放的 transcript。 */
     public Map<String, Object> sessionActivate(String sessionId) throws Exception {
         Map<String, Object> result = sessionResume(sessionId);
-        result.put("running", Boolean.FALSE);
-        result.put("status", "idle");
-        result.put("started_at", startedAt(sessionId));
+        if (!result.containsKey("started_at")) {
+            result.put("started_at", Long.valueOf(toEpochSeconds(startedAt(sessionId))));
+        }
         return result;
     }
 
@@ -210,6 +210,14 @@ public class TerminalUiRpcService {
         result.put("messages", transcript(session));
         result.put("message_count", Integer.valueOf(messageCount(session)));
         result.put("resumed", effectiveSessionId);
+        AgentRunRecord activeRun = latestActiveRun(effectiveSessionId);
+        boolean running = activeRun != null;
+        result.put("running", Boolean.valueOf(running));
+        result.put("status", liveSessionStatus(activeRun));
+        result.put(
+                "started_at",
+                Long.valueOf(running ? toEpochSeconds(activeRun.getStartedAt()) : toEpochSeconds(startedAt(effectiveSessionId))));
+        result.put("inflight", null);
         return result;
     }
 
@@ -413,6 +421,7 @@ public class TerminalUiRpcService {
         usage.put("output", Integer.valueOf(0));
         usage.put("total", Integer.valueOf(0));
         usage.put("model", currentModel());
+        usage.put("active_subagents", Integer.valueOf(activeSubagentItems().size()));
         return usage;
     }
 
@@ -1580,6 +1589,21 @@ public class TerminalUiRpcService {
                 || "paused".equals(status)
                 || "interrupting".equals(status)
                 || "recoverable".equals(status);
+    }
+
+    /** 将后端 run 状态压缩成终端 UI live session 状态枚举。 */
+    private String liveSessionStatus(AgentRunRecord run) {
+        if (run == null) {
+            return "idle";
+        }
+        String status = StrUtil.nullToEmpty(run.getStatus()).toLowerCase(Locale.ROOT);
+        if ("waiting_approval".equals(status) || "paused".equals(status)) {
+            return "waiting";
+        }
+        if ("queued".equals(status)) {
+            return "starting";
+        }
+        return "working";
     }
 
     /** 返回当前仍在运行的子代理列表。 */

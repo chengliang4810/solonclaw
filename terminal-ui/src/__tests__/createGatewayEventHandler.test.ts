@@ -1175,4 +1175,67 @@ describe('createGatewayEventHandler', () => {
       vi.useRealTimers()
     }
   })
+
+  it('keeps busy during a force-send interrupt until the gateway settles', () => {
+    const appended: Msg[] = []
+    const ctx = buildCtx(appended)
+    ctx.gateway.gw.request = vi.fn(async () => ({ status: 'interrupted' }))
+    const onEvent = createGatewayEventHandler(ctx)
+
+    patchUiState({ sid: 'sess-1' })
+    onEvent({ payload: {}, type: 'message.start' } as any)
+    expect(getUiState().busy).toBe(true)
+
+    turnController.interruptTurn(
+      {
+        appendMessage: (msg: Msg) => appended.push(msg),
+        gw: ctx.gateway.gw,
+        sid: 'sess-1',
+        sys: ctx.system.sys
+      },
+      { keepBusy: true }
+    )
+
+    expect(getUiState().busy).toBe(true)
+    expect(getUiState().status).toBe('正在中断…')
+
+    onEvent({
+      payload: { text: 'Operation interrupted: waiting for model response.' },
+      type: 'message.complete'
+    } as any)
+
+    expect(getUiState().busy).toBe(false)
+    expect(appended.some(msg => msg.text.includes('Operation interrupted'))).toBe(false)
+  })
+
+  it('persists an abandoned clarify prompt when the clarify tool completes', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    patchOverlayState({
+      clarify: { choices: ['Scope A', 'Scope B'], question: 'How do you want to scope?', requestId: 'req-1' }
+    })
+
+    onEvent({ payload: { name: 'clarify', tool_id: 'clar-1' }, type: 'tool.complete' } as any)
+
+    const record = appended.find(msg => msg.role === 'system' && msg.text.startsWith('ask How do you want to scope?'))
+    expect(record?.text).toContain('1. Scope A')
+    expect(record?.text).toContain('2. Scope B')
+    expect(record?.text).toContain('timed out — no selection')
+    expect(getOverlayState().clarify).toBeNull()
+  })
+
+  it('does not persist the same abandoned clarify twice', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    patchOverlayState({
+      clarify: { choices: ['A'], question: 'Pick?', requestId: 'req-2' }
+    })
+
+    onEvent({ payload: { name: 'clarify', tool_id: 'clar-1' }, type: 'tool.complete' } as any)
+    onEvent({ payload: { name: 'clarify', tool_id: 'clar-1' }, type: 'tool.complete' } as any)
+
+    expect(appended.filter(msg => msg.role === 'system' && msg.text.startsWith('ask Pick?'))).toHaveLength(1)
+  })
 })

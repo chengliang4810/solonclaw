@@ -8,3 +8,23 @@ export const parseSlashCommand = (cmd: string) => {
 
   return { arg: rest.join(' '), cmd, name: name.toLowerCase() }
 }
+
+export const applyCompletion = (value: string, rowText: string, compReplace: number): string => {
+  const text = value.startsWith('/') && rowText.startsWith('/') ? rowText.slice(1) : rowText
+
+  return value.slice(0, compReplace) + text
+}
+
+export const completionToApplyOnSubmit = (
+  value: string,
+  rowText: string | undefined,
+  compReplace: number
+): string | null => {
+  if (!rowText) {
+    return null
+  }
+
+  const next = applyCompletion(value, rowText, compReplace)
+
+  return next !== value && next.trimEnd() !== value.trimEnd() ? next : null
+}

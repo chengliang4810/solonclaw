@@ -23,6 +23,10 @@ if (!process.stdin.isTTY) {
 // terminal tab can still have mouse/focus/paste modes enabled.
 resetTerminalModes()
 
+process.on('exit', () => {
+  resetTerminalModes()
+})
+
 // Desktop terminals benefit from a clean startup slate because the TUI usually
 // runs in AlternateScreen. On Termux we keep prior output intact so users can
 // review/copy earlier assistant replies after reopening the app.
@@ -37,7 +41,7 @@ const gw = new GatewayClient()
 gw.start()
 
 const dumpNotice = (snap: MemorySnapshot, dump: HeapDumpResult | null) =>
-  `solonclaw-tui: ${snap.level} memory (${formatBytes(snap.heapUsed)}) — auto heap dump → ${dump?.heapPath ?? '(failed)'}\n`
+  `solonclaw-tui: ${snap.level} memory (${formatBytes(snap.heapUsed)}) — auto heap dump → ${dump?.heapPath ?? dump?.diagPath ?? '(failed)'}\n`
 
 setupGracefulExit({
   cleanups: [

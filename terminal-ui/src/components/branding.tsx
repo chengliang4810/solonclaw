@@ -222,6 +222,9 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
   // ── Collapsible tools section ──
   const toolEntries = Object.entries(info.tools).sort()
   const toolsTotal = flat(info.tools).length
+  const mcpServers = info.mcp_servers ?? []
+  // 标题摘要只统计已连接的 MCP 服务，避免把已配置但未启用的服务算成可用能力。
+  const mcpConnected = mcpServers.filter(s => s.connected).length
 
   const toolsBody = () => {
     const shown = toolEntries.slice(0, TOOLSETS_MAX)
@@ -245,7 +248,7 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
   // ── Collapsible MCP section ──
   const mcpBody = () => (
     <>
-      {(info.mcp_servers ?? []).map(s => (
+      {mcpServers.map(s => (
         <Text key={s.name} wrap="truncate">
           <Text color={t.color.muted}>{`  ${s.name} `}</Text>
           <Text color={t.color.muted}>{`[${s.transport}]`}</Text>
@@ -370,10 +373,10 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
         )}
 
         {/* ── MCP Servers (collapsed by default) ── */}
-        {info.mcp_servers && info.mcp_servers.length > 0 && (
+        {mcpServers.length > 0 && (
           <Box flexDirection="column" marginTop={1}>
             <CollapseToggle
-              count={info.mcp_servers.length}
+              count={mcpConnected}
               onToggle={() => setMcpOpen(v => !v)}
               open={mcpOpen}
               suffix="connected"
@@ -389,7 +392,7 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
         <Text color={t.color.text}>
           {toolsTotal} tools{' · '}
           {skillsTotal} skills
-          {info.mcp_servers?.length ? ` · ${info.mcp_servers.length} MCP` : ''}
+          {mcpConnected ? ` · ${mcpConnected} MCP` : ''}
           {' · '}
           <Text color={t.color.muted}>/help for commands</Text>
         </Text>
