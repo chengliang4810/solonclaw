@@ -3,7 +3,7 @@ package com.jimuqu.solon.claw.config;
 import java.util.Map;
 
 /** 配置 Map 扁平化辅助逻辑，统一生成点号分隔的配置键。 */
-final class ConfigFlattenSupport {
+public final class ConfigFlattenSupport {
     /** 工具类不允许创建实例。 */
     private ConfigFlattenSupport() {}
 
@@ -14,7 +14,7 @@ final class ConfigFlattenSupport {
      * @param input 嵌套配置 Map。
      * @param output 扁平化输出 Map。
      */
-    static void flatten(String prefix, Map<?, ?> input, Map<String, Object> output) {
+    public static void flatten(String prefix, Map<?, ?> input, Map<String, Object> output) {
         for (Map.Entry<?, ?> entry : input.entrySet()) {
             if (entry.getKey() == null) {
                 continue;
