@@ -10,9 +10,10 @@ export const parseSlashCommand = (cmd: string) => {
 }
 
 export const applyCompletion = (value: string, rowText: string, compReplace: number): string => {
-  const text = value.startsWith('/') && rowText.startsWith('/') ? rowText.slice(1) : rowText
+  const prefix = value.slice(0, compReplace)
+  const text = prefix.endsWith('/') && rowText.startsWith('/') ? rowText.slice(1) : rowText
 
-  return value.slice(0, compReplace) + text
+  return prefix + text
 }
 
 export const completionToApplyOnSubmit = (
