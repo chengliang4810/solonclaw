@@ -26,6 +26,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import com.jimuqu.solon.claw.web.DashboardRunService;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,6 +71,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.GET_CURRENT_TIME,
                     ToolNameConstants.TODO,
                     ToolNameConstants.AGENT_MANAGE,
+                    ToolNameConstants.RUN_MANAGE,
                     ToolNameConstants.DELEGATE_TASK,
                     ToolNameConstants.MEMORY,
                     ToolNameConstants.SESSION_SEARCH,
@@ -172,6 +174,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 插件注册工具。 */
     private final List<ToolRegistration> pluginTools;
 
+    /** Dashboard 运行服务，用于给 Agent 暴露一等运行管理工具。 */
+    private final DashboardRunService dashboardRunService;
+
     /**
      * 创建默认工具注册表实例，并注入运行所需依赖。
      *
@@ -230,6 +235,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
+                (DashboardRunService) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -293,6 +299,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
+                (DashboardRunService) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -358,6 +365,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
+                (DashboardRunService) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -496,6 +504,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (BrowserRuntimeService) null,
                 imageGenerationService,
                 speechService,
+                (DashboardRunService) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -565,6 +574,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
+                (DashboardRunService) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -634,6 +644,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
+                (DashboardRunService) null,
                 pluginTools);
     }
 
@@ -707,6 +718,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
+                (DashboardRunService) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -760,6 +772,86 @@ public class DefaultToolRegistry implements ToolRegistry {
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
             List<ToolRegistration> pluginTools) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                approvalService,
+                processRegistry,
+                mcpRuntimeService,
+                browserRuntimeService,
+                imageGenerationService,
+                speechService,
+                (DashboardRunService) null,
+                pluginTools);
+    }
+
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     * @param dashboardRunService Dashboard运行服务依赖。
+     * @param pluginTools 插件Tools参数。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService approvalService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService,
+            DashboardRunService dashboardRunService,
+            List<ToolRegistration> pluginTools) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
@@ -788,6 +880,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                         : browserRuntimeService;
         this.imageGenerationService = imageGenerationService;
         this.speechService = speechService;
+        this.dashboardRunService = dashboardRunService;
         this.pluginTools =
                 pluginTools == null
                         ? Collections.<ToolRegistration>emptyList()
@@ -854,6 +947,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         CronjobTools cronjobTools = new CronjobTools(cronJobService, sourceKey);
         TodoTools todoTools = new TodoTools(appConfig, sourceKey);
         AgentTools agentTools = new AgentTools(agentProfileService, sessionRepository, sourceKey);
+        RunTools runTools = new RunTools(dashboardRunService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
@@ -988,6 +1082,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(todoTools);
             } else if (ToolNameConstants.AGENT_MANAGE.equals(toolName)) {
                 tools.add(agentTools);
+            } else if (ToolNameConstants.RUN_MANAGE.equals(toolName)) {
+                tools.add(runTools);
             } else if (ToolNameConstants.DELEGATE_TASK.equals(toolName)) {
                 tools.add(delegateTools);
             } else if (ToolNameConstants.WEBSEARCH.equals(toolName)) {

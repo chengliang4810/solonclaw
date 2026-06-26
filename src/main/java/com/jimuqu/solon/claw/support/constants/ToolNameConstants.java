@@ -53,6 +53,9 @@ public interface ToolNameConstants {
     /** AgentMANAGE的统一常量值。 */
     String AGENT_MANAGE = "agent_manage";
 
+    /** 运行管理的统一常量值。 */
+    String RUN_MANAGE = "run_manage";
+
     /** 委托任务的统一常量值。 */
     String DELEGATE_TASK = "delegate_task";
 

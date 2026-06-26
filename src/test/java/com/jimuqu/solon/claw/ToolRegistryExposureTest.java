@@ -3547,6 +3547,15 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldExposeRunManagementToolForNaturalLanguageRunControl() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("run_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString()).contains("RunTools");
+    }
+
+    @Test
     void shouldGuardWebToolsBeforeDelegatingToSolonAiTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setAllowPrivateUrls(true);

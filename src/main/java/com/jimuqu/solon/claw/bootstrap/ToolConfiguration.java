@@ -63,6 +63,7 @@ import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
+import com.jimuqu.solon.claw.web.DashboardRunService;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -285,6 +286,7 @@ public class ToolConfiguration {
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
+     * @param dashboardRunService Dashboard运行服务依赖。
      * @param pluginTools 插件Tools参数。
      * @return 返回工具注册表结果。
      */
@@ -312,6 +314,7 @@ public class ToolConfiguration {
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
+            DashboardRunService dashboardRunService,
             List<ToolRegistration> pluginTools) {
         return new DefaultToolRegistry(
                 appConfig,
@@ -336,6 +339,7 @@ public class ToolConfiguration {
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
+                dashboardRunService,
                 pluginTools);
     }
 
