@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.support.constants.CheckpointConstants;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
+import com.jimuqu.solon.claw.support.RuntimePathSupport;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -47,7 +48,7 @@ final class AppConfigLoader {
     public static AppConfig load(Props props) {
         AppConfig config = new AppConfig();
         File userDir = new File(System.getProperty("user.dir"));
-        File workspaceBase = jarBaseDir(userDir);
+        File workspaceBase = RuntimePathSupport.jarBaseDir(AppConfig.class, userDir);
         File workspaceHome =
                 asAbsoluteStatic(
                         new File(resolveInitialWorkspace(props, Collections.emptyMap())),
@@ -3096,30 +3097,6 @@ final class AppConfigLoader {
             return file;
         }
         return new File(base, file.getPath());
-    }
-
-    /**
-     * 解析运行 Jar 所在目录；测试或解包运行时回退到当前进程目录。
-     *
-     * @param fallbackBase 无法识别 Jar 路径时使用的目录。
-     * @return 返回用于解析工作区相对路径的基准目录。
-     */
-    private static File jarBaseDir(File fallbackBase) {
-        try {
-            java.net.URL location =
-                    AppConfig.class.getProtectionDomain().getCodeSource().getLocation();
-            if (location == null) {
-                return fallbackBase;
-            }
-            File file = new File(location.toURI()).getAbsoluteFile();
-            if (file.isFile()) {
-                File parent = file.getParentFile();
-                return parent == null ? fallbackBase : parent;
-            }
-        } catch (Exception e) {
-            log.debug("运行 Jar 目录解析失败，回退到启动目录: {}", exceptionSummary(e));
-        }
-        return fallbackBase;
     }
 
     /**
