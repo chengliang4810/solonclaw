@@ -120,6 +120,22 @@
      - 增加工具暴露测试，证明默认工具列表包含 `provider_manage` 且能解析到 `ProviderManageTools`。
    - 提交：`73032a5ee`
 
+8. 增加会话与检查点查询一等工具
+   - 位置：
+     - `src/main/java/com/jimuqu/solon/claw/tool/runtime/SessionManageTools.java`
+     - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+     - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+     - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+   - 改造前：
+     - Dashboard 已有会话列表、消息、recap、trajectory、分支树、最新后代、检查点列表和检查点预览能力。
+     - Agent 自然语言路径没有一等 `session_manage` 工具，排查历史会话、分支和检查点时需要绕到 UI 或文件层。
+   - 改造后：
+     - 新增 `session_manage` 工具，复用 `DashboardSessionService`，支持 `list`、`messages`、`recap`、`trajectory`、`tree`、`latest_descendant`、`checkpoints`、`checkpoint_preview`。
+     - 工具结果沿用 Dashboard 会话服务的消息脱敏、摘要裁剪和检查点预览逻辑。
+     - 暂不暴露 `rollbackCheckpoint`、`deleteSession`、`updateSession` 等破坏性或写操作，避免自然语言路径绕过更强审批边界。
+     - 增加工具暴露测试，证明默认工具列表包含 `session_manage` 且能解析到 `SessionManageTools`。
+   - 提交：`6cb47184c`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -129,6 +145,7 @@
 - `mvn -Dskip.web.build=true -Dtest=DashboardCuratorServiceTest,SkillCuratorServiceTest,ToolRegistryExposureTest#shouldExposeCuratorManagementToolForNaturalLanguageSkillMaintenance test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposePlatformToolsetsManagementToolForNaturalLanguageChannelPolicy test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ProviderDisplayGroupingTest,RuntimeSetupServiceTest,ToolRegistryExposureTest#shouldExposeProviderManagementToolForNaturalLanguageModelConfiguration test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=DashboardSessionServiceTest,ToolRegistryExposureTest#shouldExposeSessionManagementToolForNaturalLanguageSessionInspection test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -141,5 +158,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理和 provider 管理入口，但仍需要继续盘点 checkpoint/session 等 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 检查点回滚、会话删除和会话更新暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
