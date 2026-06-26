@@ -67,6 +67,7 @@ import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
+import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
@@ -304,6 +305,7 @@ public class ToolConfiguration {
      * @param dashboardGatewayDoctorService Dashboard Doctor 服务依赖。
      * @param dashboardInsightsService Dashboard 洞察服务依赖。
      * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
+     * @param dashboardDiagnosticsService Dashboard 诊断服务依赖。
      * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
      * @param dashboardConfigService Dashboard 配置服务依赖。
      * @param weixinQrSetupService 微信二维码 setup 服务依赖。
@@ -348,6 +350,7 @@ public class ToolConfiguration {
             DashboardGatewayDoctorService dashboardGatewayDoctorService,
             DashboardInsightsService dashboardInsightsService,
             DashboardApprovalEventsService dashboardApprovalEventsService,
+            DashboardDiagnosticsService dashboardDiagnosticsService,
             DashboardWorkspaceService dashboardWorkspaceService,
             DashboardConfigService dashboardConfigService,
             WeixinQrSetupService weixinQrSetupService,
@@ -389,6 +392,7 @@ public class ToolConfiguration {
                 dashboardGatewayDoctorService,
                 dashboardInsightsService,
                 dashboardApprovalEventsService,
+                dashboardDiagnosticsService,
                 dashboardWorkspaceService,
                 dashboardConfigService,
                 weixinQrSetupService,

@@ -89,6 +89,9 @@ public interface ToolNameConstants {
     /** 审批事件管理的统一常量值。 */
     String APPROVAL_EVENTS_MANAGE = "approval_events_manage";
 
+    /** 审批队列管理的统一常量值。 */
+    String APPROVAL_QUEUE_MANAGE = "approval_queue_manage";
+
     /** 工作区查询管理的统一常量值。 */
     String WORKSPACE_MANAGE = "workspace_manage";
 

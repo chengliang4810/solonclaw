@@ -34,6 +34,7 @@ import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
+import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardLogsService;
@@ -103,6 +104,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.DOCTOR_MANAGE,
                     ToolNameConstants.INSIGHTS_MANAGE,
                     ToolNameConstants.APPROVAL_EVENTS_MANAGE,
+                    ToolNameConstants.APPROVAL_QUEUE_MANAGE,
                     ToolNameConstants.WORKSPACE_MANAGE,
                     ToolNameConstants.CONFIG_MANAGE,
                     ToolNameConstants.GATEWAY_SETUP_MANAGE,
@@ -218,6 +220,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** Dashboard 审批事件服务，用于给 Agent 暴露审批事件只读查询。 */
     private final DashboardApprovalEventsService dashboardApprovalEventsService;
 
+    /** Dashboard 诊断服务，用于给 Agent 暴露审批队列只读查询。 */
+    private final DashboardDiagnosticsService dashboardDiagnosticsService;
+
     /** Dashboard 工作区服务，用于给 Agent 暴露人格工作区只读查询。 */
     private final DashboardWorkspaceService dashboardWorkspaceService;
 
@@ -323,6 +328,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -422,6 +428,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -502,6 +509,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -584,6 +592,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -668,6 +677,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -756,6 +766,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -842,6 +853,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -928,6 +940,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -1018,6 +1031,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -1111,6 +1125,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (WeixinQrSetupService) null,
@@ -1155,6 +1170,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param dashboardGatewayDoctorService Dashboard Doctor 服务依赖。
      * @param dashboardInsightsService Dashboard 洞察服务依赖。
      * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
+     * @param dashboardDiagnosticsService Dashboard 诊断服务依赖。
      * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
      * @param dashboardConfigService Dashboard 配置服务依赖。
      * @param weixinQrSetupService 微信二维码 setup 服务依赖。
@@ -1197,6 +1213,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             DashboardGatewayDoctorService dashboardGatewayDoctorService,
             DashboardInsightsService dashboardInsightsService,
             DashboardApprovalEventsService dashboardApprovalEventsService,
+            DashboardDiagnosticsService dashboardDiagnosticsService,
             DashboardWorkspaceService dashboardWorkspaceService,
             DashboardConfigService dashboardConfigService,
             WeixinQrSetupService weixinQrSetupService,
@@ -1236,6 +1253,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.dashboardGatewayDoctorService = dashboardGatewayDoctorService;
         this.dashboardInsightsService = dashboardInsightsService;
         this.dashboardApprovalEventsService = dashboardApprovalEventsService;
+        this.dashboardDiagnosticsService = dashboardDiagnosticsService;
         this.dashboardWorkspaceService = dashboardWorkspaceService;
         this.dashboardConfigService = dashboardConfigService;
         this.weixinQrSetupService = weixinQrSetupService;
@@ -1350,6 +1368,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         InsightsManageTools insightsManageTools = new InsightsManageTools(dashboardInsightsService);
         ApprovalEventsManageTools approvalEventsManageTools =
                 new ApprovalEventsManageTools(dashboardApprovalEventsService);
+        ApprovalQueueManageTools approvalQueueManageTools =
+                new ApprovalQueueManageTools(dashboardDiagnosticsService);
         WorkspaceManageTools workspaceManageTools =
                 new WorkspaceManageTools(dashboardWorkspaceService);
         ConfigManageTools configManageTools = new ConfigManageTools(dashboardConfigService);
@@ -1481,6 +1501,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(insightsManageTools);
             } else if (ToolNameConstants.APPROVAL_EVENTS_MANAGE.equals(toolName)) {
                 tools.add(approvalEventsManageTools);
+            } else if (ToolNameConstants.APPROVAL_QUEUE_MANAGE.equals(toolName)) {
+                tools.add(approvalQueueManageTools);
             } else if (ToolNameConstants.WORKSPACE_MANAGE.equals(toolName)) {
                 tools.add(workspaceManageTools);
             } else if (ToolNameConstants.CONFIG_MANAGE.equals(toolName)) {

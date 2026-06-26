@@ -89,6 +89,7 @@ import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
+import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
@@ -336,6 +337,20 @@ public class TestEnvironment {
                         sqliteSessionRepository);
         DashboardApprovalEventsService dashboardApprovalEventsService =
                 new DashboardApprovalEventsService(config);
+        DashboardDiagnosticsService dashboardDiagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        deliveryService,
+                        llmProviderService,
+                        null,
+                        sessionRepository,
+                        null,
+                        null,
+                        new SlashConfirmService(globalSettingRepository),
+                        null,
+                        dangerousCommandApprovalService,
+                        securityPolicyService,
+                        new TirithSecurityService(config));
         DashboardWorkspaceService dashboardWorkspaceService =
                 new DashboardWorkspaceService(personaWorkspaceService);
         WeixinQrSetupService weixinQrSetupService =
@@ -379,6 +394,7 @@ public class TestEnvironment {
                         dashboardGatewayDoctorService,
                         dashboardInsightsService,
                         dashboardApprovalEventsService,
+                        dashboardDiagnosticsService,
                         dashboardWorkspaceService,
                         dashboardConfigService,
                         weixinQrSetupService,

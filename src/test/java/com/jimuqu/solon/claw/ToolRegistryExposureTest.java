@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.ApprovalQueueManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
@@ -113,6 +114,7 @@ public class ToolRegistryExposureTest {
                         "doctor_manage",
                         "insights_manage",
                         "approval_events_manage",
+                        "approval_queue_manage",
                         "workspace_manage",
                         "config_manage",
                         "gateway_setup_manage",
@@ -3695,6 +3697,38 @@ public class ToolRegistryExposureTest {
                 .contains("approval_events_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("ApprovalEventsManageTools");
+    }
+
+    @Test
+    void shouldExposeApprovalQueueManagementToolForNaturalLanguageApprovalInspection()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey))
+                .contains("approval_queue_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("ApprovalQueueManageTools");
+    }
+
+    @Test
+    void shouldInspectApprovalQueuesThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof ApprovalQueueManageTools)
+                        .findFirst()
+                        .orElseThrow(
+                                () -> new AssertionError("approval queue manage tool missing"));
+
+        ONode result =
+                ONode.ofJson(((ApprovalQueueManageTools) tool).approvalQueueManage("summary", 5));
+
+        assertToolSuccess(result);
+        assertThat(result.get("result").get("pending").isNull()).isFalse();
+        assertThat(result.get("result").get("history").isNull()).isFalse();
+        assertThat(result.get("result").get("always").isNull()).isFalse();
+        assertThat(result.get("result").get("slash_confirms").isNull()).isFalse();
     }
 
     @Test
