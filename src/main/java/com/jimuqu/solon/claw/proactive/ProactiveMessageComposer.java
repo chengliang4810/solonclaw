@@ -10,13 +10,13 @@ import com.jimuqu.solon.claw.core.model.ProactiveTickContext;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
-import org.noear.solon.ai.chat.message.AssistantMessage;
 
 /** 主动协作文案生成服务，负责把已批准候选转成安全、简短、请求许可的外发文本。 */
 public class ProactiveMessageComposer {
@@ -367,7 +367,8 @@ public class ProactiveMessageComposer {
                             LLM_POLISH_SYSTEM_PROMPT,
                             polishPrompt(decision, fallback),
                             Collections.emptyList());
-            return assistantText(result == null ? null : result.getAssistantMessage());
+            return MessageSupport.assistantText(
+                    result == null ? null : result.getAssistantMessage());
         }
 
         /**
@@ -391,20 +392,5 @@ public class ProactiveMessageComposer {
                     + ONode.serialize(payload);
         }
 
-        /**
-         * 从助手消息中读取文本。
-         *
-         * @param assistantMessage 助手消息。
-         * @return 返回文本。
-         */
-        private String assistantText(AssistantMessage assistantMessage) {
-            if (assistantMessage == null) {
-                return "";
-            }
-            if (StrUtil.isNotBlank(assistantMessage.getResultContent())) {
-                return assistantMessage.getResultContent().trim();
-            }
-            return StrUtil.nullToEmpty(assistantMessage.getContent()).trim();
-        }
     }
 }
