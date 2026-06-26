@@ -423,22 +423,9 @@ public class WeixinQrSetupService {
         assertSafeUrl(normalizeBaseUrl(baseUrl), purpose);
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
+    /** 校验微信 iLink 请求 URL 是否被安全策略允许访问。 */
     private void assertSafeUrl(String url, String purpose) {
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " 被安全策略阻断："
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
+        QrSetupUrlPolicySupport.assertSafeUrl(securityPolicyService, url, purpose);
     }
 
     /** 规范化基础 URL，避免后续拼接路径时出现重复斜杠。 */

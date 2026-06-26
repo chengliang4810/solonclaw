@@ -647,22 +647,9 @@ public class DomesticQrSetupService {
         assertSafeUrl(normalizeBaseUrl(baseUrl), purpose);
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
+    /** 校验扫码注册请求 URL 是否被安全策略允许访问。 */
     private void assertSafeUrl(String url, String purpose) {
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " 被安全策略阻断："
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
+        QrSetupUrlPolicySupport.assertSafeUrl(securityPolicyService, url, purpose);
     }
 
     /** 表示Ticket数据，在服务、仓储和接口之间传递。 */
