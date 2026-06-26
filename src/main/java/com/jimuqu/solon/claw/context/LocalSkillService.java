@@ -707,6 +707,16 @@ public class LocalSkillService implements SkillCatalogService {
         preferenceStore.setSkillEnabled(sourceKey, canonicalName, visible);
     }
 
+    /**
+     * 写入技能全局可见性，供 Dashboard 与自然语言管理入口共用。
+     *
+     * @param canonicalName 技能规范名称。
+     * @param visible 是否全局可见。
+     */
+    public void setGlobalVisible(String canonicalName, boolean visible) throws Exception {
+        preferenceStore.setSkillEnabledGlobal(canonicalName, visible);
+    }
+
     /** 创建新技能。 */
     public SkillDescriptor createSkill(String name, String category, String content) {
         validateSkillName(name);
