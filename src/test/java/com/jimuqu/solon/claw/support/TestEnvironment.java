@@ -342,6 +342,8 @@ public class TestEnvironment {
                         null,
                         null,
                         null,
+                        agentRunRepository,
+                        cronJobRepository,
                         usageEventRepository,
                         null);
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);

@@ -71,6 +71,9 @@ public interface ToolNameConstants {
     /** 用量分析管理的统一常量值。 */
     String ANALYTICS_MANAGE = "analytics_manage";
 
+    /** 日志管理的统一常量值。 */
+    String LOGS_MANAGE = "logs_manage";
+
     /** 技能列表的统一常量值。 */
     String SKILLS_LIST = "skills_list";
 
