@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawWebTools;
 import com.jimuqu.solon.claw.tool.runtime.SearchManageTools;
+import com.jimuqu.solon.claw.tool.runtime.SessionManageTools;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.TuiRuntimeManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
@@ -3634,6 +3635,41 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("session_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("SessionManageTools");
+    }
+
+    @Test
+    void shouldSaveSessionTrajectoryThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("trajectory-tool-room", "trajectory-tool-user", "hello");
+        env.send("trajectory-tool-room", "trajectory-tool-user", "/pairing claim-admin");
+        env.send("trajectory-tool-room", "trajectory-tool-user", "start");
+        com.jimuqu.solon.claw.core.model.SessionRecord session =
+                env.sessionRepository.getBoundSession(
+                        "MEMORY:trajectory-tool-room:trajectory-tool-user");
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:trajectory-tool-room:trajectory-tool-user")
+                        .stream()
+                        .filter(candidate -> candidate instanceof SessionManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("session manage tool missing"));
+
+        ONode result =
+                ONode.ofJson(
+                        ((SessionManageTools) tool)
+                                .sessionManage(
+                                        "save_trajectory",
+                                        session.getSessionId(),
+                                        null,
+                                        null,
+                                        Boolean.TRUE,
+                                        20,
+                                        0,
+                                        20));
+
+        assertToolSuccess(result);
+        assertThat(result.get("result").get("saved").getBoolean()).isTrue();
+        assertThat(result.get("result").get("path").getString())
+                .isEqualTo("workspace://artifacts/trajectory_samples.jsonl");
     }
 
     @Test
