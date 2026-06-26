@@ -75,6 +75,8 @@ async function loadRecentSessions() {
     activeIndex.value = 0
   } catch (err) {
     if (seq !== requestSeq) return
+    recentSessions.value = []
+    activeIndex.value = 0
     message.error(err instanceof Error ? err.message : t('chat.searchFailed'))
   } finally {
     if (seq === requestSeq) {
@@ -95,6 +97,8 @@ async function runSearch(text: string) {
     activeIndex.value = 0
   } catch (err) {
     if (seq !== requestSeq) return
+    searchResults.value = []
+    activeIndex.value = 0
     message.error(err instanceof Error ? err.message : t('chat.searchFailed'))
   } finally {
     if (seq === requestSeq) {
