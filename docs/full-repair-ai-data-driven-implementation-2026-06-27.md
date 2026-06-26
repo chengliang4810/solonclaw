@@ -326,6 +326,21 @@
       - 增加工具暴露和 summary 调用测试，证明默认工具列表包含 `approval_queue_manage` 且自然语言工具可返回四类审批队列。
     - 提交：`3ca8c2351`
 
+20. 增加 Dashboard 搜索查询一等工具
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/SearchManageTools.java`
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+      - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+    - 改造前：
+      - Dashboard 已有 `/api/search`，支持按 source、session、run、tool、channel、time 和 summarize 查询历史会话、运行和工具调用。
+      - Agent 自然语言路径只有 `session_search`，默认绑定当前 sourceKey，无法直接使用 Dashboard 搜索的运行维度过滤能力。
+    - 改造后：
+      - 新增 `search_manage` 工具，复用 `SessionSearchService`，支持 Dashboard 搜索同类过滤字段，并返回与 `/api/search` 对齐的 `results` 和 tokenizer 信息。
+      - 工具只开放只读查询，不新增索引写入、导出或删除能力；返回内容继续使用 `SecretRedactor` 脱敏。
+      - 增加工具暴露和实际调用测试，证明默认工具列表包含 `search_manage` 且自然语言工具可返回 Dashboard 搜索结构。
+    - 提交：`990caa9df`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -347,6 +362,7 @@
 - `mvn -Dskip.web.build=true -Dtest=RuntimeRefreshBehaviorTest,ToolRegistryExposureTest#shouldExposeConfigManagementToolForNaturalLanguageConfigInspection test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=WeixinQrSetupServiceTest,DomesticQrSetupServiceTest,ToolRegistryExposureTest#shouldExposeGatewaySetupManagementToolForNaturalLanguageQrSetup test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeApprovalEventsManagementToolForNaturalLanguageApprovalInspection+shouldExposeApprovalQueueManagementToolForNaturalLanguageApprovalInspection+shouldInspectApprovalQueuesThroughNaturalLanguageTool test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=SessionSearchServiceTest#shouldRedactSecretsFromDashboardSearchResults,ToolRegistryExposureTest#shouldExposeDashboardSearchManagementToolForNaturalLanguageSearch+shouldSearchDashboardResultsThroughNaturalLanguageTool test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -359,6 +375,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、Dashboard 搜索查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚、会话删除和会话更新暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
