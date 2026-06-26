@@ -320,6 +320,19 @@ function SessionDuration({ startedAt }: { startedAt: number }) {
   return fmtDuration(now - startedAt)
 }
 
+function IdleSince({ endedAt }: { endedAt: number }) {
+  const [now, setNow] = useState(() => Date.now())
+
+  useEffect(() => {
+    setNow(Date.now())
+    const id = setInterval(() => setNow(Date.now()), 1000)
+
+    return () => clearInterval(id)
+  }, [endedAt])
+
+  return `✓ ${fmtDuration(now - endedAt)}`
+}
+
 const effortLabel = (effort?: string) => {
   const value = String(effort ?? '')
     .trim()
@@ -376,6 +389,7 @@ export function StatusRule({
   indicatorStyle = 'kaomoji',
   usage,
   bgCount,
+  lastTurnEndedAt,
   liveSessionCount,
   sessionStartedAt,
   showCost,
@@ -434,14 +448,16 @@ export function StatusRule({
 
   const sessionCountText = liveSessionCount > 0 ? statusSessionCountLabel(liveSessionCount) : ''
   const compressions = typeof usage.compressions === 'number' ? usage.compressions : 0
+  const visibleBgCount = bgCount + Math.max(0, usage.active_subagents ?? 0)
   const costText = typeof usage.cost_usd === 'number' ? `$${usage.cost_usd.toFixed(4)}` : ''
 
   const showBar = !!bar && fits(SEP + stringWidth(`[${bar}] ${pct != null ? `${pct}%` : ''}`))
   const showDuration = segs.duration && !!sessionStartedAt && fits(SEP + MAX_DURATION_WIDTH)
+  const showIdle = segs.duration && !busy && lastTurnEndedAt != null && fits(SEP + stringWidth('✓ ') + MAX_DURATION_WIDTH)
   const showCompressions = segs.compressions && compressions > 0 && fits(SEP + stringWidth(`cmp ${compressions}`))
   const showVoice = segs.voice && !!voiceLabel && fits(SEP + stringWidth(voiceLabel))
   const showSessionCount = !!sessionCountText && fits(SEP + stringWidth(sessionCountText))
-  const showBg = segs.bg && bgCount > 0 && fits(SEP + stringWidth(`${bgCount} bg`))
+  const showBg = segs.bg && visibleBgCount > 0 && fits(SEP + stringWidth(`${visibleBgCount} bg`))
   const showCostSeg = segs.cost && showCost && !!costText && fits(SEP + stringWidth(costText))
 
   const handleSessionCountClick = (event: { stopImmediatePropagation?: () => void }) => {
@@ -493,6 +509,12 @@ export function StatusRule({
             <SessionDuration startedAt={sessionStartedAt!} />
           </Text>
         ) : null}
+        {showIdle ? (
+          <Text color={t.color.muted} wrap="truncate-end">
+            {' │ '}
+            <IdleSince endedAt={lastTurnEndedAt!} />
+          </Text>
+        ) : null}
         {showCompressions ? (
           <Text color={t.color.muted} wrap="truncate-end">
             {' │ '}
@@ -516,7 +538,7 @@ export function StatusRule({
         {showBg ? (
           <Text color={t.color.muted} wrap="truncate-end">
             {' │ '}
-            {bgCount} bg
+            {visibleBgCount} bg
           </Text>
         ) : null}
         {showCostSeg ? (
@@ -645,6 +667,7 @@ export function TranscriptScrollbar({ scrollRef, t }: TranscriptScrollbarProps) 
 
 interface StatusRuleProps {
   bgCount: number
+  lastTurnEndedAt?: null | number
   liveSessionCount: number
   busy: boolean
   cols: number

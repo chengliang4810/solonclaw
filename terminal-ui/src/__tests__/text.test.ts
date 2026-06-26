@@ -7,6 +7,7 @@ import {
   edgePreview,
   estimateRows,
   estimateTokensRough,
+  formatAbandonedClarify,
   fmtK,
   hasAnsi,
   isToolTrailResultLine,
@@ -25,6 +26,22 @@ describe('isToolTrailResultLine', () => {
     expect(isToolTrailResultLine('foo ✓')).toBe(true)
     expect(isToolTrailResultLine('foo ✗')).toBe(true)
     expect(isToolTrailResultLine('drafting x…')).toBe(false)
+  })
+})
+
+describe('formatAbandonedClarify', () => {
+  it('renders unanswered clarify prompts with numbered choices', () => {
+    const out = formatAbandonedClarify('How do you want to scope?', ['Scope A', 'Scope B'], 'timed out')
+
+    expect(out).toBe(
+      ['ask How do you want to scope?', '  1. Scope A', '  2. Scope B', '  (timed out — no selection)'].join('\n')
+    )
+  })
+
+  it('handles free-text clarify prompts without choices', () => {
+    expect(formatAbandonedClarify('  Target branch?  ', null, 'cancelled')).toBe(
+      ['ask Target branch?', '  (cancelled — no selection)'].join('\n')
+    )
   })
 })
 

@@ -14,3 +14,17 @@ export const fmtCwdBranch = (cwd: string, branch: null | string, max = 40) => {
 
   return `${shortCwd(cwd, Math.max(8, max - tag.length))}${tag}`
 }
+
+export const composeTabTitle = (
+  marker: string,
+  sessionName: string,
+  model: string,
+  cwd: string,
+  maxName = 28
+): string => {
+  const name = sessionName.trim()
+  const shortName = name.length > maxName ? `${name.slice(0, maxName - 1)}…` : name
+  const segments = [shortName, model, cwd].filter(Boolean)
+
+  return segments.length ? `${marker} ${segments.join(' · ')}` : marker
+}

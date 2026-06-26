@@ -7,7 +7,7 @@ import { MAX_HISTORY, WHEEL_SCROLL_STEP } from '../config/limits.js'
 import { hasLeadGap, prevRenderedMsg } from '../domain/blockLayout.js'
 import { SECTION_NAMES, sectionMode } from '../domain/details.js'
 import { attachedImageNotice, imageTokenMeta } from '../domain/messages.js'
-import { fmtCwdBranch, shortCwd } from '../domain/paths.js'
+import { composeTabTitle, fmtCwdBranch, shortCwd } from '../domain/paths.js'
 import { type GatewayClient } from '../gatewayClient.js'
 import type {
   ClarifyRespondResponse,
@@ -25,7 +25,7 @@ import { appendTranscriptMessage } from '../lib/messages.js'
 import { DEFAULT_VOICE_RECORD_KEY, isMac, type ParsedVoiceRecordKey } from '../lib/platform.js'
 import { asRpcResult, rpcErrorMessage } from '../lib/rpc.js'
 import { terminalParityHints } from '../lib/terminalParity.js'
-import { buildToolTrailLine, sameToolTrailGroup, toolTrailLabel } from '../lib/text.js'
+import { buildToolTrailLine, formatAbandonedClarify, sameToolTrailGroup, toolTrailLabel } from '../lib/text.js'
 import { estimatedMsgHeight, messageHeightKey } from '../lib/virtualHeights.js'
 import type { Msg, PanelSection, SlashCatalog } from '../types.js'
 
@@ -173,6 +173,7 @@ export function useMainApp(gw: GatewayClient) {
   const [voiceRecordKey, setVoiceRecordKey] = useState<ParsedVoiceRecordKey>(DEFAULT_VOICE_RECORD_KEY)
   const [sessionStartedAt, setSessionStartedAt] = useState(() => Date.now())
   const [turnStartedAt, setTurnStartedAt] = useState<null | number>(null)
+  const [lastTurnEndedAt, setLastTurnEndedAt] = useState<null | number>(null)
   const [goodVibesTick, setGoodVibesTick] = useState(0)
   const [bellOnComplete, setBellOnComplete] = useState(false)
 
@@ -500,10 +501,11 @@ export function useMainApp(gw: GatewayClient) {
   useEffect(() => {
     if (ui.busy) {
       setTurnStartedAt(prev => prev ?? Date.now())
-    } else {
+    } else if (turnStartedAt != null) {
+      setLastTurnEndedAt(Date.now())
       setTurnStartedAt(null)
     }
-  }, [ui.busy])
+  }, [ui.busy, turnStartedAt])
 
   useConfigSync({ gw, setBellOnComplete, setVoiceEnabled, setVoiceRecordKey, sid: ui.sid })
 
@@ -522,7 +524,14 @@ export function useMainApp(gw: GatewayClient) {
           const result = asRpcResult<SessionActiveListResponse>(raw)
 
           if (!stopped && result?.sessions) {
-            patchUiState({ liveSessionCount: result.sessions.length })
+            const liveSessionCount = result.sessions.length
+            const currentSid = getUiState().sid
+            const sessionTitle = result.sessions.find(s => s.current || s.id === currentSid)?.title?.trim() ?? ''
+            const prev = getUiState()
+
+            if (prev.liveSessionCount !== liveSessionCount || prev.sessionTitle !== sessionTitle) {
+              patchUiState({ liveSessionCount, sessionTitle })
+            }
           }
         })
         .catch(() => {})
@@ -544,7 +553,9 @@ export function useMainApp(gw: GatewayClient) {
 
   const tabCwd = ui.info?.cwd
 
-  useTerminalTitle(model ? `${marker} ${model}${tabCwd ? ` · ${shortCwd(tabCwd, 24)}` : ''}` : 'solonclaw')
+  useTerminalTitle(
+    model ? composeTabTitle(marker, ui.sessionTitle, model, tabCwd ? shortCwd(tabCwd, 24) : '') : 'solonclaw'
+  )
 
   useEffect(() => {
     if (!ui.sid || !stdout) {
@@ -608,13 +619,16 @@ export function useMainApp(gw: GatewayClient) {
           appendMessage({ role: 'user', text: answer })
           patchUiState({ status: 'running…' })
         } else {
-          sys('prompt cancelled')
+          appendMessage({
+            role: 'system',
+            text: formatAbandonedClarify(clarify.question, clarify.choices, 'cancelled')
+          })
         }
 
         patchOverlayState({ clarify: null })
       })
     },
-    [appendMessage, overlay.clarify, rpc, sys]
+    [appendMessage, overlay.clarify, rpc]
   )
 
   const paste = useCallback(
@@ -1065,6 +1079,7 @@ export function useMainApp(gw: GatewayClient) {
       // essentials and truncates this further on narrow terminals.
       cwdLabel: fmtCwdBranch(cwd, gitBranch, 28),
       goodVibesTick,
+      lastTurnEndedAt: ui.sid ? lastTurnEndedAt : null,
       sessionStartedAt: ui.sid ? sessionStartedAt : null,
       showStickyPrompt: !!stickyPrompt,
       statusColor: statusColorOf(ui.status, ui.theme.color),
@@ -1078,6 +1093,7 @@ export function useMainApp(gw: GatewayClient) {
       cwd,
       gitBranch,
       goodVibesTick,
+      lastTurnEndedAt,
       sessionStartedAt,
       stickyPrompt,
       turnStartedAt,

@@ -28,6 +28,9 @@ import { getUiState, patchUiState } from './uiStore.js'
 
 const usageFrom = (info: null | SessionInfo): Usage => (info?.usage ? { ...ZERO, ...info.usage } : ZERO)
 
+export const isLiveSessionRunning = (running?: boolean, status?: string) =>
+  Boolean(running || status === 'working' || status === 'waiting')
+
 const statusFromLiveSession = (status?: string, running = false) => {
   if (status === 'waiting') {
     return 'waiting for input…'
@@ -264,7 +267,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
           }
 
           const info = r.info ?? null
-          const running = Boolean(r.running || r.status === 'working' || r.status === 'waiting')
+          const running = isLiveSessionRunning(r.running, r.status)
 
           resetSession()
           setSessionStartedAt(r.started_at ? r.started_at * 1000 : Date.now())
@@ -315,18 +318,20 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
               }
 
               resetSession()
-              setSessionStartedAt(Date.now())
+              const running = isLiveSessionRunning(r.running, r.status)
+              setSessionStartedAt(r.started_at ? r.started_at * 1000 : Date.now())
 
-              const resumed = toTranscriptMessages(r.messages)
-
+              const resumed = [...toTranscriptMessages(r.messages), ...liveSessionInflightMessages(r.inflight)]
               setHistoryItems(r.info ? [introMsg(r.info), ...resumed] : resumed)
               writeActiveSessionFile(r.resumed ?? r.session_id)
               patchUiState({
+                busy: running,
                 info: r.info ?? null,
                 sid: r.session_id,
-                status: 'ready',
+                status: statusFromLiveSession(r.status, running),
                 usage: usageFrom(r.info ?? null)
               })
+              hydrateLiveSessionInflight(r.inflight)
               setTimeout(() => scrollRef.current?.scrollToBottom(), 0)
             })
             .catch((e: Error) => {

@@ -151,11 +151,15 @@ export interface SessionCreateResponse {
 }
 
 export interface SessionResumeResponse {
+  inflight?: null | SessionInflightTurn
   info?: SessionInfo
   message_count?: number
   messages: GatewayTranscriptMessage[]
   resumed?: string
+  running?: boolean
   session_id: string
+  started_at?: number
+  status?: LiveSessionStatus
 }
 
 export type LiveSessionStatus = 'idle' | 'starting' | 'waiting' | 'working'
@@ -234,6 +238,7 @@ export interface SessionUndoResponse {
 }
 
 export interface SessionUsageResponse {
+  active_subagents?: number
   cache_read?: number
   cache_write?: number
   calls?: number

@@ -1,4 +1,4 @@
-import { Box, Text, useInput } from '@solonclaw/ink'
+import { Box, Text, useInput, wrapAnsi } from '@solonclaw/ink'
 import { useState } from 'react'
 
 import { isMac } from '../lib/platform.js'
@@ -60,7 +60,7 @@ export function approvalAction(ch: string, key: ApprovalKey, sel: number): Appro
   return { kind: 'noop' }
 }
 
-export function ApprovalPrompt({ onChoice, req, t }: ApprovalPromptProps) {
+export function ApprovalPrompt({ cols = 80, onChoice, req, t }: ApprovalPromptProps) {
   const [sel, setSel] = useState(0)
 
   useInput((ch, key) => {
@@ -73,19 +73,22 @@ export function ApprovalPrompt({ onChoice, req, t }: ApprovalPromptProps) {
     }
   })
 
-  const rawLines = req.command.split('\n')
+  const innerWidth = Math.max(20, cols - 8)
+  const rawLines = req.command
+    .split('\n')
+    .flatMap(line => wrapAnsi(line, innerWidth, { hard: true, trim: false }).split('\n'))
   const shown = rawLines.slice(0, CMD_PREVIEW_LINES)
   const overflow = rawLines.length - shown.length
 
   return (
-    <Box borderColor={t.color.warn} borderStyle="double" flexDirection="column" paddingX={1}>
+    <Box borderColor={t.color.warn} borderStyle="double" flexDirection="column" paddingX={1} width="100%">
       <Text bold color={t.color.warn}>
         ⚠ approval required · {req.description}
       </Text>
 
       <Box flexDirection="column" paddingLeft={1}>
         {shown.map((line, i) => (
-          <Text color={t.color.text} key={i} wrap="truncate-end">
+          <Text color={t.color.text} key={i} wrap="wrap">
             {line || ' '}
           </Text>
         ))}
@@ -255,6 +258,7 @@ export function ConfirmPrompt({ onCancel, onConfirm, req, t }: ConfirmPromptProp
 }
 
 interface ApprovalPromptProps {
+  cols?: number
   onChoice: (s: string) => void
   req: ApprovalReq
   t: Theme

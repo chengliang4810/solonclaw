@@ -17,7 +17,7 @@ import {
   normalizeSubagentStatus
 } from '../lib/subagentStatus.js'
 import { topLevelSubagents } from '../lib/subagentTree.js'
-import { formatToolCall, stripAnsi } from '../lib/text.js'
+import { formatAbandonedClarify, formatToolCall, stripAnsi } from '../lib/text.js'
 import { fromSkin } from '../theme.js'
 import type { Msg } from '../types.js'
 
@@ -71,7 +71,23 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
   let pendingThinkingStatus = ''
   let thinkingStatusTimer: null | ReturnType<typeof setTimeout> = null
+  const persistedAbandonedClarify = new Set<string>()
   let startupPromptSubmitted = false
+
+  const flushAbandonedClarify = () => {
+    const { clarify } = getOverlayState()
+
+    if (!clarify || persistedAbandonedClarify.has(clarify.requestId)) {
+      return
+    }
+
+    persistedAbandonedClarify.add(clarify.requestId)
+    appendMessage({
+      role: 'system',
+      text: formatAbandonedClarify(clarify.question, clarify.choices, 'timed out')
+    })
+    patchOverlayState({ clarify: null })
+  }
 
   // Inject the disk-save callback into turnController so recordMessageComplete
   // can fire-and-forget a persist without having to plumb a gateway ref around.
@@ -614,6 +630,10 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
         return
       case 'tool.complete': {
+        if (ev.payload.name === 'clarify') {
+          flushAbandonedClarify()
+        }
+
         const inlineDiffText =
           ev.payload.inline_diff && getUiState().inlineDiffs ? stripAnsi(String(ev.payload.inline_diff)).trim() : ''
 

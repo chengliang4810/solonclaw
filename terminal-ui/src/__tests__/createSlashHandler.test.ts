@@ -709,6 +709,36 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.send).toHaveBeenCalledWith(skillMessage)
   })
 
+  it('handles command dispatch payloads returned directly by slash.exec', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const request = vi.fn((method: string) => {
+      if (method === 'slash.exec') {
+        return Promise.resolve({
+          message: 'complete all steps and report back',
+          notice: 'goal set',
+          type: 'send'
+        })
+      }
+
+      return Promise.resolve({})
+    })
+    const ctx = buildCtx({
+      gateway: {
+        gw: { ...buildGateway().gw, request },
+        rpc: vi.fn(() => Promise.resolve({}))
+      }
+    })
+
+    expect(createSlashHandler(ctx)('/goal complete all steps and report back')).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('goal set')
+    })
+    expect(ctx.transcript.send).toHaveBeenCalledWith('complete all steps and report back')
+    expect(ctx.transcript.sys).not.toHaveBeenCalledWith('/goal: no output')
+    expect(request).not.toHaveBeenCalledWith('command.dispatch', expect.anything())
+  })
+
   it('/history pages the current TUI transcript (user + assistant)', () => {
     const ctx = buildCtx({
       local: {
