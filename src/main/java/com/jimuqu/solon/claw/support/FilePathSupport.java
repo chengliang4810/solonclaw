@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw.support;
 
+import cn.hutool.core.util.StrUtil;
 import java.io.File;
 import java.util.Locale;
 
@@ -23,5 +24,28 @@ public final class FilePathSupport {
             filePath = filePath.toLowerCase(Locale.ROOT);
         }
         return filePath.equals(rootPath) || filePath.startsWith(rootPath + File.separator);
+    }
+
+    /**
+     * 展开以用户主目录开头的路径；无法取得主目录时保持原值。
+     *
+     * @param path 待展开的路径文本。
+     * @return 展开后的路径文本。
+     */
+    public static String expandUserHome(String path) {
+        if (StrUtil.isBlank(path)) {
+            return path;
+        }
+        String home = StrUtil.nullToEmpty(System.getProperty("user.home")).trim();
+        if (StrUtil.isBlank(home)) {
+            return path;
+        }
+        if ("~".equals(path)) {
+            return home;
+        }
+        if (path.startsWith("~/") || path.startsWith("~\\")) {
+            return home + path.substring(1);
+        }
+        return path;
     }
 }

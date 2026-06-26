@@ -3072,7 +3072,9 @@ public class SecurityPolicyService {
      * @return 返回Configured凭据路径。
      */
     private String normalizeConfiguredCredentialPath(String rawPath) {
-        String value = normalizePathText(expandUserHome(StrUtil.nullToEmpty(rawPath).trim()));
+        String value =
+                normalizePathText(
+                        FilePathSupport.expandUserHome(StrUtil.nullToEmpty(rawPath).trim()));
         if (StrUtil.isBlank(value)) {
             return "";
         }
@@ -3278,7 +3280,7 @@ public class SecurityPolicyService {
      * @return 返回解析后的Comparable路径。
      */
     private File resolveComparablePath(String rawPath) {
-        String value = expandUserHome(StrUtil.nullToEmpty(rawPath).trim());
+        String value = FilePathSupport.expandUserHome(StrUtil.nullToEmpty(rawPath).trim());
         if (StrUtil.isBlank(value)) {
             return null;
         }
@@ -3294,29 +3296,6 @@ public class SecurityPolicyService {
                 return null;
             }
         }
-    }
-
-    /**
-     * 执行expand用户主渠道相关逻辑。
-     *
-     * @param path 文件或目录路径。
-     * @return 返回expand用户主渠道结果。
-     */
-    private String expandUserHome(String path) {
-        if (StrUtil.isBlank(path)) {
-            return path;
-        }
-        String home = StrUtil.nullToEmpty(System.getProperty("user.home")).trim();
-        if (StrUtil.isBlank(home)) {
-            return path;
-        }
-        if ("~".equals(path)) {
-            return home;
-        }
-        if (path.startsWith("~/") || path.startsWith("~\\")) {
-            return home + path.substring(1);
-        }
-        return path;
     }
 
     /**
@@ -3529,7 +3508,7 @@ public class SecurityPolicyService {
      * @return 返回解析后的Shared文件。
      */
     private File resolveSharedFile(String rawPath) {
-        String path = expandUserHome(StrUtil.nullToEmpty(rawPath).trim());
+        String path = FilePathSupport.expandUserHome(StrUtil.nullToEmpty(rawPath).trim());
         if (path.length() == 0) {
             return null;
         }
