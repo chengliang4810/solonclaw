@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -211,14 +212,9 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
-        if (webSocket != null) {
-            webSocket.close(1000, "normal");
-            webSocket = null;
-        }
-        if (callbackExecutor != null) {
-            callbackExecutor.shutdownNow();
-            callbackExecutor = null;
-        }
+        ChannelConnectionSupport.disconnect(webSocket, callbackExecutor);
+        webSocket = null;
+        callbackExecutor = null;
         setConnected(false);
         setDetail("disconnected");
     }
