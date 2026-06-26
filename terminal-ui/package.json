@@ -1,6 +1,6 @@
 {
   "name": "solonclaw",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "Terminal UI for solonclaw agent service",
   "type": "module",
   "bin": {
