@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NSelect, NSpin } from 'naive-ui'
+import { NButton, NSelect, NSpin, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
 import { fetchRunDetail, fetchSessionRuns, type AgentRun, type AgentRunEvent, type ToolCall } from '@/api/solonclaw/runs'
@@ -17,6 +17,7 @@ const selectedRunId = ref('')
 const loading = ref(false)
 const rollingBack = ref('')
 const { t } = useI18n()
+const message = useMessage()
 
 const sessionOptions = computed(() => sessions.value.map(session => ({
   label: session.title || session.preview || session.id,
@@ -26,9 +27,13 @@ const sessionOptions = computed(() => sessions.value.map(session => ({
 const selectedRun = computed(() => runs.value.find(run => run.run_id === selectedRunId.value))
 
 async function loadSessions() {
-  sessions.value = await fetchSessions(undefined, 200)
-  if (!selectedSessionId.value && sessions.value.length) {
-    selectedSessionId.value = sessions.value[0].id
+  try {
+    sessions.value = await fetchSessions(undefined, 200)
+    if (!selectedSessionId.value && sessions.value.length) {
+      selectedSessionId.value = sessions.value[0].id
+    }
+  } catch (err: any) {
+    message.error(err?.message || t('common.fetchFailed'))
   }
 }
 
@@ -53,6 +58,14 @@ async function loadSessionDetail() {
       events.value = []
       tools.value = []
     }
+  } catch (err: any) {
+    runs.value = []
+    tree.value = null
+    checkpoints.value = []
+    selectedRunId.value = ''
+    events.value = []
+    tools.value = []
+    message.error(err?.message || t('common.fetchFailed'))
   } finally {
     loading.value = false
   }
@@ -65,9 +78,15 @@ async function loadRunDetail(runId: string) {
     tools.value = []
     return
   }
-  const detail = await fetchRunDetail(runId)
-  events.value = detail.events || []
-  tools.value = detail.tools || []
+  try {
+    const detail = await fetchRunDetail(runId)
+    events.value = detail.events || []
+    tools.value = detail.tools || []
+  } catch (err: any) {
+    events.value = []
+    tools.value = []
+    message.error(err?.message || t('common.fetchFailed'))
+  }
 }
 
 async function handleRollback(id: string) {
@@ -75,6 +94,8 @@ async function handleRollback(id: string) {
   try {
     await rollbackCheckpoint(id)
     await loadSessionDetail()
+  } catch (err: any) {
+    message.error(err?.message || t('common.fetchFailed'))
   } finally {
     rollingBack.value = ''
   }
