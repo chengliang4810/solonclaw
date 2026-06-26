@@ -73,6 +73,14 @@
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 - `git diff --check`：通过。
 
+## 已扫描但暂不合并
+
+- `web/src/components/solonclaw/usage/*` 的 `formatCost()`：不同组件对零成本、未知成本和货币展示的语义不完全一致。
+- `web/src/components/solonclaw/files/FileList.vue` 的 `formatSize()`：0 字节展示为 `—`，不同于聊天附件大小展示。
+- `web/src/components/solonclaw/chat/SessionSearchModal.vue` 的 `formatTime()`：输入为秒级时间戳，并使用短日期时间展示。
+- `web/src/views/solonclaw/AgentsView.vue` 的 `formatTime()`：强制使用 `zh-CN` locale。
+- `web/src/views/solonclaw/LogsView.vue` 的 `formatTime()`：输入为日志字符串，只提取时分秒。
+
 ## 剩余风险
 
 - 本文档只覆盖阶段 3.3 已完成的复用改造项，不代表阶段 3.3 全部完成。
