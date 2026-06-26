@@ -30,6 +30,7 @@ public class RunTools {
      * @param runId 运行标识。
      * @param command 控制命令。
      * @param subagentId 子 Agent 标识。
+     * @param sessionId 会话标识。
      * @param payloadJson 控制载荷 JSON。
      * @param limit 返回数量上限。
      * @return 返回工具结果 JSON。
@@ -37,12 +38,12 @@ public class RunTools {
     @ToolMapping(
             name = "run_manage",
             description =
-                    "Inspect and control Agent runs. Actions: detail, events, tools, subagents, recoveries, commands, recoverable, control, active_subagents, control_subagent.")
+                    "Inspect and control Agent runs. Actions: run, detail, session_runs, events, tools, subagents, recoveries, commands, recoverable, control, active_subagents, control_subagent.")
     public String runManage(
             @Param(
                             name = "action",
                             description =
-                                    "detail, events, tools, subagents, recoveries, commands, recoverable, control, active_subagents, control_subagent")
+                                    "run, detail, session_runs, events, tools, subagents, recoveries, commands, recoverable, control, active_subagents, control_subagent")
                     String action,
             @Param(name = "run_id", required = false, description = "Run id for run actions")
                     String runId,
@@ -53,6 +54,8 @@ public class RunTools {
                             required = false,
                             description = "Subagent id for control_subagent")
                     String subagentId,
+            @Param(name = "session_id", required = false, description = "Session id for session_runs")
+                    String sessionId,
             @Param(
                             name = "payload_json",
                             required = false,
@@ -69,7 +72,7 @@ public class RunTools {
                 return ToolResultEnvelope.error("run service unavailable").toJson();
             }
             Map<String, Object> result =
-                    run(action, runId, command, subagentId, payloadJson, limit);
+                    run(action, runId, command, subagentId, sessionId, payloadJson, limit);
             return ToolResultEnvelope.ok("运行管理完成")
                     .preview(SecretRedactor.redact(ONode.serialize(result), 3000))
                     .data("result", result)
@@ -81,12 +84,34 @@ public class RunTools {
     }
 
     /**
+     * 查询或控制 Agent 运行，保留给已有测试或内部调用的旧参数顺序。
+     *
+     * @param action 操作名称。
+     * @param runId 运行标识。
+     * @param command 控制命令。
+     * @param subagentId 子 Agent 标识。
+     * @param payloadJson 控制载荷 JSON。
+     * @param limit 返回数量上限。
+     * @return 返回工具结果 JSON。
+     */
+    public String runManage(
+            String action,
+            String runId,
+            String command,
+            String subagentId,
+            String payloadJson,
+            Integer limit) {
+        return runManage(action, runId, command, subagentId, null, payloadJson, limit);
+    }
+
+    /**
      * 执行运行管理动作。
      *
      * @param action 操作名称。
      * @param runId 运行标识。
      * @param command 控制命令。
      * @param subagentId 子 Agent 标识。
+     * @param sessionId 会话标识。
      * @param payloadJson 控制载荷 JSON。
      * @param limit 返回数量上限。
      * @return 返回服务结果。
@@ -96,11 +121,20 @@ public class RunTools {
             String runId,
             String command,
             String subagentId,
+            String sessionId,
             String payloadJson,
             Integer limit)
             throws Exception {
         String normalized =
                 action == null ? "recoverable" : action.trim().toLowerCase(java.util.Locale.ROOT);
+        if ("run".equals(normalized)) {
+            return dashboardRunService.run(runId);
+        }
+        if ("session_runs".equals(normalized) || "session-runs".equals(normalized)) {
+            return dashboardRunService.sessionRuns(
+                    sessionId(sessionId, payloadJson),
+                    limit == null ? 20 : limit.intValue());
+        }
         if ("recoverable".equals(normalized)) {
             return dashboardRunService.recoverable(limit == null ? 20 : limit.intValue());
         }
@@ -129,6 +163,21 @@ public class RunTools {
             return dashboardRunService.commands(runId);
         }
         return dashboardRunService.detail(runId);
+    }
+
+    /**
+     * 解析会话运行查询的会话标识，优先使用显式工具参数。
+     *
+     * @param sessionId 显式会话标识。
+     * @param payloadJson 兼容旧调用的载荷 JSON。
+     * @return 返回会话标识。
+     */
+    private String sessionId(String sessionId, String payloadJson) {
+        if (sessionId != null && sessionId.trim().length() > 0) {
+            return sessionId;
+        }
+        Object raw = payload(payloadJson).get("session_id");
+        return raw == null ? null : String.valueOf(raw);
     }
 
     /**

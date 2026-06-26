@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.tool.runtime.ApprovalQueueManageTools;
 import com.jimuqu.solon.claw.tool.runtime.DiagnosticsManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
+import com.jimuqu.solon.claw.tool.runtime.RunTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityAuditTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
@@ -68,7 +69,7 @@ public class ToolRegistryExposureTest {
      * 断言工具结果为当前成功状态，避免测试重新依赖已删除的 success 布尔字段。
      */
     private static void assertToolSuccess(ONode result) {
-        assertThat(result.get("status").getString()).isNotEqualTo("error");
+        assertThat(result.get("status").getString()).as(result.toJson()).isNotEqualTo("error");
     }
 
     /**
@@ -3582,6 +3583,48 @@ public class ToolRegistryExposureTest {
 
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("run_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString()).contains("RunTools");
+    }
+
+    @Test
+    void shouldInspectSessionRunsThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        com.jimuqu.solon.claw.core.model.AgentRunRecord run =
+                new com.jimuqu.solon.claw.core.model.AgentRunRecord();
+        run.setRunId("run-session-tool");
+        run.setSessionId("session-run-tool");
+        run.setSourceKey("MEMORY:run-tool-room:run-tool-user");
+        run.setRunKind("chat");
+        run.setStatus("completed");
+        run.setInputPreview("run input");
+        run.setStartedAt(System.currentTimeMillis());
+        env.agentRunRepository.saveRun(run);
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:run-tool-room:run-tool-user").stream()
+                        .filter(candidate -> candidate instanceof RunTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("run manage tool missing"));
+
+        ONode sessionRuns =
+                ONode.ofJson(
+                        ((RunTools) tool)
+                                .runManage(
+                                        "session_runs",
+                                        null,
+                                        null,
+                                        null,
+                                        "session-run-tool",
+                                        null,
+                                        20));
+        ONode summary =
+                ONode.ofJson(
+                        ((RunTools) tool)
+                                .runManage("run", "run-session-tool", null, null, null, 20));
+
+        assertToolSuccess(sessionRuns);
+        assertThat(sessionRuns.get("result").get("runs").get(0).get("run_id").getString())
+                .isEqualTo("run-session-tool");
+        assertToolSuccess(summary);
+        assertThat(summary.get("result").get("run_id").getString()).isEqualTo("run-session-tool");
     }
 
     @Test

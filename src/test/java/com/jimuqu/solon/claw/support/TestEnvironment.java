@@ -96,6 +96,7 @@ import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
@@ -365,6 +366,7 @@ public class TestEnvironment {
                         java.util.Collections
                                 .<com.jimuqu.solon.claw.plugin.provider.BrowserProvider>emptyList(),
                         securityPolicyService);
+        DashboardRunService dashboardRunService = new DashboardRunService(agentRunRepository);
         ToolRegistry toolRegistry =
                 new DefaultToolRegistry(
                         config,
@@ -403,7 +405,7 @@ public class TestEnvironment {
                         browserRuntimeService,
                         null,
                         null,
-                        null,
+                        dashboardRunService,
                         database,
                         agentRunRepository,
                         cronJobRepository,
