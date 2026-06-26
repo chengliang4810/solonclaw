@@ -36,10 +36,27 @@
      - 增加测试确认真实证据进入 prompt，且密钥样式内容不会泄露。
    - 提交：`aab7d5437`
 
+3. 增加 Agent 运行管理一等工具
+   - 位置：
+     - `src/main/java/com/jimuqu/solon/claw/tool/runtime/RunTools.java`
+     - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+     - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+     - `src/main/java/com/jimuqu/solon/claw/bootstrap/ToolConfiguration.java`
+     - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+   - 改造前：
+     - Dashboard 已有 run detail、events、tools、recoveries、commands、control 和 subagent control API。
+     - Agent 自然语言路径没有一等 `run_manage` 工具，处理运行控制时只能间接依赖 UI、Shell 或浏览器。
+   - 改造后：
+     - 新增 `run_manage` 工具，复用 `DashboardRunService`，支持 `detail`、`events`、`tools`、`subagents`、`recoveries`、`commands`、`recoverable`、`control`、`active_subagents`、`control_subagent`。
+     - 生产运行时通过 `ToolConfiguration` 注入已有 `DashboardRunService`，避免复制 Dashboard 业务逻辑。
+     - 增加工具暴露测试，证明默认工具列表包含 `run_manage` 且能解析到 `RunTools`。
+   - 提交：`5858ed171`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ProactiveDecisionServiceTest test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=DashboardRunServiceTest,ToolRegistryExposureTest#shouldExposeRunManagementToolForNaturalLanguageRunControl test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -52,5 +69,5 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”尚未完成，需要单独盘点工具覆盖、Dashboard 操作入口和自然语言操作路径。
+- 阶段 4.4 “AiAgent 全局操作能力”已补一个运行管理入口，但仍需要继续盘点 provider、MCP、curator、platform toolsets 等 Dashboard 专属能力是否需要一等工具。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
