@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
@@ -92,5 +93,27 @@ final class ToolWorkspacePathSupport {
         } catch (Exception e) {
             return path.toAbsolutePath().normalize();
         }
+    }
+
+    /**
+     * 生成只暴露文件名的安全路径展示文本。
+     *
+     * @param path 原始路径文本。
+     * @return 已清洗和脱敏的文件名。
+     */
+    static String safePath(String path) {
+        String value =
+                SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path))
+                        .replace('\\', '/')
+                        .trim();
+        if (value.length() == 0) {
+            return "[unknown]";
+        }
+        int slash = value.lastIndexOf('/');
+        String name = slash >= 0 ? value.substring(slash + 1) : value;
+        if (StrUtil.isBlank(name)) {
+            name = "[path]";
+        }
+        return SecretRedactor.redact(name, 400);
     }
 }
