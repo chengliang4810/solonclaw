@@ -128,6 +128,27 @@ export interface ApprovalHistoryResult {
   message?: string
 }
 
+export interface ApprovalRuntimeEvent {
+  timestamp?: number
+  toolName?: string
+  decision?: string
+  sourceKey?: string
+  summary?: string
+  details?: Record<string, unknown>
+}
+
+export interface ApprovalRuntimeEventsResult {
+  count: number
+  events: ApprovalRuntimeEvent[]
+}
+
+export interface ApprovalRuntimeStats {
+  totalEvents?: number
+  approved?: number
+  blocked?: number
+  pending?: number
+}
+
 export interface AlwaysApproval {
   approval_id?: string
   tool_name?: string
@@ -207,6 +228,14 @@ export async function fetchPendingApprovals(limit = 100): Promise<PendingApprova
 
 export async function fetchApprovalHistory(limit = 100): Promise<ApprovalHistoryResult> {
   return request<ApprovalHistoryResult>(`/api/diagnostics/approvals/history?limit=${limit}`)
+}
+
+export async function fetchApprovalRuntimeEvents(limit = 50): Promise<ApprovalRuntimeEventsResult> {
+  return request<ApprovalRuntimeEventsResult>(`/api/approval/events?limit=${limit}`)
+}
+
+export async function fetchApprovalRuntimeStats(): Promise<ApprovalRuntimeStats> {
+  return request<ApprovalRuntimeStats>('/api/approval/stats')
 }
 
 export async function fetchAlwaysApprovals(limit = 100): Promise<AlwaysApprovalsResult> {
