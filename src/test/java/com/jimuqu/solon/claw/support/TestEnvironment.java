@@ -88,6 +88,7 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
+import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
@@ -319,6 +320,9 @@ public class TestEnvironment {
                         appUpdateService,
                         llmProviderService,
                         null);
+        DashboardGatewayDoctorService dashboardGatewayDoctorService =
+                new DashboardGatewayDoctorService(
+                        config, deliveryService, llmProviderService, refreshService, null);
         BrowserRuntimeService browserRuntimeService =
                 new BrowserRuntimeService(
                         config,
@@ -351,6 +355,7 @@ public class TestEnvironment {
                         dashboardPlatformToolsetsService,
                         dashboardProviderService,
                         dashboardStatusService,
+                        dashboardGatewayDoctorService,
                         browserRuntimeService,
                         null,
                         null,

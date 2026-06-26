@@ -110,6 +110,7 @@ public class ToolRegistryExposureTest {
                         "logs_manage",
                         "media_manage",
                         "status_manage",
+                        "doctor_manage",
                         "skills_list",
                         "skill_view",
                         "skill_manage",
@@ -3657,6 +3658,16 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("status_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("StatusManageTools");
+    }
+
+    @Test
+    void shouldExposeDoctorManagementToolForNaturalLanguageGatewayDiagnostics() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("doctor_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("DoctorManageTools");
     }
 
     @Test
