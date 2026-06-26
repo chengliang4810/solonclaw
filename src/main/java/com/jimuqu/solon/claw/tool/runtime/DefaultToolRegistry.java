@@ -28,6 +28,7 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -99,6 +100,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.MCP,
                     ToolNameConstants.MCP_MANAGE,
                     ToolNameConstants.CURATOR_MANAGE,
+                    ToolNameConstants.PLATFORM_TOOLSETS_MANAGE,
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
@@ -168,6 +170,9 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** Dashboard 技能维护服务，用于给 Agent 暴露维护建议管理工具。 */
     private final DashboardCuratorService dashboardCuratorService;
+
+    /** Dashboard 平台工具集服务，用于给 Agent 暴露渠道工具集管理工具。 */
+    private final DashboardPlatformToolsetsService dashboardPlatformToolsetsService;
 
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
@@ -244,6 +249,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (McpRuntimeService) null,
                 (DashboardMcpService) null,
                 (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -274,6 +280,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param mcpRuntimeService MCP运行时服务依赖。
      * @param dashboardMcpService Dashboard MCP服务依赖。
      * @param dashboardCuratorService Dashboard 技能维护服务依赖。
+     * @param dashboardPlatformToolsetsService Dashboard 平台工具集服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      */
     public DefaultToolRegistry(
@@ -297,6 +304,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             McpRuntimeService mcpRuntimeService,
             DashboardMcpService dashboardMcpService,
             DashboardCuratorService dashboardCuratorService,
+            DashboardPlatformToolsetsService dashboardPlatformToolsetsService,
             BrowserRuntimeService browserRuntimeService) {
         this(
                 appConfig,
@@ -320,6 +328,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 mcpRuntimeService,
                 dashboardMcpService,
                 dashboardCuratorService,
+                dashboardPlatformToolsetsService,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -386,6 +395,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (McpRuntimeService) null,
                 (DashboardMcpService) null,
                 (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -454,6 +464,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 mcpRuntimeService,
                 (DashboardMcpService) null,
                 (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -524,6 +535,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 mcpRuntimeService,
                 (DashboardMcpService) null,
                 (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -598,6 +610,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 mcpRuntimeService,
                 (DashboardMcpService) null,
                 (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
                 (BrowserRuntimeService) null,
                 imageGenerationService,
                 speechService,
@@ -670,6 +683,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 mcpRuntimeService,
                 (DashboardMcpService) null,
                 (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -742,6 +756,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 mcpRuntimeService,
                 (DashboardMcpService) null,
                 (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -818,6 +833,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 mcpRuntimeService,
                 (DashboardMcpService) null,
                 (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -897,6 +913,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 mcpRuntimeService,
                 (DashboardMcpService) null,
                 (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -927,6 +944,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param processRegistry 进程注册表依赖组件。
      * @param mcpRuntimeService MCP运行时服务依赖。
      * @param dashboardCuratorService Dashboard 技能维护服务依赖。
+     * @param dashboardPlatformToolsetsService Dashboard 平台工具集服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
@@ -955,6 +973,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             McpRuntimeService mcpRuntimeService,
             DashboardMcpService dashboardMcpService,
             DashboardCuratorService dashboardCuratorService,
+            DashboardPlatformToolsetsService dashboardPlatformToolsetsService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -980,6 +999,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.mcpRuntimeService = mcpRuntimeService;
         this.dashboardMcpService = dashboardMcpService;
         this.dashboardCuratorService = dashboardCuratorService;
+        this.dashboardPlatformToolsetsService = dashboardPlatformToolsetsService;
         this.processRegistry = processRegistry;
         this.browserRuntimeService =
                 browserRuntimeService == null
@@ -1060,6 +1080,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         RunTools runTools = new RunTools(dashboardRunService);
         McpManageTools mcpManageTools = new McpManageTools(dashboardMcpService);
         CuratorManageTools curatorManageTools = new CuratorManageTools(dashboardCuratorService);
+        PlatformToolsetsManageTools platformToolsetsManageTools =
+                new PlatformToolsetsManageTools(dashboardPlatformToolsetsService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
@@ -1162,6 +1184,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(mcpManageTools);
             } else if (ToolNameConstants.CURATOR_MANAGE.equals(toolName)) {
                 tools.add(curatorManageTools);
+            } else if (ToolNameConstants.PLATFORM_TOOLSETS_MANAGE.equals(toolName)) {
+                tools.add(platformToolsetsManageTools);
             } else if (ToolNameConstants.MEMORY.equals(toolName)) {
                 tools.add(memoryTools);
             } else if (ToolNameConstants.SESSION_SEARCH.equals(toolName)) {

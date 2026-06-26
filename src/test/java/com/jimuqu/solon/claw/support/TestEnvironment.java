@@ -88,6 +88,7 @@ import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
@@ -299,6 +300,8 @@ public class TestEnvironment {
         DashboardCuratorService dashboardCuratorService =
                 new DashboardCuratorService(
                         new SkillCuratorService(config, localSkillService), database);
+        DashboardPlatformToolsetsService dashboardPlatformToolsetsService =
+                new DashboardPlatformToolsetsService(config, dashboardConfigService);
         DashboardSkillsService dashboardSkillsService =
                 new DashboardSkillsService(localSkillService, preferenceStore);
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(config);
@@ -330,6 +333,7 @@ public class TestEnvironment {
                         null,
                         dashboardMcpService,
                         dashboardCuratorService,
+                        dashboardPlatformToolsetsService,
                         browserRuntimeService);
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);
         AgentRunSupervisor agentRunSupervisor =

@@ -131,6 +131,9 @@ public interface ToolNameConstants {
     /** 技能维护管理的统一常量值。 */
     String CURATOR_MANAGE = "curator_manage";
 
+    /** 平台工具集管理的统一常量值。 */
+    String PLATFORM_TOOLSETS_MANAGE = "platform_toolsets_manage";
+
     /** CODESEARCH的统一常量值。 */
     String CODESEARCH = "codesearch";
 

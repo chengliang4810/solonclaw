@@ -103,6 +103,7 @@ public class ToolRegistryExposureTest {
                         "agent_manage",
                         "mcp_manage",
                         "curator_manage",
+                        "platform_toolsets_manage",
                         "skills_list",
                         "skill_view",
                         "skill_manage",
@@ -3575,6 +3576,18 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("curator_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("CuratorManageTools");
+    }
+
+    @Test
+    void shouldExposePlatformToolsetsManagementToolForNaturalLanguageChannelPolicy()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey))
+                .contains("platform_toolsets_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("PlatformToolsetsManageTools");
     }
 
     @Test

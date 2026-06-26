@@ -66,6 +66,7 @@ import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
+import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -287,6 +288,7 @@ public class ToolConfiguration {
      * @param mcpRuntimeService MCP运行时服务依赖。
      * @param dashboardMcpService Dashboard MCP服务依赖。
      * @param dashboardCuratorService Dashboard技能维护服务依赖。
+     * @param dashboardPlatformToolsetsService Dashboard平台工具集服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
@@ -317,6 +319,7 @@ public class ToolConfiguration {
             McpRuntimeService mcpRuntimeService,
             DashboardMcpService dashboardMcpService,
             DashboardCuratorService dashboardCuratorService,
+            DashboardPlatformToolsetsService dashboardPlatformToolsetsService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -344,6 +347,7 @@ public class ToolConfiguration {
                 mcpRuntimeService,
                 dashboardMcpService,
                 dashboardCuratorService,
+                dashboardPlatformToolsetsService,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
