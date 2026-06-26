@@ -1,7 +1,7 @@
 package com.jimuqu.solon.claw.scheduler;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -25,12 +25,7 @@ public final class CronJobSupport {
      * @return 返回safe Error结果。
      */
     public static String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
-        return SecretRedactor.redact(value, 1000);
+        return ErrorTextSupport.safeError(error);
     }
 
     /**

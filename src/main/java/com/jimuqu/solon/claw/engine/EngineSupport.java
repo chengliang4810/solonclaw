@@ -1,7 +1,6 @@
 package com.jimuqu.solon.claw.engine;
 
-import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 
 /** engine 包内共享的通用辅助方法。 */
 public final class EngineSupport {
@@ -15,10 +14,6 @@ public final class EngineSupport {
      * @return 返回safe Error结果。
      */
     public static String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        return SecretRedactor.redact(
-                StrUtil.blankToDefault(error.getMessage(), error.getClass().getSimpleName()), 1000);
+        return ErrorTextSupport.safeError(error);
     }
 }
