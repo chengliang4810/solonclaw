@@ -148,4 +148,30 @@ public interface ToolNameConstants {
 
     /** CLARIFY的统一常量值。 */
     String CLARIFY = "clarify";
+
+    /**
+     * 判断是否为文件类工具。
+     *
+     * @param toolName 工具名称。
+     * @return 文件类工具返回 true。
+     */
+    static boolean isFileTool(String toolName) {
+        return FILE_READ.equals(toolName)
+                || FILE_WRITE.equals(toolName)
+                || READ_FILE.equals(toolName)
+                || WRITE_FILE.equals(toolName)
+                || SEARCH_FILES.equals(toolName)
+                || FILE_LIST.equals(toolName)
+                || FILE_DELETE.equals(toolName);
+    }
+
+    /**
+     * 判断是否为需要文件安全策略检查的工具。
+     *
+     * @param toolName 工具名称。
+     * @return 文件安全工具返回 true。
+     */
+    static boolean isFileSecurityTool(String toolName) {
+        return isFileTool(toolName) || PATCH.equals(toolName);
+    }
 }

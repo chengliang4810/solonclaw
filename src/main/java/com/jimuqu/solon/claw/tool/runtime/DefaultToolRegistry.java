@@ -912,7 +912,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 continue;
             }
 
-            if (isFileTool(toolName)) {
+            if (ToolNameConstants.isFileTool(toolName)) {
                 if (!fileSkillAdded) {
                     tools.add(fileSkill);
                     fileSkillAdded = true;
@@ -1078,22 +1078,6 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     /**
-     * 判断是否文件工具。
-     *
-     * @param toolName 工具名称。
-     * @return 如果文件工具满足条件则返回 true，否则返回 false。
-     */
-    private boolean isFileTool(String toolName) {
-        return ToolNameConstants.FILE_READ.equals(toolName)
-                || ToolNameConstants.FILE_WRITE.equals(toolName)
-                || ToolNameConstants.READ_FILE.equals(toolName)
-                || ToolNameConstants.WRITE_FILE.equals(toolName)
-                || ToolNameConstants.SEARCH_FILES.equals(toolName)
-                || ToolNameConstants.FILE_LIST.equals(toolName)
-                || ToolNameConstants.FILE_DELETE.equals(toolName);
-    }
-
-    /**
      * 解析来源键在当前 Agent 范围下启用的工具名称。
      *
      * @param sourceKey 渠道来源键。
@@ -1165,7 +1149,7 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 读取工具启用状态。 */
     private boolean isEnabled(String sourceKey, String toolName) {
         try {
-            if (isFileTool(toolName) && areCoreFileToolsDisabled(sourceKey)) {
+            if (ToolNameConstants.isFileTool(toolName) && areCoreFileToolsDisabled(sourceKey)) {
                 return false;
             }
             if (ToolNameConstants.TOOL_GATEWAY.equals(toolName)) {

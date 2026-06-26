@@ -1500,7 +1500,7 @@ public class DangerousCommandApprovalService {
             result = evaluateTerminalTool(trace, toolArgs);
         } else if (ToolNameConstants.PROCESS.equals(normalized)) {
             result = evaluateProcessTool(trace, toolArgs);
-        } else if (isFileSecurityTool(normalized)) {
+        } else if (ToolNameConstants.isFileSecurityTool(normalized)) {
             result = evaluateFileTool(trace, normalized, toolArgs);
         } else if (isUrlSecurityTool(normalized)) {
             result = evaluateUrlTool(trace, normalized, toolArgs);
@@ -1646,7 +1646,7 @@ public class DangerousCommandApprovalService {
                 || ToolNameConstants.EXECUTE_CODE.equals(toolName)
                 || ToolNameConstants.TERMINAL.equals(toolName)
                 || ToolNameConstants.PROCESS.equals(toolName)
-                || isFileSecurityTool(toolName)
+                || ToolNameConstants.isFileSecurityTool(toolName)
                 || isUrlSecurityTool(toolName);
     }
 
@@ -1673,23 +1673,6 @@ public class DangerousCommandApprovalService {
         trace.setFinalAnswer(message.toString());
         trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
         persistTraceSnapshot(trace);
-    }
-
-    /**
-     * 判断是否文件安全工具。
-     *
-     * @param toolName 工具名称。
-     * @return 如果文件安全工具满足条件则返回 true，否则返回 false。
-     */
-    private boolean isFileSecurityTool(String toolName) {
-        return ToolNameConstants.FILE_READ.equals(toolName)
-                || ToolNameConstants.FILE_WRITE.equals(toolName)
-                || ToolNameConstants.READ_FILE.equals(toolName)
-                || ToolNameConstants.WRITE_FILE.equals(toolName)
-                || ToolNameConstants.SEARCH_FILES.equals(toolName)
-                || ToolNameConstants.FILE_LIST.equals(toolName)
-                || ToolNameConstants.FILE_DELETE.equals(toolName)
-                || ToolNameConstants.PATCH.equals(toolName);
     }
 
     /**
