@@ -5,6 +5,7 @@ import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.io.File;
 import java.io.InputStream;
@@ -1195,7 +1196,7 @@ public class DashboardConfigService {
                 continue;
             }
             String value = path.trim();
-            if (containsControlCharacter(value)) {
+            if (BasicValueSupport.containsControlCharacter(value)) {
                 throw new IllegalStateException(
                         "solonclaw.terminal.credentialFiles contains an invalid control character");
             }
@@ -1225,7 +1226,7 @@ public class DashboardConfigService {
                 continue;
             }
             String value = path.trim();
-            if (containsControlCharacter(value)) {
+            if (BasicValueSupport.containsControlCharacter(value)) {
                 throw new IllegalStateException(
                         "security.websiteBlocklist.sharedFiles contains an invalid control character");
             }
@@ -1282,24 +1283,6 @@ public class DashboardConfigService {
             return values;
         }
         throw new IllegalStateException(configKey + " must be a list or comma-separated string");
-    }
-
-    /**
-     * 判断是否包含控制Character。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回contains Control Character结果。
-     */
-    private boolean containsControlCharacter(String value) {
-        if (value == null) {
-            return false;
-        }
-        for (int i = 0; i < value.length(); i++) {
-            if (Character.isISOControl(value.charAt(i))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -1497,7 +1480,7 @@ public class DashboardConfigService {
         if (!(parsed instanceof Map)) {
             return new LinkedHashMap<String, Object>();
         }
-        return sanitizeMap((Map<?, ?>) parsed);
+        return BasicValueSupport.sanitizeMap((Map<?, ?>) parsed);
     }
 
     /**
@@ -1570,51 +1553,6 @@ public class DashboardConfigService {
             return values;
         }
         return raw;
-    }
-
-    /**
-     * 清理Map。
-     *
-     * @param input 输入参数。
-     * @return 返回Map结果。
-     */
-    @SuppressWarnings("unchecked")
-    private static Map<String, Object> sanitizeMap(Map<?, ?> input) {
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        for (Map.Entry<?, ?> entry : input.entrySet()) {
-            if (entry.getKey() == null) {
-                continue;
-            }
-            Object value = entry.getValue();
-            if (value instanceof Map) {
-                value = sanitizeMap((Map<?, ?>) value);
-            } else if (value instanceof List) {
-                value = sanitizeList((List<?>) value);
-            }
-            result.put(String.valueOf(entry.getKey()), value);
-        }
-        return result;
-    }
-
-    /**
-     * 清理List。
-     *
-     * @param input 输入参数。
-     * @return 返回List结果。
-     */
-    @SuppressWarnings("unchecked")
-    private static List<Object> sanitizeList(List<?> input) {
-        List<Object> result = new ArrayList<Object>();
-        for (Object item : input) {
-            if (item instanceof Map) {
-                result.add(sanitizeMap((Map<?, ?>) item));
-            } else if (item instanceof List) {
-                result.add(sanitizeList((List<?>) item));
-            } else {
-                result.add(item);
-            }
-        }
-        return result;
     }
 
     /**

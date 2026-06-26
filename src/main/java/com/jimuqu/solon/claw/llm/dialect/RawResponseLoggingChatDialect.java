@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.llm.dialect;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.Date;
 import java.util.List;
@@ -194,12 +195,7 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
      * @return 返回safe Error结果。
      */
     private String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
-        return SecretRedactor.redact(value, 1000);
+        return ErrorTextSupport.safeError(error);
     }
 
     /**

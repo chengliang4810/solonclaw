@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.support;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.map.MapUtil;
 import cn.hutool.core.util.StrUtil;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -89,5 +90,66 @@ public final class BasicValueSupport {
      */
     public static String trimToEmpty(String value) {
         return StrUtil.nullToEmpty(value).trim();
+    }
+
+    /**
+     * 判断文本是否包含 ISO 控制字符，用于路径、配置键等安全输入边界。
+     *
+     * @param value 待检查文本。
+     * @return 包含控制字符时返回 true；null 返回 false。
+     */
+    public static boolean containsControlCharacter(String value) {
+        if (value == null) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 将任意键 Map 递归清理为字符串键、有序且可变的 Map，适配配置解析后的通用对象树。
+     *
+     * @param input 原始 Map。
+     * @return 清理后的 Map。
+     */
+    public static Map<String, Object> sanitizeMap(Map<?, ?> input) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        for (Map.Entry<?, ?> entry : input.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                value = sanitizeMap((Map<?, ?>) value);
+            } else if (value instanceof List) {
+                value = sanitizeList((List<?>) value);
+            }
+            result.put(String.valueOf(entry.getKey()), value);
+        }
+        return result;
+    }
+
+    /**
+     * 递归清理列表中的 Map 和子列表，保持配置对象树的类型稳定。
+     *
+     * @param input 原始列表。
+     * @return 清理后的列表。
+     */
+    public static List<Object> sanitizeList(List<?> input) {
+        List<Object> result = new ArrayList<Object>();
+        for (Object item : input) {
+            if (item instanceof Map) {
+                result.add(sanitizeMap((Map<?, ?>) item));
+            } else if (item instanceof List) {
+                result.add(sanitizeList((List<?>) item));
+            } else {
+                result.add(item);
+            }
+        }
+        return result;
     }
 }

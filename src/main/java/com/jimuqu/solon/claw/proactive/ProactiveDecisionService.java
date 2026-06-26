@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.model.ProactiveTickContext;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.IdSupport;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.noear.snack4.ONode;
-import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -534,7 +534,8 @@ public class ProactiveDecisionService {
                             LLM_DECISION_SYSTEM_PROMPT,
                             decisionPrompt(candidate),
                             Collections.emptyList());
-            String text = assistantText(result == null ? null : result.getAssistantMessage());
+            String text = MessageSupport.assistantText(
+                    result == null ? null : result.getAssistantMessage());
             return parseLlmDecision(text);
         }
 
@@ -555,22 +556,6 @@ public class ProactiveDecisionService {
             payload.put("priority", Integer.valueOf(candidate.getPriority()));
             return "请判断这个主动协作候选是否值得现在联系用户。只输出 JSON。\n"
                     + ONode.serialize(payload);
-        }
-
-        /**
-         * 从助手消息中提取文本。
-         *
-         * @param assistantMessage 助手消息。
-         * @return 返回文本内容。
-         */
-        private String assistantText(AssistantMessage assistantMessage) {
-            if (assistantMessage == null) {
-                return "";
-            }
-            if (StrUtil.isNotBlank(assistantMessage.getResultContent())) {
-                return assistantMessage.getResultContent().trim();
-            }
-            return StrUtil.nullToEmpty(assistantMessage.getContent()).trim();
         }
 
         /**

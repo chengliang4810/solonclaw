@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
+import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.time.Instant;
@@ -109,7 +110,9 @@ public class SkillCuratorService {
         Map<String, Object> state = readState();
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("enabled", Boolean.valueOf(appConfig.getCurator().isEnabled()));
-        result.put("paused", Boolean.valueOf(asBoolean(state.get("paused"))));
+        result.put(
+                "paused",
+                Boolean.valueOf(SkillFrontmatterSupport.parseBoolean(state.get("paused"))));
         result.put("lastRunAt", Long.valueOf(asLong(state.get("lastRunAt"))));
         result.put("intervalHours", Integer.valueOf(appConfig.getCurator().getIntervalHours()));
         result.put("minIdleHours", Double.valueOf(appConfig.getCurator().getMinIdleHours()));
@@ -432,28 +435,16 @@ public class SkillCuratorService {
         if (metadata == null) {
             return false;
         }
-        if (asBoolean(metadata.get("pinned"))) {
+        if (SkillFrontmatterSupport.parseBoolean(metadata.get("pinned"))) {
             return true;
         }
         Object curator = metadata.get("curator");
-        if (curator instanceof Map && asBoolean(((Map<String, Object>) curator).get("pinned"))) {
+        if (curator instanceof Map
+                && SkillFrontmatterSupport.parseBoolean(
+                        ((Map<String, Object>) curator).get("pinned"))) {
             return true;
         }
         return false;
-    }
-
-    /**
-     * 执行as布尔值相关逻辑。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回as Boolean结果。
-     */
-    private boolean asBoolean(Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean) value).booleanValue();
-        }
-        String text = value == null ? "" : String.valueOf(value).trim();
-        return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
     }
 
     /**

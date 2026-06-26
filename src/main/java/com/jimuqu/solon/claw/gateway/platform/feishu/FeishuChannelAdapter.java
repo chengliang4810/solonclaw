@@ -10,6 +10,8 @@ import com.jimuqu.solon.claw.core.enums.ProcessingOutcome;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -697,7 +699,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (!config.isCommentEnabled()) {
             return false;
         }
-        if (config.isAllowAllUsers() || contains(config.getAllowedUsers(), userId)) {
+        if (config.isAllowAllUsers()
+                || ChannelAllowListSupport.contains(config.getAllowedUsers(), userId)) {
             return true;
         }
         Map<String, List<String>> pairings = loadCommentPairings();
@@ -706,7 +709,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             return true;
         }
         String key = fileType + ":" + fileToken;
-        return contains(pairings.get(key), userId) || contains(pairings.get("*"), userId);
+        return ChannelAllowListSupport.contains(pairings.get(key), userId)
+                || ChannelAllowListSupport.contains(pairings.get("*"), userId);
     }
 
     /**
@@ -929,8 +933,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return false;
             }
             if (GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(policy)
-                    && !contains(config.getGroupAllowedUsers(), chatId)
-                    && !contains(config.getAllowedUsers(), userId)) {
+                    && !ChannelAllowListSupport.contains(config.getGroupAllowedUsers(), chatId)
+                    && !ChannelAllowListSupport.contains(config.getAllowedUsers(), userId)) {
                 return false;
             }
             discoverBotName(mentions);
@@ -944,29 +948,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
         if (GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(dmPolicy)) {
-            return contains(config.getAllowedUsers(), userId);
+            return ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
         }
         return true;
-    }
-
-    /**
-     * 执行contains相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param target target 参数。
-     * @return 返回contains结果。
-     */
-    private boolean contains(List<String> values, String target) {
-        if (values == null || target == null) {
-            return false;
-        }
-        for (String value : values) {
-            String normalized = StrUtil.nullToEmpty(value).trim();
-            if ("*".equals(normalized) || target.equalsIgnoreCase(normalized)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -1220,7 +1204,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     private ONode fetchMessageMeta(String messageId) {
         refreshTenantTokenIfNecessary();
         String url = "https://open.feishu.cn/open-apis/im/v1/messages/" + messageId;
-        assertSafeUrl(url, "Feishu message lookup URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Feishu message lookup URL");
         HttpResponse httpResponse =
                 HttpRequest.get(url)
                         .header("Authorization", "Bearer " + tenantAccessToken)
@@ -1309,7 +1293,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     protected Map<String, String> fetchBotInfo() {
         refreshTenantTokenIfNecessary();
-        assertSafeUrl(BOT_INFO_URL, "Feishu bot info URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, BOT_INFO_URL, "Feishu bot info URL");
         HttpResponse httpResponse =
                 HttpRequest.get(BOT_INFO_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
@@ -1796,7 +1780,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回upload图片结果。
      */
     private String uploadImage(File file) {
-        assertSafeUrl(IMAGE_UPLOAD_URL, "Feishu image upload URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, IMAGE_UPLOAD_URL, "Feishu image upload URL");
         HttpResponse httpResponse =
                 HttpRequest.post(IMAGE_UPLOAD_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
@@ -1827,7 +1811,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回upload文件结果。
      */
     private String uploadFile(File file, String uploadType) {
-        assertSafeUrl(FILE_UPLOAD_URL, "Feishu file upload URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, FILE_UPLOAD_URL, "Feishu file upload URL");
         HttpResponse httpResponse =
                 HttpRequest.post(FILE_UPLOAD_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
@@ -1903,7 +1887,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回post JSON结果。
      */
     private String postJson(String url, String body) {
-        assertSafeUrl(url, "Feishu API URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Feishu API URL");
         HttpResponse response =
                 HttpRequest.post(url)
                         .contentType(ContentType.JSON.toString())
@@ -1952,7 +1936,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             refreshTenantTokenIfNecessary();
             String url = String.format(MESSAGE_REACTION_URL, messageId) + "/" + reactionId;
-            assertSafeUrl(url, "Feishu reaction delete URL");
+            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Feishu reaction delete URL");
             HttpResponse response =
                     HttpRequest.delete(url)
                             .header("Authorization", "Bearer " + tenantAccessToken)
@@ -2006,7 +1990,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .set("app_id", config.getAppId())
                         .set("app_secret", config.getAppSecret())
                         .toJson();
-        assertSafeUrl(TOKEN_URL, "Feishu token URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, TOKEN_URL, "Feishu token URL");
         HttpResponse httpResponse =
                 HttpRequest.post(TOKEN_URL)
                         .contentType(ContentType.JSON.toString())
@@ -2086,26 +2070,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
-    private void assertSafeUrl(String url, String purpose) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " blocked: "
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
-    }
 
     /**
      * 生成安全展示用的平台消息。

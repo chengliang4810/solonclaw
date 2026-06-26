@@ -5,7 +5,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
-import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -276,12 +276,7 @@ public class ChannelConnectionManager {
      * @return 返回safe Error结果。
      */
     private String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
-        return SecretRedactor.redact(value, 1000);
+        return ErrorTextSupport.safeError(error);
     }
 
     /** 表示Reconnect数据，在服务、仓储和接口之间传递。 */

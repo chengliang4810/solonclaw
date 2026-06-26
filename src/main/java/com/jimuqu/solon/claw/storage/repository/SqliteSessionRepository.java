@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.SearchTextSupport;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -462,7 +463,7 @@ public class SqliteSessionRepository implements SessionRepository {
         int currentKind = 0;
         for (int i = 0; i < keyword.length(); i++) {
             char ch = keyword.charAt(i);
-            int kind = searchCharKind(ch);
+            int kind = SearchTextSupport.searchCharKind(ch);
             if (kind == 0) {
                 addSearchTerm(terms, current);
                 currentKind = 0;
@@ -476,23 +477,6 @@ public class SqliteSessionRepository implements SessionRepository {
         }
         addSearchTerm(terms, current);
         return new ArrayList<String>(terms);
-    }
-
-    /** 区分 ASCII 词、中文词和其他字母数字，便于中英文相邻时拆开。 */
-    private int searchCharKind(char ch) {
-        if ((ch >= 'A' && ch <= 'Z')
-                || (ch >= 'a' && ch <= 'z')
-                || (ch >= '0' && ch <= '9')
-                || ch == '_') {
-            return 1;
-        }
-        if (ch >= '\u4e00' && ch <= '\u9fff') {
-            return 2;
-        }
-        if (Character.isLetterOrDigit(ch)) {
-            return 3;
-        }
-        return 0;
     }
 
     /** 记录有效搜索词，并限制过长词元避免生成异常大的 SQL/FTS 表达式。 */

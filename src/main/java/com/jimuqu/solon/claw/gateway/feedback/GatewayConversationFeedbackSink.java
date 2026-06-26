@@ -8,7 +8,7 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
-import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -334,11 +334,6 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
      * @return 可写入日志的脱敏错误摘要。
      */
     private String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
-        return SecretRedactor.redact(value, 1000);
+        return ErrorTextSupport.safeError(error);
     }
 }

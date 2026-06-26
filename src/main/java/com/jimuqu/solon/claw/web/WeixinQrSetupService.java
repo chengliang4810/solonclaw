@@ -7,8 +7,10 @@ import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.support.BaseUrlSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URI;
@@ -397,9 +399,7 @@ public class WeixinQrSetupService {
      * @return 返回safe消息结果。
      */
     private String safeMessage(Exception e) {
-        String message = e.getMessage();
-        String safe = StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
-        return safeText(safe);
+        return ErrorTextSupport.safeError(e);
     }
 
     /**
@@ -422,36 +422,14 @@ public class WeixinQrSetupService {
         assertSafeUrl(normalizeBaseUrl(baseUrl), purpose);
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
+    /** 校验微信 iLink 请求 URL 是否被安全策略允许访问。 */
     private void assertSafeUrl(String url, String purpose) {
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " 被安全策略阻断："
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
+        QrSetupUrlPolicySupport.assertSafeUrl(securityPolicyService, url, purpose);
     }
 
-    /**
-     * 规范化Base URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @return 返回Base URL结果。
-     */
+    /** 规范化基础 URL，避免后续拼接路径时出现重复斜杠。 */
     private String normalizeBaseUrl(String baseUrl) {
-        String value = StrUtil.nullToEmpty(baseUrl).trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
+        return BaseUrlSupport.stripTrailingSlashes(baseUrl);
     }
 
     /**

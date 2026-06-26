@@ -396,11 +396,7 @@ public class DefaultGatewayService {
      * @return 返回text元数据结果。
      */
     private String textMetadata(GatewayReply reply, String key) {
-        if (reply == null || reply.getRuntimeMetadata() == null) {
-            return "";
-        }
-        Object value = reply.getRuntimeMetadata().get(key);
-        return value == null ? "" : String.valueOf(value).trim();
+        return reply == null ? "" : reply.textRuntimeMetadata(key);
     }
 
     /**

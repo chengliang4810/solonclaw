@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.TimeSupport;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -207,8 +208,8 @@ public class DashboardCuratorService {
      * @param report report 参数。
      */
     private void saveReport(Map<String, Object> report) throws Exception {
-        long startedAt = asLong(report.get("startedAt"));
-        long finishedAt = asLong(report.get("finishedAt"));
+        long startedAt = TimeSupport.millisOrNow(report.get("startedAt"));
+        long finishedAt = TimeSupport.millisOrNow(report.get("finishedAt"));
         String status = StrUtil.blankToDefault(String.valueOf(report.get("status")), "unknown");
         Object items = report.get("items");
         int itemCount = items instanceof List ? ((List<?>) items).size() : 0;
@@ -356,23 +357,6 @@ public class DashboardCuratorService {
      */
     private String safe(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
-    }
-
-    /**
-     * 执行as长整型相关逻辑。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回as Long结果。
-     */
-    private long asLong(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        try {
-            return Long.parseLong(String.valueOf(value));
-        } catch (Exception e) {
-            return System.currentTimeMillis();
-        }
     }
 
     /**

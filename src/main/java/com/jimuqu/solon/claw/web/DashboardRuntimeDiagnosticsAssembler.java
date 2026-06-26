@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.diagnosticFailureSummary;
+import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.externalPathReference;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safeAuditPreview;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safeObjectText;
 
@@ -289,36 +290,8 @@ final class DashboardRuntimeDiagnosticsAssembler {
      * @return 返回关闭取证诊断 Map。
      */
     private Map<String, Object> shutdownSummary() {
-        if (shutdownForensicsService == null) {
-            return unavailableShutdownSummary();
-        }
-        Map<String, Object> record = shutdownForensicsService.lastShutdownRecord();
-        File file = shutdownForensicsService.lastShutdownRecordFile();
-        if (record == null || file == null) {
-            return unavailableShutdownSummary();
-        }
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("available", Boolean.TRUE);
-        summary.put("record", runtimeReference(file.getAbsolutePath()));
-        summary.put("timestamp", record.get("timestamp"));
-        summary.put("timestamp_iso", safeObjectText(record.get("timestampIso"), 80));
-        summary.put("reason", safeObjectText(record.get("reason"), 200));
-        summary.put("uptime_ms", record.get("uptimeMs"));
-        summary.put("pid", safeObjectText(record.get("pid"), 80));
-        summary.put("memory", record.get("memory"));
-        summary.put("threads", record.get("threads"));
-        return summary;
-    }
-
-    /**
-     * 生成关闭取证不可用摘要，保持 Dashboard 字段契约稳定。
-     *
-     * @return 返回不可用摘要。
-     */
-    private Map<String, Object> unavailableShutdownSummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("available", Boolean.FALSE);
-        return summary;
+        return DashboardDiagnosticTextFormatter.shutdownSummary(
+                shutdownForensicsService, this::runtimeReference);
     }
 
     /**
@@ -366,20 +339,6 @@ final class DashboardRuntimeDiagnosticsAssembler {
             return "workspace://" + relative;
         }
         return externalPathReference(text);
-    }
-
-    /**
-     * 将 runtime 外部路径压缩成仅含文件名的 path:// 引用，避免泄露宿主目录结构。
-     *
-     * @param value 原始外部路径。
-     * @return 返回外部路径引用。
-     */
-    private String externalPathReference(String value) {
-        String name = new File(StrUtil.nullToEmpty(value)).getName();
-        if (StrUtil.isBlank(name)) {
-            name = "external";
-        }
-        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     /**

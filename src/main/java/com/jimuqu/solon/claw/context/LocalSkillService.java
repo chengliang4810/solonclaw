@@ -1017,12 +1017,17 @@ public class LocalSkillService implements SkillCatalogService {
         boolean pinned = false;
         boolean readOnly = false;
         if (metadata != null) {
-            pinned = asBoolean(metadata.get("pinned"));
-            readOnly = asBoolean(metadata.get("readonly")) || asBoolean(metadata.get("readOnly"));
+            pinned = SkillFrontmatterSupport.parseBoolean(metadata.get("pinned"));
+            readOnly = SkillFrontmatterSupport.parseBoolean(metadata.get("readonly"))
+                    || SkillFrontmatterSupport.parseBoolean(metadata.get("readOnly"));
             Object curator = metadata.get("curator");
             if (curator instanceof Map) {
-                pinned = pinned || asBoolean(((Map<String, Object>) curator).get("pinned"));
-                readOnly = readOnly || asBoolean(((Map<String, Object>) curator).get("readonly"));
+                pinned = pinned
+                        || SkillFrontmatterSupport.parseBoolean(
+                                ((Map<String, Object>) curator).get("pinned"));
+                readOnly = readOnly
+                        || SkillFrontmatterSupport.parseBoolean(
+                                ((Map<String, Object>) curator).get("readonly"));
             }
         }
         if (pinned || readOnly || !"agent-created".equals(descriptor.getTrustLevel())) {
@@ -1030,20 +1035,6 @@ public class LocalSkillService implements SkillCatalogService {
                     "Skill is pinned/read-only and cannot be modified: "
                             + descriptor.canonicalName());
         }
-    }
-
-    /**
-     * 执行as布尔值相关逻辑。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回as Boolean结果。
-     */
-    private boolean asBoolean(Object value) {
-        if (value instanceof Boolean) {
-            return ((Boolean) value).booleanValue();
-        }
-        String text = value == null ? "" : String.valueOf(value).trim();
-        return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
     }
 
     /**

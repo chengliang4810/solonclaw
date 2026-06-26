@@ -9,7 +9,7 @@ import com.jimuqu.solon.claw.skillhub.support.SkillBundlePathSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
-import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -392,11 +392,6 @@ public class GitHubSkillSource implements SkillSource {
      * @return 返回safe Error结果。
      */
     private String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
-        return SecretRedactor.redact(value, 1000);
+        return ErrorTextSupport.safeError(error);
     }
 }

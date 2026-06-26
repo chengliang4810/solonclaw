@@ -1,9 +1,15 @@
 package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
+import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -105,6 +111,89 @@ final class DashboardDiagnosticTextFormatter {
      */
     static String redactedIdentifier(String value) {
         return StrUtil.isBlank(value) ? "" : "***";
+    }
+
+    /**
+     * 生成诊断响应中的审批审计脱敏条目，统一 Dashboard 历史输出和安全探针输出字段。
+     *
+     * @param event 审批审计事件。
+     * @return 返回脱敏后的审批审计条目。
+     */
+    static Map<String, Object> approvalAuditItem(ApprovalAuditEvent event) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("event_id", safeAuditPreview(event.getEventId(), 120));
+        item.put("session_id", safeAuditPreview(event.getSessionId(), 240));
+        item.put("event_type", safeAuditPreview(event.getEventType(), 80));
+        item.put("choice", safeAuditPreview(event.getChoice(), 80));
+        item.put("outcome", safeAuditPreview(event.getOutcome(), 80));
+        item.put("status", safeAuditPreview(event.getStatus(), 80));
+        item.put("approved", Boolean.valueOf(event.isApproved()));
+        item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
+        item.put("tool_name", safeAuditPreview(event.getToolName(), 160));
+        item.put("command_hash", redactedIdentifier(event.getCommandHash()));
+        item.put("command_preview", safeAuditPreview(event.getCommandPreview(), 800));
+        item.put("description", safeAuditPreview(event.getDescription(), 1000));
+        item.put("pattern_keys", redactedJsonList(event.getPatternKeysJson(), 400));
+        item.put("created_at", Long.valueOf(event.getCreatedAt()));
+        item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
+        item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
+        return item;
+    }
+
+    /**
+     * 生成最近一次关闭取证摘要，路径展示由调用方按自身 runtime 根目录转换。
+     *
+     * @param shutdownForensicsService 关闭取证服务。
+     * @param pathReference 文件路径展示转换函数。
+     * @return 返回关闭取证摘要。
+     */
+    static Map<String, Object> shutdownSummary(
+            ShutdownForensicsService shutdownForensicsService,
+            Function<String, String> pathReference) {
+        if (shutdownForensicsService == null) {
+            return unavailableShutdownSummary();
+        }
+        Map<String, Object> record = shutdownForensicsService.lastShutdownRecord();
+        File file = shutdownForensicsService.lastShutdownRecordFile();
+        if (record == null || file == null) {
+            return unavailableShutdownSummary();
+        }
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.TRUE);
+        summary.put("record", pathReference.apply(file.getAbsolutePath()));
+        summary.put("timestamp", record.get("timestamp"));
+        summary.put("timestamp_iso", safeObjectText(record.get("timestampIso"), 80));
+        summary.put("reason", safeObjectText(record.get("reason"), 200));
+        summary.put("uptime_ms", record.get("uptimeMs"));
+        summary.put("pid", safeObjectText(record.get("pid"), 80));
+        summary.put("memory", record.get("memory"));
+        summary.put("threads", record.get("threads"));
+        return summary;
+    }
+
+    /**
+     * 生成关闭取证不可用摘要，保持 Dashboard 字段契约稳定。
+     *
+     * @return 返回不可用摘要。
+     */
+    static Map<String, Object> unavailableShutdownSummary() {
+        Map<String, Object> summary = new LinkedHashMap<String, Object>();
+        summary.put("available", Boolean.FALSE);
+        return summary;
+    }
+
+    /**
+     * 将 runtime 外部路径压缩成仅含文件名的 path:// 引用，避免泄露宿主目录结构。
+     *
+     * @param value 原始外部路径。
+     * @return 返回外部路径引用。
+     */
+    static String externalPathReference(String value) {
+        String name = new File(StrUtil.nullToEmpty(value)).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "external";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     /**

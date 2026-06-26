@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.diagnosticFailureSummary;
+import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.approvalAuditItem;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedApprovalKey;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedCommandPathTarget;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedIdentifier;
@@ -44,6 +45,7 @@ import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
+import com.jimuqu.solon.claw.support.TimeSupport;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -3386,7 +3388,9 @@ public class DashboardDiagnosticsService {
         item.put("command_hash", redactedIdentifier(pending.getCommandHash()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
-        item.put("expires_in_seconds", Long.valueOf(expiresInSeconds(pending.getExpiresAt())));
+        item.put(
+                "expires_in_seconds",
+                Long.valueOf(TimeSupport.expiresInSeconds(pending.getExpiresAt())));
         item.put("expired", Boolean.valueOf(isExpired(pending.getExpiresAt())));
         item.put(
                 "scopes",
@@ -3515,20 +3519,6 @@ public class DashboardDiagnosticsService {
     }
 
     /**
-     * 执行expiresInSeconds相关逻辑。
-     *
-     * @param expiresAt expiresAt 参数。
-     * @return 返回expires In Seconds结果。
-     */
-    private long expiresInSeconds(long expiresAt) {
-        if (expiresAt <= 0L) {
-            return 0L;
-        }
-        long remaining = expiresAt - System.currentTimeMillis();
-        return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
-    }
-
-    /**
      * 判断是否Expired。
      *
      * @param expiresAt expiresAt 参数。
@@ -3608,33 +3598,6 @@ public class DashboardDiagnosticsService {
         map.put("content", SecretRedactor.redact(reply.getContent(), 1200));
         map.put("error", Boolean.valueOf(reply.isError()));
         return map;
-    }
-
-    /**
-     * 执行审批审计Item相关逻辑。
-     *
-     * @param event 事件参数。
-     * @return 返回审批审计Item结果。
-     */
-    private Map<String, Object> approvalAuditItem(ApprovalAuditEvent event) {
-        Map<String, Object> item = new LinkedHashMap<String, Object>();
-        item.put("event_id", safeAuditPreview(event.getEventId(), 120));
-        item.put("session_id", safeAuditPreview(event.getSessionId(), 240));
-        item.put("event_type", safeAuditPreview(event.getEventType(), 80));
-        item.put("choice", safeAuditPreview(event.getChoice(), 80));
-        item.put("outcome", safeAuditPreview(event.getOutcome(), 80));
-        item.put("status", safeAuditPreview(event.getStatus(), 80));
-        item.put("approved", Boolean.valueOf(event.isApproved()));
-        item.put("approver", SecretRedactor.redact(event.getApprover(), 200));
-        item.put("tool_name", safeAuditPreview(event.getToolName(), 160));
-        item.put("command_hash", redactedIdentifier(event.getCommandHash()));
-        item.put("command_preview", safeAuditPreview(event.getCommandPreview(), 800));
-        item.put("description", safeAuditPreview(event.getDescription(), 1000));
-        item.put("pattern_keys", redactedJsonList(event.getPatternKeysJson(), 400));
-        item.put("created_at", Long.valueOf(event.getCreatedAt()));
-        item.put("approval_created_at", Long.valueOf(event.getApprovalCreatedAt()));
-        item.put("approval_expires_at", Long.valueOf(event.getApprovalExpiresAt()));
-        return item;
     }
 
     /**

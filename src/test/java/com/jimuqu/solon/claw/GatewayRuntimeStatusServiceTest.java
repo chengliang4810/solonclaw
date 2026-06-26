@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeStatusService;
+import com.jimuqu.solon.claw.support.RuntimeProcessSupport;
 import java.io.File;
-import java.lang.management.ManagementFactory;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Map;
@@ -110,14 +110,11 @@ public class GatewayRuntimeStatusServiceTest {
     }
 
     private long currentPid() {
-        String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
-        int separator = runtimeName.indexOf('@');
-        String pid = separator > 0 ? runtimeName.substring(0, separator) : runtimeName;
-        return Long.parseLong(pid);
+        return RuntimeProcessSupport.currentPidOrUnknown();
     }
 
     private long currentJvmStartTime() {
-        return ManagementFactory.getRuntimeMXBean().getStartTime();
+        return java.lang.management.ManagementFactory.getRuntimeMXBean().getStartTime();
     }
 
     private long asLong(Object value) {

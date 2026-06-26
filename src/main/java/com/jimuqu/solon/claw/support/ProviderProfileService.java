@@ -300,7 +300,7 @@ public class ProviderProfileService {
         String currency =
                 StrUtil.blankToDefault(price.getCurrency(), "USD").trim().toUpperCase(Locale.ROOT);
         pricing.put("currency", currency);
-        boolean free = isFree(price);
+        boolean free = price.isFree();
         pricing.put("free", Boolean.valueOf(free));
         if (free) {
             pricing.put("input", "free");
@@ -345,20 +345,6 @@ public class ProviderProfileService {
         }
         String amount = microsPerToken.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
         pricing.put(key, "USD".equals(currency) ? "$" + amount : currency + " " + amount);
-    }
-
-    /**
-     * 判断是否免费。
-     *
-     * @param price 模型价格。
-     * @return 如果所有价格字段为0则返回true。
-     */
-    private boolean isFree(ModelPrice price) {
-        return price.inputMicrosPerTokenExact().signum() == 0
-                && price.outputMicrosPerTokenExact().signum() == 0
-                && price.cacheReadMicrosPerTokenExact().signum() == 0
-                && price.cacheWriteMicrosPerTokenExact().signum() == 0
-                && price.reasoningMicrosPerTokenExact().signum() == 0;
     }
 
     /**

@@ -15,13 +15,17 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
+import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BaseUrlSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ThreadInterruptSupport;
+import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
@@ -1911,28 +1915,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param error 捕获到的异常。
      */
     private void logRecoverableChannelFailure(String stage, Exception error) {
-        restoreInterruptedStatus(error);
+        ThreadInterruptSupport.restoreIfCausedByInterrupted(error);
         log.debug(
                 "[WEIXIN] recoverable channel failure: platform={}, stage={}, errorType={}",
                 PlatformType.WEIXIN,
                 stage,
                 errorType(error));
-    }
-
-    /**
-     * 异常链中包含中断异常时恢复线程中断标记，避免静默吞掉取消信号。
-     *
-     * @param error 捕获到的异常。
-     */
-    private void restoreInterruptedStatus(Throwable error) {
-        Throwable current = error;
-        while (current != null) {
-            if (current instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            current = current.getCause();
-        }
     }
 
     /**
@@ -1992,7 +1980,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private String resolveBaseUrl(String endpoint) {
         String configured =
-                StrUtil.blankToDefault(config.getBaseUrl(), DEFAULT_BASE_URL).replaceAll("/+$", "");
+                BaseUrlSupport.stripTrailingSlashes(
+                        StrUtil.blankToDefault(config.getBaseUrl(), DEFAULT_BASE_URL));
         if (GET_UPDATES_ENDPOINT.equals(endpoint) && StrUtil.isNotBlank(config.getLongPollUrl())) {
             String longPoll = config.getLongPollUrl().trim();
             if (longPoll.endsWith("/" + GET_UPDATES_ENDPOINT)) {
@@ -2017,7 +2006,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private HttpResponse executeApiPost(
             String url, String body, int timeoutMs, String initialUrl, int redirectCount) {
-        assertSafeUrl(url, "Weixin API URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Weixin API URL");
         HttpRequest request =
                 HttpRequest.post(url)
                         .header("AuthorizationType", "ilink_bot_token")
@@ -2040,7 +2029,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         try {
             String nextUrl = resolveRedirect(url, response, redirectCount, "Weixin API URL");
-            if (!sameOrigin(initialUrl, nextUrl)) {
+            if (!UrlOriginSupport.sameOrigin(initialUrl, nextUrl)) {
                 throw new IllegalStateException(
                         "Weixin API redirect crosses origin: " + SecretRedactor.maskUrl(nextUrl));
             }
@@ -2063,7 +2052,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private HttpResponse executeBinaryPost(
             String url, byte[] body, String initialUrl, int redirectCount) {
-        assertSafeUrl(url, "Weixin CDN upload URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Weixin CDN upload URL");
         HttpRequest request =
                 HttpRequest.post(url)
                         .body(body)
@@ -2076,7 +2065,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         try {
             String nextUrl = resolveRedirect(url, response, redirectCount, "Weixin CDN upload URL");
-            if (!sameOrigin(initialUrl, nextUrl)) {
+            if (!UrlOriginSupport.sameOrigin(initialUrl, nextUrl)) {
                 throw new IllegalStateException(
                         "Weixin CDN upload redirect crosses origin: "
                                 + SecretRedactor.maskUrl(nextUrl));
@@ -2109,7 +2098,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         try {
             String nextUrl = URI.create(url).resolve(location.trim()).toString();
-            assertSafeUrl(nextUrl, purpose);
+            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, nextUrl, purpose);
             return nextUrl;
         } catch (RuntimeException e) {
             throw e;
@@ -2119,26 +2108,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
-    private void assertSafeUrl(String url, String purpose) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " blocked: "
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
-    }
 
     /**
      * 生成安全展示用的JSON。
@@ -2150,18 +2119,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return SecretRedactor.redact(value == null ? "" : value.toJson(), 1000);
     }
 
-    /**
-     * 规范化Base URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @return 返回Base URL结果。
-     */
+    /** 规范化基础 URL，避免后续拼接路径时出现重复斜杠。 */
     private String normalizeBaseUrl(String baseUrl) {
-        String value = StrUtil.nullToEmpty(baseUrl).trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
+        return BaseUrlSupport.stripTrailingSlashes(baseUrl);
     }
 
     /**
@@ -2172,44 +2132,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private boolean isRedirect(int status) {
         return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
-    }
-
-    /**
-     * 执行sameOrigin相关逻辑。
-     *
-     * @param initialUrl 待校验或访问的地址参数。
-     * @param url 待校验或访问的 URL。
-     * @return 返回same Origin结果。
-     */
-    private boolean sameOrigin(String initialUrl, String url) {
-        try {
-            URI initial = URI.create(initialUrl);
-            URI current = URI.create(url);
-            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
-                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
-                    && effectivePort(initial) == effectivePort(current);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * 执行生效端口相关逻辑。
-     *
-     * @param uri 待校验或访问的地址参数。
-     * @return 返回生效Port结果。
-     */
-    private int effectivePort(URI uri) {
-        if (uri.getPort() >= 0) {
-            return uri.getPort();
-        }
-        if ("http".equalsIgnoreCase(uri.getScheme())) {
-            return 80;
-        }
-        if ("https".equalsIgnoreCase(uri.getScheme())) {
-            return 443;
-        }
-        return -1;
     }
 
     /** 承载聊天Target相关状态和辅助逻辑。 */

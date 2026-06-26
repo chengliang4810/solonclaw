@@ -76,21 +76,21 @@ public class DangerousCommandApprovalService {
     public static final String CARD_ACTION_DENY = "dangerous_deny";
 
     /** 上下文待恢复审批队列的统一常量值。 */
-    private static final String CONTEXT_PENDING_APPROVAL_QUEUE =
+    static final String CONTEXT_PENDING_APPROVAL_QUEUE =
             "_dangerous_command_pending_queue_";
 
     /** 上下文会话APPROVALS的统一常量值。 */
-    private static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
+    static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
 
     /** 会话级自动审批状态键，仅用于当前会话内跳过可恢复危险命令审批。 */
     private static final String CONTEXT_SESSION_AUTO_APPROVAL =
             "_dangerous_command_session_auto_approval_";
 
     /** 上下文ONCEAPPROVALS的统一常量值。 */
-    private static final String CONTEXT_ONCE_APPROVALS = "_dangerous_command_once_approvals_";
+    static final String CONTEXT_ONCE_APPROVALS = "_dangerous_command_once_approvals_";
 
     /** 当前THREAD审批TTLMILLIS的统一常量值。 */
-    private static final long CURRENT_THREAD_APPROVAL_TTL_MILLIS = 30000L;
+    static final long CURRENT_THREAD_APPROVAL_TTL_MILLIS = 30000L;
 
     /** 当前THREADAPPROVEDCOMMANDS的统一常量值。 */
     private static final ThreadLocal<Map<String, Long>> CURRENT_THREAD_APPROVED_COMMANDS =
@@ -108,10 +108,10 @@ public class DangerousCommandApprovalService {
             POLICY_PATTERN_PREFIX + "network_external_operation";
 
     /** 审批选择器PREFIX最小LENGTH的统一常量值。 */
-    private static final int APPROVAL_SELECTOR_PREFIX_MIN_LENGTH = 8;
+    static final int APPROVAL_SELECTOR_PREFIX_MIN_LENGTH = 8;
 
     /** 审批选择器token的统一常量值。 */
-    private static final Pattern APPROVAL_SELECTOR_TOKEN = Pattern.compile("[A-Za-z0-9_.-]{1,128}");
+    static final Pattern APPROVAL_SELECTOR_TOKEN = Pattern.compile("[A-Za-z0-9_.-]{1,128}");
 
     /** 保存global设置仓储集合，维持调用顺序或去重语义。 */
     private final GlobalSettingRepository globalSettingRepository;
@@ -738,7 +738,7 @@ public class DangerousCommandApprovalService {
             return blockedUrl;
         }
         if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
-            for (String shellCommand : extractPythonShellCommands(normalized)) {
+            for (String shellCommand : DangerousCommandTextSupport.extractPythonShellCommands(normalized)) {
                 DetectionResult result =
                         detectHardline(ToolNameConstants.EXECUTE_SHELL, shellCommand);
                 if (result != null) {
@@ -747,7 +747,7 @@ public class DangerousCommandApprovalService {
             }
         }
         if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
-            String childProcessCommand = extractJavaScriptChildProcessCommand(normalized);
+            String childProcessCommand = DangerousCommandTextSupport.extractJavaScriptChildProcessCommand(normalized);
             if (StrUtil.isNotBlank(childProcessCommand)) {
                 DetectionResult result =
                         detectHardline(ToolNameConstants.EXECUTE_SHELL, childProcessCommand);
@@ -832,11 +832,11 @@ public class DangerousCommandApprovalService {
      */
     public String foregroundBackgroundGuidance(String toolName, String code) {
         String normalized = normalize(code);
-        if (StrUtil.isBlank(normalized) || looksLikeHelpOrVersionCommand(normalized)) {
+        if (StrUtil.isBlank(normalized) || DangerousCommandTextSupport.looksLikeHelpOrVersionCommand(normalized)) {
             return null;
         }
         if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
-            for (String shellCommand : extractPythonShellCommands(normalized)) {
+            for (String shellCommand : DangerousCommandTextSupport.extractPythonShellCommands(normalized)) {
                 String guidance =
                         foregroundBackgroundGuidance(ToolNameConstants.EXECUTE_SHELL, shellCommand);
                 if (guidance != null) {
@@ -846,7 +846,7 @@ public class DangerousCommandApprovalService {
             return null;
         }
         if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
-            String childProcessCommand = extractJavaScriptChildProcessCommand(normalized);
+            String childProcessCommand = DangerousCommandTextSupport.extractJavaScriptChildProcessCommand(normalized);
             if (StrUtil.isNotBlank(childProcessCommand)) {
                 String guidance =
                         foregroundBackgroundGuidance(
@@ -905,596 +905,72 @@ public class DangerousCommandApprovalService {
      * @return 返回审批策略Summary结果。
      */
     public Map<String, Object> approvalPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        String guardrailMode = guardrailMode();
-        summary.put("guardrailMode", guardrailMode);
-        summary.put("guardrailCronMode", guardrailCronMode());
-        summary.put("subagentAutoApprove", Boolean.valueOf(isSubagentAutoApproveEnabled()));
-        summary.put("cronApprovalPolicy", cronApprovalPolicySummary());
-        summary.put("subagentApprovalPolicy", subagentApprovalPolicySummary());
-        summary.put("smartJudgeConfigured", Boolean.valueOf(hasSmartApprovalJudge()));
-        summary.put("smartApprovalPolicy", smartApprovalPolicySummary());
-        summary.put("tirithApprovalPolicy", tirithApprovalPolicySummary());
-        summary.put("dangerousRuleCount", Integer.valueOf(RULES.size()));
-        summary.put("hardlineRuleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
-        summary.put("dangerousRuleSamples", ruleSamples(RULES, 8));
-        summary.put(
-                "domesticCloudRuleSamples",
-                Arrays.asList(
-                        "domestic_cloud_cli_credential_config_change",
-                        "domestic_object_storage_recursive_remove",
-                        "object_storage_exposure_change"));
-        summary.put(
-                "cloudStorageRuleSamples",
-                Arrays.asList(
-                        "aws_s3_recursive_remove",
-                        "domestic_object_storage_recursive_remove",
-                        "remote_credential_file_transfer",
-                        "object_storage_exposure_change"));
-        summary.put(
-                "credentialHandlingRuleSamples",
-                Arrays.asList(
-                        "sensitive_environment_read",
-                        "sensitive_clipboard_export",
-                        "sensitive_file_clipboard_export",
-                        "network_credential_file_send",
-                        "remote_credential_file_transfer"));
-        summary.put(
-                "secretStoreRuleSamples",
-                Arrays.asList(
-                        "secret_store_read",
-                        "secret_store_write",
-                        "secret_store_destroy",
-                        "encrypted_secret_file_decrypt"));
-        summary.put("networkCredentialFieldAliasDetection", Boolean.TRUE);
-        summary.put("sensitiveHttpHeaderAliasDetection", Boolean.TRUE);
-        summary.put("rawCredentialFileUploadDetection", Boolean.TRUE);
-        summary.put("sensitiveClipboardExportDetection", Boolean.TRUE);
-        summary.put("credentialFileClipboardExportDetection", Boolean.TRUE);
-        summary.put("pythonCredentialFileClipboardExportDetection", Boolean.TRUE);
-        summary.put("javascriptCredentialFileClipboardExportDetection", Boolean.TRUE);
-        summary.put("codeCredentialFileStdoutDetection", Boolean.TRUE);
-        summary.put("pythonCredentialFileStdoutDetection", Boolean.TRUE);
-        summary.put("pythonCredentialFileVariableStdoutDetection", Boolean.TRUE);
-        summary.put("pythonCredentialFileLogWriteDetection", Boolean.TRUE);
-        summary.put("javascriptCredentialFileStdoutDetection", Boolean.TRUE);
-        summary.put("javascriptCredentialFileVariableStdoutDetection", Boolean.TRUE);
-        summary.put("javascriptCredentialFileLogWriteDetection", Boolean.TRUE);
-        summary.put("codeCredentialFileVariableStdoutDetection", Boolean.TRUE);
-        summary.put("codeHttpCredentialDisclosureDetection", Boolean.TRUE);
-        summary.put("codeHttpCredentialFileDisclosureDetection", Boolean.TRUE);
-        summary.put("codeHttpCredentialFileVariableDisclosureDetection", Boolean.TRUE);
-        summary.put("powershellCredentialFileHttpDisclosureDetection", Boolean.TRUE);
-        summary.put("configuredCredentialCommandPathDetection", Boolean.TRUE);
-        summary.put("recursiveStructuredToolArgsDetection", Boolean.TRUE);
-        summary.put("nestedArrayCommandArgumentDetection", Boolean.TRUE);
-        summary.put("urlPolicyPrechecked", Boolean.TRUE);
-        summary.put("privateUrlPolicyPrechecked", Boolean.TRUE);
-        summary.put("credentialUrlPolicyPrechecked", Boolean.TRUE);
-        summary.put("websitePolicyPrechecked", Boolean.TRUE);
-        summary.put("unsafeUrlBlockedBeforeApproval", Boolean.TRUE);
-        summary.put("unsafeUrlApprovalBypassAllowed", Boolean.FALSE);
-        summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
-        summary.put("hardlinePolicy", hardlinePolicySummary());
-        summary.put(
-                "terminalGuardrailCount",
-                Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
-        summary.put(
-                "terminalGuardrails",
-                Arrays.asList(
-                        "shell_level_background",
-                        "powershell_background_job",
-                        "inline_background_ampersand",
-                        "long_lived_foreground"));
-        summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
-        summary.put("backgroundProcessGuard", Boolean.TRUE);
-        summary.put("terminalGuardrailPolicy", terminalGuardrailPolicySummary());
-        summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
-        summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
-        summary.put("alwaysApprovalCount", Integer.valueOf(listAlwaysApprovals().size()));
-        summary.put("slashConfirmPolicy", slashConfirmPolicySummary());
-        summary.put("approvalCardPolicy", approvalCardPolicySummary());
-        summary.put("auditLogPolicy", approvalAuditPolicySummary());
-        summary.put("mcpReloadPolicy", mcpReloadPolicySummary());
-        summary.put("approvalLifecyclePolicy", approvalLifecyclePolicySummary());
-        summary.put(
-                "description",
-                "Dangerous commands require approval, hardline commands are blocked, and foreground terminal commands are guarded against unmanaged long-running background work.");
-        return summary;
+        return policySummaries().approvalPolicySummary();
     }
 
-    /**
-     * 执行hardline策略摘要相关逻辑。
-     *
-     * @return 返回hardline策略Summary结果。
-     */
+    /** 执行hardline策略摘要相关逻辑。 */
     public Map<String, Object> hardlinePolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("ruleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
-        summary.put("ruleSamples", hardlineRuleSamples(12));
-        summary.put(
-                "coveredTools",
-                Arrays.asList(
-                        ToolNameConstants.EXECUTE_SHELL,
-                        ToolNameConstants.EXECUTE_CODE,
-                        ToolNameConstants.EXECUTE_PYTHON,
-                        ToolNameConstants.EXECUTE_JS));
-        summary.put(
-                "blockedCategories",
-                Arrays.asList(
-                        "root_or_system_recursive_delete",
-                        "filesystem_format_or_raw_device_write",
-                        "system_shutdown_or_reboot",
-                        "kill_all_or_fork_bomb",
-                        "windows_disk_or_profile_destruction",
-                        "metadata_url_access"));
-        summary.put("metadataUrlBlocked", Boolean.valueOf(securityPolicyService != null));
-        summary.put("hardlineAllowlist", hardlineAllowlistSummary());
-        summary.put("hardlineAllowlistConfigKey", "security.hardlineAllowlist");
-        summary.put("allowlistWildcardSupported", Boolean.TRUE);
-        summary.put("allowlistedCategoriesCanBypass", Boolean.TRUE);
-        summary.put("codeToolShellExtractionCovered", Boolean.TRUE);
-        summary.put("pythonShellExtractionCovered", Boolean.TRUE);
-        summary.put("javascriptChildProcessExtractionCovered", Boolean.TRUE);
-        summary.put("approvalBypassAllowed", Boolean.FALSE);
-        summary.put("slashApproveBypassAllowed", Boolean.FALSE);
-        summary.put("sessionApprovalBypassAllowed", Boolean.FALSE);
-        summary.put("alwaysApprovalBypassAllowed", Boolean.FALSE);
-        summary.put("sessionAutoApprovalBypassAllowed", Boolean.FALSE);
-        summary.put("smartApprovalBypassAllowed", Boolean.FALSE);
-        summary.put("blockingDecision", "block");
-        summary.put("approvalRequired", Boolean.FALSE);
-        summary.put("commandPreviewRedacted", Boolean.TRUE);
-        summary.put(
-                "description",
-                "Hardline commands are blocked before approval handling unless their category is listed in security.hardlineAllowlist; slash approvals, session approvals, always approvals, smart approval, and session auto approval cannot bypass non-allowlisted hardline categories.");
-        return summary;
+        return policySummaries().hardlinePolicySummary();
     }
 
-    /**
-     * 执行hardlineAllowlist摘要相关逻辑。
-     *
-     * @return 返回hardline Allowlist Summary结果。
-     */
-    private List<String> hardlineAllowlistSummary() {
-        if (appConfig == null || appConfig.getSecurity() == null) {
-            return Collections.emptyList();
-        }
-        List<String> configured = appConfig.getSecurity().getHardlineAllowlist();
-        if (configured == null) {
-            return Collections.emptyList();
-        }
-        return new ArrayList<String>(configured);
-    }
-
-    /**
-     * 执行smart审批策略摘要相关逻辑。
-     *
-     * @return 返回smart审批策略Summary结果。
-     */
+    /** 执行smart审批策略摘要相关逻辑。 */
     public Map<String, Object> smartApprovalPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        String guardrailMode = guardrailMode();
-        boolean smartMode = "smart".equals(guardrailMode);
-        boolean judgeConfigured = hasSmartApprovalJudge();
-        summary.put("guardrailMode", guardrailMode);
-        summary.put("smartMode", Boolean.valueOf(smartMode));
-        summary.put("judgeConfigured", Boolean.valueOf(judgeConfigured));
-        summary.put("active", Boolean.valueOf(smartMode && judgeConfigured));
-        summary.put("decisionTypes", Arrays.asList("approve", "escalate", "deny"));
-        summary.put("approveWritesSessionApproval", Boolean.TRUE);
-        summary.put("approveMarksCurrentThread", Boolean.TRUE);
-        summary.put("escalateFallsBackToHumanApproval", Boolean.TRUE);
-        summary.put("denyBlocksExecution", Boolean.TRUE);
-        summary.put("judgeFailureFallsBackToHumanApproval", Boolean.TRUE);
-        summary.put("hardlinePrechecked", Boolean.TRUE);
-        summary.put("filePolicyPrechecked", Boolean.TRUE);
-        summary.put("urlPolicyPrechecked", Boolean.TRUE);
-        summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
-        summary.put("tirithFindingsIncluded", Boolean.TRUE);
-        summary.put("subagentPolicyRunsAfterSmartApproval", Boolean.TRUE);
-        summary.put("approvalCardFallback", Boolean.TRUE);
-        summary.put("reasonStoredInBlockMessage", Boolean.TRUE);
-        summary.put("commandPreviewRedacted", Boolean.TRUE);
-        summary.put(
-                "description",
-                "Smart approval only evaluates commands that remain approvable after hardline, file, URL, and terminal guardrail checks; approvals become session-scoped while escalations fall back to human confirmation.");
-        return summary;
+        return policySummaries().smartApprovalPolicySummary();
     }
 
-    /**
-     * 执行tirith审批策略摘要相关逻辑。
-     *
-     * @return 返回tirith审批策略Summary结果。
-     */
+    /** 执行tirith审批策略摘要相关逻辑。 */
     public Map<String, Object> tirithApprovalPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("scannerConfigured", Boolean.valueOf(tirithSecurityService != null));
-        summary.put("scanRunsInApprovalMode", Boolean.valueOf(!"bypass".equals(guardrailMode())));
-        summary.put("patternKeyPrefix", "tirith:");
-        summary.put("emptyFindingsPatternKey", "tirith:security_scan");
-        summary.put("findingsBecomePatternKeys", Boolean.TRUE);
-        summary.put("combinedWithLocalDangerRules", Boolean.TRUE);
-        summary.put("permanentApprovalAllowed", Boolean.FALSE);
-        summary.put("alwaysScopeDowngradedToSession", Boolean.TRUE);
-        summary.put("approvalCardAlwaysHidden", Boolean.TRUE);
-        summary.put("smartApprovalCanApproveSessionOnly", Boolean.TRUE);
-        summary.put("smartApprovalCanDeny", Boolean.TRUE);
-        summary.put("pendingMessageBlocksAlwaysScope", Boolean.TRUE);
-        summary.put("descriptionRedacted", Boolean.TRUE);
-        summary.put(
-                "description",
-                "Tirith findings are converted into tirith:* approval patterns, can be combined with local dangerous rules, and never create permanent approvals.");
-        return summary;
+        return policySummaries().tirithApprovalPolicySummary();
     }
 
-    /**
-     * 执行定时任务审批策略摘要相关逻辑。
-     *
-     * @return 返回定时任务审批策略Summary结果。
-     */
+    /** 执行定时任务审批策略摘要相关逻辑。 */
     public Map<String, Object> cronApprovalPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        String mode = guardrailCronMode();
-        summary.put("guardrailCronMode", mode);
-        summary.put("autoApproveDangerousCommands", Boolean.valueOf("approve".equals(mode)));
-        summary.put("defaultDecision", cronDefaultDecision(mode));
-        summary.put(
-                "configKeys",
-                Arrays.asList("security.guardrailCronMode", "security.guardrailCronScope"));
-        summary.put("supportedModes", Arrays.asList("bypass", "approval", "strict", "approve"));
-        summary.put("approvalScope", cronApprovalScope());
-        summary.put("guardrailApprovalCanPauseCron", Boolean.TRUE);
-        summary.put("jobScopeIncludesScriptFingerprint", Boolean.TRUE);
-        summary.put("hardlineAlwaysBlocked", Boolean.TRUE);
-        summary.put("hardlineAllowlist", hardlineAllowlistSummary());
-        summary.put("hardlineAllowlistConfigKey", "security.hardlineAllowlist");
-        summary.put("allowlistedHardlineCategoriesCanRun", Boolean.TRUE);
-        summary.put("filePolicyPrechecked", Boolean.TRUE);
-        summary.put("urlPolicyPrechecked", Boolean.TRUE);
-        summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
-        summary.put("dangerousPatternCheckedBeforeRun", Boolean.TRUE);
-        summary.put("scriptContentChecked", Boolean.TRUE);
-        summary.put(
-                "description",
-                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve auto-approves approvable commands; hardline commands remain blocked unless their category is configured in security.hardlineAllowlist.");
-        return summary;
+        return policySummaries().cronApprovalPolicySummary();
     }
 
-    /**
-     * 执行定时任务默认决策相关逻辑。
-     *
-     * @param mode 模式参数。
-     * @return 返回定时任务默认Decision结果。
-     */
-    private String cronDefaultDecision(String mode) {
-        if ("approve".equals(mode) || "bypass".equals(mode)) {
-            return mode;
-        }
-        if ("approval".equals(mode)) {
-            return "request_approval";
-        }
-        return "deny";
-    }
-
-    /**
-     * 执行定时任务审批范围相关逻辑。
-     *
-     * @return 返回定时任务审批范围结果。
-     */
-    private String cronApprovalScope() {
-        String scope =
-                appConfig == null || appConfig.getSecurity() == null
-                        ? ""
-                        : appConfig.getSecurity().getGuardrailCronScope();
-        scope = StrUtil.blankToDefault(scope, "job").trim().toLowerCase(Locale.ROOT);
-        return "global".equals(scope) || "session".equals(scope) ? scope : "job";
-    }
-
-    /**
-     * 执行子Agent审批策略摘要相关逻辑。
-     *
-     * @return 返回subagent审批策略Summary结果。
-     */
+    /** 执行子Agent审批策略摘要相关逻辑。 */
     public Map<String, Object> subagentApprovalPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        boolean autoApprove = isSubagentAutoApproveEnabled();
-        summary.put("autoApproveDangerousCommands", Boolean.valueOf(autoApprove));
-        summary.put("defaultDecision", autoApprove ? "approve_once" : "deny");
-        summary.put("configKey", "approvals.subagentAutoApprove");
-        summary.put("runKind", "subagent");
-        summary.put("hardlinePrechecked", Boolean.TRUE);
-        summary.put("filePolicyPrechecked", Boolean.TRUE);
-        summary.put("urlPolicyPrechecked", Boolean.TRUE);
-        summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
-        summary.put("smartApprovalRunsBeforeSubagentPolicy", Boolean.TRUE);
-        summary.put("humanApprovalPromptSuppressed", Boolean.TRUE);
-        summary.put("currentThreadApprovalWhenAutoApproved", Boolean.TRUE);
-        summary.put("pendingApprovalCreatedWhenDenied", Boolean.FALSE);
-        summary.put("denyMessageIncludesConfigHint", Boolean.TRUE);
-        summary.put(
-                "description",
-                "Subagent runs do not wait for human approval: approvable dangerous commands are denied by default or approved once only when approvals.subagentAutoApprove is enabled.");
-        return summary;
+        return policySummaries().subagentApprovalPolicySummary();
     }
 
-    /**
-     * 执行斜杠命令Confirm策略摘要相关逻辑。
-     *
-     * @return 返回slash Confirm策略Summary结果。
-     */
+    /** 执行斜杠命令Confirm策略摘要相关逻辑。 */
     public Map<String, Object> slashConfirmPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("commands", Arrays.asList("/approve", "/deny"));
-        summary.put("selectorSupported", Boolean.TRUE);
-        summary.put("listSupported", Boolean.TRUE);
-        summary.put("approveAllSupported", Boolean.TRUE);
-        summary.put("denyAllSupported", Boolean.TRUE);
-        summary.put("clearSessionSupported", Boolean.TRUE);
-        summary.put("clearAlwaysSupported", Boolean.TRUE);
-        summary.put("clearAllSupported", Boolean.TRUE);
-        summary.put("scopes", Arrays.asList("once", "session", "always"));
-        summary.put("defaultScope", "once");
-        summary.put(
-                "managementCommands",
-                Arrays.asList(
-                        "/approve list",
-                        "/approve status",
-                        "/approve clear session",
-                        "/approve clear always",
-                        "/approve clear all",
-                        "/deny list",
-                        "/deny status",
-                        "/deny all"));
-        summary.put("pendingQueueSupported", Boolean.TRUE);
-        summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
-        summary.put("pendingListHidesApprovalKey", Boolean.TRUE);
-        summary.put("approvalKeySelectorHidden", Boolean.TRUE);
-        summary.put("pendingListUsesSafeSelector", Boolean.TRUE);
-        summary.put("pendingListShowsPatternKey", Boolean.TRUE);
-        summary.put("sessionApprovalListShowsCountOnly", Boolean.TRUE);
-        summary.put("alwaysApprovalListShowsCountOnly", Boolean.TRUE);
-        summary.put("approvalCardDeliveryMode", DELIVERY_MODE_APPROVAL_CARD);
-        summary.put(
-                "approvalCardPlatforms",
-                Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
-        summary.put("approvalCardActionKey", CARD_ACTION_KEY);
-        summary.put("approvalCardApproveAction", CARD_ACTION_APPROVE);
-        summary.put("approvalCardDenyAction", CARD_ACTION_DENY);
-        summary.put("approvalCardScopeKey", CARD_SCOPE_KEY);
-        summary.put("approvalCardApprovalIdKey", CARD_APPROVAL_ID_KEY);
-        summary.put("permanentApprovalAllowedExceptTirith", Boolean.TRUE);
-        summary.put("tirithAlwaysDowngradedToSession", Boolean.TRUE);
-        summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
-        summary.put(
-                "selectorPrefixMinLength", Integer.valueOf(APPROVAL_SELECTOR_PREFIX_MIN_LENGTH));
-        summary.put("unsafeSelectorRejected", Boolean.TRUE);
-        summary.put("approverRedacted", Boolean.TRUE);
-        summary.put("commandPreviewRedacted", Boolean.TRUE);
-        summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
-        summary.put("approvalMetadataRedacted", Boolean.TRUE);
-        summary.put("observerEventsRedacted", Boolean.TRUE);
-        summary.put("approvalTimeoutSeconds", Integer.valueOf(approvalTimeoutSeconds()));
-        summary.put("gatewayTimeoutSeconds", Integer.valueOf(approvalGatewayTimeoutSeconds()));
-        summary.put(
-                "description",
-                "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes, hidden approval keys in list output, and redacted approval metadata.");
-        return summary;
+        return policySummaries().slashConfirmPolicySummary();
     }
 
-    /**
-     * 执行审批卡片策略摘要相关逻辑。
-     *
-     * @return 返回审批Card策略Summary结果。
-     */
+    /** 执行审批Card策略摘要相关逻辑。 */
     public Map<String, Object> approvalCardPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("deliveryMode", DELIVERY_MODE_APPROVAL_CARD);
-        summary.put(
-                "supportedPlatforms",
-                Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
-        summary.put("unsupportedPlatformsReturnEmptyExtras", Boolean.TRUE);
-        summary.put("actionKey", CARD_ACTION_KEY);
-        summary.put("approveAction", CARD_ACTION_APPROVE);
-        summary.put("denyAction", CARD_ACTION_DENY);
-        summary.put("scopeKey", CARD_SCOPE_KEY);
-        summary.put("approvalIdKey", CARD_APPROVAL_ID_KEY);
-        summary.put("scopeOptions", Arrays.asList("once", "session", "always"));
-        summary.put("defaultScope", "once");
-        summary.put("approvalIdSelectorSupported", Boolean.TRUE);
-        summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
-        summary.put("unsafeSelectorRejected", Boolean.TRUE);
-        summary.put("outboundApprovalIdSanitized", Boolean.TRUE);
-        summary.put("unsafeApprovalIdFallsBackToKeySelector", Boolean.TRUE);
-        summary.put("secretLikeApprovalIdFallsBackToKeySelector", Boolean.TRUE);
-        summary.put("secretLikeInboundApprovalIdRejected", Boolean.TRUE);
-        summary.put("approveCommandGenerated", Boolean.TRUE);
-        summary.put("denyCommandGenerated", Boolean.TRUE);
-        summary.put("alwaysScopeCommandGenerated", Boolean.TRUE);
-        summary.put("sessionScopeCommandGenerated", Boolean.TRUE);
-        summary.put("domesticCardLabelsLocalized", Boolean.TRUE);
-        summary.put("feishuChineseCardLabels", Boolean.TRUE);
-        summary.put("qqbotSessionActionSupported", Boolean.TRUE);
-        summary.put("tirithPermanentApprovalHidden", Boolean.TRUE);
-        summary.put("commandPreviewRedacted", Boolean.TRUE);
-        summary.put("descriptionPreviewRedacted", Boolean.TRUE);
-        summary.put("toolNameRedacted", Boolean.TRUE);
-        summary.put("commandPreviewRedactedInExtras", Boolean.TRUE);
-        summary.put("rawCommandRedactedInExtras", Boolean.TRUE);
-        summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
-        summary.put("encodedUrlParameterRedactedInExtras", Boolean.TRUE);
-        summary.put("semicolonUrlParameterRedacted", Boolean.TRUE);
-        summary.put("fragmentUrlParameterRedacted", Boolean.TRUE);
-        summary.put(
-                "description",
-                "Approval card extras are only emitted for supported domestic card platforms, use safe approval selectors in outbound card payloads, map card actions back to /approve or /deny commands with redacted previews, and expose localized card labels plus session-scope channel actions.");
-        return summary;
+        return policySummaries().approvalCardPolicySummary();
     }
 
-    /**
-     * 执行审批审计策略摘要相关逻辑。
-     *
-     * @return 返回审批审计策略Summary结果。
-     */
+    /** 执行审批审计策略摘要相关逻辑。 */
     public Map<String, Object> approvalAuditPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("observerCount", Integer.valueOf(approvalObservers.size()));
-        summary.put("requestEvents", Boolean.TRUE);
-        summary.put("responseEvents", Boolean.TRUE);
-        summary.put("eventTypes", Arrays.asList("request", "response"));
-        summary.put(
-                "responseOutcomes",
-                Arrays.asList(
-                        ApprovalResponseEvent.OUTCOME_APPROVED,
-                        ApprovalResponseEvent.OUTCOME_DENIED,
-                        ApprovalResponseEvent.OUTCOME_TIMED_OUT));
-        summary.put("responseStatusDistinct", Boolean.TRUE);
-        summary.put("repositoryBackedWhenConfigured", Boolean.TRUE);
-        summary.put("observerFailureIsolated", Boolean.TRUE);
-        summary.put("approverRedacted", Boolean.TRUE);
-        summary.put("commandPreviewRedacted", Boolean.TRUE);
-        summary.put("descriptionRedacted", Boolean.TRUE);
-        summary.put("approvalKeyRedacted", Boolean.TRUE);
-        summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
-        summary.put("commandHashStored", Boolean.TRUE);
-        summary.put("patternKeysStored", Boolean.TRUE);
-        summary.put("timestampsStored", Boolean.TRUE);
-        summary.put("recentDashboardViewSupported", Boolean.TRUE);
-        summary.put("manualRevocationAudited", Boolean.TRUE);
-        summary.put(
-                "description",
-                "Approval request and response events can be persisted with redacted command previews, approvers, descriptions, pattern keys, command hashes, and approval timestamps.");
-        return summary;
+        return policySummaries().approvalAuditPolicySummary();
     }
 
-    /**
-     * 执行MCPReload策略摘要相关逻辑。
-     *
-     * @return 返回MCP Reload策略Summary结果。
-     */
+    /** 执行MCP Reload策略摘要相关逻辑。 */
     public Map<String, Object> mcpReloadPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        boolean confirmRequired =
-                appConfig == null
-                        || appConfig.getApprovals() == null
-                        || appConfig.getApprovals().isMcpReloadConfirm();
-        summary.put("command", "/reload-mcp");
-        summary.put("confirmRequired", Boolean.valueOf(confirmRequired));
-        summary.put("configKey", "approvals.mcpReloadConfirm");
-        summary.put("slashConfirmBacked", Boolean.TRUE);
-        summary.put("directRunArgument", "now");
-        summary.put("alwaysConfirmArgument", "always");
-        summary.put("persistentDisableSupported", Boolean.TRUE);
-        summary.put("runtimeConfigPersisted", Boolean.TRUE);
-        summary.put("toolChangeNoticeInjected", Boolean.TRUE);
-        summary.put("changedServerSummary", Boolean.TRUE);
-        summary.put("toolCountSummary", Boolean.TRUE);
-        summary.put("oauthUrlSafetyCovered", Boolean.TRUE);
-        summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
-        summary.put("reloadHistoryNoticeRedacted", Boolean.TRUE);
-        summary.put(
-                "description",
-                "MCP reload can require slash confirmation, supports now/always arguments, persists the confirmation flag, and records tool-change notices for the next model turn.");
-        return summary;
+        return policySummaries().mcpReloadPolicySummary();
     }
 
-    /**
-     * 执行审批生命周期策略摘要相关逻辑。
-     *
-     * @return 返回审批生命周期策略Summary结果。
-     */
+    /** 执行审批生命周期策略摘要相关逻辑。 */
     public Map<String, Object> approvalLifecyclePolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("pendingQueueContextKey", CONTEXT_PENDING_APPROVAL_QUEUE);
-        summary.put("pendingListPrunedBeforeRead", Boolean.TRUE);
-        summary.put("selectorSupported", Boolean.TRUE);
-        summary.put("listSupported", Boolean.TRUE);
-        summary.put("approveAllSupported", Boolean.TRUE);
-        summary.put("rejectAllSupported", Boolean.TRUE);
-        summary.put("clearSessionSupported", Boolean.TRUE);
-        summary.put("clearAlwaysSupported", Boolean.TRUE);
-        summary.put("clearAllSupported", Boolean.TRUE);
-        summary.put("scopes", Arrays.asList("once", "session", "always"));
-        summary.put("onceScopeStoresContextKey", CONTEXT_ONCE_APPROVALS);
-        summary.put("sessionScopeStoresContextKey", CONTEXT_SESSION_APPROVALS);
-        summary.put("alwaysScopeUsesGlobalSettings", Boolean.TRUE);
-        summary.put("tirithAlwaysScopeDowngradedToSession", Boolean.TRUE);
-        summary.put(
-                "currentThreadApprovalTtlMillis", Long.valueOf(CURRENT_THREAD_APPROVAL_TTL_MILLIS));
-        summary.put("currentThreadApprovalEnabled", Boolean.TRUE);
-        summary.put("selectorTokenPattern", APPROVAL_SELECTOR_TOKEN.pattern());
-        summary.put("unsafeSelectorRejected", Boolean.TRUE);
-        summary.put("bulkRejectUsesSafeSelector", Boolean.TRUE);
-        summary.put("approveRemovesPendingApproval", Boolean.TRUE);
-        summary.put("rejectRemovesPendingApproval", Boolean.TRUE);
-        summary.put("sessionSnapshotUpdated", Boolean.TRUE);
-        summary.put("approvalRequestObserved", Boolean.TRUE);
-        summary.put("approvalResponseObserved", Boolean.TRUE);
-        summary.put("approverRedacted", Boolean.TRUE);
-        summary.put("approvalKeyRedacted", Boolean.TRUE);
-        summary.put("commandPreviewRedacted", Boolean.TRUE);
-        summary.put("encodedUrlParameterRedacted", Boolean.TRUE);
-        summary.put(
-                "description",
-                "Approval lifecycle stores queued approvals in session context, supports once/session/always scopes, downgrades scanner findings to session scope, updates snapshots, and emits redacted request/response events.");
-        return summary;
+        return policySummaries().approvalLifecyclePolicySummary();
     }
 
-    /**
-     * 执行终端防护策略摘要相关逻辑。
-     *
-     * @return 返回终端防护策略Summary结果。
-     */
+    /** 执行终端防护策略摘要相关逻辑。 */
     public Map<String, Object> terminalGuardrailPolicySummary() {
-        Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("backgroundShellWrappersBlocked", Arrays.asList("nohup", "disown", "setsid"));
-        summary.put(
-                "detachedSessionLaunchersBlocked",
-                Arrays.asList(
-                        "tmux new-session -d", "screen -dmS", "systemd-run", "cmd /c start /B"));
-        summary.put(
-                "powershellBackgroundCommandsBlocked",
-                Arrays.asList("Start-Process", "Start-Job", "Start-ThreadJob"));
-        summary.put("powershellStartProcessRequiresWait", Boolean.TRUE);
-        summary.put("powershellStartProcessNoNewWindowNotEnough", Boolean.TRUE);
-        summary.put("powershellStartProcessPassThruNotEnough", Boolean.TRUE);
-        summary.put("inlineAmpersandBlocked", Boolean.TRUE);
-        summary.put("trailingAmpersandBlocked", Boolean.TRUE);
-        summary.put("longLivedForegroundBlocked", Boolean.TRUE);
-        summary.put(
-                "longLivedForegroundPatternCount",
-                Integer.valueOf(LONG_LIVED_FOREGROUND_PATTERNS.size()));
-        summary.put(
-                "longLivedForegroundSamples",
-                Arrays.asList("npm run dev", "docker compose up", "vite", "python -m http.server"));
-        summary.put("codeToolShellExtractionCovered", Boolean.TRUE);
-        summary.put(
-                "codeToolShellSources",
-                Arrays.asList("execute_code", "execute_python", "execute_js"));
-        summary.put("commandPathPrechecked", Boolean.TRUE);
-        summary.put("credentialPathPrechecked", Boolean.TRUE);
-        summary.put("downloadOutputPathPrechecked", Boolean.TRUE);
-        summary.put("downloadOutputDetachedOptionPrechecked", Boolean.TRUE);
-        summary.put("networkUploadSourcePathPrechecked", Boolean.TRUE);
-        summary.put("proxyUrlPrechecked", Boolean.TRUE);
-        summary.put("preproxyUrlPrechecked", Boolean.TRUE);
-        summary.put("systemDnsCommandPrechecked", Boolean.TRUE);
-        summary.put("systemProxyCommandPrechecked", Boolean.TRUE);
-        summary.put("windowsRegistryProxyCommandPrechecked", Boolean.TRUE);
-        summary.put("hostsAndResolverPathPrechecked", Boolean.TRUE);
-        summary.put("managedBackgroundProcessRequired", Boolean.TRUE);
-        summary.put("processRegistryBacked", Boolean.TRUE);
-        summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
-        summary.put("sudoPasswordRedacted", Boolean.TRUE);
-        summary.put("foregroundMaxTimeoutSeconds", Integer.valueOf(maxForegroundTimeoutSeconds()));
-        summary.put("foregroundMaxRetries", Integer.valueOf(foregroundMaxRetries()));
-        summary.put(
-                "foregroundRetryBaseDelaySeconds",
-                Integer.valueOf(foregroundRetryBaseDelaySeconds()));
-        summary.put(
-                "description",
-                "Foreground terminal guardrails block unmanaged background wrappers, inline background operators, credential path access, unsafe proxy/preproxy URLs, system DNS/proxy changes, hosts/resolver writes, download output or network upload source credential paths, and common long-running dev/server commands, with managed background process guidance and redacted sudo support.");
-        return summary;
+        return policySummaries().terminalGuardrailPolicySummary();
+    }
+
+    /** 创建审批策略摘要生成器。 */
+    private DangerousCommandApprovalPolicySummaries policySummaries() {
+        return new DangerousCommandApprovalPolicySummaries(
+                this,
+                appConfig,
+                tirithSecurityService != null,
+                securityPolicyService != null,
+                approvalObservers.size());
     }
 
     /**
@@ -3198,7 +2674,9 @@ public class DangerousCommandApprovalService {
      * @return 返回当前Thread审批键结果。
      */
     private static String currentThreadApprovalKey(String toolName, String command) {
-        return StrUtil.nullToEmpty(toolName).trim() + ":" + normalizeCommand(command);
+        return StrUtil.nullToEmpty(toolName).trim()
+                + ":"
+                + DangerousCommandTextSupport.normalizeCommand(command);
     }
 
     /**
@@ -4176,323 +3654,7 @@ public class DangerousCommandApprovalService {
      * @return 返回规范化结果。
      */
     private String normalize(String code) {
-        return normalizeCommand(code);
-    }
-
-    /**
-     * 规范化命令。
-     *
-     * @param code code 参数。
-     * @return 返回命令结果。
-     */
-    private static String normalizeCommand(String code) {
-        String normalized = StrUtil.nullToEmpty(code).replace("\u0000", "");
-        normalized = TerminalAnsiSanitizer.stripAnsi(normalized);
-        normalized = Normalizer.normalize(normalized, Normalizer.Form.NFKC);
-        normalized = normalized.replaceAll("\\\\\\r?\\n", " ");
-        return normalized.trim();
-    }
-
-    /**
-     * 提取Python Shell Commands。
-     *
-     * @param code code 参数。
-     * @return 返回Python Shell Commands结果。
-     */
-    private static List<String> extractPythonShellCommands(String code) {
-        if (StrUtil.isBlank(code)) {
-            return Collections.emptyList();
-        }
-        List<String> commands = new ArrayList<String>();
-        Matcher matcher = PYTHON_SHELL_EXEC_CALL.matcher(code);
-        while (matcher.find()) {
-            String command = readFirstShellCommandArgument(code, matcher.end());
-            if (StrUtil.isNotBlank(command)) {
-                commands.add(command);
-            }
-        }
-        return commands;
-    }
-
-    /**
-     * 提取Java Script Child进程命令。
-     *
-     * @param code code 参数。
-     * @return 返回Java Script Child进程命令结果。
-     */
-    private static String extractJavaScriptChildProcessCommand(String code) {
-        if (StrUtil.isBlank(code)) {
-            return null;
-        }
-        Pattern callPattern =
-                Pattern.compile(
-                        "\\b(?:child_process\\.)?(?:exec|execSync|spawn|spawnSync|execFile|execFileSync)\\s*\\(",
-                        Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-        Matcher matcher = callPattern.matcher(code);
-        if (!matcher.find()) {
-            return null;
-        }
-        String firstArgument = readFirstShellCommandArgument(code, matcher.end());
-        if (StrUtil.isBlank(firstArgument)) {
-            return null;
-        }
-        String listArguments = readSecondJavaScriptArgumentList(code, matcher.end());
-        if (StrUtil.isBlank(listArguments)) {
-            return firstArgument;
-        }
-        return firstArgument + " " + listArguments;
-    }
-
-    /**
-     * 读取Second Java Script参数List。
-     *
-     * @param code code 参数。
-     * @param offset 分页偏移量。
-     * @return 返回读取到的Second Java Script参数List。
-     */
-    private static String readSecondJavaScriptArgumentList(String code, int offset) {
-        int index = skipWhitespace(code, offset);
-        if (index < 0 || index >= code.length()) {
-            return null;
-        }
-        index = skipFirstArgument(code, index);
-        index = skipWhitespace(code, index);
-        if (index < 0 || index >= code.length() || code.charAt(index) != ',') {
-            return null;
-        }
-        index = skipWhitespace(code, index + 1);
-        if (index < 0 || index >= code.length() || code.charAt(index) != '[') {
-            return null;
-        }
-        return readQuotedStringListCommand(code, index + 1);
-    }
-
-    /**
-     * 执行skipFirst参数相关逻辑。
-     *
-     * @param code code 参数。
-     * @param offset 分页偏移量。
-     * @return 返回skip First参数结果。
-     */
-    private static int skipFirstArgument(String code, int offset) {
-        int index = skipWhitespace(code, offset);
-        if (index < 0 || index >= code.length()) {
-            return -1;
-        }
-        char current = code.charAt(index);
-        if (current == '\'' || current == '"') {
-            return skipQuotedString(code, index);
-        }
-        if (current == '[') {
-            return skipBracketedList(code, index);
-        }
-        return -1;
-    }
-
-    /**
-     * 执行skipBracketed列表相关逻辑。
-     *
-     * @param code code 参数。
-     * @param offset 分页偏移量。
-     * @return 返回skip Bracketed List结果。
-     */
-    private static int skipBracketedList(String code, int offset) {
-        if (code == null || offset < 0 || offset >= code.length() || code.charAt(offset) != '[') {
-            return -1;
-        }
-        int depth = 0;
-        for (int i = offset; i < code.length(); i++) {
-            char current = code.charAt(i);
-            if (current == '\'' || current == '"') {
-                i = skipQuotedString(code, i) - 1;
-                if (i < 0) {
-                    return -1;
-                }
-                continue;
-            }
-            if (current == '[') {
-                depth++;
-            } else if (current == ']') {
-                depth--;
-                if (depth == 0) {
-                    return i + 1;
-                }
-            }
-        }
-        return -1;
-    }
-
-    /**
-     * 读取First Shell命令参数。
-     *
-     * @param code code 参数。
-     * @param offset 分页偏移量。
-     * @return 返回读取到的First Shell命令参数。
-     */
-    private static String readFirstShellCommandArgument(String code, int offset) {
-        int index = skipWhitespace(code, offset);
-        if (index < 0 || index >= code.length()) {
-            return null;
-        }
-        char current = code.charAt(index);
-        if (current == '\'' || current == '"') {
-            return readQuotedString(code, index);
-        }
-        if (current == '[') {
-            return readQuotedStringListCommand(code, index + 1);
-        }
-        return null;
-    }
-
-    /**
-     * 读取Quoted String List命令。
-     *
-     * @param code code 参数。
-     * @param offset 分页偏移量。
-     * @return 返回读取到的Quoted String List命令。
-     */
-    private static String readQuotedStringListCommand(String code, int offset) {
-        List<String> parts = new ArrayList<String>();
-        int index = offset;
-        while (index >= 0 && index < code.length()) {
-            index = skipWhitespace(code, index);
-            if (index < 0 || index >= code.length() || code.charAt(index) == ']') {
-                break;
-            }
-            char quote = code.charAt(index);
-            if (quote != '\'' && quote != '"') {
-                return null;
-            }
-            String value = readQuotedString(code, index);
-            if (value == null) {
-                return null;
-            }
-            parts.add(value);
-            index = skipQuotedString(code, index);
-            index = skipWhitespace(code, index);
-            if (index < 0 || index >= code.length() || code.charAt(index) == ']') {
-                break;
-            }
-            if (code.charAt(index) != ',') {
-                return null;
-            }
-            index++;
-        }
-        if (parts.isEmpty()) {
-            return null;
-        }
-        StringBuilder command = new StringBuilder();
-        for (String part : parts) {
-            if (command.length() > 0) {
-                command.append(' ');
-            }
-            command.append(part);
-        }
-        return command.toString();
-    }
-
-    /**
-     * 读取Quoted String。
-     *
-     * @param code code 参数。
-     * @param offset 分页偏移量。
-     * @return 返回读取到的Quoted String。
-     */
-    private static String readQuotedString(String code, int offset) {
-        if (code == null || offset < 0 || offset >= code.length()) {
-            return null;
-        }
-        char quote = code.charAt(offset);
-        if (quote != '\'' && quote != '"') {
-            return null;
-        }
-        StringBuilder value = new StringBuilder();
-        boolean escaped = false;
-        for (int i = offset + 1; i < code.length(); i++) {
-            char current = code.charAt(i);
-            if (escaped) {
-                value.append(current);
-                escaped = false;
-                continue;
-            }
-            if (current == '\\') {
-                escaped = true;
-                continue;
-            }
-            if (current == quote) {
-                return value.toString();
-            }
-            value.append(current);
-        }
-        return null;
-    }
-
-    /**
-     * 执行skipQuoted字符串相关逻辑。
-     *
-     * @param code code 参数。
-     * @param offset 分页偏移量。
-     * @return 返回skip Quoted String结果。
-     */
-    private static int skipQuotedString(String code, int offset) {
-        if (code == null || offset < 0 || offset >= code.length()) {
-            return -1;
-        }
-        char quote = code.charAt(offset);
-        if (quote != '\'' && quote != '"') {
-            return -1;
-        }
-        boolean escaped = false;
-        for (int i = offset + 1; i < code.length(); i++) {
-            char current = code.charAt(i);
-            if (escaped) {
-                escaped = false;
-                continue;
-            }
-            if (current == '\\') {
-                escaped = true;
-                continue;
-            }
-            if (current == quote) {
-                return i + 1;
-            }
-        }
-        return -1;
-    }
-
-    /**
-     * 执行skipWhitespace相关逻辑。
-     *
-     * @param code code 参数。
-     * @param offset 分页偏移量。
-     * @return 返回skip Whitespace结果。
-     */
-    private static int skipWhitespace(String code, int offset) {
-        if (code == null || offset < 0 || offset > code.length()) {
-            return -1;
-        }
-        int index = offset;
-        while (index < code.length() && Character.isWhitespace(code.charAt(index))) {
-            index++;
-        }
-        return index;
-    }
-
-    /**
-     * 判断是否具有HelpOr版本命令特征。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回looks Like Help Or版本命令结果。
-     */
-    private boolean looksLikeHelpOrVersionCommand(String command) {
-        String normalized = StrUtil.nullToEmpty(command).toLowerCase(Locale.ROOT).trim();
-        while (normalized.contains("  ")) {
-            normalized = normalized.replace("  ", " ");
-        }
-        return normalized.contains(" --help")
-                || normalized.endsWith(" -h")
-                || normalized.contains(" --version")
-                || normalized.endsWith(" -v");
+        return DangerousCommandTextSupport.normalizeCommand(code);
     }
 
     /**
@@ -4665,534 +3827,11 @@ public class DangerousCommandApprovalService {
     }
 
     /** 承载待恢复审批相关状态和辅助逻辑。 */
-    public static class PendingApproval {
-        /** 记录待恢复审批中的审批标识。 */
-        private String approvalId;
-
-        /** 记录待恢复审批中的工具名称。 */
-        private String toolName;
-
-        /** 记录待恢复审批中的pattern键。 */
-        private String patternKey;
-
-        /** 保存patternKeys集合，维持调用顺序或去重语义。 */
-        private List<String> patternKeys = new ArrayList<String>();
-
-        /** 记录待恢复审批中的描述。 */
-        private String description;
-
-        /** 记录待恢复审批中的命令。 */
-        private String command;
-
-        /** 记录待恢复审批中的命令哈希。 */
-        private String commandHash;
-
-        /** 记录待恢复审批中的审批键。 */
-        private String approvalKey;
-
-        /** 是否只允许本次审批，禁止会话或永久复用。 */
-        private boolean onceOnly;
-
-        /** 记录待恢复审批中的创建时间。 */
-        private long createdAt;
-
-        /** 记录待恢复审批中的expires时间。 */
-        private long expiresAt;
-
-        /**
-         * 读取审批标识。
-         *
-         * @return 返回读取到的审批标识。
-         */
-        public String getApprovalId() {
-            return approvalId;
-        }
-
-        /**
-         * 写入审批标识。
-         *
-         * @param approvalId 审批标识。
-         */
-        public void setApprovalId(String approvalId) {
-            this.approvalId = approvalId;
-        }
-
-        /**
-         * 读取工具名称。
-         *
-         * @return 返回读取到的工具名称。
-         */
-        public String getToolName() {
-            return toolName;
-        }
-
-        /**
-         * 写入工具名称。
-         *
-         * @param toolName 工具名称。
-         */
-        public void setToolName(String toolName) {
-            this.toolName = toolName;
-        }
-
-        /**
-         * 读取Pattern键。
-         *
-         * @return 返回读取到的Pattern键。
-         */
-        public String getPatternKey() {
-            return patternKey;
-        }
-
-        /**
-         * 写入Pattern键。
-         *
-         * @param patternKey pattern键标识或键值。
-         */
-        public void setPatternKey(String patternKey) {
-            this.patternKey = patternKey;
-        }
-
-        /**
-         * 读取Pattern Keys。
-         *
-         * @return 返回读取到的Pattern Keys。
-         */
-        public List<String> getPatternKeys() {
-            return patternKeys;
-        }
-
-        /**
-         * 写入Pattern Keys。
-         *
-         * @param patternKeys patternKeys 参数。
-         */
-        public void setPatternKeys(List<String> patternKeys) {
-            this.patternKeys =
-                    patternKeys == null
-                            ? new ArrayList<String>()
-                            : new ArrayList<String>(patternKeys);
-        }
-
-        /**
-         * 读取Description。
-         *
-         * @return 返回读取到的Description。
-         */
-        public String getDescription() {
-            return description;
-        }
-
-        /**
-         * 写入Description。
-         *
-         * @param description 描述参数。
-         */
-        public void setDescription(String description) {
-            this.description = description;
-        }
-
-        /**
-         * 读取命令。
-         *
-         * @return 返回读取到的命令。
-         */
-        public String getCommand() {
-            return command;
-        }
-
-        /**
-         * 写入命令。
-         *
-         * @param command 待执行或解析的命令文本。
-         */
-        public void setCommand(String command) {
-            this.command = command;
-        }
-
-        /**
-         * 读取命令Hash。
-         *
-         * @return 返回读取到的命令Hash。
-         */
-        public String getCommandHash() {
-            return commandHash;
-        }
-
-        /**
-         * 写入命令Hash。
-         *
-         * @param commandHash 命令哈希参数。
-         */
-        public void setCommandHash(String commandHash) {
-            this.commandHash = commandHash;
-        }
-
-        /**
-         * 读取审批键。
-         *
-         * @return 返回读取到的审批键。
-         */
-        public String getApprovalKey() {
-            return approvalKey;
-        }
-
-        /**
-         * 写入审批键。
-         *
-         * @param approvalKey 审批键标识或键值。
-         */
-        public void setApprovalKey(String approvalKey) {
-            this.approvalKey = approvalKey;
-        }
-
-        /**
-         * 判断是否只允许本次审批。
-         *
-         * @return 如果只能本次审批返回 true。
-         */
-        public boolean isOnceOnlyApproval() {
-            return onceOnly;
-        }
-
-        /**
-         * 写入只允许本次审批标记。
-         *
-         * @param onceOnly 是否只允许本次审批。
-         */
-        public void setOnceOnly(boolean onceOnly) {
-            this.onceOnly = onceOnly;
-        }
-
-        /**
-         * 读取创建时间。
-         *
-         * @return 返回读取到的创建时间。
-         */
-        public long getCreatedAt() {
-            return createdAt;
-        }
-
-        /**
-         * 写入创建时间。
-         *
-         * @param createdAt createdAt 参数。
-         */
-        public void setCreatedAt(long createdAt) {
-            this.createdAt = createdAt;
-        }
-
-        /**
-         * 读取Expires时间。
-         *
-         * @return 返回读取到的Expires时间。
-         */
-        public long getExpiresAt() {
-            return expiresAt;
-        }
-
-        /**
-         * 写入Expires时间。
-         *
-         * @param expiresAt expiresAt 参数。
-         */
-        public void setExpiresAt(long expiresAt) {
-            this.expiresAt = expiresAt;
-        }
-
-        /**
-         * 执行审批键相关逻辑。
-         *
-         * @return 返回审批键结果。
-         */
-        public String approvalKey() {
-            return StrUtil.blankToDefault(
-                    cleanApprovalText(approvalKey),
-                    cleanApprovalText(toolName)
-                            + ":"
-                            + cleanApprovalText(patternKey)
-                            + ":"
-                            + cleanApprovalText(commandHash));
-        }
-
-        /**
-         * 执行生效PatternKeys相关逻辑。
-         *
-         * @return 返回生效Pattern Keys结果。
-         */
-        public List<String> effectivePatternKeys() {
-            List<String> values = new ArrayList<String>();
-            if (patternKeys != null) {
-                for (String key : patternKeys) {
-                    String value = cleanApprovalText(key);
-                    if (StrUtil.isNotBlank(value) && !values.contains(value)) {
-                        values.add(value);
-                    }
-                }
-            }
-            if (values.isEmpty() && StrUtil.isNotBlank(patternKey)) {
-                values.add(cleanApprovalText(patternKey));
-            }
-            return values;
-        }
-
-        /**
-         * 判断是否Permanent审批Allowed。
-         *
-         * @return 如果Permanent审批Allowed满足条件则返回 true，否则返回 false。
-         */
-        public boolean isPermanentApprovalAllowed() {
-            if (onceOnly) {
-                return false;
-            }
-            for (String patternKey : effectivePatternKeys()) {
-                if (StrUtil.nullToEmpty(patternKey).startsWith("tirith:")) {
-                    return false;
-                }
-            }
-            return true;
-        }
+    public static class PendingApproval extends DangerousPendingApprovalBase {
     }
 
     /** 表示Detection结果，携带调用方后续判断所需信息。 */
-    public static class DetectionResult {
-        /** 记录Detection中的pattern键。 */
-        private String patternKey;
-
-        /** 保存patternKeys集合，维持调用顺序或去重语义。 */
-        private List<String> patternKeys = new ArrayList<String>();
-
-        /** 记录Detection中的描述。 */
-        private String description;
-
-        /** 记录Detection中的normalizedCode。 */
-        private String normalizedCode;
-
-        /** 是否启用hardline。 */
-        private boolean hardline;
-
-        /** 是否只允许本次审批。 */
-        private boolean onceOnly;
-
-        /**
-         * 读取Pattern键。
-         *
-         * @return 返回读取到的Pattern键。
-         */
-        public String getPatternKey() {
-            return patternKey;
-        }
-
-        /**
-         * 写入Pattern键。
-         *
-         * @param patternKey pattern键标识或键值。
-         */
-        public void setPatternKey(String patternKey) {
-            this.patternKey = patternKey;
-        }
-
-        /**
-         * 读取Pattern Keys。
-         *
-         * @return 返回读取到的Pattern Keys。
-         */
-        public List<String> getPatternKeys() {
-            return patternKeys;
-        }
-
-        /**
-         * 写入Pattern Keys。
-         *
-         * @param patternKeys patternKeys 参数。
-         */
-        public void setPatternKeys(List<String> patternKeys) {
-            this.patternKeys =
-                    patternKeys == null
-                            ? new ArrayList<String>()
-                            : new ArrayList<String>(patternKeys);
-        }
-
-        /**
-         * 读取Description。
-         *
-         * @return 返回读取到的Description。
-         */
-        public String getDescription() {
-            return description;
-        }
-
-        /**
-         * 写入Description。
-         *
-         * @param description 描述参数。
-         */
-        public void setDescription(String description) {
-            this.description = description;
-        }
-
-        /**
-         * 读取Normalized Code。
-         *
-         * @return 返回读取到的Normalized Code。
-         */
-        public String getNormalizedCode() {
-            return normalizedCode;
-        }
-
-        /**
-         * 写入Normalized Code。
-         *
-         * @param normalizedCode normalizedCode 参数。
-         */
-        public void setNormalizedCode(String normalizedCode) {
-            this.normalizedCode = normalizedCode;
-        }
-
-        /**
-         * 判断是否Hardline。
-         *
-         * @return 如果Hardline满足条件则返回 true，否则返回 false。
-         */
-        public boolean isHardline() {
-            return hardline;
-        }
-
-        /**
-         * 写入Hardline。
-         *
-         * @param hardline hardline 参数。
-         */
-        public void setHardline(boolean hardline) {
-            this.hardline = hardline;
-        }
-
-        /**
-         * 判断是否只允许本次审批。
-         *
-         * @return 如果只能本次审批返回 true。
-         */
-        public boolean isOnceOnly() {
-            return onceOnly;
-        }
-
-        /**
-         * 写入只允许本次审批标记。
-         *
-         * @param onceOnly 是否只允许本次审批。
-         */
-        public void setOnceOnly(boolean onceOnly) {
-            this.onceOnly = onceOnly;
-        }
-
-        /**
-         * 执行生效PatternKeys相关逻辑。
-         *
-         * @return 返回生效Pattern Keys结果。
-         */
-        public List<String> effectivePatternKeys() {
-            List<String> values = new ArrayList<String>();
-            if (patternKeys != null) {
-                for (String key : patternKeys) {
-                    if (StrUtil.isNotBlank(key) && !values.contains(key.trim())) {
-                        values.add(key.trim());
-                    }
-                }
-            }
-            if (values.isEmpty() && StrUtil.isNotBlank(patternKey)) {
-                values.add(patternKey.trim());
-            }
-            return values;
-        }
-    }
-
-    /** 表示消息网关工具参数结果，携带调用方后续判断所需信息。 */
-    private static class GatewayToolArgsResult {
-        /** 保存参数映射，便于按键快速查询。 */
-        private final Map<String, Object> args;
-
-        /** 是否启用valid。 */
-        private final boolean valid;
-
-        /** 记录消息网关工具参数中的消息。 */
-        private final String message;
-
-        /** 记录消息网关工具参数中的原始文本。 */
-        private final String rawText;
-
-        /**
-         * 创建消息网关工具参数结果实例，并注入运行所需依赖。
-         *
-         * @param args 工具或命令参数。
-         * @param valid valid标识或键值。
-         * @param message 平台消息或错误消息。
-         * @param rawText 原始文本参数。
-         */
-        private GatewayToolArgsResult(
-                Map<String, Object> args, boolean valid, String message, String rawText) {
-            this.args = args == null ? new LinkedHashMap<String, Object>() : args;
-            this.valid = valid;
-            this.message = StrUtil.nullToEmpty(message);
-            this.rawText = StrUtil.nullToEmpty(rawText);
-        }
-
-        /**
-         * 执行valid相关逻辑。
-         *
-         * @param args 工具或命令参数。
-         * @return 返回valid结果。
-         */
-        static GatewayToolArgsResult valid(Map<String, Object> args) {
-            return new GatewayToolArgsResult(args, true, "", "");
-        }
-
-        /**
-         * 执行invalid相关逻辑。
-         *
-         * @param message 平台消息或错误消息。
-         * @param rawText 原始文本参数。
-         * @return 返回invalid结果。
-         */
-        static GatewayToolArgsResult invalid(String message, String rawText) {
-            return new GatewayToolArgsResult(
-                    new LinkedHashMap<String, Object>(), false, message, rawText);
-        }
-
-        /**
-         * 读取参数。
-         *
-         * @return 返回读取到的参数。
-         */
-        Map<String, Object> getArgs() {
-            return args;
-        }
-
-        /**
-         * 判断是否Valid。
-         *
-         * @return 如果Valid满足条件则返回 true，否则返回 false。
-         */
-        boolean isValid() {
-            return valid;
-        }
-
-        /**
-         * 读取消息。
-         *
-         * @return 返回读取到的消息。
-         */
-        String getMessage() {
-            return message;
-        }
-
-        /**
-         * 读取原始Text。
-         *
-         * @return 返回读取到的原始Text。
-         */
-        String getRawText() {
-            return rawText;
-        }
+    public static class DetectionResult extends DangerousDetectionResultBase {
     }
 
     /** 定义审批Observer的抽象契约，供不同运行时实现保持一致行为。 */
@@ -5213,16 +3852,7 @@ public class DangerousCommandApprovalService {
     }
 
     /** 承载审批请求事件相关状态和辅助逻辑。 */
-    public static class ApprovalRequestEvent {
-        /** 记录审批请求事件中的会话标识。 */
-        private final String sessionId;
-
-        /** 记录审批请求事件中的待恢复审批。 */
-        private final PendingApproval pendingApproval;
-
-        /** 记录审批请求事件中的redacted待恢复审批。 */
-        private final PendingApproval redactedPendingApproval;
-
+    public static class ApprovalRequestEvent extends DangerousApprovalRequestEventBase {
         /**
          * 创建审批请求事件实例，并注入运行所需依赖。
          *
@@ -5230,160 +3860,26 @@ public class DangerousCommandApprovalService {
          * @param pendingApproval 待恢复审批参数。
          */
         private ApprovalRequestEvent(String sessionId, PendingApproval pendingApproval) {
-            this.sessionId = SecretRedactor.redact(StrUtil.nullToEmpty(sessionId), 200);
-            this.pendingApproval = pendingApproval;
-            this.redactedPendingApproval = redactedPendingApproval(pendingApproval);
+            super(sessionId, pendingApproval);
         }
-
-        /**
-         * 读取会话标识。
-         *
-         * @return 返回读取到的会话标识。
-         */
-        public String getSessionId() {
-            return sessionId;
-        }
-
-        /**
-         * 读取Pending审批。
-         *
-         * @return 返回读取到的Pending审批。
-         */
-        public PendingApproval getPendingApproval() {
-            return redactedPendingApproval;
-        }
-
-        /**
-         * 读取工具名称。
-         *
-         * @return 返回读取到的工具名称。
-         */
-        public String getToolName() {
-            return redactedPendingApproval == null
-                    ? ""
-                    : StrUtil.nullToEmpty(redactedPendingApproval.getToolName());
-        }
-
-        /**
-         * 读取命令。
-         *
-         * @return 返回读取到的命令。
-         */
-        public String getCommand() {
-            return redactedPendingApproval == null
-                    ? ""
-                    : StrUtil.nullToEmpty(redactedPendingApproval.getCommand());
-        }
-
-        /**
-         * 读取Description。
-         *
-         * @return 返回读取到的Description。
-         */
-        public String getDescription() {
-            return redactedPendingApproval == null
-                    ? ""
-                    : StrUtil.nullToEmpty(redactedPendingApproval.getDescription());
-        }
-
-        /**
-         * 读取Pattern Keys。
-         *
-         * @return 返回读取到的Pattern Keys。
-         */
-        public List<String> getPatternKeys() {
-            return redactedPendingApproval == null
-                    ? Collections.<String>emptyList()
-                    : redactedPendingApproval.effectivePatternKeys();
-        }
-
-        /**
-         * 读取Primary Pattern键。
-         *
-         * @return 返回读取到的Primary Pattern键。
-         */
-        public String getPrimaryPatternKey() {
-            List<String> keys = getPatternKeys();
-            return keys.isEmpty() ? "" : keys.get(0);
-        }
-    }
-
-    /**
-     * 执行redacted待恢复审批相关逻辑。
-     *
-     * @param source 来源参数。
-     * @return 返回redacted Pending审批结果。
-     */
-    private static PendingApproval redactedPendingApproval(PendingApproval source) {
-        if (source == null) {
-            return null;
-        }
-        PendingApproval copy = new PendingApproval();
-        copy.setApprovalId(SecretRedactor.redact(source.getApprovalId(), 200));
-        copy.setToolName(SecretRedactor.redact(source.getToolName(), 200));
-        copy.setPatternKey(SecretRedactor.redact(source.getPatternKey(), 400));
-        copy.setPatternKeys(redactedTextList(source.getPatternKeys(), 400));
-        copy.setDescription(SecretRedactor.redact(source.getDescription(), 1000));
-        copy.setCommand(SecretRedactor.redact(source.getCommand(), 3000));
-        copy.setCommandHash(SecretRedactor.redact(source.getCommandHash(), 200));
-        copy.setApprovalKey(SecretRedactor.redact(source.getApprovalKey(), 1000));
-        copy.setCreatedAt(source.getCreatedAt());
-        copy.setExpiresAt(source.getExpiresAt());
-        return copy;
-    }
-
-    /**
-     * 执行redacted文本列表相关逻辑。
-     *
-     * @param source 来源参数。
-     * @param maxLength 最大保留字符数。
-     * @return 返回redacted Text List结果。
-     */
-    private static List<String> redactedTextList(List<String> source, int maxLength) {
-        if (source == null || source.isEmpty()) {
-            return new ArrayList<String>();
-        }
-        List<String> values = new ArrayList<String>();
-        for (String item : source) {
-            if (StrUtil.isBlank(item)) {
-                continue;
-            }
-            String redacted = SecretRedactor.redact(item, maxLength);
-            if (StrUtil.isNotBlank(redacted) && !values.contains(redacted.trim())) {
-                values.add(redacted.trim());
-            }
-        }
-        return values;
     }
 
     /** 承载审批响应事件相关状态和辅助逻辑。 */
     public static class ApprovalResponseEvent extends ApprovalRequestEvent {
         /** OUTCOMEAPPROVED的统一常量值。 */
-        public static final String OUTCOME_APPROVED = "APPROVED";
+        public static final String OUTCOME_APPROVED = DangerousApprovalResponseEventBase.OUTCOME_APPROVED;
 
         /** OUTCOME拒绝的统一常量值。 */
-        public static final String OUTCOME_DENIED = "DENIED";
+        public static final String OUTCOME_DENIED = DangerousApprovalResponseEventBase.OUTCOME_DENIED;
 
         /** OUTCOMETIMEDOUT的统一常量值。 */
-        public static final String OUTCOME_TIMED_OUT = "TIMED_OUT";
+        public static final String OUTCOME_TIMED_OUT = DangerousApprovalResponseEventBase.OUTCOME_TIMED_OUT;
 
         /** OUTCOMEREVOKED的统一常量值。 */
-        public static final String OUTCOME_REVOKED = "REVOKED";
+        public static final String OUTCOME_REVOKED = DangerousApprovalResponseEventBase.OUTCOME_REVOKED;
 
-        /** 记录审批响应事件中的choice。 */
-        private final String choice;
-
-        /** 记录审批响应事件中的outcome。 */
-        private final String outcome;
-
-        /** 记录审批响应事件中的状态。 */
-        private final String status;
-
-        /** 是否启用approved。 */
-        private final boolean approved;
-
-        /** 记录审批响应事件中的approver。 */
-        private final String approver;
+        /** 响应事件委托对象，复用脱敏和状态计算逻辑。 */
+        private final DangerousApprovalResponseEventBase delegate;
 
         /**
          * 创建审批响应事件实例，并注入运行所需依赖。
@@ -5396,96 +3892,35 @@ public class DangerousCommandApprovalService {
         private ApprovalResponseEvent(
                 String sessionId, PendingApproval pendingApproval, String choice, String approver) {
             super(sessionId, pendingApproval);
-            this.choice = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(choice)).trim();
-            this.outcome = approvalOutcome(this.choice);
-            this.status = approvalStatus(outcome);
-            this.approved = OUTCOME_APPROVED.equals(outcome);
-            this.approver = redactedApprover(approver);
+            this.delegate =
+                    new DangerousApprovalResponseEventBase(
+                            sessionId, pendingApproval, choice, approver);
         }
 
-        /**
-         * 读取Choice。
-         *
-         * @return 返回读取到的Choice。
-         */
+        /** 读取Choice。 */
         public String getChoice() {
-            return choice;
+            return delegate.getChoice();
         }
 
-        /**
-         * 读取Outcome。
-         *
-         * @return 返回读取到的Outcome。
-         */
+        /** 读取Outcome。 */
         public String getOutcome() {
-            return outcome;
+            return delegate.getOutcome();
         }
 
-        /**
-         * 读取状态。
-         *
-         * @return 返回读取到的状态。
-         */
+        /** 读取状态。 */
         public String getStatus() {
-            return status;
+            return delegate.getStatus();
         }
 
-        /**
-         * 判断是否Approved。
-         *
-         * @return 如果Approved满足条件则返回 true，否则返回 false。
-         */
+        /** 判断是否Approved。 */
         public boolean isApproved() {
-            return approved;
+            return delegate.isApproved();
         }
 
-        /**
-         * 读取Approver。
-         *
-         * @return 返回读取到的Approver。
-         */
+        /** 读取Approver。 */
         public String getApprover() {
-            return approver;
+            return delegate.getApprover();
         }
-    }
-
-    /**
-     * 执行审批Outcome相关逻辑。
-     *
-     * @param choice choice 参数。
-     * @return 返回审批Outcome结果。
-     */
-    private static String approvalOutcome(String choice) {
-        String normalized = StrUtil.nullToEmpty(choice).trim().toLowerCase(Locale.ROOT);
-        if ("deny".equals(normalized) || "denied".equals(normalized)) {
-            return ApprovalResponseEvent.OUTCOME_DENIED;
-        }
-        if ("timeout".equals(normalized) || "timed_out".equals(normalized)) {
-            return ApprovalResponseEvent.OUTCOME_TIMED_OUT;
-        }
-        if ("revoke".equals(normalized) || "revoked".equals(normalized)) {
-            return ApprovalResponseEvent.OUTCOME_REVOKED;
-        }
-        return ApprovalResponseEvent.OUTCOME_APPROVED;
-    }
-
-    /**
-     * 执行审批状态相关逻辑。
-     *
-     * @param outcome outcome 参数。
-     * @return 返回审批状态。
-     */
-    private static String approvalStatus(String outcome) {
-        if (ApprovalResponseEvent.OUTCOME_DENIED.equals(outcome)) {
-            return "denied";
-        }
-        if (ApprovalResponseEvent.OUTCOME_TIMED_OUT.equals(outcome)) {
-            return "timed_out";
-        }
-        if (ApprovalResponseEvent.OUTCOME_REVOKED.equals(outcome)) {
-            return "revoked";
-        }
-        return "approved";
     }
 
     /** 承载审批键Parts相关状态和辅助逻辑。 */

@@ -25,7 +25,7 @@ import com.jimuqu.solon.claw.skillhub.support.SkillBundlePathSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubContentSupport;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
-import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -590,12 +590,7 @@ public class DefaultSkillHubService implements SkillHubService {
      * @return 返回safe Error结果。
      */
     private String safeError(Throwable error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
-        return SecretRedactor.redact(value, 1000);
+        return ErrorTextSupport.safeError(error);
     }
 
     /** 表示来源Collect结果，携带调用方后续判断所需信息。 */

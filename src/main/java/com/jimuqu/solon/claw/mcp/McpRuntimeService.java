@@ -679,18 +679,23 @@ public class McpRuntimeService implements Closeable {
         config.setEnabled(resultSet.getInt("enabled") != 0);
         config.setHeaders(resolveHeaders(config));
         config.setEnv(resolveEnv(config.getAuth()));
-        config.setAccessToken(firstText(config.getOauth(), "access_token", "token"));
+        config.setAccessToken(
+                McpToolListSupport.firstText(config.getOauth(), "access_token", "token"));
         config.setConnectTimeoutMillis(
                 readLong(
-                        firstPresent(config.getAuth(), "connect_timeout_ms", "connectTimeoutMs"),
+                        McpToolListSupport.firstPresent(
+                                config.getAuth(), "connect_timeout_ms", "connectTimeoutMs"),
                         readSeconds(
-                                firstPresent(config.getAuth(), "connect_timeout", "connectTimeout"),
+                                McpToolListSupport.firstPresent(
+                                        config.getAuth(), "connect_timeout", "connectTimeout"),
                                 DEFAULT_CONNECT_TIMEOUT_MILLIS)));
         config.setToolTimeoutMillis(
                 readLong(
-                        firstPresent(config.getAuth(), "tool_timeout_ms", "toolTimeoutMs"),
+                        McpToolListSupport.firstPresent(
+                                config.getAuth(), "tool_timeout_ms", "toolTimeoutMs"),
                         readSeconds(
-                                firstPresent(config.getAuth(), "tool_timeout", "toolTimeout"),
+                                McpToolListSupport.firstPresent(
+                                        config.getAuth(), "tool_timeout", "toolTimeout"),
                                 DEFAULT_TOOL_TIMEOUT_MILLIS)));
         return config;
     }
@@ -719,17 +724,17 @@ public class McpRuntimeService implements Closeable {
                 StrUtil.isNotBlank(nextHash)
                         && !nextHash.equals(config.getLastToolsHash())
                         && !initialBaseline;
-        List<String> previousTools = toolNames(config.getToolsJson());
-        List<String> nextTools = toolNames(toolsJson);
+        List<String> previousTools = McpToolListSupport.toolNames(config.getToolsJson());
+        List<String> nextTools = McpToolListSupport.toolNames(toolsJson);
         updateStatus(serverId, status, lastError, toolsJson, toolsChanged);
         return new McpToolRefreshResult(
                 serverId,
                 nextHash,
                 toolsChanged,
                 previousTools.size(),
-                countTools(toolsJson),
-                difference(nextTools, previousTools),
-                difference(previousTools, nextTools),
+                McpToolListSupport.countTools(toolsJson),
+                McpToolListSupport.difference(nextTools, previousTools),
+                McpToolListSupport.difference(previousTools, nextTools),
                 StrUtil.blankToDefault(status, "ready"),
                 lastError);
     }
@@ -893,7 +898,7 @@ public class McpRuntimeService implements Closeable {
     private Map<String, String> resolveHeaders(McpServerConfig config) {
         Map<String, String> result = new LinkedHashMap<String, String>();
         Map<String, Object> auth = config.getAuth();
-        Object headers = firstPresent(auth, "headers", "header");
+        Object headers = McpToolListSupport.firstPresent(auth, "headers", "header");
         if (headers instanceof Map) {
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) headers).entrySet()) {
                 if (entry.getKey() != null && entry.getValue() != null) {
@@ -901,7 +906,9 @@ public class McpRuntimeService implements Closeable {
                 }
             }
         }
-        String bearer = firstText(auth, "bearer_token", "bearerToken", "access_token", "token");
+        String bearer =
+                McpToolListSupport.firstText(
+                        auth, "bearer_token", "bearerToken", "access_token", "token");
         if (StrUtil.isNotBlank(bearer) && !hasHeader(result, "Authorization")) {
             result.put("Authorization", "Bearer " + bearer);
         }
@@ -932,7 +939,7 @@ public class McpRuntimeService implements Closeable {
      */
     private Map<String, String> resolveEnv(Map<String, Object> auth) {
         Map<String, String> result = new LinkedHashMap<String, String>();
-        Object env = firstPresent(auth, "env", "environment");
+        Object env = McpToolListSupport.firstPresent(auth, "env", "environment");
         if (env instanceof Map) {
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) env).entrySet()) {
                 if (entry.getKey() != null && entry.getValue() != null) {
@@ -952,27 +959,31 @@ public class McpRuntimeService implements Closeable {
     @SuppressWarnings("unchecked")
     private McpToolOptions resolveToolOptions(Map<String, Object> auth) {
         McpToolOptions options = new McpToolOptions();
-        Object tools = firstPresent(auth, "tools", "tool_options", "toolOptions");
+        Object tools = McpToolListSupport.firstPresent(auth, "tools", "tool_options", "toolOptions");
         if (tools instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) tools;
-            options.setInclude(parseNameSet(firstPresent(map, "include", "allow")));
-            options.setExclude(parseNameSet(firstPresent(map, "exclude", "deny")));
-            options.setResourcesEnabled(asBoolean(firstPresent(map, "resources"), true));
-            options.setPromptsEnabled(asBoolean(firstPresent(map, "prompts"), true));
+            options.setInclude(
+                    parseNameSet(McpToolListSupport.firstPresent(map, "include", "allow")));
+            options.setExclude(
+                    parseNameSet(McpToolListSupport.firstPresent(map, "exclude", "deny")));
+            options.setResourcesEnabled(
+                    asBoolean(McpToolListSupport.firstPresent(map, "resources"), true));
+            options.setPromptsEnabled(
+                    asBoolean(McpToolListSupport.firstPresent(map, "prompts"), true));
         }
-        Object include = firstPresent(auth, "tools_include", "toolsInclude");
+        Object include = McpToolListSupport.firstPresent(auth, "tools_include", "toolsInclude");
         if (include != null) {
             options.setInclude(parseNameSet(include));
         }
-        Object exclude = firstPresent(auth, "tools_exclude", "toolsExclude");
+        Object exclude = McpToolListSupport.firstPresent(auth, "tools_exclude", "toolsExclude");
         if (exclude != null) {
             options.setExclude(parseNameSet(exclude));
         }
-        Object resources = firstPresent(auth, "resources", "mcp_resources");
+        Object resources = McpToolListSupport.firstPresent(auth, "resources", "mcp_resources");
         if (resources != null) {
             options.setResourcesEnabled(asBoolean(resources, true));
         }
-        Object prompts = firstPresent(auth, "prompts", "mcp_prompts");
+        Object prompts = McpToolListSupport.firstPresent(auth, "prompts", "mcp_prompts");
         if (prompts != null) {
             options.setPromptsEnabled(asBoolean(prompts, true));
         }
@@ -1211,37 +1222,6 @@ public class McpRuntimeService implements Closeable {
     }
 
     /**
-     * 执行firstPresent相关逻辑。
-     *
-     * @param map 待读取的映射对象。
-     * @param keys 候选键列表。
-     * @return 返回first Present结果。
-     */
-    private Object firstPresent(Map<String, Object> map, String... keys) {
-        if (map == null) {
-            return null;
-        }
-        for (String key : keys) {
-            if (map.containsKey(key)) {
-                return map.get(key);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 执行first文本相关逻辑。
-     *
-     * @param map 待读取的映射对象。
-     * @param keys 候选键列表。
-     * @return 返回first Text结果。
-     */
-    private String firstText(Map<String, Object> map, String... keys) {
-        Object value = firstPresent(map, keys);
-        return value == null ? "" : String.valueOf(value).trim();
-    }
-
-    /**
      * 读取Seconds。
      *
      * @param value 待规范化或校验的原始值。
@@ -1298,68 +1278,6 @@ public class McpRuntimeService implements Closeable {
         } catch (Exception e) {
             throw new IllegalStateException("Failed to hash MCP tools", e);
         }
-    }
-
-    /**
-     * 执行次数工具相关逻辑。
-     *
-     * @param toolsJson toolsJSON参数。
-     * @return 返回次数工具结果。
-     */
-    private int countTools(String toolsJson) {
-        Object parsed = parse(toolsJson);
-        if (parsed instanceof List) {
-            return ((List<?>) parsed).size();
-        }
-        return StrUtil.isBlank(toolsJson) ? 0 : 1;
-    }
-
-    /**
-     * 执行工具Names相关逻辑。
-     *
-     * @param toolsJson toolsJSON参数。
-     * @return 返回工具Names结果。
-     */
-    @SuppressWarnings("unchecked")
-    private List<String> toolNames(String toolsJson) {
-        Object parsed = parse(toolsJson);
-        List<String> result = new ArrayList<String>();
-        if (!(parsed instanceof List)) {
-            return result;
-        }
-        for (Object item : (List<?>) parsed) {
-            if (!(item instanceof Map)) {
-                continue;
-            }
-            Map<String, Object> map = (Map<String, Object>) item;
-            String name = firstText(map, "prefixed_name", "name");
-            if (StrUtil.isNotBlank(name) && !result.contains(name)) {
-                result.add(name);
-            }
-        }
-        Collections.sort(result);
-        return result;
-    }
-
-    /**
-     * 执行difference相关逻辑。
-     *
-     * @param left 左侧比较对象。
-     * @param right 右侧比较对象。
-     * @return 返回difference结果。
-     */
-    private List<String> difference(List<String> left, List<String> right) {
-        List<String> result = new ArrayList<String>();
-        List<String> safeRight = right == null ? Collections.<String>emptyList() : right;
-        if (left == null) {
-            return result;
-        }
-        for (String item : left) {
-            if (StrUtil.isNotBlank(item) && !safeRight.contains(item) && !result.contains(item)) {
-                result.add(item);
-            }
-        }
-        return result;
     }
 
     /**

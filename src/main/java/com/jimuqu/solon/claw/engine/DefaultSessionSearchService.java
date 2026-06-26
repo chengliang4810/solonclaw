@@ -12,8 +12,10 @@ import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.core.service.SessionSearchService;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.SearchTextSupport;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -1484,7 +1486,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         String value = StrUtil.nullToEmpty(query).trim();
         for (int i = 0; i < value.length(); i++) {
             char ch = value.charAt(i);
-            int kind = searchCharKind(ch);
+            int kind = SearchTextSupport.searchCharKind(ch);
             if (kind == 0) {
                 addSearchTerm(terms, current);
                 currentKind = 0;
@@ -1498,28 +1500,6 @@ public class DefaultSessionSearchService implements SessionSearchService {
         }
         addSearchTerm(terms, current);
         return terms;
-    }
-
-    /**
-     * 区分 ASCII、中文和其他字母数字，便于拆分中英文混合查询。
-     *
-     * @param ch 待分类字符。
-     * @return 返回字符类别。
-     */
-    private int searchCharKind(char ch) {
-        if ((ch >= 'A' && ch <= 'Z')
-                || (ch >= 'a' && ch <= 'z')
-                || (ch >= '0' && ch <= '9')
-                || ch == '_') {
-            return 1;
-        }
-        if (ch >= '\u4e00' && ch <= '\u9fff') {
-            return 2;
-        }
-        if (Character.isLetterOrDigit(ch)) {
-            return 3;
-        }
-        return 0;
     }
 
     /**
@@ -1660,21 +1640,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         log.debug(
                 "会话搜索增强来源失败，继续使用其它搜索结果: stage={}, error={}",
                 StrUtil.blankToDefault(stage, "unknown"),
-                exceptionSummary(error));
-    }
-
-    /**
-     * 生成不包含异常消息正文的安全摘要，避免日志暴露会话、prompt、token 或工具参数。
-     *
-     * @param error 失败异常。
-     * @return 返回异常类型名称。
-     */
-    private String exceptionSummary(Exception error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String simpleName = error.getClass().getSimpleName();
-        return StrUtil.blankToDefault(simpleName, error.getClass().getName());
+                ErrorTextSupport.typeOnly(error));
     }
 
     /** 承载搜索Candidate相关状态和辅助逻辑。 */

@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 
 /** 安全策略规则目录，集中保存路径、凭据、URL 与代理检测所需的静态规则。 */
 final class SecurityPolicyRuleCatalog {
-    /** 凭据目录片段列表，用于识别常见密钥、云凭据、包管理凭据和工具认证目录。 */
+    /** 凭据目录片段列表，用于识别常见密钥、云凭据和包管理凭据目录；工具认证目录由精确后缀规则拦截，避免误伤工作树路径。 */
     static final List<String> CREDENTIAL_DIR_SEGMENTS =
             Arrays.asList(
                     ".ssh",
@@ -15,10 +15,6 @@ final class SecurityPolicyRuleCatalog {
                     ".kube",
                     ".docker",
                     ".azure",
-                    ".claude",
-                    ".codex",
-                    ".qwen",
-                    ".gemini",
                     ".cargo",
                     ".terraform.d",
                     ".config/gh",

@@ -749,28 +749,11 @@ public class AttachmentCacheService {
      */
     private boolean isUnder(File file, File root) {
         try {
-            return isUnderPath(file.getCanonicalFile(), root.getCanonicalFile());
+            return FilePathSupport.isUnderPath(file.getCanonicalFile(), root.getCanonicalFile());
         } catch (Exception e) {
             log.debug("附件路径规范化失败，按绝对路径兜底 error={}", exceptionSummary(e));
         }
-        return isUnderPath(file.getAbsoluteFile(), root.getAbsoluteFile());
-    }
-
-    /**
-     * 判断是否Under路径。
-     *
-     * @param file 文件或目录路径参数。
-     * @param root root 参数。
-     * @return 如果Under路径满足条件则返回 true，否则返回 false。
-     */
-    private boolean isUnderPath(File file, File root) {
-        String rootPath = root.toPath().toAbsolutePath().normalize().toString();
-        String filePath = file.toPath().toAbsolutePath().normalize().toString();
-        if (File.separatorChar == '\\') {
-            rootPath = rootPath.toLowerCase(Locale.ROOT);
-            filePath = filePath.toLowerCase(Locale.ROOT);
-        }
-        return filePath.equals(rootPath) || filePath.startsWith(rootPath + File.separator);
+        return FilePathSupport.isUnderPath(file.getAbsoluteFile(), root.getAbsoluteFile());
     }
 
     /**

@@ -10,9 +10,12 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelHttpSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
-import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -120,7 +123,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         try {
             String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL);
-            assertSafeUrl(wsUrl, "Yuanbao websocket URL");
+            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, wsUrl, "Yuanbao websocket URL");
             callbackExecutor = Executors.newSingleThreadExecutor();
             Request request =
                     new Request.Builder()
@@ -149,14 +152,9 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
-        if (webSocket != null) {
-            webSocket.close(1000, "normal");
-            webSocket = null;
-        }
-        if (callbackExecutor != null) {
-            callbackExecutor.shutdownNow();
-            callbackExecutor = null;
-        }
+        ChannelConnectionSupport.disconnect(webSocket, callbackExecutor);
+        webSocket = null;
+        callbackExecutor = null;
         setConnected(false);
         setDetail("disconnected");
     }
@@ -265,7 +263,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private ONode postJson(String path, String body) throws Exception {
         String url = apiDomain() + path;
-        assertSafeUrl(url, "Yuanbao API URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Yuanbao API URL");
         Request request =
                 new Request.Builder()
                         .url(url)
@@ -296,10 +294,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回safe Body结果。
      */
     private String safeBody(Response response) throws Exception {
-        if (response.body() == null) {
-            return "";
-        }
-        return BoundedAttachmentIO.readOkHttpText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
+        return ChannelHttpSupport.safeBody(response);
     }
 
     /**
@@ -308,33 +303,9 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回api Domain结果。
      */
     private String apiDomain() {
-        String value = StrUtil.blankToDefault(config.getApiDomain(), DEFAULT_API_DOMAIN).trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
+        return ChannelHttpSupport.apiDomain(config.getApiDomain(), DEFAULT_API_DOMAIN);
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
-    private void assertSafeUrl(String url, String purpose) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " blocked: "
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
-    }
 
     /**
      * 执行sign相关逻辑。
@@ -518,7 +489,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return false;
             }
             return !GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(policy)
-                    || contains(config.getGroupAllowedUsers(), chatId);
+                    || ChannelAllowListSupport.contains(config.getGroupAllowedUsers(), chatId);
         }
         String policy =
                 StrUtil.blankToDefault(
@@ -528,27 +499,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
         return !GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(policy)
-                || contains(config.getAllowedUsers(), userId);
-    }
-
-    /**
-     * 执行contains相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param target target 参数。
-     * @return 返回contains结果。
-     */
-    private boolean contains(List<String> values, String target) {
-        if (values == null || target == null) {
-            return false;
-        }
-        for (String value : values) {
-            String normalized = StrUtil.nullToEmpty(value).trim();
-            if ("*".equals(normalized) || target.equalsIgnoreCase(normalized)) {
-                return true;
-            }
-        }
-        return false;
+                || ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
     }
 
     /**
@@ -558,14 +509,6 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回first Non Blank结果。
      */
     private String firstNonBlank(String... values) {
-        if (values == null) {
-            return "";
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value.trim();
-            }
-        }
-        return "";
+        return ChannelHttpSupport.firstNonBlank(values);
     }
 }

@@ -13,12 +13,12 @@ import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
+import com.jimuqu.solon.claw.support.RuntimeProcessSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import java.io.File;
-import java.lang.management.ManagementFactory;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -233,7 +233,7 @@ public class DashboardStatusService {
                 "gateway_exit_reason",
                 detailed && snapshot.anyFatal ? snapshot.firstFatalDetail : null);
         if (detailed) {
-            result.put("gateway_pid", parsePid());
+            result.put("gateway_pid", RuntimeProcessSupport.currentPid());
         }
         result.put("gateway_platforms", snapshot.platformStates);
         result.put("gateway_running", Boolean.valueOf(snapshot.anyConnected));
@@ -1026,22 +1026,6 @@ public class DashboardStatusService {
             return "disabled";
         }
         return status.isConnected() ? "connected" : "disconnected";
-    }
-
-    /**
-     * 解析Pid。
-     *
-     * @return 返回解析后的Pid。
-     */
-    private Integer parsePid() {
-        try {
-            String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
-            int index = runtimeName.indexOf('@');
-            String pid = index > 0 ? runtimeName.substring(0, index) : runtimeName;
-            return Integer.valueOf(pid);
-        } catch (Exception e) {
-            return null;
-        }
     }
 
     /**

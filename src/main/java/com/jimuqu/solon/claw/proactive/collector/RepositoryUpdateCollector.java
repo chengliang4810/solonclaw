@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.proactive.ProactiveObservationCollector;
 import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.proactive.RepositoryProbeService;
 import com.jimuqu.solon.claw.proactive.RepositoryReferenceExtractor;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -496,20 +497,6 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
         log.debug(
                 "仓库更新采集输入源读取失败，跳过该来源或使用降级文本继续: source={}, error={}",
                 StrUtil.blankToDefault(sourceType, "unknown"),
-                exceptionSummary(error));
-    }
-
-    /**
-     * 生成不包含异常消息正文的摘要，避免日志暴露仓库路径之外的上下文内容。
-     *
-     * @param error 读取失败异常。
-     * @return 返回异常类型名称。
-     */
-    private String exceptionSummary(Exception error) {
-        if (error == null) {
-            return "unknown";
-        }
-        String simpleName = error.getClass().getSimpleName();
-        return StrUtil.blankToDefault(simpleName, error.getClass().getName());
+                ErrorTextSupport.typeOnly(error));
     }
 }

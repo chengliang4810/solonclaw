@@ -8,6 +8,10 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelHttpSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -183,7 +187,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 setDetail("REST ready; websocket gateway unavailable");
                 return true;
             }
-            assertSafeUrl(gateway, "QQBot websocket URL");
+            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, gateway, "QQBot websocket URL");
             callbackExecutor = Executors.newSingleThreadExecutor();
             Request request =
                     new Request.Builder()
@@ -210,14 +214,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
-        if (webSocket != null) {
-            webSocket.close(1000, "normal");
-            webSocket = null;
-        }
-        if (callbackExecutor != null) {
-            callbackExecutor.shutdownNow();
-            callbackExecutor = null;
-        }
+        ChannelConnectionSupport.disconnect(webSocket, callbackExecutor);
+        webSocket = null;
+        callbackExecutor = null;
         setConnected(false);
         setDetail("disconnected");
     }
@@ -535,11 +534,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回api Domain结果。
      */
     private String apiDomain() {
-        String value = StrUtil.blankToDefault(config.getApiDomain(), DEFAULT_API_DOMAIN).trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
+        return ChannelHttpSupport.apiDomain(config.getApiDomain(), DEFAULT_API_DOMAIN);
     }
 
     /** 刷新access token If Necessary。 */
@@ -553,7 +548,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .set("appId", config.getAppId())
                         .set("clientSecret", config.getClientSecret())
                         .toJson();
-        assertSafeUrl(TOKEN_URL, "QQBot token URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, TOKEN_URL, "QQBot token URL");
         Request request =
                 new Request.Builder().url(TOKEN_URL).post(RequestBody.create(JSON, body)).build();
         Response response = client.newCall(request).execute();
@@ -605,7 +600,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private ONode getJson(String path) throws Exception {
         String url = apiDomain() + path;
-        assertSafeUrl(url, "QQBot API URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "QQBot API URL");
         Request request =
                 new Request.Builder()
                         .url(url)
@@ -633,7 +628,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private ONode postJson(String path, String body) throws Exception {
         String url = apiDomain() + path;
-        assertSafeUrl(url, "QQBot API URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "QQBot API URL");
         Request request =
                 new Request.Builder()
                         .url(url)
@@ -662,7 +657,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private ONode putJson(String path, String body) throws Exception {
         String url = apiDomain() + path;
-        assertSafeUrl(url, "QQBot API URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "QQBot API URL");
         Request request =
                 new Request.Builder()
                         .url(url)
@@ -689,10 +684,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回safe Body结果。
      */
     private String safeBody(Response response) throws Exception {
-        if (response.body() == null) {
-            return "";
-        }
-        return BoundedAttachmentIO.readOkHttpText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
+        return ChannelHttpSupport.safeBody(response);
     }
 
     /**
@@ -715,26 +707,6 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return safeHttpErrorBody(value == null ? "" : value.toJson());
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
-    private void assertSafeUrl(String url, String purpose) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " blocked: "
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
-    }
 
     /** 承载列表ener相关状态和辅助逻辑。 */
     private class Listener extends WebSocketListener {
@@ -1260,7 +1232,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return false;
             }
             return !GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(policy)
-                    || contains(config.getGroupAllowedUsers(), chatId);
+                    || ChannelAllowListSupport.contains(config.getGroupAllowedUsers(), chatId);
         }
         String policy =
                 StrUtil.blankToDefault(
@@ -1270,7 +1242,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
         return !GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(policy)
-                || contains(config.getAllowedUsers(), userId);
+                || ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
     }
 
     /**
@@ -1352,41 +1324,13 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     /**
-     * 执行contains相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param target target 参数。
-     * @return 返回contains结果。
-     */
-    private boolean contains(List<String> values, String target) {
-        if (values == null || target == null) {
-            return false;
-        }
-        for (String value : values) {
-            String normalized = StrUtil.nullToEmpty(value).trim();
-            if ("*".equals(normalized) || target.equalsIgnoreCase(normalized)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * 执行firstNon空白值相关逻辑。
      *
      * @param values 待规范化或校验的原始值集合。
      * @return 返回first Non Blank结果。
      */
     private String firstNonBlank(String... values) {
-        if (values == null) {
-            return "";
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value.trim();
-            }
-        }
-        return "";
+        return ChannelHttpSupport.firstNonBlank(values);
     }
 
     /**

@@ -18,6 +18,7 @@ import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.TimeSupport;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -871,7 +872,7 @@ public class AsyncSkillLearningService implements SkillLearningService {
             statement.setString(7, org.noear.snack4.ONode.serialize(report.get("changedFiles")));
             statement.setString(8, org.noear.snack4.ONode.serialize(report));
             statement.setInt(9, Boolean.TRUE.equals(report.get("needsReview")) ? 1 : 0);
-            statement.setLong(10, asLong(report.get("createdAt")));
+            statement.setLong(10, TimeSupport.millisOrNow(report.get("createdAt")));
             statement.executeUpdate();
             statement.close();
         } catch (Exception e) {
@@ -905,20 +906,4 @@ public class AsyncSkillLearningService implements SkillLearningService {
         return value == null ? null : String.valueOf(value);
     }
 
-    /**
-     * 执行as长整型相关逻辑。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回as Long结果。
-     */
-    private long asLong(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        try {
-            return Long.parseLong(String.valueOf(value));
-        } catch (Exception e) {
-            return System.currentTimeMillis();
-        }
-    }
 }

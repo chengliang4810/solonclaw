@@ -566,6 +566,22 @@ public final class MessageSupport {
     }
 
     /**
+     * 从助手消息中读取可用文本，优先使用模型聚合后的结果正文。
+     *
+     * @param assistantMessage 助手消息。
+     * @return 去除首尾空白后的助手文本。
+     */
+    public static String assistantText(AssistantMessage assistantMessage) {
+        if (assistantMessage == null) {
+            return "";
+        }
+        if (StrUtil.isNotBlank(assistantMessage.getResultContent())) {
+            return assistantMessage.getResultContent().trim();
+        }
+        return StrUtil.nullToEmpty(assistantMessage.getContent()).trim();
+    }
+
+    /**
      * 提取 assistant 正文中可见给用户的部分，去掉模型历史里遗留的内部思考块。
      *
      * @param content assistant 原始正文。

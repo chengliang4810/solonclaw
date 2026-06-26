@@ -53,12 +53,15 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
+import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ThreadInterruptSupport;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
@@ -1161,7 +1164,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         attachment.getMimeType());
         String type = "image".equals(kind) ? "image" : ("voice".equals(kind) ? "voice" : "file");
         String uploadUrl = MEDIA_UPLOAD_URL + "?access_token=" + accessToken + "&type=" + type;
-        assertSafeUrl(uploadUrl, "DingTalk media upload URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, uploadUrl, "DingTalk media upload URL");
         HttpResponse uploadResponse =
                 HttpRequest.post(uploadUrl)
                         .form("media", file)
@@ -1255,28 +1258,12 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param error 捕获到的异常。
      */
     private void logRecoverableChannelFailure(String stage, Exception error) {
-        restoreInterruptedStatus(error);
+        ThreadInterruptSupport.restoreIfCausedByInterrupted(error);
         log.debug(
                 "[DINGTALK] recoverable channel failure: platform={}, stage={}, errorType={}",
                 PlatformType.DINGTALK,
                 stage,
                 errorType(error));
-    }
-
-    /**
-     * 异常链中包含中断异常时恢复线程中断标记，避免静默吞掉取消信号。
-     *
-     * @param error 捕获到的异常。
-     */
-    private void restoreInterruptedStatus(Throwable error) {
-        Throwable current = error;
-        while (current != null) {
-            if (current instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            current = current.getCause();
-        }
     }
 
     /**
@@ -1292,7 +1279,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             ChatbotMessage message, String conversationId, String chatType, String userId) {
         if ("group".equals(chatType)) {
             if (!config.getAllowedChats().isEmpty()
-                    && !contains(config.getAllowedChats(), conversationId)) {
+                    && !ChannelAllowListSupport.contains(
+                            config.getAllowedChats(), conversationId)) {
                 return false;
             }
             if (!Boolean.TRUE.equals(message.getInAtList())) {
@@ -1307,7 +1295,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return false;
             }
             if (GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(groupPolicy)
-                    && !contains(config.getGroupAllowedUsers(), conversationId)) {
+                    && !ChannelAllowListSupport.contains(
+                            config.getGroupAllowedUsers(), conversationId)) {
                 return false;
             }
             return true;
@@ -1320,29 +1309,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             return false;
         }
         if (GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(dmPolicy)) {
-            return contains(config.getAllowedUsers(), userId);
+            return ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
         }
         return true;
-    }
-
-    /**
-     * 执行contains相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param target target 参数。
-     * @return 返回contains结果。
-     */
-    private boolean contains(List<String> values, String target) {
-        if (values == null || target == null) {
-            return false;
-        }
-        for (String value : values) {
-            String normalized = StrUtil.nullToEmpty(value).trim();
-            if ("*".equals(normalized) || target.equalsIgnoreCase(normalized)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -1560,7 +1529,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             throw new IllegalStateException("DingTalk upload info missing signed resource url");
         }
         String uploadUrl = body.getHeaderSignatureInfo().getResourceUrls().get(0);
-        assertSafeUrl(uploadUrl, "DingTalk signed upload URL");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, uploadUrl, "DingTalk signed upload URL");
         HttpRequest request =
                 HttpRequest.put(uploadUrl).timeout(120000).setFollowRedirects(false).body(data);
         Map<String, String> headers = body.getHeaderSignatureInfo().getHeaders();
@@ -1694,26 +1663,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
     }
 
-    /**
-     * 执行assert安全URL相关逻辑。
-     *
-     * @param url 待校验或访问的 URL。
-     * @param purpose purpose 参数。
-     */
-    private void assertSafeUrl(String url, String purpose) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    purpose
-                            + " blocked: "
-                            + SecretRedactor.maskUrl(url)
-                            + "，"
-                            + verdict.getMessage());
-        }
-    }
 
     /**
      * 解析Markdown标题。

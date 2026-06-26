@@ -5,10 +5,12 @@ import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.mcp.McpToolListSupport;
 import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -467,14 +469,14 @@ public class DashboardMcpService {
             oauth.putAll(body);
         }
         String authorizationEndpoint =
-                firstText(
+                McpToolListSupport.firstText(
                         oauth,
                         "authorization_endpoint",
                         "authorizationEndpoint",
                         "auth_url",
                         "authorizationUrl");
-        String clientId = firstText(oauth, "client_id", "clientId");
-        String redirectUri = firstText(oauth, "redirect_uri", "redirectUri");
+        String clientId = McpToolListSupport.firstText(oauth, "client_id", "clientId");
+        String redirectUri = McpToolListSupport.firstText(oauth, "redirect_uri", "redirectUri");
         if (StrUtil.isBlank(authorizationEndpoint)) {
             throw new IllegalStateException("authorization_endpoint is required for MCP OAuth");
         }
@@ -533,9 +535,9 @@ public class DashboardMcpService {
             throws Exception {
         Map<String, Object> oauth = oauthMap(serverId);
         String expectedState = string(oauth.get("state"));
-        String actualState = firstText(body, "state");
-        String code = firstText(body, "code");
-        String error = firstText(body, "error");
+        String actualState = McpToolListSupport.firstText(body, "state");
+        String code = McpToolListSupport.firstText(body, "code");
+        String error = McpToolListSupport.firstText(body, "error");
         if (StrUtil.isNotBlank(error)) {
             throw new IllegalStateException(
                     "MCP OAuth authorization failed: " + safeDisplayError(error));
@@ -550,13 +552,13 @@ public class DashboardMcpService {
             throw new IllegalStateException("MCP OAuth state mismatch");
         }
         String tokenEndpoint =
-                firstText(body, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
+                McpToolListSupport.firstText(body, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
         if (StrUtil.isBlank(tokenEndpoint)) {
             tokenEndpoint =
-                    firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
+                    McpToolListSupport.firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
         }
-        String clientId = firstText(oauth, "client_id", "clientId");
-        String redirectUri = firstText(oauth, "redirect_uri", "redirectUri");
+        String clientId = McpToolListSupport.firstText(oauth, "client_id", "clientId");
+        String redirectUri = McpToolListSupport.firstText(oauth, "redirect_uri", "redirectUri");
         String codeVerifier = string(oauth.get("code_verifier"));
         if (StrUtil.isBlank(tokenEndpoint)) {
             throw new IllegalStateException("token_endpoint is required for MCP OAuth callback");
@@ -603,8 +605,8 @@ public class DashboardMcpService {
             throw new IllegalStateException("MCP OAuth is disabled for server: " + serverId);
         }
         String tokenEndpoint =
-                firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
-        String clientId = firstText(oauth, "client_id", "clientId");
+                McpToolListSupport.firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
+        String clientId = McpToolListSupport.firstText(oauth, "client_id", "clientId");
         String refreshToken = string(oauth.get("refresh_token"));
         if (StrUtil.isBlank(tokenEndpoint)) {
             throw new IllegalStateException("token_endpoint is required for MCP OAuth refresh");
@@ -643,7 +645,7 @@ public class DashboardMcpService {
         if (asBoolean(oauth.get("enabled"), false)
                 && hasSecret(oauth, "refresh_token")
                 && StrUtil.isNotBlank(
-                        firstText(
+                        McpToolListSupport.firstText(
                                 oauth,
                                 "token_endpoint",
                                 "tokenEndpoint",
@@ -874,15 +876,15 @@ public class DashboardMcpService {
                             && StrUtil.isNotBlank(nextHash)
                             && !nextHash.equals(previousHash)
                             && !initialBaseline;
-            List<String> previousTools = toolNames(previousToolsJson);
-            List<String> nextTools = toolNames(toolsJson);
+            List<String> previousTools = McpToolListSupport.toolNames(previousToolsJson);
+            List<String> nextTools = McpToolListSupport.toolNames(toolsJson);
             List<String> addedTools =
                     toolsChanged
-                            ? difference(nextTools, previousTools)
+                            ? McpToolListSupport.difference(nextTools, previousTools)
                             : Collections.<String>emptyList();
             List<String> removedTools =
                     toolsChanged
-                            ? difference(previousTools, nextTools)
+                            ? McpToolListSupport.difference(previousTools, nextTools)
                             : Collections.<String>emptyList();
             PreparedStatement statement =
                     connection.prepareStatement(
@@ -912,7 +914,7 @@ public class DashboardMcpService {
             return new McpCheckState(
                     nextHash,
                     toolsChanged,
-                    countTools(toolsJson),
+                    McpToolListSupport.countTools(toolsJson),
                     addedTools,
                     removedTools,
                     securityVerdict,
@@ -1482,7 +1484,7 @@ public class DashboardMcpService {
                         .timeout(15000)
                         .contentType("application/x-www-form-urlencoded")
                         .setFollowRedirects(false);
-        if (sameOrigin(initialUrl, url)) {
+        if (UrlOriginSupport.sameOrigin(initialUrl, url)) {
             request.body(form);
         }
         HttpResponse response = request.execute();
@@ -1538,44 +1540,6 @@ public class DashboardMcpService {
     }
 
     /**
-     * 执行sameOrigin相关逻辑。
-     *
-     * @param initialUrl 待校验或访问的地址参数。
-     * @param url 待校验或访问的 URL。
-     * @return 返回same Origin结果。
-     */
-    private boolean sameOrigin(String initialUrl, String url) {
-        try {
-            URI initial = URI.create(initialUrl);
-            URI current = URI.create(url);
-            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
-                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
-                    && effectivePort(initial) == effectivePort(current);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * 执行生效端口相关逻辑。
-     *
-     * @param uri 待校验或访问的地址参数。
-     * @return 返回生效Port结果。
-     */
-    private int effectivePort(URI uri) {
-        if (uri.getPort() >= 0) {
-            return uri.getPort();
-        }
-        if ("http".equalsIgnoreCase(uri.getScheme())) {
-            return 80;
-        }
-        if ("https".equalsIgnoreCase(uri.getScheme())) {
-            return 443;
-        }
-        return -1;
-    }
-
-    /**
      * 合并token响应。
      *
      * @param oauth oauth 参数。
@@ -1603,7 +1567,9 @@ public class DashboardMcpService {
                         e.getClass().getSimpleName());
             }
         }
-        Object expiresAt = firstPresent(tokenResponse, "expires_at", "expiresAt", "expires");
+        Object expiresAt =
+                McpToolListSupport.firstPresent(
+                        tokenResponse, "expires_at", "expiresAt", "expires");
         if (expiresAt != null) {
             oauth.put("expires_at", expiresAt);
         }
@@ -1815,7 +1781,8 @@ public class DashboardMcpService {
      * @return 返回expires时间结果。
      */
     private Long expiresAt(Map<String, Object> oauth) {
-        Object value = firstPresent(oauth, "expires_at", "expiresAt", "expires");
+        Object value =
+                McpToolListSupport.firstPresent(oauth, "expires_at", "expiresAt", "expires");
         if (value == null) {
             return null;
         }
@@ -1831,37 +1798,6 @@ public class DashboardMcpService {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    /**
-     * 执行firstPresent相关逻辑。
-     *
-     * @param map 待读取的映射对象。
-     * @param keys 候选键列表。
-     * @return 返回first Present结果。
-     */
-    private Object firstPresent(Map<String, Object> map, String... keys) {
-        if (map == null) {
-            return null;
-        }
-        for (String key : keys) {
-            if (map.containsKey(key)) {
-                return map.get(key);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 执行first文本相关逻辑。
-     *
-     * @param map 待读取的映射对象。
-     * @param keys 候选键列表。
-     * @return 返回first Text结果。
-     */
-    private String firstText(Map<String, Object> map, String... keys) {
-        Object value = firstPresent(map, keys);
-        return string(value);
     }
 
     /**
@@ -1999,68 +1935,6 @@ public class DashboardMcpService {
      */
     private String string(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
-    }
-
-    /**
-     * 执行次数工具相关逻辑。
-     *
-     * @param toolsJson toolsJSON参数。
-     * @return 返回次数工具结果。
-     */
-    private int countTools(String toolsJson) {
-        Object parsed = parse(toolsJson);
-        if (parsed instanceof List) {
-            return ((List<?>) parsed).size();
-        }
-        return StrUtil.isBlank(toolsJson) ? 0 : 1;
-    }
-
-    /**
-     * 执行工具Names相关逻辑。
-     *
-     * @param toolsJson toolsJSON参数。
-     * @return 返回工具Names结果。
-     */
-    @SuppressWarnings("unchecked")
-    private List<String> toolNames(String toolsJson) {
-        Object parsed = parse(toolsJson);
-        List<String> result = new ArrayList<String>();
-        if (!(parsed instanceof List)) {
-            return result;
-        }
-        for (Object item : (List<?>) parsed) {
-            if (!(item instanceof Map)) {
-                continue;
-            }
-            Map<String, Object> map = (Map<String, Object>) item;
-            String name = firstText(map, "prefixed_name", "name");
-            if (StrUtil.isNotBlank(name) && !result.contains(name)) {
-                result.add(name);
-            }
-        }
-        Collections.sort(result);
-        return result;
-    }
-
-    /**
-     * 执行difference相关逻辑。
-     *
-     * @param left 左侧比较对象。
-     * @param right 右侧比较对象。
-     * @return 返回difference结果。
-     */
-    private List<String> difference(List<String> left, List<String> right) {
-        List<String> result = new ArrayList<String>();
-        List<String> safeRight = right == null ? Collections.<String>emptyList() : right;
-        if (left == null) {
-            return result;
-        }
-        for (String item : left) {
-            if (StrUtil.isNotBlank(item) && !safeRight.contains(item) && !result.contains(item)) {
-                result.add(item);
-            }
-        }
-        return result;
     }
 
     /** 表示MCPCheck数据，在服务、仓储和接口之间传递。 */

@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.support.ProviderDisplayGrouping;
 import com.jimuqu.solon.claw.support.ProviderProfileService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
+import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
@@ -271,7 +272,7 @@ public class DashboardProviderService {
         Map<String, Object> pricing = new LinkedHashMap<String, Object>();
         String currency = normalizeCurrency(price.getCurrency());
         pricing.put("currency", currency);
-        boolean free = isFree(price);
+        boolean free = price.isFree();
         if (free) {
             pricing.put("input", "free");
             pricing.put("output", "free");
@@ -341,20 +342,6 @@ public class DashboardProviderService {
      */
     private String normalizeCurrency(String currency) {
         return StrUtil.blankToDefault(currency, "USD").trim().toUpperCase(Locale.ROOT);
-    }
-
-    /**
-     * 判断是否Free。
-     *
-     * @param price 价格参数。
-     * @return 如果Free满足条件则返回 true，否则返回 false。
-     */
-    private boolean isFree(ModelPrice price) {
-        return price.inputMicrosPerTokenExact().signum() == 0
-                && price.outputMicrosPerTokenExact().signum() == 0
-                && price.cacheReadMicrosPerTokenExact().signum() == 0
-                && price.cacheWriteMicrosPerTokenExact().signum() == 0
-                && price.reasoningMicrosPerTokenExact().signum() == 0;
     }
 
     /**
@@ -769,7 +756,7 @@ public class DashboardProviderService {
             String initialUrl, String url, String apiKey, String dialect, int redirectCount) {
         assertSafeProviderUrl(url);
         HttpRequest request = HttpRequest.get(url).timeout(15000).setFollowRedirects(false);
-        if (StrUtil.isNotBlank(apiKey) && shouldForwardCredentials(initialUrl, url)) {
+        if (StrUtil.isNotBlank(apiKey) && UrlOriginSupport.sameOrigin(initialUrl, url)) {
             if (LlmConstants.PROVIDER_GEMINI.equals(dialect)) {
                 request.form("key", apiKey);
             } else {
@@ -818,44 +805,6 @@ public class DashboardProviderService {
                             + verdict.getMessage()
                             + ")");
         }
-    }
-
-    /**
-     * 判断是否需要Forward Credentials。
-     *
-     * @param initialUrl 待校验或访问的地址参数。
-     * @param url 待校验或访问的 URL。
-     * @return 如果Forward Credentials满足条件则返回 true，否则返回 false。
-     */
-    private boolean shouldForwardCredentials(String initialUrl, String url) {
-        try {
-            URI initial = URI.create(initialUrl);
-            URI current = URI.create(url);
-            return StrUtil.equalsIgnoreCase(initial.getScheme(), current.getScheme())
-                    && StrUtil.equalsIgnoreCase(initial.getHost(), current.getHost())
-                    && effectivePort(initial) == effectivePort(current);
-        } catch (Exception e) {
-            return false;
-        }
-    }
-
-    /**
-     * 执行生效端口相关逻辑。
-     *
-     * @param uri 待校验或访问的地址参数。
-     * @return 返回生效Port结果。
-     */
-    private int effectivePort(URI uri) {
-        if (uri.getPort() >= 0) {
-            return uri.getPort();
-        }
-        if ("http".equalsIgnoreCase(uri.getScheme())) {
-            return 80;
-        }
-        if ("https".equalsIgnoreCase(uri.getScheme())) {
-            return 443;
-        }
-        return -1;
     }
 
     /**

@@ -6,6 +6,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
+import com.jimuqu.solon.claw.support.FilePathSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -342,7 +343,7 @@ public class MediaInputBoundaryService {
      */
     private boolean isUnderCacheRoot(File file) {
         try {
-            return isUnderPath(file.getCanonicalFile(), cacheRoot.getCanonicalFile());
+            return FilePathSupport.isUnderPath(file.getCanonicalFile(), cacheRoot.getCanonicalFile());
         } catch (Exception e) {
             log.debug(
                     "媒体缓存路径规范化失败，按绝对路径兜底 path={}, error={}",
@@ -350,24 +351,7 @@ public class MediaInputBoundaryService {
                             SecretRedactor.redact(file == null ? "" : file.getPath(), 400)),
                     e.getClass().getSimpleName());
         }
-        return isUnderPath(file.getAbsoluteFile(), cacheRoot.getAbsoluteFile());
-    }
-
-    /**
-     * 判断文件路径是否在指定根路径内。
-     *
-     * @param file 文件或目录路径参数。
-     * @param root root 参数。
-     * @return 如果Under路径满足条件则返回 true，否则返回 false。
-     */
-    private boolean isUnderPath(File file, File root) {
-        String rootPath = root.toPath().toAbsolutePath().normalize().toString();
-        String filePath = file.toPath().toAbsolutePath().normalize().toString();
-        if (File.separatorChar == '\\') {
-            rootPath = rootPath.toLowerCase(Locale.ROOT);
-            filePath = filePath.toLowerCase(Locale.ROOT);
-        }
-        return filePath.equals(rootPath) || filePath.startsWith(rootPath + File.separator);
+        return FilePathSupport.isUnderPath(file.getAbsoluteFile(), cacheRoot.getAbsoluteFile());
     }
 
     /**
