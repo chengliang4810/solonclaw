@@ -317,6 +317,33 @@ public class AgentMechanismTest {
     }
 
     @Test
+    void shouldInspectAgentsThroughStructuredToolActions() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.agentProfileService.createAgent("coder", "你是代码助手。");
+        AgentTools tools =
+                new AgentTools(
+                        env.agentProfileService,
+                        env.sessionRepository,
+                        "MEMORY:agent-structured-room:agent-structured-user");
+
+        Map<?, ?> listed =
+                (Map<?, ?>)
+                        org.noear.snack4.ONode.ofJson(
+                                        tools.agentManage("list", null, null, null))
+                                .toData();
+        Map<?, ?> detail =
+                (Map<?, ?>)
+                        org.noear.snack4.ONode.ofJson(
+                                        tools.agentManage("get", "coder", null, null))
+                                .toData();
+
+        assertThat(listed.get("status")).isEqualTo("success");
+        assertThat(String.valueOf(listed.get("result"))).contains("coder");
+        assertThat(detail.get("status")).isEqualTo("success");
+        assertThat(String.valueOf(detail.get("result"))).contains("role_prompt=你是代码助手。");
+    }
+
+    @Test
     void shouldAllowAgentManageToolThroughAgentAllowlist() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.agentProfileService.createAgent("operator", "管理 Agent");
