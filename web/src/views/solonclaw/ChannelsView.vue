@@ -4,6 +4,7 @@ import { NSpin } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
+import PlatformToolsetsPanel from '@/components/solonclaw/settings/PlatformToolsetsPanel.vue'
 
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
@@ -24,6 +25,7 @@ onMounted(() => {
 
     <div class="channels-content">
       <NSpin :show="settingsStore.loading || settingsStore.saving" size="large" :description="t('common.loading')">
+        <PlatformToolsetsPanel />
         <PlatformSettings v-if="!settingsStore.loading" />
       </NSpin>
     </div>

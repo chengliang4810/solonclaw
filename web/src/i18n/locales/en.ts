@@ -1220,11 +1220,20 @@ export default {
   // Profiles
   gateways: {
     title: 'Gateways',
+    description: 'Review and control message gateway runtime status here. Configure channel credentials on the Channels page first.',
     running: 'Running',
     stopped: 'Stopped',
     started: 'Started',
     startFailed: 'Failed to start gateway',
     stopFailed: 'Failed to stop gateway',
+  },
+  channels: {
+    description: 'Configure domestic message channel enablement, credentials, and login methods here. Check runtime state on the Gateways page after setup.',
+    toolsetsTitle: 'Platform Toolset Policy',
+    toolsetsDescription: 'Limit available toolsets by domestic channel and choose whether that channel requires approval.',
+    enabledToolsets: 'Enabled toolsets',
+    disabledToolsets: 'Disabled toolsets',
+    approvalRequired: 'Approval required',
   },
   profiles: {
     title: 'Profiles',

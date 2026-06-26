@@ -1581,6 +1581,11 @@ export default {
 
   channels: {
     description: '这里配置国内消息渠道的启用状态、凭证和登录方式，完成后可在消息网关页面查看运行状态。',
+    toolsetsTitle: '平台工具集策略',
+    toolsetsDescription: '按国内渠道限制可用工具集，并设置该渠道是否必须走审批。',
+    enabledToolsets: '启用工具集',
+    disabledToolsets: '禁用工具集',
+    approvalRequired: '需要审批',
   },
   // 文件管理
   files: {
