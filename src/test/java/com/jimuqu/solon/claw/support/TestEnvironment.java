@@ -328,6 +328,7 @@ public class TestEnvironment {
                         securityPolicyService,
                         processRegistry,
                         null,
+                        dashboardMcpService,
                         browserRuntimeService);
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);
         AgentRunSupervisor agentRunSupervisor =

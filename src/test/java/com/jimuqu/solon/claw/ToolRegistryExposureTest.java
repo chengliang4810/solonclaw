@@ -101,6 +101,7 @@ public class ToolRegistryExposureTest {
                         "execute_js",
                         "get_current_time",
                         "agent_manage",
+                        "mcp_manage",
                         "skills_list",
                         "skill_view",
                         "skill_manage",
@@ -3553,6 +3554,16 @@ public class ToolRegistryExposureTest {
 
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("run_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString()).contains("RunTools");
+    }
+
+    @Test
+    void shouldExposeMcpManagementToolForNaturalLanguageServerControl() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("mcp_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("McpManageTools");
     }
 
     @Test

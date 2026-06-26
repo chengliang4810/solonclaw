@@ -125,6 +125,9 @@ public interface ToolNameConstants {
     /** MCP的统一常量值。 */
     String MCP = "mcp";
 
+    /** MCP管理的统一常量值。 */
+    String MCP_MANAGE = "mcp_manage";
+
     /** CODESEARCH的统一常量值。 */
     String CODESEARCH = "codesearch";
 

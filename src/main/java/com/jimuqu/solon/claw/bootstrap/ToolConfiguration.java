@@ -64,6 +64,7 @@ import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardRunService;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -283,6 +284,7 @@ public class ToolConfiguration {
      * @param dangerousCommandApprovalService 危险或外部操作审批服务依赖。
      * @param processRegistry 进程注册表依赖组件。
      * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param dashboardMcpService Dashboard MCP服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
@@ -311,6 +313,7 @@ public class ToolConfiguration {
             DangerousCommandApprovalService dangerousCommandApprovalService,
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService,
+            DashboardMcpService dashboardMcpService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -336,6 +339,7 @@ public class ToolConfiguration {
                 dangerousCommandApprovalService,
                 processRegistry,
                 mcpRuntimeService,
+                dashboardMcpService,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,

@@ -26,6 +26,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -95,6 +96,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.CONFIG_REFRESH,
                     ToolNameConstants.TOOL_GATEWAY,
                     ToolNameConstants.MCP,
+                    ToolNameConstants.MCP_MANAGE,
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
@@ -158,6 +160,9 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** MCP 运行时工具发现服务。 */
     private final McpRuntimeService mcpRuntimeService;
+
+    /** Dashboard MCP 服务，用于给 Agent 暴露服务端管理工具。 */
+    private final DashboardMcpService dashboardMcpService;
 
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
@@ -232,7 +237,81 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 (ProcessRegistry) null,
                 (McpRuntimeService) null,
+                (DashboardMcpService) null,
                 (BrowserRuntimeService) null,
+                (ImageGenerationService) null,
+                (SpeechService) null,
+                (DashboardRunService) null,
+                (List<ToolRegistration>) null);
+    }
+
+    /**
+     * 创建默认工具注册表实例，并注入 MCP 管理和浏览器运行时依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService Agent profile 服务依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param dashboardMcpService Dashboard MCP服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            DashboardMcpService dashboardMcpService,
+            BrowserRuntimeService browserRuntimeService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                (DangerousCommandApprovalService) null,
+                processRegistry,
+                mcpRuntimeService,
+                dashboardMcpService,
+                browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
@@ -296,6 +375,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 (ProcessRegistry) null,
                 (McpRuntimeService) null,
+                (DashboardMcpService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -362,6 +442,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 (ProcessRegistry) null,
                 mcpRuntimeService,
+                (DashboardMcpService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -430,9 +511,11 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
+                (DashboardMcpService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
+                (DashboardRunService) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -501,6 +584,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
+                (DashboardMcpService) null,
                 (BrowserRuntimeService) null,
                 imageGenerationService,
                 speechService,
@@ -571,6 +655,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
+                (DashboardMcpService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -641,6 +726,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
+                (DashboardMcpService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -715,6 +801,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
+                (DashboardMcpService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -792,6 +879,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 approvalService,
                 processRegistry,
                 mcpRuntimeService,
+                (DashboardMcpService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -847,6 +935,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             DangerousCommandApprovalService approvalService,
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService,
+            DashboardMcpService dashboardMcpService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -870,6 +959,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.securityPolicyService = securityPolicyService;
         this.approvalService = approvalService;
         this.mcpRuntimeService = mcpRuntimeService;
+        this.dashboardMcpService = dashboardMcpService;
         this.processRegistry = processRegistry;
         this.browserRuntimeService =
                 browserRuntimeService == null
@@ -948,6 +1038,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         TodoTools todoTools = new TodoTools(appConfig, sourceKey);
         AgentTools agentTools = new AgentTools(agentProfileService, sessionRepository, sourceKey);
         RunTools runTools = new RunTools(dashboardRunService);
+        McpManageTools mcpManageTools = new McpManageTools(dashboardMcpService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
@@ -1046,6 +1137,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 if (mcpRuntimeService != null) {
                     tools.addAll(mcpRuntimeService.resolveEnabledToolProviders());
                 }
+            } else if (ToolNameConstants.MCP_MANAGE.equals(toolName)) {
+                tools.add(mcpManageTools);
             } else if (ToolNameConstants.MEMORY.equals(toolName)) {
                 tools.add(memoryTools);
             } else if (ToolNameConstants.SESSION_SEARCH.equals(toolName)) {
