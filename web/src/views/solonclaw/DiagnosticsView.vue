@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { NButton, NButtonGroup, NInput, NSelect, NSpin, NSwitch, NTag, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
+import { formatLocalDateTimeMs as timeText } from '@/shared/session-display'
 import {
   auditSecurity,
   fetchAlwaysApprovals,
@@ -722,11 +723,6 @@ async function handleSlashConfirm(item: PendingSlashConfirm, action: 'approve' |
 
 function slashConfirmBusy(item: PendingSlashConfirm, action: string) {
   return resolvingConfirmKey.value === `${item.confirm_id}:${action}`
-}
-
-function timeText(value?: number) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
 }
 
 function expiresText(item: { expired?: boolean; expires_in_seconds?: number; expires_at?: number }) {

@@ -35,6 +35,7 @@ import {
   type McpServer,
 } from '@/api/solonclaw/mcp'
 import { asArray, displayJson, hasItems, listCount, trimText } from '@/shared/text'
+import { formatLocalDateTimeMs as formatTime } from '@/shared/session-display'
 
 const message = useMessage()
 const dialog = useDialog()
@@ -238,13 +239,6 @@ function statusType(status?: string) {
     return 'warning'
   }
   return 'default'
-}
-
-function formatTime(value?: number) {
-  if (!value) {
-    return '-'
-  }
-  return new Date(value).toLocaleString()
 }
 
 async function runAction(name: string, fn: () => Promise<McpActionResult>) {

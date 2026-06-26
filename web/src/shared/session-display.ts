@@ -36,3 +36,8 @@ export function formatTimestampMs(timestamp: number): string {
 export function formatTimestampSeconds(timestamp: number): string {
   return formatTimestampMs(timestamp * 1000)
 }
+
+export function formatLocalDateTimeMs(value?: number | null): string {
+  if (!value) return '-'
+  return new Date(value).toLocaleString()
+}

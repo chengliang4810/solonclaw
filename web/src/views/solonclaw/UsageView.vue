@@ -7,6 +7,7 @@ import { useUsageStore } from '@/stores/solonclaw/usage'
 import StatCards from '@/components/solonclaw/usage/StatCards.vue'
 import ModelBreakdown from '@/components/solonclaw/usage/ModelBreakdown.vue'
 import DailyTrend from '@/components/solonclaw/usage/DailyTrend.vue'
+import { formatLocalDateTimeMs as formatTime } from '@/shared/session-display'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
@@ -20,9 +21,6 @@ function asNumber(value: unknown): number {
   return typeof value === 'number' ? value : 0
 }
 
-function formatTime(value: number): string {
-  return value > 0 ? new Date(value).toLocaleString() : '-'
-}
 </script>
 
 <template>

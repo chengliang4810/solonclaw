@@ -4,6 +4,7 @@ import { NButton, NSelect, NSpin } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
 import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
 import { fetchRunDetail, fetchSessionRuns, type AgentRun, type AgentRunEvent, type ToolCall } from '@/api/solonclaw/runs'
+import { formatLocalDateTimeMs as time } from '@/shared/session-display'
 
 const sessions = ref<any[]>([])
 const runs = ref<AgentRun[]>([])
@@ -77,11 +78,6 @@ async function handleRollback(id: string) {
   } finally {
     rollingBack.value = ''
   }
-}
-
-function time(ms?: number) {
-  if (!ms) return '-'
-  return new Date(ms).toLocaleString()
 }
 
 function statusLabel(value?: string | null) {
