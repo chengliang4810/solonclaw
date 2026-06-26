@@ -385,7 +385,7 @@
       - Agent 自然语言路径有 `doctor_manage`、`approval_queue_manage` 和 `security_audit` 等分项工具，但不能直接查询 Dashboard 诊断总览。
     - 改造后：
       - 新增 `diagnostics_manage` 工具，复用 `DashboardDiagnosticsService#diagnostics()`，返回与 `/api/diagnostics` 对齐的只读总览。
-      - 工具不暴露安全审计 POST、子进程环境 probe、审批 resolve 等可执行或状态变更入口。
+      - 工具不暴露安全审计 POST、审批 resolve 等可执行或状态变更入口。
       - 顺手补强 `DashboardDiagnosticsService` 在测试或局部装配中 `toolRegistry` 为空时的降级，避免诊断总览因为可选依赖缺失整体失败。
       - 增加工具暴露和实际调用测试，证明默认工具列表包含 `diagnostics_manage` 且自然语言工具可返回 runtime/tools/security 诊断段。
     - 提交：`aa8efb151`
@@ -544,6 +544,20 @@
       - 增加红绿测试，证明自然语言路径可列出技能支持文件。
     - 提交：`f45a7d0fe`
 
+35. 增加子进程环境诊断工具动作
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DiagnosticsManageTools.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+    - 改造前：
+      - Dashboard 已有 `/api/diagnostics/subprocess-environment/probe`，可按名称探测子进程环境变量传递状态。
+      - `diagnostics_manage` 只暴露诊断总览，自然语言路径不能复用 Dashboard 同源的子进程环境诊断能力。
+    - 改造后：
+      - `diagnostics_manage` 增加 `subprocess_environment`、`subprocess-environment`、`env` 动作。
+      - 工具接收 `names_json` JSON 数组，复用 `DashboardDiagnosticsService#subprocessEnvironmentProbe()` 构造同源诊断结果。
+      - 敏感环境变量名称和值继续沿用 Dashboard 诊断服务的脱敏行为。
+      - 只新增只读诊断，不增加命令执行、外部访问或配置写入能力。
+    - 提交：`9b124d788`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -585,6 +599,8 @@
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeConfigManagementToolForNaturalLanguageConfigInspection+shouldInspectCurrentConfigThroughNaturalLanguageToolWithoutRevealingSecrets+shouldExposeWorkspaceConfigManagementToolForNaturalLanguageConfigInspection+shouldInspectWorkspaceConfigItemsThroughNaturalLanguageTool+shouldSetAndRemoveWorkspaceConfigThroughNaturalLanguageTool test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=MemoryAndSkillsTest#shouldListSkillSupportFilesThroughNaturalLanguageTool test`：先红后绿。
 - `mvn -Dskip.web.build=true -Dtest=MemoryAndSkillsTest#shouldPreprocessSkillTemplateVarsBeforeSkillView+shouldToggleSkillVisibilityThroughNaturalLanguageTool+shouldListSkillSupportFilesThroughNaturalLanguageTool+shouldFilterPromptAndSkillToolsByAgentSkills,ToolRegistryExposureTest#shouldExposeBuiltinSearchTools+shouldExposeToolsetsManagementToolForNaturalLanguageToolsetInspection+shouldInspectDashboardToolsetsThroughNaturalLanguageTool test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldProbeSubprocessEnvironmentThroughNaturalLanguageDiagnosticsTool test`：先红后绿。
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeDiagnosticsManagementToolForNaturalLanguageDiagnosticsInspection+shouldInspectDashboardDiagnosticsThroughNaturalLanguageTool+shouldProbeSubprocessEnvironmentThroughNaturalLanguageDiagnosticsTool+shouldExposeApprovalQueueManagementToolForNaturalLanguageApprovalInspection+shouldInspectApprovalQueuesThroughNaturalLanguageTool,DashboardDiagnosticOutputTest#shouldRedactGatewayDoctorAndDiagnosticsOutput test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -597,6 +613,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、技能文件列表、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、技能文件列表、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、子进程环境诊断、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚和会话删除暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
