@@ -20,9 +20,22 @@
      - 保持凭证预览仍来自 `/api/workspace-config` 的脱敏值。
    - 提交：`626834703`
 
+2. 用量 Token 展示格式复用
+   - 位置：
+     - `web/src/shared/usageFormat.ts`
+     - `web/src/components/solonclaw/usage/StatCards.vue`
+     - `web/src/components/solonclaw/usage/DailyTrend.vue`
+     - `web/src/components/solonclaw/usage/ModelBreakdown.vue`
+   - 改造前：
+     - 三个用量组件各自实现相同的 `formatTokens()`。
+   - 改造后：
+     - 新增 `formatUsageTokens()`，三个组件统一复用。
+     - 暂不合并 `formatCost()`，因为统计卡片和趋势/模型列表对零成本的展示语义不同。
+   - 提交：`06da95f76`
+
 ## 验证
 
-- `npm run build`：通过。
+- `npm run build`：阶段内多次通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 - `git diff --check`：通过。
 
