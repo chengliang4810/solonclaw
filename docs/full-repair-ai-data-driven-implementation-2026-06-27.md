@@ -341,6 +341,21 @@
       - 增加工具暴露和实际调用测试，证明默认工具列表包含 `search_manage` 且自然语言工具可返回 Dashboard 搜索结构。
     - 提交：`990caa9df`
 
+21. 增加 TUI 运行时查询一等工具
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/TuiRuntimeManageTools.java`
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+      - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+    - 改造前：
+      - Dashboard 已有 `/api/tui/rpc`，TUI 前端可查询 setup 状态、模型选项、渠道选项、渠道状态和配置值。
+      - Agent 自然语言路径没有一等 TUI runtime 查询工具，无法直接检查独立终端前端看到的 setup/model/channel/config 状态。
+    - 改造后：
+      - 新增 `tui_runtime_manage` 工具，复用 `TuiRuntimeProtocolService`，支持 `setup_status`、`model_options`、`channel_options`、`channel_status`、`config_get`。
+      - 工具只开放只读查询，不暴露 `model.save_key`、`channel.save`、`config.set` 等会写入配置或密钥的 RPC 方法。
+      - 增加工具暴露和实际调用测试，证明默认工具列表包含 `tui_runtime_manage` 且自然语言工具可返回 setup 状态。
+    - 提交：`6df18f509`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -363,6 +378,7 @@
 - `mvn -Dskip.web.build=true -Dtest=WeixinQrSetupServiceTest,DomesticQrSetupServiceTest,ToolRegistryExposureTest#shouldExposeGatewaySetupManagementToolForNaturalLanguageQrSetup test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeApprovalEventsManagementToolForNaturalLanguageApprovalInspection+shouldExposeApprovalQueueManagementToolForNaturalLanguageApprovalInspection+shouldInspectApprovalQueuesThroughNaturalLanguageTool test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=SessionSearchServiceTest#shouldRedactSecretsFromDashboardSearchResults,ToolRegistryExposureTest#shouldExposeDashboardSearchManagementToolForNaturalLanguageSearch+shouldSearchDashboardResultsThroughNaturalLanguageTool test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=TerminalUiRpcServiceTest,ToolRegistryExposureTest#shouldExposeTuiRuntimeManagementToolForNaturalLanguageSetupInspection+shouldInspectTuiRuntimeSetupThroughNaturalLanguageTool test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -375,6 +391,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、Dashboard 搜索查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚、会话删除和会话更新暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
