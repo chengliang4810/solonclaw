@@ -1,15 +1,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
+import { formatUsageTokens } from '@/shared/usageFormat'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
-
-function formatTokens(n: number): string {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
-  return String(n)
-}
 
 function formatCost(micros: number, currency: string): string {
   if (micros <= 0) return '--'
@@ -43,9 +38,9 @@ import { computed } from 'vue'
         </div>
         <div class="bar-tooltip">
           <div class="tooltip-date">{{ d.date }}</div>
-          <div class="tooltip-row">{{ t('usage.tokens') }}: {{ formatTokens(d.tokens) }}</div>
-          <div class="tooltip-row">{{ t('usage.cacheRead') }}: {{ formatTokens(d.cacheRead) }}</div>
-          <div class="tooltip-row">{{ t('usage.cacheWrite') }}: {{ formatTokens(d.cacheWrite) }}</div>
+          <div class="tooltip-row">{{ t('usage.tokens') }}: {{ formatUsageTokens(d.tokens) }}</div>
+          <div class="tooltip-row">{{ t('usage.cacheRead') }}: {{ formatUsageTokens(d.cacheRead) }}</div>
+          <div class="tooltip-row">{{ t('usage.cacheWrite') }}: {{ formatUsageTokens(d.cacheWrite) }}</div>
           <div class="tooltip-row">{{ t('usage.cost') }}: {{ d.pricingAvailable ? formatCost(d.costMicros, d.currency) : t('usage.unpriced') }}</div>
           <div class="tooltip-row">{{ t('usage.sessions') }}: {{ d.sessions }}</div>
         </div>
@@ -71,9 +66,9 @@ import { computed } from 'vue'
         <tbody>
           <tr v-for="d in [...usageStore.dailyUsage].reverse().slice(0, 30)" :key="d.date">
             <td>{{ d.date }}</td>
-            <td>{{ formatTokens(d.tokens) }}</td>
-            <td>{{ formatTokens(d.cacheRead) }}</td>
-            <td>{{ formatTokens(d.cacheWrite) }}</td>
+            <td>{{ formatUsageTokens(d.tokens) }}</td>
+            <td>{{ formatUsageTokens(d.cacheRead) }}</td>
+            <td>{{ formatUsageTokens(d.cacheWrite) }}</td>
             <td>{{ d.pricingAvailable ? formatCost(d.costMicros, d.currency) : t('usage.unpriced') }}</td>
             <td>{{ d.sessions }}</td>
           </tr>

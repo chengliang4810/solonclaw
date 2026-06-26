@@ -1,15 +1,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
+import { formatUsageTokens } from '@/shared/usageFormat'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
-
-function formatTokens(n: number): string {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
-  return String(n)
-}
 
 function formatCost(micros: number, currency: string): string {
   if (micros <= 0) return '--'
@@ -30,12 +25,12 @@ function formatCost(micros: number, currency: string): string {
           />
         </div>
         <span class="model-cache">
-          {{ formatTokens(m.cacheReadTokens) }} / {{ formatTokens(m.cacheWriteTokens) }}
+          {{ formatUsageTokens(m.cacheReadTokens) }} / {{ formatUsageTokens(m.cacheWriteTokens) }}
         </span>
         <span class="model-cost">
           {{ m.pricingAvailable ? formatCost(m.costMicros, m.currency) : t('usage.unpriced') }}
         </span>
-        <span class="model-tokens">{{ formatTokens(m.totalTokens) }}</span>
+        <span class="model-tokens">{{ formatUsageTokens(m.totalTokens) }}</span>
       </div>
     </div>
   </div>
