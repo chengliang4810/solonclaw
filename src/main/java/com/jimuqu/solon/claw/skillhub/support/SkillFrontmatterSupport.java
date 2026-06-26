@@ -130,6 +130,20 @@ public final class SkillFrontmatterSupport {
     }
 
     /**
+     * 解析技能元数据中的布尔开关，兼容 YAML 布尔值和常见文本写法。
+     *
+     * @param value 待解析的元数据值。
+     * @return true、1、yes 或 Boolean.TRUE 时返回 true。
+     */
+    public static boolean parseBoolean(Object value) {
+        if (value instanceof Boolean) {
+            return ((Boolean) value).booleanValue();
+        }
+        String text = value == null ? "" : String.valueOf(value).trim();
+        return "true".equalsIgnoreCase(text) || "1".equals(text) || "yes".equalsIgnoreCase(text);
+    }
+
+    /**
      * 解析Description。
      *
      * @param frontmatter frontmatter 参数。
