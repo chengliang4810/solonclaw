@@ -12,10 +12,10 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelHttpSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
-import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -294,10 +294,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回safe Body结果。
      */
     private String safeBody(Response response) throws Exception {
-        if (response.body() == null) {
-            return "";
-        }
-        return BoundedAttachmentIO.readOkHttpText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
+        return ChannelHttpSupport.safeBody(response);
     }
 
     /**
@@ -306,11 +303,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回api Domain结果。
      */
     private String apiDomain() {
-        String value = StrUtil.blankToDefault(config.getApiDomain(), DEFAULT_API_DOMAIN).trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
+        return ChannelHttpSupport.apiDomain(config.getApiDomain(), DEFAULT_API_DOMAIN);
     }
 
 
@@ -516,14 +509,6 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回first Non Blank结果。
      */
     private String firstNonBlank(String... values) {
-        if (values == null) {
-            return "";
-        }
-        for (String value : values) {
-            if (StrUtil.isNotBlank(value)) {
-                return value.trim();
-            }
-        }
-        return "";
+        return ChannelHttpSupport.firstNonBlank(values);
     }
 }
