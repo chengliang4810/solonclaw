@@ -33,6 +33,18 @@
      - 暂不合并 `formatCost()`，因为统计卡片和趋势/模型列表对零成本的展示语义不同。
    - 提交：`06da95f76`
 
+3. 聊天附件展示格式复用
+   - 位置：
+     - `web/src/shared/attachmentFormat.ts`
+     - `web/src/components/solonclaw/chat/ChatInput.vue`
+     - `web/src/components/solonclaw/chat/MessageItem.vue`
+   - 改造前：
+     - 输入区和消息项组件分别实现相同的附件大小格式化与图片 MIME 判断。
+   - 改造后：
+     - 新增 `formatAttachmentSize()` 与 `isImageMimeType()`，两个聊天组件统一复用。
+     - 暂不合并 `FileList.vue` 的文件大小格式化，因为空值和 0 字节展示语义不同。
+   - 提交：`3b85d545b`
+
 ## 验证
 
 - `npm run build`：阶段内多次通过。
@@ -41,5 +53,5 @@
 
 ## 剩余风险
 
-- 本文档只覆盖阶段 3.3 已完成的第一项，不代表阶段 3.3 全部完成。
+- 本文档只覆盖阶段 3.3 已完成的复用改造项，不代表阶段 3.3 全部完成。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
