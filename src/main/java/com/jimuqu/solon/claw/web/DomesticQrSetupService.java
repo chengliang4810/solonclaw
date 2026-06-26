@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.BaseUrlSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URLEncoder;
@@ -622,9 +623,7 @@ public class DomesticQrSetupService {
      * @return 返回safe消息结果。
      */
     private String safeMessage(Exception e) {
-        String message = e.getMessage();
-        String safe = StrUtil.isBlank(message) ? e.getClass().getSimpleName() : message.trim();
-        return safeText(safe);
+        return ErrorTextSupport.safeError(e);
     }
 
     /**

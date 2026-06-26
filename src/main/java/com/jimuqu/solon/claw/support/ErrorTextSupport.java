@@ -18,7 +18,7 @@ public final class ErrorTextSupport {
             return "unknown";
         }
         String message = error.getMessage();
-        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message;
+        String value = StrUtil.isBlank(message) ? error.getClass().getSimpleName() : message.trim();
         return SecretRedactor.redact(value, 1000);
     }
 
