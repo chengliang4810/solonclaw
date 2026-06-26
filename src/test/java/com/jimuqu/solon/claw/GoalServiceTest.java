@@ -50,7 +50,8 @@ public class GoalServiceTest {
         "'', 'done', skipped",
         "'修复问题', '', continue",
         "'修复问题', 'The goal complete path is verified', done",
-        "'修复问题', '已经完成，等待最终验证', done",
+        "'修复问题', '整个目标已完成，等待归档', done",
+        "'修复问题', '已经完成当前文档，等待最终验证', continue",
         "'修复问题', '继续执行下一步', continue"
     })
     void shouldClassifyGoalVerdictsFromResponseSignals(
