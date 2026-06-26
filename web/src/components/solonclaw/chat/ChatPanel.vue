@@ -2,7 +2,8 @@
 import { renameSession } from '@/api/solonclaw/sessions'
 import { useChatStore, type Session } from '@/stores/solonclaw/chat'
 import { useSessionBrowserPrefsStore } from '@/stores/solonclaw/session-browser-prefs'
-import { NButton, NDropdown, NInput, NModal, NTooltip, useMessage } from 'naive-ui'
+import { Button, Dropdown, Input, Modal, Tooltip, message } from 'antdv-next'
+import type { InputRef, MenuProps } from 'antdv-next'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getSourceLabel } from '@/shared/session-display'
@@ -15,7 +16,6 @@ import SessionListItem from './SessionListItem.vue'
 
 const chatStore = useChatStore()
 const sessionBrowserPrefsStore = useSessionBrowserPrefsStore()
-const message = useMessage()
 const { t } = useI18n()
 
 const currentMode = ref<'chat' | 'live'>('chat')
@@ -111,7 +111,7 @@ onUnmounted(() => {
 const showRenameModal = ref(false)
 const renameValue = ref('')
 const renameSessionId = ref<string | null>(null)
-const renameInputRef = ref<InstanceType<typeof NInput> | null>(null)
+const renameInputRef = ref<InputRef | null>(null)
 const collapsedGroups = ref<Set<string>>(new Set(loadCollapsedGroupSources()))
 
 // Source sort order: api_server first, cron last, others alphabetical
@@ -299,6 +299,13 @@ const contextMenuOptions = computed(() => [
   { label: t('chat.copySessionId'), key: 'copy-id' },
 ])
 
+const contextMenuItems = computed<MenuProps['items']>(() => contextMenuOptions.value)
+
+const contextMenuStyle = computed(() => ({
+  left: `${contextMenuX.value}px`,
+  top: `${contextMenuY.value}px`,
+}))
+
 function handleContextMenu(e: MouseEvent, sessionId: string) {
   e.preventDefault()
   contextSessionId.value = sessionId
@@ -335,6 +342,10 @@ function handleClickOutside() {
   showContextMenu.value = false
 }
 
+function handleContextMenuClick(info: { key: string | number }) {
+  handleContextMenuSelect(String(info.key))
+}
+
 async function handleRenameConfirm() {
   if (!renameSessionId.value || !renameValue.value.trim()) return
   const ok = await renameSession(renameSessionId.value, renameValue.value.trim())
@@ -362,11 +373,11 @@ async function handleRenameConfirm() {
           <button class="session-close-btn" @click="showSessions = false">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
-          <NButton quaternary size="tiny" @click="handleNewChat" circle>
+          <Button type="text" size="small" @click="handleNewChat" shape="circle">
             <template #icon>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </template>
-          </NButton>
+          </Button>
         </div>
       </div>
       <div v-if="showSessions" class="session-items">
@@ -416,41 +427,40 @@ async function handleRenameConfirm() {
       </div>
     </aside>
 
-    <NDropdown
-      placement="bottom-start"
-      trigger="manual"
-      :x="contextMenuX"
-      :y="contextMenuY"
-      :options="contextMenuOptions"
-      :show="showContextMenu"
-      @select="handleContextMenuSelect"
-      @clickoutside="handleClickOutside"
-    />
-
-    <NModal
-      v-model:show="showRenameModal"
-      preset="dialog"
-      :title="t('chat.renameSession')"
-      :positive-text="t('common.ok')"
-      :negative-text="t('common.cancel')"
-      @positive-click="handleRenameConfirm"
+    <Dropdown
+      placement="bottomLeft"
+      :trigger="['click']"
+      :open="showContextMenu"
+      :menu="{ items: contextMenuItems, onClick: handleContextMenuClick }"
+      @open-change="open => { if (!open) handleClickOutside() }"
     >
-      <NInput
+      <button class="context-menu-anchor" :style="contextMenuStyle" aria-hidden="true" tabindex="-1" />
+    </Dropdown>
+
+    <Modal
+      v-model:open="showRenameModal"
+
+      :title="t('chat.renameSession')"
+      :ok-text="t('common.ok')"
+      :cancel-text="t('common.cancel')"
+      @ok="handleRenameConfirm"
+    >
+      <Input
         ref="renameInputRef"
         v-model:value="renameValue"
         :placeholder="t('chat.enterNewTitle')"
         @keydown.enter="handleRenameConfirm"
       />
-    </NModal>
+    </Modal>
 
     <div class="chat-main">
       <header class="chat-header">
         <div class="header-left">
-          <NButton v-if="currentMode === 'chat'" quaternary size="small" @click="showSessions = !showSessions" circle>
+          <Button v-if="currentMode === 'chat'" type="text" size="small" @click="showSessions = !showSessions" shape="circle">
             <template #icon>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
             </template>
-          </NButton>
+          </Button>
           <span class="header-session-title">{{ headerTitle }}</span>
           <span v-if="activeSessionSource" class="source-badge">{{ getSourceLabel(activeSessionSource) }}</span>
           <span
@@ -462,79 +472,67 @@ async function handleRenameConfirm() {
             {{ activeGoalLabel }}
           </span>
           <div v-if="activeGoalState" class="goal-actions">
-            <NTooltip v-if="activeGoalState.status === 'active'" trigger="hover">
-              <template #trigger>
-                <NButton quaternary size="tiny" :disabled="!canPauseGoal" circle @click="runGoalCommand('pause')">
-                  <template #icon>
-                    <svg class="goal-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="6" y="4" width="4" height="16" rx="1" />
-                      <rect x="14" y="4" width="4" height="16" rx="1" />
-                    </svg>
-                  </template>
-                </NButton>
-              </template>
-              {{ t('chat.pauseGoal') }}
-            </NTooltip>
-            <NTooltip v-if="activeGoalState.status === 'paused'" trigger="hover">
-              <template #trigger>
-                <NButton quaternary size="tiny" :disabled="!canResumeGoal" circle @click="runGoalCommand('resume')">
-                  <template #icon>
-                    <svg class="goal-action-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </template>
-                </NButton>
-              </template>
-              {{ t('chat.resumeGoal') }}
-            </NTooltip>
-            <NTooltip v-if="activeGoalState.status !== 'done'" trigger="hover">
-              <template #trigger>
-                <NButton quaternary size="tiny" :disabled="!canClearGoal" circle @click="runGoalCommand('clear')">
-                  <template #icon>
-                    <svg class="goal-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </template>
-                </NButton>
-              </template>
-              {{ t('chat.clearGoal') }}
-            </NTooltip>
+            <Tooltip v-if="activeGoalState.status === 'active'" :title="t('chat.pauseGoal')" trigger="hover">
+              <Button type="text" size="small" :disabled="!canPauseGoal" shape="circle" @click="runGoalCommand('pause')">
+                <template #icon>
+                  <svg class="goal-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                </template>
+              </Button>
+            </Tooltip>
+            <Tooltip v-if="activeGoalState.status === 'paused'" :title="t('chat.resumeGoal')" trigger="hover">
+              <Button type="text" size="small" :disabled="!canResumeGoal" shape="circle" @click="runGoalCommand('resume')">
+                <template #icon>
+                  <svg class="goal-action-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </template>
+              </Button>
+            </Tooltip>
+            <Tooltip v-if="activeGoalState.status !== 'done'" :title="t('chat.clearGoal')" trigger="hover">
+              <Button type="text" size="small" :disabled="!canClearGoal" shape="circle" @click="runGoalCommand('clear')">
+                <template #icon>
+                  <svg class="goal-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </template>
+              </Button>
+            </Tooltip>
           </div>
         </div>
         <div class="header-actions">
           <AgentSelector v-if="currentMode === 'chat'" :session-id="chatStore.activeSessionId" />
           <div class="chat-mode-toggle">
-            <NButton
+            <Button
               size="small"
               :type="currentMode === 'chat' ? 'primary' : 'default'"
               :aria-pressed="currentMode === 'chat'"
               @click="handleModeChange('chat')"
-            >{{ t('chat.chatMode') }}</NButton>
-            <NButton
+            >{{ t('chat.chatMode') }}</Button>
+            <Button
               size="small"
               :type="currentMode === 'live' ? 'primary' : 'default'"
               :aria-pressed="currentMode === 'live'"
               @click="handleModeChange('live')"
-            >{{ t('chat.liveMode') }}</NButton>
+            >{{ t('chat.liveMode') }}</Button>
           </div>
           <template v-if="currentMode === 'chat'">
-            <NTooltip trigger="hover">
-              <template #trigger>
-                <NButton quaternary size="small" @click="copySessionId()" circle>
-                  <template #icon>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                  </template>
-                </NButton>
-              </template>
-              {{ t('chat.copySessionId') }}
-            </NTooltip>
-            <NButton size="small" :circle="isMobile" @click="handleNewChat">
+            <Tooltip :title="t('chat.copySessionId')" trigger="hover">
+              <Button type="text" size="small" @click="copySessionId()" shape="circle">
+                <template #icon>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </template>
+              </Button>
+            </Tooltip>
+            <Button size="small" :shape="isMobile ? 'circle' : 'default'" @click="handleNewChat">
               <template #icon>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               </template>
               <template v-if="!isMobile">{{ t('chat.newChat') }}</template>
-            </NButton>
+            </Button>
           </template>
         </div>
       </header>
@@ -595,7 +593,7 @@ async function handleRenameConfirm() {
     display: flex;
   }
 
-  .session-backdrop {
+.session-backdrop {
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.4);
@@ -859,6 +857,17 @@ async function handleRenameConfirm() {
   to {
     transform: rotate(360deg);
   }
+}
+
+.context-menu-anchor {
+  position: fixed;
+  z-index: 1000;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  pointer-events: none;
+  background: transparent;
+  border: 0;
 }
 
 .chat-main {

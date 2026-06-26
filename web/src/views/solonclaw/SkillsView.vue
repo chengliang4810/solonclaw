@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { NInput } from 'naive-ui'
+import { Input } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import SkillList from '@/components/solonclaw/skills/SkillList.vue'
 import SkillDetail from '@/components/solonclaw/skills/SkillDetail.vue'
@@ -59,7 +59,7 @@ function handleSelect(category: string, skill: string) {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
       </div>
-      <NInput
+      <Input
         v-model:value="searchQuery"
         :placeholder="t('skills.searchPlaceholder')"
         size="small"

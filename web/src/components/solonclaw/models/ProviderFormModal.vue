@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { NModal, NForm, NFormItem, NInput, NButton, NSelect, useMessage } from 'naive-ui'
+import { Modal, Form, FormItem, Input, Button, Select, AutoComplete, message } from 'antdv-next'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import type { AvailableModelGroup } from '@/api/solonclaw/system'
 import { useI18n } from 'vue-i18n'
@@ -17,7 +17,6 @@ const emit = defineEmits<{
 }>()
 
 const modelsStore = useModelsStore()
-const message = useMessage()
 
 const showModal = ref(true)
 const loading = ref(false)
@@ -158,82 +157,80 @@ function handleClose() {
 </script>
 
 <template>
-  <NModal
-    v-model:show="showModal"
-    preset="card"
+  <Modal
+    v-model:open="showModal"
+
     :title="isEdit ? t('models.editProvider') : t('models.addProvider')"
     :style="{ width: 'min(560px, calc(100vw - 32px))' }"
     :mask-closable="!loading"
     @after-leave="emit('close')"
   >
-    <NForm label-placement="top">
-      <NFormItem :label="t('models.providerKey')" required>
-        <NInput
+    <Form layout="vertical">
+      <FormItem :label="t('models.providerKey')" required>
+        <Input
           v-model:value="formData.providerKey"
           :placeholder="t('models.providerKeyPlaceholder')"
           :disabled="isEdit"
         />
-      </NFormItem>
+      </FormItem>
 
-      <NFormItem :label="t('models.name')" required>
-        <NInput
+      <FormItem :label="t('models.name')" required>
+        <Input
           v-model:value="formData.name"
           :placeholder="t('models.namePlaceholder')"
         />
-      </NFormItem>
+      </FormItem>
 
-      <NFormItem :label="t('models.baseUrl')" required>
-        <NInput
+      <FormItem :label="t('models.baseUrl')" required>
+        <Input
           v-model:value="formData.baseUrl"
           :placeholder="baseUrlPlaceholder()"
         />
-      </NFormItem>
+      </FormItem>
 
-      <NFormItem :label="t('models.apiKey')">
-        <NInput
+      <FormItem :label="t('models.apiKey')">
+        <Input
           v-model:value="formData.apiKey"
           type="password"
-          show-password-on="click"
+
           :placeholder="isEdit && provider?.has_api_key ? t('models.apiKeyConfigured') : t('models.apiKeyPlaceholder')"
           autocomplete="off"
         />
-      </NFormItem>
+      </FormItem>
 
-      <NFormItem :label="t('models.defaultModel')" required>
+      <FormItem :label="t('models.defaultModel')" required>
         <div class="model-select-row">
-          <NSelect
+          <AutoComplete
             v-model:value="formData.defaultModel"
-            filterable
-            tag
             :options="modelOptions"
             :placeholder="t('models.selectOrInput')"
           />
-          <NButton :loading="modelsLoading" @click="fetchModelList">
+          <Button :loading="modelsLoading" @click="fetchModelList">
             {{ t('models.fetchModelList') }}
-          </NButton>
+          </Button>
         </div>
-      </NFormItem>
+      </FormItem>
 
-      <NFormItem :label="t('models.dialect')" required>
+      <FormItem :label="t('models.dialect')" required>
         <div class="dialect-field">
-          <NSelect
+          <Select
             v-model:value="formData.dialect"
             :options="dialectOptions"
           />
           <p class="field-hint">{{ t('models.dialectHint') }}</p>
         </div>
-      </NFormItem>
-    </NForm>
+      </FormItem>
+    </Form>
 
     <template #footer>
       <div class="modal-footer">
-        <NButton @click="handleClose">{{ t('common.cancel') }}</NButton>
-        <NButton type="primary" :loading="loading" @click="handleSave">
+        <Button @click="handleClose">{{ t('common.cancel') }}</Button>
+        <Button type="primary" :loading="loading" @click="handleSave">
           {{ isEdit ? t('common.save') : t('common.add') }}
-        </NButton>
+        </Button>
       </div>
     </template>
-  </NModal>
+  </Modal>
 </template>
 
 <style scoped lang="scss">

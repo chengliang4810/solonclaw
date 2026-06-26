@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { NButton, NInput, NPopconfirm, useMessage } from "naive-ui";
+import { Button, Input, Popconfirm, message } from "antdv-next";
 import { useI18n } from "vue-i18n";
 import { clearApiKey, setApiKey } from "@/api/client";
 import { fetchWorkspaceConfigItems, revealWorkspaceConfigItem, setWorkspaceConfigItem } from "@/api/solonclaw/config";
@@ -8,7 +8,6 @@ import { fetchWorkspaceConfigItems, revealWorkspaceConfigItem, setWorkspaceConfi
 const ACCESS_TOKEN_KEY = "solonclaw.dashboard.accessToken";
 
 const { t } = useI18n();
-const message = useMessage();
 
 const loading = ref(false);
 const saving = ref(false);
@@ -105,35 +104,33 @@ async function clearAccessToken() {
         <code class="token-preview">{{ tokenPreview }}</code>
       </div>
 
-      <NInput
+      <Input
         v-model:value="accessToken"
         type="password"
-        show-password-on="click"
+
         :placeholder="t('account.accessTokenPlaceholder')"
         :disabled="loading || saving"
         @keyup.enter="saveAccessToken"
       />
 
       <div class="action-buttons">
-        <NButton type="primary" :loading="saving" :disabled="loading" @click="saveAccessToken">
+        <Button type="primary" :loading="saving" :disabled="loading" @click="saveAccessToken">
           {{ t("common.save") }}
-        </NButton>
-        <NButton :loading="revealing" :disabled="!configured || loading || saving" @click="revealAccessToken">
+        </Button>
+        <Button :loading="revealing" :disabled="!configured || loading || saving" @click="revealAccessToken">
           {{ t("account.revealAccessToken") }}
-        </NButton>
-        <NPopconfirm
-          :positive-text="t('common.confirm')"
-          :negative-text="t('common.cancel')"
+        </Button>
+        <Popconfirm
+          :title="t('account.clearAccessTokenConfirm')"
+          :ok-text="t('common.confirm')"
+          :cancel-text="t('common.cancel')"
           :disabled="!configured"
-          @positive-click="clearAccessToken"
+          @confirm="clearAccessToken"
         >
-          <template #trigger>
-            <NButton type="error" quaternary :disabled="!configured || loading || saving">
-              {{ t("account.clearAccessToken") }}
-            </NButton>
-          </template>
-          {{ t("account.clearAccessTokenConfirm") }}
-        </NPopconfirm>
+          <Button danger type="text" :disabled="!configured || loading || saving">
+            {{ t("account.clearAccessToken") }}
+          </Button>
+        </Popconfirm>
       </div>
     </div>
   </div>

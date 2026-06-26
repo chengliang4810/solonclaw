@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NButton, NCheckbox, NForm, NFormItem, NInput, NModal, NSelect, NSwitch, NTag, useDialog, useMessage } from 'naive-ui'
+import { AutoComplete, Button, Checkbox, Form, FormItem, Input, Modal, Switch, Tag, TextArea, message } from 'antdv-next'
 import { useAgentsStore } from '@/stores/solonclaw/agents'
 import { useChatStore } from '@/stores/solonclaw/chat'
 import { useModelsStore } from '@/stores/solonclaw/models'
@@ -15,8 +15,6 @@ import {
 const agentsStore = useAgentsStore()
 const chatStore = useChatStore()
 const modelsStore = useModelsStore()
-const message = useMessage()
-const dialog = useDialog()
 const { t } = useI18n()
 
 const showCreateModal = ref(false)
@@ -164,12 +162,12 @@ function confirmDelete() {
     message.warning(t('agents.readonlyNoDelete'))
     return
   }
-  dialog.warning({
+  Modal.confirm({
     title: t('agents.deleteTitle'),
     content: t('agents.deleteConfirm', { name: agent.name }),
-    positiveText: t('common.delete'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    okText: t('common.delete'),
+    cancelText: t('common.cancel'),
+    onOk: async () => {
       try {
         await agentsStore.deleteAgent(agent.name)
         message.success(t('agents.deleteSuccess'))
@@ -220,8 +218,8 @@ onMounted(load)
         <p class="header-subtitle">{{ t('agents.description') }}</p>
       </div>
       <div class="header-actions">
-        <NButton size="small" :loading="agentsStore.loading" @click="load">{{ t('agents.refresh') }}</NButton>
-        <NButton type="primary" size="small" @click="showCreateModal = true">{{ t('agents.create') }}</NButton>
+        <Button size="small" :loading="agentsStore.loading" @click="load">{{ t('agents.refresh') }}</Button>
+        <Button type="primary" size="small" @click="showCreateModal = true">{{ t('agents.create') }}</Button>
       </div>
     </header>
 
@@ -236,8 +234,8 @@ onMounted(load)
         >
           <span class="agent-row-title">
             <strong>{{ agent.display_name || agent.name }}</strong>
-            <NTag v-if="agent.default_agent" size="tiny" :bordered="false">{{ t('agents.builtin') }}</NTag>
-            <NTag v-if="agent.active" size="tiny" type="success" :bordered="false">{{ t('agents.current') }}</NTag>
+            <Tag v-if="agent.default_agent" size="small" :bordered="false">{{ t('agents.builtin') }}</Tag>
+            <Tag v-if="agent.active" size="small" color="success" :bordered="false">{{ t('agents.current') }}</Tag>
           </span>
           <span class="agent-row-name">{{ agent.name }}</span>
           <span class="agent-row-meta">{{ agent.default_model || t('agents.globalDefaultModel') }}</span>
@@ -253,87 +251,81 @@ onMounted(load)
               <p>{{ selectedAgent.readonly ? t('agents.readonlyHint') : t('agents.editableHint') }}</p>
             </div>
             <div class="editor-actions">
-              <NButton size="small" :disabled="selectedAgent.active || !selectedAgent.enabled" :loading="agentsStore.activating" @click="activateSelected">
+              <Button size="small" :disabled="selectedAgent.active || !selectedAgent.enabled" :loading="agentsStore.activating" @click="activateSelected">
                 {{ t('agents.activate') }}
-              </NButton>
-              <NButton size="small" type="error" secondary :disabled="isReadonly" @click="confirmDelete">{{ t('common.delete') }}</NButton>
-              <NButton type="primary" size="small" :disabled="isReadonly" :loading="agentsStore.saving" @click="saveAgent">{{ t('common.save') }}</NButton>
+              </Button>
+              <Button size="small" danger type="default" :disabled="isReadonly" @click="confirmDelete">{{ t('common.delete') }}</Button>
+              <Button type="primary" size="small" :disabled="isReadonly" :loading="agentsStore.saving" @click="saveAgent">{{ t('common.save') }}</Button>
             </div>
           </div>
 
-          <NForm label-placement="top" class="agent-form">
+          <Form layout="vertical" class="agent-form">
             <div class="form-grid">
-              <NFormItem :label="t('agents.displayName')">
-                <NInput v-model:value="form.display_name" :disabled="isReadonly" :placeholder="t('agents.displayNamePlaceholder')" />
-              </NFormItem>
-              <NFormItem :label="t('agents.defaultModel')">
-                <NSelect
+              <FormItem :label="t('agents.displayName')">
+                <Input v-model:value="form.display_name" :disabled="isReadonly" :placeholder="t('agents.displayNamePlaceholder')" />
+              </FormItem>
+              <FormItem :label="t('agents.defaultModel')">
+                <AutoComplete
                   v-model:value="form.default_model"
                   :options="modelOptions"
-                  filterable
-                  tag
                   :disabled="isReadonly"
                   :placeholder="t('agents.globalDefaultModel')"
                 />
-              </NFormItem>
+              </FormItem>
             </div>
 
-            <NFormItem :label="t('agents.descriptionLabel')">
-              <NInput v-model:value="form.description" :disabled="isReadonly" :placeholder="t('agents.descriptionPlaceholder')" />
-            </NFormItem>
+            <FormItem :label="t('agents.descriptionLabel')">
+              <Input v-model:value="form.description" :disabled="isReadonly" :placeholder="t('agents.descriptionPlaceholder')" />
+            </FormItem>
 
-            <NFormItem :label="t('agents.rolePrompt')">
-              <NInput
+            <FormItem :label="t('agents.rolePrompt')">
+              <TextArea
                 v-model:value="form.role_prompt"
-                type="textarea"
                 :autosize="{ minRows: 7, maxRows: 14 }"
                 :disabled="isReadonly"
                 :placeholder="t('agents.rolePromptPlaceholder')"
               />
-            </NFormItem>
+            </FormItem>
 
             <div class="form-grid">
-              <NFormItem :label="t('agents.allowedTools')">
-                <NInput
+              <FormItem :label="t('agents.allowedTools')">
+                <TextArea
                   v-model:value="form.allowed_tools_text"
-                  type="textarea"
                   :autosize="{ minRows: 4, maxRows: 8 }"
                   :disabled="isReadonly"
                   :placeholder="t('agents.allowedToolsPlaceholder')"
                 />
                 <div v-if="toolOptions.length" class="chips">
-                  <NTag v-for="tool in toolOptions" :key="tool.value" size="small" :bordered="false">{{ tool.label }}</NTag>
+                  <Tag v-for="tool in toolOptions" :key="tool.value" size="small" :bordered="false">{{ tool.label }}</Tag>
                 </div>
-              </NFormItem>
-              <NFormItem :label="t('agents.skills')">
-                <NInput
+              </FormItem>
+              <FormItem :label="t('agents.skills')">
+                <TextArea
                   v-model:value="form.skills_text"
-                  type="textarea"
                   :autosize="{ minRows: 4, maxRows: 8 }"
                   :disabled="isReadonly"
                   :placeholder="t('agents.skillsPlaceholder')"
                 />
                 <div v-if="skillOptions.length" class="chips">
-                  <NTag v-for="skill in skillOptions" :key="skill.value" size="small" :bordered="false">{{ skill.label }}</NTag>
+                  <Tag v-for="skill in skillOptions" :key="skill.value" size="small" :bordered="false">{{ skill.label }}</Tag>
                 </div>
-              </NFormItem>
+              </FormItem>
             </div>
 
-            <NFormItem :label="t('agents.memory')">
-              <NInput
+            <FormItem :label="t('agents.memory')">
+              <TextArea
                 v-model:value="form.memory"
-                type="textarea"
                 :autosize="{ minRows: 5, maxRows: 10 }"
                 :disabled="isReadonly"
                 :placeholder="t('agents.memoryPlaceholder')"
               />
-            </NFormItem>
+            </FormItem>
 
-            <NFormItem v-if="!isReadonly" :label="t('agents.enabled')">
-              <NSwitch v-model:value="form.enabled" />
-            </NFormItem>
-            <NCheckbox v-else :checked="true" disabled>{{ t('agents.builtinAlwaysEnabled') }}</NCheckbox>
-          </NForm>
+            <FormItem v-if="!isReadonly" :label="t('agents.enabled')">
+              <Switch v-model:value="form.enabled" />
+            </FormItem>
+            <Checkbox v-else :checked="true" disabled>{{ t('agents.builtinAlwaysEnabled') }}</Checkbox>
+          </Form>
         </template>
       </section>
 
@@ -370,32 +362,31 @@ onMounted(load)
       </aside>
     </main>
 
-    <NModal
-      v-model:show="showCreateModal"
-      preset="card"
+    <Modal
+      v-model:open="showCreateModal"
+
       :title="t('agents.createTitle')"
       :style="{ width: 'min(520px, calc(100vw - 32px))' }"
     >
-      <NForm label-placement="top">
-        <NFormItem :label="t('agents.name')" required>
-          <NInput v-model:value="createName" :placeholder="t('agents.namePlaceholder')" />
-        </NFormItem>
-        <NFormItem :label="t('agents.rolePrompt')">
-          <NInput
+      <Form layout="vertical">
+        <FormItem :label="t('agents.name')" required>
+          <Input v-model:value="createName" :placeholder="t('agents.namePlaceholder')" />
+        </FormItem>
+        <FormItem :label="t('agents.rolePrompt')">
+          <TextArea
             v-model:value="createRole"
-            type="textarea"
             :autosize="{ minRows: 4, maxRows: 8 }"
             :placeholder="t('agents.rolePromptOptionalPlaceholder')"
           />
-        </NFormItem>
-      </NForm>
+        </FormItem>
+      </Form>
       <template #footer>
         <div class="modal-footer">
-          <NButton @click="showCreateModal = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="agentsStore.saving" @click="createAgent">{{ t('common.create') }}</NButton>
+          <Button @click="showCreateModal = false">{{ t('common.cancel') }}</Button>
+          <Button type="primary" :loading="agentsStore.saving" @click="createAgent">{{ t('common.create') }}</Button>
         </div>
       </template>
-    </NModal>
+    </Modal>
   </div>
 </template>
 

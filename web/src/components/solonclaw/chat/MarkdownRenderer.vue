@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useMessage } from 'naive-ui'
+import { message } from 'antdv-next'
 import MarkdownIt from 'markdown-it'
 import { handleCodeBlockCopyClick, renderHighlightedCodeBlock } from './highlight'
 import { downloadFile } from '@/api/solonclaw/download'
 
 const props = defineProps<{ content: string }>()
 const { t } = useI18n()
-const message = useMessage()
 
 const md: MarkdownIt = new MarkdownIt({
   html: false,

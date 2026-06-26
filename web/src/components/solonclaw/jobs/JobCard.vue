@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { NButton, NDrawer, NDrawerContent, NInput, NModal, NSpin, NTooltip, useMessage } from 'naive-ui'
+import { Button, Drawer, Modal, Spin, TextArea, Tooltip, message } from 'antdv-next'
 import type { Job, JobRun, JobRunDeliveryResultTarget } from '@/api/solonclaw/jobs'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
 import { useI18n } from 'vue-i18n'
@@ -22,7 +22,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const jobsStore = useJobsStore()
-const message = useMessage()
 const showRuns = ref(false)
 const showPauseModal = ref(false)
 const pauseReason = ref('')
@@ -274,51 +273,40 @@ async function handleDelete() {
     </div>
 
     <div class="card-actions">
-      <NTooltip v-if="canPause">
-        <template #trigger>
-          <NButton size="tiny" quaternary @click="openPauseModal">{{ t('jobs.action.pause') }}</NButton>
-        </template>
-        {{ t('jobs.action.pauseJob') }}
-      </NTooltip>
-      <NTooltip v-else-if="canResume">
-        <template #trigger>
-          <NButton size="tiny" quaternary @click="handleResume">{{ t('jobs.action.resume') }}</NButton>
-        </template>
-        {{ t('jobs.action.resumeJob') }}
-      </NTooltip>
-      <NTooltip v-if="canRun">
-        <template #trigger>
-          <NButton size="tiny" quaternary @click="handleRun">
-            {{ canRetry ? t('jobs.action.retry') : t('jobs.action.runNow') }}
-          </NButton>
-        </template>
-        {{ canRetry ? t('jobs.action.rerunJob') : t('jobs.action.triggerImmediately') }}
-      </NTooltip>
-      <NButton v-if="canInspect" size="tiny" quaternary @click="openRuns">{{ t('jobs.action.detail') }}</NButton>
-      <NButton v-if="canEdit" size="tiny" quaternary @click="emit('edit', jobId)">{{ t('common.edit') }}</NButton>
-      <NButton v-if="canRemove" size="tiny" quaternary type="error" @click="handleDelete">{{ t('common.delete') }}</NButton>
+      <Tooltip v-if="canPause" :title="t('jobs.action.pauseJob')">
+        <Button size="small" type="text" @click="openPauseModal">{{ t('jobs.action.pause') }}</Button>
+      </Tooltip>
+      <Tooltip v-else-if="canResume" :title="t('jobs.action.resumeJob')">
+        <Button size="small" type="text" @click="handleResume">{{ t('jobs.action.resume') }}</Button>
+      </Tooltip>
+      <Tooltip v-if="canRun" :title="canRetry ? t('jobs.action.rerunJob') : t('jobs.action.triggerImmediately')">
+        <Button size="small" type="text" @click="handleRun">
+          {{ canRetry ? t('jobs.action.retry') : t('jobs.action.runNow') }}
+        </Button>
+      </Tooltip>
+      <Button v-if="canInspect" size="small" type="text" @click="openRuns">{{ t('jobs.action.detail') }}</Button>
+      <Button v-if="canEdit" size="small" type="text" @click="emit('edit', jobId)">{{ t('common.edit') }}</Button>
+      <Button v-if="canRemove" size="small" type="text" danger @click="handleDelete">{{ t('common.delete') }}</Button>
     </div>
 
-    <NModal
-      v-model:show="showPauseModal"
-      preset="dialog"
+    <Modal
+      v-model:open="showPauseModal"
+
       :title="t('jobs.pauseTitle')"
-      :positive-text="t('jobs.action.pause')"
-      :negative-text="t('common.cancel')"
-      @positive-click="handlePause"
+      :ok-text="t('jobs.action.pause')"
+      :cancel-text="t('common.cancel')"
+      @ok="handlePause"
     >
-      <NInput
+      <TextArea
         v-model:value="pauseReason"
-        type="textarea"
         :rows="3"
-        :maxlength="300"
+        ::maxlength="300"
         show-count
         :placeholder="t('jobs.pauseReasonPlaceholder')"
       />
-    </NModal>
+    </Modal>
 
-    <NDrawer v-model:show="showRuns" placement="right" :width="520">
-      <NDrawerContent :title="t('jobs.historyTitle', { name: job.name })" closable>
+    <Drawer v-model:open="showRuns" placement="right" :width="520" :title="t('jobs.historyTitle', { name: job.name })">
         <section class="detail-section">
           <h4>{{ t('jobs.detail.config') }}</h4>
           <div class="detail-grid">
@@ -358,7 +346,7 @@ async function handleDelete() {
           </div>
           <pre v-if="activeJob.last_output" class="run-output full-output">{{ activeJob.last_output }}</pre>
         </section>
-        <NSpin :show="runsLoading">
+        <Spin :spinning="runsLoading">
           <div v-if="runs.length === 0" class="empty-runs">{{ t('jobs.noHistory') }}</div>
           <div v-else class="run-list">
             <div v-for="run in runs" :key="run.run_id" class="run-item">
@@ -409,9 +397,8 @@ async function handleDelete() {
               </div>
             </div>
           </div>
-        </NSpin>
-      </NDrawerContent>
-    </NDrawer>
+        </Spin>
+    </Drawer>
   </div>
 </template>
 

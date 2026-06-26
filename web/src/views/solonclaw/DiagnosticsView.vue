@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NButtonGroup, NInput, NSelect, NSpin, NSwitch, NTag, useMessage } from 'naive-ui'
+import { Button, SpaceCompact, Input, Select, Spin, Switch, Tag, TextArea, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import {
   auditSecurity,
@@ -26,7 +26,6 @@ import {
   type SecurityAuditResult,
 } from '@/api/solonclaw/diagnostics'
 
-const message = useMessage()
 const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
 const loading = ref(false)
@@ -760,9 +759,9 @@ onMounted(load)
         <h2 class="header-title">{{ t('diagnostics.title') }}</h2>
         <p class="header-subtitle">{{ t('diagnostics.description') }}</p>
       </div>
-      <NButton size="small" :loading="loading" @click="load">{{ t('diagnostics.refresh') }}</NButton>
+      <Button size="small" :loading="loading" @click="load">{{ t('diagnostics.refresh') }}</Button>
     </header>
-    <NSpin :show="loading">
+    <Spin :spinning="loading">
       <main class="diagnostics-grid">
         <section class="panel">
           <h3>{{ t('diagnostics.runtime') }}</h3>
@@ -797,9 +796,9 @@ onMounted(load)
                 <div>
                   <dt>{{ t('diagnostics.mcpReloadConfirm') }}</dt>
                   <dd>
-                    <NTag size="small" :type="booleanTagType(securityApprovals.mcp_reload_confirm)">
+                    <Tag size="small" :color="booleanTagType(securityApprovals.mcp_reload_confirm)">
                       {{ booleanText(securityApprovals.mcp_reload_confirm) }}
-                    </NTag>
+                    </Tag>
                   </dd>
                 </div>
                 <div>
@@ -814,17 +813,17 @@ onMounted(load)
                 <div>
                   <dt>{{ t('diagnostics.allowPrivateUrls') }}</dt>
                   <dd>
-                    <NTag size="small" :type="booleanTagType(securityPolicy.allow_private_urls, true)">
+                    <Tag size="small" :color="booleanTagType(securityPolicy.allow_private_urls, true)">
                       {{ booleanText(securityPolicy.allow_private_urls) }}
-                    </NTag>
+                    </Tag>
                   </dd>
                 </div>
                 <div>
                   <dt>{{ t('diagnostics.websiteBlocklist') }}</dt>
                   <dd>
-                    <NTag size="small" :type="booleanTagType(securityPolicy.website_blocklist_enabled)">
+                    <Tag size="small" :color="booleanTagType(securityPolicy.website_blocklist_enabled)">
                       {{ booleanText(securityPolicy.website_blocklist_enabled) }}
-                    </NTag>
+                    </Tag>
                   </dd>
                 </div>
                 <div>
@@ -851,17 +850,17 @@ onMounted(load)
                 <div>
                   <dt>{{ t('diagnostics.sudoPassword') }}</dt>
                   <dd>
-                    <NTag size="small" :type="booleanTagType(securityTerminal.sudo_password_configured)">
+                    <Tag size="small" :color="booleanTagType(securityTerminal.sudo_password_configured)">
                       {{ booleanText(securityTerminal.sudo_password_configured) }}
-                    </NTag>
+                    </Tag>
                   </dd>
                 </div>
                 <div>
                   <dt>{{ t('diagnostics.writeSafeRoot') }}</dt>
                   <dd>
-                    <NTag size="small" :type="booleanTagType(securityTerminal.write_safe_root_configured)">
+                    <Tag size="small" :color="booleanTagType(securityTerminal.write_safe_root_configured)">
                       {{ booleanText(securityTerminal.write_safe_root_configured) }}
-                    </NTag>
+                    </Tag>
                   </dd>
                 </div>
               </dl>
@@ -872,25 +871,25 @@ onMounted(load)
                 <div>
                   <dt>{{ t('diagnostics.scanEnabled') }}</dt>
                   <dd>
-                    <NTag size="small" :type="booleanTagType(securityPolicy.tirith_enabled)">
+                    <Tag size="small" :color="booleanTagType(securityPolicy.tirith_enabled)">
                       {{ booleanText(securityPolicy.tirith_enabled) }}
-                    </NTag>
+                    </Tag>
                   </dd>
                 </div>
                 <div>
                   <dt>{{ t('diagnostics.scannerConfigured') }}</dt>
                   <dd>
-                    <NTag size="small" :type="booleanTagType(securityPolicy.tirith_configured)">
+                    <Tag size="small" :color="booleanTagType(securityPolicy.tirith_configured)">
                       {{ booleanText(securityPolicy.tirith_configured) }}
-                    </NTag>
+                    </Tag>
                   </dd>
                 </div>
                 <div>
                   <dt>{{ t('diagnostics.failOpen') }}</dt>
                   <dd>
-                    <NTag size="small" :type="booleanTagType(securityPolicy.tirith_fail_open, false)">
+                    <Tag size="small" :color="booleanTagType(securityPolicy.tirith_fail_open, false)">
                       {{ booleanText(securityPolicy.tirith_fail_open) }}
-                    </NTag>
+                    </Tag>
                   </dd>
                 </div>
                 <div>
@@ -903,29 +902,29 @@ onMounted(load)
           <div class="coverage-section">
             <div class="coverage-title">
               <h4>{{ t('diagnostics.coverageSnapshot') }}</h4>
-              <NTag size="small" :type="policyAuditResult?.success === false ? 'error' : 'success'" :bordered="false">
+              <Tag size="small" :color="policyAuditResult?.success === false ? 'error' : 'success'" :bordered="false">
                 {{ policyAuditResult?.success === false ? t('diagnostics.abnormal') : t('diagnostics.readonly') }}
-              </NTag>
+              </Tag>
             </div>
             <div class="coverage-grid">
               <div v-for="item in coverageItems" :key="item.key" class="coverage-item">
                 <span>{{ item.label }}</span>
-                <NTag size="small" :type="booleanTagType(securityCoverage[item.key])" :bordered="false">
+                <Tag size="small" :color="booleanTagType(securityCoverage[item.key])" :bordered="false">
                   {{ booleanText(securityCoverage[item.key]) }}
-                </NTag>
+                </Tag>
               </div>
             </div>
             <div class="surface-list">
-              <NTag v-for="surface in securitySurfaces" :key="surface" size="small" :bordered="false">
+              <Tag v-for="surface in securitySurfaces" :key="surface" size="small" :bordered="false">
                 {{ surfaceLabel(surface) }}
-              </NTag>
+              </Tag>
               <span v-if="!securitySurfaces.length" class="surface-empty">{{ t('diagnostics.noCoverageData') }}</span>
             </div>
           </div>
           <div class="policy-detail-section">
             <div class="coverage-title">
               <h4>{{ t('diagnostics.policyDetails') }}</h4>
-              <NTag size="small" :bordered="false">{{ t('diagnostics.readonlyDiagnostics') }}</NTag>
+              <Tag size="small" :bordered="false">{{ t('diagnostics.readonlyDiagnostics') }}</Tag>
             </div>
             <div class="policy-detail-grid">
               <div v-for="group in securityDetailGroups" :key="group.title" class="policy-detail-group">
@@ -933,9 +932,9 @@ onMounted(load)
                 <div class="metric-grid">
                   <div v-for="item in group.items" :key="`${group.title}:${item.label}`" class="metric-item">
                     <span>{{ item.label }}</span>
-                    <NTag size="small" :type="metricTagType(item)" :bordered="false">
+                    <Tag size="small" :color="metricTagType(item)" :bordered="false">
                       {{ metricText(item.value) }}
-                    </NTag>
+                    </Tag>
                   </div>
                 </div>
               </div>
@@ -944,9 +943,9 @@ onMounted(load)
           <div class="probe-section">
             <div class="coverage-title">
               <h4>{{ t('diagnostics.securityProbe') }}</h4>
-              <NTag size="small" :type="securityProbePassed === false ? 'error' : 'success'" :bordered="false">
+              <Tag size="small" :color="securityProbePassed === false ? 'error' : 'success'" :bordered="false">
                 {{ securityProbePassed === false ? t('diagnostics.hasIssues') : t('diagnostics.allPassed') }}
-              </NTag>
+              </Tag>
             </div>
             <p v-if="diagnostics?.security?.probes?.available === false" class="approval-note">
               {{ diagnostics?.security?.probes?.message || t('diagnostics.serviceUnavailable') }}
@@ -955,9 +954,9 @@ onMounted(load)
               <div v-for="probe in securityProbes" :key="probe.key || probe.label" class="probe-item">
                 <div class="probe-head">
                   <strong>{{ probe.label || probe.key }}</strong>
-                  <NTag size="small" :type="probe.passed ? 'success' : 'error'" :bordered="false">
+                  <Tag size="small" :color="probe.passed ? 'success' : 'error'" :bordered="false">
                     {{ probe.skipped ? t('diagnostics.skipped') : probe.passed ? t('diagnostics.passed') : t('diagnostics.abnormal') }}
-                  </NTag>
+                  </Tag>
                 </div>
                 <div class="probe-meta">
                   <span>{{ surfaceLabel(probe.surface || '') }}</span>
@@ -976,38 +975,36 @@ onMounted(load)
             <div class="audit-form">
               <label>
                 <span>{{ t('diagnostics.auditType') }}</span>
-                <NSelect v-model:value="auditForm.action" :options="auditActionOptions" size="small" />
+                <Select v-model:value="auditForm.action" :options="auditActionOptions" size="small" />
               </label>
               <label v-if="auditForm.action === 'command' || auditForm.action === 'tool_args'">
                 <span>{{ t('diagnostics.auditToolName') }}</span>
-                <NInput v-model:value="auditForm.toolName" size="small" :placeholder="t('diagnostics.auditToolPlaceholder')" />
+                <Input v-model:value="auditForm.toolName" size="small" :placeholder="t('diagnostics.auditToolPlaceholder')" />
               </label>
               <label v-if="auditForm.action === 'command'">
                 <span>{{ t('diagnostics.auditCommand') }}</span>
-                <NInput
+                <TextArea
                   v-model:value="auditForm.command"
-                  type="textarea"
                   :autosize="{ minRows: 3, maxRows: 8 }"
                   :placeholder="t('diagnostics.auditCommandPlaceholder')"
                 />
               </label>
               <label v-if="auditForm.action === 'url'">
                 <span>{{ t('diagnostics.auditUrl') }}</span>
-                <NInput v-model:value="auditForm.url" size="small" :placeholder="t('diagnostics.auditUrlPlaceholder')" />
+                <Input v-model:value="auditForm.url" size="small" :placeholder="t('diagnostics.auditUrlPlaceholder')" />
               </label>
               <label v-if="auditForm.action === 'path'">
                 <span>{{ t('diagnostics.auditPath') }}</span>
-                <NInput v-model:value="auditForm.path" size="small" :placeholder="t('diagnostics.auditPathPlaceholder')" />
+                <Input v-model:value="auditForm.path" size="small" :placeholder="t('diagnostics.auditPathPlaceholder')" />
               </label>
               <label v-if="auditForm.action === 'path'" class="switch-row">
                 <span>{{ t('diagnostics.auditWriteLike') }}</span>
-                <NSwitch v-model:value="auditForm.writeLike" size="small" />
+                <Switch v-model:value="auditForm.writeLike" size="small" />
               </label>
               <label v-if="auditForm.action === 'tool_args'">
                 <span>{{ t('diagnostics.auditArgsJson') }}</span>
-                <NInput
+                <TextArea
                   v-model:value="auditForm.argsJson"
-                  type="textarea"
                   :autosize="{ minRows: 3, maxRows: 8 }"
                   :placeholder="t('diagnostics.auditArgsPlaceholder')"
                 />
@@ -1015,25 +1012,25 @@ onMounted(load)
               <p v-if="auditForm.action === 'status'" class="approval-note">
                 {{ t('diagnostics.auditStatusHint') }}
               </p>
-              <NButton size="small" type="primary" :loading="auditLoading" @click="runAudit">{{ t('diagnostics.auditRun') }}</NButton>
+              <Button size="small" type="primary" :loading="auditLoading" @click="runAudit">{{ t('diagnostics.auditRun') }}</Button>
             </div>
             <div class="audit-result">
               <div class="audit-summary">
-                <NTag size="small" :type="decisionType(auditResult?.decision)">
+                <Tag size="small" :color="decisionType(auditResult?.decision)">
                   {{ auditResult?.decision || t('diagnostics.notAudited') }}
-                </NTag>
-                <NTag v-if="auditResult?.blocking" size="small" type="error" :bordered="false">{{ t('diagnostics.blocked') }}</NTag>
-                <NTag v-if="auditResult?.approval_required" size="small" type="warning" :bordered="false">{{ t('diagnostics.approvalRequired') }}</NTag>
+                </Tag>
+                <Tag v-if="auditResult?.blocking" size="small" color="error" :bordered="false">{{ t('diagnostics.blocked') }}</Tag>
+                <Tag v-if="auditResult?.approval_required" size="small" color="warning" :bordered="false">{{ t('diagnostics.approvalRequired') }}</Tag>
                 <span>{{ auditResult?.summary || t('diagnostics.waitingAuditInput') }}</span>
               </div>
               <div v-if="auditFindings.length" class="finding-list">
                 <div v-for="(finding, index) in auditFindings" :key="index" class="finding-item">
                   <div class="finding-meta">
-                    <NTag size="small" :bordered="false">{{ finding.source || 'policy' }}</NTag>
-                    <NTag v-if="finding.blocking" size="small" type="error" :bordered="false">{{ t('diagnostics.findingBlocked') }}</NTag>
-                    <NTag v-else-if="finding.approval_required" size="small" type="warning" :bordered="false">
+                    <Tag size="small" :bordered="false">{{ finding.source || 'policy' }}</Tag>
+                    <Tag v-if="finding.blocking" size="small" color="error" :bordered="false">{{ t('diagnostics.findingBlocked') }}</Tag>
+                    <Tag v-else-if="finding.approval_required" size="small" color="warning" :bordered="false">
                       {{ t('diagnostics.findingApproval') }}
-                    </NTag>
+                    </Tag>
                     <span>{{ finding.ruleId || '-' }}</span>
                     <span>{{ finding.severity || '-' }}</span>
                     <span v-if="finding.suggested_action">{{ findingActionText(finding.suggested_action) }}</span>
@@ -1049,14 +1046,14 @@ onMounted(load)
           <div class="panel-title-row">
             <h3>{{ t('diagnostics.pendingApprovals') }}</h3>
             <div class="panel-actions">
-              <NTag size="small" :type="pendingCount ? 'warning' : 'success'">{{ pendingCount }}</NTag>
-              <NTag size="small" :type="pendingApprovalMeta?.session_scan_truncated ? 'warning' : 'default'">
+              <Tag size="small" :color="pendingCount ? 'warning' : 'success'">{{ pendingCount }}</Tag>
+              <Tag size="small" :color="pendingApprovalMeta?.session_scan_truncated ? 'warning' : 'default'">
                 {{ pendingApprovalScanText }}
-              </NTag>
-              <NButton size="small" :loading="approvalsLoading" @click="loadApprovals">{{ t('diagnostics.refresh') }}</NButton>
+              </Tag>
+              <Button size="small" :loading="approvalsLoading" @click="loadApprovals">{{ t('diagnostics.refresh') }}</Button>
             </div>
           </div>
-          <NSpin :show="approvalsLoading">
+          <Spin :spinning="approvalsLoading">
             <p v-if="pendingApprovalMeta?.available === false" class="approval-note">
               {{ pendingApprovalMeta.message || t('diagnostics.approvalServiceUnavailable') }}
             </p>
@@ -1073,16 +1070,16 @@ onMounted(load)
                     <strong>{{ item.title || item.session_id }}</strong>
                     <span>{{ item.tool_name || '-' }} · {{ item.source_ref || '-' }}</span>
                   </div>
-                  <NTag size="small" :type="item.permanent_allowed ? 'default' : 'warning'">
+                  <Tag size="small" :color="item.permanent_allowed ? 'default' : 'warning'">
                     {{ item.permanent_allowed ? t('diagnostics.permanentAllowed') : t('diagnostics.onceOrSessionOnly') }}
-                  </NTag>
+                  </Tag>
                 </div>
                 <p class="approval-desc">{{ item.description || '-' }}</p>
                 <pre class="approval-command">{{ item.command_preview || '-' }}</pre>
                 <div v-if="item.rule_sources?.length" class="approval-scopes">
-                  <NTag v-for="source in item.rule_sources" :key="source" size="small" :bordered="false">
+                  <Tag v-for="source in item.rule_sources" :key="source" size="small" :bordered="false">
                     {{ approvalSourceText(source) }}
-                  </NTag>
+                  </Tag>
                 </div>
                 <div class="approval-meta">
                   <span>{{ item.selector || item.approval_id || '-' }}</span>
@@ -1091,63 +1088,63 @@ onMounted(load)
                   <span :class="{ 'approval-expired': item.expired }">{{ t('diagnostics.remaining', { time: expiresText(item) }) }}</span>
                 </div>
                 <div v-if="item.scope_options?.length" class="approval-scopes">
-                  <NTag v-for="scope in item.scope_options" :key="scope" size="small" :bordered="false">
+                  <Tag v-for="scope in item.scope_options" :key="scope" size="small" :bordered="false">
                     {{ scope === 'once' ? t('diagnostics.scopeOnce') : scope === 'session' ? t('diagnostics.scopeSession') : t('diagnostics.scopeAlways') }}
-                  </NTag>
+                  </Tag>
                 </div>
                 <p v-if="item.permanent_disabled_reason" class="approval-note">
                   {{ item.permanent_disabled_reason }}
                 </p>
                 <div class="approval-actions">
-                  <NButtonGroup size="small">
-                    <NButton
+                  <SpaceCompact size="small">
+                    <Button
                       type="primary"
                       :disabled="!canApproveScope(item, 'once')"
                       :loading="approvalBusy(item, 'approve', 'once')"
                       @click="handleApproval(item, 'approve', 'once')"
                     >
                       {{ t('diagnostics.approveOnce') }}
-                    </NButton>
-                    <NButton
+                    </Button>
+                    <Button
                       :disabled="!canApproveScope(item, 'session')"
                       :loading="approvalBusy(item, 'approve', 'session')"
                       @click="handleApproval(item, 'approve', 'session')"
                     >
                       {{ t('diagnostics.approveSession') }}
-                    </NButton>
-                    <NButton
+                    </Button>
+                    <Button
                       :disabled="!canApproveScope(item, 'always')"
                       :loading="approvalBusy(item, 'approve', 'always')"
                       @click="handleApproval(item, 'approve', 'always')"
                     >
                       {{ t('diagnostics.approveAlways') }}
-                    </NButton>
-                  </NButtonGroup>
-                  <NButton
+                    </Button>
+                  </SpaceCompact>
+                  <Button
                     size="small"
-                    type="error"
+                    danger
                     ghost
                     :disabled="item.expired"
                     :loading="approvalBusy(item, 'deny')"
                     @click="handleApproval(item, 'deny')"
                   >
                     {{ t('diagnostics.deny') }}
-                  </NButton>
+                  </Button>
                 </div>
               </article>
             </div>
             <div v-else class="empty-state">{{ t('diagnostics.pendingApprovalsEmpty') }}</div>
-          </NSpin>
+          </Spin>
         </section>
         <section class="panel approvals-panel">
           <div class="panel-title-row">
             <h3>{{ t('diagnostics.approvalHistory') }}</h3>
             <div class="panel-actions">
-              <NTag size="small">{{ historyCount }}</NTag>
-              <NButton size="small" :loading="historyLoading" @click="loadHistory">{{ t('diagnostics.refresh') }}</NButton>
+              <Tag size="small">{{ historyCount }}</Tag>
+              <Button size="small" :loading="historyLoading" @click="loadHistory">{{ t('diagnostics.refresh') }}</Button>
             </div>
           </div>
-          <NSpin :show="historyLoading">
+          <Spin :spinning="historyLoading">
             <p v-if="approvalHistoryMeta?.available === false" class="approval-note">
               {{ approvalHistoryMeta.message || t('diagnostics.approvalHistoryUnavailable') }}
             </p>
@@ -1161,9 +1158,9 @@ onMounted(load)
                     <strong>{{ item.description || item.command_hash || item.event_id }}</strong>
                     <span>{{ item.session_id || '-' }} · {{ item.tool_name || '-' }}</span>
                   </div>
-                  <NTag size="small" :type="auditChoiceType(item)">
+                  <Tag size="small" :color="auditChoiceType(item)">
                     {{ auditChoiceText(item) }}
-                  </NTag>
+                  </Tag>
                 </div>
                 <pre class="approval-command">{{ item.command_preview || '-' }}</pre>
                 <div class="approval-meta">
@@ -1174,17 +1171,17 @@ onMounted(load)
               </article>
             </div>
             <div v-else class="empty-state">{{ t('diagnostics.noApprovalHistory') }}</div>
-          </NSpin>
+          </Spin>
         </section>
         <section class="panel approvals-panel">
           <div class="panel-title-row">
             <h3>{{ t('diagnostics.alwaysApprovals') }}</h3>
             <div class="panel-actions">
-              <NTag size="small" :type="alwaysCount ? 'warning' : 'success'">{{ alwaysCount }}</NTag>
-              <NButton size="small" :loading="alwaysLoading" @click="loadAlwaysApprovals">{{ t('diagnostics.refresh') }}</NButton>
+              <Tag size="small" :color="alwaysCount ? 'warning' : 'success'">{{ alwaysCount }}</Tag>
+              <Button size="small" :loading="alwaysLoading" @click="loadAlwaysApprovals">{{ t('diagnostics.refresh') }}</Button>
             </div>
           </div>
-          <NSpin :show="alwaysLoading">
+          <Spin :spinning="alwaysLoading">
             <p v-if="alwaysApprovalMeta?.available === false" class="approval-note">
               {{ alwaysApprovalMeta.message || t('diagnostics.approvalServiceUnavailable') }}
             </p>
@@ -1198,35 +1195,35 @@ onMounted(load)
                     <strong>{{ item.pattern_key || '-' }}</strong>
                     <span>{{ item.tool_name || '-' }}</span>
                   </div>
-                  <NTag size="small" type="warning">{{ t('diagnostics.alwaysAllowed') }}</NTag>
+                  <Tag size="small" color="warning">{{ t('diagnostics.alwaysAllowed') }}</Tag>
                 </div>
                 <pre class="approval-command">{{ item.pattern_key || '-' }}</pre>
                 <div class="approval-actions">
-                  <NButton
+                  <Button
                     size="small"
-                    type="error"
+                    danger
                     ghost
                     :loading="revokingAlwaysKey === item.approval_id"
                     :disabled="!item.approval_id"
                     @click="handleRevokeAlways(item)"
                   >
                     {{ t('diagnostics.revoke') }}
-                  </NButton>
+                  </Button>
                 </div>
               </article>
             </div>
             <div v-else class="empty-state">{{ t('diagnostics.noAlwaysApprovals') }}</div>
-          </NSpin>
+          </Spin>
         </section>
         <section class="panel approvals-panel">
           <div class="panel-title-row">
             <h3>{{ t('diagnostics.pendingSlashCommands') }}</h3>
             <div class="panel-actions">
-              <NTag size="small" :type="slashConfirmCount ? 'warning' : 'success'">{{ slashConfirmCount }}</NTag>
-              <NButton size="small" :loading="confirmsLoading" @click="loadSlashConfirms">{{ t('diagnostics.refresh') }}</NButton>
+              <Tag size="small" :color="slashConfirmCount ? 'warning' : 'success'">{{ slashConfirmCount }}</Tag>
+              <Button size="small" :loading="confirmsLoading" @click="loadSlashConfirms">{{ t('diagnostics.refresh') }}</Button>
             </div>
           </div>
-          <NSpin :show="confirmsLoading">
+          <Spin :spinning="confirmsLoading">
             <p v-if="slashConfirmMeta?.available === false" class="approval-note">
               {{ slashConfirmMeta.message || t('diagnostics.slashServiceUnavailable') }}
             </p>
@@ -1240,9 +1237,9 @@ onMounted(load)
                     <strong>/{{ item.command_preview || '-' }}</strong>
                     <span>{{ item.source_ref || '-' }}</span>
                   </div>
-                  <NTag size="small" :type="item.allow_always ? 'default' : 'warning'">
+                  <Tag size="small" :color="item.allow_always ? 'default' : 'warning'">
                     {{ item.allow_always ? t('diagnostics.slashAllowAlways') : t('diagnostics.slashOnceOnly') }}
-                  </NTag>
+                  </Tag>
                 </div>
                 <p class="approval-desc">{{ item.prompt_preview || '-' }}</p>
                 <div class="approval-meta">
@@ -1252,41 +1249,41 @@ onMounted(load)
                   <span :class="{ 'approval-expired': item.expired }">{{ t('diagnostics.remaining', { time: expiresText(item) }) }}</span>
                 </div>
                 <div class="approval-actions">
-                  <NButtonGroup size="small">
-                    <NButton
+                  <SpaceCompact size="small">
+                    <Button
                       type="primary"
                       :disabled="!canConfirmAction(item, 'approve')"
                       :loading="slashConfirmBusy(item, 'approve')"
                       @click="handleSlashConfirm(item, 'approve')"
                     >
                       {{ t('diagnostics.executeOnce') }}
-                    </NButton>
-                    <NButton
+                    </Button>
+                    <Button
                       :disabled="!canConfirmAction(item, 'always')"
                       :loading="slashConfirmBusy(item, 'always')"
                       @click="handleSlashConfirm(item, 'always')"
                     >
                       {{ t('diagnostics.confirmAlways') }}
-                    </NButton>
-                  </NButtonGroup>
-                  <NButton
+                    </Button>
+                  </SpaceCompact>
+                  <Button
                     size="small"
-                    type="error"
+                    danger
                     ghost
                     :disabled="!canConfirmAction(item, 'deny')"
                     :loading="slashConfirmBusy(item, 'deny')"
                     @click="handleSlashConfirm(item, 'deny')"
                   >
                     {{ t('diagnostics.cancel') }}
-                  </NButton>
+                  </Button>
                 </div>
               </article>
             </div>
             <div v-else class="empty-state">{{ t('diagnostics.noPendingSlash') }}</div>
-          </NSpin>
+          </Spin>
         </section>
       </main>
-    </NSpin>
+    </Spin>
   </div>
 </template>
 

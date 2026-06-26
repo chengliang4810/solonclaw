@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { h } from 'vue'
-import { NButton, NIcon } from 'naive-ui'
+import { Button } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '@/stores/solonclaw/files'
 import { getFileDownloadUrl } from '@/api/solonclaw/files'
@@ -26,12 +26,12 @@ const CloseIcon = () =>
   <div class="file-preview" v-if="filesStore.previewFile">
     <div class="preview-header">
       <span class="preview-filename">{{ filesStore.previewFile.path }}</span>
-      <NButton size="small" quaternary @click="filesStore.closePreview()">
+      <Button size="small" type="text" @click="filesStore.closePreview()">
         <template #icon>
-          <NIcon><CloseIcon /></NIcon>
+          <CloseIcon />
         </template>
         {{ t('files.closePreview') }}
-      </NButton>
+      </Button>
     </div>
     <div class="preview-content">
       <img

@@ -1,18 +1,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { NTree } from 'naive-ui'
+import { Tree } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '@/stores/solonclaw/files'
 import * as filesApi from '@/api/solonclaw/files'
-import type { TreeOption } from 'naive-ui'
+import type { TreeDataNode } from 'antdv-next'
+import type { Key } from '@v-c/util/dist/type'
 
 const { t } = useI18n()
 const filesStore = useFilesStore()
 
-const treeData = ref<TreeOption[]>([])
-const selectedKeys = ref<string[]>([])
+const treeData = ref<TreeDataNode[]>([])
+const selectedKeys = ref<Key[]>([])
 
-async function loadChildren(path: string): Promise<TreeOption[]> {
+async function loadChildren(path: string): Promise<TreeDataNode[]> {
   try {
     const result = await filesApi.listFiles(path)
     return result.entries
@@ -20,7 +21,7 @@ async function loadChildren(path: string): Promise<TreeOption[]> {
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(e => ({
         key: e.path,
-        label: e.name,
+        title: e.name,
         isLeaf: false,
       }))
   } catch {
@@ -28,14 +29,14 @@ async function loadChildren(path: string): Promise<TreeOption[]> {
   }
 }
 
-async function handleLoad(node: TreeOption): Promise<void> {
+async function handleLoad(node: TreeDataNode): Promise<void> {
   node.children = await loadChildren(node.key as string)
 }
 
-function handleSelect(keys: string[]) {
+function handleSelect(keys: Key[]) {
   if (keys.length > 0) {
     selectedKeys.value = keys
-    filesStore.navigateTo(keys[0])
+    filesStore.navigateTo(String(keys[0]))
   }
 }
 
@@ -58,18 +59,15 @@ onMounted(async () => {
       </svg>
       <span>{{ t('files.breadcrumbRoot') }}</span>
     </div>
-    <NTree
-      :data="treeData"
+    <Tree
+      :tree-data="treeData"
       :selected-keys="selectedKeys"
-      :on-load="handleLoad"
-      expand-on-click
-      block-line
+      block-node
+      :load-data="handleLoad"
       @update:selected-keys="handleSelect"
     >
-      <template #empty>
-        <div class="tree-empty">{{ t('files.emptyTree') }}</div>
-      </template>
-    </NTree>
+    </Tree>
+    <div v-if="treeData.length === 0" class="tree-empty">{{ t('files.emptyTree') }}</div>
   </div>
 </template>
 

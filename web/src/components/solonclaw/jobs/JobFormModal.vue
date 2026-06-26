@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { NModal, NForm, NFormItem, NInput, NButton, NSelect, NInputNumber, NSwitch, useMessage } from 'naive-ui'
+import { Modal, Form, FormItem, Input, Button, Select, InputNumber, Switch, TextArea, message } from 'antdv-next'
+import type { SelectValue } from 'antdv-next'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
 import { useI18n } from 'vue-i18n'
 import { hasText, joinTextList, splitTrimmedText, trimText } from '@/shared/text'
@@ -19,7 +20,6 @@ const emit = defineEmits<{
 }>()
 
 const jobsStore = useJobsStore()
-const message = useMessage()
 
 const showModal = ref(true)
 const loading = ref(false)
@@ -409,301 +409,301 @@ function handleClose() {
   setTimeout(() => emit('close'), 200)
 }
 
-function handlePresetChange(value: string) {
+function handlePresetChange(value: SelectValue) {
+  if (typeof value !== 'string') return
   scheduleKind.value = 'cron'
   formData.value.schedule = value
 }
 </script>
 
 <template>
-  <NModal
-    v-model:show="showModal"
-    preset="card"
+  <Modal
+    v-model:open="showModal"
+
     :title="isEdit ? t('jobs.editJob') : t('jobs.createJob')"
     :style="{ width: 'min(760px, calc(100vw - 32px))' }"
     :mask-closable="!loading"
     @after-leave="emit('close')"
   >
-    <NForm label-placement="top">
-      <NFormItem :label="t('jobs.name')" required>
-        <NInput
+    <Form layout="vertical">
+      <FormItem :label="t('jobs.name')" required>
+        <Input
           v-model:value="formData.name"
           :placeholder="t('jobs.namePlaceholder')"
-          maxlength="200"
+          :maxlength="200"
           show-count
         />
-      </NFormItem>
+      </FormItem>
 
       <div class="schedule-panel">
         <div class="form-grid">
-          <NFormItem :label="t('jobs.scheduleKind')" required>
-            <NSelect
+          <FormItem :label="t('jobs.scheduleKind')" required>
+            <Select
               v-model:value="scheduleKind"
               :options="scheduleKindOptions"
             />
-          </NFormItem>
+          </FormItem>
 
-          <NFormItem
+          <FormItem
             v-if="scheduleKind === 'cron'"
             :label="t('jobs.quickPresets')"
           >
-            <NSelect
+            <Select
               v-model:value="presetValue"
               :options="schedulePresets"
               :placeholder="t('jobs.selectPreset')"
               @update:value="handlePresetChange"
             />
-          </NFormItem>
+          </FormItem>
         </div>
 
-        <NFormItem
+        <FormItem
           v-if="scheduleKind === 'cron'"
           :label="t('jobs.scheduleCron')"
           required
         >
-          <NInput
+          <Input
             v-model:value="formData.schedule"
             :placeholder="t('jobs.schedulePlaceholder')"
           />
-        </NFormItem>
+        </FormItem>
 
         <div v-else-if="scheduleKind === 'interval'" class="form-grid">
-          <NFormItem :label="t('jobs.intervalAmount')" required>
-            <NInputNumber
+          <FormItem :label="t('jobs.intervalAmount')" required>
+            <InputNumber
               v-model:value="intervalAmount"
               :min="1"
               :precision="0"
               style="width: 100%"
             />
-          </NFormItem>
+          </FormItem>
 
-          <NFormItem :label="t('jobs.intervalUnit')" required>
-            <NSelect
+          <FormItem :label="t('jobs.intervalUnit')" required>
+            <Select
               v-model:value="intervalUnit"
               :options="intervalUnitOptions"
             />
-          </NFormItem>
+          </FormItem>
         </div>
 
-        <NFormItem
+        <FormItem
           v-else
           :label="t('jobs.scheduleOnce')"
           required
         >
-          <NInput
+          <Input
             v-model:value="formData.schedule"
             :placeholder="t('jobs.scheduleOncePlaceholder')"
           />
-        </NFormItem>
+        </FormItem>
       </div>
 
       <div class="form-grid">
-        <NFormItem v-if="isEdit" :label="t('jobs.skillEditMode')">
-          <NSelect
+        <FormItem v-if="isEdit" :label="t('jobs.skillEditMode')">
+          <Select
             v-model:value="skillEditMode"
             :options="skillEditModeOptions"
           />
-        </NFormItem>
+        </FormItem>
 
-        <NFormItem
+        <FormItem
           v-if="!isEdit || skillEditMode === 'replace'"
           :label="t('jobs.skills')"
         >
-          <NInput
+          <Input
             v-model:value="formData.skills_text"
             :placeholder="t('jobs.skillsPlaceholder')"
           />
-        </NFormItem>
+        </FormItem>
 
         <template v-if="isEdit && skillEditMode === 'merge'">
-          <NFormItem :label="t('jobs.addSkills')">
-            <NInput
+          <FormItem :label="t('jobs.addSkills')">
+            <Input
               v-model:value="addSkillsText"
               :placeholder="t('jobs.addSkillsPlaceholder')"
             />
-          </NFormItem>
+          </FormItem>
 
-          <NFormItem :label="t('jobs.removeSkills')">
-            <NInput
+          <FormItem :label="t('jobs.removeSkills')">
+            <Input
               v-model:value="removeSkillsText"
               :placeholder="t('jobs.removeSkillsPlaceholder')"
             />
-          </NFormItem>
+          </FormItem>
         </template>
 
-        <NFormItem
+        <FormItem
           v-if="isEdit && skillEditMode === 'clear'"
           :label="t('jobs.skills')"
         >
-          <NInput
+          <Input
             :value="t('jobs.clearSkillsNotice')"
             readonly
           />
-        </NFormItem>
+        </FormItem>
       </div>
 
       <div class="form-grid">
-        <NFormItem :label="t('jobs.deliveryMode')">
-          <NSelect
+        <FormItem :label="t('jobs.deliveryMode')">
+          <Select
             v-model:value="deliveryMode"
             :options="deliveryModeOptions"
           />
-        </NFormItem>
+        </FormItem>
       </div>
 
       <div
         v-if="deliveryMode === 'platform' || deliveryMode === 'specific'"
         class="form-grid"
       >
-        <NFormItem :label="t('jobs.deliveryPlatform')">
-          <NSelect
+        <FormItem :label="t('jobs.deliveryPlatform')">
+          <Select
             v-model:value="deliveryPlatform"
             :options="deliveryPlatformOptions"
           />
-        </NFormItem>
+        </FormItem>
 
-        <NFormItem
+        <FormItem
           v-if="deliveryMode === 'specific'"
           :label="t('jobs.deliverChatId')"
           required
         >
-          <NInput
+          <Input
             v-model:value="formData.deliver_chat_id"
             :placeholder="t('jobs.deliverChatIdPlaceholder')"
           />
-        </NFormItem>
+        </FormItem>
       </div>
 
       <div v-if="deliveryMode === 'specific'" class="form-grid">
-        <NFormItem :label="t('jobs.deliverThreadId')">
-          <NInput
+        <FormItem :label="t('jobs.deliverThreadId')">
+          <Input
             v-model:value="formData.deliver_thread_id"
             :placeholder="t('jobs.deliverThreadIdPlaceholder')"
           />
-        </NFormItem>
+        </FormItem>
 
-        <NFormItem :label="t('jobs.deliverPreview')">
-          <NInput
+        <FormItem :label="t('jobs.deliverPreview')">
+          <Input
             :value="`${deliveryPlatform}:${formData.deliver_chat_id || t('jobs.deliverPreviewEmptyChat')}${formData.deliver_thread_id ? ':' + formData.deliver_thread_id : ''}`"
             readonly
           />
-        </NFormItem>
+        </FormItem>
       </div>
 
-      <NFormItem
+      <FormItem
         v-if="deliveryMode === 'multi'"
         :label="t('jobs.deliverTarget')"
       >
-        <NInput
+        <Input
           v-model:value="deliveryMultiText"
           :placeholder="t('jobs.deliverPlaceholder')"
         />
-      </NFormItem>
+      </FormItem>
 
-      <NFormItem :label="t('jobs.prompt')" :required="!formData.no_agent">
-        <NInput
+      <FormItem :label="t('jobs.prompt')" :required="!formData.no_agent">
+        <TextArea
           v-model:value="formData.prompt"
-          type="textarea"
           :placeholder="t('jobs.promptPlaceholder')"
           :rows="4"
-          maxlength="5000"
+          :maxlength="5000"
           show-count
         />
-      </NFormItem>
+      </FormItem>
 
       <div class="form-grid">
-        <NFormItem :label="t('jobs.repeatCount')">
-          <NInputNumber
+        <FormItem :label="t('jobs.repeatCount')">
+          <InputNumber
             v-model:value="formData.repeat_times"
             :min="1"
             :placeholder="t('jobs.repeatPlaceholder')"
             clearable
             style="width: 100%"
           />
-        </NFormItem>
+        </FormItem>
 
-        <NFormItem :label="t('jobs.wrapResponse')">
-          <NSwitch v-model:value="formData.wrap_response" />
-        </NFormItem>
+        <FormItem :label="t('jobs.wrapResponse')">
+          <Switch v-model:value="formData.wrap_response" />
+        </FormItem>
       </div>
 
       <div v-if="isEdit" class="form-grid">
-        <NFormItem :label="t('jobs.state')">
-          <NSelect
+        <FormItem :label="t('jobs.state')">
+          <Select
             v-model:value="formData.state"
             :options="stateOptions"
           />
-        </NFormItem>
+        </FormItem>
 
-        <NFormItem :label="t('jobs.pausedReason')">
-          <NInput
+        <FormItem :label="t('jobs.pausedReason')">
+          <Input
             v-model:value="formData.paused_reason"
             :disabled="formData.state !== 'paused'"
             :placeholder="t('jobs.pausedReasonPlaceholder')"
-            maxlength="300"
+            :maxlength="300"
             show-count
           />
-        </NFormItem>
+        </FormItem>
       </div>
 
       <div class="form-grid">
-        <NFormItem :label="t('jobs.script')">
-          <NInput
+        <FormItem :label="t('jobs.script')">
+          <Input
             v-model:value="formData.script"
             :placeholder="t('jobs.scriptPlaceholder')"
           />
-        </NFormItem>
+        </FormItem>
 
-        <NFormItem :label="t('jobs.noAgent')">
-          <NSwitch v-model:value="formData.no_agent" />
-        </NFormItem>
+        <FormItem :label="t('jobs.noAgent')">
+          <Switch v-model:value="formData.no_agent" />
+        </FormItem>
       </div>
 
-      <NFormItem :label="t('jobs.workdir')">
-        <NInput
+      <FormItem :label="t('jobs.workdir')">
+        <Input
           v-model:value="formData.workdir"
           :placeholder="t('jobs.workdirPlaceholder')"
         />
-      </NFormItem>
+      </FormItem>
 
       <div class="form-grid">
-        <NFormItem :label="t('jobs.contextFrom')">
-          <NInput
+        <FormItem :label="t('jobs.contextFrom')">
+          <Input
             v-model:value="formData.context_from_text"
             :placeholder="t('jobs.contextFromPlaceholder')"
           />
-        </NFormItem>
+        </FormItem>
 
-        <NFormItem :label="t('jobs.enabledToolsets')">
-          <NInput
+        <FormItem :label="t('jobs.enabledToolsets')">
+          <Input
             v-model:value="formData.enabled_toolsets_text"
             :placeholder="t('jobs.enabledToolsetsPlaceholder')"
           />
-        </NFormItem>
+        </FormItem>
       </div>
 
       <div class="form-grid three">
-        <NFormItem :label="t('jobs.provider')">
-          <NInput v-model:value="formData.provider" :placeholder="t('jobs.providerPlaceholder')" />
-        </NFormItem>
-        <NFormItem :label="t('jobs.model')">
-          <NInput v-model:value="formData.model" :placeholder="t('jobs.modelPlaceholder')" />
-        </NFormItem>
-        <NFormItem :label="t('jobs.baseUrl')">
-          <NInput v-model:value="formData.base_url" :placeholder="t('jobs.baseUrlPlaceholder')" />
-        </NFormItem>
+        <FormItem :label="t('jobs.provider')">
+          <Input v-model:value="formData.provider" :placeholder="t('jobs.providerPlaceholder')" />
+        </FormItem>
+        <FormItem :label="t('jobs.model')">
+          <Input v-model:value="formData.model" :placeholder="t('jobs.modelPlaceholder')" />
+        </FormItem>
+        <FormItem :label="t('jobs.baseUrl')">
+          <Input v-model:value="formData.base_url" :placeholder="t('jobs.baseUrlPlaceholder')" />
+        </FormItem>
       </div>
-    </NForm>
+    </Form>
 
     <template #footer>
       <div class="modal-footer">
-        <NButton @click="handleClose">{{ t('common.cancel') }}</NButton>
-        <NButton type="primary" :loading="loading" @click="handleSave">
+        <Button @click="handleClose">{{ t('common.cancel') }}</Button>
+        <Button type="primary" :loading="loading" @click="handleSave">
           {{ isEdit ? t('common.update') : t('common.create') }}
-        </NButton>
+        </Button>
       </div>
     </template>
-  </NModal>
+  </Modal>
 </template>
 
 <style scoped lang="scss">

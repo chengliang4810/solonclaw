@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NPopconfirm } from 'naive-ui'
+import { Popconfirm } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import type { Session } from '@/stores/solonclaw/chat'
 import { formatTimestampMs } from '@/shared/session-display'
@@ -55,18 +55,16 @@ const { t } = useI18n()
         <span class="session-item-time">{{ formatTimestampMs(session.createdAt) }}</span>
       </span>
     </div>
-    <NPopconfirm
+    <Popconfirm
       v-if="canDelete"
-      :positive-text="t('common.delete')"
-      :negative-text="t('common.cancel')"
-      @positive-click="emit('delete')"
+      :title="t('chat.deleteSession')"
+      :ok-text="t('common.delete')"
+      :cancel-text="t('common.cancel')"
+      @confirm="emit('delete')"
     >
-      <template #trigger>
-        <button class="session-item-delete" @click.stop>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </template>
-      {{ t('chat.deleteSession') }}
-    </NPopconfirm>
+      <button class="session-item-delete" @click.stop>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </Popconfirm>
   </button>
 </template>

@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { NInputNumber, NSelect, useMessage } from 'naive-ui'
+import { InputNumber, Select, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import SettingRow from './SettingRow.vue'
 
 const settingsStore = useSettingsStore()
-const message = useMessage()
 const { t } = useI18n()
 
 async function save(values: Record<string, any>) {
@@ -21,7 +20,7 @@ async function save(values: Record<string, any>) {
 <template>
   <section class="settings-section">
     <SettingRow :label="t('settings.agent.maxTurns')" :hint="t('settings.agent.maxTurnsHint')">
-      <NInputNumber
+      <InputNumber
         :value="settingsStore.agent.max_turns"
         :min="1" :max="200" :step="5"
         size="small" class="input-sm"
@@ -29,7 +28,7 @@ async function save(values: Record<string, any>) {
       />
     </SettingRow>
     <SettingRow :label="t('settings.agent.gatewayTimeout')" :hint="t('settings.agent.gatewayTimeoutHint')">
-      <NInputNumber
+      <InputNumber
         :value="settingsStore.agent.gateway_timeout"
         :min="60" :max="7200" :step="60"
         size="small" class="input-sm"
@@ -37,7 +36,7 @@ async function save(values: Record<string, any>) {
       />
     </SettingRow>
     <SettingRow :label="t('settings.agent.restartDrainTimeout')" :hint="t('settings.agent.restartDrainTimeoutHint')">
-      <NInputNumber
+      <InputNumber
         :value="settingsStore.agent.restart_drain_timeout"
         :min="10" :max="300" :step="10"
         size="small" class="input-sm"
@@ -45,7 +44,7 @@ async function save(values: Record<string, any>) {
       />
     </SettingRow>
     <SettingRow :label="t('settings.agent.toolEnforcement')" :hint="t('settings.agent.toolEnforcementHint')">
-      <NSelect
+      <Select
         :value="settingsStore.agent.tool_use_enforcement || 'auto'"
         :options="[
           { label: t('settings.agent.auto'), value: 'auto' },

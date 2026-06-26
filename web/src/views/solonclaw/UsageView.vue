@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NButton } from 'naive-ui'
+import { Button } from 'antdv-next'
 import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
@@ -22,9 +22,9 @@ onMounted(() => {
         <h2 class="header-title">{{ t('usage.title') }}</h2>
         <p class="header-subtitle">{{ t('usage.description') }}</p>
       </div>
-      <NButton size="small" quaternary :loading="usageStore.isLoading" @click="usageStore.loadUsage()">
+      <Button size="small" type="text" :loading="usageStore.isLoading" @click="usageStore.loadUsage()">
         {{ t('usage.refresh') }}
-      </NButton>
+      </Button>
     </header>
 
     <div class="usage-content">

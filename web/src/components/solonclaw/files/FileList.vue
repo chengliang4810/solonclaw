@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { NButton, NSpin, NEmpty, useMessage } from 'naive-ui'
+import { Button, Spin, Empty, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore, isImageFile, isMarkdownFile, isTextFile } from '@/stores/solonclaw/files'
 import { downloadFile } from '@/api/solonclaw/download'
 import type { FileEntry } from '@/api/solonclaw/files'
 
 const { t } = useI18n()
-const message = useMessage()
 const filesStore = useFilesStore()
 
 const emit = defineEmits<{
@@ -71,8 +70,8 @@ async function handleDownload(entry: FileEntry) {
 
 <template>
   <div class="file-list">
-    <NSpin :show="filesStore.loading">
-      <NEmpty v-if="!filesStore.loading && filesStore.sortedEntries.length === 0" :description="t('files.emptyDir')" />
+    <Spin :spinning="filesStore.loading">
+      <Empty v-if="!filesStore.loading && filesStore.sortedEntries.length === 0" :description="t('files.emptyDir')" />
       <div v-else class="file-list-items">
         <div class="file-list-header">
           <div class="file-name sort-header" @click="filesStore.setSort('name')">
@@ -103,12 +102,12 @@ async function handleDownload(entry: FileEntry) {
           <div class="file-size">{{ entry.isDir ? '—' : formatSize(entry.size) }}</div>
           <div class="file-date">{{ formatDate(entry.modTime) }}</div>
           <div class="file-actions">
-            <NButton v-if="isTextFile(entry.name) && !entry.isDir" size="tiny" quaternary @click.stop="filesStore.openEditor(entry.path)" :title="t('files.edit')">✏️</NButton>
-            <NButton v-if="!entry.isDir" size="tiny" quaternary @click.stop="handleDownload(entry)" :title="t('files.download')">⬇️</NButton>
+            <Button v-if="isTextFile(entry.name) && !entry.isDir" size="small" type="text" @click.stop="filesStore.openEditor(entry.path)" :title="t('files.edit')">✏️</Button>
+            <Button v-if="!entry.isDir" size="small" type="text" @click.stop="handleDownload(entry)" :title="t('files.download')">⬇️</Button>
           </div>
         </div>
       </div>
-    </NSpin>
+    </Spin>
   </div>
 </template>
 

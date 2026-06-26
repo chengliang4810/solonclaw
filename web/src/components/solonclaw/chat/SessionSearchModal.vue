@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { NButton, NInput, NModal, NSpin, useMessage } from 'naive-ui'
+import { Button, Input, Modal, Spin, message } from 'antdv-next'
+import type { InputRef } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { fetchSessions, searchSessions, type SessionSearchResult, type SessionSummary } from '@/api/solonclaw/sessions'
 import { useChatStore } from '@/stores/solonclaw/chat'
@@ -9,7 +10,6 @@ import { useSessionSearch } from '@/composables/useSessionSearch'
 import { getSourceLabel } from '@/shared/session-display'
 
 const { t } = useI18n()
-const message = useMessage()
 const router = useRouter()
 const chatStore = useChatStore()
 const { sessionSearchOpen } = useSessionSearch()
@@ -19,7 +19,7 @@ const loading = ref(false)
 const recentSessions = ref<SessionSummary[]>([])
 const searchResults = ref<SessionSearchResult[]>([])
 const activeIndex = ref(0)
-const inputRef = ref<InstanceType<typeof NInput> | null>(null)
+const inputRef = ref<InputRef | null>(null)
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let requestSeq = 0
@@ -207,9 +207,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <NModal
-    v-model:show="sessionSearchOpen"
-    preset="card"
+  <Modal
+    v-model:open="sessionSearchOpen"
+
     :title="t('chat.searchTitle')"
     :style="{ width: 'min(760px, calc(100vw - 24px))' }"
     :mask-closable="true"
@@ -221,7 +221,7 @@ onUnmounted(() => {
         <div class="search-hint">{{ t('chat.searchHint') }}</div>
       </div>
 
-      <NInput
+      <Input
         ref="inputRef"
       v-model:value="query"
       :placeholder="t('chat.searchPlaceholder')"
@@ -230,7 +230,7 @@ onUnmounted(() => {
     />
 
       <div class="search-body">
-        <NSpin :show="loading">
+        <Spin :spinning="loading">
           <div v-if="items.length === 0" class="search-empty">
             {{ hasQuery ? t('chat.searchNoResults') : t('chat.searchEmpty') }}
           </div>
@@ -260,15 +260,15 @@ onUnmounted(() => {
               </div>
             </button>
           </div>
-        </NSpin>
+        </Spin>
       </div>
 
       <div class="search-footer">
         <span>{{ t('chat.searchEnterHint') }}</span>
-        <NButton quaternary size="small" @click="closeModal">{{ t('common.cancel') }}</NButton>
+        <Button type="text" size="small" @click="closeModal">{{ t('common.cancel') }}</Button>
       </div>
     </div>
-  </NModal>
+  </Modal>
 </template>
 
 <style scoped lang="scss">

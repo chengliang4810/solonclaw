@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { NSpin, NButton, NTag, useMessage } from 'naive-ui'
+import { Spin, Button, Tag, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useGatewayStore } from '@/stores/solonclaw/gateways'
 
 const { t } = useI18n()
-const message = useMessage()
 const gatewayStore = useGatewayStore()
 
 onMounted(() => {
@@ -37,7 +36,7 @@ async function handleToggle(name: string, running: boolean) {
     </header>
 
     <div class="gateways-content">
-      <NSpin :show="gatewayStore.loading" size="large">
+      <Spin :spinning="gatewayStore.loading" size="large">
         <div v-if="gatewayStore.gateways.length === 0" class="empty-state">
           {{ t('gateways.emptyState') }}
         </div>
@@ -52,21 +51,22 @@ async function handleToggle(name: string, running: boolean) {
               </div>
             </div>
             <div class="gateway-actions">
-              <NTag :type="gw.running ? 'success' : 'default'" size="small" round>
+              <Tag :color="gw.running ? 'success' : 'default'" size="small" shape="round">
                 {{ gw.running ? t('gateways.running') : t('gateways.stopped') }}
-              </NTag>
-              <NButton
+              </Tag>
+              <Button
                 size="small"
-                :type="gw.running ? 'warning' : 'primary'"
-                round
+                :type="gw.running ? 'default' : 'primary'"
+                :danger="gw.running"
+                shape="round"
                 @click="handleToggle(gw.profile, gw.running)"
               >
                 {{ gw.running ? t('common.stop') : t('common.start') }}
-              </NButton>
+              </Button>
             </div>
           </div>
         </div>
-      </NSpin>
+      </Spin>
     </div>
   </div>
 </template>

@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { NSwitch, useMessage } from 'naive-ui'
+import { Switch, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import SettingRow from './SettingRow.vue'
 
 const settingsStore = useSettingsStore()
-const message = useMessage()
 const { t } = useI18n()
 
 async function save(values: Record<string, any>) {
@@ -21,7 +20,7 @@ async function save(values: Record<string, any>) {
 <template>
   <section class="settings-section">
     <SettingRow :label="t('settings.privacy.redactPii')" :hint="t('settings.privacy.redactPiiHint')">
-      <NSwitch :value="settingsStore.privacy.redact_pii" @update:value="v => save({ redact_pii: v })" />
+      <Switch :value="settingsStore.privacy.redact_pii" @update:value="v => save({ redact_pii: v })" />
     </SettingRow>
   </section>
 </template>

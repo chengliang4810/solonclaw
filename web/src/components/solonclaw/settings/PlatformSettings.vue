@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, onUnmounted } from 'vue'
 import * as QRCode from 'qrcode'
-import { NSwitch, NInput, NButton, NSpin, useMessage } from 'naive-ui'
+import { Switch, Input, Button, Spin, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import {
@@ -14,7 +14,6 @@ import PlatformCard from './PlatformCard.vue'
 import SettingRow from './SettingRow.vue'
 
 const settingsStore = useSettingsStore()
-const message = useMessage()
 const { t } = useI18n()
 
 // Track saving state per platform.field
@@ -213,19 +212,19 @@ const platforms = [
       <!-- 飞书 -->
       <template v-if="p.key === 'feishu'">
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
-          <NSwitch :value="getCreds('feishu').enabled" :loading="isSaving('feishu', 'enabled')" @update:value="v => saveCredentials('feishu', 'enabled', { enabled: v })" />
+          <Switch :value="getCreds('feishu').enabled" :loading="isSaving('feishu', 'enabled')" @update:value="v => saveCredentials('feishu', 'enabled', { enabled: v })" />
         </SettingRow>
         <div class="channel-qr-section">
-          <NButton
+          <Button
             v-if="qrStates.feishu.status === 'idle' || qrStates.feishu.status === 'error' || qrStates.feishu.status === 'expired' || qrStates.feishu.status === 'confirmed'"
             type="primary"
             size="small"
             @click="startQrLogin('feishu')"
           >
             {{ qrStates.feishu.status === 'confirmed' ? t('platform.qrRelogin') : t('platform.qrLogin') }}
-          </NButton>
+          </Button>
           <div v-if="qrStates.feishu.status === 'loading'" class="channel-qr-loading">
-            <NSpin size="small" />
+            <Spin size="small" />
             <span>{{ t('platform.qrFetching') }}</span>
           </div>
           <div v-if="qrStates.feishu.imageUrl" class="channel-qr-panel">
@@ -242,35 +241,35 @@ const platforms = [
           </div>
         </div>
         <SettingRow :label="t('platform.appId')" :hint="t('platform.appIdHint')">
-          <NInput :default-value="getCreds('feishu').extra?.app_id || ''" :loading="isSaving('feishu', 'app_id')" clearable size="small" class="input-lg" placeholder="请输入飞书应用 ID" @change="v => saveCredentials('feishu', 'app_id', { extra: { ...getCreds('feishu').extra, app_id: v } })" />
+          <Input :default-value="getCreds('feishu').extra?.app_id || ''" :loading="isSaving('feishu', 'app_id')" clearable size="small" class="input-lg" placeholder="请输入飞书应用 ID" @change="v => saveCredentials('feishu', 'app_id', { extra: { ...getCreds('feishu').extra, app_id: v } })" />
         </SettingRow>
         <SettingRow :label="t('platform.appSecret')" :hint="t('platform.appSecretHint')">
-          <NInput :default-value="getCreds('feishu').extra?.app_secret || ''" :loading="isSaving('feishu', 'app_secret')" clearable size="small" class="input-lg" placeholder="请输入应用密钥" @change="v => saveCredentials('feishu', 'app_secret', { extra: { ...getCreds('feishu').extra, app_secret: v } })" />
+          <Input :default-value="getCreds('feishu').extra?.app_secret || ''" :loading="isSaving('feishu', 'app_secret')" clearable size="small" class="input-lg" placeholder="请输入应用密钥" @change="v => saveCredentials('feishu', 'app_secret', { extra: { ...getCreds('feishu').extra, app_secret: v } })" />
         </SettingRow>
         <SettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')">
-          <NSwitch :value="settingsStore.feishu.require_mention" :loading="isSaving('feishu', 'require_mention')" @update:value="v => saveChannel('feishu', 'require_mention', { require_mention: v })" />
+          <Switch :value="settingsStore.feishu.require_mention" :loading="isSaving('feishu', 'require_mention')" @update:value="v => saveChannel('feishu', 'require_mention', { require_mention: v })" />
         </SettingRow>
         <SettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')">
-          <NInput :default-value="settingsStore.feishu.free_response_chats || ''" :loading="isSaving('feishu', 'free_response_chats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('feishu', 'free_response_chats', { free_response_chats: v })" />
+          <Input :default-value="settingsStore.feishu.free_response_chats || ''" :loading="isSaving('feishu', 'free_response_chats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('feishu', 'free_response_chats', { free_response_chats: v })" />
         </SettingRow>
       </template>
 
       <!-- 钉钉 -->
       <template v-if="p.key === 'dingtalk'">
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
-          <NSwitch :value="getCreds('dingtalk').enabled" :loading="isSaving('dingtalk', 'enabled')" @update:value="v => saveCredentials('dingtalk', 'enabled', { enabled: v })" />
+          <Switch :value="getCreds('dingtalk').enabled" :loading="isSaving('dingtalk', 'enabled')" @update:value="v => saveCredentials('dingtalk', 'enabled', { enabled: v })" />
         </SettingRow>
         <div class="channel-qr-section">
-          <NButton
+          <Button
             v-if="qrStates.dingtalk.status === 'idle' || qrStates.dingtalk.status === 'error' || qrStates.dingtalk.status === 'expired' || qrStates.dingtalk.status === 'confirmed'"
             type="primary"
             size="small"
             @click="startQrLogin('dingtalk')"
           >
             {{ qrStates.dingtalk.status === 'confirmed' ? t('platform.qrRelogin') : t('platform.qrLogin') }}
-          </NButton>
+          </Button>
           <div v-if="qrStates.dingtalk.status === 'loading'" class="channel-qr-loading">
-            <NSpin size="small" />
+            <Spin size="small" />
             <span>{{ t('platform.qrFetching') }}</span>
           </div>
           <div v-if="qrStates.dingtalk.imageUrl" class="channel-qr-panel">
@@ -284,38 +283,38 @@ const platforms = [
           </div>
         </div>
         <SettingRow :label="t('platform.clientId')" :hint="t('platform.clientIdHint')">
-          <NInput :default-value="getCreds('dingtalk').extra?.client_id || ''" :loading="isSaving('dingtalk', 'client_id')" clearable size="small" class="input-lg" placeholder="请输入客户端 ID" @change="v => saveCredentials('dingtalk', 'client_id', { extra: { ...getCreds('dingtalk').extra, client_id: v } })" />
+          <Input :default-value="getCreds('dingtalk').extra?.client_id || ''" :loading="isSaving('dingtalk', 'client_id')" clearable size="small" class="input-lg" placeholder="请输入客户端 ID" @change="v => saveCredentials('dingtalk', 'client_id', { extra: { ...getCreds('dingtalk').extra, client_id: v } })" />
         </SettingRow>
         <SettingRow :label="t('platform.clientSecret')" :hint="t('platform.clientSecretHint')">
-          <NInput :default-value="getCreds('dingtalk').extra?.client_secret || ''" :loading="isSaving('dingtalk', 'client_secret')" clearable size="small" class="input-lg" placeholder="请输入客户端密钥" @change="v => saveCredentials('dingtalk', 'client_secret', { extra: { ...getCreds('dingtalk').extra, client_secret: v } })" />
+          <Input :default-value="getCreds('dingtalk').extra?.client_secret || ''" :loading="isSaving('dingtalk', 'client_secret')" clearable size="small" class="input-lg" placeholder="请输入客户端密钥" @change="v => saveCredentials('dingtalk', 'client_secret', { extra: { ...getCreds('dingtalk').extra, client_secret: v } })" />
         </SettingRow>
         <SettingRow label="机器人编码" hint="钉钉机器人编码">
-          <NInput :default-value="getCreds('dingtalk').extra?.robot_code || ''" :loading="isSaving('dingtalk', 'robot_code')" clearable size="small" class="input-lg" placeholder="请输入机器人编码" @change="v => saveCredentials('dingtalk', 'robot_code', { extra: { ...getCreds('dingtalk').extra, robot_code: v } })" />
+          <Input :default-value="getCreds('dingtalk').extra?.robot_code || ''" :loading="isSaving('dingtalk', 'robot_code')" clearable size="small" class="input-lg" placeholder="请输入机器人编码" @change="v => saveCredentials('dingtalk', 'robot_code', { extra: { ...getCreds('dingtalk').extra, robot_code: v } })" />
         </SettingRow>
         <SettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')">
-          <NSwitch :value="settingsStore.dingtalk.require_mention" :loading="isSaving('dingtalk', 'require_mention')" @update:value="v => saveChannel('dingtalk', 'require_mention', { require_mention: v })" />
+          <Switch :value="settingsStore.dingtalk.require_mention" :loading="isSaving('dingtalk', 'require_mention')" @update:value="v => saveChannel('dingtalk', 'require_mention', { require_mention: v })" />
         </SettingRow>
         <SettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')">
-          <NInput :default-value="settingsStore.dingtalk.free_response_chats || ''" :loading="isSaving('dingtalk', 'free_response_chats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('dingtalk', 'free_response_chats', { free_response_chats: v })" />
+          <Input :default-value="settingsStore.dingtalk.free_response_chats || ''" :loading="isSaving('dingtalk', 'free_response_chats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('dingtalk', 'free_response_chats', { free_response_chats: v })" />
         </SettingRow>
       </template>
 
       <!-- 微信 -->
       <template v-if="p.key === 'weixin'">
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
-          <NSwitch :value="getCreds('weixin').enabled" :loading="isSaving('weixin', 'enabled')" @update:value="v => saveCredentials('weixin', 'enabled', { enabled: v })" />
+          <Switch :value="getCreds('weixin').enabled" :loading="isSaving('weixin', 'enabled')" @update:value="v => saveCredentials('weixin', 'enabled', { enabled: v })" />
         </SettingRow>
         <div class="channel-qr-section">
-          <NButton
+          <Button
             v-if="qrStates.weixin.status === 'idle' || qrStates.weixin.status === 'error' || qrStates.weixin.status === 'expired' || qrStates.weixin.status === 'confirmed'"
             type="primary"
             size="small"
             @click="startQrLogin('weixin')"
           >
             {{ qrStates.weixin.status === 'confirmed' ? t('platform.qrRelogin') : t('platform.qrLogin') }}
-          </NButton>
+          </Button>
           <div v-if="qrStates.weixin.status === 'loading'" class="channel-qr-loading">
-            <NSpin size="small" />
+            <Spin size="small" />
             <span>{{ t('platform.qrFetching') }}</span>
           </div>
           <div v-if="qrStates.weixin.imageUrl" class="channel-qr-panel">
@@ -341,64 +340,64 @@ const platforms = [
           </div>
         </div>
         <SettingRow :label="t('platform.weixinToken')" :hint="t('platform.weixinTokenHint')">
-          <NInput :default-value="getCreds('weixin').token || ''" :loading="isSaving('weixin', 'token')" clearable size="small" class="input-lg" placeholder="请输入令牌" @change="v => saveCredentials('weixin', 'token', { token: v })" />
+          <Input :default-value="getCreds('weixin').token || ''" :loading="isSaving('weixin', 'token')" clearable size="small" class="input-lg" placeholder="请输入令牌" @change="v => saveCredentials('weixin', 'token', { token: v })" />
         </SettingRow>
         <SettingRow :label="t('platform.accountId')" :hint="t('platform.accountIdHint')">
-          <NInput :default-value="getCreds('weixin').extra?.account_id || ''" :loading="isSaving('weixin', 'account_id')" clearable size="small" class="input-lg" placeholder="请输入账号 ID" @change="v => saveCredentials('weixin', 'account_id', { extra: { ...getCreds('weixin').extra, account_id: v } })" />
+          <Input :default-value="getCreds('weixin').extra?.account_id || ''" :loading="isSaving('weixin', 'account_id')" clearable size="small" class="input-lg" placeholder="请输入账号 ID" @change="v => saveCredentials('weixin', 'account_id', { extra: { ...getCreds('weixin').extra, account_id: v } })" />
         </SettingRow>
       </template>
 
       <!-- 企业微信 -->
       <template v-if="p.key === 'wecom'">
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
-          <NSwitch :value="getCreds('wecom').enabled" :loading="isSaving('wecom', 'enabled')" @update:value="v => saveCredentials('wecom', 'enabled', { enabled: v })" />
+          <Switch :value="getCreds('wecom').enabled" :loading="isSaving('wecom', 'enabled')" @update:value="v => saveCredentials('wecom', 'enabled', { enabled: v })" />
         </SettingRow>
         <SettingRow :label="t('platform.botId')" :hint="t('platform.botIdHint')">
-          <NInput :default-value="getCreds('wecom').extra?.bot_id || ''" :loading="isSaving('wecom', 'bot_id')" clearable size="small" class="input-lg" placeholder="请输入机器人 ID" @change="v => saveCredentials('wecom', 'bot_id', { extra: { ...getCreds('wecom').extra, bot_id: v } })" />
+          <Input :default-value="getCreds('wecom').extra?.bot_id || ''" :loading="isSaving('wecom', 'bot_id')" clearable size="small" class="input-lg" placeholder="请输入机器人 ID" @change="v => saveCredentials('wecom', 'bot_id', { extra: { ...getCreds('wecom').extra, bot_id: v } })" />
         </SettingRow>
         <SettingRow :label="t('platform.appSecret')" :hint="t('platform.wecomSecretHint')">
-          <NInput :default-value="getCreds('wecom').extra?.secret || ''" :loading="isSaving('wecom', 'secret')" clearable size="small" class="input-lg" placeholder="请输入密钥" @change="v => saveCredentials('wecom', 'secret', { extra: { ...getCreds('wecom').extra, secret: v } })" />
+          <Input :default-value="getCreds('wecom').extra?.secret || ''" :loading="isSaving('wecom', 'secret')" clearable size="small" class="input-lg" placeholder="请输入密钥" @change="v => saveCredentials('wecom', 'secret', { extra: { ...getCreds('wecom').extra, secret: v } })" />
         </SettingRow>
       </template>
 
       <!-- QQBot -->
       <template v-if="p.key === 'qqbot'">
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
-          <NSwitch :value="getCreds('qqbot').enabled" :loading="isSaving('qqbot', 'enabled')" @update:value="v => saveCredentials('qqbot', 'enabled', { enabled: v })" />
+          <Switch :value="getCreds('qqbot').enabled" :loading="isSaving('qqbot', 'enabled')" @update:value="v => saveCredentials('qqbot', 'enabled', { enabled: v })" />
         </SettingRow>
         <SettingRow label="应用 ID" hint="QQBot 机器人应用 ID">
-          <NInput :default-value="getCreds('qqbot').extra?.app_id || ''" :loading="isSaving('qqbot', 'app_id')" clearable size="small" class="input-lg" placeholder="请输入 QQBot App ID" @change="v => saveCredentials('qqbot', 'app_id', { extra: { ...getCreds('qqbot').extra, app_id: v } })" />
+          <Input :default-value="getCreds('qqbot').extra?.app_id || ''" :loading="isSaving('qqbot', 'app_id')" clearable size="small" class="input-lg" placeholder="请输入 QQBot App ID" @change="v => saveCredentials('qqbot', 'app_id', { extra: { ...getCreds('qqbot').extra, app_id: v } })" />
         </SettingRow>
         <SettingRow label="客户端密钥" hint="QQBot 机器人 Client Secret">
-          <NInput :default-value="getCreds('qqbot').extra?.client_secret || ''" :loading="isSaving('qqbot', 'client_secret')" clearable size="small" class="input-lg" placeholder="请输入 QQBot Client Secret" @change="v => saveCredentials('qqbot', 'client_secret', { extra: { ...getCreds('qqbot').extra, client_secret: v } })" />
+          <Input :default-value="getCreds('qqbot').extra?.client_secret || ''" :loading="isSaving('qqbot', 'client_secret')" clearable size="small" class="input-lg" placeholder="请输入 QQBot Client Secret" @change="v => saveCredentials('qqbot', 'client_secret', { extra: { ...getCreds('qqbot').extra, client_secret: v } })" />
         </SettingRow>
         <SettingRow label="API 域名" hint="QQBot REST API 地址，默认可保持官方域名">
-          <NInput :default-value="settingsStore.qqbot.apiDomain || ''" :loading="isSaving('qqbot', 'apiDomain')" clearable size="small" class="input-lg" placeholder="例如 https://api.sgroup.qq.com" @change="v => saveChannel('qqbot', 'apiDomain', { apiDomain: v })" />
+          <Input :default-value="settingsStore.qqbot.apiDomain || ''" :loading="isSaving('qqbot', 'apiDomain')" clearable size="small" class="input-lg" placeholder="例如 https://api.sgroup.qq.com" @change="v => saveChannel('qqbot', 'apiDomain', { apiDomain: v })" />
         </SettingRow>
         <SettingRow label="WebSocket 地址" hint="留空时自动从 gateway 接口获取">
-          <NInput :default-value="settingsStore.qqbot.websocketUrl || ''" :loading="isSaving('qqbot', 'websocketUrl')" clearable size="small" class="input-lg" placeholder="留空时自动获取" @change="v => saveChannel('qqbot', 'websocketUrl', { websocketUrl: v })" />
+          <Input :default-value="settingsStore.qqbot.websocketUrl || ''" :loading="isSaving('qqbot', 'websocketUrl')" clearable size="small" class="input-lg" placeholder="留空时自动获取" @change="v => saveChannel('qqbot', 'websocketUrl', { websocketUrl: v })" />
         </SettingRow>
       </template>
 
       <!-- 腾讯元宝 -->
       <template v-if="p.key === 'yuanbao'">
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
-          <NSwitch :value="getCreds('yuanbao').enabled" :loading="isSaving('yuanbao', 'enabled')" @update:value="v => saveCredentials('yuanbao', 'enabled', { enabled: v })" />
+          <Switch :value="getCreds('yuanbao').enabled" :loading="isSaving('yuanbao', 'enabled')" @update:value="v => saveCredentials('yuanbao', 'enabled', { enabled: v })" />
         </SettingRow>
         <SettingRow label="应用 ID" hint="腾讯元宝应用 ID">
-          <NInput :default-value="getCreds('yuanbao').extra?.app_id || ''" :loading="isSaving('yuanbao', 'app_id')" clearable size="small" class="input-lg" placeholder="请输入元宝 App ID" @change="v => saveCredentials('yuanbao', 'app_id', { extra: { ...getCreds('yuanbao').extra, app_id: v } })" />
+          <Input :default-value="getCreds('yuanbao').extra?.app_id || ''" :loading="isSaving('yuanbao', 'app_id')" clearable size="small" class="input-lg" placeholder="请输入元宝 App ID" @change="v => saveCredentials('yuanbao', 'app_id', { extra: { ...getCreds('yuanbao').extra, app_id: v } })" />
         </SettingRow>
         <SettingRow label="应用密钥" hint="腾讯元宝应用密钥">
-          <NInput :default-value="getCreds('yuanbao').extra?.app_secret || ''" :loading="isSaving('yuanbao', 'app_secret')" clearable size="small" class="input-lg" placeholder="请输入元宝 App Secret" @change="v => saveCredentials('yuanbao', 'app_secret', { extra: { ...getCreds('yuanbao').extra, app_secret: v } })" />
+          <Input :default-value="getCreds('yuanbao').extra?.app_secret || ''" :loading="isSaving('yuanbao', 'app_secret')" clearable size="small" class="input-lg" placeholder="请输入元宝 App Secret" @change="v => saveCredentials('yuanbao', 'app_secret', { extra: { ...getCreds('yuanbao').extra, app_secret: v } })" />
         </SettingRow>
         <SettingRow label="机器人 ID" hint="腾讯元宝机器人 ID">
-          <NInput :default-value="settingsStore.yuanbao.botId || ''" :loading="isSaving('yuanbao', 'botId')" clearable size="small" class="input-lg" placeholder="请输入元宝 Bot ID" @change="v => saveChannel('yuanbao', 'botId', { botId: v })" />
+          <Input :default-value="settingsStore.yuanbao.botId || ''" :loading="isSaving('yuanbao', 'botId')" clearable size="small" class="input-lg" placeholder="请输入元宝 Bot ID" @change="v => saveChannel('yuanbao', 'botId', { botId: v })" />
         </SettingRow>
         <SettingRow label="API 域名" hint="腾讯元宝 REST API 地址">
-          <NInput :default-value="settingsStore.yuanbao.apiDomain || ''" :loading="isSaving('yuanbao', 'apiDomain')" clearable size="small" class="input-lg" placeholder="例如 https://bot.yuanbao.tencent.com" @change="v => saveChannel('yuanbao', 'apiDomain', { apiDomain: v })" />
+          <Input :default-value="settingsStore.yuanbao.apiDomain || ''" :loading="isSaving('yuanbao', 'apiDomain')" clearable size="small" class="input-lg" placeholder="例如 https://bot.yuanbao.tencent.com" @change="v => saveChannel('yuanbao', 'apiDomain', { apiDomain: v })" />
         </SettingRow>
         <SettingRow label="WebSocket 地址" hint="腾讯元宝网关连接地址">
-          <NInput :default-value="settingsStore.yuanbao.websocketUrl || ''" :loading="isSaving('yuanbao', 'websocketUrl')" clearable size="small" class="input-lg" placeholder="例如 wss://bot-wss.yuanbao.tencent.com/wss/connection" @change="v => saveChannel('yuanbao', 'websocketUrl', { websocketUrl: v })" />
+          <Input :default-value="settingsStore.yuanbao.websocketUrl || ''" :loading="isSaving('yuanbao', 'websocketUrl')" clearable size="small" class="input-lg" placeholder="例如 wss://bot-wss.yuanbao.tencent.com/wss/connection" @change="v => saveChannel('yuanbao', 'websocketUrl', { websocketUrl: v })" />
         </SettingRow>
       </template>
     </PlatformCard>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
-import { NDropdown, useMessage, useDialog } from 'naive-ui'
+import { Dropdown, message, Modal } from 'antdv-next'
+import type { MenuProps } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore, isTextFile, isImageFile, isMarkdownFile } from '@/stores/solonclaw/files'
 import { downloadFile } from '@/api/solonclaw/download'
@@ -8,8 +9,6 @@ import type { FileEntry } from '@/api/solonclaw/files'
 import { copyToClipboard } from '@/utils/clipboard'
 
 const { t } = useI18n()
-const message = useMessage()
-const dialog = useDialog()
 const filesStore = useFilesStore()
 
 const showMenu = ref(false)
@@ -55,6 +54,10 @@ function getOptions() {
   return options
 }
 
+function getMenuItems(): MenuProps['items'] {
+  return getOptions()
+}
+
 async function handleSelect(key: string) {
   showMenu.value = false
   const entry = targetEntry.value
@@ -86,12 +89,12 @@ async function handleSelect(key: string) {
       emit('rename', entry)
       break
     case 'delete':
-      dialog.warning({
+      Modal.confirm({
         title: t('files.delete'),
         content: entry.isDir ? t('files.confirmDeleteDir', { name: entry.name }) : t('files.confirmDelete', { name: entry.name }),
-        positiveText: t('common.delete'),
-        negativeText: t('common.cancel'),
-        onPositiveClick: async () => {
+        okText: t('common.delete'),
+        cancelText: t('common.cancel'),
+        onOk: async () => {
           try {
             await filesStore.deleteEntry(entry)
             message.success(t('files.deleted'))
@@ -108,18 +111,34 @@ function handleClickOutside() {
   showMenu.value = false
 }
 
+function handleMenuClick(info: { key: string | number }) {
+  handleSelect(String(info.key))
+}
+
 defineExpose({ show })
 </script>
 
 <template>
-  <NDropdown
-    :show="showMenu"
-    :x="menuX"
-    :y="menuY"
-    :options="getOptions()"
-    placement="bottom-start"
-    trigger="manual"
-    @select="handleSelect"
-    @clickoutside="handleClickOutside"
-  />
+  <Dropdown
+    :open="showMenu"
+    :trigger="['click']"
+    :menu="{ items: getMenuItems(), onClick: handleMenuClick }"
+    placement="bottomLeft"
+    @open-change="open => { if (!open) handleClickOutside() }"
+  >
+    <button class="context-menu-anchor" :style="{ left: `${menuX}px`, top: `${menuY}px` }" aria-hidden="true" tabindex="-1" />
+  </Dropdown>
 </template>
+
+<style scoped>
+.context-menu-anchor {
+  position: fixed;
+  z-index: 1000;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  pointer-events: none;
+  background: transparent;
+  border: 0;
+}
+</style>

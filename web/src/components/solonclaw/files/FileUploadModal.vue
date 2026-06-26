@@ -1,24 +1,34 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NModal, NButton, NUpload, NSpace, useMessage } from 'naive-ui'
-import type { UploadFileInfo } from 'naive-ui'
+import { Modal, Button, UploadDragger, Space, message } from 'antdv-next'
+import type { UploadFile } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '@/stores/solonclaw/files'
 
 const { t } = useI18n()
-const message = useMessage()
 const filesStore = useFilesStore()
 
-const props = defineProps<{ show: boolean }>()
-const emit = defineEmits<{ (e: 'update:show', value: boolean): void }>()
+const props = defineProps<{ open: boolean }>()
+const emit = defineEmits<{ (e: 'update:open', value: boolean): void }>()
 
 const uploading = ref(false)
 const fileList = ref<File[]>([])
+const uploadFileList = ref<UploadFile[]>([])
 
-function handleFileChange(data: { file: UploadFileInfo; fileList: UploadFileInfo[] }) {
-  fileList.value = data.fileList
-    .map((f: UploadFileInfo) => f.file)
-    .filter((f): f is File => f != null)
+function handleFileChange(data: { fileList: UploadFile[] }) {
+  uploadFileList.value = data.fileList
+  const files: File[] = []
+  for (const item of data.fileList) {
+    const raw = item.originFileObj
+    if (raw instanceof File) {
+      files.push(raw)
+    }
+  }
+  fileList.value = files
+}
+
+function beforeUpload() {
+  return false
 }
 
 async function handleUpload() {
@@ -28,7 +38,8 @@ async function handleUpload() {
     await filesStore.uploadFiles(fileList.value)
     message.success(t('files.uploadSuccess', { count: fileList.value.length }))
     fileList.value = []
-    emit('update:show', false)
+    uploadFileList.value = []
+    emit('update:open', false)
   } catch (err: any) {
     message.error(err.message || t('files.uploadFailed'))
   } finally {
@@ -38,31 +49,33 @@ async function handleUpload() {
 
 function handleClose() {
   fileList.value = []
-  emit('update:show', false)
+  uploadFileList.value = []
+  emit('update:open', false)
 }
 </script>
 
 <template>
-  <NModal :show="props.show" preset="dialog" :title="t('files.upload')" @update:show="handleClose" style="width: 500px;">
-    <NUpload
+  <Modal :open="props.open" :title="t('files.upload')" @update:open="value => { if (!value) handleClose() }" style="width: 500px;">
+    <UploadDragger
+      v-model:file-list="uploadFileList"
       multiple
-      directory-dnd
-      :default-upload="false"
+      directory
+      :before-upload="beforeUpload"
       @change="handleFileChange"
     >
       <div class="upload-dragger">
         <p>{{ t('files.dragDropHint') }}</p>
       </div>
-    </NUpload>
-    <template #action>
-      <NSpace>
-        <NButton @click="handleClose">{{ t('common.cancel') }}</NButton>
-        <NButton type="primary" :loading="uploading" :disabled="fileList.length === 0" @click="handleUpload">
+    </UploadDragger>
+    <template #footer>
+      <Space>
+        <Button @click="handleClose">{{ t('common.cancel') }}</Button>
+        <Button type="primary" :loading="uploading" :disabled="fileList.length === 0" @click="handleUpload">
           {{ t('files.upload') }} ({{ fileList.length }})
-        </NButton>
-      </NSpace>
+        </Button>
+      </Space>
     </template>
-  </NModal>
+  </Modal>
 </template>
 
 <style scoped>

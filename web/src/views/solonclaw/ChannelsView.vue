@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { NSpin } from 'naive-ui'
+import { Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
@@ -23,9 +23,9 @@ onMounted(() => {
     </header>
 
     <div class="channels-content">
-      <NSpin :show="settingsStore.loading || settingsStore.saving" size="large" :description="t('common.loading')">
+      <Spin :spinning="settingsStore.loading || settingsStore.saving" size="large" :tip="t('common.loading')">
         <PlatformSettings v-if="!settingsStore.loading" />
-      </NSpin>
+      </Spin>
     </div>
   </div>
 </template>

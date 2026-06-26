@@ -1,28 +1,27 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { NModal, NInput, NButton, NSpace, useMessage } from 'naive-ui'
+import { Modal, Input, Button, Space, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '@/stores/solonclaw/files'
 import type { FileEntry } from '@/api/solonclaw/files'
 
 const { t } = useI18n()
-const message = useMessage()
 const filesStore = useFilesStore()
 
 const props = defineProps<{
-  show: boolean
+  open: boolean
   mode: 'newFile' | 'newFolder' | 'rename'
   entry?: FileEntry | null
 }>()
 
 const emit = defineEmits<{
-  (e: 'update:show', value: boolean): void
+  (e: 'update:open', value: boolean): void
 }>()
 
 const inputValue = ref('')
 const submitting = ref(false)
 
-watch(() => props.show, (val) => {
+watch(() => props.open, (val) => {
   if (val) {
     if (props.mode === 'rename' && props.entry) {
       inputValue.value = props.entry.name
@@ -68,7 +67,7 @@ async function handleSubmit() {
         }
         break
     }
-    emit('update:show', false)
+    emit('update:open', false)
   } catch (err: any) {
     const msg = props.mode === 'rename' ? t('files.renameFailed') : t('files.createFailed')
     message.error(err.message || msg)
@@ -79,20 +78,20 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <NModal :show="props.show" preset="dialog" :title="title" @update:show="emit('update:show', false)" style="width: 400px;">
-    <NInput
+  <Modal :open="props.open" :title="title" @update:open="value => { if (!value) emit('update:open', false) }" style="width: 400px;">
+    <Input
       v-model:value="inputValue"
       :placeholder="placeholder"
       @keydown.enter="handleSubmit"
       autofocus
     />
-    <template #action>
-      <NSpace>
-        <NButton @click="emit('update:show', false)">{{ t('common.cancel') }}</NButton>
-        <NButton type="primary" :loading="submitting" :disabled="!inputValue.trim()" @click="handleSubmit">
+    <template #footer>
+      <Space>
+        <Button @click="emit('update:open', false)">{{ t('common.cancel') }}</Button>
+        <Button type="primary" :loading="submitting" :disabled="!inputValue.trim()" @click="handleSubmit">
           {{ t('common.ok') }}
-        </NButton>
-      </NSpace>
+        </Button>
+      </Space>
     </template>
-  </NModal>
+  </Modal>
 </template>

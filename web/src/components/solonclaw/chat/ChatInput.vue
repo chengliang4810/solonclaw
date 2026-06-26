@@ -4,7 +4,7 @@ import { useChatStore } from '@/stores/solonclaw/chat'
 import { useAppStore } from '@/stores/solonclaw/app'
 import { fetchContextLength } from '@/api/solonclaw/sessions'
 import { computeChatContextUsage } from '@/shared/chatContextUsage'
-import { NButton, NTooltip } from 'naive-ui'
+import { Button, Tooltip } from 'antdv-next'
 import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -193,16 +193,13 @@ function isImage(type: string): boolean {
   <div class="chat-input-area">
     <!-- Top bar: attach + context info -->
     <div class="input-top-bar">
-      <NTooltip trigger="hover">
-        <template #trigger>
-          <NButton quaternary size="tiny" @click="handleAttachClick" circle>
-            <template #icon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
-            </template>
-          </NButton>
-        </template>
-        {{ t('chat.attachFiles') }}
-      </NTooltip>
+      <Tooltip :title="t('chat.attachFiles')" trigger="hover">
+        <Button type="text" size="small" @click="handleAttachClick" shape="circle">
+          <template #icon>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </template>
+        </Button>
+      </Tooltip>
       <span v-if="totalTokens > 0" class="context-info" :class="{ 'context-warning': usagePercent > 80 }">
         {{ formatTokens(totalTokens) }} / {{ formatTokens(contextLength) }} · {{ t('chat.contextRemaining') }} {{ formatTokens(remainingTokens) }}
       </span>
@@ -270,15 +267,15 @@ function isImage(type: string): boolean {
         @paste="handlePaste"
       ></textarea>
       <div class="input-actions">
-        <NButton
+        <Button
           v-if="chatStore.isStreaming"
           size="small"
-          type="error"
+          danger
           @click="chatStore.stopStreaming()"
         >
           {{ t('chat.stop') }}
-        </NButton>
-        <NButton
+        </Button>
+        <Button
           size="small"
           type="primary"
           :disabled="!canSend || chatStore.isStreaming"
@@ -288,7 +285,7 @@ function isImage(type: string): boolean {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </template>
           {{ t('chat.send') }}
-        </NButton>
+        </Button>
       </div>
     </div>
   </div>

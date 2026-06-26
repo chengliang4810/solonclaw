@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { NInput, NButton, NSpin, NEmpty, NSelect, useMessage } from 'naive-ui'
+import { Input, Button, Spin, Empty, Select, message } from 'antdv-next'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const modelsStore = useModelsStore()
-const message = useMessage()
 
 const savingKey = ref<string | null>(null)
 const defaultProvider = ref('')
@@ -88,9 +87,9 @@ async function handleSaveFallbacks() {
 
 <template>
   <section class="settings-section">
-    <NSpin :show="modelsStore.loading">
+    <Spin :spinning="modelsStore.loading">
       <div v-if="modelsStore.providers.length === 0" class="empty-hint">
-        <NEmpty :description="t('settings.models.noProviders')" />
+        <Empty :description="t('settings.models.noProviders')" />
       </div>
 
       <template v-else>
@@ -99,59 +98,59 @@ async function handleSaveFallbacks() {
             <h4>{{ t('models.defaultProviderSection') }}</h4>
           </div>
           <div class="field-grid">
-            <NSelect
+            <Select
               v-model:value="defaultProvider"
               :options="providerOptions"
               :placeholder="t('models.chooseProvider')"
             />
-            <NInput
+            <Input
               v-model:value="defaultModel"
               :placeholder="t('models.defaultModel')"
             />
-            <NButton
+            <Button
               type="primary"
               :loading="savingKey === 'default'"
               @click="handleSaveDefault"
             >
               {{ t('settings.models.save') }}
-            </NButton>
+            </Button>
           </div>
         </div>
 
         <div class="panel">
           <div class="panel-header">
             <h4>{{ t('models.fallbackProviders') }}</h4>
-            <NButton size="small" secondary @click="addFallbackRow">{{ t('common.add') }}</NButton>
+            <Button size="small" type="default" @click="addFallbackRow">{{ t('common.add') }}</Button>
           </div>
           <div v-if="fallbackRows.length === 0" class="empty-inline">
             {{ t('models.noFallbackProviders') }}
           </div>
           <div v-for="(row, index) in fallbackRows" :key="index" class="fallback-row">
-            <NSelect
+            <Select
               v-model:value="row.provider"
               :options="providerOptions"
               :placeholder="t('models.chooseProvider')"
             />
-            <NInput
+            <Input
               v-model:value="row.model"
               :placeholder="t('models.optionalModelOverride')"
             />
-            <NButton quaternary type="error" @click="removeFallbackRow(index)">
+            <Button type="text" danger @click="removeFallbackRow(index)">
               {{ t('common.delete') }}
-            </NButton>
+            </Button>
           </div>
           <div class="actions">
-            <NButton
+            <Button
               type="primary"
               :loading="savingKey === 'fallbacks'"
               @click="handleSaveFallbacks"
             >
               {{ t('settings.models.save') }}
-            </NButton>
+            </Button>
           </div>
         </div>
       </template>
-    </NSpin>
+    </Spin>
   </section>
 </template>
 

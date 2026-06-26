@@ -5,7 +5,7 @@ Browser-based dashboard for managing Solon Claw configuration, API keys, and act
 ## Stack
 
 - **Vite** + **Vue 3** + **TypeScript**
-- **Naive UI** components
+- **Antdv Next** components
 - **Pinia** stores and **Vue Router**
 
 ## Development

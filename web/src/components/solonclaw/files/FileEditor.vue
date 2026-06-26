@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { NButton, NSpace, useMessage, useDialog } from 'naive-ui'
+import { Button, Space, message, Modal } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '@/stores/solonclaw/files'
 import * as monaco from 'monaco-editor'
@@ -16,8 +16,6 @@ import * as monaco from 'monaco-editor'
 }
 
 const { t } = useI18n()
-const message = useMessage()
-const dialogApi = useDialog()
 const filesStore = useFilesStore()
 
 const editorContainer = ref<HTMLElement | null>(null)
@@ -71,11 +69,11 @@ async function handleSave() {
 
 function handleClose() {
   if (filesStore.hasUnsavedChanges) {
-    dialogApi.warning({
+    Modal.confirm({
       title: t('files.unsavedChanges'),
-      positiveText: t('common.ok'),
-      negativeText: t('common.cancel'),
-      onPositiveClick: () => {
+      okText: t('common.ok'),
+      cancelText: t('common.cancel'),
+      onOk: () => {
         filesStore.closeEditor()
       },
     })
@@ -89,14 +87,14 @@ function handleClose() {
   <div class="file-editor">
     <div class="editor-header">
       <span class="editor-filename">{{ filesStore.editingFile?.path }}</span>
-      <NSpace>
-        <NButton size="small" type="primary" :loading="saving" @click="handleSave">
+      <Space>
+        <Button size="small" type="primary" :loading="saving" @click="handleSave">
           {{ t('files.saveFile') }}
-        </NButton>
-        <NButton size="small" @click="handleClose">
+        </Button>
+        <Button size="small" @click="handleClose">
           {{ t('files.closeEditor') }}
-        </NButton>
-      </NSpace>
+        </Button>
+      </Space>
     </div>
     <div ref="editorContainer" class="editor-container" />
   </div>
