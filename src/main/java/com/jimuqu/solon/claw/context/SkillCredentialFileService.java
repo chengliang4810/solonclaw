@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
+import com.jimuqu.solon.claw.support.FilePathSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
@@ -363,7 +364,7 @@ public class SkillCredentialFileService {
         try {
             File candidate = FileUtil.file(workspaceHome, relativePath).getCanonicalFile();
             File home = workspaceHome.getCanonicalFile();
-            if (!isInside(candidate, home)) {
+            if (!FilePathSupport.isUnderPath(candidate, home)) {
                 return CredentialFileMount.rejected(rawPath, "path escapes workspace");
             }
             if (!candidate.isFile()) {
@@ -555,25 +556,6 @@ public class SkillCredentialFileService {
             text = text.substring(0, text.length() - 1);
         }
         return text;
-    }
-
-    /**
-     * 判断是否Inside。
-     *
-     * @param child child 参数。
-     * @param parent parent 参数。
-     * @return 如果Inside满足条件则返回 true，否则返回 false。
-     */
-    private boolean isInside(File child, File parent) {
-        String childPath = child.getAbsolutePath();
-        String parentPath = parent.getAbsolutePath();
-        if (childPath.equals(parentPath)) {
-            return true;
-        }
-        if (!parentPath.endsWith(File.separator)) {
-            parentPath = parentPath + File.separator;
-        }
-        return childPath.startsWith(parentPath);
     }
 
     /**
