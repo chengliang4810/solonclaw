@@ -277,6 +277,19 @@ public class ModelPrice {
     }
 
     /**
+     * 判断当前模型是否所有计费维度均为免费。
+     *
+     * @return 如果输入、输出、缓存和推理价格都为0则返回true。
+     */
+    public boolean isFree() {
+        return inputMicrosPerTokenExact().signum() == 0
+                && outputMicrosPerTokenExact().signum() == 0
+                && cacheReadMicrosPerTokenExact().signum() == 0
+                && cacheWriteMicrosPerTokenExact().signum() == 0
+                && reasoningMicrosPerTokenExact().signum() == 0;
+    }
+
+    /**
      * 合并Override。
      *
      * @param override override标识或键值。

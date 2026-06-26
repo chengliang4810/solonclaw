@@ -272,7 +272,7 @@ public class DashboardProviderService {
         Map<String, Object> pricing = new LinkedHashMap<String, Object>();
         String currency = normalizeCurrency(price.getCurrency());
         pricing.put("currency", currency);
-        boolean free = isFree(price);
+        boolean free = price.isFree();
         if (free) {
             pricing.put("input", "free");
             pricing.put("output", "free");
@@ -342,20 +342,6 @@ public class DashboardProviderService {
      */
     private String normalizeCurrency(String currency) {
         return StrUtil.blankToDefault(currency, "USD").trim().toUpperCase(Locale.ROOT);
-    }
-
-    /**
-     * 判断是否Free。
-     *
-     * @param price 价格参数。
-     * @return 如果Free满足条件则返回 true，否则返回 false。
-     */
-    private boolean isFree(ModelPrice price) {
-        return price.inputMicrosPerTokenExact().signum() == 0
-                && price.outputMicrosPerTokenExact().signum() == 0
-                && price.cacheReadMicrosPerTokenExact().signum() == 0
-                && price.cacheWriteMicrosPerTokenExact().signum() == 0
-                && price.reasoningMicrosPerTokenExact().signum() == 0;
     }
 
     /**
