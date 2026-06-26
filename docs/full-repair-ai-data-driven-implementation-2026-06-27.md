@@ -444,6 +444,19 @@
       - 增加实际调用测试，证明自然语言工具可维护非密配置，并会拒绝 `providers.default.apiKey` 这类密钥配置。
     - 提交：`cd4b96f83`
 
+28. 增加会话标题维护工具动作
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/SessionManageTools.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+    - 改造前：
+      - Dashboard 已有 `/api/sessions/{id}` 的标题更新能力，服务层会校验会话存在并复用 120 字符标题限制。
+      - `session_manage` 已支持会话查询、轨迹、轨迹保存、分支树和检查点预览，但自然语言工具不能维护会话标题。
+    - 改造后：
+      - `session_manage` 增加 `update_title` 动作，复用 `DashboardSessionService#updateSession()`。
+      - 工具只开放标题维护，不开放会话删除或检查点回滚，避免把破坏性操作混入普通自然语言入口。
+      - 增加实际调用测试，证明自然语言工具可更新会话标题，并持久写回会话仓库。
+    - 提交：`5b67d268c`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -473,6 +486,7 @@
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeSessionManagementToolForNaturalLanguageSessionInspection+shouldSaveSessionTrajectoryThroughNaturalLanguageTool test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeWorkspaceManagementToolForNaturalLanguageWorkspaceInspection+shouldSaveAndRestoreWorkspaceFileThroughNaturalLanguageTool test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeWorkspaceConfigManagementToolForNaturalLanguageConfigInspection+shouldInspectWorkspaceConfigItemsThroughNaturalLanguageTool+shouldSetAndRemoveWorkspaceConfigThroughNaturalLanguageTool test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeSessionManagementToolForNaturalLanguageSessionInspection+shouldSaveSessionTrajectoryThroughNaturalLanguageTool+shouldUpdateSessionTitleThroughNaturalLanguageTool test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -485,6 +499,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
-- 检查点回滚、会话删除和会话更新暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 检查点回滚和会话删除暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
