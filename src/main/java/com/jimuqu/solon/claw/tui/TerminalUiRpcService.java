@@ -2025,9 +2025,12 @@ public class TerminalUiRpcService {
         sessionRepository.bindSource(terminalSourceKey(sessionId), boundSessionId);
     }
 
+    /** 终端 UI 会话来源键前缀，必须与 CliRuntime 在 TUI 场景下使用的前缀保持一致。 */
+    public static final String TERMINAL_SOURCE_KEY_PREFIX = "MEMORY:terminal-ui:";
+
     /** 构造本地 TUI 会话专用 source key，保持前端会话 ID 与后端绑定关系稳定。 */
     private String terminalSourceKey(String sessionId) {
-        return "MEMORY:terminal-ui:" + StrUtil.blankToDefault(sessionId, "terminal-ui");
+        return TERMINAL_SOURCE_KEY_PREFIX + StrUtil.blankToDefault(sessionId, "terminal-ui");
     }
 
     /** 转换当前活动会话为终端 UI session.active_list 项。 */
