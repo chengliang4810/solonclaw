@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { darkTheme, NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider } from 'naive-ui'
+import { App as AntApp, ConfigProvider } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
-import { getThemeOverrides } from '@/styles/theme'
+import { getThemeConfig } from '@/styles/theme'
 import { useTheme } from '@/composables/useTheme'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { useKeyboard } from '@/composables/useKeyboard'
@@ -17,8 +17,7 @@ const route = useRoute()
 const router = useRouter()
 const ready = ref(false)
 
-const themeOverrides = computed(() => getThemeOverrides(isDark.value))
-const naiveTheme = computed(() => isDark.value ? darkTheme : null)
+const antdvTheme = computed(() => getThemeConfig(isDark.value))
 
 const isLoginPage = computed(() => route.name === 'login')
 
@@ -53,28 +52,24 @@ useKeyboard()
 </script>
 
 <template>
-  <NConfigProvider :theme="naiveTheme" :theme-overrides="themeOverrides">
-    <NMessageProvider>
-      <NDialogProvider>
-        <NNotificationProvider>
-          <div v-if="nodeVersionLow && ready" class="node-warning-bar">
-            {{ t('sidebar.nodeVersionWarning', { version: appStore.nodeVersion }) }}
-          </div>
-          <div v-if="ready" class="app-layout" :class="{ 'no-sidebar': isLoginPage }">
-            <button v-if="!isLoginPage" class="hamburger-btn" @click="appStore.toggleSidebar">
-              <img src="/logo.png" alt="Menu" style="width: 24px; height: 24px;" />
-            </button>
-            <div v-if="!isLoginPage && appStore.sidebarOpen" class="mobile-backdrop" @click="appStore.closeSidebar" />
-            <AppSidebar v-if="!isLoginPage" />
-            <main class="app-main">
-              <router-view />
-            </main>
-          </div>
-          <SessionSearchModal />
-        </NNotificationProvider>
-      </NDialogProvider>
-    </NMessageProvider>
-  </NConfigProvider>
+  <ConfigProvider :theme="antdvTheme">
+    <AntApp>
+      <div v-if="nodeVersionLow && ready" class="node-warning-bar">
+        {{ t('sidebar.nodeVersionWarning', { version: appStore.nodeVersion }) }}
+      </div>
+      <div v-if="ready" class="app-layout" :class="{ 'no-sidebar': isLoginPage }">
+        <button v-if="!isLoginPage" class="hamburger-btn" @click="appStore.toggleSidebar">
+          <img src="/logo.png" alt="Menu" style="width: 24px; height: 24px;" />
+        </button>
+        <div v-if="!isLoginPage && appStore.sidebarOpen" class="mobile-backdrop" @click="appStore.closeSidebar" />
+        <AppSidebar v-if="!isLoginPage" />
+        <main class="app-main">
+          <router-view />
+        </main>
+      </div>
+      <SessionSearchModal />
+    </AntApp>
+  </ConfigProvider>
 </template>
 
 <style scoped lang="scss">

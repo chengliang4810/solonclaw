@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { NSelect, useMessage } from 'naive-ui'
+import { Select, message } from 'antdv-next'
+import type { SelectValue } from 'antdv-next'
 import { useAgentsStore } from '@/stores/solonclaw/agents'
 
 const props = defineProps<{
   sessionId?: string | null
 }>()
 
-const message = useMessage()
 const agentsStore = useAgentsStore()
 const { t } = useI18n()
 
@@ -33,7 +33,7 @@ async function load() {
   await agentsStore.fetchAgents(props.sessionId || undefined)
 }
 
-async function handleChange(value: string | number | Array<string | number>) {
+async function handleChange(value: SelectValue) {
   if (typeof value !== 'string' || value === agentsStore.activeAgentName) return
   if (!props.sessionId) {
     message.warning(t('agents.selectSessionFirst'))
@@ -54,7 +54,7 @@ watch(() => props.sessionId, load)
 <template>
   <div class="agent-selector">
     <span class="agent-selector-label">{{ t('agents.selectorLabel') }}</span>
-    <NSelect
+    <Select
       :value="agentsStore.activeAgentName"
       :options="options"
       :loading="agentsStore.loading || agentsStore.activating"

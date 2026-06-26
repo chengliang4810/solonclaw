@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { NButton, useMessage } from 'naive-ui'
+import { Button, message } from 'antdv-next'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from '@/components/solonclaw/chat/MarkdownRenderer.vue'
 import { fetchPersonaFile, personaMeta, savePersonaFile, type PersonaFileData } from '@/api/solonclaw/persona'
 
 const route = useRoute()
-const message = useMessage()
 const { t } = useI18n()
 
 const loading = ref(false)
@@ -70,7 +69,7 @@ watch(fileKey, loadFile)
         <p class="header-subtitle">{{ t('personaFile.subtitle', { description: currentMeta.description, fileName: currentMeta.fileName }) }}</p>
       </div>
       <div class="page-actions">
-        <NButton size="small" quaternary @click="loadFile">
+        <Button size="small" type="text" @click="loadFile">
           <template #icon>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23 4 23 10 17 10" />
@@ -78,8 +77,8 @@ watch(fileKey, loadFile)
             </svg>
           </template>
           {{ t('common.refresh') }}
-        </NButton>
-        <NButton v-if="!editing && !isReadOnly" size="small" quaternary @click="startEdit">
+        </Button>
+        <Button v-if="!editing && !isReadOnly" size="small" type="text" @click="startEdit">
           <template #icon>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -87,7 +86,7 @@ watch(fileKey, loadFile)
             </svg>
           </template>
           {{ t('common.edit') }}
-        </NButton>
+        </Button>
       </div>
     </header>
 
@@ -108,8 +107,8 @@ watch(fileKey, loadFile)
               spellcheck="false"
             ></textarea>
             <div class="edit-actions">
-              <NButton size="small" @click="cancelEdit">{{ t('common.cancel') }}</NButton>
-              <NButton size="small" type="primary" :loading="saving" @click="handleSave">{{ t('common.save') }}</NButton>
+              <Button size="small" @click="cancelEdit">{{ t('common.cancel') }}</Button>
+              <Button size="small" type="primary" :loading="saving" @click="handleSave">{{ t('common.save') }}</Button>
             </div>
           </div>
         </div>

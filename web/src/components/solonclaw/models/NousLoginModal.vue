@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
-import { NModal, NButton, NSpin, useMessage } from 'naive-ui'
+import { Modal, Button, Spin, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { startNousLogin, pollNousLogin } from '@/api/solonclaw/nous-auth'
 import { copyToClipboard } from '@/utils/clipboard'
 
 const { t } = useI18n()
 const emit = defineEmits<{ close: []; success: [] }>()
-const message = useMessage()
 
 const showModal = ref(true)
 const status = ref<'idle' | 'loading' | 'waiting' | 'approved' | 'expired' | 'error'>('idle')
@@ -116,9 +115,9 @@ startLogin()
 </script>
 
 <template>
-  <NModal
-    v-model:show="showModal"
-    preset="card"
+  <Modal
+    v-model:open="showModal"
+
     :title="t('models.nousLoginTitle')"
     :style="{ width: 'min(440px, calc(100vw - 32px))' }"
     :mask-closable="status !== 'waiting'"
@@ -127,7 +126,7 @@ startLogin()
     <div class="nous-login">
       <!-- Idle / Loading -->
       <div v-if="status === 'idle' || status === 'loading'" class="nous-login__state">
-        <NSpin size="small" />
+        <Spin size="small" />
       </div>
 
       <!-- Waiting for authorization -->
@@ -137,12 +136,12 @@ startLogin()
           <span class="nous-login__code-text">{{ userCode }}</span>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
         </div>
-        <NButton type="primary" block @click="openLink">
+        <Button type="primary" block @click="openLink">
           <template #icon>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
           </template>
           {{ t('models.nousOpenLink') }}
-        </NButton>
+        </Button>
       </div>
 
       <!-- Approved -->
@@ -154,22 +153,22 @@ startLogin()
       <!-- Expired -->
       <div v-else-if="status === 'expired'" class="nous-login__state">
         <p class="nous-login__error">{{ t('models.nousExpired') }}</p>
-        <NButton size="small" @click="retry">{{ t('common.retry') }}</NButton>
+        <Button size="small" @click="retry">{{ t('common.retry') }}</Button>
       </div>
 
       <!-- Error -->
       <div v-else-if="status === 'error'" class="nous-login__state">
         <p class="nous-login__error">{{ errorMessage }}</p>
-        <NButton size="small" @click="retry">{{ t('common.retry') }}</NButton>
+        <Button size="small" @click="retry">{{ t('common.retry') }}</Button>
       </div>
     </div>
 
     <template #footer>
       <div class="modal-footer">
-        <NButton :disabled="status === 'waiting'" @click="handleClose">{{ t('common.cancel') }}</NButton>
+        <Button :disabled="status === 'waiting'" @click="handleClose">{{ t('common.cancel') }}</Button>
       </div>
     </template>
-  </NModal>
+  </Modal>
 </template>
 
 <style scoped lang="scss">

@@ -2,18 +2,19 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
-  NButton,
-  NCheckbox,
-  NForm,
-  NFormItem,
-  NInput,
-  NModal,
-  NSelect,
-  NSpin,
-  NTag,
-  useDialog,
-  useMessage,
-} from 'naive-ui'
+  Button,
+  Checkbox,
+  Form,
+  FormItem,
+  Input,
+  InputPassword,
+  Modal,
+  Select,
+  Spin,
+  Tag,
+  TextArea,
+  message,
+} from 'antdv-next'
 import {
   beginMcpOAuth,
   checkMcpServer,
@@ -36,8 +37,6 @@ import {
 } from '@/api/solonclaw/mcp'
 import { asArray, displayJson, hasItems, listCount, trimText } from '@/shared/text'
 
-const message = useMessage()
-const dialog = useDialog()
 const { t } = useI18n()
 const loading = ref(false)
 const saving = ref(false)
@@ -367,12 +366,12 @@ async function runOAuthAction(name: string, fn: () => Promise<unknown>) {
 }
 
 function confirmDelete(server: McpServer) {
-  dialog.warning({
+  Modal.confirm({
     title: t('mcp.deleteTitle'),
     content: t('mcp.deleteConfirm', { name: server.name || server.server_id }),
-    positiveText: t('common.delete'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    okText: t('common.delete'),
+    cancelText: t('common.cancel'),
+    onOk: async () => {
       await deleteMcpServer(server.server_id)
       if (selectedId.value === server.server_id) {
         selectedId.value = ''
@@ -397,21 +396,21 @@ async function copy(text: string) {
         <div class="header-subtitle">{{ t('mcp.description') }}</div>
       </div>
       <div class="header-actions">
-        <NTag :type="enabled ? 'success' : 'default'" :bordered="false">
+        <Tag :color="enabled ? 'success' : 'default'" :bordered="false">
           {{ t(enabled ? 'mcp.enabled' : 'mcp.disabled') }}
-        </NTag>
-        <NButton size="small" :loading="loading" @click="load">{{ t('mcp.refresh') }}</NButton>
-        <NButton size="small" :loading="actionLoading === 'reload-all'" @click="reloadAllServers">{{ t('mcp.reloadAll') }}</NButton>
-        <NButton size="small" type="primary" @click="openCreate">{{ t('mcp.create') }}</NButton>
+        </Tag>
+        <Button size="small" :loading="loading" @click="load">{{ t('mcp.refresh') }}</Button>
+        <Button size="small" :loading="actionLoading === 'reload-all'" @click="reloadAllServers">{{ t('mcp.reloadAll') }}</Button>
+        <Button size="small" type="primary" @click="openCreate">{{ t('mcp.create') }}</Button>
       </div>
     </header>
 
     <section v-if="lastReloadAll" class="global-result">
       <div class="result-title">
         {{ t('mcp.reloadAllResultTitle') }}
-        <NTag size="small" :type="lastReloadAll.tool_changed_notification ? 'warning' : 'success'" :bordered="false">
+        <Tag size="small" :color="lastReloadAll.tool_changed_notification ? 'warning' : 'success'" :bordered="false">
           {{ t(lastReloadAll.tool_changed_notification ? 'mcp.toolsChanged' : 'mcp.toolsUnchanged') }}
-        </NTag>
+        </Tag>
       </div>
       <div class="result-meta">
         <span>{{ t('mcp.serverCount', { count: lastReloadAll.server_count }) }}</span>
@@ -425,7 +424,7 @@ async function copy(text: string) {
       </div>
     </section>
 
-    <NSpin :show="loading">
+    <Spin :spinning="loading">
       <main class="mcp-layout">
         <section class="server-list">
           <div v-if="servers.length === 0" class="empty-state">{{ t('mcp.emptyServers') }}</div>
@@ -438,7 +437,7 @@ async function copy(text: string) {
           >
             <div class="server-card-head">
               <span class="server-name">{{ server.name || server.server_id }}</span>
-              <NTag size="small" :type="statusType(server.status)" :bordered="false">{{ server.status || t('common.unknown') }}</NTag>
+              <Tag size="small" :color="statusType(server.status)" :bordered="false">{{ server.status || t('common.unknown') }}</Tag>
             </div>
             <div class="server-meta">
               <span>{{ server.transport }}</span>
@@ -456,12 +455,12 @@ async function copy(text: string) {
               <div class="detail-id">{{ selectedServer.server_id }}</div>
             </div>
             <div class="detail-actions">
-              <NButton size="small" @click="openEdit(selectedServer)">{{ t('common.edit') }}</NButton>
-              <NButton size="small" :loading="actionLoading === 'check'" @click="runAction('check', () => checkMcpServer(selectedServer!.server_id))">{{ t('mcp.actions.check') }}</NButton>
-              <NButton size="small" :loading="actionLoading === 'connect'" @click="runAction('connect', () => connectMcpServer(selectedServer!.server_id))">{{ t('mcp.actions.connect') }}</NButton>
-              <NButton size="small" :loading="actionLoading === 'reload'" @click="runAction('reload', () => reloadMcpServer(selectedServer!.server_id))">{{ t('mcp.actions.reload') }}</NButton>
-              <NButton size="small" :loading="actionLoading === 'tools'" @click="runAction('tools', () => refreshMcpTools(selectedServer!.server_id))">{{ t('mcp.actions.refreshTools') }}</NButton>
-              <NButton size="small" type="error" ghost @click="confirmDelete(selectedServer)">{{ t('common.delete') }}</NButton>
+              <Button size="small" @click="openEdit(selectedServer)">{{ t('common.edit') }}</Button>
+              <Button size="small" :loading="actionLoading === 'check'" @click="runAction('check', () => checkMcpServer(selectedServer!.server_id))">{{ t('mcp.actions.check') }}</Button>
+              <Button size="small" :loading="actionLoading === 'connect'" @click="runAction('connect', () => connectMcpServer(selectedServer!.server_id))">{{ t('mcp.actions.connect') }}</Button>
+              <Button size="small" :loading="actionLoading === 'reload'" @click="runAction('reload', () => reloadMcpServer(selectedServer!.server_id))">{{ t('mcp.actions.reload') }}</Button>
+              <Button size="small" :loading="actionLoading === 'tools'" @click="runAction('tools', () => refreshMcpTools(selectedServer!.server_id))">{{ t('mcp.actions.refreshTools') }}</Button>
+              <Button size="small" danger ghost @click="confirmDelete(selectedServer)">{{ t('common.delete') }}</Button>
             </div>
           </div>
 
@@ -487,9 +486,9 @@ async function copy(text: string) {
           <div v-if="lastAction" class="action-result">
             <div class="result-title">
               {{ t('mcp.recentAction', { action: lastAction.action || 'check' }) }}
-              <NTag size="small" :type="lastAction.tool_changed_notification ? 'warning' : 'success'" :bordered="false">
+              <Tag size="small" :color="lastAction.tool_changed_notification ? 'warning' : 'success'" :bordered="false">
                 {{ t(lastAction.tool_changed_notification ? 'mcp.toolsChanged' : 'mcp.toolsUnchanged') }}
-              </NTag>
+              </Tag>
             </div>
             <div class="result-meta">
               <span>{{ t('mcp.schemaSanitizer', { value: lastAction.schema_sanitizer || '-' }) }}</span>
@@ -518,49 +517,49 @@ async function copy(text: string) {
 
             <section class="panel">
               <h4>{{ t('mcp.oauth.title') }}</h4>
-              <NSpin :show="oauthLoading">
+              <Spin :spinning="oauthLoading">
                 <div class="oauth-status">
-                  <NTag :type="statusType(oauthStatus?.status)" :bordered="false">{{ oauthStatus?.status || t('common.notConfigured') }}</NTag>
+                  <Tag :color="statusType(oauthStatus?.status)" :bordered="false">{{ oauthStatus?.status || t('common.notConfigured') }}</Tag>
                   <span>{{ t(oauthStatus?.authenticated ? 'mcp.oauth.authenticated' : 'mcp.oauth.unauthenticated') }}</span>
                   <span v-if="oauthStatus?.expires_at">{{ t('mcp.oauth.expiresAt', { time: formatTime(oauthStatus.expires_at) }) }}</span>
                 </div>
                 <div class="oauth-actions">
-                  <NButton size="tiny" :loading="actionLoading === 'oauth-refresh'" @click="runOAuthAction('oauth-refresh', () => refreshMcpOAuth(selectedServer!.server_id))">{{ t('mcp.oauth.refreshToken') }}</NButton>
-                  <NButton size="tiny" :loading="actionLoading === 'oauth-401'" @click="runOAuthAction('oauth-401', () => handleMcpOAuth401(selectedServer!.server_id))">{{ t('mcp.oauth.handle401') }}</NButton>
-                  <NButton size="tiny" type="error" ghost :loading="actionLoading === 'oauth-clear'" @click="runOAuthAction('oauth-clear', () => clearMcpOAuth(selectedServer!.server_id))">{{ t('common.clear') }}</NButton>
+                  <Button size="small" :loading="actionLoading === 'oauth-refresh'" @click="runOAuthAction('oauth-refresh', () => refreshMcpOAuth(selectedServer!.server_id))">{{ t('mcp.oauth.refreshToken') }}</Button>
+                  <Button size="small" :loading="actionLoading === 'oauth-401'" @click="runOAuthAction('oauth-401', () => handleMcpOAuth401(selectedServer!.server_id))">{{ t('mcp.oauth.handle401') }}</Button>
+                  <Button size="small" danger ghost :loading="actionLoading === 'oauth-clear'" @click="runOAuthAction('oauth-clear', () => clearMcpOAuth(selectedServer!.server_id))">{{ t('common.clear') }}</Button>
                 </div>
-                <NForm label-placement="top" class="oauth-form">
-                  <NFormItem :label="t('mcp.oauth.authorizationEndpoint')">
-                    <NInput v-model:value="oauthForm.authorization_endpoint" size="small" :placeholder="t('mcp.oauth.authorizationEndpointPlaceholder')" />
-                  </NFormItem>
-                  <NFormItem :label="t('mcp.oauth.tokenEndpoint')">
-                    <NInput v-model:value="oauthForm.token_endpoint" size="small" :placeholder="t('mcp.oauth.tokenEndpointPlaceholder')" />
-                  </NFormItem>
-                  <NFormItem :label="t('mcp.oauth.clientId')">
-                    <NInput v-model:value="oauthForm.client_id" size="small" />
-                  </NFormItem>
-                  <NFormItem :label="t('mcp.oauth.clientSecret')">
-                    <NInput v-model:value="oauthForm.client_secret" size="small" type="password" show-password-on="click" />
-                  </NFormItem>
-                  <NFormItem :label="t('mcp.oauth.redirectUri')">
-                    <NInput v-model:value="oauthForm.redirect_uri" size="small" />
-                  </NFormItem>
-                  <NFormItem :label="t('mcp.oauth.scopes')">
-                    <NInput v-model:value="oauthForm.scopes" size="small" :placeholder="t('mcp.oauth.scopesPlaceholder')" />
-                  </NFormItem>
+                <Form layout="vertical" class="oauth-form">
+                  <FormItem :label="t('mcp.oauth.authorizationEndpoint')">
+                    <Input v-model:value="oauthForm.authorization_endpoint" size="small" :placeholder="t('mcp.oauth.authorizationEndpointPlaceholder')" />
+                  </FormItem>
+                  <FormItem :label="t('mcp.oauth.tokenEndpoint')">
+                    <Input v-model:value="oauthForm.token_endpoint" size="small" :placeholder="t('mcp.oauth.tokenEndpointPlaceholder')" />
+                  </FormItem>
+                  <FormItem :label="t('mcp.oauth.clientId')">
+                    <Input v-model:value="oauthForm.client_id" size="small" />
+                  </FormItem>
+                  <FormItem :label="t('mcp.oauth.clientSecret')">
+                    <InputPassword v-model:value="oauthForm.client_secret" size="small" type="password" />
+                  </FormItem>
+                  <FormItem :label="t('mcp.oauth.redirectUri')">
+                    <Input v-model:value="oauthForm.redirect_uri" size="small" />
+                  </FormItem>
+                  <FormItem :label="t('mcp.oauth.scopes')">
+                    <Input v-model:value="oauthForm.scopes" size="small" :placeholder="t('mcp.oauth.scopesPlaceholder')" />
+                  </FormItem>
                   <div class="oauth-actions">
-                    <NButton size="small" type="primary" :loading="actionLoading === 'oauth-begin'" @click="startOAuth">{{ t('mcp.oauth.generateLink') }}</NButton>
-                    <NButton v-if="oauthBeginUrl" size="small" @click="copy(oauthBeginUrl)">{{ t('mcp.oauth.copyLink') }}</NButton>
+                    <Button size="small" type="primary" :loading="actionLoading === 'oauth-begin'" @click="startOAuth">{{ t('mcp.oauth.generateLink') }}</Button>
+                    <Button v-if="oauthBeginUrl" size="small" @click="copy(oauthBeginUrl)">{{ t('mcp.oauth.copyLink') }}</Button>
                   </div>
-                  <NFormItem :label="t('mcp.oauth.code')">
-                    <NInput v-model:value="oauthForm.code" size="small" />
-                  </NFormItem>
-                  <NFormItem :label="t('mcp.oauth.state')">
-                    <NInput v-model:value="oauthForm.state" size="small" />
-                  </NFormItem>
-                  <NButton size="small" :loading="actionLoading === 'oauth-complete'" @click="finishOAuth">{{ t('mcp.oauth.submitCallback') }}</NButton>
-                </NForm>
-              </NSpin>
+                  <FormItem :label="t('mcp.oauth.code')">
+                    <Input v-model:value="oauthForm.code" size="small" />
+                  </FormItem>
+                  <FormItem :label="t('mcp.oauth.state')">
+                    <Input v-model:value="oauthForm.state" size="small" />
+                  </FormItem>
+                  <Button size="small" :loading="actionLoading === 'oauth-complete'" @click="finishOAuth">{{ t('mcp.oauth.submitCallback') }}</Button>
+                </Form>
+              </Spin>
             </section>
 
             <section class="panel tools-panel">
@@ -590,57 +589,57 @@ async function copy(text: string) {
 
         <section v-else class="detail empty-detail">{{ t('mcp.emptyDetail') }}</section>
       </main>
-    </NSpin>
+    </Spin>
 
-    <NModal v-model:show="showServerModal" preset="card" class="server-modal" :title="form.serverId ? t('mcp.editTitle') : t('mcp.createTitle')">
-      <NForm label-placement="top">
+    <Modal v-model:open="showServerModal"  class="server-modal" :title="form.serverId ? t('mcp.editTitle') : t('mcp.createTitle')">
+      <Form layout="vertical">
         <div class="form-grid">
-          <NFormItem :label="t('mcp.fields.serverId')">
-            <NInput v-model:value="form.serverId" :disabled="!!form.serverId" :placeholder="t('mcp.placeholders.autoServerId')" />
-          </NFormItem>
-          <NFormItem :label="t('mcp.fields.name')" required>
-            <NInput v-model:value="form.name" :placeholder="t('mcp.placeholders.name')" />
-          </NFormItem>
-          <NFormItem :label="t('mcp.fields.transport')">
-            <NSelect v-model:value="form.transport" :options="transportOptions" />
-          </NFormItem>
-          <NFormItem :label="t('common.enable')">
-            <NCheckbox v-model:checked="form.enabled">{{ t('mcp.participateInRuntimeDiscovery') }}</NCheckbox>
-          </NFormItem>
+          <FormItem :label="t('mcp.fields.serverId')">
+            <Input v-model:value="form.serverId" :disabled="!!form.serverId" :placeholder="t('mcp.placeholders.autoServerId')" />
+          </FormItem>
+          <FormItem :label="t('mcp.fields.name')" required>
+            <Input v-model:value="form.name" :placeholder="t('mcp.placeholders.name')" />
+          </FormItem>
+          <FormItem :label="t('mcp.fields.transport')">
+            <Select v-model:value="form.transport" :options="transportOptions" />
+          </FormItem>
+          <FormItem :label="t('common.enable')">
+            <Checkbox v-model:checked="form.enabled">{{ t('mcp.participateInRuntimeDiscovery') }}</Checkbox>
+          </FormItem>
         </div>
-        <NFormItem v-if="form.transport !== 'stdio'" :label="t('mcp.fields.endpoint')">
-          <NInput v-model:value="form.endpoint" :placeholder="t('mcp.placeholders.endpoint')" />
-        </NFormItem>
-        <NFormItem v-if="form.transport === 'stdio'" :label="t('mcp.fields.command')">
-          <NInput v-model:value="form.command" :placeholder="t('mcp.placeholders.command')" />
-        </NFormItem>
-        <NFormItem :label="t('mcp.fields.commandArgsJson')">
-          <NInput v-model:value="form.argsText" type="textarea" :autosize="{ minRows: 2, maxRows: 5 }" :placeholder="t('mcp.placeholders.commandArgsJson')" />
-        </NFormItem>
+        <FormItem v-if="form.transport !== 'stdio'" :label="t('mcp.fields.endpoint')">
+          <Input v-model:value="form.endpoint" :placeholder="t('mcp.placeholders.endpoint')" />
+        </FormItem>
+        <FormItem v-if="form.transport === 'stdio'" :label="t('mcp.fields.command')">
+          <Input v-model:value="form.command" :placeholder="t('mcp.placeholders.command')" />
+        </FormItem>
+        <FormItem :label="t('mcp.fields.commandArgsJson')">
+          <TextArea v-model:value="form.argsText" :autosize="{ minRows: 2, maxRows: 5 }" :placeholder="t('mcp.placeholders.commandArgsJson')" />
+        </FormItem>
         <div class="form-grid">
-          <NFormItem :label="t('mcp.fields.authConfigJson')">
-            <NInput v-model:value="form.authText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" />
-          </NFormItem>
-          <NFormItem :label="t('mcp.fields.oauthConfigJson')">
-            <NInput v-model:value="form.oauthText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" />
-          </NFormItem>
+          <FormItem :label="t('mcp.fields.authConfigJson')">
+            <TextArea v-model:value="form.authText" :autosize="{ minRows: 3, maxRows: 6 }" />
+          </FormItem>
+          <FormItem :label="t('mcp.fields.oauthConfigJson')">
+            <TextArea v-model:value="form.oauthText" :autosize="{ minRows: 3, maxRows: 6 }" />
+          </FormItem>
         </div>
         <div class="form-grid">
-          <NFormItem :label="t('mcp.fields.capabilitiesJson')">
-            <NInput v-model:value="form.capabilitiesText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" />
-          </NFormItem>
-          <NFormItem :label="t('mcp.toolsSnapshot')">
-            <NInput v-model:value="form.toolsText" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" :placeholder="t('mcp.placeholders.toolsJson')" />
-          </NFormItem>
+          <FormItem :label="t('mcp.fields.capabilitiesJson')">
+            <TextArea v-model:value="form.capabilitiesText" :autosize="{ minRows: 3, maxRows: 6 }" />
+          </FormItem>
+          <FormItem :label="t('mcp.toolsSnapshot')">
+            <TextArea v-model:value="form.toolsText" :autosize="{ minRows: 3, maxRows: 6 }" :placeholder="t('mcp.placeholders.toolsJson')" />
+          </FormItem>
         </div>
-      </NForm>
+      </Form>
       <template #footer>
         <div class="modal-actions">
-          <NButton @click="showServerModal = false">{{ t('common.cancel') }}</NButton>
-          <NButton type="primary" :loading="saving" @click="saveServer">{{ t('common.save') }}</NButton>
+          <Button @click="showServerModal = false">{{ t('common.cancel') }}</Button>
+          <Button type="primary" :loading="saving" @click="saveServer">{{ t('common.save') }}</Button>
         </div>
       </template>
-    </NModal>
+    </Modal>
   </div>
 </template>
 

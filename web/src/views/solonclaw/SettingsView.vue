@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted } from "vue";
 import {
-  NTabs,
-  NTabPane,
-  NSpin,
-} from "naive-ui";
+  Tabs,
+  TabPane,
+  Spin,
+} from "antdv-next";
 import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/solonclaw/settings";
 import DisplaySettings from "@/components/solonclaw/settings/DisplaySettings.vue";
@@ -33,35 +33,35 @@ onMounted(() => {
     </header>
 
     <div class="settings-content">
-      <NSpin
-        :show="settingsStore.loading || settingsStore.saving"
+      <Spin
+        :open="settingsStore.loading || settingsStore.saving"
         size="large"
         :description="t('common.loading')"
       >
-        <NTabs type="line" animated>
-          <NTabPane name="account" :tab="t('settings.tabs.account')">
+        <Tabs type="line" animated>
+          <TabPane name="account" :tab="t('settings.tabs.account')">
             <AccountSettings />
-          </NTabPane>
-          <NTabPane name="display" :tab="t('settings.tabs.display')">
+          </TabPane>
+          <TabPane name="display" :tab="t('settings.tabs.display')">
             <DisplaySettings />
-          </NTabPane>
-          <NTabPane name="agent" :tab="t('settings.tabs.agent')">
+          </TabPane>
+          <TabPane name="agent" :tab="t('settings.tabs.agent')">
             <AgentSettings />
-          </NTabPane>
-          <NTabPane name="models" :tab="t('settings.tabs.models')">
+          </TabPane>
+          <TabPane name="models" :tab="t('settings.tabs.models')">
             <ModelSettings />
-          </NTabPane>
-          <NTabPane name="memory" :tab="t('settings.tabs.memory')">
+          </TabPane>
+          <TabPane name="memory" :tab="t('settings.tabs.memory')">
             <MemorySettings />
-          </NTabPane>
-          <NTabPane name="session" :tab="t('settings.tabs.session')">
+          </TabPane>
+          <TabPane name="session" :tab="t('settings.tabs.session')">
             <SessionSettings />
-          </NTabPane>
-          <NTabPane name="privacy" :tab="t('settings.tabs.privacy')">
+          </TabPane>
+          <TabPane name="privacy" :tab="t('settings.tabs.privacy')">
             <PrivacySettings />
-          </NTabPane>
-        </NTabs>
-      </NSpin>
+          </TabPane>
+        </Tabs>
+      </Spin>
     </div>
   </div>
 </template>

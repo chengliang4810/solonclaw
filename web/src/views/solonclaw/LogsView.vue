@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { NSelect, NButton, NSpin, useMessage } from 'naive-ui'
+import { Select, Button, Spin, message } from 'antdv-next'
+import type { SelectValue } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { fetchLogFiles, fetchLogs, type LogEntry } from '@/api/solonclaw/logs'
 
 const { t } = useI18n()
-const message = useMessage()
 const logFiles = ref<{ name: string; size: string; modified: string }[]>([])
 const selectedLog = ref('agent')
 const entries = ref<LogEntry[]>([])
@@ -82,6 +82,17 @@ async function loadLogs() {
   }
 }
 
+function handleLevelChange(value: SelectValue) {
+  levelFilter.value = typeof value === 'string' ? value : ''
+  loadLogs()
+}
+
+function handleLineCountChange(value: SelectValue) {
+  if (typeof value !== 'number') return
+  lineCount.value = value
+  loadLogs()
+}
+
 onMounted(async () => {
   logFiles.value = await fetchLogFiles()
   await loadLogs()
@@ -96,26 +107,26 @@ onMounted(async () => {
         <p class="header-subtitle">{{ t('logs.description') }}</p>
       </div>
       <div class="header-actions">
-        <NSelect
+        <Select
           v-model:value="selectedLog"
           :options="logOptions"
           size="small"
           class="input-md"
           @update:value="loadLogs"
         />
-        <NSelect
+        <Select
           :value="levelFilter"
           :options="levelOptions"
           size="small"
           class="input-sm"
-          @update:value="(v: string) => { levelFilter = v; loadLogs() }"
+          @update:value="handleLevelChange"
         />
-        <NSelect
+        <Select
           :value="lineCount"
           :options="lineOptions"
           size="small"
           class="input-sm"
-          @update:value="(v: number) => { lineCount = v; loadLogs() }"
+          @update:value="handleLineCountChange"
         />
         <input
           v-model="searchQuery"
@@ -123,12 +134,12 @@ onMounted(async () => {
           :placeholder="t('logs.searchPlaceholder')"
           @keydown.enter="loadLogs"
         />
-        <NButton size="small" :loading="loading" @click="loadLogs">{{ t('logs.refresh') }}</NButton>
+        <Button size="small" :loading="loading" @click="loadLogs">{{ t('logs.refresh') }}</Button>
       </div>
     </header>
 
     <div class="logs-body">
-      <NSpin :show="loading">
+      <Spin :spinning="loading">
         <div v-if="filteredEntries.length === 0 && !loading" class="logs-empty">
           {{ t('logs.noEntries') }}
         </div>
@@ -152,7 +163,7 @@ onMounted(async () => {
             <span v-else class="log-message">{{ entry.message }}</span>
           </div>
         </div>
-      </NSpin>
+      </Spin>
     </div>
   </div>
 </template>

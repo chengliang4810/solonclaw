@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { NSelect } from 'naive-ui'
+import { Select } from 'antdv-next'
+import type { SelectValue } from 'antdv-next'
 
 const { locale } = useI18n()
 
@@ -15,18 +16,18 @@ const options = [
   { label: 'Português', value: 'pt' },
 ]
 
-function handleChange(val: string) {
+function handleChange(val: SelectValue) {
+  if (typeof val !== 'string') return
   locale.value = val
   localStorage.setItem('solonclaw_locale', val)
 }
 </script>
 
 <template>
-  <NSelect
+  <Select
     :value="locale"
     :options="options"
-    size="tiny"
-    :consistent-menu-width="false"
+    size="small"
     class="input-sm"
     @update:value="handleChange"
   />

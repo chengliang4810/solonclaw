@@ -76,8 +76,8 @@ onMounted(() => {
       </div>
     </div>
     <FileContextMenu ref="contextMenuRef" @rename="handleRename" />
-    <FileUploadModal v-model:show="showUpload" />
-    <FileRenameModal v-model:show="showRenameModal" :mode="renameMode" :entry="renameEntry" />
+    <FileUploadModal v-model:open="showUpload" />
+    <FileRenameModal v-model:open="showRenameModal" :mode="renameMode" :entry="renameEntry" />
   </div>
 </template>
 

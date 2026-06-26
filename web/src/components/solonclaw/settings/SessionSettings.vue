@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NInputNumber, NSelect, NSwitch, useMessage } from 'naive-ui'
+import { InputNumber, Select, Switch, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import { useSessionBrowserPrefsStore } from '@/stores/solonclaw/session-browser-prefs'
@@ -7,7 +7,6 @@ import SettingRow from './SettingRow.vue'
 
 const settingsStore = useSettingsStore()
 const sessionBrowserPrefsStore = useSessionBrowserPrefsStore()
-const message = useMessage()
 const { t } = useI18n()
 
 async function save(values: Record<string, any>) {
@@ -23,7 +22,7 @@ async function save(values: Record<string, any>) {
 <template>
   <section class="settings-section">
     <SettingRow :label="t('settings.session.mode')" :hint="t('settings.session.modeHint')">
-      <NSelect
+      <Select
         :value="settingsStore.sessionReset.mode || 'both'"
         :options="[
           { label: t('settings.session.modeBoth'), value: 'both' },
@@ -35,7 +34,7 @@ async function save(values: Record<string, any>) {
       />
     </SettingRow>
     <SettingRow :label="t('settings.session.idleMinutes')" :hint="t('settings.session.idleMinutesHint')">
-      <NInputNumber
+      <InputNumber
         :value="settingsStore.sessionReset.idle_minutes"
         :min="10" :max="10080" :step="30"
         size="small" class="input-sm"
@@ -43,7 +42,7 @@ async function save(values: Record<string, any>) {
       />
     </SettingRow>
     <SettingRow :label="t('settings.session.atHour')" :hint="t('settings.session.atHourHint')">
-      <NInputNumber
+      <InputNumber
         :value="settingsStore.sessionReset.at_hour"
         :min="0" :max="23" :step="1"
         size="small" class="input-sm"
@@ -51,9 +50,9 @@ async function save(values: Record<string, any>) {
       />
     </SettingRow>
     <SettingRow :label="t('settings.session.liveMonitorHumanOnly')" :hint="t('settings.session.liveMonitorHumanOnlyHint')">
-      <NSwitch
+      <Switch
         :value="sessionBrowserPrefsStore.humanOnly"
-        @update:value="value => sessionBrowserPrefsStore.setHumanOnly(value)"
+        @update:value="value => sessionBrowserPrefsStore.setHumanOnly(value === true)"
       />
     </SettingRow>
   </section>

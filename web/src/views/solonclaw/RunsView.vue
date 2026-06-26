@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { NButton, NSelect, NSpin } from 'naive-ui'
+import { Button, Select, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
 import { fetchRunDetail, fetchSessionRuns, type AgentRun, type AgentRunEvent, type ToolCall } from '@/api/solonclaw/runs'
@@ -119,12 +119,12 @@ onMounted(async () => {
         <p class="header-subtitle">{{ t('runs.description') }}</p>
       </div>
       <div class="header-actions">
-        <NSelect v-model:value="selectedSessionId" :options="sessionOptions" size="small" class="session-select" @update:value="loadSessionDetail" />
-        <NButton size="small" :loading="loading" @click="loadSessionDetail">{{ t('common.refresh') }}</NButton>
+        <Select v-model:value="selectedSessionId" :options="sessionOptions" size="small" class="session-select" @update:value="loadSessionDetail" />
+        <Button size="small" :loading="loading" @click="loadSessionDetail">{{ t('common.refresh') }}</Button>
       </div>
     </header>
 
-    <NSpin :show="loading">
+    <Spin :spinning="loading">
       <main class="runs-layout">
         <section class="panel">
           <h3>{{ t('runs.runList') }}</h3>
@@ -203,11 +203,11 @@ onMounted(async () => {
           <h3>{{ t('runs.checkpoints') }}</h3>
           <div v-for="checkpoint in checkpoints" :key="checkpoint.checkpoint_id" class="mini-row">
             <span>{{ time(checkpoint.created_at) }}</span>
-            <NButton size="tiny" secondary :loading="rollingBack === checkpoint.checkpoint_id" @click="handleRollback(checkpoint.checkpoint_id)">{{ t('runs.rollback') }}</NButton>
+            <Button size="small" type="default" :loading="rollingBack === checkpoint.checkpoint_id" @click="handleRollback(checkpoint.checkpoint_id)">{{ t('runs.rollback') }}</Button>
           </div>
         </section>
       </main>
-    </NSpin>
+    </Spin>
   </div>
 </template>
 

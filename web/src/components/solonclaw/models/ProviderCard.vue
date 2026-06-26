@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NButton, useMessage, useDialog } from 'naive-ui'
+import { Button, message, Modal } from 'antdv-next'
 import type { AvailableModelGroup } from '@/api/solonclaw/system'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import { useI18n } from 'vue-i18n'
@@ -12,8 +12,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const modelsStore = useModelsStore()
-const message = useMessage()
-const dialog = useDialog()
 
 const displayName = computed(() => props.provider.label)
 const deleting = ref(false)
@@ -36,12 +34,12 @@ function dialectLabel(value: string): string {
 }
 
 async function handleDelete() {
-  dialog.warning({
+  Modal.confirm({
     title: t('models.deleteProvider'),
     content: t('models.deleteConfirm', { name: displayName.value }),
-    positiveText: t('common.delete'),
-    negativeText: t('common.cancel'),
-    onPositiveClick: async () => {
+    okText: t('common.delete'),
+    cancelText: t('common.cancel'),
+    onOk: async () => {
       deleting.value = true
       try {
         await modelsStore.removeProvider(props.provider.provider)
@@ -85,8 +83,8 @@ async function handleDelete() {
     </div>
 
     <div class="card-actions">
-      <NButton size="tiny" quaternary @click="emit('edit', provider)">{{ t('common.edit') }}</NButton>
-      <NButton size="tiny" quaternary type="error" :loading="deleting" @click="handleDelete">{{ t('common.delete') }}</NButton>
+      <Button size="small" type="text" @click="emit('edit', provider)">{{ t('common.edit') }}</Button>
+      <Button size="small" type="text" danger :loading="deleting" @click="handleDelete">{{ t('common.delete') }}</Button>
     </div>
   </div>
 </template>

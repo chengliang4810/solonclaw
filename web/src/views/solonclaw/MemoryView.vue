@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { NButton, useMessage } from 'naive-ui'
+import { Button, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import MarkdownRenderer from '@/components/solonclaw/chat/MarkdownRenderer.vue'
 import { fetchMemory, saveMemory, type MemoryData } from '@/api/solonclaw/skills'
 
 const { t } = useI18n()
-const message = useMessage()
 const loading = ref(false)
 const data = ref<MemoryData | null>(null)
 const editingSection = ref<'memory' | null>(null)
@@ -75,7 +74,7 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
         <p class="header-subtitle">{{ t('memory.description') }}</p>
       </div>
       <div class="page-actions">
-        <NButton size="small" quaternary @click="loadMemory">
+        <Button size="small" type="text" @click="loadMemory">
           <template #icon>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="23 4 23 10 17 10" />
@@ -83,8 +82,8 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
             </svg>
           </template>
           {{ t('memory.refresh') }}
-        </NButton>
-        <NButton v-if="editingSection !== 'memory'" size="small" quaternary @click="startEdit('memory')">
+        </Button>
+        <Button v-if="editingSection !== 'memory'" size="small" type="text" @click="startEdit('memory')">
           <template #icon>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -92,7 +91,7 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
             </svg>
           </template>
           {{ t('common.edit') }}
-        </NButton>
+        </Button>
       </div>
     </header>
 
@@ -121,8 +120,8 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
               spellcheck="false"
             ></textarea>
             <div class="edit-actions">
-              <NButton size="small" @click="cancelEdit">{{ t('common.cancel') }}</NButton>
-              <NButton size="small" type="primary" :loading="saving" @click="handleSave">{{ t('common.save') }}</NButton>
+              <Button size="small" @click="cancelEdit">{{ t('common.cancel') }}</Button>
+              <Button size="small" type="primary" :loading="saving" @click="handleSave">{{ t('common.save') }}</Button>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { NBreadcrumb, NBreadcrumbItem } from 'naive-ui'
+import { Breadcrumb, BreadcrumbItem } from 'antdv-next'
 import { useFilesStore } from '@/stores/solonclaw/files'
 
 const { t } = useI18n()
@@ -18,18 +18,18 @@ function handleClick(index: number) {
 
 <template>
   <div class="file-breadcrumb">
-    <NBreadcrumb>
-      <NBreadcrumbItem @click="handleClick(-1)">
+    <Breadcrumb>
+      <BreadcrumbItem @click="handleClick(-1)">
         {{ t('files.breadcrumbRoot') }}
-      </NBreadcrumbItem>
-      <NBreadcrumbItem
+      </BreadcrumbItem>
+      <BreadcrumbItem
         v-for="(segment, index) in filesStore.pathSegments"
         :key="index"
         @click="handleClick(index)"
       >
         {{ segment }}
-      </NBreadcrumbItem>
-    </NBreadcrumb>
+      </BreadcrumbItem>
+    </Breadcrumb>
   </div>
 </template>
 

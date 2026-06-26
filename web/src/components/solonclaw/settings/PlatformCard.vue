@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NTag } from 'naive-ui'
+import { Tag } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{
@@ -26,9 +26,9 @@ const expanded = ref(enabled.value)
       <div class="platform-info">
         <span class="platform-icon" v-html="icon" />
         <span class="platform-name">{{ name }}</span>
-        <NTag :type="enabled ? 'success' : 'default'" size="small" round>
+        <Tag :color="enabled ? 'success' : 'default'" size="small" shape="round">
           {{ enabled ? t('common.enabled') : t('common.closed') }}
-        </NTag>
+        </Tag>
       </div>
       <span class="expand-icon" :class="{ expanded }">&#9662;</span>
     </div>

@@ -2,7 +2,7 @@
 import type { Message } from "@/stores/solonclaw/chat";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { useMessage } from "naive-ui";
+import { message as toast } from "antdv-next";
 import { downloadFile } from "@/api/solonclaw/download";
 import MarkdownRenderer from "./MarkdownRenderer.vue";
 import {
@@ -15,8 +15,6 @@ const TOOL_PAYLOAD_DISPLAY_LIMIT = 2000;
 
 const props = defineProps<{ message: Message; highlight?: boolean }>();
 const { t } = useI18n();
-const toast = useMessage();
-
 const isSystem = computed(() => props.message.role === "system");
 const toolExpanded = ref(false);
 const reasoningExpanded = ref(false);

@@ -36,10 +36,10 @@ export function useKeyboard() {
         closeSessionSearch()
         return
       }
-      // Close any open modals — naive-ui handles this internally
-      const modal = document.querySelector('.n-modal-mask')
+      // Esc 优先关闭当前 Antdv 弹窗，避免聊天快捷键吞掉弹窗交互。
+      const modal = document.querySelector('.ant-modal-root')
       if (modal) {
-        const closeBtn = modal.querySelector('.n-base-close') as HTMLElement
+        const closeBtn = modal.querySelector('.ant-modal-close') as HTMLElement
         closeBtn?.click()
       }
     }

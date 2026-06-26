@@ -2,7 +2,7 @@
 import { computed, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { NButton, useMessage } from "naive-ui";
+import { Button, message } from "antdv-next";
 import { useAppStore } from "@/stores/solonclaw/app";
 import ThemeSwitch from "./ThemeSwitch.vue";
 import danceVideoLight from "@/assets/dance-light.mp4";
@@ -14,7 +14,6 @@ import { getPersonaMeta } from "@/shared/personaMeta";
 
 const { t } = useI18n();
 const { isDark } = useTheme();
-const message = useMessage();
 const route = useRoute();
 const router = useRouter();
 const appStore = useAppStore();
@@ -80,7 +79,7 @@ function handleNav(key: string) {
 async function handleUpdate() {
   const ok = await appStore.doUpdate();
   if (ok) {
-    message.success(t('sidebar.updateSuccess'), { duration: 5000 });
+    message.success(t('sidebar.updateSuccess'), 5);
   } else {
     message.error(t('sidebar.updateFailed'));
   }
@@ -286,9 +285,9 @@ function handleLogout() {
         </div>
         <ThemeSwitch />
       </div>
-      <NButton v-if="appStore.updateAvailable" type="primary" size="tiny" block class="update-btn" :loading="appStore.updating" @click="handleUpdate">
+      <Button v-if="appStore.updateAvailable" type="primary" size="small" block class="update-btn" :loading="appStore.updating" @click="handleUpdate">
         {{ appStore.updating ? t('sidebar.updating') : t('sidebar.updateVersion', { version: appStore.latestVersion }) }}
-      </NButton>
+      </Button>
     </div>
   </aside>
 </template>

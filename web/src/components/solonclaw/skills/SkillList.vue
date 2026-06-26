@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { NSwitch, useMessage } from 'naive-ui'
+import { Switch, message } from 'antdv-next'
 import type { SkillCategory } from '@/api/solonclaw/skills'
 import { toggleSkill } from '@/api/solonclaw/skills'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
-const message = useMessage()
 
 const props = defineProps<{
   categories: SkillCategory[]
@@ -100,11 +99,11 @@ async function handleToggle(category: string, skillName: string, newEnabled: boo
             <span class="skill-name">{{ skill.name }}</span>
             <span v-if="skill.description" class="skill-desc">{{ skill.description }}</span>
           </div>
-          <NSwitch
+          <Switch
             size="small"
             :value="skill.enabled !== false"
             :loading="togglingSkills.has(skill.name)"
-            @update:value="handleToggle(cat.name, skill.name, $event)"
+            @update:value="value => handleToggle(cat.name, skill.name, value === true)"
             @click.stop
           />
         </button>

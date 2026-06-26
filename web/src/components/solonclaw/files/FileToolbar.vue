@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { NButton, NSpace, useMessage } from 'naive-ui'
+import { Button, Space, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore } from '@/stores/solonclaw/files'
 
 const { t } = useI18n()
-const message = useMessage()
 const filesStore = useFilesStore()
 
 const emit = defineEmits<{
@@ -24,20 +23,20 @@ async function handleRefresh() {
 
 <template>
   <div class="file-toolbar">
-    <NSpace>
-      <NButton size="small" @click="emit('showNewFile')">
+    <Space>
+      <Button size="small" @click="emit('showNewFile')">
         {{ t('files.newFile') }}
-      </NButton>
-      <NButton size="small" @click="emit('showNewFolder')">
+      </Button>
+      <Button size="small" @click="emit('showNewFolder')">
         {{ t('files.newFolder') }}
-      </NButton>
-      <NButton size="small" @click="emit('showUpload')">
+      </Button>
+      <Button size="small" @click="emit('showUpload')">
         {{ t('files.upload') }}
-      </NButton>
-      <NButton size="small" @click="handleRefresh">
+      </Button>
+      <Button size="small" @click="handleRefresh">
         {{ t('files.refresh') }}
-      </NButton>
-    </NSpace>
+      </Button>
+    </Space>
   </div>
 </template>
 

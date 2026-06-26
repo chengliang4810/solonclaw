@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, watch } from 'vue'
-import { NModal, NInput } from 'naive-ui'
+import { Modal, Input } from 'antdv-next'
 import { useAppStore } from '@/stores/solonclaw/app'
 import { useI18n } from 'vue-i18n'
 import { nextPanelCursor, normalizePanelKey } from '@/shared/panelNavigation'
@@ -94,14 +94,14 @@ watch(selectableItems, (items) => {
       </svg>
     </button>
 
-    <NModal
-      v-model:show="showModal"
-      preset="card"
+    <Modal
+      v-model:open="showModal"
+
       :title="t('models.title')"
       :style="{ width: 'min(480px, calc(100vw - 32px))' }"
       :mask-closable="true"
     >
-      <NInput
+      <Input
         v-model:value="searchQuery"
         :placeholder="t('models.searchPlaceholder')"
         clearable
@@ -140,7 +140,7 @@ watch(selectableItems, (items) => {
           {{ searchQuery ? 'No results' : 'No models' }}
         </div>
       </div>
-    </NModal>
+    </Modal>
   </div>
 </template>
 

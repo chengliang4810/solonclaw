@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
-import { NButton, NSpin } from 'naive-ui'
+import { Button, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import JobsPanel from '@/components/solonclaw/jobs/JobsPanel.vue'
 import JobFormModal from '@/components/solonclaw/jobs/JobFormModal.vue'
@@ -83,12 +83,12 @@ function policyFlags(): string[] {
   <div class="jobs-view">
     <header class="page-header">
       <h2 class="header-title">{{ t('jobs.title') }}</h2>
-      <NButton type="primary" size="small" @click="openCreateModal">
+      <Button type="primary" size="small" @click="openCreateModal">
         <template #icon>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         </template>
         {{ t('jobs.createJob') }}
-      </NButton>
+      </Button>
     </header>
 
     <section v-if="guide" class="guide-panel" :class="{ expanded: showGuide }">
@@ -102,9 +102,9 @@ function policyFlags(): string[] {
           <span>{{ t('jobs.pageGuideMetaFields', { count: guide.editable_fields.length }) }}</span>
           <span>{{ mapKeys(guide.actions) }}</span>
         </div>
-        <NButton size="small" quaternary @click="showGuide = !showGuide">
+        <Button size="small" type="text" @click="showGuide = !showGuide">
           {{ showGuide ? t('jobs.pageGuideCollapse') : t('jobs.pageGuideExpand') }}
-        </NButton>
+        </Button>
       </div>
       <div v-if="showGuide" class="guide-body">
         <div class="guide-grid">
@@ -230,9 +230,9 @@ function policyFlags(): string[] {
     </section>
 
     <div class="jobs-content">
-      <NSpin :show="jobsStore.loading && jobsStore.jobs.length === 0">
+      <Spin :spinning="jobsStore.loading && jobsStore.jobs.length === 0">
         <JobsPanel @edit="openEditModal" @changed="refreshSchedules" />
-      </NSpin>
+      </Spin>
     </div>
 
     <JobFormModal
