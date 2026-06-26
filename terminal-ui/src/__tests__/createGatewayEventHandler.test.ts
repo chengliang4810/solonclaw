@@ -984,7 +984,7 @@ describe('createGatewayEventHandler', () => {
     expect(getTurnState().subagents.find(s => s.id === 'sa-weird')?.status).toBe('completed')
   })
 
-  it('nudges toward /agents on the first spawn_requested of a turn', () => {
+  it('nudges toward /tasks on the first spawn_requested of a turn', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))
 
@@ -993,12 +993,12 @@ describe('createGatewayEventHandler', () => {
       type: 'subagent.spawn_requested'
     } as any)
 
-    const hints = getTurnState().activity.filter(a => a.text.includes('/agents'))
+    const hints = getTurnState().activity.filter(a => a.text.includes('/tasks'))
     expect(hints).toHaveLength(1)
     expect(hints[0]).toMatchObject({ tone: 'info' })
   })
 
-  it('nudges toward /agents on subagent.start (spawn_requested dropped in CLI path)', () => {
+  it('nudges toward /tasks on subagent.start (spawn_requested dropped in CLI path)', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))
 
@@ -1009,7 +1009,7 @@ describe('createGatewayEventHandler', () => {
       type: 'subagent.start'
     } as any)
 
-    expect(getTurnState().activity.filter(a => a.text.includes('/agents'))).toHaveLength(1)
+    expect(getTurnState().activity.filter(a => a.text.includes('/tasks'))).toHaveLength(1)
   })
 
   it('nudges at most once per turn and resets on the next message.start', () => {
@@ -1025,7 +1025,7 @@ describe('createGatewayEventHandler', () => {
       payload: { goal: 'child b', subagent_id: 'sa-b', task_index: 1 },
       type: 'subagent.start'
     } as any)
-    expect(getTurnState().activity.filter(a => a.text.includes('/agents'))).toHaveLength(1)
+    expect(getTurnState().activity.filter(a => a.text.includes('/tasks'))).toHaveLength(1)
 
     // New turn clears activity AND the once-per-turn guard → nudges again.
     onEvent({ payload: {}, type: 'message.start' } as any)
@@ -1033,10 +1033,10 @@ describe('createGatewayEventHandler', () => {
       payload: { goal: 'child c', subagent_id: 'sa-c', task_index: 0 },
       type: 'subagent.start'
     } as any)
-    expect(getTurnState().activity.filter(a => a.text.includes('/agents'))).toHaveLength(1)
+    expect(getTurnState().activity.filter(a => a.text.includes('/tasks'))).toHaveLength(1)
   })
 
-  it('does not nudge when the /agents overlay is already open', () => {
+  it('does not nudge when the /tasks overlay is already open', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))
 
@@ -1048,10 +1048,10 @@ describe('createGatewayEventHandler', () => {
       type: 'subagent.start'
     } as any)
 
-    expect(getTurnState().activity.filter(a => a.text.includes('/agents'))).toHaveLength(0)
+    expect(getTurnState().activity.filter(a => a.text.includes('/tasks'))).toHaveLength(0)
   })
 
-  it('nudges if the /agents overlay is closed mid-turn while delegation continues', () => {
+  it('nudges if the /tasks overlay is closed mid-turn while delegation continues', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))
 
@@ -1062,7 +1062,7 @@ describe('createGatewayEventHandler', () => {
       payload: { goal: 'child a', subagent_id: 'sa-a', task_index: 0 },
       type: 'subagent.start'
     } as any)
-    expect(getTurnState().activity.filter(a => a.text.includes('/agents'))).toHaveLength(0)
+    expect(getTurnState().activity.filter(a => a.text.includes('/tasks'))).toHaveLength(0)
 
     // User closes the dashboard mid-turn → the next delegation event nudges.
     patchOverlayState({ agents: false })
@@ -1070,7 +1070,7 @@ describe('createGatewayEventHandler', () => {
       payload: { goal: 'child b', subagent_id: 'sa-b', task_index: 1 },
       type: 'subagent.start'
     } as any)
-    expect(getTurnState().activity.filter(a => a.text.includes('/agents'))).toHaveLength(1)
+    expect(getTurnState().activity.filter(a => a.text.includes('/tasks'))).toHaveLength(1)
   })
 
   it('does not nudge when display.tui_agents_nudge is false', async () => {
@@ -1092,7 +1092,7 @@ describe('createGatewayEventHandler', () => {
       type: 'subagent.start'
     } as any)
 
-    expect(getTurnState().activity.filter(a => a.text.includes('/agents'))).toHaveLength(0)
+    expect(getTurnState().activity.filter(a => a.text.includes('/tasks'))).toHaveLength(0)
   })
 
   it('drops stale reasoning/tool/todos events after ctrl-c until the next message starts', () => {

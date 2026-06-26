@@ -127,7 +127,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
   // ── Shared full-config read ──────────────────────────────────────────
   //
-  // Several concerns need `display.*` flags at startup (the /agents nudge
+  // Several concerns need `display.*` flags at startup (the /tasks nudge
   // gate below, the auto-resume check in the `gateway.ready` handler).
   // Memoize the `config.get full` RPC so we make exactly one round-trip
   // instead of one per concern.  Resolves to null on RPC failure; callers
@@ -147,11 +147,11 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       new Promise<null>(resolve => setTimeout(() => resolve(null), STARTUP_CONFIG_TIMEOUT_MS))
     ])
 
-  // ── Nudge toward /agents on delegation ───────────────────────────────
+  // ── Nudge toward /tasks on delegation ───────────────────────────────
   //
   // When `display.tui_agents_nudge` is enabled (default true), the first
   // time a turn starts delegating we drop a single transient activity hint
-  // ("subagents working · /agents to watch live") so the user discovers the
+  // ("subagents working · /tasks to watch live") so the user discovers the
   // spawn-tree dashboard instead of staring at a quiet transcript — without
   // hijacking the screen by force-opening an overlay.  Guards:
   //   • fires at most once per turn (`agentsNudgedThisTurn`)
@@ -192,7 +192,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
     }
 
     agentsNudgedThisTurn = true
-    turnController.pushActivity('subagents working · /agents to watch live', 'info')
+    turnController.pushActivity('subagents working · /tasks to watch live', 'info')
   }
 
   const resetAgentsNudgeTurnState = () => {
@@ -718,7 +718,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         // Preserve completed state if a later event races in before this one.
         turnController.upsertSubagent(ev.payload, c => (isTerminalSubagentStatus(c.status) ? {} : { status: 'queued' }))
 
-        // First sign of delegation this turn → nudge toward /agents.
+        // First sign of delegation this turn → nudge toward /tasks.
         maybeNudgeAgents()
 
         // Prime the status-bar HUD: fetch caps (once every 5s) so we can

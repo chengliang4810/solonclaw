@@ -291,9 +291,8 @@ export const opsCommands: SlashCommand[] = [
   },
 
   {
-    aliases: ['tasks'],
     help: 'open the spawn-tree dashboard (live audit + kill/pause controls)',
-    name: 'agents',
+    name: 'tasks',
     run: (arg, ctx) => {
       const sub = arg.trim().toLowerCase()
 
