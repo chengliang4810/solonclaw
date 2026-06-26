@@ -166,7 +166,7 @@ public class TerminalUiRpcService {
         info.put("skills", new LinkedHashMap<String, Object>());
         info.put("tools", new LinkedHashMap<String, Object>());
         info.put("usage", session == null ? usage() : usage(session));
-        info.put("version", "dev");
+        info.put("version", "");
         return info;
     }
 
