@@ -97,6 +97,7 @@ import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
+import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -333,6 +334,8 @@ public class TestEnvironment {
                         sqliteSessionRepository);
         DashboardApprovalEventsService dashboardApprovalEventsService =
                 new DashboardApprovalEventsService(config);
+        DashboardWorkspaceService dashboardWorkspaceService =
+                new DashboardWorkspaceService(personaWorkspaceService);
         BrowserRuntimeService browserRuntimeService =
                 new BrowserRuntimeService(
                         config,
@@ -368,6 +371,7 @@ public class TestEnvironment {
                         dashboardGatewayDoctorService,
                         dashboardInsightsService,
                         dashboardApprovalEventsService,
+                        dashboardWorkspaceService,
                         browserRuntimeService,
                         null,
                         null,
