@@ -211,11 +211,6 @@ public class DashboardSessionServiceTest {
                 .doesNotContain("ghp_childbranchsecret12345")
                 .doesNotContain("ghp_childtitlesecret12345");
 
-        Map<String, Object> search = service.searchSessions("Authorization");
-        String searchText = String.valueOf(search);
-        assertThat(searchText)
-                .contains(">>>Authorization<<<: Bearer ***")
-                .doesNotContain("ghp_rootpreviewsecret12345");
     }
 
     @Test
@@ -248,20 +243,18 @@ public class DashboardSessionServiceTest {
 
         String listText = String.valueOf(service.getSessions(10, 0));
         String detailText = String.valueOf(service.getSessionMessages(root.getSessionId()));
-        String searchText = String.valueOf(service.searchSessions("needle"));
         String treeText = String.valueOf(service.sessionTree(root.getSessionId()));
         String latestText = String.valueOf(service.latestDescendant(root.getSessionId()));
         String missingText = String.valueOf(service.recap("missing-ghp_dashmissingid12345", 10));
 
         assertThat(listText).contains("session-ghp_***");
         assertThat(detailText).contains("session_id=session-ghp_***").contains("token=***");
-        assertThat(searchText).contains("session_id=session-ghp_***").contains("token=***");
         assertThat(treeText).contains("parent_session_id=session-ghp_***");
         assertThat(latestText)
                 .contains("requested_session_id=session-ghp_***")
                 .contains("session_id=session-ghp_***");
         assertThat(missingText).contains("session_id=missing-ghp_***");
-        assertThat(listText + detailText + searchText + treeText + latestText + missingText)
+        assertThat(listText + detailText + treeText + latestText + missingText)
                 .doesNotContain("dashsessionid12345")
                 .doesNotContain("dashchildid12345")
                 .doesNotContain("dashmessage12345")

@@ -36,17 +36,6 @@ public class DashboardSessionController {
     }
 
     /**
-     * 执行搜索相关逻辑。
-     *
-     * @param context 当前请求或运行上下文。
-     * @return 返回搜索结果。
-     */
-    @Mapping(value = "/api/sessions/search", method = MethodType.GET)
-    public Map<String, Object> search(Context context) throws Exception {
-        return DashboardResponse.ok(sessionService.searchSessions(context.param("q")));
-    }
-
-    /**
      * 执行messages相关逻辑。
      *
      * @param id 标识。
