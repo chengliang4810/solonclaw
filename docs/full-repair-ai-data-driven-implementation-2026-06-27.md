@@ -52,11 +52,29 @@
      - 增加工具暴露测试，证明默认工具列表包含 `run_manage` 且能解析到 `RunTools`。
    - 提交：`5858ed171`
 
+4. 增加 MCP 服务端管理一等工具
+   - 位置：
+     - `src/main/java/com/jimuqu/solon/claw/tool/runtime/McpManageTools.java`
+     - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+     - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+     - `src/main/java/com/jimuqu/solon/claw/bootstrap/ToolConfiguration.java`
+     - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+     - `src/test/java/com/jimuqu/solon/claw/support/TestEnvironment.java`
+   - 改造前：
+     - 已有 `mcp` 工具只暴露启用的 MCP 远端工具调用能力。
+     - Dashboard 已有 MCP 服务端列表、保存、删除、检查、连接、重载、工具刷新和 OAuth 状态清理能力，但 Agent 自然语言路径没有一等入口。
+   - 改造后：
+     - 新增 `mcp_manage` 工具，复用 `DashboardMcpService`，支持 `list`、`save`、`delete`、`check`、`connect`、`reload`、`refresh_tools`、`reload_all`、`reload_all_async`、`oauth_status`、`oauth_clear`。
+     - 不复制 MCP 配置、包安全、URL 安全、工具发现或 OAuth 脱敏逻辑，统一沿用 Dashboard 服务边界。
+     - 增加工具暴露测试，证明默认工具列表包含 `mcp_manage` 且能解析到 `McpManageTools`。
+   - 提交：`e24046e93`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ProactiveDecisionServiceTest test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=DashboardRunServiceTest,ToolRegistryExposureTest#shouldExposeRunManagementToolForNaturalLanguageRunControl test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=McpRuntimeServiceTest,ToolRegistryExposureTest#shouldExposeMcpManagementToolForNaturalLanguageServerControl test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -69,5 +87,5 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补一个运行管理入口，但仍需要继续盘点 provider、MCP、curator、platform toolsets 等 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理和 MCP 管理入口，但仍需要继续盘点 provider、curator、platform toolsets 等 Dashboard 专属能力是否需要一等工具。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
