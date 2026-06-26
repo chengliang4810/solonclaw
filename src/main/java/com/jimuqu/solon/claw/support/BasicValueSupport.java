@@ -90,4 +90,22 @@ public final class BasicValueSupport {
     public static String trimToEmpty(String value) {
         return StrUtil.nullToEmpty(value).trim();
     }
+
+    /**
+     * 判断文本是否包含 ISO 控制字符，用于路径、配置键等安全输入边界。
+     *
+     * @param value 待检查文本。
+     * @return 包含控制字符时返回 true；null 返回 false。
+     */
+    public static boolean containsControlCharacter(String value) {
+        if (value == null) {
+            return false;
+        }
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isISOControl(value.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

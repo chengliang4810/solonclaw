@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.context;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
@@ -349,7 +350,7 @@ public class SkillCredentialFileService {
         if (StrUtil.isBlank(relativePath)) {
             return CredentialFileMount.rejected(rawPath, "empty path");
         }
-        if (containsControlCharacter(relativePath)) {
+        if (BasicValueSupport.containsControlCharacter(relativePath)) {
             return CredentialFileMount.rejected(rawPath, "path contains control character");
         }
         String trimmedRawPath = StrUtil.nullToEmpty(rawPath).trim();
@@ -613,24 +614,6 @@ public class SkillCredentialFileService {
             value = value.substring(1);
         }
         return value;
-    }
-
-    /**
-     * 判断是否包含控制Character。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回contains Control Character结果。
-     */
-    private boolean containsControlCharacter(String value) {
-        if (value == null) {
-            return false;
-        }
-        for (int i = 0; i < value.length(); i++) {
-            if (Character.isISOControl(value.charAt(i))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
