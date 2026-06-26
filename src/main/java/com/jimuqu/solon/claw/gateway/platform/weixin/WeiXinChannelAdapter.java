@@ -18,6 +18,7 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BaseUrlSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
@@ -1994,7 +1995,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private String resolveBaseUrl(String endpoint) {
         String configured =
-                StrUtil.blankToDefault(config.getBaseUrl(), DEFAULT_BASE_URL).replaceAll("/+$", "");
+                BaseUrlSupport.stripTrailingSlashes(
+                        StrUtil.blankToDefault(config.getBaseUrl(), DEFAULT_BASE_URL));
         if (GET_UPDATES_ENDPOINT.equals(endpoint) && StrUtil.isNotBlank(config.getLongPollUrl())) {
             String longPoll = config.getLongPollUrl().trim();
             if (longPoll.endsWith("/" + GET_UPDATES_ENDPOINT)) {
@@ -2132,18 +2134,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         return SecretRedactor.redact(value == null ? "" : value.toJson(), 1000);
     }
 
-    /**
-     * 规范化Base URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @return 返回Base URL结果。
-     */
+    /** 规范化基础 URL，避免后续拼接路径时出现重复斜杠。 */
     private String normalizeBaseUrl(String baseUrl) {
-        String value = StrUtil.nullToEmpty(baseUrl).trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
+        return BaseUrlSupport.stripTrailingSlashes(baseUrl);
     }
 
     /**

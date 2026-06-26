@@ -7,6 +7,7 @@ import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.support.BaseUrlSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -440,18 +441,9 @@ public class WeixinQrSetupService {
         }
     }
 
-    /**
-     * 规范化Base URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @return 返回Base URL结果。
-     */
+    /** 规范化基础 URL，避免后续拼接路径时出现重复斜杠。 */
     private String normalizeBaseUrl(String baseUrl) {
-        String value = StrUtil.nullToEmpty(baseUrl).trim();
-        while (value.endsWith("/")) {
-            value = value.substring(0, value.length() - 1);
-        }
-        return value;
+        return BaseUrlSupport.stripTrailingSlashes(baseUrl);
     }
 
     /**
