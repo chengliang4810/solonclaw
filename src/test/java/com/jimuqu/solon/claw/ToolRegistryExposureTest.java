@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawWebTools;
 import com.jimuqu.solon.claw.tool.runtime.SearchManageTools;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
+import com.jimuqu.solon.claw.tool.runtime.TuiRuntimeManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import java.io.File;
@@ -114,6 +115,7 @@ public class ToolRegistryExposureTest {
                         "media_manage",
                         "status_manage",
                         "doctor_manage",
+                        "tui_runtime_manage",
                         "insights_manage",
                         "approval_events_manage",
                         "approval_queue_manage",
@@ -3741,6 +3743,36 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("search_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("SearchManageTools");
+    }
+
+    @Test
+    void shouldExposeTuiRuntimeManagementToolForNaturalLanguageSetupInspection()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey))
+                .contains("tui_runtime_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("TuiRuntimeManageTools");
+    }
+
+    @Test
+    void shouldInspectTuiRuntimeSetupThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof TuiRuntimeManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("tui runtime manage tool missing"));
+
+        ONode result =
+                ONode.ofJson(
+                        ((TuiRuntimeManageTools) tool)
+                                .tuiRuntimeManage("setup_status", null, null));
+
+        assertToolSuccess(result);
+        assertThat(result.get("result").get("provider_configured").isNull()).isFalse();
     }
 
     @Test

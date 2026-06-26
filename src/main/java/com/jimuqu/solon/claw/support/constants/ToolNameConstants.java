@@ -86,6 +86,9 @@ public interface ToolNameConstants {
     /** Doctor 诊断管理的统一常量值。 */
     String DOCTOR_MANAGE = "doctor_manage";
 
+    /** TUI 运行时管理的统一常量值。 */
+    String TUI_RUNTIME_MANAGE = "tui_runtime_manage";
+
     /** 洞察管理的统一常量值。 */
     String INSIGHTS_MANAGE = "insights_manage";
 
