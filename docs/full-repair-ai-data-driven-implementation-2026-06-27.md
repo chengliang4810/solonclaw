@@ -471,6 +471,21 @@
       - 增加实际调用测试，证明自然语言工具禁用后 `skills_list` 不再返回该技能，重新启用后恢复可见。
     - 提交：`2c4556ea9`
 
+30. 补齐运行会话查询工具动作
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/RunTools.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+      - `src/test/java/com/jimuqu/solon/claw/support/TestEnvironment.java`
+    - 改造前：
+      - Dashboard 已有 `/api/runs/{runId}` 和 `/api/sessions/{sessionId}/runs`，可按 runId 查看单次运行，也可按 sessionId 查看会话运行列表。
+      - `run_manage` 已支持详情、事件、工具调用、子 Agent、恢复记录、命令、可恢复运行和控制动作，但缺少 Dashboard 同名的两个基础只读查询动作。
+      - 测试环境注册表没有注入 `DashboardRunService`，导致新增运行查询工具会落到 `run service unavailable`。
+    - 改造后：
+      - `run_manage` 增加 `run` 和 `session_runs` 动作，复用 `DashboardRunService#run()` 与 `sessionRuns()`。
+      - `session_runs` 增加显式 `session_id` 参数，并保留旧 `payload_json.session_id` 后备，方便自然语言工具调用。
+      - 测试环境补齐 `DashboardRunService` 注入，增加实际调用测试，证明自然语言工具可查询单次运行和会话运行列表。
+    - 提交：`1c21d9f77`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -502,6 +517,8 @@
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeWorkspaceConfigManagementToolForNaturalLanguageConfigInspection+shouldInspectWorkspaceConfigItemsThroughNaturalLanguageTool+shouldSetAndRemoveWorkspaceConfigThroughNaturalLanguageTool test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeSessionManagementToolForNaturalLanguageSessionInspection+shouldSaveSessionTrajectoryThroughNaturalLanguageTool+shouldUpdateSessionTitleThroughNaturalLanguageTool test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=MemoryAndSkillsTest#shouldToggleSkillVisibilityThroughNaturalLanguageTool+shouldPreprocessSkillTemplateVarsBeforeSkillView,AgentMechanismTest#shouldExposeAgentManageTool test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldInspectSessionRunsThroughNaturalLanguageTool test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=DashboardRunServiceTest,ToolRegistryExposureTest#shouldExposeRunManagementToolForNaturalLanguageRunControl+shouldInspectSessionRunsThroughNaturalLanguageTool test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -514,6 +531,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、技能启停、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、MCP 管理、技能维护管理、技能启停、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚和会话删除暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
