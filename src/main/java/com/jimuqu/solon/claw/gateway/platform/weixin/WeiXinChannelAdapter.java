@@ -24,6 +24,7 @@ import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.ThreadInterruptSupport;
 import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -1914,28 +1915,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param error 捕获到的异常。
      */
     private void logRecoverableChannelFailure(String stage, Exception error) {
-        restoreInterruptedStatus(error);
+        ThreadInterruptSupport.restoreIfCausedByInterrupted(error);
         log.debug(
                 "[WEIXIN] recoverable channel failure: platform={}, stage={}, errorType={}",
                 PlatformType.WEIXIN,
                 stage,
                 errorType(error));
-    }
-
-    /**
-     * 异常链中包含中断异常时恢复线程中断标记，避免静默吞掉取消信号。
-     *
-     * @param error 捕获到的异常。
-     */
-    private void restoreInterruptedStatus(Throwable error) {
-        Throwable current = error;
-        while (current != null) {
-            if (current instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-                return;
-            }
-            current = current.getCause();
-        }
     }
 
     /**
