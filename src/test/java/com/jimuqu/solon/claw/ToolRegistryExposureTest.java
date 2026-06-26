@@ -105,6 +105,7 @@ public class ToolRegistryExposureTest {
                         "curator_manage",
                         "platform_toolsets_manage",
                         "provider_manage",
+                        "session_manage",
                         "skills_list",
                         "skill_view",
                         "skill_manage",
@@ -3600,6 +3601,17 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("provider_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("ProviderManageTools");
+    }
+
+    @Test
+    void shouldExposeSessionManagementToolForNaturalLanguageSessionInspection()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("session_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("SessionManageTools");
     }
 
     @Test

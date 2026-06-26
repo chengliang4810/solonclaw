@@ -31,6 +31,7 @@ import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
+import com.jimuqu.solon.claw.web.DashboardSessionService;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -79,6 +80,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.DELEGATE_TASK,
                     ToolNameConstants.MEMORY,
                     ToolNameConstants.SESSION_SEARCH,
+                    ToolNameConstants.SESSION_MANAGE,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
@@ -1083,6 +1085,9 @@ public class DefaultToolRegistry implements ToolRegistry {
         MemoryTools memoryTools = new MemoryTools(memoryService);
         SessionSearchTools sessionSearchTools =
                 new SessionSearchTools(sessionSearchService, sourceKey);
+        SessionManageTools sessionManageTools =
+                new SessionManageTools(
+                        new DashboardSessionService(sessionRepository, checkpointService));
         SkillTools skillTools =
                 new SkillTools(
                         localSkillService,
@@ -1213,6 +1218,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(memoryTools);
             } else if (ToolNameConstants.SESSION_SEARCH.equals(toolName)) {
                 tools.add(sessionSearchTools);
+            } else if (ToolNameConstants.SESSION_MANAGE.equals(toolName)) {
+                tools.add(sessionManageTools);
             } else if (ToolNameConstants.SKILLS_LIST.equals(toolName)) {
                 tools.add(new SkillTools.SkillsListTool(skillTools));
             } else if (ToolNameConstants.SKILL_VIEW.equals(toolName)) {
