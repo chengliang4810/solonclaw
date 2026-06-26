@@ -4,6 +4,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useMessage } from "naive-ui";
 import { downloadFile } from "@/api/solonclaw/download";
+import { formatAttachmentSize, isImageMimeType } from "@/shared/attachmentFormat";
 import MarkdownRenderer from "./MarkdownRenderer.vue";
 import {
   copyTextToClipboard,
@@ -26,16 +27,6 @@ const timeStr = computed(() => {
   const d = new Date(props.message.timestamp);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 });
-
-function isImage(type: string): boolean {
-  return type.startsWith("image/");
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-}
 
 /**
  * Extract the upload file path from message content for a given attachment.
@@ -242,9 +233,9 @@ const renderedToolResult = computed(() => {
                 v-for="att in message.attachments"
                 :key="att.id"
                 class="msg-attachment"
-                :class="{ image: isImage(att.type) }"
+                :class="{ image: isImageMimeType(att.type) }"
               >
-                <template v-if="isImage(att.type) && att.url">
+                <template v-if="isImageMimeType(att.type) && att.url">
                   <img
                     :src="att.url"
                     :alt="att.name"
@@ -267,7 +258,7 @@ const renderedToolResult = computed(() => {
                       <polyline points="14 2 14 8 20 8" />
                     </svg>
                     <span class="att-name">{{ att.name }}</span>
-                    <span class="att-size">{{ formatSize(att.size) }}</span>
+                    <span class="att-size">{{ formatAttachmentSize(att.size) }}</span>
                     <svg class="att-download-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                       <polyline points="7 10 12 15 17 10" />
