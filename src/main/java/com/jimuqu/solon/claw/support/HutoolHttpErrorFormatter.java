@@ -2,9 +2,7 @@ package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpResponse;
-import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 
 /** 承载HutoolHTTP错误Formatter相关状态和辅助逻辑。 */
 public final class HutoolHttpErrorFormatter {
@@ -78,7 +76,7 @@ public final class HutoolHttpErrorFormatter {
      */
     public static String failure(String purpose, int status, InputStream bodyStream) {
         String base = StrUtil.blankToDefault(purpose, "HTTP request") + " failed: HTTP " + status;
-        String preview = readPreview(bodyStream);
+        String preview = InputStreamPreviewSupport.readUtf8(bodyStream, ERROR_PREVIEW_MAX_BYTES);
         if (StrUtil.isBlank(preview)) {
             return base;
         }
@@ -90,29 +88,4 @@ public final class HutoolHttpErrorFormatter {
         return base + ", response preview: " + safe;
     }
 
-    /**
-     * 读取Preview。
-     *
-     * @param stream 流参数。
-     * @return 返回读取到的Preview。
-     */
-    private static String readPreview(InputStream stream) {
-        if (stream == null) {
-            return "";
-        }
-        try {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[1024];
-            int remaining = ERROR_PREVIEW_MAX_BYTES;
-            int read;
-            while (remaining > 0
-                    && (read = stream.read(buffer, 0, Math.min(buffer.length, remaining))) >= 0) {
-                output.write(buffer, 0, read);
-                remaining -= read;
-            }
-            return new String(output.toByteArray(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            return "unavailable: " + e.getClass().getSimpleName();
-        }
-    }
 }

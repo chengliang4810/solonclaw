@@ -615,7 +615,10 @@ public final class BoundedAttachmentIO {
         if (response == null) {
             return "Download failed, HTTP " + status;
         }
-        return safeHttpError(status, readErrorPreview(response.bodyStream()));
+        return safeHttpError(
+                status,
+                InputStreamPreviewSupport.readUtf8(
+                        response.bodyStream(), ERROR_PREVIEW_MAX_BYTES));
     }
 
     /**
@@ -629,7 +632,10 @@ public final class BoundedAttachmentIO {
         if (response == null || response.body() == null) {
             return "Download failed, HTTP " + status;
         }
-        return safeHttpError(status, readErrorPreview(response.body().byteStream()));
+        return safeHttpError(
+                status,
+                InputStreamPreviewSupport.readUtf8(
+                        response.body().byteStream(), ERROR_PREVIEW_MAX_BYTES));
     }
 
     /**
@@ -650,32 +656,6 @@ public final class BoundedAttachmentIO {
             return message;
         }
         return message + ", response preview: " + safe;
-    }
-
-    /**
-     * 读取Error Preview。
-     *
-     * @param stream 流参数。
-     * @return 返回读取到的Error Preview。
-     */
-    private static String readErrorPreview(InputStream stream) {
-        if (stream == null) {
-            return "";
-        }
-        try {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            byte[] buffer = new byte[1024];
-            int remaining = ERROR_PREVIEW_MAX_BYTES;
-            int read;
-            while (remaining > 0
-                    && (read = stream.read(buffer, 0, Math.min(buffer.length, remaining))) >= 0) {
-                output.write(buffer, 0, read);
-                remaining -= read;
-            }
-            return new String(output.toByteArray(), StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            return "unavailable: " + e.getClass().getSimpleName();
-        }
     }
 
     /**
