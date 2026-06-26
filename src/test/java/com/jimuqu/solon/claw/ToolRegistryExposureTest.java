@@ -114,6 +114,7 @@ public class ToolRegistryExposureTest {
                         "insights_manage",
                         "approval_events_manage",
                         "workspace_manage",
+                        "config_manage",
                         "skills_list",
                         "skill_view",
                         "skill_manage",
@@ -3704,6 +3705,16 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("workspace_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("WorkspaceManageTools");
+    }
+
+    @Test
+    void shouldExposeConfigManagementToolForNaturalLanguageConfigInspection() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("config_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("ConfigManageTools");
     }
 
     @Test

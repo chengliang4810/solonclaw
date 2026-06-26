@@ -32,6 +32,7 @@ import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
+import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
@@ -101,6 +102,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.INSIGHTS_MANAGE,
                     ToolNameConstants.APPROVAL_EVENTS_MANAGE,
                     ToolNameConstants.WORKSPACE_MANAGE,
+                    ToolNameConstants.CONFIG_MANAGE,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
@@ -216,6 +218,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** Dashboard 工作区服务，用于给 Agent 暴露人格工作区只读查询。 */
     private final DashboardWorkspaceService dashboardWorkspaceService;
 
+    /** Dashboard 配置服务，用于给 Agent 暴露配置元数据只读查询。 */
+    private final DashboardConfigService dashboardConfigService;
+
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
 
@@ -310,6 +315,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -406,6 +412,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -483,6 +490,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -562,6 +570,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -643,6 +652,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -728,6 +738,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 (BrowserRuntimeService) null,
                 imageGenerationService,
                 speechService,
@@ -811,6 +822,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -894,6 +906,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -981,6 +994,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -1071,6 +1085,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -1107,6 +1122,12 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param dashboardCuratorService Dashboard 技能维护服务依赖。
      * @param dashboardPlatformToolsetsService Dashboard 平台工具集服务依赖。
      * @param dashboardProviderService Dashboard provider 服务依赖。
+     * @param dashboardStatusService Dashboard 状态服务依赖。
+     * @param dashboardGatewayDoctorService Dashboard Doctor 服务依赖。
+     * @param dashboardInsightsService Dashboard 洞察服务依赖。
+     * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
+     * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
+     * @param dashboardConfigService Dashboard 配置服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
@@ -1146,6 +1167,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             DashboardInsightsService dashboardInsightsService,
             DashboardApprovalEventsService dashboardApprovalEventsService,
             DashboardWorkspaceService dashboardWorkspaceService,
+            DashboardConfigService dashboardConfigService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -1182,6 +1204,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.dashboardInsightsService = dashboardInsightsService;
         this.dashboardApprovalEventsService = dashboardApprovalEventsService;
         this.dashboardWorkspaceService = dashboardWorkspaceService;
+        this.dashboardConfigService = dashboardConfigService;
         this.processRegistry = processRegistry;
         this.browserRuntimeService =
                 browserRuntimeService == null
@@ -1294,6 +1317,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new ApprovalEventsManageTools(dashboardApprovalEventsService);
         WorkspaceManageTools workspaceManageTools =
                 new WorkspaceManageTools(dashboardWorkspaceService);
+        ConfigManageTools configManageTools = new ConfigManageTools(dashboardConfigService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
@@ -1422,6 +1446,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(approvalEventsManageTools);
             } else if (ToolNameConstants.WORKSPACE_MANAGE.equals(toolName)) {
                 tools.add(workspaceManageTools);
+            } else if (ToolNameConstants.CONFIG_MANAGE.equals(toolName)) {
+                tools.add(configManageTools);
             } else if (ToolNameConstants.SKILLS_LIST.equals(toolName)) {
                 tools.add(new SkillTools.SkillsListTool(skillTools));
             } else if (ToolNameConstants.SKILL_VIEW.equals(toolName)) {

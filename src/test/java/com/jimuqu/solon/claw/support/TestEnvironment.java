@@ -372,6 +372,7 @@ public class TestEnvironment {
                         dashboardInsightsService,
                         dashboardApprovalEventsService,
                         dashboardWorkspaceService,
+                        dashboardConfigService,
                         browserRuntimeService,
                         null,
                         null,
