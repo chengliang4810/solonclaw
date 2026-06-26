@@ -74,6 +74,54 @@ function configBoolean(value: unknown): boolean {
   return normalized === 'true' || normalized === '1' || normalized === 'yes' || normalized === 'on'
 }
 
+type CredentialField = {
+  path: string[]
+  key: string
+}
+
+const CHANNEL_CREDENTIAL_FIELDS: Record<string, CredentialField[]> = {
+  feishu: [
+    { path: ['enabled'], key: 'solonclaw.channels.feishu.enabled' },
+    { path: ['extra', 'app_id'], key: 'solonclaw.channels.feishu.appId' },
+    { path: ['extra', 'app_secret'], key: 'solonclaw.channels.feishu.appSecret' },
+  ],
+  dingtalk: [
+    { path: ['enabled'], key: 'solonclaw.channels.dingtalk.enabled' },
+    { path: ['extra', 'client_id'], key: 'solonclaw.channels.dingtalk.clientId' },
+    { path: ['extra', 'client_secret'], key: 'solonclaw.channels.dingtalk.clientSecret' },
+    { path: ['extra', 'robot_code'], key: 'solonclaw.channels.dingtalk.robotCode' },
+  ],
+  wecom: [
+    { path: ['enabled'], key: 'solonclaw.channels.wecom.enabled' },
+    { path: ['extra', 'bot_id'], key: 'solonclaw.channels.wecom.botId' },
+    { path: ['extra', 'secret'], key: 'solonclaw.channels.wecom.secret' },
+  ],
+  weixin: [
+    { path: ['enabled'], key: 'solonclaw.channels.weixin.enabled' },
+    { path: ['token'], key: 'solonclaw.channels.weixin.token' },
+    { path: ['extra', 'account_id'], key: 'solonclaw.channels.weixin.accountId' },
+  ],
+  qqbot: [
+    { path: ['enabled'], key: 'solonclaw.channels.qqbot.enabled' },
+    { path: ['extra', 'app_id'], key: 'solonclaw.channels.qqbot.appId' },
+    { path: ['extra', 'client_secret'], key: 'solonclaw.channels.qqbot.clientSecret' },
+  ],
+  yuanbao: [
+    { path: ['enabled'], key: 'solonclaw.channels.yuanbao.enabled' },
+    { path: ['extra', 'app_id'], key: 'solonclaw.channels.yuanbao.appId' },
+    { path: ['extra', 'app_secret'], key: 'solonclaw.channels.yuanbao.appSecret' },
+  ],
+}
+
+function credentialValue(values: Record<string, any>, path: string[]): string | boolean | null | undefined {
+  let current: any = values
+  for (const part of path) {
+    if (current == null || !(part in current)) return undefined
+    current = current[part]
+  }
+  return current
+}
+
 
 export async function fetchWorkspaceConfigItems(): Promise<Record<string, WorkspaceConfigInfo>> {
   return request<Record<string, WorkspaceConfigInfo>>('/api/workspace-config')
@@ -226,44 +274,9 @@ export async function saveCredentials(
   platform: string,
   values: Record<string, any>,
 ): Promise<void> {
-  const entries: Array<{ key: string; value: string | boolean | null | undefined }> = []
-
-  if (platform === 'feishu') {
-    if ('enabled' in values) entries.push({ key: 'solonclaw.channels.feishu.enabled', value: values.enabled })
-    if (values.extra?.app_id !== undefined) entries.push({ key: 'solonclaw.channels.feishu.appId', value: values.extra.app_id })
-    if (values.extra?.app_secret !== undefined) entries.push({ key: 'solonclaw.channels.feishu.appSecret', value: values.extra.app_secret })
-  }
-
-  if (platform === 'dingtalk') {
-    if ('enabled' in values) entries.push({ key: 'solonclaw.channels.dingtalk.enabled', value: values.enabled })
-    if (values.extra?.client_id !== undefined) entries.push({ key: 'solonclaw.channels.dingtalk.clientId', value: values.extra.client_id })
-    if (values.extra?.client_secret !== undefined) entries.push({ key: 'solonclaw.channels.dingtalk.clientSecret', value: values.extra.client_secret })
-    if (values.extra?.robot_code !== undefined) entries.push({ key: 'solonclaw.channels.dingtalk.robotCode', value: values.extra.robot_code })
-  }
-
-  if (platform === 'wecom') {
-    if ('enabled' in values) entries.push({ key: 'solonclaw.channels.wecom.enabled', value: values.enabled })
-    if (values.extra?.bot_id !== undefined) entries.push({ key: 'solonclaw.channels.wecom.botId', value: values.extra.bot_id })
-    if (values.extra?.secret !== undefined) entries.push({ key: 'solonclaw.channels.wecom.secret', value: values.extra.secret })
-  }
-
-  if (platform === 'weixin') {
-    if ('enabled' in values) entries.push({ key: 'solonclaw.channels.weixin.enabled', value: values.enabled })
-    if (values.token !== undefined) entries.push({ key: 'solonclaw.channels.weixin.token', value: values.token })
-    if (values.extra?.account_id !== undefined) entries.push({ key: 'solonclaw.channels.weixin.accountId', value: values.extra.account_id })
-  }
-
-  if (platform === 'qqbot') {
-    if ('enabled' in values) entries.push({ key: 'solonclaw.channels.qqbot.enabled', value: values.enabled })
-    if (values.extra?.app_id !== undefined) entries.push({ key: 'solonclaw.channels.qqbot.appId', value: values.extra.app_id })
-    if (values.extra?.client_secret !== undefined) entries.push({ key: 'solonclaw.channels.qqbot.clientSecret', value: values.extra.client_secret })
-  }
-
-  if (platform === 'yuanbao') {
-    if ('enabled' in values) entries.push({ key: 'solonclaw.channels.yuanbao.enabled', value: values.enabled })
-    if (values.extra?.app_id !== undefined) entries.push({ key: 'solonclaw.channels.yuanbao.appId', value: values.extra.app_id })
-    if (values.extra?.app_secret !== undefined) entries.push({ key: 'solonclaw.channels.yuanbao.appSecret', value: values.extra.app_secret })
-  }
+  const entries = (CHANNEL_CREDENTIAL_FIELDS[platform] || [])
+    .map(field => ({ key: field.key, value: credentialValue(values, field.path) }))
+    .filter(entry => entry.value !== undefined)
 
   for (const entry of entries) {
     const raw = entry.value
