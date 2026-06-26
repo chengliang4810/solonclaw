@@ -3674,6 +3674,43 @@ public class ToolRegistryExposureTest {
     }
 
     @Test
+    void shouldUpdateSessionTitleThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.send("session-title-tool-room", "session-title-tool-user", "hello");
+        env.send("session-title-tool-room", "session-title-tool-user", "/pairing claim-admin");
+        env.send("session-title-tool-room", "session-title-tool-user", "start");
+        com.jimuqu.solon.claw.core.model.SessionRecord session =
+                env.sessionRepository.getBoundSession(
+                        "MEMORY:session-title-tool-room:session-title-tool-user");
+        Object tool =
+                env.toolRegistry
+                        .resolveEnabledTools("MEMORY:session-title-tool-room:session-title-tool-user")
+                        .stream()
+                        .filter(candidate -> candidate instanceof SessionManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("session manage tool missing"));
+
+        ONode result =
+                ONode.ofJson(
+                        ((SessionManageTools) tool)
+                                .sessionManage(
+                                        "update_title",
+                                        session.getSessionId(),
+                                        null,
+                                        null,
+                                        Boolean.FALSE,
+                                        20,
+                                        0,
+                                        20,
+                                        "新的会话标题"));
+
+        assertToolSuccess(result);
+        assertThat(result.get("result").get("title").getString()).isEqualTo("新的会话标题");
+        assertThat(env.sessionRepository.findById(session.getSessionId()).getTitle())
+                .isEqualTo("新的会话标题");
+    }
+
+    @Test
     void shouldExposeAnalyticsManagementToolForNaturalLanguageUsageInspection()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

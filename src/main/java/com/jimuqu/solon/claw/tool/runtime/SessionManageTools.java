@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.web.DashboardSessionService;
+import java.util.Collections;
 import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -23,7 +24,7 @@ public class SessionManageTools {
     }
 
     /**
-     * 查询会话、轨迹、分支树和检查点预览。
+     * 查询会话、轨迹、分支树、检查点预览并维护会话标题。
      *
      * @param action 操作名称。
      * @param sessionId 会话标识。
@@ -33,17 +34,18 @@ public class SessionManageTools {
      * @param limit 列表数量上限。
      * @param offset 列表偏移量。
      * @param maxExchanges recap 最大轮次数。
+     * @param title 会话新标题。
      * @return 返回工具结果 JSON。
      */
     @ToolMapping(
             name = "session_manage",
             description =
-                    "Inspect sessions and checkpoints. Actions: list, messages, recap, trajectory, save_trajectory, tree, latest_descendant, checkpoints, checkpoint_preview.")
+                    "Inspect and maintain sessions. Actions: list, messages, recap, trajectory, save_trajectory, update_title, tree, latest_descendant, checkpoints, checkpoint_preview.")
     public String sessionManage(
             @Param(
                             name = "action",
                             description =
-                                    "list, messages, recap, trajectory, save_trajectory, tree, latest_descendant, checkpoints, checkpoint_preview")
+                                    "list, messages, recap, trajectory, save_trajectory, update_title, tree, latest_descendant, checkpoints, checkpoint_preview")
                     String action,
             @Param(name = "session_id", required = false, description = "Session id")
                     String sessionId,
@@ -74,14 +76,16 @@ public class SessionManageTools {
                             required = false,
                             defaultValue = "20",
                             description = "Max exchanges for recap")
-                    Integer maxExchanges) {
+                    Integer maxExchanges,
+            @Param(name = "title", required = false, description = "New session title")
+                    String title) {
         try {
             if (dashboardSessionService == null) {
                 return ToolResultEnvelope.error("session service unavailable").toJson();
             }
             Map<String, Object> result =
                     run(action, sessionId, checkpointId, userQuery, completed, limit, offset,
-                            maxExchanges);
+                            maxExchanges, title);
             return ToolResultEnvelope.ok("会话查询完成")
                     .preview(SecretRedactor.redact(ONode.serialize(result), 3000))
                     .data("result", result)
@@ -90,6 +94,23 @@ public class SessionManageTools {
             String message = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             return ToolResultEnvelope.error(SecretRedactor.redact(message, 1000)).toJson();
         }
+    }
+
+    /**
+     * 保留现有测试和内部调用的旧签名，默认不修改标题。
+     */
+    public String sessionManage(
+            String action,
+            String sessionId,
+            String checkpointId,
+            String userQuery,
+            Boolean completed,
+            Integer limit,
+            Integer offset,
+            Integer maxExchanges) {
+        return sessionManage(
+                action, sessionId, checkpointId, userQuery, completed, limit, offset, maxExchanges,
+                null);
     }
 
     /**
@@ -103,6 +124,7 @@ public class SessionManageTools {
      * @param limit 列表数量上限。
      * @param offset 列表偏移量。
      * @param maxExchanges recap 最大轮次数。
+     * @param title 会话新标题。
      * @return 返回服务结果。
      */
     private Map<String, Object> run(
@@ -113,7 +135,8 @@ public class SessionManageTools {
             Boolean completed,
             Integer limit,
             Integer offset,
-            Integer maxExchanges)
+            Integer maxExchanges,
+            String title)
             throws Exception {
         String normalized =
                 action == null ? "list" : action.trim().toLowerCase(java.util.Locale.ROOT);
@@ -130,6 +153,10 @@ public class SessionManageTools {
         if ("save_trajectory".equals(normalized)) {
             return dashboardSessionService.saveTrajectory(
                     sessionId, userQuery, completed != null && completed.booleanValue());
+        }
+        if ("update_title".equals(normalized)) {
+            return dashboardSessionService.updateSession(
+                    sessionId, Collections.<String, Object>singletonMap("title", title));
         }
         if ("tree".equals(normalized)) {
             return dashboardSessionService.sessionTree(sessionId);
