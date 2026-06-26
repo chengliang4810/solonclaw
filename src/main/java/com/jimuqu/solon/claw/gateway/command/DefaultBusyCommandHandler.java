@@ -305,10 +305,6 @@ final class DefaultBusyCommandHandler {
 
     /** 获取当前来源键的会话；若不存在则立即创建。 */
     private SessionRecord requireSession(String sourceKey) throws Exception {
-        SessionRecord session = sessionRepository.getBoundSession(sourceKey);
-        if (session == null) {
-            session = sessionRepository.bindNewSession(sourceKey);
-        }
-        return session;
+        return GatewayCommandSessionSupport.requireSession(sessionRepository, sourceKey);
     }
 }
