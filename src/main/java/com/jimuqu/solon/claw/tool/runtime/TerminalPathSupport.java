@@ -97,6 +97,23 @@ final class TerminalPathSupport {
     }
 
     /**
+     * 校验工具工作目录文本，阻断带 shell 元字符的伪路径。
+     *
+     * @param workDir 命令执行工作目录。
+     * @return 原始工作目录文本。
+     */
+    static String checkedWorkDir(String workDir) {
+        SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(workDir);
+        if (!verdict.isAllowed()) {
+            throw new IllegalArgumentException(
+                    "Blocked: "
+                            + verdict.getMessage()
+                            + ". Use a simple filesystem path without shell metacharacters.");
+        }
+        return workDir;
+    }
+
+    /**
      * 判断是否Windows。
      *
      * @return 如果Windows满足条件则返回 true，否则返回 false。
