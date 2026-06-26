@@ -275,6 +275,23 @@
       - 增加工具暴露测试，证明默认工具列表包含 `workspace_manage` 且能解析到 `WorkspaceManageTools`。
     - 提交：`075db52c4`
 
+17. 增加配置元数据查询一等工具
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/ConfigManageTools.java`
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+      - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+      - `src/main/java/com/jimuqu/solon/claw/bootstrap/ToolConfiguration.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+      - `src/test/java/com/jimuqu/solon/claw/support/TestEnvironment.java`
+    - 改造前：
+      - Dashboard 已有配置 schema、默认值和诊断读取能力。
+      - Agent 自然语言路径已有单键 `config_get`、`config_set`、`config_set_secret`、`config_refresh`，但没有一等入口查看 Dashboard 配置元数据和诊断。
+    - 改造后：
+      - 新增 `config_manage` 工具，复用 `DashboardConfigService`，支持 `schema`、`defaults`、`diagnostics`。
+      - 工具只开放低风险只读查询，不暴露 `getConfig`、`getRaw`、`saveConfig`、`saveRaw`、runtime config `reveal/remove` 等可能泄露密钥或改写整份配置的入口。
+      - 增加工具暴露测试，证明默认工具列表包含 `config_manage` 且能解析到 `ConfigManageTools`。
+    - 提交：`1aa80b75a`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -293,6 +310,7 @@
 - `mvn -Dskip.web.build=true -Dtest=SkillUsageTrackerTest,ToolRegistryExposureTest#shouldExposeInsightsManagementToolForNaturalLanguageInsightInspection test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeApprovalEventsManagementToolForNaturalLanguageApprovalInspection test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=PersonaWorkspaceServiceTest,ToolRegistryExposureTest#shouldExposeWorkspaceManagementToolForNaturalLanguageWorkspaceInspection test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=RuntimeRefreshBehaviorTest,ToolRegistryExposureTest#shouldExposeConfigManagementToolForNaturalLanguageConfigInspection test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -305,6 +323,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询、审批事件查询、工作区查询入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询、审批事件查询、工作区查询、配置元数据查询入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚、会话删除和会话更新暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
