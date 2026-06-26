@@ -46,4 +46,18 @@ public class GatewayReply {
         reply.setError(true);
         return reply;
     }
+
+    /**
+     * 读取运行态元数据中的文本值；缺失时返回空字符串，便于调用方安全拼接。
+     *
+     * @param key 元数据键。
+     * @return 去除首尾空白后的文本值。
+     */
+    public String textRuntimeMetadata(String key) {
+        if (runtimeMetadata == null) {
+            return "";
+        }
+        Object value = runtimeMetadata.get(key);
+        return value == null ? "" : String.valueOf(value).trim();
+    }
 }
