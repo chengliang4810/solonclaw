@@ -84,7 +84,7 @@ function handleFileChange(e: Event) {
 
 function handlePaste(e: ClipboardEvent) {
   const items = Array.from(e.clipboardData?.items || [])
-  const imageItems = items.filter(i => i.type.startsWith('image/'))
+  const imageItems = items.filter(i => isImageMimeType(i.type))
   if (!imageItems.length) return
   e.preventDefault()
   for (const item of imageItems) {
