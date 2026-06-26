@@ -3845,27 +3845,6 @@ public class DefaultCommandService implements CommandService {
     }
 
     /**
-     * 格式化Bytes。
-     *
-     * @param bytes 字节参数。
-     * @return 返回Bytes结果。
-     */
-    private String formatBytes(long bytes) {
-        if (bytes < 1024L) {
-            return bytes + " B";
-        }
-        double value = bytes;
-        String[] units = new String[] {"B", "KB", "MB", "GB", "TB"};
-        int unitIndex = 0;
-        while (value >= 1024D && unitIndex < units.length - 1) {
-            value = value / 1024D;
-            unitIndex++;
-        }
-        return String.format(
-                java.util.Locale.ROOT, "%.1f %s", Double.valueOf(value), units[unitIndex]);
-    }
-
-    /**
      * 执行as长整型相关逻辑。
      *
      * @param value 待规范化或校验的原始值。
