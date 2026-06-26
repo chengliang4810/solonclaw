@@ -30,6 +30,45 @@ public final class HutoolHttpErrorFormatter {
     }
 
     /**
+     * 读取受控 HTTP 响应正文，统一阻断重定向和错误状态。
+     *
+     * @param purpose 请求用途说明。
+     * @param response 当前 Hutool HTTP 响应。
+     * @return 受限读取后的响应正文。
+     */
+    public static String guardedBody(String purpose, HttpResponse response) {
+        String location = response == null ? null : response.header("Location");
+        int status = response == null ? -1 : response.getStatus();
+        return guardedBody(purpose, status, location, response);
+    }
+
+    /**
+     * 读取受控 HTTP 响应正文，供测试和无响应对象场景复用状态处理。
+     *
+     * @param purpose 请求用途说明。
+     * @param status HTTP 状态码。
+     * @param location 重定向地址。
+     * @param response 当前 Hutool HTTP 响应。
+     * @return 受限读取后的响应正文。
+     */
+    public static String guardedBody(
+            String purpose, int status, String location, HttpResponse response) {
+        if (status >= 300 && status < 400) {
+            throw new IllegalStateException(
+                    StrUtil.blankToDefault(purpose, "HTTP request")
+                            + " blocked redirect: HTTP "
+                            + status
+                            + " -> "
+                            + SecretRedactor.maskUrl(location));
+        }
+        if (status >= 400) {
+            throw new IllegalStateException(
+                    failure(purpose, status, response == null ? null : response.bodyStream()));
+        }
+        return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
+    }
+
+    /**
      * 执行failure相关逻辑。
      *
      * @param purpose purpose 参数。

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
@@ -72,5 +73,30 @@ public class HutoolHttpErrorFormatterTest {
                 .contains("token=***")
                 .contains("...[truncated, totalLength=")
                 .doesNotContain("ghp_hutoollarge12345");
+    }
+
+    @Test
+    void shouldBlockRedirectWhenReadingGuardedBody() {
+        assertThatThrownBy(
+                        () ->
+                                HutoolHttpErrorFormatter.guardedBody(
+                                        "Feishu token request",
+                                        302,
+                                        "http://169.254.169.254/latest/meta-data/?token=secret",
+                                        null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Feishu token request blocked redirect: HTTP 302")
+                .hasMessageContaining("***")
+                .hasMessageNotContaining("token=secret");
+    }
+
+    @Test
+    void shouldFailGuardedBodyOnErrorStatus() {
+        assertThatThrownBy(
+                        () ->
+                                HutoolHttpErrorFormatter.guardedBody(
+                                        "DingTalk media upload", 500, null, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("DingTalk media upload failed: HTTP 500");
     }
 }
