@@ -83,6 +83,9 @@ public interface ToolNameConstants {
     /** Doctor 诊断管理的统一常量值。 */
     String DOCTOR_MANAGE = "doctor_manage";
 
+    /** 洞察管理的统一常量值。 */
+    String INSIGHTS_MANAGE = "insights_manage";
+
     /** 技能列表的统一常量值。 */
     String SKILLS_LIST = "skills_list";
 
