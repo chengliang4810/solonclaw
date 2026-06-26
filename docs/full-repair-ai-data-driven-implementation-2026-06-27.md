@@ -241,6 +241,23 @@
       - 增加工具暴露测试，证明默认工具列表包含 `insights_manage` 且能解析到 `InsightsManageTools`。
     - 提交：`057de2af1`
 
+15. 增加审批事件查询一等工具
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/ApprovalEventsManageTools.java`
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+      - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+      - `src/main/java/com/jimuqu/solon/claw/bootstrap/ToolConfiguration.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+      - `src/test/java/com/jimuqu/solon/claw/support/TestEnvironment.java`
+    - 改造前：
+      - Dashboard 已有 `/api/approval/events` 与 `/api/approval/stats`，可查看最近审批事件和审批统计。
+      - Agent 自然语言路径没有一等 `approval_events_manage` 工具，排查审批状态和近期审批决策需要绕到 UI。
+    - 改造后：
+      - 新增 `approval_events_manage` 工具，复用 `DashboardApprovalEventsService`，支持 `events`、`stats`。
+      - 工具只开放只读查询，不暴露 `DashboardApprovalEventsService#clear()`。
+      - 增加工具暴露测试，证明默认工具列表包含 `approval_events_manage` 且能解析到 `ApprovalEventsManageTools`。
+    - 提交：`8038d04c0`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -257,6 +274,7 @@
 - `mvn -Dskip.web.build=true -Dtest=DashboardStatusServiceTest,ToolRegistryExposureTest#shouldExposeStatusManagementToolForNaturalLanguageRuntimeInspection test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=DashboardDiagnosticOutputTest#shouldSummarizeDoctorIssuesAndNextActionsInStableOrder,ToolRegistryExposureTest#shouldExposeDoctorManagementToolForNaturalLanguageGatewayDiagnostics test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=SkillUsageTrackerTest,ToolRegistryExposureTest#shouldExposeInsightsManagementToolForNaturalLanguageInsightInspection test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeApprovalEventsManagementToolForNaturalLanguageApprovalInspection test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -269,6 +287,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询、审批事件查询入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚、会话删除和会话更新暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
