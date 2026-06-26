@@ -136,7 +136,6 @@ export default {
     attachFiles: 'Attach files',
     stop: 'Stop',
     start: 'Start',
-    stopGateway: 'Stop Gateway',
     send: 'Send',
     contextUsed: 'Context used:',
     sessions: 'Sessions',
@@ -1217,18 +1216,8 @@ export default {
     dialectAnthropic: 'Anthropic protocol',
   },
 
-  // Profiles
-  gateways: {
-    title: 'Gateways',
-    description: 'Review and control message gateway runtime status here. Configure channel credentials on the Channels page first.',
-    running: 'Running',
-    stopped: 'Stopped',
-    started: 'Started',
-    startFailed: 'Failed to start gateway',
-    stopFailed: 'Failed to stop gateway',
-  },
   channels: {
-    description: 'Configure domestic message channel enablement, credentials, and login methods here. Check runtime state on the Gateways page after setup.',
+    description: 'Configure domestic message channel enablement, credentials, login methods, and runtime policies here.',
     toolsetsTitle: 'Platform Toolset Policy',
     toolsetsDescription: 'Limit available toolsets by domestic channel and choose whether that channel requires approval.',
     enabledToolsets: 'Enabled toolsets',

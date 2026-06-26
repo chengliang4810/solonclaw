@@ -141,7 +141,6 @@ export default {
     attachFiles: '添加附件',
     stop: '停止',
     start: '启动',
-    stopGateway: '停止网关',
     send: '发送',
     contextUsed: '上下文已用:',
     sessions: '会话列表',
@@ -1475,18 +1474,6 @@ export default {
     qrScanedHint: '已扫描，请在手机上确认...',
     qrExpired: '二维码已过期，请重新发起扫码。',
     qrFailed: '二维码获取失败，请稍后重试。',
-  },
-
-  // 网关
-  gateways: {
-    title: '消息网关',
-    description: '这里查看和控制各消息网关的运行状态；渠道接入参数请先到“渠道”页面完成配置。',
-    emptyState: '暂无可启动的消息网关，请先在渠道配置中完成接入设置。',
-    running: '运行中',
-    stopped: '已停止',
-    started: '已启动',
-    startFailed: '启动失败',
-    stopFailed: '停止失败',
   },
 
   // 语言
