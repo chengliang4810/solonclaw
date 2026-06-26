@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -554,8 +555,22 @@ public class ProactiveDecisionService {
             payload.put("actionOffer", candidate.getActionOffer());
             payload.put("confidence", Double.valueOf(candidate.getConfidence()));
             payload.put("priority", Integer.valueOf(candidate.getPriority()));
+            payload.put("evidence", sanitizedEvidence(candidate));
             return "请判断这个主动协作候选是否值得现在联系用户。只输出 JSON。\n"
                     + ONode.serialize(payload);
+        }
+
+        /**
+         * 构造模型可读的脱敏证据摘要，避免模型只看到候选标题和原因。
+         *
+         * @param candidate 候选记录。
+         * @return 返回脱敏后的证据摘要。
+         */
+        private String sanitizedEvidence(ProactiveCandidateRecord candidate) {
+            if (candidate == null || candidate.getEvidence() == null || candidate.getEvidence().isEmpty()) {
+                return "";
+            }
+            return SecretRedactor.redact(ONode.serialize(candidate.getEvidence()), 900);
         }
 
         /**

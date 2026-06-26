@@ -222,6 +222,26 @@ public class ProactiveDecisionServiceTest {
                 .contains("危险操作");
     }
 
+    @Test
+    void shouldIncludeSanitizedEvidenceInLlmDecisionPrompt() throws Exception {
+        FixedTextLlmGateway gateway =
+                new FixedTextLlmGateway(
+                        "{\"send\":true,\"reason\":\"证据显示值得跟进\",\"message_intent\":\"询问是否继续验证\",\"sensitivity\":\"normal\"}");
+        ProactiveDecisionService.GatewayLlmDecisionClient client =
+                new ProactiveDecisionService.GatewayLlmDecisionClient(gateway);
+        ProactiveCandidateRecord candidate = candidate("candidate-evidence", 90, 0.9D, "source-a");
+        Map<String, Object> evidence = new LinkedHashMap<String, Object>();
+        evidence.put("lastMessage", "用户说阶段 4.3 需要结合真实聊天内容继续推进");
+        evidence.put("secret", "token=ghp_modelsecret12345");
+        candidate.setEvidence(evidence);
+
+        client.decide(contextAt(10, 0), candidate);
+
+        assertThat(gateway.userMessage)
+                .contains("用户说阶段 4.3 需要结合真实聊天内容继续推进")
+                .doesNotContain("ghp_modelsecret12345");
+    }
+
     /**
      * 断言单个候选会被指定门控原因拦截。
      *
@@ -397,6 +417,9 @@ public class ProactiveDecisionServiceTest {
         /** 最近一次系统提示词。 */
         private String systemPrompt;
 
+        /** 最近一次用户提示词。 */
+        private String userMessage;
+
         /** 创建固定文本网关。 */
         private FixedTextLlmGateway(String text) {
             this.text = text;
@@ -409,6 +432,7 @@ public class ProactiveDecisionServiceTest {
                 String userMessage,
                 List<Object> toolObjects) {
             this.systemPrompt = systemPrompt;
+            this.userMessage = userMessage;
             LlmResult result = new LlmResult();
             result.setAssistantMessage(ChatMessage.ofAssistant(text));
             return result;
