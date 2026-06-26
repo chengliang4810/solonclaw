@@ -38,4 +38,17 @@ public final class ErrorTextSupport {
                         500);
         return error.getClass().getSimpleName() + ": " + message;
     }
+
+    /**
+     * 只返回异常类型名称，适合不能输出异常消息正文的内部 debug 日志。
+     *
+     * @param error 捕获到的异常。
+     * @return 异常简单类名，缺失时返回unknown。
+     */
+    public static String typeOnly(Throwable error) {
+        if (error == null) {
+            return "unknown";
+        }
+        return StrUtil.blankToDefault(error.getClass().getSimpleName(), error.getClass().getName());
+    }
 }

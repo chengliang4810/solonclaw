@@ -23,4 +23,13 @@ class ErrorTextSupportTest {
         assertTrue(summary.startsWith("IllegalStateException: "));
         assertTrue(summary.contains("***"));
     }
+
+    /** 仅类型摘要不能包含异常消息正文。 */
+    @Test
+    void shouldReturnOnlyExceptionType() {
+        assertEquals(
+                "IllegalStateException",
+                ErrorTextSupport.typeOnly(new IllegalStateException("token=secret")));
+        assertEquals("unknown", ErrorTextSupport.typeOnly(null));
+    }
 }
