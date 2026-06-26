@@ -45,6 +45,7 @@ import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
+import com.jimuqu.solon.claw.support.TimeSupport;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -3387,7 +3388,9 @@ public class DashboardDiagnosticsService {
         item.put("command_hash", redactedIdentifier(pending.getCommandHash()));
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(pending.getExpiresAt()));
-        item.put("expires_in_seconds", Long.valueOf(expiresInSeconds(pending.getExpiresAt())));
+        item.put(
+                "expires_in_seconds",
+                Long.valueOf(TimeSupport.expiresInSeconds(pending.getExpiresAt())));
         item.put("expired", Boolean.valueOf(isExpired(pending.getExpiresAt())));
         item.put(
                 "scopes",
@@ -3513,20 +3516,6 @@ public class DashboardDiagnosticsService {
             scopes.add("always");
         }
         return scopes;
-    }
-
-    /**
-     * 执行expiresInSeconds相关逻辑。
-     *
-     * @param expiresAt expiresAt 参数。
-     * @return 返回expires In Seconds结果。
-     */
-    private long expiresInSeconds(long expiresAt) {
-        if (expiresAt <= 0L) {
-            return 0L;
-        }
-        long remaining = expiresAt - System.currentTimeMillis();
-        return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
     }
 
     /**

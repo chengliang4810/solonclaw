@@ -49,6 +49,7 @@ import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
+import com.jimuqu.solon.claw.support.TimeSupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
@@ -3389,7 +3390,7 @@ public class DefaultCommandService implements CommandService {
                     .append(" scopes=")
                     .append(approvalScopes(pending))
                     .append(" expires_in=")
-                    .append(expiresInSeconds(pending.getExpiresAt()))
+                    .append(TimeSupport.expiresInSeconds(pending.getExpiresAt()))
                     .append("s expired=")
                     .append(isExpired(pending.getExpiresAt()))
                     .append('\n');
@@ -3424,20 +3425,6 @@ public class DefaultCommandService implements CommandService {
             return "once,session,always";
         }
         return "once,session";
-    }
-
-    /**
-     * 执行expiresInSeconds相关逻辑。
-     *
-     * @param expiresAt expiresAt 参数。
-     * @return 返回expires In Seconds结果。
-     */
-    private long expiresInSeconds(long expiresAt) {
-        if (expiresAt <= 0L) {
-            return 0L;
-        }
-        long remaining = expiresAt - System.currentTimeMillis();
-        return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
     }
 
     /**

@@ -1,0 +1,21 @@
+package com.jimuqu.solon.claw.support;
+
+/** 时间计算辅助工具，集中处理运行态展示用的简单时间换算。 */
+public final class TimeSupport {
+    /** 工具类不保存状态，禁止创建实例。 */
+    private TimeSupport() {}
+
+    /**
+     * 计算毫秒时间戳距离当前时间的剩余秒数，向上取整且不返回负数。
+     *
+     * @param expiresAt 过期时间戳，单位毫秒。
+     * @return 剩余秒数，已过期或未设置时返回0。
+     */
+    public static long expiresInSeconds(long expiresAt) {
+        if (expiresAt <= 0L) {
+            return 0L;
+        }
+        long remaining = expiresAt - System.currentTimeMillis();
+        return remaining <= 0L ? 0L : (remaining + 999L) / 1000L;
+    }
+}
