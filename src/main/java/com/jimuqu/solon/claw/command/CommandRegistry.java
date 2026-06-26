@@ -64,9 +64,9 @@ public final class CommandRegistry {
         register(core("curator", "skill", "管理技能后台维护状态与运行"));
         register(core("plugins", "tool", "查看插件加载状态"));
         register(core("reload-skills", "skill", "重新扫描本地技能目录"));
-        register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线"));
+        register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线").alias("reload"));
         register(core("confirm", "security", "查看当前待确认 slash 命令"));
-        register(core("agent", "agent", "切换或管理当前会话 Agent"));
+        register(core("agent", "agent", "切换或管理当前会话 Agent").alias("agents"));
         register(core("cron", "automation", "管理定时任务"));
         register(core("proactive", "automation", "查看、暂停或调节主动协作"));
         register(core("recap", "session", "显示恢复会话用的紧凑历史摘要"));
