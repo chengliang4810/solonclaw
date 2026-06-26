@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
@@ -31,9 +32,11 @@ public class ConfigManageTools {
      */
     @ToolMapping(
             name = "config_manage",
-            description = "Inspect dashboard config metadata. Actions: schema, defaults, diagnostics.")
+            description =
+                    "Inspect dashboard config metadata. Actions: current, schema, defaults, diagnostics.")
     public String configManage(
-            @Param(name = "action", description = "schema, defaults, diagnostics") String action) {
+            @Param(name = "action", description = "current, schema, defaults, diagnostics")
+                    String action) {
         try {
             if (configService == null) {
                 return ToolResultEnvelope.error("config service unavailable").toJson();
@@ -57,6 +60,11 @@ public class ConfigManageTools {
      */
     private Map<String, Object> run(String action) {
         String normalized = action == null ? "schema" : action.trim().toLowerCase(Locale.ROOT);
+        if ("current".equals(normalized) || "config".equals(normalized)) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("config", redactPasswordFields(configService.getConfig()));
+            return result;
+        }
         if ("defaults".equals(normalized)) {
             return configService.getDefaults();
         }
@@ -64,5 +72,71 @@ public class ConfigManageTools {
             return configService.diagnostics();
         }
         return configService.getSchema();
+    }
+
+    /**
+     * 遮盖配置中的密钥字段，避免自然语言工具泄露 Dashboard 原始配置值。
+     *
+     * @param config 当前配置结构。
+     * @return 返回已遮盖密钥的配置副本。
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> redactPasswordFields(Map<String, Object> config) {
+        Map<String, Object> redacted = deepCopy(config);
+        Object fieldsValue = configService.getSchema().get("fields");
+        if (!(fieldsValue instanceof Map)) {
+            return redacted;
+        }
+        for (Map.Entry<String, Object> entry : ((Map<String, Object>) fieldsValue).entrySet()) {
+            Object definition = entry.getValue();
+            if (definition instanceof Map
+                    && "password".equals(((Map<String, Object>) definition).get("type"))) {
+                String key = entry.getKey();
+                setNested(redacted, key, "********");
+            }
+        }
+        return redacted;
+    }
+
+    /**
+     * 复制配置 Map，避免修改 Dashboard 服务返回对象。
+     *
+     * @param input 输入配置。
+     * @return 返回复制后的配置。
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> deepCopy(Map<String, Object> input) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        for (Map.Entry<String, Object> entry : input.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof Map) {
+                value = deepCopy((Map<String, Object>) value);
+            }
+            result.put(entry.getKey(), value);
+        }
+        return result;
+    }
+
+    /**
+     * 写入嵌套配置值。
+     *
+     * @param root 配置根对象。
+     * @param key 点分隔配置键。
+     * @param value 待写入值。
+     */
+    @SuppressWarnings("unchecked")
+    private void setNested(Map<String, Object> root, String key, Object value) {
+        String[] parts = key.split("\\.");
+        Map<String, Object> cursor = root;
+        for (int i = 0; i < parts.length - 1; i++) {
+            Object next = cursor.get(parts[i]);
+            if (!(next instanceof Map)) {
+                return;
+            }
+            cursor = (Map<String, Object>) next;
+        }
+        if (cursor.containsKey(parts[parts.length - 1])) {
+            cursor.put(parts[parts.length - 1], value);
+        }
     }
 }

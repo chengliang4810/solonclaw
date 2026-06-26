@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ApprovalQueueManageTools;
+import com.jimuqu.solon.claw.tool.runtime.ConfigManageTools;
 import com.jimuqu.solon.claw.tool.runtime.DiagnosticsManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
@@ -4008,6 +4009,47 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("config_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("ConfigManageTools");
+    }
+
+    @Test
+    void shouldInspectCurrentConfigThroughNaturalLanguageToolWithoutRevealingSecrets()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        File configFile = new File(env.appConfig.getRuntime().getConfigFile());
+        Files.write(
+                configFile.toPath(),
+                Arrays.asList(
+                        "solonclaw:",
+                        "  gateway:",
+                        "    injectionSecret: natural-language-secret",
+                        "  terminal:",
+                        "    sudoPassword: natural-language-sudo"),
+                StandardCharsets.UTF_8);
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof ConfigManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("config manage tool missing"));
+
+        ONode result = ONode.ofJson(((ConfigManageTools) tool).configManage("current"));
+
+        assertToolSuccess(result);
+        assertThat(
+                        result.get("result")
+                                .get("config")
+                                .get("gateway")
+                                .get("injectionSecret")
+                                .getString())
+                .isEqualTo("********");
+        assertThat(
+                        result.get("result")
+                                .get("config")
+                                .get("terminal")
+                                .get("sudoPassword")
+                                .getString())
+                .isEqualTo("********");
+        assertThat(result.toJson()).doesNotContain("natural-language-secret");
+        assertThat(result.toJson()).doesNotContain("natural-language-sudo");
     }
 
     @Test
