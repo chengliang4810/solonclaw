@@ -513,6 +513,21 @@
       - 增加红绿测试，证明自然语言工具可结构化查询 Agent 列表和单个 Agent 详情。
     - 提交：`02c36d2b9`
 
+33. 增加脱敏当前配置查询工具动作
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/ConfigManageTools.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+    - 改造前：
+      - Dashboard 已有 `/api/config` 可读取当前配置，`/api/config/raw` 可读取原始 YAML。
+      - `config_manage` 只暴露 schema、defaults、diagnostics，自然语言路径不能直接读取当前配置状态。
+      - 原始 YAML 和当前配置可能包含 `password` 类型字段，不能直接作为 Agent 工具数据返回。
+    - 改造后：
+      - `config_manage` 增加 `current`/`config` 只读动作，返回 `config` 结构化字段。
+      - 工具层复用 Dashboard schema 中的 `password` 字段定义，递归遮盖当前配置中的密钥值。
+      - 不暴露 raw YAML，不增加写入能力。
+      - 增加红绿测试，证明自然语言工具可读取当前配置且不会泄露网关注入密钥和 sudo 密码。
+    - 提交：`eb33913ae`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -550,6 +565,8 @@
 - `mvn -Dskip.web.build=true -Dtest=DefaultCronSchedulerTest#shouldExposeCronjobGuideThroughTool+shouldExposeCronjobPolicyThroughTool+shouldExposeCronjobGlobalStatusAndRetryAliases test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=AgentMechanismTest#shouldInspectAgentsThroughStructuredToolActions test`：先红后绿。
 - `mvn -Dskip.web.build=true -Dtest=AgentMechanismTest#shouldExposeAgentManageTool+shouldInspectAgentsThroughStructuredToolActions+shouldRedactSecretsFromAgentToolErrors+shouldRedactSecretsFromAgentToolSuccessPreviewOnly+shouldAllowAgentManageToolThroughAgentAllowlist test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldInspectCurrentConfigThroughNaturalLanguageToolWithoutRevealingSecrets test`：先红后绿。
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeConfigManagementToolForNaturalLanguageConfigInspection+shouldInspectCurrentConfigThroughNaturalLanguageToolWithoutRevealingSecrets+shouldExposeWorkspaceConfigManagementToolForNaturalLanguageConfigInspection+shouldInspectWorkspaceConfigItemsThroughNaturalLanguageTool+shouldSetAndRemoveWorkspaceConfigThroughNaturalLanguageTool test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -562,6 +579,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚和会话删除暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
