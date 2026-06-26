@@ -1,5 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
+import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.externalPathReference;
+
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
@@ -1057,20 +1059,6 @@ public class DashboardGatewayDoctorService {
      */
     private static String exceptionSummary(Exception error) {
         return error == null ? "unknown" : error.getClass().getSimpleName();
-    }
-
-    /**
-     * 执行外部路径引用相关逻辑。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回外部路径Reference结果。
-     */
-    private String externalPathReference(String value) {
-        String name = new File(StrUtil.nullToEmpty(value)).getName();
-        if (StrUtil.isBlank(name)) {
-            name = "external";
-        }
-        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     /**

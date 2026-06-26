@@ -183,6 +183,20 @@ final class DashboardDiagnosticTextFormatter {
     }
 
     /**
+     * 将 runtime 外部路径压缩成仅含文件名的 path:// 引用，避免泄露宿主目录结构。
+     *
+     * @param value 原始外部路径。
+     * @return 返回外部路径引用。
+     */
+    static String externalPathReference(String value) {
+        String name = new File(StrUtil.nullToEmpty(value)).getName();
+        if (StrUtil.isBlank(name)) {
+            name = "external";
+        }
+        return "path://" + SecretRedactor.redact(name, 200);
+    }
+
+    /**
      * 生成命令路径策略探针的安全 target，阻断命令或敏感路径命中时隐藏具体路径。
      *
      * @param command 原始命令文本。

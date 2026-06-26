@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.diagnosticFailureSummary;
+import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.externalPathReference;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safeAuditPreview;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safeObjectText;
 
@@ -338,20 +339,6 @@ final class DashboardRuntimeDiagnosticsAssembler {
             return "workspace://" + relative;
         }
         return externalPathReference(text);
-    }
-
-    /**
-     * 将 runtime 外部路径压缩成仅含文件名的 path:// 引用，避免泄露宿主目录结构。
-     *
-     * @param value 原始外部路径。
-     * @return 返回外部路径引用。
-     */
-    private String externalPathReference(String value) {
-        String name = new File(StrUtil.nullToEmpty(value)).getName();
-        if (StrUtil.isBlank(name)) {
-            name = "external";
-        }
-        return "path://" + SecretRedactor.redact(name, 200);
     }
 
     /**
