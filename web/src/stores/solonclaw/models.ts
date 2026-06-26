@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as systemApi from '@/api/solonclaw/system'
-import type { AvailableModelGroup, CustomProvider, FallbackProvider } from '@/api/solonclaw/system'
+import type { AvailableModelGroup, CustomProvider, FallbackProvider, ModelHealthProvider, RuntimeModelInfo } from '@/api/solonclaw/system'
 import { useAppStore } from './app'
 
 export const useModelsStore = defineStore('models', () => {
@@ -10,6 +10,8 @@ export const useModelsStore = defineStore('models', () => {
   const fallbackProviders = ref<FallbackProvider[]>([])
   const defaultModel = ref('')
   const defaultProvider = ref('')
+  const runtimeModels = ref<RuntimeModelInfo[]>([])
+  const modelHealth = ref<ModelHealthProvider[]>([])
   const loading = ref(false)
 
   const allModels = computed(() =>
@@ -34,6 +36,12 @@ export const useModelsStore = defineStore('models', () => {
       defaultModel.value = res.default
       defaultProvider.value = res.default_provider
       fallbackProviders.value = res.fallbackProviders
+      const [runtime, health] = await Promise.all([
+        systemApi.fetchRuntimeModels(),
+        systemApi.fetchModelHealth(),
+      ])
+      runtimeModels.value = runtime.models || []
+      modelHealth.value = health.providers || []
     } catch (err) {
       console.error('Failed to fetch providers:', err)
     } finally {
@@ -91,6 +99,8 @@ export const useModelsStore = defineStore('models', () => {
     fallbackProviders,
     defaultModel,
     defaultProvider,
+    runtimeModels,
+    modelHealth,
     loading,
     allModels,
     fetchProviders,

@@ -58,6 +58,36 @@ export interface AvailableModelsResponse {
   fallbackProviders: FallbackProvider[]
 }
 
+export interface RuntimeModelInfo {
+  provider: string
+  model: string
+  dialect?: string
+  role?: string
+  status?: string
+  context_window?: number
+  max_output?: number
+  reasoning_effort?: string
+  pricing?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+}
+
+export interface RuntimeModelsResponse extends ProvidersPayload {
+  models: RuntimeModelInfo[]
+  model_groups?: unknown[]
+  modelGroups?: unknown[]
+  fallback_chain?: FallbackProvider[]
+}
+
+export interface ModelHealthProvider {
+  provider: string
+  status: string
+  checked_at?: number
+}
+
+export interface ModelHealthResponse {
+  providers: ModelHealthProvider[]
+}
+
 export interface CustomProvider {
   providerKey: string
   name: string
@@ -149,6 +179,14 @@ export async function fetchAvailableModels(): Promise<AvailableModelsResponse> {
     allProviders: groups,
     fallbackProviders: payload.fallbackProviders || [],
   }
+}
+
+export async function fetchRuntimeModels(): Promise<RuntimeModelsResponse> {
+  return request<RuntimeModelsResponse>('/api/models')
+}
+
+export async function fetchModelHealth(): Promise<ModelHealthResponse> {
+  return request<ModelHealthResponse>('/api/models/health')
 }
 
 export async function fetchModelInfo(): Promise<DashboardModelInfo> {
