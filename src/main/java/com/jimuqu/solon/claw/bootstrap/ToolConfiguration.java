@@ -296,6 +296,7 @@ public class ToolConfiguration {
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
      * @param dashboardRunService Dashboard运行服务依赖。
+     * @param sqliteDatabase SQLite数据库依赖。
      * @param agentRunRepository Agent运行仓储依赖。
      * @param cronJobRepository 定时任务仓储依赖。
      * @param usageEventRepository 用量事件仓储依赖。
@@ -331,6 +332,7 @@ public class ToolConfiguration {
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
             DashboardRunService dashboardRunService,
+            SqliteDatabase sqliteDatabase,
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
@@ -363,6 +365,7 @@ public class ToolConfiguration {
                 imageGenerationService,
                 speechService,
                 dashboardRunService,
+                sqliteDatabase,
                 agentRunRepository,
                 cronJobRepository,
                 usageEventRepository,

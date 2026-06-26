@@ -74,6 +74,9 @@ public interface ToolNameConstants {
     /** 日志管理的统一常量值。 */
     String LOGS_MANAGE = "logs_manage";
 
+    /** 媒体管理的统一常量值。 */
+    String MEDIA_MANAGE = "media_manage";
+
     /** 技能列表的统一常量值。 */
     String SKILLS_LIST = "skills_list";
 

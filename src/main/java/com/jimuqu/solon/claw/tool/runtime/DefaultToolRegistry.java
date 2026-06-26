@@ -23,6 +23,7 @@ import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.plugin.ToolRegistration;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
@@ -32,6 +33,7 @@ import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardLogsService;
+import com.jimuqu.solon.claw.web.DashboardMediaService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
@@ -88,6 +90,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.SESSION_MANAGE,
                     ToolNameConstants.ANALYTICS_MANAGE,
                     ToolNameConstants.LOGS_MANAGE,
+                    ToolNameConstants.MEDIA_MANAGE,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
@@ -215,6 +218,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 定时任务仓储，用于给 Agent 暴露 Dashboard 日志结构化定时任务索引。 */
     private final CronJobRepository cronJobRepository;
 
+    /** SQLite 数据库，用于给 Agent 暴露 Dashboard 媒体索引查询。 */
+    private final SqliteDatabase sqliteDatabase;
+
     /**
      * 创建默认工具注册表实例，并注入运行所需依赖。
      *
@@ -278,6 +284,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -363,6 +370,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -434,6 +442,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -507,6 +516,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -582,6 +592,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -661,6 +672,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 imageGenerationService,
                 speechService,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -738,6 +750,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -815,6 +828,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (ImageGenerationService) null,
                 (SpeechService) null,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -896,6 +910,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 imageGenerationService,
                 speechService,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -980,6 +995,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 imageGenerationService,
                 speechService,
                 (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
                 (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
                 (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
                 (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
@@ -1015,6 +1031,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
      * @param dashboardRunService Dashboard运行服务依赖。
+     * @param sqliteDatabase SQLite数据库依赖。
      * @param agentRunRepository Agent运行仓储依赖。
      * @param cronJobRepository 定时任务仓储依赖。
      * @param usageEventRepository 用量事件仓储依赖。
@@ -1048,6 +1065,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
             DashboardRunService dashboardRunService,
+            SqliteDatabase sqliteDatabase,
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
@@ -1085,6 +1103,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.imageGenerationService = imageGenerationService;
         this.speechService = speechService;
         this.dashboardRunService = dashboardRunService;
+        this.sqliteDatabase = sqliteDatabase;
         this.agentRunRepository = agentRunRepository;
         this.cronJobRepository = cronJobRepository;
         this.usageEventRepository = usageEventRepository;
@@ -1149,6 +1168,15 @@ public class DefaultToolRegistry implements ToolRegistry {
         LogsManageTools logsManageTools =
                 new LogsManageTools(
                         new DashboardLogsService(appConfig, agentRunRepository, cronJobRepository));
+        MediaManageTools mediaManageTools =
+                new MediaManageTools(
+                        sqliteDatabase == null
+                                ? null
+                                : new DashboardMediaService(
+                                        sqliteDatabase,
+                                        new com.jimuqu.solon.claw.support.RuntimePathGuard(
+                                                appConfig),
+                                        attachmentCacheService));
         SkillTools skillTools =
                 new SkillTools(
                         localSkillService,
@@ -1285,6 +1313,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(analyticsManageTools);
             } else if (ToolNameConstants.LOGS_MANAGE.equals(toolName)) {
                 tools.add(logsManageTools);
+            } else if (ToolNameConstants.MEDIA_MANAGE.equals(toolName)) {
+                tools.add(mediaManageTools);
             } else if (ToolNameConstants.SKILLS_LIST.equals(toolName)) {
                 tools.add(new SkillTools.SkillsListTool(skillTools));
             } else if (ToolNameConstants.SKILL_VIEW.equals(toolName)) {

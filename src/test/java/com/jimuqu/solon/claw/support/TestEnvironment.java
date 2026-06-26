@@ -342,6 +342,7 @@ public class TestEnvironment {
                         null,
                         null,
                         null,
+                        database,
                         agentRunRepository,
                         cronJobRepository,
                         usageEventRepository,
