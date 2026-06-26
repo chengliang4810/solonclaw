@@ -181,7 +181,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
             SolonClawFileStateTracker fileStateTracker) {
         super(workDir);
         this.rootPath = Paths.get(workDir).toAbsolutePath().normalize();
-        this.realRootPath = safeRealPath(this.rootPath);
+        this.realRootPath = ToolWorkspacePathSupport.safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
         this.maxLinesSupplier = maxLinesSupplier == null ? fixedLimit(2000) : maxLinesSupplier;
         this.maxLineLengthSupplier =
@@ -1009,11 +1009,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
             throw new IllegalArgumentException("jar-internal paths are not disk files");
         }
-        Path path = rootPath.resolve(normalizeWorkspacePath(value)).normalize();
+        Path path =
+                rootPath.resolve(ToolWorkspacePathSupport.normalizeWorkspacePath(rootPath, value))
+                        .normalize();
         if (!path.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
         }
-        assertResolvedWithinRoot(path);
+        ToolWorkspacePathSupport.assertResolvedWithinRoot(path, realRootPath);
         return path;
     }
 
@@ -1032,40 +1034,6 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     }
 
     /**
-     * 将用户可见的工作区根目录前缀折叠为当前工具根，避免默认 Agent 下写出 workspace/workspace。
-     *
-     * @param rawPath 用户传入的文件路径。
-     * @return 返回用于解析的工作区相对路径。
-     */
-    private String normalizeWorkspacePath(String rawPath) {
-        String value = StrUtil.nullToEmpty(rawPath);
-        if (StrUtil.isBlank(value)) {
-            return value;
-        }
-        String normalized = value.replace('\\', '/');
-        if (normalized.startsWith("./")) {
-            normalized = normalized.substring(2);
-        }
-        if (normalized.startsWith("/")) {
-            return value;
-        }
-        Path fileName = rootPath.getFileName();
-        if (fileName == null) {
-            return value;
-        }
-        String rootName = fileName.toString();
-        if (!"workspace".equalsIgnoreCase(rootName)) {
-            return value;
-        }
-        String prefix = rootName + "/";
-        if (normalized.length() > prefix.length()
-                && normalized.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))) {
-            return normalized.substring(prefix.length());
-        }
-        return value;
-    }
-
-    /**
      * 执行assertContained相关逻辑。
      *
      * @param name 名称参数。
@@ -1078,60 +1046,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     }
 
     /**
-     * 执行assertResolvedWithin根用户相关逻辑。
-     *
-     * @param target target 参数。
-     */
-    private void assertResolvedWithinRoot(Path target) {
-        Path existing = nearestExistingPath(target);
-        if (existing == null) {
-            return;
-        }
-        Path real = safeRealPath(existing);
-        if (!real.startsWith(realRootPath)) {
-            throw new SecurityException("禁止通过符号链接访问沙箱外部");
-        }
-    }
-
-    /**
-     * 执行nearestExisting路径相关逻辑。
-     *
-     * @param target target 参数。
-     * @return 返回nearest Existing路径。
-     */
-    private Path nearestExistingPath(Path target) {
-        Path current = target;
-        while (current != null) {
-            if (Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
-                return current;
-            }
-            current = current.getParent();
-        }
-        return null;
-    }
-
-    /**
-     * 生成安全展示用的Real路径。
-     *
-     * @param path 文件或目录路径。
-     * @return 返回safe Real路径。
-     */
-    private Path safeRealPath(Path path) {
-        try {
-            return path.toRealPath();
-        } catch (Exception e) {
-            return path.toAbsolutePath().normalize();
-        }
-    }
-
-    /**
      * 执行resolved输出路径相关逻辑。
      *
      * @param path 文件或目录路径。
      * @return 返回resolved输出路径。
      */
     private String resolvedOutputPath(Path path) {
-        return safeRealPath(path).toString();
+        return ToolWorkspacePathSupport.safeRealPath(path).toString();
     }
 
     /**
