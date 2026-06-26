@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Button, Checkbox, Form, FormItem, Input, Modal, Select, Switch, Tag, TextArea, message } from 'antdv-next'
+import { AutoComplete, Button, Checkbox, Form, FormItem, Input, Modal, Switch, Tag, TextArea, message } from 'antdv-next'
 import { useAgentsStore } from '@/stores/solonclaw/agents'
 import { useChatStore } from '@/stores/solonclaw/chat'
 import { useModelsStore } from '@/stores/solonclaw/models'
@@ -265,11 +265,9 @@ onMounted(load)
                 <Input v-model:value="form.display_name" :disabled="isReadonly" :placeholder="t('agents.displayNamePlaceholder')" />
               </FormItem>
               <FormItem :label="t('agents.defaultModel')">
-                <Select
+                <AutoComplete
                   v-model:value="form.default_model"
                   :options="modelOptions"
-                  filterable
-                  tag
                   :disabled="isReadonly"
                   :placeholder="t('agents.globalDefaultModel')"
                 />

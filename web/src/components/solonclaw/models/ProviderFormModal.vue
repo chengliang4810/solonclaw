@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Modal, Form, FormItem, Input, Button, Select, message } from 'antdv-next'
+import { Modal, Form, FormItem, Input, Button, Select, AutoComplete, message } from 'antdv-next'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import type { AvailableModelGroup } from '@/api/solonclaw/system'
 import { useI18n } from 'vue-i18n'
@@ -200,10 +200,8 @@ function handleClose() {
 
       <FormItem :label="t('models.defaultModel')" required>
         <div class="model-select-row">
-          <Select
+          <AutoComplete
             v-model:value="formData.defaultModel"
-            filterable
-            tag
             :options="modelOptions"
             :placeholder="t('models.selectOrInput')"
           />

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { onMounted, ref } from "vue";
 import {
   Tabs,
   TabPane,
@@ -17,6 +17,7 @@ import AccountSettings from "@/components/solonclaw/settings/AccountSettings.vue
 
 const settingsStore = useSettingsStore();
 const { t } = useI18n();
+const activeTab = ref("account");
 
 onMounted(() => {
   settingsStore.fetchSettings();
@@ -34,30 +35,30 @@ onMounted(() => {
 
     <div class="settings-content">
       <Spin
-        :open="settingsStore.loading || settingsStore.saving"
+        :spinning="settingsStore.loading || settingsStore.saving"
         size="large"
         :description="t('common.loading')"
       >
-        <Tabs type="line" animated>
-          <TabPane name="account" :tab="t('settings.tabs.account')">
+        <Tabs v-model:activeKey="activeTab" type="line" animated>
+          <TabPane tabKey="account" :tab="t('settings.tabs.account')">
             <AccountSettings />
           </TabPane>
-          <TabPane name="display" :tab="t('settings.tabs.display')">
+          <TabPane tabKey="display" :tab="t('settings.tabs.display')">
             <DisplaySettings />
           </TabPane>
-          <TabPane name="agent" :tab="t('settings.tabs.agent')">
+          <TabPane tabKey="agent" :tab="t('settings.tabs.agent')">
             <AgentSettings />
           </TabPane>
-          <TabPane name="models" :tab="t('settings.tabs.models')">
+          <TabPane tabKey="models" :tab="t('settings.tabs.models')">
             <ModelSettings />
           </TabPane>
-          <TabPane name="memory" :tab="t('settings.tabs.memory')">
+          <TabPane tabKey="memory" :tab="t('settings.tabs.memory')">
             <MemorySettings />
           </TabPane>
-          <TabPane name="session" :tab="t('settings.tabs.session')">
+          <TabPane tabKey="session" :tab="t('settings.tabs.session')">
             <SessionSettings />
           </TabPane>
-          <TabPane name="privacy" :tab="t('settings.tabs.privacy')">
+          <TabPane tabKey="privacy" :tab="t('settings.tabs.privacy')">
             <PrivacySettings />
           </TabPane>
         </Tabs>
