@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.GatewayApprovalCardSupport;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -298,11 +299,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 如果审批Card请求满足条件则返回 true，否则返回 false。
      */
     private boolean isApprovalCardRequest(DeliveryRequest request) {
-        return DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD.equalsIgnoreCase(
-                stringValue(
-                        request.getChannelExtras() == null
-                                ? null
-                                : request.getChannelExtras().get("mode")));
+        return GatewayApprovalCardSupport.isApprovalCardRequest(request);
     }
 
     /**
@@ -445,8 +442,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回审批Card Allow Always结果。
      */
     private boolean approvalCardAllowAlways(Map<String, Object> extras) {
-        Object value = extras == null ? null : extras.get("approvalAllowAlways");
-        return value == null || Boolean.parseBoolean(stringValue(value));
+        return GatewayApprovalCardSupport.approvalCardAllowAlways(extras);
     }
 
     /**
