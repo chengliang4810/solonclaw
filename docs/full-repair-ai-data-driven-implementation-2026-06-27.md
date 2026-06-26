@@ -528,6 +528,22 @@
       - 增加红绿测试，证明自然语言工具可读取当前配置且不会泄露网关注入密钥和 sudo 密码。
     - 提交：`eb33913ae`
 
+34. 增加技能文件列表工具
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/SkillTools.java`
+      - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+      - `src/main/java/com/jimuqu/solon/claw/web/DashboardSkillsService.java`
+      - `src/test/java/com/jimuqu/solon/claw/MemoryAndSkillsTest.java`
+    - 改造前：
+      - Dashboard 已有 `/api/skills/files`，可列出某个技能的 `SKILL.md` 和支持文件。
+      - Agent 自然语言工具可 `skills_list` 和 `skill_view`，但需要先知道支持文件路径，不能先列出技能文件清单。
+    - 改造后：
+      - 增加 `skill_files` 只读工具，复用 `LocalSkillService#viewSkill` 的技能解析和 Agent scope 过滤。
+      - `skill_files` 返回主文件和可见 linked support files，不读取文件正文，不新增写入能力。
+      - Dashboard 工具集常量同步加入 `skill_files`，保证工具集展示与实际工具一致。
+      - 增加红绿测试，证明自然语言路径可列出技能支持文件。
+    - 提交：`f45a7d0fe`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -567,6 +583,8 @@
 - `mvn -Dskip.web.build=true -Dtest=AgentMechanismTest#shouldExposeAgentManageTool+shouldInspectAgentsThroughStructuredToolActions+shouldRedactSecretsFromAgentToolErrors+shouldRedactSecretsFromAgentToolSuccessPreviewOnly+shouldAllowAgentManageToolThroughAgentAllowlist test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldInspectCurrentConfigThroughNaturalLanguageToolWithoutRevealingSecrets test`：先红后绿。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeConfigManagementToolForNaturalLanguageConfigInspection+shouldInspectCurrentConfigThroughNaturalLanguageToolWithoutRevealingSecrets+shouldExposeWorkspaceConfigManagementToolForNaturalLanguageConfigInspection+shouldInspectWorkspaceConfigItemsThroughNaturalLanguageTool+shouldSetAndRemoveWorkspaceConfigThroughNaturalLanguageTool test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=MemoryAndSkillsTest#shouldListSkillSupportFilesThroughNaturalLanguageTool test`：先红后绿。
+- `mvn -Dskip.web.build=true -Dtest=MemoryAndSkillsTest#shouldPreprocessSkillTemplateVarsBeforeSkillView+shouldToggleSkillVisibilityThroughNaturalLanguageTool+shouldListSkillSupportFilesThroughNaturalLanguageTool+shouldFilterPromptAndSkillToolsByAgentSkills,ToolRegistryExposureTest#shouldExposeBuiltinSearchTools+shouldExposeToolsetsManagementToolForNaturalLanguageToolsetInspection+shouldInspectDashboardToolsetsThroughNaturalLanguageTool test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -579,6 +597,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、技能文件列表、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚和会话删除暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
