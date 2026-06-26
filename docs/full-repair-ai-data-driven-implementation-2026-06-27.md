@@ -418,6 +418,19 @@
       - 增加实际调用测试，证明自然语言工具可保存 trajectory 并返回 `trajectory_samples.jsonl` 工作区引用。
     - 提交：`5526a081a`
 
+26. 增加工作区文件维护工具动作
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/WorkspaceManageTools.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+    - 改造前：
+      - Dashboard 已有 `/api/workspace/files/{key}` 保存和 `/api/workspace/files/{key}/restore` 恢复接口，且文件 key 由 `PersonaWorkspaceService` 固定控制。
+      - `workspace_manage` 只支持 files、file、diaries、diary，只能读取人格工作区内容，不能通过自然语言维护 Dashboard 同一批受控文件。
+    - 改造后：
+      - `workspace_manage` 增加 `save_file` 和 `restore_file` 动作，复用 `DashboardWorkspaceService#saveFile()` 与 `restoreFile()`。
+      - 维护范围仍限定在 Dashboard 人格工作区固定 key，不开放任意路径写入或下载能力。
+      - 增加实际调用测试，证明自然语言工具可保存并恢复 `agents` 受控工作区文件。
+    - 提交：`791e8509b`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -445,6 +458,7 @@
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeDiagnosticsManagementToolForNaturalLanguageDiagnosticsInspection+shouldInspectDashboardDiagnosticsThroughNaturalLanguageTool,DashboardDiagnosticOutputTest#shouldRedactGatewayDoctorAndDiagnosticsOutput test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeToolsetsManagementToolForNaturalLanguageToolsetInspection+shouldInspectDashboardToolsetsThroughNaturalLanguageTool test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeSessionManagementToolForNaturalLanguageSessionInspection+shouldSaveSessionTrajectoryThroughNaturalLanguageTool test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeWorkspaceManagementToolForNaturalLanguageWorkspaceInspection+shouldSaveAndRestoreWorkspaceFileThroughNaturalLanguageTool test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -457,6 +471,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区配置项查询、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚、会话删除和会话更新暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
