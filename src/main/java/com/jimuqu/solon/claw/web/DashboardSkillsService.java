@@ -148,6 +148,7 @@ public class DashboardSkillsService {
                         Arrays.asList(
                                 ToolNameConstants.SKILLS_LIST,
                                 ToolNameConstants.SKILL_VIEW,
+                                ToolNameConstants.SKILL_FILES,
                                 ToolNameConstants.SKILL_MANAGE,
                                 ToolNameConstants.SKILLS_HUB_SEARCH,
                                 ToolNameConstants.SKILLS_HUB_INSPECT,

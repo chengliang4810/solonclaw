@@ -159,6 +159,30 @@ public class SkillTools {
     }
 
     /**
+     * 列出技能主文件和可见支持文件。
+     *
+     * @param name 技能名或 category/name。
+     * @return 返回技能文件列表 JSON。
+     */
+    @ToolMapping(
+            name = "skill_files",
+            description = "List SKILL.md and linked support files for a skill.")
+    public String skillFiles(@Param(name = "name", description = "技能名或 category/name") String name)
+            throws Exception {
+        try {
+            SkillView view = localSkillService.viewSkill(name, null, agentScope);
+            List<Map<String, Object>> files = new ArrayList<Map<String, Object>>();
+            files.add(skillFile(SkillConstants.SKILL_FILE_NAME));
+            for (String path : view.getDescriptor().getLinkedFiles()) {
+                files.add(skillFile(path));
+            }
+            return safeResult(ONode.serialize(files), 20000);
+        } catch (Exception e) {
+            return toolError(e.getMessage());
+        }
+    }
+
+    /**
      * 执行技能Manage相关逻辑。
      *
      * @param action 操作参数。
@@ -212,28 +236,28 @@ public class SkillTools {
                         20000);
             }
             if (SkillConstants.ACTION_EDIT.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 return safeResult(
                         ONode.serialize(localSkillService.editSkill(name, content)), 20000);
             }
             if (SkillConstants.ACTION_PATCH.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 return safeResult(
                         localSkillService.patchSkill(name, oldText, newText, filePath), 1000);
             }
             if (SkillConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 String result = localSkillService.deleteSkill(name);
                 return safeResult(
                         result + rewriteCronSkillRefsAfterDelete(name, absorbedInto), 1000);
             }
             if (SkillConstants.ACTION_WRITE_FILE.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 return safeResult(
                         localSkillService.writeSkillFile(name, filePath, fileContent), 1000);
             }
             if (SkillConstants.ACTION_REMOVE_FILE.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 return safeResult(localSkillService.removeSkillFile(name, filePath), 1000);
             }
             if ("toggle".equalsIgnoreCase(action)) {
@@ -301,7 +325,7 @@ public class SkillTools {
     }
 
     /** 收集技能目录中的全部文件，用于 checkpoint。 */
-    private List<File> skillFiles(String nameOrPath) throws Exception {
+    private List<File> checkpointSkillFiles(String nameOrPath) throws Exception {
         SkillView view = localSkillService.viewSkill(nameOrPath, null, agentScope);
         File skillDir = FileUtil.file(view.getDescriptor().getSkillDir());
         List<File> files = FileUtil.loopFiles(skillDir);
@@ -309,6 +333,35 @@ public class SkillTools {
             files.add(FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME));
         }
         return files;
+    }
+
+    /**
+     * 构造技能文件列表项。
+     *
+     * @param path 技能目录内相对路径。
+     * @return 返回文件列表项。
+     */
+    private Map<String, Object> skillFile(String path) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("path", path);
+        item.put("name", fileName(path));
+        item.put("isDir", false);
+        return item;
+    }
+
+    /**
+     * 提取文件名用于展示。
+     *
+     * @param path 文件路径。
+     * @return 返回文件名。
+     */
+    private String fileName(String path) {
+        if (path == null) {
+            return "";
+        }
+        String normalized = path.replace('\\', '/');
+        int index = normalized.lastIndexOf('/');
+        return index < 0 ? normalized : normalized.substring(index + 1);
     }
 
     /**

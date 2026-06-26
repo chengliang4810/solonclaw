@@ -119,6 +119,9 @@ public interface ToolNameConstants {
     /** 技能视图的统一常量值。 */
     String SKILL_VIEW = "skill_view";
 
+    /** 技能文件列表的统一常量值。 */
+    String SKILL_FILES = "skill_files";
+
     /** 技能MANAGE的统一常量值。 */
     String SKILL_MANAGE = "skill_manage";
 

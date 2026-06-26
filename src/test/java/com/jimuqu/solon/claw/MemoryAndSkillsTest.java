@@ -196,6 +196,31 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldListSkillSupportFilesThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill(
+                "files-skill",
+                null,
+                "---\n"
+                        + "name: files-skill\n"
+                        + "description: files test\n"
+                        + "---\n\n"
+                        + "Use [brief](references/brief.md).\n");
+        env.localSkillService.writeSkillFile(
+                "files-skill", "references/brief.md", "brief content");
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.sessionRepository,
+                        "MEMORY:files:user");
+
+        String files = tools.skillFiles("files-skill");
+
+        assertThat(files).contains("SKILL.md").contains("references/brief.md");
+    }
+
+    @Test
     void shouldExpandInlineShellWhenSkillsConfigEnablesIt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSkills().setInlineShell(true);
