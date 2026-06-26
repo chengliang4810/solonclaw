@@ -25,6 +25,7 @@ import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.TuiRuntimeManageTools;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
+import com.jimuqu.solon.claw.tool.runtime.ToolsetsManageTools;
 import com.jimuqu.solon.claw.tool.runtime.WorkspaceConfigManageTools;
 import java.io.File;
 import java.lang.reflect.Method;
@@ -129,6 +130,7 @@ public class ToolRegistryExposureTest {
                         "skills_list",
                         "skill_view",
                         "skill_manage",
+                        "toolsets_manage",
                         "skills_hub_search",
                         "skills_hub_install",
                         "skills_hub_tap",
@@ -3896,6 +3898,35 @@ public class ToolRegistryExposureTest {
                                 .get("is_password")
                                 .getBoolean())
                 .isTrue();
+    }
+
+    @Test
+    void shouldExposeToolsetsManagementToolForNaturalLanguageToolsetInspection()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey))
+                .contains("toolsets_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("ToolsetsManageTools");
+    }
+
+    @Test
+    void shouldInspectDashboardToolsetsThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof ToolsetsManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("toolsets manage tool missing"));
+
+        ONode result = ONode.ofJson(((ToolsetsManageTools) tool).toolsetsManage());
+
+        assertToolSuccess(result);
+        assertThat(result.get("result").get("toolsets").isArray()).isTrue();
+        assertThat(result.get("result").get("toolsets").toJson()).contains("\"code\"");
+        assertThat(result.get("result").get("toolsets").toJson()).contains("\"skills\"");
     }
 
     @Test

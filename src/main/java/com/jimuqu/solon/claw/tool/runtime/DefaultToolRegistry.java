@@ -116,6 +116,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
+                    ToolNameConstants.TOOLSETS_MANAGE,
                     ToolNameConstants.SKILLS_HUB_SEARCH,
                     ToolNameConstants.SKILLS_HUB_INSPECT,
                     ToolNameConstants.SKILLS_HUB_INSTALL,
@@ -1374,6 +1375,10 @@ public class DefaultToolRegistry implements ToolRegistry {
                         agentScope,
                         cronJobService);
         SkillHubTools skillHubTools = new SkillHubTools(skillHubService);
+        ToolsetsManageTools toolsetsManageTools =
+                new ToolsetsManageTools(
+                        new com.jimuqu.solon.claw.web.DashboardSkillsService(
+                                localSkillService, preferenceStore));
         MessagingTools messagingTools =
                 new MessagingTools(deliveryService, sourceKey, attachmentCacheService, appConfig);
         CronjobTools cronjobTools = new CronjobTools(cronJobService, sourceKey);
@@ -1550,6 +1555,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(new SkillTools.SkillViewTool(skillTools));
             } else if (ToolNameConstants.SKILL_MANAGE.equals(toolName)) {
                 tools.add(new SkillTools.SkillManageTool(skillTools));
+            } else if (ToolNameConstants.TOOLSETS_MANAGE.equals(toolName)) {
+                tools.add(toolsetsManageTools);
             } else if (ToolNameConstants.SKILLS_HUB_SEARCH.equals(toolName)) {
                 tools.add(new SkillHubTools.SearchTool(skillHubTools));
             } else if (ToolNameConstants.SKILLS_HUB_INSPECT.equals(toolName)) {
