@@ -4069,6 +4069,26 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldExposeCronjobGuideThroughTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
+        CronjobTools tools = new CronjobTools(service, "MEMORY:guide-room:user");
+
+        Map<?, ?> payload =
+                (Map<?, ?>)
+                        ONode.ofJson(
+                                        tools.cronjob(
+                                                "guide", null, null, null, null, null, null, null,
+                                                null, null, null, null, null, null, null, null,
+                                                null, null, null))
+                                .toData();
+
+        assertThat(payload.get("status")).isEqualTo("success");
+        assertThat(payload.get("guide")).isInstanceOf(Map.class);
+        assertThat(String.valueOf(payload.get("preview"))).contains("cronjob");
+    }
+
+    @Test
     void shouldExposeCronjobGlobalStatusAndRetryAliases() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);

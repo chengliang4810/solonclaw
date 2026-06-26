@@ -76,12 +76,12 @@ public class CronjobTools {
     @ToolMapping(
             name = "cronjob",
             description =
-                    "管理定时任务。删除任务前必须先用 action='list'、action='status' 或 action='next' 查看任务，禁止猜测 job_id。action 可使用 create/add、list、status、inspect/show/detail、next/upcoming、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun 或 history。任务会在独立会话中运行，因此 prompt 必须自包含；定时任务不应递归创建新的定时任务。支持按任务绑定 skills、delivery、deliver_chat_id、deliver_thread_id、script、workdir、no_agent、context_from、enabled_toolsets、wrap_response、model、provider 和 base_url。用户明确要求 no_agent=true 或 wrap_response=false 时，必须在工具参数中显式传入对应布尔值；仅设置 script 不会隐式启用 no_agent。")
+                    "管理定时任务。删除任务前必须先用 action='list'、action='status' 或 action='next' 查看任务，禁止猜测 job_id。action 可使用 guide、policy、create/add、list、status、inspect/show/detail、next/upcoming、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun 或 history。任务会在独立会话中运行，因此 prompt 必须自包含；定时任务不应递归创建新的定时任务。支持按任务绑定 skills、delivery、deliver_chat_id、deliver_thread_id、script、workdir、no_agent、context_from、enabled_toolsets、wrap_response、model、provider 和 base_url。用户明确要求 no_agent=true 或 wrap_response=false 时，必须在工具参数中显式传入对应布尔值；仅设置 script 不会隐式启用 no_agent。")
     public String cronjob(
             @Param(
                             name = "action",
                             description =
-                                    "动作：create/add、list、status、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun、history")
+                                    "动作：guide、policy、create/add、list、status、update/edit、pause/disable/stop、resume/enable/start、remove/delete/rm、run/run_now/trigger/retry/rerun、history")
                     String action,
             @Param(
                             name = "job_id",
@@ -221,6 +221,13 @@ public class CronjobTools {
             }
             if ("upcoming".equals(normalized)) {
                 normalized = "next";
+            }
+            if ("guide".equals(normalized) || "help".equals(normalized)) {
+                Map<String, Object> guide = cronJobService.guide();
+                return ToolResultEnvelope.ok("Cronjob 使用指南")
+                        .data("guide", guide)
+                        .preview("cronjob guide")
+                        .toJson();
             }
             if ("capabilities".equals(normalized) || "policy".equals(normalized)) {
                 Map<String, Object> policy = cronJobService.policy();
