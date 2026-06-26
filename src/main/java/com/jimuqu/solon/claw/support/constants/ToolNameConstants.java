@@ -86,6 +86,9 @@ public interface ToolNameConstants {
     /** 洞察管理的统一常量值。 */
     String INSIGHTS_MANAGE = "insights_manage";
 
+    /** 审批事件管理的统一常量值。 */
+    String APPROVAL_EVENTS_MANAGE = "approval_events_manage";
+
     /** 技能列表的统一常量值。 */
     String SKILLS_LIST = "skills_list";
 

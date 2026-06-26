@@ -64,6 +64,7 @@ import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
+import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
@@ -298,6 +299,7 @@ public class ToolConfiguration {
      * @param dashboardStatusService Dashboard 状态服务依赖。
      * @param dashboardGatewayDoctorService Dashboard Doctor 服务依赖。
      * @param dashboardInsightsService Dashboard 洞察服务依赖。
+     * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
@@ -337,6 +339,7 @@ public class ToolConfiguration {
             DashboardStatusService dashboardStatusService,
             DashboardGatewayDoctorService dashboardGatewayDoctorService,
             DashboardInsightsService dashboardInsightsService,
+            DashboardApprovalEventsService dashboardApprovalEventsService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -373,6 +376,7 @@ public class ToolConfiguration {
                 dashboardStatusService,
                 dashboardGatewayDoctorService,
                 dashboardInsightsService,
+                dashboardApprovalEventsService,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,

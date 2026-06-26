@@ -31,6 +31,7 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
+import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
@@ -97,6 +98,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.STATUS_MANAGE,
                     ToolNameConstants.DOCTOR_MANAGE,
                     ToolNameConstants.INSIGHTS_MANAGE,
+                    ToolNameConstants.APPROVAL_EVENTS_MANAGE,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
@@ -206,6 +208,9 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** Dashboard 洞察服务，用于给 Agent 暴露概览和技能用量查询。 */
     private final DashboardInsightsService dashboardInsightsService;
 
+    /** Dashboard 审批事件服务，用于给 Agent 暴露审批事件只读查询。 */
+    private final DashboardApprovalEventsService dashboardApprovalEventsService;
+
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
 
@@ -298,6 +303,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -387,6 +393,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -462,6 +469,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -539,6 +547,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -618,6 +627,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -701,6 +711,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 (BrowserRuntimeService) null,
                 imageGenerationService,
                 speechService,
@@ -782,6 +793,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -863,6 +875,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -948,6 +961,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -1036,6 +1050,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardStatusService) null,
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -1109,6 +1124,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             DashboardStatusService dashboardStatusService,
             DashboardGatewayDoctorService dashboardGatewayDoctorService,
             DashboardInsightsService dashboardInsightsService,
+            DashboardApprovalEventsService dashboardApprovalEventsService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -1143,6 +1159,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.dashboardStatusService = dashboardStatusService;
         this.dashboardGatewayDoctorService = dashboardGatewayDoctorService;
         this.dashboardInsightsService = dashboardInsightsService;
+        this.dashboardApprovalEventsService = dashboardApprovalEventsService;
         this.processRegistry = processRegistry;
         this.browserRuntimeService =
                 browserRuntimeService == null
@@ -1251,6 +1268,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         StatusManageTools statusManageTools = new StatusManageTools(dashboardStatusService);
         DoctorManageTools doctorManageTools = new DoctorManageTools(dashboardGatewayDoctorService);
         InsightsManageTools insightsManageTools = new InsightsManageTools(dashboardInsightsService);
+        ApprovalEventsManageTools approvalEventsManageTools =
+                new ApprovalEventsManageTools(dashboardApprovalEventsService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
@@ -1375,6 +1394,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(doctorManageTools);
             } else if (ToolNameConstants.INSIGHTS_MANAGE.equals(toolName)) {
                 tools.add(insightsManageTools);
+            } else if (ToolNameConstants.APPROVAL_EVENTS_MANAGE.equals(toolName)) {
+                tools.add(approvalEventsManageTools);
             } else if (ToolNameConstants.SKILLS_LIST.equals(toolName)) {
                 tools.add(new SkillTools.SkillsListTool(skillTools));
             } else if (ToolNameConstants.SKILL_VIEW.equals(toolName)) {

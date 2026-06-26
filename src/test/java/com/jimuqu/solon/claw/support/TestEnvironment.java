@@ -87,6 +87,7 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
@@ -330,6 +331,8 @@ public class TestEnvironment {
                         config,
                         new com.jimuqu.solon.claw.context.SkillUsageTracker(config),
                         sqliteSessionRepository);
+        DashboardApprovalEventsService dashboardApprovalEventsService =
+                new DashboardApprovalEventsService(config);
         BrowserRuntimeService browserRuntimeService =
                 new BrowserRuntimeService(
                         config,
@@ -364,6 +367,7 @@ public class TestEnvironment {
                         dashboardStatusService,
                         dashboardGatewayDoctorService,
                         dashboardInsightsService,
+                        dashboardApprovalEventsService,
                         browserRuntimeService,
                         null,
                         null,

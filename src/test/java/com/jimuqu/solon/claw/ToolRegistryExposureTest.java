@@ -112,6 +112,7 @@ public class ToolRegistryExposureTest {
                         "status_manage",
                         "doctor_manage",
                         "insights_manage",
+                        "approval_events_manage",
                         "skills_list",
                         "skill_view",
                         "skill_manage",
@@ -3679,6 +3680,18 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("insights_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("InsightsManageTools");
+    }
+
+    @Test
+    void shouldExposeApprovalEventsManagementToolForNaturalLanguageApprovalInspection()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey))
+                .contains("approval_events_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("ApprovalEventsManageTools");
     }
 
     @Test
