@@ -298,7 +298,7 @@ public class AttachmentPathResolver {
      * @return 返回解析后的Candidate。
      */
     private File resolveCandidate(String candidate) {
-        String value = stripWrappingQuotes(StrUtil.nullToEmpty(candidate).trim());
+        String value = BasicValueSupport.stripMatchingQuotes(candidate);
         if (value.length() == 0) {
             return null;
         }
@@ -332,7 +332,7 @@ public class AttachmentPathResolver {
      * @return 返回looks Like本地文件token结果。
      */
     private boolean looksLikeLocalFileToken(String value) {
-        String text = stripWrappingQuotes(value);
+        String text = BasicValueSupport.stripMatchingQuotes(value);
         if (text.length() == 0) {
             return false;
         }
@@ -366,24 +366,6 @@ public class AttachmentPathResolver {
     }
 
     /**
-     * 剥离WrappingQuotes。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回strip Wrapping Quotes结果。
-     */
-    private String stripWrappingQuotes(String value) {
-        String text = StrUtil.nullToEmpty(value).trim();
-        if (text.length() >= 2) {
-            char first = text.charAt(0);
-            char last = text.charAt(text.length() - 1);
-            if ((first == '\'' && last == '\'') || (first == '"' && last == '"')) {
-                return text.substring(1, text.length() - 1).trim();
-            }
-        }
-        return text;
-    }
-
-    /**
      * 执行replacetoken相关逻辑。
      *
      * @param text 待处理文本。
@@ -399,7 +381,7 @@ public class AttachmentPathResolver {
         if (!updated.equals(text)) {
             return updated;
         }
-        return text.replace(stripWrappingQuotes(token), replacement);
+        return text.replace(BasicValueSupport.stripMatchingQuotes(token), replacement);
     }
 
     /**
@@ -428,7 +410,7 @@ public class AttachmentPathResolver {
      * @return 返回展示名称结果。
      */
     private String displayName(String path) {
-        String value = stripWrappingQuotes(StrUtil.nullToEmpty(path).trim());
+        String value = BasicValueSupport.stripMatchingQuotes(path);
         if (StrUtil.isBlank(value)) {
             return "-";
         }

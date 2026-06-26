@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.skillhub.support;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.skillhub.model.SkillSetupState;
+import com.jimuqu.solon.claw.support.BasicValueSupport;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -82,27 +83,9 @@ public final class SkillFrontmatterSupport {
                 continue;
             }
             String value = trimmed.substring(colon + 1).trim();
-            values.put(key, stripMatchingQuotes(value));
+            values.put(key, BasicValueSupport.stripMatchingQuotes(value));
         }
         return values;
-    }
-
-    /**
-     * 剥离MatchingQuotes。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回strip Matching Quotes结果。
-     */
-    private static String stripMatchingQuotes(String value) {
-        String text = StrUtil.nullToEmpty(value).trim();
-        if (text.length() >= 2) {
-            char first = text.charAt(0);
-            char last = text.charAt(text.length() - 1);
-            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-                return text.substring(1, text.length() - 1).trim();
-            }
-        }
-        return text;
     }
 
     /**
