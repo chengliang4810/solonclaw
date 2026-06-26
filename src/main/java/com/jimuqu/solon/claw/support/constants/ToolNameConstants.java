@@ -65,6 +65,9 @@ public interface ToolNameConstants {
     /** 会话搜索的统一常量值。 */
     String SESSION_SEARCH = "session_search";
 
+    /** Dashboard 搜索管理的统一常量值。 */
+    String SEARCH_MANAGE = "search_manage";
+
     /** 会话管理的统一常量值。 */
     String SESSION_MANAGE = "session_manage";
 

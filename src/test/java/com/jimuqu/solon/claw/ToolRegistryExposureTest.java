@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawFileStateTracker;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawWebTools;
+import com.jimuqu.solon.claw.tool.runtime.SearchManageTools;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
@@ -106,6 +107,7 @@ public class ToolRegistryExposureTest {
                         "curator_manage",
                         "platform_toolsets_manage",
                         "provider_manage",
+                        "search_manage",
                         "session_manage",
                         "analytics_manage",
                         "logs_manage",
@@ -3729,6 +3731,46 @@ public class ToolRegistryExposureTest {
         assertThat(result.get("result").get("history").isNull()).isFalse();
         assertThat(result.get("result").get("always").isNull()).isFalse();
         assertThat(result.get("result").get("slash_confirms").isNull()).isFalse();
+    }
+
+    @Test
+    void shouldExposeDashboardSearchManagementToolForNaturalLanguageSearch() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("search_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("SearchManageTools");
+    }
+
+    @Test
+    void shouldSearchDashboardResultsThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof SearchManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("search manage tool missing"));
+
+        ONode result =
+                ONode.ofJson(
+                        ((SearchManageTools) tool)
+                                .searchManage(
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        false,
+                                        3));
+
+        assertToolSuccess(result);
+        assertThat(result.get("result").get("tokenizer").getString())
+                .isEqualTo("fts5/cjk-ngram-fallback");
+        assertThat(result.get("result").get("results").isArray()).isTrue();
     }
 
     @Test

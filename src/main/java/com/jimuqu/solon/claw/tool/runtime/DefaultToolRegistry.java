@@ -96,6 +96,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.DELEGATE_TASK,
                     ToolNameConstants.MEMORY,
                     ToolNameConstants.SESSION_SEARCH,
+                    ToolNameConstants.SEARCH_MANAGE,
                     ToolNameConstants.SESSION_MANAGE,
                     ToolNameConstants.ANALYTICS_MANAGE,
                     ToolNameConstants.LOGS_MANAGE,
@@ -1325,6 +1326,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         MemoryTools memoryTools = new MemoryTools(memoryService);
         SessionSearchTools sessionSearchTools =
                 new SessionSearchTools(sessionSearchService, sourceKey);
+        SearchManageTools searchManageTools = new SearchManageTools(sessionSearchService);
         SessionManageTools sessionManageTools =
                 new SessionManageTools(
                         new DashboardSessionService(sessionRepository, checkpointService));
@@ -1485,6 +1487,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(memoryTools);
             } else if (ToolNameConstants.SESSION_SEARCH.equals(toolName)) {
                 tools.add(sessionSearchTools);
+            } else if (ToolNameConstants.SEARCH_MANAGE.equals(toolName)) {
+                tools.add(searchManageTools);
             } else if (ToolNameConstants.SESSION_MANAGE.equals(toolName)) {
                 tools.add(sessionManageTools);
             } else if (ToolNameConstants.ANALYTICS_MANAGE.equals(toolName)) {
