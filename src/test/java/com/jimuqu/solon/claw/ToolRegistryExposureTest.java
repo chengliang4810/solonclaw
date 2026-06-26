@@ -115,6 +115,7 @@ public class ToolRegistryExposureTest {
                         "approval_events_manage",
                         "workspace_manage",
                         "config_manage",
+                        "gateway_setup_manage",
                         "skills_list",
                         "skill_view",
                         "skill_manage",
@@ -3715,6 +3716,17 @@ public class ToolRegistryExposureTest {
         assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey)).contains("config_manage");
         assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
                 .contains("ConfigManageTools");
+    }
+
+    @Test
+    void shouldExposeGatewaySetupManagementToolForNaturalLanguageQrSetup() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-1:user-1";
+
+        assertThat(env.toolRegistry.resolveEnabledToolNames(sourceKey))
+                .contains("gateway_setup_manage");
+        assertThat(env.toolRegistry.resolveEnabledTools(sourceKey).toString())
+                .contains("GatewaySetupManageTools");
     }
 
     @Test

@@ -45,6 +45,8 @@ import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardSessionService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -103,6 +105,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                     ToolNameConstants.APPROVAL_EVENTS_MANAGE,
                     ToolNameConstants.WORKSPACE_MANAGE,
                     ToolNameConstants.CONFIG_MANAGE,
+                    ToolNameConstants.GATEWAY_SETUP_MANAGE,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
@@ -221,6 +224,12 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** Dashboard 配置服务，用于给 Agent 暴露配置元数据只读查询。 */
     private final DashboardConfigService dashboardConfigService;
 
+    /** 微信二维码 setup 服务，用于给 Agent 暴露 Dashboard 配置引导。 */
+    private final WeixinQrSetupService weixinQrSetupService;
+
+    /** 国内渠道二维码 setup 服务，用于给 Agent 暴露 Dashboard 配置引导。 */
+    private final DomesticQrSetupService domesticQrSetupService;
+
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
 
@@ -316,6 +325,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -413,6 +424,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -491,6 +504,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -571,6 +586,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -653,6 +670,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -739,6 +758,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 (BrowserRuntimeService) null,
                 imageGenerationService,
                 speechService,
@@ -823,6 +844,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -907,6 +930,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
@@ -995,6 +1020,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -1086,6 +1113,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardApprovalEventsService) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
@@ -1128,6 +1157,8 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
      * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
      * @param dashboardConfigService Dashboard 配置服务依赖。
+     * @param weixinQrSetupService 微信二维码 setup 服务依赖。
+     * @param domesticQrSetupService 国内二维码 setup 服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
@@ -1168,6 +1199,8 @@ public class DefaultToolRegistry implements ToolRegistry {
             DashboardApprovalEventsService dashboardApprovalEventsService,
             DashboardWorkspaceService dashboardWorkspaceService,
             DashboardConfigService dashboardConfigService,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -1205,6 +1238,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.dashboardApprovalEventsService = dashboardApprovalEventsService;
         this.dashboardWorkspaceService = dashboardWorkspaceService;
         this.dashboardConfigService = dashboardConfigService;
+        this.weixinQrSetupService = weixinQrSetupService;
+        this.domesticQrSetupService = domesticQrSetupService;
         this.processRegistry = processRegistry;
         this.browserRuntimeService =
                 browserRuntimeService == null
@@ -1318,6 +1353,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         WorkspaceManageTools workspaceManageTools =
                 new WorkspaceManageTools(dashboardWorkspaceService);
         ConfigManageTools configManageTools = new ConfigManageTools(dashboardConfigService);
+        GatewaySetupManageTools gatewaySetupManageTools =
+                new GatewaySetupManageTools(weixinQrSetupService, domesticQrSetupService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
@@ -1448,6 +1485,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(workspaceManageTools);
             } else if (ToolNameConstants.CONFIG_MANAGE.equals(toolName)) {
                 tools.add(configManageTools);
+            } else if (ToolNameConstants.GATEWAY_SETUP_MANAGE.equals(toolName)) {
+                tools.add(gatewaySetupManageTools);
             } else if (ToolNameConstants.SKILLS_LIST.equals(toolName)) {
                 tools.add(new SkillTools.SkillsListTool(skillTools));
             } else if (ToolNameConstants.SKILL_VIEW.equals(toolName)) {

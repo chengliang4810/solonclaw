@@ -98,6 +98,8 @@ import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -336,6 +338,12 @@ public class TestEnvironment {
                 new DashboardApprovalEventsService(config);
         DashboardWorkspaceService dashboardWorkspaceService =
                 new DashboardWorkspaceService(personaWorkspaceService);
+        WeixinQrSetupService weixinQrSetupService =
+                new WeixinQrSetupService(
+                        config, dashboardConfigService, refreshService, securityPolicyService);
+        DomesticQrSetupService domesticQrSetupService =
+                new DomesticQrSetupService(
+                        config, dashboardConfigService, refreshService, securityPolicyService);
         BrowserRuntimeService browserRuntimeService =
                 new BrowserRuntimeService(
                         config,
@@ -373,6 +381,8 @@ public class TestEnvironment {
                         dashboardApprovalEventsService,
                         dashboardWorkspaceService,
                         dashboardConfigService,
+                        weixinQrSetupService,
+                        domesticQrSetupService,
                         browserRuntimeService,
                         null,
                         null,

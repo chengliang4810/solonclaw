@@ -75,6 +75,8 @@ import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -304,6 +306,8 @@ public class ToolConfiguration {
      * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
      * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
      * @param dashboardConfigService Dashboard 配置服务依赖。
+     * @param weixinQrSetupService 微信二维码 setup 服务依赖。
+     * @param domesticQrSetupService 国内二维码 setup 服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
@@ -346,6 +350,8 @@ public class ToolConfiguration {
             DashboardApprovalEventsService dashboardApprovalEventsService,
             DashboardWorkspaceService dashboardWorkspaceService,
             DashboardConfigService dashboardConfigService,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
@@ -385,6 +391,8 @@ public class ToolConfiguration {
                 dashboardApprovalEventsService,
                 dashboardWorkspaceService,
                 dashboardConfigService,
+                weixinQrSetupService,
+                domesticQrSetupService,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,

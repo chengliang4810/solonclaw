@@ -95,6 +95,9 @@ public interface ToolNameConstants {
     /** 配置元数据管理的统一常量值。 */
     String CONFIG_MANAGE = "config_manage";
 
+    /** 网关配置引导管理的统一常量值。 */
+    String GATEWAY_SETUP_MANAGE = "gateway_setup_manage";
+
     /** 技能列表的统一常量值。 */
     String SKILLS_LIST = "skills_list";
 
