@@ -2055,19 +2055,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回guarded响应Body结果。
      */
     private String guardedResponseBody(HttpResponse response, String purpose) {
-        int status = response.getStatus();
-        if (status >= 300 && status < 400) {
-            throw new IllegalStateException(
-                    purpose
-                            + " blocked redirect: HTTP "
-                            + status
-                            + " -> "
-                            + SecretRedactor.maskUrl(response.header("Location")));
-        }
-        if (status >= 400) {
-            throw new IllegalStateException(HutoolHttpErrorFormatter.failure(purpose, response));
-        }
-        return BoundedAttachmentIO.readHutoolText(response, BoundedAttachmentIO.JSON_MAX_BYTES);
+        return HutoolHttpErrorFormatter.guardedBody(purpose, response);
     }
 
 
