@@ -5,6 +5,11 @@ import type { createInterface } from 'node:readline'
 import type { GatewayEvent } from './gatewayTypes.js'
 import { CircularBuffer } from './lib/circularBuffer.js'
 import { recordParentLifecycle } from './lib/parentLog.js'
+import { WebSocket as WsWebSocket } from 'ws'
+
+// Node.js 20 没有全局 WebSocket，用 ws 模块补全
+const ResolvedWebSocket: typeof WebSocket =
+  typeof WebSocket !== 'undefined' ? WebSocket : (WsWebSocket as unknown as typeof WebSocket)
 
 const MAX_GATEWAY_LOG_LINES = 200
 const MAX_LOG_LINE_BYTES = 4096
@@ -291,14 +296,14 @@ export class GatewayClient extends EventEmitter {
       return
     }
 
-    if (typeof WebSocket === 'undefined') {
+    if (typeof ResolvedWebSocket === 'undefined') {
       this.pushLog(`[sidecar] WebSocket unavailable; skipping mirror to ${redactUrl(this.sidecarUrl)}`)
 
       return
     }
 
     try {
-      const ws = new WebSocket(this.sidecarUrl)
+      const ws = new ResolvedWebSocket(this.sidecarUrl)
 
       this.sidecarWs = ws
       ws.addEventListener('close', () => {
@@ -371,7 +376,7 @@ export class GatewayClient extends EventEmitter {
     this.clearReadyTimer()
     this.startReadyTimer('websocket', safeAttachUrl)
 
-    if (typeof WebSocket === 'undefined') {
+    if (typeof ResolvedWebSocket === 'undefined') {
       const line = `[startup] WebSocket API unavailable; cannot attach to ${safeAttachUrl}`
 
       this.pushLog(line)
@@ -382,7 +387,7 @@ export class GatewayClient extends EventEmitter {
     }
 
     try {
-      const ws = new WebSocket(attachUrl)
+      const ws = new ResolvedWebSocket(attachUrl)
       let settled = false
 
       this.ws = ws
