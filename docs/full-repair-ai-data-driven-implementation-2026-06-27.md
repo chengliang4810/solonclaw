@@ -309,6 +309,23 @@
       - 增加工具暴露测试，证明默认工具列表包含 `gateway_setup_manage` 且能解析到 `GatewaySetupManageTools`。
     - 提交：`a5f0c65ee`
 
+19. 增加审批队列查询一等工具
+    - 位置：
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/ApprovalQueueManageTools.java`
+      - `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java`
+      - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
+      - `src/main/java/com/jimuqu/solon/claw/bootstrap/ToolConfiguration.java`
+      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
+      - `src/test/java/com/jimuqu/solon/claw/support/TestEnvironment.java`
+    - 改造前：
+      - Dashboard 已有 pending approvals、approval history、always approvals、slash confirms 查询能力。
+      - Agent 自然语言路径只有 `approval_events_manage` 事件统计，不能直接查看当前待处理审批队列和 slash confirm 队列。
+    - 改造后：
+      - 新增 `approval_queue_manage` 工具，复用 `DashboardDiagnosticsService`，支持 `pending`、`history`、`always`、`slash_confirms`、`summary`。
+      - 工具只开放只读查询，不暴露 `resolveApproval`、`resolveSlashConfirm`、`revokeAlwaysApproval` 等会改变审批状态的动作。
+      - 增加工具暴露和 summary 调用测试，证明默认工具列表包含 `approval_queue_manage` 且自然语言工具可返回四类审批队列。
+    - 提交：`3ca8c2351`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -329,6 +346,7 @@
 - `mvn -Dskip.web.build=true -Dtest=PersonaWorkspaceServiceTest,ToolRegistryExposureTest#shouldExposeWorkspaceManagementToolForNaturalLanguageWorkspaceInspection test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=RuntimeRefreshBehaviorTest,ToolRegistryExposureTest#shouldExposeConfigManagementToolForNaturalLanguageConfigInspection test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=WeixinQrSetupServiceTest,DomesticQrSetupServiceTest,ToolRegistryExposureTest#shouldExposeGatewaySetupManagementToolForNaturalLanguageQrSetup test`：通过。
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeApprovalEventsManagementToolForNaturalLanguageApprovalInspection+shouldExposeApprovalQueueManagementToolForNaturalLanguageApprovalInspection+shouldInspectApprovalQueuesThroughNaturalLanguageTool test`：通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
@@ -341,6 +359,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询、审批事件查询、工作区查询、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、MCP 管理、技能维护管理、平台工具集管理、provider 管理、会话与检查点查询、用量分析、日志查询、媒体管理、状态查询、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、配置元数据查询、网关二维码配置引导入口，但仍需要继续盘点其他 Dashboard 专属能力是否需要一等工具。
 - 检查点回滚、会话删除和会话更新暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
