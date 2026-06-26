@@ -3955,7 +3955,9 @@ public class ToolRegistryExposureTest {
                                                 "workspace config manage tool missing"));
 
         ONode result =
-                ONode.ofJson(((WorkspaceConfigManageTools) tool).workspaceConfigManage("items"));
+                ONode.ofJson(
+                        ((WorkspaceConfigManageTools) tool)
+                                .workspaceConfigManage("items", null, null));
 
         assertToolSuccess(result);
         assertThat(result.get("result").get("items").get("providers.default.apiKey").isNull())
@@ -3967,6 +3969,62 @@ public class ToolRegistryExposureTest {
                                 .get("is_password")
                                 .getBoolean())
                 .isTrue();
+    }
+
+    @Test
+    void shouldSetAndRemoveWorkspaceConfigThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof WorkspaceConfigManageTools)
+                        .findFirst()
+                        .orElseThrow(
+                                () ->
+                                        new AssertionError(
+                                                "workspace config manage tool missing"));
+
+        ONode saved =
+                ONode.ofJson(
+                        ((WorkspaceConfigManageTools) tool)
+                                .workspaceConfigManage(
+                                        "set",
+                                        "providers.default.defaultModel",
+                                        "workspace-config-test-model"));
+        ONode items =
+                ONode.ofJson(
+                        ((WorkspaceConfigManageTools) tool)
+                                .workspaceConfigManage("items", null, null));
+        ONode removed =
+                ONode.ofJson(
+                        ((WorkspaceConfigManageTools) tool)
+                                .workspaceConfigManage(
+                                        "remove", "providers.default.defaultModel", null));
+        ONode secretWrite =
+                ONode.ofJson(
+                        ((WorkspaceConfigManageTools) tool)
+                                .workspaceConfigManage(
+                                        "set", "providers.default.apiKey", "sk-test-secret"));
+
+        assertToolSuccess(saved);
+        assertThat(saved.get("result").get("ok").getBoolean()).isTrue();
+        assertThat(
+                        items.get("result")
+                                .get("items")
+                                .get("providers.default.defaultModel")
+                                .get("is_set")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        items.get("result")
+                                .get("items")
+                                .get("providers.default.defaultModel")
+                                .get("redacted_value")
+                                .getString())
+                .isEqualTo("work...odel");
+        assertToolSuccess(removed);
+        assertThat(removed.get("result").get("ok").getBoolean()).isTrue();
+        assertToolError(secretWrite);
+        assertThat(secretWrite.get("error").getString()).contains("密钥配置");
     }
 
     @Test
