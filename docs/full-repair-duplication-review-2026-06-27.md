@@ -19,10 +19,10 @@
 - 助手可见文本比较：LLM 网关复用 `MessageSupport.sameVisibleContent`。
 - 工具全集策略：`DefaultDelegationService` 与 `DefaultToolRegistry` 复用 `AgentRuntimePolicy.knownToolNames()`，同时补齐 dashboard/manage 工具，避免委托子会话在 toolsets 限制下漏关工具。
 - 工具注册表构造链：短构造函数逐层委托已有长构造函数，消除重复的可选依赖 null 参数展开。
+- 运行仓储测试基类：`QuietContextCollectorTest` 与 `RunStateCollectorTest` 复用 `UnsupportedAgentRunRepository`，只保留各自采集器会调用的方法。
 
 ## 当前保留的重复项
 
-- `src/test/java/com/jimuqu/solon/claw/QuietContextCollectorTest.java:204-251` 与 `src/test/java/com/jimuqu/solon/claw/RunStateCollectorTest.java:383-430` 存在测试夹具重复，优先级低于生产代码重复。
 - `YuanbaoChannelAdapter`、`WeComChannelAdapter`、`QQBotChannelAdapter` 的 `disconnect()` 只剩状态字段清理薄包装，已复用 `ChannelConnectionSupport.disconnect(...)`，继续抽象会增加不必要的回调或继承约束。
 - `DomesticQrSetupService.fail(...)` 与 `WeixinQrSetupService.fail(...)` 的私有 `TicketState` 类型不同，强制复用需要引入接口或基类，代码会更重。
 - `MemoryProvider.syncTurn(...)` 与 `MemoryManager.syncTurn(...)` 是两个接口的默认协议方法，保留重复比引入额外父接口更清晰。
@@ -36,6 +36,7 @@
 - `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
 - `mvn -Dskip.web.build=true -DskipTests compile`
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest,DelegationServiceTest test`
+- `mvn -Dskip.web.build=true -Dtest=QuietContextCollectorTest,RunStateCollectorTest test`
 - `mvn -Dskip.web.build=true -Dtest=DelegationServiceTest test`
 - `DomesticChannelEnhancementTest`
 - `SessionSearchServiceTest`
