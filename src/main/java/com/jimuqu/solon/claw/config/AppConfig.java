@@ -194,6 +194,8 @@ public class AppConfig {
         this.gateway.setInjectionReplayWindowSeconds(
                 other.getGateway().getInjectionReplayWindowSeconds());
         this.gateway.setFilterSilenceNarration(other.getGateway().isFilterSilenceNarration());
+        this.gateway.setProcessingReactionsEnabled(
+                other.getGateway().isProcessingReactionsEnabled());
         this.gateway.setPlatforms(cloneGatewayPlatforms(other.getGateway().getPlatforms()));
         this.dashboard.setAccessToken(other.getDashboard().getAccessToken());
         this.agent.setPersonalities(clonePersonalities(other.getAgent().getPersonalities()));
@@ -1704,6 +1706,9 @@ public class AppConfig {
 
         /** 是否启用过滤器SilenceNarration。 */
         private boolean filterSilenceNarration = true;
+
+        /** 是否启用渠道处理状态表情回应，用于在原消息上标记处理中和完成状态。 */
+        private boolean processingReactionsEnabled = true;
 
         /** 各平台工具集权限配置，键为平台名称（大写），值为该平台的工具集策略。 */
         private Map<String, PlatformConfig> platforms = new LinkedHashMap<String, PlatformConfig>();

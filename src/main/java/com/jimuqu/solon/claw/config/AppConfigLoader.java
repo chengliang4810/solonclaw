@@ -1019,6 +1019,14 @@ final class AppConfigLoader {
                                         "solonclaw.gateway.filterSilenceNarration",
                                         true)));
         config.getGateway()
+                .setProcessingReactionsEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.gateway.processingReactionsEnabled",
+                                        true)));
+        config.getGateway()
                 .setPlatforms(loadGatewayPlatforms(props, overrides, structuredOverrides));
         config.getDashboard()
                 .setAccessToken(

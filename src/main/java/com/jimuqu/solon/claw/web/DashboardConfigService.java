@@ -767,6 +767,12 @@ public class DashboardConfigService {
                         "list",
                         "messaging",
                         "腾讯元宝群聊 allowlist"));
+        addField(
+                new FieldDefinition(
+                        "gateway.processingReactionsEnabled",
+                        "boolean",
+                        "messaging",
+                        "启用处理状态表情回应"));
     }
 
     /**

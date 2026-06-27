@@ -965,6 +965,7 @@ public class RuntimeConfigResolver {
                 "solonclaw.gateway.injectionSecret",
                 "solonclaw.gateway.injectionMaxBodyBytes",
                 "solonclaw.gateway.injectionReplayWindowSeconds",
+                "solonclaw.gateway.processingReactionsEnabled",
                 "solonclaw.dashboard.accessToken",
                 "solonclaw.agent.heartbeat.intervalMinutes",
                 "solonclaw.proactive.enabled",

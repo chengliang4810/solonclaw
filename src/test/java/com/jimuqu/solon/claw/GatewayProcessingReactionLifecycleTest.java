@@ -113,6 +113,22 @@ public class GatewayProcessingReactionLifecycleTest {
         assertThat(adapter.events()).containsExactly("start:msg-hook", "complete:msg-hook:SUCCESS");
     }
 
+    @Test
+    void shouldSkipProcessingReactionsWhenGatewayToggleIsDisabled() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getGateway().setProcessingReactionsEnabled(false);
+        claimAdmin(env, "disabled-room", "disabled-user");
+        TrackingChannelAdapter adapter = new TrackingChannelAdapter();
+        DefaultGatewayService gatewayService = gatewayServiceWith(env, adapter);
+
+        GatewayMessage message = env.message("disabled-room", "disabled-user", "hello disabled");
+        message.setThreadId("msg-disabled");
+        GatewayReply reply = gatewayService.handle(message);
+
+        assertThat(reply.getContent()).contains("echo:hello disabled");
+        assertThat(adapter.events()).isEmpty();
+    }
+
     private void claimAdmin(TestEnvironment env, String chatId, String userId) throws Exception {
         env.send(chatId, userId, "hello");
         env.send(chatId, userId, "/pairing claim-admin");
@@ -142,7 +158,8 @@ public class GatewayProcessingReactionLifecycleTest {
                 env.gatewayAuthorizationService,
                 new NoopSkillLearningService(),
                 null,
-                adapters);
+                adapters,
+                env.appConfig);
     }
 
     /** 记录处理生命周期调用的内存渠道适配器。 */

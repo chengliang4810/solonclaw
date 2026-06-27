@@ -194,6 +194,8 @@ solonclaw.channels.weixin.toolProgress: off
 # 全局网关授权兜底配置
 solonclaw.gateway.allowedUsers:
 solonclaw.gateway.allowAllUsers: false
+# 是否在支持的渠道原消息上显示处理中/完成表情回应
+solonclaw.gateway.processingReactionsEnabled: true
 
 # 版本检查与更新
 solonclaw.update.repo:
