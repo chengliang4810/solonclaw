@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import * as filesApi from '@/api/solonclaw/files'
 import type { FileEntry } from '@/api/solonclaw/files'
 import { isImageFileName, isMarkdownFileName, isTextFileName } from '@/shared/fileDisplay'
+import { fileListLoadFailedState } from '@/shared/fileListState'
 
 const EXT_LANG_MAP: Record<string, string> = {
   '.js': 'javascript', '.jsx': 'javascript',
@@ -67,6 +68,7 @@ export const useFilesStore = defineStore('files', () => {
   const currentPath = ref('')
   const entries = ref<FileEntry[]>([])
   const loading = ref(false)
+  const error = ref('')
   const sortBy = ref<'name' | 'size' | 'modTime'>('name')
   const sortOrder = ref<'asc' | 'desc'>('asc')
 
@@ -112,10 +114,14 @@ export const useFilesStore = defineStore('files', () => {
     }
     if (path !== undefined) currentPath.value = path
     loading.value = true
+    error.value = ''
     try {
       const result = await filesApi.listFiles(currentPath.value)
       entries.value = result.entries
     } catch (err) {
+      const failedState = fileListLoadFailedState(err)
+      entries.value = failedState.entries
+      error.value = failedState.error
       console.error('Failed to fetch files:', err)
       throw err
     } finally {
@@ -220,7 +226,7 @@ export const useFilesStore = defineStore('files', () => {
   })
 
   return {
-    currentPath, entries, loading, sortBy, sortOrder,
+    currentPath, entries, loading, error, sortBy, sortOrder,
     editingFile, previewFile,
     pathSegments, sortedEntries, hasUnsavedChanges,
     fetchEntries, navigateTo, navigateUp,

@@ -75,7 +75,10 @@ async function handleDownload(entry: FileEntry) {
 <template>
   <div class="file-list">
     <NSpin :show="filesStore.loading">
-      <NEmpty v-if="!filesStore.loading && filesStore.sortedEntries.length === 0" :description="t('files.emptyDir')" />
+      <div v-if="!filesStore.loading && filesStore.error" class="file-list-error">
+        {{ filesStore.error || t('files.backendError') }}
+      </div>
+      <NEmpty v-else-if="!filesStore.loading && filesStore.sortedEntries.length === 0" :description="t('files.emptyDir')" />
       <div v-else class="file-list-items">
         <div class="file-list-header">
           <div class="file-name sort-header" @click="filesStore.setSort('name')">
@@ -120,6 +123,15 @@ async function handleDownload(entry: FileEntry) {
 
 .file-list {
   padding: 8px 16px;
+}
+
+.file-list-error {
+  border: 1px solid rgba(var(--error-rgb), 0.24);
+  border-radius: $radius-md;
+  background: rgba(var(--error-rgb), 0.1);
+  color: $error;
+  padding: 12px 14px;
+  font-size: 13px;
 }
 
 .file-list-header {
