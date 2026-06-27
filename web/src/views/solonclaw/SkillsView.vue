@@ -7,9 +7,12 @@ import SkillDetail from '@/components/solonclaw/skills/SkillDetail.vue'
 import {
   applyCuratorSuggestion,
   fetchCuratorImprovements,
+  fetchCuratorReport,
+  fetchCuratorReports,
   ignoreCuratorSuggestion,
   runCurator,
   type CuratorImprovement,
+  type CuratorReportSummary,
 } from '@/api/solonclaw/curator'
 import { fetchInsightsSkills, type InsightsSkills } from '@/api/solonclaw/insights'
 import { fetchSkills, fetchToolsets, type SkillCategory, type ToolsetInfo } from '@/api/solonclaw/skills'
@@ -18,12 +21,16 @@ const { t } = useI18n()
 const categories = ref<SkillCategory[]>([])
 const toolsets = ref<ToolsetInfo[]>([])
 const improvements = ref<CuratorImprovement[]>([])
+const curatorReports = ref<CuratorReportSummary[]>([])
+const curatorReportDetail = ref<Record<string, unknown> | null>(null)
 const skillInsights = ref<InsightsSkills>({})
 const loading = ref(false)
 const curatorLoading = ref(false)
+const curatorReportLoading = ref(false)
 const insightsLoading = ref(false)
 const toolsetsLoading = ref(false)
 const curatorActionId = ref('')
+const selectedCuratorReportId = ref('')
 const selectedCategory = ref('')
 const selectedSkill = ref('')
 const searchQuery = ref('')
@@ -52,6 +59,7 @@ onMounted(() => {
   mobileQuery.addEventListener('change', handleMobileChange)
   loadSkills()
   loadCuratorImprovements()
+  loadCuratorReports()
   loadSkillInsights()
   loadToolsets()
 })
@@ -82,6 +90,32 @@ async function loadCuratorImprovements() {
   }
 }
 
+async function loadCuratorReports() {
+  curatorReportLoading.value = true
+  try {
+    curatorReports.value = await fetchCuratorReports()
+    if (!selectedCuratorReportId.value && curatorReports.value.length) {
+      selectedCuratorReportId.value = curatorReports.value[0].report_id
+    }
+  } catch (err: any) {
+    message.error(`${t('skills.curatorReportsLoadFailed')}: ${err.message}`)
+  } finally {
+    curatorReportLoading.value = false
+  }
+}
+
+async function loadCuratorReportDetail(reportId: string) {
+  selectedCuratorReportId.value = reportId
+  curatorReportLoading.value = true
+  try {
+    curatorReportDetail.value = await fetchCuratorReport(reportId) as Record<string, unknown>
+  } catch (err: any) {
+    message.error(`${t('skills.curatorReportLoadFailed')}: ${err.message}`)
+  } finally {
+    curatorReportLoading.value = false
+  }
+}
+
 async function loadSkillInsights() {
   insightsLoading.value = true
   try {
@@ -108,7 +142,12 @@ async function runCuratorNow() {
   curatorLoading.value = true
   try {
     await runCurator(true)
-    improvements.value = await fetchCuratorImprovements()
+    const [loadedImprovements, loadedReports] = await Promise.all([
+      fetchCuratorImprovements(),
+      fetchCuratorReports(),
+    ])
+    improvements.value = loadedImprovements
+    curatorReports.value = loadedReports
     message.success(t('skills.curatorRunComplete'))
   } catch (err: any) {
     message.error(`${t('skills.curatorRunFailed')}: ${err.message}`)
@@ -139,6 +178,12 @@ async function resolveCuratorSuggestion(item: CuratorImprovement, action: 'apply
 function formatCuratorTime(value?: number) {
   if (!value) return ''
   return new Date(value).toLocaleString()
+}
+
+function curatorReportText(value: unknown) {
+  if (value === undefined || value === null) return '-'
+  if (typeof value === 'string') return value
+  return JSON.stringify(value, null, 2)
 }
 
 function handleSelect(category: string, skill: string) {
@@ -231,6 +276,31 @@ function handleSelect(category: string, skill: string) {
                     </Button>
                   </div>
                 </article>
+              </div>
+
+              <div class="curator-reports">
+                <div class="curator-subheader">
+                  <h4>{{ t('skills.curatorReports') }}</h4>
+                  <Button size="small" :loading="curatorReportLoading" @click="loadCuratorReports">
+                    {{ t('skills.refresh') }}
+                  </Button>
+                </div>
+                <div v-if="curatorReports.length" class="curator-report-list">
+                  <button
+                    v-for="report in curatorReports"
+                    :key="report.report_id"
+                    class="curator-report-row"
+                    :class="{ active: report.report_id === selectedCuratorReportId }"
+                    @click="loadCuratorReportDetail(report.report_id)"
+                  >
+                    <span>{{ report.summary || report.report_id }}</span>
+                    <small>{{ report.status }} · {{ formatCuratorTime(report.finished_at || report.started_at) }}</small>
+                  </button>
+                </div>
+                <div v-else class="curator-empty">
+                  {{ curatorReportLoading ? t('common.loading') : t('skills.curatorReportsEmpty') }}
+                </div>
+                <pre v-if="curatorReportDetail" class="curator-report-detail">{{ curatorReportText(curatorReportDetail) }}</pre>
               </div>
             </section>
 
@@ -562,6 +632,66 @@ function handleSelect(category: string, skill: string) {
 .curator-item-meta {
   color: $text-muted;
   font-size: 11px;
+}
+
+.curator-reports {
+  margin-top: 14px;
+  border-top: 1px solid $border-color;
+  padding-top: 12px;
+}
+
+.curator-subheader {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+
+  h4 {
+    margin: 0;
+    font-size: 13px;
+    color: $text-primary;
+  }
+}
+
+.curator-report-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.curator-report-row {
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  color: $text-primary;
+  display: grid;
+  gap: 4px;
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+
+  &.active {
+    border-color: $accent-primary;
+    background: rgba(var(--accent-primary-rgb), 0.08);
+  }
+
+  small {
+    color: $text-muted;
+  }
+}
+
+.curator-report-detail {
+  margin: 10px 0 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-primary;
+  color: $text-secondary;
+  font-family: $font-code;
+  font-size: 12px;
+  padding: 10px;
+  white-space: pre-wrap;
 }
 
 .sidebar-toggle {
