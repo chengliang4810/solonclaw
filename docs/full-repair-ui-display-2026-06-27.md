@@ -6,7 +6,8 @@
 
 - 对应本地 TUI Markdown 渲染展示质量。
 - 对应本地 TUI 会话首屏品牌图案展示质量。
-- 本文只记录当前已经完成并提交的阶段 5.3 展示修复项，不把阶段 5 标记为完成。
+- 对应 Web Dashboard 常用页面的数据新鲜度、错误反馈和旧数据清理。
+- 本文记录阶段 5 已完成并提交的展示修复项。
 
 ## 已处理项
 
@@ -217,3 +218,9 @@
 - `git diff --check -- web/src/stores/solonclaw/files.ts web/src/components/solonclaw/files/FileList.vue web/src/shared/fileListState.ts web/tests/fileListState.test.ts docs/full-repair-ui-display-2026-06-27.md`：通过。
 - `node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('terminal-ui/package.json','utf8')); const l=JSON.parse(fs.readFileSync('terminal-ui/package-lock.json','utf8')); console.log(JSON.stringify({package:p.version, lock:l.version, root:l.packages[''].version}, null, 2)); if (p.version!==l.version || p.version!==l.packages[''].version) process.exit(1)"`：通过，三处版本号均为 `0.0.7`。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
+
+## 阶段结论
+
+- 阶段 5 已覆盖当前高确定性的 UI/UX 与数据显示问题：TUI 品牌图案、TUI Markdown 表格行内格式、文件打开行为一致性、用量统计自动刷新、常用页面加载失败后的持久错误提示和旧数据清理。
+- 本阶段不做低收益的大范围组件抽象；`MemoryView.vue`、`PersonaFileView.vue`、`PersonaDiaryView.vue` 与 `SkillsView.vue` 的视觉相似点已在重复代码记录中保留为后续前端原子项。
+- 后续如果新增 Dashboard 页面或 API，需要同步检查是否存在“失败后继续展示旧数据”“只弹短暂 toast 不保留页面内错误状态”“前端入口超前后端能力”的同类问题。

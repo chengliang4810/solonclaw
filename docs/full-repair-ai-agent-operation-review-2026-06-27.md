@@ -5,7 +5,7 @@
 ## 对应能力点
 
 - 对应本地 Agent 工具系统、Dashboard API、前端操作入口和自然语言驱动能力。
-- 本文只记录当前覆盖事实和缺口，不把 4.4 标记为完成。
+- 本文记录阶段 4.4 的审查结论；具体落地项见 `docs/full-repair-ai-data-driven-implementation-2026-06-27.md`。
 
 ## 已有自然语言工具覆盖
 
@@ -46,37 +46,36 @@
 - Diagnostics、security audit、审批、slash confirms。
 - Workspace files、persona diaries、media、logs、usage、insights、curator。
 
-## 明显缺口候选
+## 已补齐的高确定性缺口
 
-1. Dashboard 专属管理 API 未全部有一等工具入口
-   - 例子：provider 管理、MCP 服务管理、checkpoint rollback、run control、curator apply/ignore、platform toolsets。
-   - 现状：
-     - Agent 可以通过文件、配置、Shell 或浏览器间接操作部分能力。
-     - 但这不是稳定的一等自然语言工具路径。
-   - 建议：
-     - 后续逐一补“窄工具”，不要做一个能任意打 Dashboard API 的万能 HTTP 工具。
+1. Dashboard 专属管理 API 已补窄工具入口
+   - 已补：运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、技能文件列表、工具集查询、平台工具集管理、provider 管理、会话查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、子进程环境诊断、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导。
+   - 原则：
+     - 逐一补窄工具，复用 Dashboard 既有服务。
+     - 不新增万能 Dashboard HTTP 工具。
+     - 不复制 URL 安全、包安全、密钥脱敏、审批或配置校验逻辑。
 
 2. `tool_gateway` 默认关闭
    - 现状：
      - `tool_gateway` 只有在对应工具开关启用时才加入工具集。
      - 这符合安全默认值，但会降低“自然语言发现可用工具”的能力。
-   - 建议：
+   - 结论：
      - 不直接改默认开关。
-     - 后续先确认 UI 是否能清楚展示并启用 `tool_gateway`。
+     - 已通过一等窄工具覆盖高确定性 Dashboard 能力，不依赖打开 `tool_gateway` 来解决阶段 4.4。
 
-3. 浏览器和 UI 操作能力已有工具，但缺少覆盖证明
+3. 浏览器和 UI 操作能力已有工具
    - 现状：
      - `BrowserTools` 已注册。
      - 前端有大量页面和交互入口。
-   - 建议：
-     - 后续用一个最小 E2E 或后端工具解析测试证明：启用 browser 工具后 Agent 工具列表包含浏览器能力。
+   - 结论：
+     - 阶段 4.4 不把浏览器点击作为 Dashboard 能力补齐的主要路径。
+     - 已优先补服务复用型窄工具，减少自然语言操作对 UI 点击的依赖。
 
-4. Run control 和 checkpoint rollback 是高价值候选
-   - 理由：
-     - Dashboard 已经有 `/api/runs/{runId}/control`、`/api/runs/subagents/{subagentId}/control` 和 `/api/checkpoints/{id}/rollback`。
-     - Agent 如果只能通过 UI 或 Shell 间接操作，不够稳定。
-   - 建议：
-     - 优先补一个受审批/权限约束的 run 控制工具或 checkpoint 工具，避免自然语言操作只能依赖浏览器点击。
+4. Run control 已补，checkpoint rollback 暂不补普通工具
+   - 已补：
+     - `run_manage` 复用 `DashboardRunService`，覆盖 run detail、events、tools、subagents、recoveries、commands、recoverable、control、active_subagents、control_subagent、run、session_runs。
+   - 暂不补：
+     - checkpoint rollback、会话删除等破坏性入口不作为普通自然语言工具暴露；后续如要开放，需要先补明确审批或确认边界。
 
 ## 已明确不做
 
@@ -84,13 +83,13 @@
 - 不绕过现有工具开关、审批和安全策略。
 - 不把高风险操作做成默认自动执行。
 
-## 下一步
+## 阶段结论
 
-1. 先检查 `RunControlCommand`、`DashboardRunService`、checkpoint rollback 服务和现有工具类。
-2. 若已有可复用服务层，优先补一个最小 run/checkpoint 管理工具。
-3. 若服务层耦合 Dashboard 请求响应，先只补工具覆盖测试或文档，不硬拆大结构。
+- 阶段 4.4 的高确定性缺口已经按“窄工具 + 服务复用 + 测试证明”完成。
+- 剩余不补的入口属于高风险写入、浏览器下载、OAuth 回调或聊天运行主链，不按普通自然语言工具处理。
+- 当前结论以 `docs/full-repair-ai-data-driven-implementation-2026-06-27.md` 中的实施清单和验证记录为准。
 
 ## 剩余风险
 
-- 4.4 仍未完成；本文只是覆盖审查。
-- 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
+- 检查点回滚、会话删除、OAuth begin/refresh/callback/handle-401/clear、审批 resolve/revoke 仍保留在更强边界内；这不是遗漏，而是阶段内安全边界决策。
+- Dashboard Chat 上传、SSE events、cancel 等聊天运行主链入口不重复包装成普通工具，避免和会话运行生命周期产生两套入口。
