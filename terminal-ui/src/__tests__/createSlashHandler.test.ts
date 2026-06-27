@@ -114,6 +114,18 @@ describe('createSlashHandler', () => {
     })
   })
 
+  it('reports model switch RPC failures instead of failing silently', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.reject(new Error('backend unavailable')))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    expect(createSlashHandler(ctx)('/model x-model')).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('error: backend unavailable')
+    })
+  })
+
   it('refreshes model options without writing --refresh as the model name', async () => {
     patchUiState({ sid: 'sid-abc' })
 

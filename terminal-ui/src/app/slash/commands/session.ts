@@ -78,7 +78,7 @@ export const sessionCommands: SlashCommand[] = [
           patchUiState(state => ({ ...state, bgTasks: new Set(state.bgTasks).add(r.task_id!) }))
           ctx.transcript.sys(`bg ${r.task_id} started`)
         })
-      )
+      ).catch(ctx.guardedErr)
     }
   },
 
@@ -118,6 +118,7 @@ export const sessionCommands: SlashCommand[] = [
             }))
           })
         )
+        .catch(ctx.guardedErr)
     }
   },
 
@@ -166,7 +167,7 @@ export const sessionCommands: SlashCommand[] = [
             ctx.composer.setInput(r.remainder)
           }
         })
-      )
+      ).catch(ctx.guardedErr)
     }
   },
 
@@ -187,7 +188,7 @@ export const sessionCommands: SlashCommand[] = [
           ctx.transcript.sys(`personality: ${r.value || 'default'}${r.history_reset ? ' · transcript cleared' : ''}`)
           ctx.local.maybeWarn(r)
         })
-      )
+      ).catch(ctx.guardedErr)
     }
   },
 
@@ -263,7 +264,7 @@ export const sessionCommands: SlashCommand[] = [
           ctx.session.setSessionStartedAt(Date.now())
           ctx.transcript.sys(`branched → ${r.title ?? ''}`)
         })
-      )
+      ).catch(ctx.guardedErr)
     }
   },
 
@@ -352,7 +353,7 @@ export const sessionCommands: SlashCommand[] = [
             ctx.transcript.sys('Voice mode disabled.')
           }
         })
-      )
+      ).catch(ctx.guardedErr)
     }
   },
 
@@ -364,11 +365,13 @@ export const sessionCommands: SlashCommand[] = [
         return ctx.gateway
           .rpc<ConfigGetValueResponse>('config.get', { key: 'skin' })
           .then(ctx.guarded<ConfigGetValueResponse>(r => ctx.transcript.sys(`skin: ${r.value || 'default'}`)))
+          .catch(ctx.guardedErr)
       }
 
       ctx.gateway
         .rpc<ConfigSetResponse>('config.set', { key: 'skin', value: arg })
         .then(ctx.guarded<ConfigSetResponse>(r => r.value && ctx.transcript.sys(`skin → ${r.value}`)))
+        .catch(ctx.guardedErr)
     }
   },
 
@@ -387,6 +390,7 @@ export const sessionCommands: SlashCommand[] = [
               ctx.transcript.sys(`indicator: ${r.value || DEFAULT_INDICATOR_STYLE}`)
             )
           )
+          .catch(ctx.guardedErr)
       }
 
       if (!(INDICATOR_STYLES as readonly string[]).includes(value)) {
@@ -405,7 +409,7 @@ export const sessionCommands: SlashCommand[] = [
           patchUiState({ indicatorStyle: value as IndicatorStyle })
           ctx.transcript.sys(`indicator → ${r.value}`)
         })
-      )
+      ).catch(ctx.guardedErr)
     }
   },
 
@@ -428,6 +432,7 @@ export const sessionCommands: SlashCommand[] = [
               r => r.value && ctx.transcript.sys(`reasoning: ${r.value} · display ${r.display || 'hide'}`)
             )
           )
+          .catch(ctx.guardedErr)
       }
 
       ctx.gateway
@@ -455,6 +460,7 @@ export const sessionCommands: SlashCommand[] = [
             ctx.transcript.sys(`reasoning: ${r.value}`)
           })
         )
+        .catch(ctx.guardedErr)
     }
   },
 
@@ -544,6 +550,7 @@ export const sessionCommands: SlashCommand[] = [
       ctx.gateway
         .rpc<ConfigSetResponse>('config.set', { key: 'verbose', session_id: ctx.sid, value: arg || 'cycle' })
         .then(ctx.guarded<ConfigSetResponse>(r => r.value && ctx.transcript.sys(`verbose: ${r.value}`)))
+        .catch(ctx.guardedErr)
     }
   },
 
@@ -594,7 +601,7 @@ export const sessionCommands: SlashCommand[] = [
         }
 
         ctx.transcript.panel('Usage', sections)
-      })
+      }).catch(ctx.guardedErr)
     }
   }
 ]
