@@ -20,9 +20,25 @@
      - 非换行表格单元格内容改为复用 `MdInline` 渲染，padding 和列间距仍按可见宽度计算。
    - 提交：`ad80c1fb7`
 
+2. 处理状态表情回应 Dashboard 配置入口
+   - 预存问题：`docs/full-repair-bug-report-2026-06-26.md` 中的 `BUG-001`。
+   - 位置：
+     - `src/main/java/com/jimuqu/solon/claw/config/AppConfig.java`
+     - `src/main/java/com/jimuqu/solon/claw/gateway/service/DefaultGatewayService.java`
+     - `src/main/java/com/jimuqu/solon/claw/web/DashboardConfigService.java`
+   - 改造前：
+     - 网关会无条件触发渠道处理状态表情回应生命周期。
+     - Dashboard 配置 schema 没有处理状态表情回应开关，用户无法按环境或权限关闭。
+   - 改造后：
+     - 新增 `gateway.processingReactionsEnabled` 配置，默认启用。
+     - Dashboard schema 在 messaging 分类暴露该开关。
+     - 网关在触发处理开始/完成表情回应前读取该开关，关闭时不调用渠道适配器生命周期。
+   - 提交：`6a86d4488`
+
 ## 验证
 
 - `npm test --prefix terminal-ui -- markdown.test.ts`：通过，43 个测试通过。
+- `mvn -Dskip.web.build=true -Dtest=GatewayProcessingReactionLifecycleTest,ProactiveDashboardDiagnosticTest,RuntimeConfigResolverTest test`：通过，16 个测试通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
