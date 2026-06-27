@@ -22,12 +22,23 @@ const isEmpty = computed(() => !file.value?.content?.trim())
 const isReadOnly = computed(() => fileKey.value === 'memory_today')
 
 async function loadFile() {
+  const key = fileKey.value
   loading.value = true
   editing.value = false
+  if (file.value?.key !== key) {
+    file.value = null
+    editContent.value = ''
+  }
   try {
-    file.value = await fetchPersonaFile(fileKey.value)
-    editContent.value = file.value.content || ''
+    const nextFile = await fetchPersonaFile(key)
+    if (fileKey.value !== key) return
+    file.value = nextFile
+    editContent.value = nextFile.content || ''
   } catch (err: any) {
+    if (file.value?.key !== key) {
+      file.value = null
+      editContent.value = ''
+    }
     message.error(err.message || t('personaFile.loadFailed'))
   } finally {
     loading.value = false

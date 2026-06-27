@@ -127,6 +127,16 @@
     - 改造后：
       - 日志刷新失败时清空当前日志条目和已应用搜索条件，并展示错误提示。
       - 日志文件列表初始化失败时清空列表并提示错误，后续仍尝试加载当前默认日志。
+    - 提交：`390c958fe`
+
+11. 人格文件切换失败清理旧正文
+    - 位置：`web/src/views/solonclaw/PersonaFileView.vue`
+    - 改造前：
+      - 从一个人格文件切换到另一个人格文件时，如果新文件加载失败，页面标题会变成新文件但正文仍可能保留旧文件内容。
+    - 改造后：
+      - 切换到不同文件 key 时先清空旧正文和编辑内容。
+      - 异步返回时确认仍处于同一文件 key，避免慢请求覆盖当前页面。
+      - 新文件加载失败时保持空正文并展示错误提示，不再混用旧内容。
 
 ## 验证
 
@@ -139,10 +149,12 @@
 - `npm run build --prefix web`：2026-06-27 用量页自动刷新改造后通过。
 - `npm run build --prefix web`：2026-06-27 人格日记加载失败反馈改造后通过。
 - `npm run build --prefix web`：2026-06-27 日志页失败状态清理改造后通过。
+- `npm run build --prefix web`：2026-06-27 人格文件切换失败清理旧正文改造后通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
 - `git diff --check -- web/src/shared/fileDisplay.ts web/tests/fileDisplay.test.ts web/src/components/solonclaw/files/FileContextMenu.vue`：通过。
 - `git diff --check -- web/src/views/solonclaw/UsageView.vue`：通过。
 - `git diff --check -- web/src/views/solonclaw/PersonaDiaryView.vue`：通过。
 - `git diff --check -- web/src/views/solonclaw/LogsView.vue`：通过。
+- `git diff --check -- web/src/views/solonclaw/PersonaFileView.vue`：通过。
 - `node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('terminal-ui/package.json','utf8')); const l=JSON.parse(fs.readFileSync('terminal-ui/package-lock.json','utf8')); console.log(JSON.stringify({package:p.version, lock:l.version, root:l.packages[''].version}, null, 2)); if (p.version!==l.version || p.version!==l.packages[''].version) process.exit(1)"`：通过，三处版本号均为 `0.0.7`。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
