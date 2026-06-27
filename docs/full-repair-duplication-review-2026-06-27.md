@@ -21,6 +21,7 @@
 - 工具注册表构造链：短构造函数逐层委托已有长构造函数，消除重复的可选依赖 null 参数展开。
 - 运行仓储测试基类：`QuietContextCollectorTest` 与 `RunStateCollectorTest` 复用 `UnsupportedAgentRunRepository`，只保留各自采集器会调用的方法。
 - 危险命令审批测试支撑：`DangerousCommandApprovalServiceTest`、`DangerousCommandCredentialPolicyTest`、`DangerousCommandCodeAndNetworkPolicyTest`、`DangerousCommandFilePolicyTest` 与 `DangerousCommandGatewayApprovalTest` 复用 `DangerousCommandApprovalTestSupport`，删除拆分后复制的 Tirith、DNS、trace 与安全断言 helper。
+- 仪表盘诊断测试支撑：`DashboardDiagnosticOutputTest` 与 `DashboardSecurityProbeDiagnosticTest` 复用 `DashboardDiagnosticTestSupport`，删除拆分后复制的诊断服务替身、仓储替身与探针断言 helper。
 
 ## 当前保留的重复项
 
@@ -51,3 +52,4 @@
 
 - `mvn -Dskip.web.build=true -Dtest=DangerousCommandApprovalServiceTest,DangerousCommandCredentialPolicyTest,DangerousCommandCodeAndNetworkPolicyTest,DangerousCommandFilePolicyTest,DangerousCommandGatewayApprovalTest test`
 - `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
+- `mvn -Dskip.web.build=true -Dtest=DashboardDiagnosticOutputTest,DashboardSecurityProbeDiagnosticTest test`
