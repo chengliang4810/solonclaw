@@ -3632,51 +3632,6 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
-    /** 承载审批命令参数相关状态和辅助逻辑。 */
-    private static class ApprovalCommandArgs {
-        /** 记录审批命令参数中的选择器。 */
-        private String selector;
-
-        /** 注入范围，用于调用对应业务能力。 */
-        private DangerousCommandApprovalService.ApprovalScope scope;
-
-        /**
-         * 读取Selector。
-         *
-         * @return 返回读取到的Selector。
-         */
-        public String getSelector() {
-            return selector;
-        }
-
-        /**
-         * 写入Selector。
-         *
-         * @param selector 浏览器元素选择器。
-         */
-        public void setSelector(String selector) {
-            this.selector = selector;
-        }
-
-        /**
-         * 读取范围。
-         *
-         * @return 返回读取到的范围。
-         */
-        public DangerousCommandApprovalService.ApprovalScope getScope() {
-            return scope;
-        }
-
-        /**
-         * 写入范围。
-         *
-         * @param scope scope 参数。
-         */
-        public void setScope(DangerousCommandApprovalService.ApprovalScope scope) {
-            this.scope = scope;
-        }
-    }
-
     /**
      * 执行fast模式名称相关逻辑。
      *
