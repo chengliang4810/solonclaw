@@ -3,23 +3,15 @@ import type { ChannelQrPlatform, ChannelQrStatusView } from '@/shared/channelQr'
 import { normalizeChannelQrStatus } from '@/shared/channelQr'
 
 export interface DisplayConfig {
-  compact?: boolean
   personality?: string
   resume_display?: string
-  busy_input_mode?: string
-  bell_on_complete?: boolean
   show_reasoning?: boolean
   streaming?: boolean
-  inline_diffs?: boolean
-  skin?: string
 }
 
 export interface AgentConfig {
   max_turns?: number
-  gateway_timeout?: number
-  restart_drain_timeout?: number
   service_tier?: string
-  tool_use_enforcement?: string
 }
 
 export interface AppConfig {
