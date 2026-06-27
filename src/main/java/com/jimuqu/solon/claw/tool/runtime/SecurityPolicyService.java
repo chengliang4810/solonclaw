@@ -65,7 +65,6 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
-import java.net.IDN;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URLDecoder;

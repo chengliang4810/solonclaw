@@ -7,14 +7,11 @@ import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safeAud
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safePathProbeTarget;
 
 import cn.hutool.core.util.StrUtil;
-import cn.hutool.crypto.SecureUtil;
 import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
-import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
@@ -22,12 +19,10 @@ import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
-import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
-import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;

@@ -11,7 +11,6 @@ import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import java.io.File;
