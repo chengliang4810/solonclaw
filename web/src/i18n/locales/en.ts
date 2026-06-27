@@ -1541,6 +1541,7 @@ export default {
     resultPreview: 'Result preview',
     recoveries: 'Recoveries',
     recoveryId: 'Recovery ID',
+    recoverableRuns: 'Recoverable runs',
     commands: 'Control commands',
     commandId: 'Command ID',
     payload: 'Payload',
@@ -1553,6 +1554,7 @@ export default {
     noEvents: 'Select a run to inspect its event timeline',
     noTools: 'This run has no tool calls',
     noRecoveries: 'This run has no recoveries',
+    noRecoverableRuns: 'No recoverable runs',
     noCommands: 'This run has no control commands',
     status: {
       success: 'Success',

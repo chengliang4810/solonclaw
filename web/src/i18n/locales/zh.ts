@@ -1592,6 +1592,7 @@ export default {
     resultPreview: '结果预览',
     recoveries: '恢复记录',
     recoveryId: '恢复 ID',
+    recoverableRuns: '可恢复运行',
     commands: '控制命令',
     commandId: '命令 ID',
     payload: '载荷',
@@ -1604,6 +1605,7 @@ export default {
     noEvents: '请选择一条运行记录查看事件时间线',
     noTools: '本次运行没有工具调用记录',
     noRecoveries: '本次运行没有恢复记录',
+    noRecoverableRuns: '暂无可恢复运行',
     noCommands: '本次运行没有控制命令',
     status: {
       success: '成功',

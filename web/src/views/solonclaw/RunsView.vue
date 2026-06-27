@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
 import {
   fetchRunDetail,
+  fetchRecoverableRuns,
   fetchSessionRuns,
   type AgentRun,
   type AgentRunEvent,
@@ -15,6 +16,7 @@ import {
 
 const sessions = ref<any[]>([])
 const runs = ref<AgentRun[]>([])
+const recoverableRuns = ref<AgentRun[]>([])
 const events = ref<AgentRunEvent[]>([])
 const tools = ref<ToolCall[]>([])
 const recoveries = ref<RunRecovery[]>([])
@@ -49,6 +51,7 @@ async function loadSessionDetail() {
       fetchSessionRuns(selectedSessionId.value, 30),
       fetchSessionTree(selectedSessionId.value),
       fetchSessionCheckpoints(selectedSessionId.value),
+      loadRecoverableRuns(),
     ])
     runs.value = loadedRuns
     tree.value = loadedTree
@@ -69,6 +72,10 @@ async function loadSessionDetail() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadRecoverableRuns() {
+  recoverableRuns.value = await fetchRecoverableRuns(20)
 }
 
 async function loadRunDetail(runId: string) {
@@ -256,6 +263,23 @@ onMounted(async () => {
         </section>
 
         <section class="panel side-panel">
+          <div class="side-title-row">
+            <h3>{{ t('runs.recoverableRuns') }}</h3>
+            <Button size="small" @click="loadRecoverableRuns">{{ t('common.refresh') }}</Button>
+          </div>
+          <button
+            v-for="run in recoverableRuns"
+            :key="run.run_id"
+            class="mini-row recoverable-row"
+            :class="{ active: run.run_id === selectedRunId }"
+            @click="loadRunDetail(run.run_id)"
+          >
+            <span>{{ run.provider || '-' }}/{{ run.model || '-' }}</span>
+            <small>{{ run.recovery_hint || run.error || run.exit_reason || run.run_id }}</small>
+            <small>{{ time(run.started_at) }}</small>
+          </button>
+          <div v-if="recoverableRuns.length === 0" class="empty">{{ t('runs.noRecoverableRuns') }}</div>
+
           <h3>{{ t('runs.sessionTree') }}</h3>
           <div v-for="node in tree?.nodes || []" :key="node.id" class="mini-row">
             <span>{{ node.branch_name || t('runs.mainBranch') }}</span>
@@ -339,6 +363,18 @@ h3 {
   margin-bottom: 8px;
 }
 
+.side-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+
+  h3 {
+    margin: 0;
+  }
+}
+
 .run-row {
   display: grid;
   gap: 5px;
@@ -346,6 +382,15 @@ h3 {
 }
 
 .run-row.active {
+  border-color: $accent-primary;
+  background: rgba(var(--accent-primary-rgb), 0.08);
+}
+
+.recoverable-row {
+  cursor: pointer;
+}
+
+.recoverable-row.active {
   border-color: $accent-primary;
   background: rgba(var(--accent-primary-rgb), 0.08);
 }
