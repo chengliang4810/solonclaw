@@ -57,6 +57,14 @@ export interface SessionLatestDescendant {
   changed: boolean
 }
 
+export interface SessionRecap {
+  [key: string]: unknown
+}
+
+export interface SessionTrajectory {
+  [key: string]: unknown
+}
+
 export interface SolonClawMessage {
   id: number
   session_id: string
@@ -351,6 +359,14 @@ export async function fetchSessionTree(id: string): Promise<any> {
 export async function fetchSessionCheckpoints(id: string): Promise<any[]> {
   const res = await request<{ checkpoints: any[] }>(`/api/sessions/${id}/checkpoints`)
   return res.checkpoints || []
+}
+
+export async function fetchSessionRecap(id: string, limit = 10): Promise<SessionRecap> {
+  return request<SessionRecap>(`/api/sessions/${id}/recap?limit=${limit}`)
+}
+
+export async function fetchSessionTrajectory(id: string): Promise<SessionTrajectory> {
+  return request<SessionTrajectory>(`/api/sessions/${id}/trajectory`)
 }
 
 export async function fetchCheckpointPreview(id: string): Promise<any> {
