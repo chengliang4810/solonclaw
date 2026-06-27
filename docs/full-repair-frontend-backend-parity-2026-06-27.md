@@ -46,6 +46,12 @@
    - 前端入口：渠道页媒体详情抽屉新增下载引用和生成引用操作。
    - 提交：`bd0d53272`
 
+8. 运行记录基础控制
+   - 后端接口：`/api/runs/{runId}/control`
+   - 前端入口：运行页详情面板新增停止、取消和可恢复运行的恢复按钮。
+   - 说明：本次只接入 `stop`、`cancel`、`resume` 三个基础动作；子代理控制和 steer 文本输入后续单独处理。
+   - 提交：`559a8c149`
+
 ## 已补齐的后端接口缺口
 
 1. 工作区文件下载
@@ -72,6 +78,7 @@
 - 多次执行 `npm run build`，通过。
 - `npm run build --prefix web`：2026-06-27 文件页未支持写操作入口收敛后通过。
 - `npm run build --prefix web`：2026-06-27 媒体缓存下载与引用入口补齐后通过。
+- `npm run build --prefix web`：2026-06-27 运行记录基础控制入口补齐后通过。
 - 多次执行 `git diff --check`，通过。
 - `git diff --check -- web/src/components/solonclaw/files/FileToolbar.vue web/src/components/solonclaw/files/FileContextMenu.vue web/src/views/solonclaw/FilesView.vue docs/full-repair-frontend-backend-parity-2026-06-27.md`：通过。
 - 执行 `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`，通过。
