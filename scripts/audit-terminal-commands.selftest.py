@@ -57,6 +57,15 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
         self.assertEqual(job_id, "31da8f5716124a88a51fe221695732af")
 
+    def test_extracts_cron_job_id_from_ascii_field(self) -> None:
+        mod = load_module()
+
+        job_id = mod.extract_cron_job_id(
+            "????????31da8f5716124a88a51fe221695732af\njob_id=31da8f5716124a88a51fe221695732af\n"
+        )
+
+        self.assertEqual(job_id, "31da8f5716124a88a51fe221695732af")
+
     def test_can_build_explicit_command_list_without_defaults(self) -> None:
         mod = load_module()
 

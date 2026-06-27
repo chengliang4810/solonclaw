@@ -698,12 +698,12 @@ public class CommandEnhancementTest {
                                 + " --model gpt-test-cron --provider default --base-url https://api.example.com/"
                                 + " --deliver feishu --deliver-chat-id chat-create --deliver-thread-id thread-create"
                                 + " --no-wrap-response");
-        assertThat(created.getContent()).contains("已创建定时任务");
         String jobId =
                 env.cronJobRepository
                         .listBySource("MEMORY:admin-chat:admin-user")
                         .get(0)
                         .getJobId();
+        assertThat(created.getContent()).contains("已创建定时任务").contains("job_id=" + jobId);
         assertThat(cronJobView(env, jobId))
                 .contains("blogwatcher")
                 .contains("maps")

@@ -429,7 +429,11 @@ def audit_node_tui_transcript(transcript: str, actions: list[dict[str, object]],
 
 
 def extract_cron_job_id(output: str) -> str:
-    match = re.search(r"已创建定时任务：([0-9a-fA-F]{16,64})", output or "")
+    text = output or ""
+    match = re.search(r"\bjob_id=([0-9a-fA-F]{16,64})\b", text)
+    if match:
+        return match.group(1)
+    match = re.search(r"已创建定时任务：([0-9a-fA-F]{16,64})", text)
     return match.group(1) if match else ""
 
 

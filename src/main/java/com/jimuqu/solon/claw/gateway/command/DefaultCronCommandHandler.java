@@ -154,7 +154,7 @@ final class DefaultCronCommandHandler {
             }
             body.put("origin", cronOrigin(message));
             CronJobRecord job = cronJobService.create(message.sourceKey(), body);
-            return GatewayReply.ok("已创建定时任务：" + job.getJobId());
+            return GatewayReply.ok("已创建定时任务：" + job.getJobId() + "\njob_id=" + job.getJobId());
         }
 
         if (GatewayCommandConstants.ACTION_PAUSE.equalsIgnoreCase(action)) {
