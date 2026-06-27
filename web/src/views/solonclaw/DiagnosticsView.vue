@@ -34,9 +34,11 @@ import {
   type SecurityAuditResult,
   type SubprocessEnvironmentProbeResult,
 } from '@/api/solonclaw/diagnostics'
+import { fetchDetailedHealth, type DetailedHealthResponse } from '@/api/solonclaw/system'
 
 const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
+const detailedHealth = ref<DetailedHealthResponse | null>(null)
 const doctorDiagnostics = ref<DoctorDiagnostics | null>(null)
 const doctorError = ref('')
 const loading = ref(false)
@@ -61,6 +63,7 @@ const alwaysApprovals = ref<AlwaysApproval[]>([])
 const alwaysApprovalMeta = ref<AlwaysApprovalsResult | null>(null)
 const pendingSlashConfirms = ref<PendingSlashConfirm[]>([])
 const slashConfirmMeta = ref<PendingSlashConfirmsResult | null>(null)
+const healthGateway = computed(() => objectValue(detailedHealth.value?.runtime?.gateway))
 function d(key: string, params?: Record<string, unknown>) {
   return params ? t(`diagnostics.${key}`, params) : t(`diagnostics.${key}`)
 }
@@ -529,6 +532,16 @@ function metricText(value: unknown) {
   return String(value)
 }
 
+function formatDuration(seconds?: number) {
+  if (!seconds) return '-'
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return d('durationDaysHours', { days, hours })
+  if (hours > 0) return d('durationHoursMinutes', { hours, minutes })
+  return d('durationMinutes', { minutes })
+}
+
 function metricTagType(item: SecurityMetric) {
   if (item.value === true || item.value === false) return booleanTagType(item.value, item.goodWhenTrue !== false)
   if (typeof item.value === 'number') {
@@ -563,8 +576,9 @@ function surfaceLabel(surface: string) {
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData] = await Promise.all([
+    const [diagnosticsData, healthData] = await Promise.all([
       fetchDiagnostics(),
+      fetchDetailedHealth(),
       loadDoctorDiagnostics(),
       loadPolicyAudit(),
       loadApprovals(),
@@ -574,6 +588,7 @@ async function load() {
       loadSlashConfirms(),
     ])
     diagnostics.value = diagnosticsData
+    detailedHealth.value = healthData
   } finally {
     loading.value = false
   }
@@ -825,6 +840,39 @@ onMounted(load)
     </header>
     <Spin :spinning="loading">
       <main class="diagnostics-grid">
+        <section class="panel health-detail-panel">
+          <h3>{{ t('diagnostics.detailedHealth') }}</h3>
+          <div class="health-detail-grid">
+            <div class="metric-item">
+              <span>{{ t('diagnostics.healthStatus') }}</span>
+              <Tag size="small" :color="detailedHealth?.ok ? 'success' : 'warning'" :bordered="false">
+                {{ detailedHealth?.status || '-' }}
+              </Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.healthUptime') }}</span>
+              <strong>{{ formatDuration(detailedHealth?.runtime?.uptimeSeconds) }}</strong>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.healthPid') }}</span>
+              <strong>{{ detailedHealth?.pid || detailedHealth?.runtime?.pid || '-' }}</strong>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.healthActiveAgents') }}</span>
+              <strong>{{ detailedHealth?.active_agents ?? 0 }}</strong>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.gatewayState') }}</span>
+              <Tag size="small" :color="detailedHealth?.gateway_state || healthGateway.state ? 'success' : 'default'" :bordered="false">
+                {{ detailedHealth?.gateway_state || healthGateway.state || '-' }}
+              </Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.updatedAt') }}</span>
+              <strong>{{ detailedHealth?.updated_at || detailedHealth?.runtime?.updated_at || '-' }}</strong>
+            </div>
+          </div>
+        </section>
         <section class="panel">
           <h3>{{ t('diagnostics.doctor') }}</h3>
           <pre v-if="doctorDiagnostics">{{ doctorDiagnostics }}</pre>
@@ -1470,6 +1518,17 @@ onMounted(load)
   grid-column: 1 / -1;
 }
 
+.health-detail-panel {
+  grid-column: 1 / -1;
+  min-height: 0;
+}
+
+.health-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+}
+
 .panel-title-row {
   display: flex;
   justify-content: space-between;
@@ -1873,6 +1932,10 @@ pre {
   }
 
   .security-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .health-detail-grid {
     grid-template-columns: 1fr;
   }
 

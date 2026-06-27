@@ -9,6 +9,21 @@ export interface HealthResponse {
   node_version?: string
 }
 
+export interface DetailedHealthResponse {
+  ok: boolean
+  status: string
+  pid?: number | string
+  active_agents?: number
+  gateway_state?: string
+  updated_at?: string
+  runtime?: {
+    uptimeSeconds?: number
+    pid?: number | string
+    updated_at?: string
+    gateway?: Record<string, unknown>
+  }
+}
+
 export interface ModelInfo {
   id: string
   label: string
@@ -124,6 +139,10 @@ export async function checkHealth(): Promise<HealthResponse> {
     webui_update_available: !!status.update_available,
     node_version: '',
   }
+}
+
+export async function fetchDetailedHealth(): Promise<DetailedHealthResponse> {
+  return request<DetailedHealthResponse>('/health/detailed')
 }
 
 export async function triggerUpdate(): Promise<{ success: boolean; message: string }> {
