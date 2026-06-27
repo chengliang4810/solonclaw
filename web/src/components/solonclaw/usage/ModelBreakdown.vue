@@ -1,15 +1,10 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
+import { formatTokens } from '@/shared/usage-format'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
-
-function formatTokens(n: number): string {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
-  return String(n)
-}
 
 function formatCost(micros: number, currency: string): string {
   if (micros <= 0) return '--'
