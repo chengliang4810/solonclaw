@@ -74,6 +74,42 @@ class CliRunnerTest {
         assertLocalOutput(runner, "/tasks", "CLI");
     }
 
+    @Test
+    void bareJavaTuiModeGuidesUsersToNodeTuiEntry() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService);
+        CliRunner runner =
+                new CliRunner(
+                        runtime,
+                        env.sessionRepository,
+                        env.appConfig,
+                        null,
+                        new LlmProviderService(env.appConfig));
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        PrintStream originalErr = System.err;
+        try {
+            System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8.name()));
+            System.setErr(new PrintStream(out, true, StandardCharsets.UTF_8.name()));
+
+            int exitCode = runner.run(new CliMode(CliMode.Kind.TUI, null, "cli-runner-tui"));
+
+            assertThat(exitCode).isEqualTo(0);
+            assertThat(out.toString(StandardCharsets.UTF_8.name()))
+                    .contains("请使用 solonclaw 启动本地 TUI")
+                    .contains("node_tui_entry=solonclaw")
+                    .doesNotContain("缺少输入内容");
+        } finally {
+            System.setOut(originalOut);
+            System.setErr(originalErr);
+        }
+    }
+
     /** 断言本地命令成功输出指定文本。 */
     private static void assertLocalOutput(CliRunner runner, String input, String expected)
             throws Exception {

@@ -679,7 +679,6 @@ def run_tui_pty(
     java_args = [
         "java",
         f"-Dsolonclaw.workspace={workspace_home}",
-        "-Dsolonclaw.terminal.audit=true",
         "-jar",
         str(jar),
         "--tui",
@@ -695,16 +694,10 @@ def run_tui_pty(
         os.execvpe(java_args[0], java_args, env)
 
     output = bytearray()
-    script = build_tui_script(commands)
     deadline = time.monotonic() + timeout_seconds
-    sent = False
     exit_code = 124
     try:
         while True:
-            if not sent and time.monotonic() + 0.2 < deadline:
-                time.sleep(0.8)
-                os.write(master_fd, script.encode("utf-8"))
-                sent = True
             remaining = max(0.0, min(0.2, deadline - time.monotonic()))
             if remaining <= 0:
                 try:
@@ -736,11 +729,13 @@ def run_tui_pty(
     stdout = output.decode("utf-8", errors="replace")
     out_path.write_text(stdout, encoding="utf-8")
     err_path.write_text("", encoding="utf-8")
-    issues = audit_tui_transcript(stdout, commands)
+    issues: list[str] = []
+    if "node_tui_entry=solonclaw" not in stdout:
+        issues.append("missing_node_tui_entry_guidance")
     secret_leak = any(pattern in stdout for pattern in SECRET_PATTERNS)
     suspect = exit_code != 0 or bool(issues) or secret_leak
     result = {
-        "command": "--tui PTY",
+        "command": "--tui guidance",
         "exit_code": exit_code,
         "timeout": exit_code == 124,
         "suspect": suspect,
@@ -750,7 +745,7 @@ def run_tui_pty(
         "issues": issues,
     }
     status = "SUSPECT" if suspect else "ok"
-    print(f"tui {status} --tui PTY", flush=True)
+    print(f"tui {status} --tui guidance", flush=True)
     if suspect:
         findings.append(result)
         print(f"  exit={exit_code} timeout={exit_code == 124} issues={','.join(issues)}", flush=True)

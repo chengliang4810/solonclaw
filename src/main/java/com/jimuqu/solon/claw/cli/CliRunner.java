@@ -86,6 +86,12 @@ public class CliRunner {
             System.out.println(local);
             return 0;
         }
+        if (mode.getKind() == CliMode.Kind.TUI && StrUtil.isBlank(mode.getInput())) {
+            System.out.println(
+                    "请使用 solonclaw 启动本地 TUI；如需在 Java 进程中执行一次性命令，请使用 solonclaw --cli -p /help。"
+                            + "\nnode_tui_entry=solonclaw");
+            return 0;
+        }
         if (mode.getKind() == CliMode.Kind.CLI || mode.getKind() == CliMode.Kind.TUI) {
             return runPrompt(mode);
         }
