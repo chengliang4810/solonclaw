@@ -26,7 +26,7 @@
 
 ### P0-01：生产代码文件超过 4000 行
 
-状态：已复核，当前生产代码文件均低于 4000 行
+状态：已复核并重新拆分，当前生产代码文件均低于 4000 行
 
 证据命令：
 
@@ -39,13 +39,21 @@ find src/main/java web/src terminal-ui/src -type f \( -name '*.java' -o -name '*
 
 | 文件 | 行数 | 归属阶段 |
 | --- | ---: | --- |
-| `src/main/java/com/jimuqu/solon/claw/gateway/command/DefaultCommandService.java` | 3942 | 已低于 4000 |
+| `src/main/java/com/jimuqu/solon/claw/gateway/command/DefaultCommandService.java` | 3983 | 已低于 4000 |
 | `src/main/java/com/jimuqu/solon/claw/tool/runtime/DangerousCommandApprovalService.java` | 3930 | 已低于 4000 |
 | `src/main/java/com/jimuqu/solon/claw/tool/runtime/SecurityPolicyService.java` | 3897 | 已低于 4000 |
 | `src/main/java/com/jimuqu/solon/claw/web/DashboardDiagnosticsService.java` | 3858 | 已低于 4000 |
 | `src/main/java/com/jimuqu/solon/claw/llm/SolonAiLlmGateway.java` | 3812 | 已低于 4000 |
 
-说明：当前生产源码无超过 4000 行的文件；测试文件中仍存在多个超过 4000 行的文件，但阶段 1.2 优先处理生产代码，测试拆分可在对应功能重构时处理。
+说明：2026-06-27 复核时 `DefaultCommandService.java` 回升到 4028 行；已在提交 `6fc419943` 中把审批命令参数值对象拆分为 `ApprovalCommandArgs.java`，当前生产源码无超过 4000 行的文件。测试文件中仍存在多个超过 4000 行的文件，但阶段 1.2 优先处理生产代码，测试拆分可在对应功能重构时处理。
+
+补充验证：
+
+```bash
+find src/main/java web/src terminal-ui/src -type f \( -name '*.java' -o -name '*.ts' -o -name '*.tsx' -o -name '*.vue' \) -print0 | xargs -0 wc -l | awk '$2 != "total" && $1 > 4000 { print }'
+mvn -Dskip.web.build=true -DskipTests compile
+mvn -Dskip.web.build=true -Dtest=DangerousCommandApprovalServiceTest test
+```
 
 ### P0-02：历史终端 setup 计划仍有未完成复选项
 
