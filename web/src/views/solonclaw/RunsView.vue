@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Button, Select, Spin, message } from 'antdv-next'
+import { Button, Drawer, Select, Spin, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import {
+  fetchCheckpointPreview,
   fetchSessionCheckpoints,
   fetchSessionRecap,
   fetchSessions,
@@ -36,10 +37,13 @@ const checkpoints = ref<any[]>([])
 const tree = ref<any>(null)
 const recap = ref<any>(null)
 const trajectory = ref<any>(null)
+const checkpointPreview = ref<any>(null)
+const previewOpen = ref(false)
 const selectedSessionId = ref('')
 const selectedRunId = ref('')
 const loading = ref(false)
 const rollingBack = ref('')
+const previewingCheckpoint = ref('')
 const runControlLoading = ref('')
 const subagentControlLoading = ref('')
 const { t } = useI18n()
@@ -135,6 +139,16 @@ async function handleRollback(id: string) {
     await loadSessionDetail()
   } finally {
     rollingBack.value = ''
+  }
+}
+
+async function handleCheckpointPreview(id: string) {
+  previewingCheckpoint.value = id
+  try {
+    checkpointPreview.value = await fetchCheckpointPreview(id)
+    previewOpen.value = true
+  } finally {
+    previewingCheckpoint.value = ''
   }
 }
 
@@ -350,11 +364,16 @@ onMounted(async () => {
           <h3>{{ t('runs.checkpoints') }}</h3>
           <div v-for="checkpoint in checkpoints" :key="checkpoint.checkpoint_id" class="mini-row">
             <span>{{ time(checkpoint.created_at) }}</span>
+            <Button size="small" type="default" :loading="previewingCheckpoint === checkpoint.checkpoint_id" @click="handleCheckpointPreview(checkpoint.checkpoint_id)">{{ t('runs.previewCheckpoint') }}</Button>
             <Button size="small" type="default" :loading="rollingBack === checkpoint.checkpoint_id" @click="handleRollback(checkpoint.checkpoint_id)">{{ t('runs.rollback') }}</Button>
           </div>
         </section>
       </main>
     </Spin>
+
+    <Drawer v-model:open="previewOpen" placement="right" :width="560" :title="t('runs.checkpointPreview')">
+      <pre class="artifact-block">{{ artifactText(checkpointPreview) }}</pre>
+    </Drawer>
   </div>
 </template>
 

@@ -1584,6 +1584,8 @@ export default {
     noSessionArtifact: 'No session artifact',
     sessionTree: 'Session tree',
     checkpoints: 'Checkpoints',
+    checkpointPreview: 'Checkpoint preview',
+    previewCheckpoint: 'Preview',
     rollback: 'Rollback',
     mainBranch: 'Main branch',
     attempts: '{count} attempts',

@@ -61,6 +61,11 @@
 10. 模型运行时富状态
     - 后端接口：`/api/models`
     - 前端入口：模型页新增运行时模型状态区块，展示 provider、模型、协议、状态、上下文窗口、最大输出和价格字段。
+    - 提交：`552a5397`
+
+11. 检查点预览
+    - 后端接口：`/api/checkpoints/{id}/preview`
+    - 前端入口：运行页检查点列表新增预览按钮，右侧抽屉展示后端返回的检查点预览内容。
     - 提交：待提交
 
 ## 已补齐的后端接口缺口
@@ -92,6 +97,7 @@
 - `npm run build --prefix web`：2026-06-27 运行记录基础控制入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 子代理运行查看与中断入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 模型运行时富状态入口补齐后通过。
+- `npm run build --prefix web`：2026-06-28 检查点预览入口补齐后通过。
 - 多次执行 `git diff --check`，通过。
 - `git diff --check -- web/src/components/solonclaw/files/FileToolbar.vue web/src/components/solonclaw/files/FileContextMenu.vue web/src/views/solonclaw/FilesView.vue docs/full-repair-frontend-backend-parity-2026-06-27.md`：通过。
 - 执行 `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`，通过。

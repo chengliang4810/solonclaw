@@ -1627,6 +1627,8 @@ export default {
     noSessionArtifact: '暂无会话工件',
     sessionTree: '会话树',
     checkpoints: '检查点',
+    checkpointPreview: '检查点预览',
+    previewCheckpoint: '预览',
     rollback: '回滚',
     mainBranch: '主分支',
     attempts: '{count} 次',
