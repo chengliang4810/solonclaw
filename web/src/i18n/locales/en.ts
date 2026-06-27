@@ -1112,6 +1112,12 @@ export default {
     curatorRunComplete: 'Curator run finished',
     curatorRunFailed: 'Curator run failed',
     curatorActionFailed: 'Curator action failed',
+    insightsTitle: 'Usage status',
+    insightsLoadFailed: 'Failed to load skill usage',
+    insightTracked: 'Tracked',
+    insightActive: 'Active',
+    insightStale: 'Stale',
+    insightArchived: 'Archived',
   },
 
   // Memory
@@ -1472,6 +1478,11 @@ export default {
     unpriced: 'Unpriced',
     unpricedTokens: 'unpriced tokens',
     sessions: 'Sessions',
+    insightsTitle: 'Runtime insights',
+    insightSessions: 'Sessions',
+    insightTrackedSkills: 'Tracked skills',
+    insightActiveSkills: 'Active skills',
+    insightMemory: 'Used memory',
     noData: 'No usage data',
   },
   personaDiary: {

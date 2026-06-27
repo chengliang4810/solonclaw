@@ -11,13 +11,16 @@ import {
   runCurator,
   type CuratorImprovement,
 } from '@/api/solonclaw/curator'
+import { fetchInsightsSkills, type InsightsSkills } from '@/api/solonclaw/insights'
 import { fetchSkills, type SkillCategory } from '@/api/solonclaw/skills'
 
 const { t } = useI18n()
 const categories = ref<SkillCategory[]>([])
 const improvements = ref<CuratorImprovement[]>([])
+const skillInsights = ref<InsightsSkills>({})
 const loading = ref(false)
 const curatorLoading = ref(false)
+const insightsLoading = ref(false)
 const curatorActionId = ref('')
 const selectedCategory = ref('')
 const selectedSkill = ref('')
@@ -26,6 +29,16 @@ const showSidebar = ref(true)
 let mobileQuery: MediaQueryList | null = null
 
 const pendingImprovements = computed(() => improvements.value.filter(item => item.needs_review !== false))
+const skillInsightSummary = computed(() => {
+  const entries = Object.values(skillInsights.value)
+  const countState = (state: string) => entries.filter(item => String(item.state || 'active') === state).length
+  return {
+    tracked: entries.length,
+    active: countState('active'),
+    stale: countState('stale'),
+    archived: countState('archived'),
+  }
+})
 
 function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
   showSidebar.value = !e.matches
@@ -37,6 +50,7 @@ onMounted(() => {
   mobileQuery.addEventListener('change', handleMobileChange)
   loadSkills()
   loadCuratorImprovements()
+  loadSkillInsights()
 })
 
 onUnmounted(() => {
@@ -62,6 +76,17 @@ async function loadCuratorImprovements() {
     message.error(`${t('skills.curatorLoadFailed')}: ${err.message}`)
   } finally {
     curatorLoading.value = false
+  }
+}
+
+async function loadSkillInsights() {
+  insightsLoading.value = true
+  try {
+    skillInsights.value = await fetchInsightsSkills()
+  } catch (err: any) {
+    message.error(`${t('skills.insightsLoadFailed')}: ${err.message}`)
+  } finally {
+    insightsLoading.value = false
   }
 }
 
@@ -195,6 +220,33 @@ function handleSelect(category: string, skill: string) {
               </div>
             </section>
 
+            <section class="insights-panel">
+              <div class="insights-header">
+                <h3>{{ t('skills.insightsTitle') }}</h3>
+                <Button size="small" :loading="insightsLoading" @click="loadSkillInsights">
+                  {{ t('skills.refresh') }}
+                </Button>
+              </div>
+              <div class="insights-grid">
+                <div>
+                  <span>{{ t('skills.insightTracked') }}</span>
+                  <strong>{{ skillInsightSummary.tracked }}</strong>
+                </div>
+                <div>
+                  <span>{{ t('skills.insightActive') }}</span>
+                  <strong>{{ skillInsightSummary.active }}</strong>
+                </div>
+                <div>
+                  <span>{{ t('skills.insightStale') }}</span>
+                  <strong>{{ skillInsightSummary.stale }}</strong>
+                </div>
+                <div>
+                  <span>{{ t('skills.insightArchived') }}</span>
+                  <strong>{{ skillInsightSummary.archived }}</strong>
+                </div>
+              </div>
+            </section>
+
             <SkillDetail
               v-if="selectedCategory && selectedSkill"
               :category="selectedCategory"
@@ -271,6 +323,52 @@ function handleSelect(category: string, skill: string) {
   border-bottom: 1px solid $border-color;
   padding-bottom: 14px;
   margin-bottom: 14px;
+}
+
+.insights-panel {
+  border-bottom: 1px solid $border-color;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
+.insights-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+
+  h3 {
+    margin: 0;
+    font-size: 14px;
+    color: $text-primary;
+  }
+}
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(100px, 1fr));
+  gap: 10px;
+
+  div {
+    border: 1px solid $border-color;
+    border-radius: $radius-sm;
+    background: $bg-secondary;
+    padding: 10px;
+  }
+
+  span {
+    display: block;
+    font-size: 12px;
+    color: $text-muted;
+  }
+
+  strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 18px;
+    color: $text-primary;
+  }
 }
 
 .curator-header {
@@ -401,6 +499,10 @@ function handleSelect(category: string, skill: string) {
   .curator-item-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .insights-grid {
+    grid-template-columns: repeat(2, minmax(100px, 1fr));
   }
 
   .mobile-backdrop {

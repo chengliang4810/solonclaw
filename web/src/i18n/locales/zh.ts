@@ -594,6 +594,12 @@ export default {
     curatorRunComplete: '技能维护运行完成',
     curatorRunFailed: '技能维护运行失败',
     curatorActionFailed: '维护操作失败',
+    insightsTitle: '使用状态',
+    insightsLoadFailed: '加载技能使用状态失败',
+    insightTracked: '已跟踪',
+    insightActive: '活跃',
+    insightStale: '待整理',
+    insightArchived: '已归档',
   },
 
   // 记忆
@@ -1523,6 +1529,11 @@ export default {
     unpriced: '未计价',
     unpricedTokens: '未计价 Token',
     sessions: '会话',
+    insightsTitle: '运行洞察',
+    insightSessions: '会话数',
+    insightTrackedSkills: '已跟踪技能',
+    insightActiveSkills: '活跃技能',
+    insightMemory: '已用内存',
     noData: '暂无可展示的用量数据，请先发起会话或等待统计写入。',
   },
   personaDiary: {
