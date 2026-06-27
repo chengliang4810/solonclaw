@@ -1301,9 +1301,9 @@ public class TerminalUiRpcService {
             return enabled ? "1" : "0";
         }
         if ("mouse".equals(normalized)) {
-            boolean enabled = !"off".equalsIgnoreCase(raw) && !"false".equalsIgnoreCase(raw);
-            writePreference("mouse_tracking", enabled ? "all" : "off");
-            return enabled ? "on" : "off";
+            String tracking = normalizeMouseTracking(raw);
+            writePreference("mouse_tracking", tracking);
+            return tracking;
         }
         if ("display.details_mode".equals(normalized) || "details_mode".equals(normalized)) {
             String mode = normalizeDetailsMode(raw);
@@ -1538,6 +1538,21 @@ public class TerminalUiRpcService {
             return false;
         }
         return current;
+    }
+
+    /** 归一化鼠标追踪预设，保持和终端 UI 前端支持的 wheel/buttons/all/off 一致。 */
+    private String normalizeMouseTracking(String value) {
+        String normalized = StrUtil.blankToDefault(value, "all").trim().toLowerCase(Locale.ROOT);
+        if ("off".equals(normalized) || "false".equals(normalized) || "0".equals(normalized)) {
+            return "off";
+        }
+        if ("wheel".equals(normalized) || "scroll".equals(normalized)) {
+            return "wheel";
+        }
+        if ("buttons".equals(normalized) || "click".equals(normalized)) {
+            return "buttons";
+        }
+        return "all";
     }
 
     /** 归一化状态指示器样式。 */

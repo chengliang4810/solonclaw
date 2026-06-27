@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
 import java.io.File;
@@ -137,6 +138,39 @@ class TerminalUiRpcServiceTest {
         assertThat(service.configSet("compact", "on", "").get("value")).isEqualTo("1");
         assertThat(service.configSet("compact", "off", "").get("value")).isEqualTo("0");
         assertThat(service.configSet("compact", "off", "").get("value")).isEqualTo("0");
+    }
+
+    @Test
+    void mouseConfigSetPersistsTrackingPresets() throws Exception {
+        AppConfig config = testConfig();
+        SqliteDatabase database = new SqliteDatabase(config);
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        config,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new SqliteGlobalSettingRepository(database));
+
+        assertThat(service.configSet("mouse", "wheel", "").get("value")).isEqualTo("wheel");
+        assertThat(service.fullConfig().get("config").toString()).contains("mouse_tracking=wheel");
+        assertThat(service.configSet("mouse", "buttons", "").get("value")).isEqualTo("buttons");
+        assertThat(service.fullConfig().get("config").toString()).contains("mouse_tracking=buttons");
+        assertThat(service.configSet("mouse", "off", "").get("value")).isEqualTo("off");
+        assertThat(service.fullConfig().get("config").toString()).contains("mouse_tracking=off");
     }
 
     private static SessionRecord session(String id, String sourceKey) {
