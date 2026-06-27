@@ -1,4 +1,5 @@
 import { request } from '../client'
+import { mapDashboardSearchResult, type DashboardSearchResultRow } from '@/shared/sessionSearch'
 
 export interface SessionSummary {
   id: string
@@ -191,53 +192,18 @@ export async function fetchSessions(source?: string, limit?: number): Promise<Se
 }
 
 export async function searchSessions(q: string, source?: string, limit?: number): Promise<SessionSearchResult[]> {
-  const res = await request<{ results: Array<{
-    session_id: string
-    snippet: string
-    role: string | null
-    source: string | null
-    model: string | null
-    session_started: number | null
-  }> }>(`/api/sessions/search?q=${encodeURIComponent(q)}`)
+  const effectiveLimit = limit || 200
+  const params = new URLSearchParams()
+  params.set('q', q)
+  params.set('limit', String(effectiveLimit))
+  const res = await request<{ results: DashboardSearchResultRow[] }>(`/api/search?${params}`)
 
-  const sessions = await fetchSessions(source, limit || 200)
+  const sessions = await fetchSessions(source, effectiveLimit)
   const map = new Map(sessions.map((session) => [session.id, session]))
 
   return res.results
-    .filter((item) => !source || (item.source || 'local') === source)
-    .slice(0, limit || 200)
-    .map((item, index) => {
-      const base = map.get(item.session_id)
-      return {
-        ...(base || {
-          id: item.session_id,
-          source: item.source || 'local',
-          model: item.model || '',
-          title: null,
-          preview: '',
-          started_at: item.session_started || 0,
-          ended_at: null,
-          last_active: item.session_started || 0,
-          message_count: 0,
-          tool_call_count: 0,
-          input_tokens: 0,
-          output_tokens: 0,
-          cache_read_tokens: 0,
-          cache_write_tokens: 0,
-          reasoning_tokens: 0,
-          provider: null,
-          parent_session_id: null,
-          branch_name: null,
-          compressed_summary: null,
-          last_compression_at: 0,
-          last_compression_input_tokens: 0,
-          compression_failure_count: 0,
-        }),
-        matched_message_id: null,
-        snippet: item.snippet,
-        rank: index + 1,
-      }
-    })
+    .map((item, index) => mapDashboardSearchResult(item, map.get(item.session_id), index + 1))
+    .filter((item) => !source || item.source === source)
 }
 
 export async function fetchSession(id: string): Promise<SessionDetail | null> {
