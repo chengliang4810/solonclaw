@@ -2,6 +2,7 @@ import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage
 import { fetchRunDetail } from '@/api/solonclaw/runs'
 import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionGoalState, type SessionSummary } from '@/api/solonclaw/sessions'
 import { shouldUseServerMessages } from '@/shared/chatMessageMerge'
+import { mergeRefreshedSessions } from '@/shared/chatSessionRefresh'
 import { selectSessionId } from '@/shared/sessionSelection'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -465,20 +466,11 @@ export const useChatStore = defineStore('chat', () => {
 
       const list = await fetchSessions()
       const fresh = list.map(mapSolonClawSession)
-      const freshIds = new Set(fresh.map(s => s.id))
-      // Preserve already-loaded messages for sessions that are still present,
-      // so we don't blow away the active session's messages on refresh.
-      const msgsByIdBefore = new Map(sessions.value.map(s => [s.id, s.messages]))
-      for (const s of fresh) {
-        const prev = msgsByIdBefore.get(s.id)
-        if (prev && prev.length) s.messages = prev
-      }
       // Preserve local-only sessions the server hasn't seen yet — e.g. a chat
       // that was just created and whose first run is still in-flight. Without
       // this, refreshing mid-run would wipe the session and fall back to
       // sessions[0], which is exactly what the user reported.
-      const localOnly = sessions.value.filter(s => !freshIds.has(s.id))
-      sessions.value = [...localOnly, ...fresh]
+      sessions.value = mergeRefreshedSessions(sessions.value, fresh, id => readInFlight(id) != null)
       persistSessionsList()
 
       const candidateId = selectSessionId(sessions.value, preferredSessionId, activeSessionId.value)
