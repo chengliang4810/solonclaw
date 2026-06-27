@@ -72,6 +72,19 @@
      - 目录显示打开，图片和 Markdown 显示预览，普通文本显示编辑，二进制文件只保留下载等通用操作。
    - 提交：`16075d8d3`
 
+6. 文件列表行内编辑按钮显示统一
+   - 位置：
+     - `web/src/components/solonclaw/files/FileList.vue`
+     - `web/src/shared/fileDisplay.ts`
+     - `web/tests/fileDisplay.test.ts`
+   - 改造前：
+     - 文件列表行内编辑按钮仍使用文本扩展名判断，Markdown 文件会显示编辑按钮。
+     - 双击和右键菜单已优先预览 Markdown，行内按钮与主打开行为不一致。
+   - 改造后：
+     - 新增 `shouldShowInlineEditAction`，复用 `fileOpenMode` 判断行内编辑按钮是否显示。
+     - Markdown、图片和二进制文件不显示编辑按钮，普通文本保留编辑按钮。
+   - 提交：`b7429a50a`
+
 ## 验证
 
 - `npm test --prefix terminal-ui -- markdown.test.ts`：通过，43 个测试通过。
