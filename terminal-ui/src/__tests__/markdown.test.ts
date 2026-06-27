@@ -317,6 +317,36 @@ describe('renderTable CJK width alignment', () => {
     expect(output).toContain(`${ESC}[4m文档`)
   })
 
+  it('preserves inline markdown styling inside wrapped table cells', async () => {
+    const { default: chalk } = await import('chalk')
+
+    chalk.level = 2
+
+    const output = renderOutput(
+      React.createElement(
+        Box,
+        { width: 40 },
+        React.createElement(Md, {
+          cols: 30,
+          compact: true,
+          t: DEFAULT_THEME,
+          text: [
+            '| 名称 | 说明 |',
+            '| --- | --- |',
+            '| `solonclaw` | **重要** [文档](https://solon.noear.org) longer text |'
+          ].join('\n')
+        })
+      ),
+      true
+    )
+
+    expect(stripAnsi(output)).toContain('solonclaw')
+    expect(stripAnsi(output)).toContain('重要')
+    expect(stripAnsi(output)).toContain('文档')
+    expect(output).toContain(`${ESC}[1m重要`)
+    expect(output).toContain(`${ESC}[4m文档`)
+  })
+
   it('column starts share the same display offset across CJK rows', async () => {
     const { stringWidth } = await import('@solonclaw/ink')
 
