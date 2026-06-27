@@ -485,6 +485,27 @@ public class SkillTools {
         }
     }
 
+    /** `skill_files` 单工具暴露对象。 */
+    @RequiredArgsConstructor
+    public static class SkillFilesTool {
+        /** 记录技能文件清单读取中的委托。 */
+        private final SkillTools delegate;
+
+        /**
+         * 读取技能目录下可查看的文件清单，供模型选择后续读取目标。
+         *
+         * @param name 技能名或分类/技能名。
+         * @return 返回脱敏后的技能文件清单。
+         */
+        @ToolMapping(
+                name = "skill_files",
+                description = "List readable files under a skill directory before loading details.")
+        public String skillFiles(@Param(name = "name", description = "技能名或 category/name") String name)
+                throws Exception {
+            return delegate.skillFiles(name);
+        }
+    }
+
     /** `skill_manage` 单工具暴露对象。 */
     @RequiredArgsConstructor
     public static class SkillManageTool {

@@ -1459,6 +1459,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(new SkillTools.SkillsListTool(skillTools));
             } else if (ToolNameConstants.SKILL_VIEW.equals(toolName)) {
                 tools.add(new SkillTools.SkillViewTool(skillTools));
+            } else if (ToolNameConstants.SKILL_FILES.equals(toolName)) {
+                tools.add(new SkillTools.SkillFilesTool(skillTools));
             } else if (ToolNameConstants.SKILL_MANAGE.equals(toolName)) {
                 tools.add(new SkillTools.SkillManageTool(skillTools));
             } else if (ToolNameConstants.TOOLSETS_MANAGE.equals(toolName)) {

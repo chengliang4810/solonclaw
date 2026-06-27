@@ -61,6 +61,7 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.GATEWAY_SETUP_MANAGE,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
+                    ToolNameConstants.SKILL_FILES,
                     ToolNameConstants.SKILL_MANAGE,
                     ToolNameConstants.TOOLSETS_MANAGE,
                     ToolNameConstants.SKILLS_HUB_SEARCH,
@@ -306,6 +307,7 @@ public final class AgentRuntimePolicy {
         if ("skill".equals(key) || "skills".equals(key) || "tools".equals(key)) {
             output.add(ToolNameConstants.SKILLS_LIST);
             output.add(ToolNameConstants.SKILL_VIEW);
+            output.add(ToolNameConstants.SKILL_FILES);
             output.add(ToolNameConstants.SKILL_MANAGE);
             return;
         }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ApprovalQueueManageTools;
@@ -133,6 +134,7 @@ public class ToolRegistryExposureTest {
                         "gateway_setup_manage",
                         "skills_list",
                         "skill_view",
+                        "skill_files",
                         "skill_manage",
                         "toolsets_manage",
                         "skills_hub_search",
@@ -166,8 +168,15 @@ public class ToolRegistryExposureTest {
         assertThat(joined).contains("TodoTools");
         assertThat(joined).contains("AgentTools");
         assertThat(joined).contains("SkillsListTool");
+        assertThat(joined).contains("SkillFilesTool");
         assertThat(joined).contains("ConfigRefreshTool");
         assertThat(joined).doesNotContain("ToolGatewayTalent");
+    }
+
+    @Test
+    void shouldExposeSkillFilesInSkillsSelector() {
+        assertThat(AgentRuntimePolicy.expandToolSelectors(Arrays.asList("skills")))
+                .contains("skills_list", "skill_view", "skill_files", "skill_manage");
     }
 
     @Test
