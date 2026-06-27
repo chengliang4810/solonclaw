@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { NButton, NTag } from 'naive-ui'
-import { onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
 import StatCards from '@/components/solonclaw/usage/StatCards.vue'
@@ -12,13 +11,30 @@ import { formatLocalDateTimeMs as formatTime } from '@/shared/session-display'
 const { t } = useI18n()
 const usageStore = useUsageStore()
 const overview = computed(() => usageStore.insights || {})
+const USAGE_REFRESH_INTERVAL_MS = 15000
+let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
   usageStore.loadUsage()
+  refreshTimer = setInterval(refreshUsageWhenVisible, USAGE_REFRESH_INTERVAL_MS)
+  document.addEventListener('visibilitychange', refreshUsageWhenVisible)
+})
+
+onUnmounted(() => {
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
+    refreshTimer = null
+  }
+  document.removeEventListener('visibilitychange', refreshUsageWhenVisible)
 })
 
 function asNumber(value: unknown): number {
   return typeof value === 'number' ? value : 0
+}
+
+function refreshUsageWhenVisible() {
+  if (document.hidden || usageStore.isLoading) return
+  void usageStore.loadUsage()
 }
 
 </script>

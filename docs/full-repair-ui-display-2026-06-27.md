@@ -98,6 +98,16 @@
      - 每个视觉行保留原始 Markdown token 并交给 `MdInline` 渲染，换行表格也能保留行内样式。
    - 提交：`d6f197c42`
 
+8. 用量统计页自动刷新
+   - 位置：`web/src/views/solonclaw/UsageView.vue`
+   - 改造前：
+     - 用量统计、运行洞察和技能使用明细只在页面首次进入或手动点击刷新时加载。
+     - 运行期间产生新的 usage event 后，页面会持续显示旧数据，不符合阶段 5.1 的自动刷新要求。
+   - 改造后：
+     - 页面挂载后每 15 秒在可见状态下刷新一次用量数据。
+     - 页面从后台切回可见时立即刷新。
+     - 页面卸载时清理定时器和可见性监听，避免后台残留请求。
+
 ## 验证
 
 - `npm test --prefix terminal-ui -- markdown.test.ts`：通过，44 个测试通过，覆盖换行表格行内格式。
@@ -106,7 +116,9 @@
 - `mvn -Dskip.web.build=true -Dtest=GatewayProcessingReactionLifecycleTest,ProactiveDashboardDiagnosticTest,RuntimeConfigResolverTest test`：通过，16 个测试通过。
 - `npm run --prefix web test:file-display`：通过。
 - `npm run build --prefix web`：通过。
+- `npm run build --prefix web`：2026-06-27 用量页自动刷新改造后通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
 - `git diff --check -- web/src/shared/fileDisplay.ts web/tests/fileDisplay.test.ts web/src/components/solonclaw/files/FileContextMenu.vue`：通过。
+- `git diff --check -- web/src/views/solonclaw/UsageView.vue`：通过。
 - `node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('terminal-ui/package.json','utf8')); const l=JSON.parse(fs.readFileSync('terminal-ui/package-lock.json','utf8')); console.log(JSON.stringify({package:p.version, lock:l.version, root:l.packages[''].version}, null, 2)); if (p.version!==l.version || p.version!==l.packages[''].version) process.exit(1)"`：通过，三处版本号均为 `0.0.7`。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
