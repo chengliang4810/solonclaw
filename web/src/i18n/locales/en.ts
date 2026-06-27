@@ -1324,6 +1324,10 @@ export default {
       empty: 'No config diagnostics',
       rawTitle: 'Resolved raw YAML',
       rawEmpty: 'No raw config',
+      defaultsTitle: 'Default config',
+      defaultsEmpty: 'No default config',
+      schemaTitle: 'Config schema',
+      schemaEmpty: 'No config schema',
     },
     models: {
       apiKey: 'API Key',

@@ -1360,6 +1360,10 @@ export default {
       empty: '暂无配置诊断',
       rawTitle: '解析后的原始 YAML',
       rawEmpty: '暂无原始配置',
+      defaultsTitle: '默认配置',
+      defaultsEmpty: '暂无默认配置',
+      schemaTitle: '配置结构',
+      schemaEmpty: '暂无配置结构',
     },
     models: {
       apiKey: '接口密钥',

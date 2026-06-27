@@ -2,19 +2,36 @@
 import { onMounted, ref } from 'vue'
 import { Button } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
-import { fetchConfigDiagnostics, fetchRawConfig, type ConfigDiagnostics } from '@/api/solonclaw/config'
+import {
+  fetchConfigDefaults,
+  fetchConfigDiagnostics,
+  fetchConfigSchema,
+  fetchRawConfig,
+  type ConfigDefaults,
+  type ConfigDiagnostics,
+  type ConfigSchema,
+} from '@/api/solonclaw/config'
 
 const { t } = useI18n()
 const diagnostics = ref<ConfigDiagnostics | null>(null)
+const defaults = ref<ConfigDefaults | null>(null)
+const schema = ref<ConfigSchema | null>(null)
 const rawConfig = ref('')
 const loading = ref(false)
 
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData, rawData] = await Promise.all([fetchConfigDiagnostics(), fetchRawConfig()])
+    const [diagnosticsData, rawData, defaultsData, schemaData] = await Promise.all([
+      fetchConfigDiagnostics(),
+      fetchRawConfig(),
+      fetchConfigDefaults(),
+      fetchConfigSchema(),
+    ])
     diagnostics.value = diagnosticsData
     rawConfig.value = rawData.yaml || ''
+    defaults.value = defaultsData
+    schema.value = schemaData
   } finally {
     loading.value = false
   }
@@ -41,6 +58,14 @@ onMounted(load)
     <section class="raw-config">
       <h4>{{ t('settings.configDiagnostics.rawTitle') }}</h4>
       <pre>{{ rawConfig || t('settings.configDiagnostics.rawEmpty') }}</pre>
+    </section>
+    <section class="raw-config">
+      <h4>{{ t('settings.configDiagnostics.defaultsTitle') }}</h4>
+      <pre>{{ defaults ? text(defaults) : t('settings.configDiagnostics.defaultsEmpty') }}</pre>
+    </section>
+    <section class="raw-config">
+      <h4>{{ t('settings.configDiagnostics.schemaTitle') }}</h4>
+      <pre>{{ schema ? text(schema) : t('settings.configDiagnostics.schemaEmpty') }}</pre>
     </section>
     <div v-if="diagnostics" class="diagnostics-list">
       <article v-for="(value, key) in diagnostics" :key="String(key)">

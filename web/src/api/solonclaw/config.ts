@@ -57,6 +57,10 @@ export interface AppConfig {
 
 export type ConfigDiagnostics = Record<string, unknown>
 
+export type ConfigDefaults = Record<string, unknown>
+
+export type ConfigSchema = Record<string, unknown>
+
 export interface RawConfig {
   yaml?: string
 }
@@ -195,6 +199,14 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
 
 export async function fetchConfigDiagnostics(): Promise<ConfigDiagnostics> {
   return request<ConfigDiagnostics>('/api/config/diagnostics')
+}
+
+export async function fetchConfigDefaults(): Promise<ConfigDefaults> {
+  return request<ConfigDefaults>('/api/config/defaults')
+}
+
+export async function fetchConfigSchema(): Promise<ConfigSchema> {
+  return request<ConfigSchema>('/api/config/schema')
 }
 
 export async function fetchRawConfig(): Promise<RawConfig> {
