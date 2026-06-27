@@ -78,13 +78,13 @@ find src/main/java src/test/java web/src terminal-ui/src -type f \( -name '*.jav
 
 ### P0-04：Markdown 行内格式 TODO
 
-状态：已处理，提交 `ad80c1fb7`
+状态：已处理，提交 `ad80c1fb7`、`d6f197c42`
 
 证据文件：`terminal-ui/src/components/markdown.tsx`
 
 发现：
 
-- `TODO: follow-up - format to ANSI then wrap with wrapAnsi for inline markdown preservation.`
+- TUI Markdown 表格行内格式在非换行路径和窄宽度换行路径均已保留。
 
 归属阶段：
 

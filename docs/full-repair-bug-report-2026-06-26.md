@@ -45,7 +45,7 @@
 
 ## BUG-002：TUI Markdown 表格单元格会丢失行内格式
 
-状态：已修复，提交 `ad80c1fb7`
+状态：已修复，提交 `ad80c1fb7`、`d6f197c42`
 
 影响范围：
 
@@ -55,9 +55,9 @@
 当前事实：
 
 - 表格渲染为了计算列宽，会先对单元格调用 `stripInlineMarkup`。
-- 非换行表格路径直接输出 `stripInlineMarkup(cell)` 的纯文本。
-- 换行路径通过 `wrapCell` 处理，`wrapCell` 内部同样先调用 `stripInlineMarkup(raw)`。
-- 代码注释中已经标记后续应改为先格式化到 ANSI 再换行，以保留行内 Markdown。
+- 非换行表格路径已复用 `MdInline` 渲染单元格内容，只用 `stripInlineMarkup` 计算可见宽度。
+- 换行路径已按可见宽度拆分单元格，同时保留原始 Markdown token 交给 `MdInline` 渲染。
+- 窄宽度和非换行路径均已有回归测试覆盖。
 
 可复现现象：
 
@@ -69,22 +69,22 @@
 | `solonclaw` | **重要** [文档](https://solon.noear.org) |
 ```
 
-当前 TUI 表格会显示纯文本，代码样式、加粗样式和链接样式丢失。
+修复前 TUI 表格会显示纯文本，代码样式、加粗样式和链接样式丢失。当前已覆盖非换行和换行表格路径。
 
 源码证据：
 
 - `terminal-ui/src/components/markdown.tsx`
   - `stripInlineMarkup` 删除行内 Markdown 标记。
-  - `renderTable` 非换行路径直接输出 `stripInlineMarkup(cell)`。
-  - `wrapCell` 换行路径也基于 `stripInlineMarkup(raw)`。
+  - `renderTable` 非换行路径通过 `MdInline` 渲染单元格内容。
+  - `wrapCell` 换行路径保留原始 Markdown token，并用脱标记文本做宽度计算。
 
-建议修复阶段：阶段 5.3。已在无需换行的表格路径保留行内 Markdown 渲染。
+建议修复阶段：阶段 5.3。已在无需换行和窄宽度换行表格路径保留行内 Markdown 渲染。
 
 最小修复方向：
 
-- 保留现有 CJK 宽度和表格对齐逻辑。
-- 只替换单元格内容渲染路径：先生成带样式的片段或 ANSI 文本，再按可见宽度换行。
-- 补充一个表格单元格内 `code` / `bold` / `link` 不丢失的 TUI 测试。
+- 已保留现有 CJK 宽度和表格对齐逻辑。
+- 已替换单元格内容渲染路径，使非换行和换行表格都保留行内格式。
+- 已补充表格单元格内 `code` / `bold` / `link` 不丢失的 TUI 测试。
 
 ## 不列为当前 bug 的历史计划项
 
