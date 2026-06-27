@@ -82,7 +82,7 @@ java -jar target/solonclaw-0.0.1.jar --tui -p /setup gateway
 
 ### P0-03：历史主动协作计划仍有大量未完成复选项
 
-状态：已复核并补齐 Dashboard 日志页组件筛选，提交待生成。
+状态：已复核并补齐 Dashboard 日志页组件筛选，提交 `96f86d862`
 
 证据文件：`docs/superpowers/plans/2026-06-16-proactive-collaboration.md`
 
@@ -118,20 +118,23 @@ java -jar target/solonclaw-0.0.1.jar --tui -p /setup gateway
 - 阶段 1.1：已复核当前实现，不再存在本项真实渲染 bug。
 - 阶段 5.3：若影响 TUI 文本视觉呈现，补齐格式保留与换行表现。
 
-### P0-05：处理状态表情回应计划中 Dashboard 独立开关待确认
+### P0-05：处理状态表情回应计划中 Dashboard 独立开关已确认
 
-状态：已处理，提交 `6a86d4488`
+状态：已处理并复核通过，提交 `6a86d4488`
 
 证据文件：`docs/superpowers/plans/2026-06-04-processing-status-reactions.md`
 
-发现：
+当前事实：
 
-- 文档记录“Dashboard 是否需要独立开关”仍属待确认范围。
+- `AppConfig.GatewayConfig.processingReactionsEnabled` 已提供全局开关，默认启用。
+- `AppConfigLoader` 和 `RuntimeConfigResolver` 已支持 `solonclaw.gateway.processingReactionsEnabled`。
+- `DashboardConfigService` 已在 `messaging` 分类暴露 `gateway.processingReactionsEnabled`。
+- `DefaultGatewayService` 会在处理开始和完成前检查该开关，禁用时不触发渠道表情回应。
 
 归属阶段：
 
-- 阶段 2.3：确认后端是否已有处理状态表情回应能力但 Dashboard 缺少配置入口。
-- 阶段 5.2：如缺少 UI，应补充符合功能需求的开关和状态说明。
+- 阶段 2.3：已确认后端能力与 Dashboard 配置入口一致。
+- 阶段 5.2：已通过动态配置 schema 暴露开关，无需新增独立设置页。
 
 ### P0-06：版本号改动未归属
 
