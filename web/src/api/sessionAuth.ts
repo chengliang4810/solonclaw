@@ -29,6 +29,7 @@ export function setApiKey(key: string) {
 
 export function clearApiKey() {
   localStorage.removeItem(TOKEN_KEY)
+  window.__LOGIN_TOKEN__ = ''
 }
 
 export function hasApiKey(): boolean {

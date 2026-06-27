@@ -1,4 +1,4 @@
-import { getApiKey, getBaseUrlValue, request } from '../client'
+import { getApiKey, getBaseUrlValue, handleDashboardAuthFailure, request } from '../client'
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -81,6 +81,7 @@ export async function uploadChatFiles(files: File[]): Promise<UploadedChatFile[]
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
+    handleDashboardAuthFailure(res.status, text)
     throw new Error(`Upload failed: ${res.status} ${text || res.statusText}`)
   }
 
@@ -124,6 +125,7 @@ export function streamRunEvents(
 
       if (!res.ok || !res.body) {
         const text = await res.text().catch(() => '')
+        handleDashboardAuthFailure(res.status, text)
         throw new Error(`SSE failed: ${res.status} ${text || res.statusText}`)
       }
 

@@ -10,6 +10,21 @@ export {
 } from './sessionAuth.ts'
 import { clearApiKey, getApiKey, getBaseUrlValue } from './sessionAuth.ts'
 
+export function redirectToLogin() {
+  clearApiKey()
+  if (router.currentRoute.value.name !== 'login') {
+    router.replace({ name: 'login' })
+  }
+}
+
+export function handleDashboardAuthFailure(status: number, body: string): boolean {
+  if (status === 401 || isDashboardOriginRejected(status, body)) {
+    redirectToLogin()
+    return true
+  }
+  return false
+}
+
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const base = getBaseUrlValue()
   const url = `${base}${path}`
@@ -27,21 +42,13 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   const res = await fetch(url, { ...options, headers })
 
   if (res.status === 401) {
-    clearApiKey()
-    if (router.currentRoute.value.name !== 'login') {
-      router.replace({ name: 'login' })
-    }
+    redirectToLogin()
     throw new Error('Unauthorized')
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    if (isDashboardOriginRejected(res.status, text)) {
-      clearApiKey()
-      if (router.currentRoute.value.name !== 'login') {
-        router.replace({ name: 'login' })
-      }
-    }
+    handleDashboardAuthFailure(res.status, text)
     throw new Error(`API Error ${res.status}: ${text || res.statusText}`)
   }
 
