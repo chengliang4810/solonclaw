@@ -23,6 +23,9 @@
 - 危险命令审批测试支撑：`DangerousCommandApprovalServiceTest`、`DangerousCommandCredentialPolicyTest`、`DangerousCommandCodeAndNetworkPolicyTest`、`DangerousCommandFilePolicyTest` 与 `DangerousCommandGatewayApprovalTest` 复用 `DangerousCommandApprovalTestSupport`，删除拆分后复制的 Tirith、DNS、trace 与安全断言 helper。
 - 仪表盘诊断测试支撑：`DashboardDiagnosticOutputTest` 与 `DashboardSecurityProbeDiagnosticTest` 复用 `DashboardDiagnosticTestSupport`，删除拆分后复制的诊断服务替身、仓储替身与探针断言 helper。
 - 定时任务测试支撑：`CronjobToolsSchedulerTest` 与 `DefaultCronSchedulerTest` 复用 `CronSchedulerTestSupport`，删除重复的定时任务记录构造、字符串重复、工具方法定位、工具列表与参数元数据 helper。
+- 仪表盘投递服务测试桩：`DashboardStatusServiceTest` 复用 `DashboardDiagnosticTestSupport.FixedDeliveryService`，删除本地只支持单状态的重复桩。
+- 模型价格字段写入：`AppConfigLoader` 与 `PriceCatalog` 复用 `ModelPrice.applyTokenPrice(...)`，保留各自解析入口，只统一 `input`、`output`、`cache_read`、`cache_write`、`reasoning` 的字段写入语义。
+- 终端参数切分：`TerminalSetupCommands` 与 `TuiRuntimeProtocolService` 复用 `BasicValueSupport.shellTokens(...)`，只合并不处理转义字符的单双引号切分逻辑。
 
 ## 当前保留的重复项
 
@@ -33,6 +36,9 @@
 - `TerminalSetupCommands.applyProviderTemplateDefaults(...)` 面向两个不同请求对象，缺少共同协议；为消除相似代码引入接口或 adapter 不划算。
 - 敏感键判断分布在配置、工具预览、MCP 展示等不同安全边界，语义不完全相同，未统一。
 - `CronjobToolsSchedulerTest` / `DefaultCronSchedulerTest` 与 `DashboardDiagnosticOutputTest` / `DashboardSecurityProbeDiagnosticTest` 当前剩余重复检测命中均为 import 头部，属于同功能测试自然共享的依赖清单；为消除此类命中拆分 import 或包装类型没有实际维护收益。
+- `TerminalSessionBrowser.shellTokens(...)` 支持反斜杠转义，与 `BasicValueSupport.shellTokens(...)` 的无转义语义不同，暂不强行合并。
+- `CronjobTools.cronjob(...)` 多个重载仍存在相似转发，但属于公开工具签名兼容层；下一步若处理，只能收口内部转发，不能删除公开入口。
+- `MemoryView.vue` 与 `PersonaFileView.vue`、`PersonaDiaryView.vue` 与 `SkillsView.vue` 的 UI 相似点已确认，但涉及前端组件抽取和视觉回归，先作为后续前端原子项处理。
 
 ## 验证
 
@@ -56,3 +62,8 @@
 - `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
 - `mvn -Dskip.web.build=true -Dtest=DashboardDiagnosticOutputTest,DashboardSecurityProbeDiagnosticTest test`
 - `mvn -Dskip.web.build=true -Dtest=CronjobToolsSchedulerTest,DefaultCronSchedulerTest test`
+- `mvn -Dskip.web.build=true -DskipTests -Dmaven.compiler.showWarnings=true test-compile`
+- `mvn -Dskip.web.build=true -Dtest=DashboardStatusServiceTest test`
+- `mvn -Dskip.web.build=true -Dtest=UsagePricingTest,ProviderDisplayGroupingTest,DashboardStatusServiceTest test`
+- `mvn -Dskip.web.build=true -DskipTests test-compile`
+- `mvn -Dskip.web.build=true -Dtest=RuntimeSetupServiceTest test`
