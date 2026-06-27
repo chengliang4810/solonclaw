@@ -25,3 +25,9 @@ export function fileOpenMode(entry: { isDir: boolean; name: string }): 'edit' | 
   if (isTextFileName(entry.name)) return 'edit'
   return 'none'
 }
+
+export function fileContextPrimaryAction(entry: { isDir: boolean; name: string }): 'edit' | 'open' | 'preview' | null {
+  const mode = fileOpenMode(entry)
+
+  return mode === 'navigate' ? 'open' : mode === 'none' ? null : mode
+}

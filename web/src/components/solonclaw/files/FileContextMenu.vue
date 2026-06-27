@@ -2,9 +2,10 @@
 import { ref, nextTick } from 'vue'
 import { NDropdown, useMessage, useDialog } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { useFilesStore, isTextFile, isImageFile, isMarkdownFile } from '@/stores/solonclaw/files'
+import { useFilesStore } from '@/stores/solonclaw/files'
 import { downloadFile } from '@/api/solonclaw/download'
 import type { FileEntry } from '@/api/solonclaw/files'
+import { fileContextPrimaryAction } from '@/shared/fileDisplay'
 import { copyToClipboard } from '@/utils/clipboard'
 
 const { t } = useI18n()
@@ -36,15 +37,11 @@ function getOptions() {
   if (!entry) return []
   const options: any[] = []
 
-  if (entry.isDir) {
-    options.push({ label: t('files.open'), key: 'open' })
-  } else {
-    if (isTextFile(entry.name)) {
-      options.push({ label: t('files.edit'), key: 'edit' })
-    }
-    if (isImageFile(entry.name) || isMarkdownFile(entry.name)) {
-      options.push({ label: t('files.preview'), key: 'preview' })
-    }
+  const primaryAction = fileContextPrimaryAction(entry)
+  if (primaryAction) {
+    options.push({ label: t(`files.${primaryAction}`), key: primaryAction })
+  }
+  if (!entry.isDir) {
     options.push({ label: t('files.download'), key: 'download' })
   }
   options.push({ type: 'divider', key: 'd1' })
