@@ -91,6 +91,16 @@ export interface DashboardModelInfo {
   effective_context_length?: number
 }
 
+export interface ModelHealthProvider {
+  provider: string
+  status: string
+  checked_at: number
+}
+
+export interface ModelHealthResponse {
+  providers: ModelHealthProvider[]
+}
+
 export async function checkHealth(): Promise<HealthResponse> {
   const [health, status] = await Promise.all([
     request<{ ok?: boolean; service?: string }>('/health'),
@@ -153,6 +163,10 @@ export async function fetchAvailableModels(): Promise<AvailableModelsResponse> {
 
 export async function fetchModelInfo(): Promise<DashboardModelInfo> {
   return request<DashboardModelInfo>('/api/model/info')
+}
+
+export async function fetchModelHealth(): Promise<ModelHealthResponse> {
+  return request<ModelHealthResponse>('/api/models/health')
 }
 
 export async function updateDefaultModel(data: {
