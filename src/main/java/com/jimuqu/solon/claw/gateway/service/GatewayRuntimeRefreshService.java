@@ -302,14 +302,14 @@ public class GatewayRuntimeRefreshService {
         if (DOUBLE_KEYS.contains(key) || hasSuffix(key, DOUBLE_SUFFIXES)) {
             return validateDouble(key, value);
         }
-        if (BOOLEAN_KEYS.contains(key) || hasSuffix(key, BOOLEAN_SUFFIXES)) {
-            return validateBoolean(key, value);
-        }
         if (LIST_KEYS.contains(key) || hasSuffix(key, LIST_SUFFIXES)) {
             if (value instanceof java.util.List || value instanceof String) {
                 return ValidationResult.success();
             }
             return ValidationResult.failure(key + " 必须是 YAML 列表或逗号分隔字符串。");
+        }
+        if (BOOLEAN_KEYS.contains(key) || hasSuffix(key, BOOLEAN_SUFFIXES)) {
+            return validateBoolean(key, value);
         }
         return ValidationResult.success();
     }
@@ -801,6 +801,7 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.browser",
                     "solonclaw.security",
                     "solonclaw.mcp",
+                    "solonclaw.plugins",
                     "solonclaw.channels",
                     "solonclaw.channels.feishu",
                     "solonclaw.channels.dingtalk",
@@ -904,6 +905,8 @@ public class GatewayRuntimeRefreshService {
                     "security.websiteBlocklist.sharedFiles",
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
+                    "solonclaw.plugins.enabled",
+                    "solonclaw.plugins.disabled",
                     "solonclaw.terminal.credentialFiles");
 
     /** 整型后缀列表的统一常量值。 */

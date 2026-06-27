@@ -428,6 +428,28 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldRefreshPluginEnableDisableLists() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  plugins:\n"
+                        + "    enabled:\n"
+                        + "      - browser-use\n"
+                        + "      - speech-local\n"
+                        + "    disabled:\n"
+                        + "      - legacy-demo\n",
+                env.appConfig.getRuntime().getConfigFile());
+
+        GatewayRuntimeRefreshService.RefreshResult result =
+                env.gatewayRuntimeRefreshService.refreshConfigOnly();
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(env.appConfig.getPlugins().getEnabled())
+                .containsExactly("browser-use", "speech-local");
+        assertThat(env.appConfig.getPlugins().getDisabled()).containsExactly("legacy-demo");
+    }
+
+    @Test
     void shouldRejectInvalidConfigBeforeRefreshing() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         int previousMaxSteps = env.appConfig.getReact().getMaxSteps();

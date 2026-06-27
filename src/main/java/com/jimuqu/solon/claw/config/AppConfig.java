@@ -181,6 +181,7 @@ public class AppConfig {
         copyApprovals(other.getApprovals());
         copyMcp(other.getMcp());
         copyProactive(other.getProactive());
+        copyPlugins(other.getPlugins());
         copyChannel(this.channels.getFeishu(), other.getChannels().getFeishu());
         copyChannel(this.channels.getDingtalk(), other.getChannels().getDingtalk());
         copyChannel(this.channels.getWecom(), other.getChannels().getWecom());
@@ -539,6 +540,16 @@ public class AppConfig {
      */
     private void copyPricing(PricingConfig other) {
         this.pricing.setPrices(new ArrayList<ModelPrice>(other.getPrices()));
+    }
+
+    /**
+     * 复制插件配置，保证运行时刷新后插件启停列表立即对外可见。
+     *
+     * @param other 待复制的插件配置。
+     */
+    private void copyPlugins(PluginConfig other) {
+        this.plugins.setEnabled(new ArrayList<String>(other.getEnabled()));
+        this.plugins.setDisabled(new ArrayList<String>(other.getDisabled()));
     }
 
     /**
