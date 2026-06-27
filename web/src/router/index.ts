@@ -76,6 +76,11 @@ const router = createRouter({
       component: () => import('@/views/solonclaw/ChannelsView.vue'),
     },
     {
+      path: '/solonclaw/gateways',
+      name: 'solonclaw.gateways',
+      component: () => import('@/views/solonclaw/GatewaysView.vue'),
+    },
+    {
       path: '/solonclaw/mcp',
       name: 'solonclaw.mcp',
       component: () => import('@/views/solonclaw/McpView.vue'),
