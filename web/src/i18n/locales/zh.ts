@@ -1535,6 +1535,19 @@ export default {
 
   channels: {
     description: '这里配置国内消息渠道的启用状态、凭证和登录方式，完成后可在消息网关页面查看运行状态。',
+    mediaCache: '媒体缓存',
+    mediaDescription: '查看国内消息渠道已索引的图片、文件、语音等媒体记录。',
+    mediaRefresh: '刷新',
+    mediaDetail: '媒体详情',
+    mediaEmpty: '暂无媒体缓存记录',
+    mediaStatus: '状态',
+    mediaPlatform: '平台',
+    mediaKind: '类型',
+    mediaSize: '大小',
+    mediaUpdated: '更新时间',
+    mediaPath: '本地路径',
+    mediaReference: '引用',
+    mediaError: '错误',
   },
   // 文件管理
   files: {

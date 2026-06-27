@@ -1465,6 +1465,22 @@ export default {
       running: 'Running',
     },
   },
+  channels: {
+    description: 'Configure supported domestic message channels and review gateway status after setup.',
+    mediaCache: 'Media cache',
+    mediaDescription: 'Review indexed media records from supported domestic channels.',
+    mediaRefresh: 'Refresh',
+    mediaDetail: 'Media detail',
+    mediaEmpty: 'No media cache records',
+    mediaStatus: 'Status',
+    mediaPlatform: 'Platform',
+    mediaKind: 'Kind',
+    mediaSize: 'Size',
+    mediaUpdated: 'Updated',
+    mediaPath: 'Local path',
+    mediaReference: 'Reference',
+    mediaError: 'Error',
+  },
   // Files
   files: {
     title: 'Files',
