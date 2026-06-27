@@ -98,3 +98,29 @@ python3 scripts/audit-terminal-commands.py --timeout-seconds 20
 - Node TUI 真实交互审计通过，`audit.findings=0`。
 - 全量终端命令审计 93 项通过，`audit.findings=0`。
 
+## BUG-006：TUI 审批响应缺少 session_id 时会假成功
+
+状态：已修复，本次提交
+
+影响范围：
+
+- TUI 审批弹层的批准、拒绝和 Ctrl-C 拒绝路径。
+- 后端 `approval.respond` RPC。
+
+根因：
+
+- 后端 `approval.respond` 在 `session_id` 为空时直接返回 `ok=true`，但没有执行真实 `/approve` 或 `/deny` 流程。
+- TUI 前端原本没有把 `approval.request` 事件信封里的 `session_id` 保存到审批弹层，只依赖当前 UI 会话标识。
+
+修复方向：
+
+- 后端在缺少 `session_id` 时返回 `ok=false` 和 `missing_session_id` warning，避免前端误判为授权成功。
+- TUI 审批弹层保存事件级 `session_id`，批准和 Ctrl-C 拒绝时优先回传该会话标识。
+
+验证结果：
+
+```bash
+mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=TerminalUiApprovalRespondTest,DangerousCommandApprovalCommandTest,DangerousCommandApprovalServiceTest test
+npm --prefix terminal-ui test -- createGatewayEventHandler.test.ts
+npm --prefix terminal-ui run type-check
+```

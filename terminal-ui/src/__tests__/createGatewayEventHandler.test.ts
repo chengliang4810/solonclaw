@@ -904,6 +904,7 @@ describe('createGatewayEventHandler', () => {
     onEvent({ payload: { preview: 'bad framing' }, type: 'gateway.protocol_error' } as any)
     onEvent({
       payload: { approval_id: 'appr-2', command: 'rm -rf /tmp/nope', description: 'dangerous command' },
+      session_id: 'sid-approval',
       type: 'approval.request'
     } as any)
     onEvent({ payload: {}, type: 'gateway.ready' } as any)
@@ -911,7 +912,7 @@ describe('createGatewayEventHandler', () => {
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(getOverlayState().approval).toMatchObject({ approvalId: 'appr-2', description: 'dangerous command' })
+    expect(getOverlayState().approval).toMatchObject({ approvalId: 'appr-2', description: 'dangerous command', sessionId: 'sid-approval' })
     expect(getTurnState().activity).toMatchObject([
       { text: 'Traceback: noisy but non-fatal', tone: 'info' },
       { text: 'protocol noise detected · /logs to inspect', tone: 'info' },

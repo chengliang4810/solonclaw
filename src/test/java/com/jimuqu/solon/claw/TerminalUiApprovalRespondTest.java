@@ -154,6 +154,50 @@ class TerminalUiApprovalRespondTest {
     }
 
     @Test
+    void approvalRespondRejectsMissingSessionId() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        null,
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-missing-session\","
+                        + "\"method\":\"approval.respond\",\"params\":{\"choice\":\"session\"}}");
+
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-missing-session\""));
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"ok\":false")
+                && text.contains("missing_session_id"));
+    }
+
+    @Test
     void slashExecApprovalCommandStreamsResumedRunToSocket() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CliRuntime runtime =

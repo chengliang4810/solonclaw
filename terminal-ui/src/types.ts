@@ -93,6 +93,7 @@ export interface ApprovalReq {
   approvalId?: string
   command: string
   description: string
+  sessionId?: string
 }
 
 export interface ConfirmReq {

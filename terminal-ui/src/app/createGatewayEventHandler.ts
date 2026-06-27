@@ -677,7 +677,8 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
           approval: {
             approvalId: String(ev.payload.approval_id ?? ''),
             command: String(ev.payload.command ?? ''),
-            description
+            description,
+            sessionId: ev.session_id
           }
         })
         setStatus('需要审批')

@@ -576,7 +576,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         if (StrUtil.isBlank(sessionId)) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("output", "");
-            result.put("ok", Boolean.TRUE);
+            result.put("ok", Boolean.FALSE);
+            result.put("warning", "missing_session_id");
             return result;
         }
         bindRuntimeSource(sessionId);
