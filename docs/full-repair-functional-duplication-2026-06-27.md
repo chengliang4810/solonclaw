@@ -121,6 +121,9 @@
 - 建议：
   - 阶段 3.2 先合并 `system.ts` 中 provider 到 group 的转换逻辑。
   - 暂不删除 `/api/model/info`、`/api/models`、`/api/providers`。
+- 处理结果：
+  - 已删除前端未使用的 `fetchConfigModels()`、`ConfigModelsResponse`、`ModelGroup` 和 `ModelInfo`。
+  - 前端继续通过 `fetchAvailableModels()` 统一消费 `/api/providers`，后端三个接口保持原有边界。
 
 ## 已复核但暂不处理的相似点
 

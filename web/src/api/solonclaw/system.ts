@@ -8,21 +8,6 @@ export interface HealthResponse {
   node_version?: string
 }
 
-export interface ModelInfo {
-  id: string
-  label: string
-}
-
-export interface ModelGroup {
-  provider: string
-  models: ModelInfo[]
-}
-
-export interface ConfigModelsResponse {
-  default: string
-  groups: ModelGroup[]
-}
-
 export interface ProviderRecord {
   providerKey: string
   name: string
@@ -158,17 +143,6 @@ function toGroup(provider: ProviderRecord, defaultModel: string): AvailableModel
     dialect: provider.dialect,
     has_api_key: provider.hasApiKey,
     isDefault: provider.isDefault,
-  }
-}
-
-export async function fetchConfigModels(): Promise<ConfigModelsResponse> {
-  const payload = await request<ProvidersPayload>('/api/providers')
-  return {
-    default: payload.defaultModel || '',
-    groups: payload.providers.map(p => ({
-      provider: p.providerKey,
-      models: (p.defaultModel ? [p.defaultModel] : []).map(model => ({ id: model, label: model })),
-    })),
   }
 }
 
