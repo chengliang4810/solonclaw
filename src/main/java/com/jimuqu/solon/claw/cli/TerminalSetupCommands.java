@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.ChannelConfigSupport;
 import com.jimuqu.solon.claw.support.RuntimeProviderSetupSpec;
 import com.jimuqu.solon.claw.support.RuntimeConfigResolverSupport;
@@ -2314,40 +2315,8 @@ public class TerminalSetupCommands {
                 + "--enabled true [--app-id <id>] [--app-secret <secret>]";
     }
 
-    /**
-     * 按常见 shell 规则切分参数，支持单引号与双引号包裹的值。
-     *
-     * @param input 输入文本。
-     * @return 参数列表。
-     */
     private List<String> shellTokens(String input) {
-        java.util.ArrayList<String> tokens = new java.util.ArrayList<String>();
-        StringBuilder current = new StringBuilder();
-        boolean singleQuoted = false;
-        boolean doubleQuoted = false;
-        for (int i = 0; i < input.length(); i++) {
-            char ch = input.charAt(i);
-            if (ch == '\'' && !doubleQuoted) {
-                singleQuoted = !singleQuoted;
-                continue;
-            }
-            if (ch == '"' && !singleQuoted) {
-                doubleQuoted = !doubleQuoted;
-                continue;
-            }
-            if (Character.isWhitespace(ch) && !singleQuoted && !doubleQuoted) {
-                if (current.length() > 0) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
-                }
-                continue;
-            }
-            current.append(ch);
-        }
-        if (current.length() > 0) {
-            tokens.add(current.toString());
-        }
-        return tokens;
+        return BasicValueSupport.shellTokens(input);
     }
 
     /**

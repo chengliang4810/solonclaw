@@ -593,36 +593,8 @@ public class TuiRuntimeProtocolService {
         return selection;
     }
 
-    /** 按常见 shell 规则切分模型选择参数。 */
     private List<String> shellTokens(String input) {
-        List<String> tokens = new ArrayList<String>();
-        StringBuilder current = new StringBuilder();
-        boolean singleQuoted = false;
-        boolean doubleQuoted = false;
-        String safeInput = StrUtil.nullToEmpty(input);
-        for (int i = 0; i < safeInput.length(); i++) {
-            char ch = safeInput.charAt(i);
-            if (ch == '\'' && !doubleQuoted) {
-                singleQuoted = !singleQuoted;
-                continue;
-            }
-            if (ch == '"' && !singleQuoted) {
-                doubleQuoted = !doubleQuoted;
-                continue;
-            }
-            if (Character.isWhitespace(ch) && !singleQuoted && !doubleQuoted) {
-                if (current.length() > 0) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
-                }
-                continue;
-            }
-            current.append(ch);
-        }
-        if (current.length() > 0) {
-            tokens.add(current.toString());
-        }
-        return tokens;
+        return BasicValueSupport.shellTokens(input);
     }
 
     /** 读取工作区配置布尔值。 */

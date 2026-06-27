@@ -111,6 +111,43 @@ public final class BasicValueSupport {
     }
 
     /**
+     * 按常见 shell 规则切分参数，支持单引号与双引号包裹的值，不处理转义字符。
+     *
+     * @param input 输入文本。
+     * @return 参数列表。
+     */
+    public static List<String> shellTokens(String input) {
+        List<String> tokens = new ArrayList<String>();
+        StringBuilder current = new StringBuilder();
+        boolean singleQuoted = false;
+        boolean doubleQuoted = false;
+        String safeInput = StrUtil.nullToEmpty(input);
+        for (int i = 0; i < safeInput.length(); i++) {
+            char ch = safeInput.charAt(i);
+            if (ch == '\'' && !doubleQuoted) {
+                singleQuoted = !singleQuoted;
+                continue;
+            }
+            if (ch == '"' && !singleQuoted) {
+                doubleQuoted = !doubleQuoted;
+                continue;
+            }
+            if (Character.isWhitespace(ch) && !singleQuoted && !doubleQuoted) {
+                if (current.length() > 0) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+                continue;
+            }
+            current.append(ch);
+        }
+        if (current.length() > 0) {
+            tokens.add(current.toString());
+        }
+        return tokens;
+    }
+
+    /**
      * 判断文本是否包含 ISO 控制字符，用于路径、配置键等安全输入边界。
      *
      * @param value 待检查文本。
