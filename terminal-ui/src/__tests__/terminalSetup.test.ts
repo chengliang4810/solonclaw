@@ -9,6 +9,8 @@ import {
   stripJsonComments
 } from '../lib/terminalSetup.js'
 
+import { completeVSCodeKeybindingsJson } from './terminalKeybindingFixtures.js'
+
 describe('terminalSetup helpers', () => {
   it('detects VS Code family terminals from environment', () => {
     expect(detectVSCodeLikeTerminal({ CURSOR_TRACE_ID: 'x' } as NodeJS.ProcessEnv)).toBe('cursor')
@@ -327,46 +329,7 @@ describe('configureTerminalKeybindings', () => {
       })
     ).resolves.toBe(true)
 
-    const readComplete = vi.fn().mockResolvedValue(
-      JSON.stringify([
-        {
-          key: 'cmd+c',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus && terminalTextSelected',
-          args: { text: '\u001b[99;13u' }
-        },
-        {
-          key: 'shift+enter',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\\\r\n' }
-        },
-        {
-          key: 'ctrl+enter',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\\\r\n' }
-        },
-        {
-          key: 'cmd+enter',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\\\r\n' }
-        },
-        {
-          key: 'cmd+z',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\u001b[122;9u' }
-        },
-        {
-          key: 'shift+cmd+z',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\u001b[122;10u' }
-        }
-      ])
-    )
+    const readComplete = vi.fn().mockResolvedValue(completeVSCodeKeybindingsJson())
 
     await expect(
       shouldPromptForTerminalSetup({

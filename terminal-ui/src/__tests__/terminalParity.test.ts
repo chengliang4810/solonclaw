@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { terminalParityHints } from '../lib/terminalParity.js'
 
+import { completeVSCodeKeybindingsJson } from './terminalKeybindingFixtures.js'
+
 describe('terminalParityHints', () => {
   it('warns for Apple Terminal and SSH/tmux sessions', async () => {
     const hints = await terminalParityHints({
@@ -26,46 +28,7 @@ describe('terminalParityHints', () => {
   })
 
   it('suppresses IDE setup hint when keybindings are already configured', async () => {
-    const readFile = vi.fn().mockResolvedValue(
-      JSON.stringify([
-        {
-          key: 'cmd+c',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus && terminalTextSelected',
-          args: { text: '\u001b[99;13u' }
-        },
-        {
-          key: 'shift+enter',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\\\r\n' }
-        },
-        {
-          key: 'ctrl+enter',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\\\r\n' }
-        },
-        {
-          key: 'cmd+enter',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\\\r\n' }
-        },
-        {
-          key: 'cmd+z',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\u001b[122;9u' }
-        },
-        {
-          key: 'shift+cmd+z',
-          command: 'workbench.action.terminal.sendSequence',
-          when: 'terminalFocus',
-          args: { text: '\u001b[122;10u' }
-        }
-      ])
-    )
+    const readFile = vi.fn().mockResolvedValue(completeVSCodeKeybindingsJson())
 
     const hints = await terminalParityHints({ TERM_PROGRAM: 'vscode' } as NodeJS.ProcessEnv, {
       fileOps: { readFile },
