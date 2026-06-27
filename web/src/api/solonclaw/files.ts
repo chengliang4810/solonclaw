@@ -99,30 +99,6 @@ export async function writeFile(path: string, content: string): Promise<void> {
   })
 }
 
-function unsupported(): never {
-  throw new Error('当前后端仅开放工作区文件的读取与保存')
-}
-
-export async function deleteFile(_path: string, _recursive: boolean = false): Promise<void> {
-  unsupported()
-}
-
-export async function renameFile(_oldPath: string, _newPath: string): Promise<void> {
-  unsupported()
-}
-
-export async function mkDir(_path: string): Promise<void> {
-  unsupported()
-}
-
-export async function copyFile(_srcPath: string, _destPath: string): Promise<void> {
-  unsupported()
-}
-
-export async function uploadFiles(_targetDir: string, _files: File[]): Promise<{ name: string; path: string }[]> {
-  unsupported()
-}
-
 export function getFileDownloadUrl(relativePath: string, fileName?: string): string {
   const base = getBaseUrlValue()
   const params = new URLSearchParams({ path: relativePath })
