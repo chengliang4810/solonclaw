@@ -13,6 +13,7 @@ export const useModelsStore = defineStore('models', () => {
   const runtimeModels = ref<RuntimeModelInfo[]>([])
   const modelHealth = ref<ModelHealthProvider[]>([])
   const loading = ref(false)
+  const error = ref('')
 
   const allModels = computed(() =>
     providers.value.flatMap(g =>
@@ -29,6 +30,7 @@ export const useModelsStore = defineStore('models', () => {
 
   async function fetchProviders() {
     loading.value = true
+    error.value = ''
     try {
       const res = await systemApi.fetchAvailableModels()
       providers.value = res.groups
@@ -42,7 +44,15 @@ export const useModelsStore = defineStore('models', () => {
       ])
       runtimeModels.value = runtime.models || []
       modelHealth.value = health.providers || []
-    } catch (err) {
+    } catch (err: any) {
+      providers.value = []
+      allProviders.value = []
+      fallbackProviders.value = []
+      defaultModel.value = ''
+      defaultProvider.value = ''
+      runtimeModels.value = []
+      modelHealth.value = []
+      error.value = err?.message || String(err || '')
       console.error('Failed to fetch providers:', err)
     } finally {
       loading.value = false
@@ -102,6 +112,7 @@ export const useModelsStore = defineStore('models', () => {
     runtimeModels,
     modelHealth,
     loading,
+    error,
     allModels,
     fetchProviders,
     setDefaultModel,

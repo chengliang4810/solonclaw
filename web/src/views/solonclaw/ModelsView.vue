@@ -86,6 +86,9 @@ function priceText(pricing?: Record<string, unknown>) {
 
     <div class="models-content">
       <NSpin :show="modelsStore.loading && modelsStore.providers.length === 0">
+        <section v-if="modelsStore.error" class="models-error">
+          {{ modelsStore.error || t('models.fetchFailed') }}
+        </section>
         <section v-if="modelsStore.runtimeModels.length" class="runtime-panel">
           <div class="runtime-panel__header">
             <div>
@@ -141,6 +144,16 @@ function priceText(pricing?: Record<string, unknown>) {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+}
+
+.models-error {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: rgba(var(--error-rgb), 0.1);
+  border: 1px solid rgba(var(--error-rgb), 0.24);
+  border-radius: $radius-md;
+  color: $error;
+  font-size: 13px;
 }
 
 .runtime-panel {
