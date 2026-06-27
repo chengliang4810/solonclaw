@@ -76,6 +76,12 @@
 13. 日志组件过滤
     - 后端接口：`/api/logs?component=...`
     - 前端入口：日志页新增组件过滤输入，前端日志 API 透传 `component` 参数。
+    - 提交：`b8aad00f9`
+
+14. 配置诊断只读入口
+    - 后端接口：`/api/config/diagnostics`、`/api/config/schema`、`/api/config/raw`
+    - 前端入口：设置页新增配置诊断卡片式页签，只读展示诊断结果、配置结构和原始配置。
+    - 说明：本次只补齐只读诊断入口，不提供原始配置编辑或保存能力，避免绕过现有配置写入边界。
     - 提交：待提交
 
 ## 已补齐的后端接口缺口
@@ -110,6 +116,7 @@
 - `npm run build --prefix web`：2026-06-28 检查点预览入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 会话轨迹保存入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 日志组件过滤入口补齐后通过。
+- `npm run build --prefix web`：2026-06-28 配置诊断只读入口补齐后通过。
 - 多次执行 `git diff --check`，通过。
 - `git diff --check -- web/src/components/solonclaw/files/FileToolbar.vue web/src/components/solonclaw/files/FileContextMenu.vue web/src/views/solonclaw/FilesView.vue docs/full-repair-frontend-backend-parity-2026-06-27.md`：通过。
 - 执行 `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`，通过。

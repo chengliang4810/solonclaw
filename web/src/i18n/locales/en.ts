@@ -1376,6 +1376,12 @@ export default {
       privacy: 'Privacy',
       apiServer: 'API Server',
       models: 'Models',
+      configDiagnostics: 'Config diagnostics',
+    },
+    configDiagnostics: {
+      diagnostics: 'Diagnostics',
+      schema: 'Config schema',
+      raw: 'Raw config',
     },
     models: {
       apiKey: 'API Key',

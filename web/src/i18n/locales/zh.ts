@@ -1408,6 +1408,12 @@ export default {
       privacy: '隐私',
       apiServer: 'API 服务器',
       models: '模型',
+      configDiagnostics: '配置诊断',
+    },
+    configDiagnostics: {
+      diagnostics: '诊断',
+      schema: '配置结构',
+      raw: '原始配置',
     },
     models: {
       apiKey: '接口密钥',

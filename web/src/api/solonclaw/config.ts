@@ -51,6 +51,18 @@ export async function fetchWorkspaceConfigItems(): Promise<Record<string, Worksp
   return request<Record<string, WorkspaceConfigInfo>>('/api/workspace-config')
 }
 
+export async function fetchConfigDiagnostics(): Promise<Record<string, any>> {
+  return request<Record<string, any>>('/api/config/diagnostics')
+}
+
+export async function fetchConfigSchema(): Promise<Record<string, any>> {
+  return request<Record<string, any>>('/api/config/schema')
+}
+
+export async function fetchRawConfig(): Promise<Record<string, any>> {
+  return request<Record<string, any>>('/api/config/raw')
+}
+
 export async function setWorkspaceConfigItem(key: string, value: string): Promise<void> {
   const text = (value || '').trim()
   if (!text) {
