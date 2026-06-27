@@ -163,6 +163,16 @@
       - 定时任务 store 暴露聚合错误状态。
       - 各加载入口失败时清空对应旧数据，成功重试时只清理对应错误，不会覆盖其他并发失败提示。
       - 定时任务页展示错误提示卡片，避免用户把旧数据当成当前状态。
+    - 提交：`64d528d38`
+
+14. 记忆页加载失败反馈
+    - 位置：`web/src/views/solonclaw/MemoryView.vue`
+    - 改造前：
+      - 记忆加载失败时只弹出短暂 toast 并写入控制台。
+      - 刷新失败后可能继续显示上一轮记忆正文，或者在初始加载失败时显示空白/空状态。
+    - 改造后：
+      - 加载失败时清空旧记忆数据并保留页面内错误提示。
+      - 成功重试时清理错误状态并恢复正常正文展示。
 
 ## 验证
 
@@ -178,6 +188,7 @@
 - `npm run build --prefix web`：2026-06-27 人格文件切换失败清理旧正文改造后通过。
 - `npm run build --prefix web`：2026-06-27 模型页加载失败反馈改造后通过。
 - `npm run build --prefix web`：2026-06-27 定时任务页加载失败反馈改造后通过。
+- `npm run build --prefix web`：2026-06-27 记忆页加载失败反馈改造后通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
 - `git diff --check -- web/src/shared/fileDisplay.ts web/tests/fileDisplay.test.ts web/src/components/solonclaw/files/FileContextMenu.vue`：通过。
 - `git diff --check -- web/src/views/solonclaw/UsageView.vue`：通过。
@@ -186,5 +197,6 @@
 - `git diff --check -- web/src/views/solonclaw/PersonaFileView.vue`：通过。
 - `git diff --check -- web/src/stores/solonclaw/models.ts web/src/views/solonclaw/ModelsView.vue`：通过。
 - `git diff --check -- web/src/stores/solonclaw/jobs.ts web/src/views/solonclaw/JobsView.vue docs/full-repair-ui-display-2026-06-27.md`：通过。
+- `git diff --check -- web/src/views/solonclaw/MemoryView.vue docs/full-repair-ui-display-2026-06-27.md`：通过。
 - `node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('terminal-ui/package.json','utf8')); const l=JSON.parse(fs.readFileSync('terminal-ui/package-lock.json','utf8')); console.log(JSON.stringify({package:p.version, lock:l.version, root:l.packages[''].version}, null, 2)); if (p.version!==l.version || p.version!==l.packages[''].version) process.exit(1)"`：通过，三处版本号均为 `0.0.7`。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。

@@ -12,16 +12,20 @@ const data = ref<MemoryData | null>(null)
 const editingSection = ref<'memory' | null>(null)
 const editContent = ref('')
 const saving = ref(false)
+const loadError = ref('')
 
 onMounted(loadMemory)
 
 async function loadMemory() {
   loading.value = true
+  loadError.value = ''
   try {
     data.value = await fetchMemory()
   } catch (err: any) {
+    data.value = null
+    loadError.value = err?.message || t('memory.loadFailed')
     console.error('Failed to load memory:', err)
-    message.error(t('memory.loadFailed'))
+    message.error(loadError.value)
   } finally {
     loading.value = false
   }
@@ -98,6 +102,7 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
 
     <div class="memory-content">
       <div v-if="loading && !data" class="memory-loading">{{ t('common.loading') }}</div>
+      <div v-else-if="loadError" class="memory-error">{{ loadError }}</div>
       <div v-else class="memory-sections single">
         <div class="memory-section">
           <div class="memory-intro">
@@ -155,6 +160,15 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
   justify-content: center;
   font-size: 13px;
   color: $text-muted;
+}
+
+.memory-error {
+  border: 1px solid rgba(var(--error-rgb), 0.24);
+  border-radius: $radius-md;
+  background: rgba(var(--error-rgb), 0.1);
+  color: $error;
+  padding: 12px 14px;
+  font-size: 13px;
 }
 
 .memory-sections {
