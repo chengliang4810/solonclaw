@@ -29,5 +29,5 @@ export async function runCurator(force = true): Promise<CuratorRunResult> {
 }
 
 export async function fetchCuratorReport(reportId: string): Promise<CuratorReportDetail> {
-  return request<CuratorReportDetail>(`/api/curator/${reportId}`)
+  return request<CuratorReportDetail>(`/api/curator/${encodeURIComponent(reportId)}`)
 }
