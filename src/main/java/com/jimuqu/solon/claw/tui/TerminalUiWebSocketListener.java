@@ -566,6 +566,10 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         } else {
             command = "approve";
         }
+        String selector = StrUtil.nullToEmpty(params.get("approval_id").getString()).trim();
+        if (StrUtil.isNotBlank(selector)) {
+            command = appendApprovalSelector(command, selector);
+        }
         Map<String, Object> result =
                 runSlash(
                         sessionId,
@@ -573,6 +577,25 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                         new TerminalUiWebSocketEventSink(socket, true));
         result.put("ok", Boolean.valueOf(!result.containsKey("warning")));
         return result;
+    }
+
+    /** 将 TUI 审批卡片携带的安全选择器插入 /approve 或 /deny 命令。 */
+    private static String appendApprovalSelector(String command, String selector) {
+        String normalized = StrUtil.nullToEmpty(command).trim();
+        String id = StrUtil.nullToEmpty(selector).trim();
+        if (StrUtil.isBlank(id)) {
+            return normalized;
+        }
+        if ("deny".equals(normalized)) {
+            return "deny " + id;
+        }
+        if (normalized.startsWith("approve ")) {
+            String scope = normalized.substring("approve ".length()).trim();
+            if ("session".equals(scope) || "always".equals(scope)) {
+                return "approve " + id + " " + scope;
+            }
+        }
+        return normalized + " " + id;
     }
 
     /**

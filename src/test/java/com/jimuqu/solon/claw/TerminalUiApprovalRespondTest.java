@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
 import com.jimuqu.solon.claw.tui.TerminalUiWebSocketListener;
 import java.net.InetSocketAddress;
@@ -76,6 +77,80 @@ class TerminalUiApprovalRespondTest {
         assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-1\""));
         assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"message.complete\"")
                 && text.contains("echo:resume"));
+    }
+
+    @Test
+    void approvalRespondUsesSelectorFromTuiCard() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        null,
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-approval-selector");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "first_delete",
+                "first delete",
+                "rm -rf workspace/first");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "second_delete",
+                "second delete",
+                "rm -rf workspace/second");
+
+        String secondSelector =
+                DangerousCommandApprovalService.approvalSelector(
+                        env.dangerousCommandApprovalService
+                                .listPendingApprovals(agentSession)
+                                .get(1));
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-2\",\"method\":\"approval.respond\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"approval_id\":\""
+                        + secondSelector
+                        + "\",\"choice\":\"session\"}}");
+
+        SessionRecord refreshed = env.sessionRepository.findById(session.getSessionId());
+        SqliteAgentSession refreshedAgentSession =
+                new SqliteAgentSession(refreshed, env.sessionRepository);
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(refreshedAgentSession))
+                .extracting("description")
+                .containsExactly("first delete");
     }
 
     /** 收集 WebSocket 文本帧，避免测试依赖真实网络连接。 */

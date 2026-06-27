@@ -183,6 +183,20 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
         self.assertEqual(issues, [])
 
+    def test_node_tui_startup_accepts_setup_required_screen(self) -> None:
+        mod = load_module()
+
+        self.assertTrue(mod.contains_node_tui_ready_state("需要先完成设置\nsetup required"))
+        self.assertTrue(mod.contains_node_tui_ready_state("ready"))
+        self.assertFalse(mod.contains_node_tui_ready_state("正在启动 SolonClaw…"))
+
+    def test_node_tui_banner_detection_is_case_insensitive(self) -> None:
+        mod = load_module()
+
+        self.assertTrue(mod.contains_node_tui_banner("⚕ SolonClaw Agent"))
+        self.assertTrue(mod.contains_node_tui_banner("\x1b[1mSOLONCLAW\x1b[0m"))
+        self.assertFalse(mod.contains_node_tui_banner("forging session…"))
+
     def test_wait_for_new_text_ignores_historical_output(self) -> None:
         mod = load_module()
 

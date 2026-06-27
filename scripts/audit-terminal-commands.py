@@ -20,6 +20,7 @@ import time
 import urllib.error
 import urllib.request
 import struct
+from pathlib import Path
 
 from guardlib import REPO_ROOT
 
@@ -267,6 +268,20 @@ def contains_terminal_text(text: str, expected: str) -> bool:
     if expected in normalized:
         return True
     return re.sub(r"\s+", "", expected) in compact_terminal_text(text)
+
+
+def contains_node_tui_ready_state(text: str) -> bool:
+    """判断 Node TUI 是否已经进入可输入状态，兼容未完成首次设置的阻塞页。"""
+    return any(
+        contains_terminal_text(text, expected)
+        for expected in ["ready", "setup required", "需要先完成设置"]
+    )
+
+
+def contains_node_tui_banner(text: str) -> bool:
+    """判断 Node TUI 启动横幅是否已经绘制，避免被大写 ASCII Logo 影响。"""
+    normalized = normalize_terminal_text(text).lower()
+    return "solonclaw" in normalized or "solonclawagent" in compact_terminal_text(text).lower()
 
 
 def process_output_text(value: object) -> str:
@@ -533,6 +548,36 @@ def wait_for_text(
     return contains_terminal_text(output.decode("utf-8", errors="replace"), expected)
 
 
+def wait_for_node_tui_ready_state(
+    master_fd: int,
+    output: bytearray,
+    timeout_seconds: float,
+    response_state: TerminalResponseState | None = None,
+) -> bool:
+    """等待 Node TUI 进入 ready 或首次设置阻塞页，两者都表示用户可以继续输入命令。"""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if contains_node_tui_ready_state(output.decode("utf-8", errors="replace")):
+            return True
+        read_pty(master_fd, output, 0.1, response_state)
+    return contains_node_tui_ready_state(output.decode("utf-8", errors="replace"))
+
+
+def wait_for_node_tui_banner(
+    master_fd: int,
+    output: bytearray,
+    timeout_seconds: float,
+    response_state: TerminalResponseState | None = None,
+) -> bool:
+    """等待 Node TUI 品牌横幅出现，大小写与 ANSI 间距差异都应被接受。"""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if contains_node_tui_banner(output.decode("utf-8", errors="replace")):
+            return True
+        read_pty(master_fd, output, 0.1, response_state)
+    return contains_node_tui_banner(output.decode("utf-8", errors="replace"))
+
+
 def wait_for_new_text(
     master_fd: int,
     output: bytearray,
@@ -558,10 +603,13 @@ def run_command(jar: Path, workspace_home: Path, command: str, index: int, timeo
     env = dict(os.environ)
     env.setdefault("LC_ALL", "C")
     env.setdefault("LANG", "C")
+    env["SOLONCLAW_WORKSPACE"] = str(workspace_home)
+    env["SOLONCLAW_HOME"] = str(workspace_home)
     try:
         completed = subprocess.run(
             java_args,
             cwd=str(REPO_ROOT),
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -774,10 +822,10 @@ def run_node_tui_sequence(
     saw_exit_action = False
     try:
         fcntl.ioctl(master_fd, termios.TIOCSWINSZ, struct.pack("HHHH", 36, 132, 0, 0))
-        if not wait_for_text(master_fd, output, "solonclaw", min(12.0, timeout_seconds), response_state):
+        if not wait_for_node_tui_banner(master_fd, output, min(12.0, timeout_seconds), response_state):
             step_issues.append("startup_missing_banner")
-        if not step_issues and not wait_for_text(
-            master_fd, output, "ready", min(20.0, timeout_seconds), response_state
+        if not step_issues and not wait_for_node_tui_ready_state(
+            master_fd, output, min(20.0, timeout_seconds), response_state
         ):
             step_issues.append("startup_missing_ready")
         for action in actions:

@@ -158,6 +158,17 @@ describe('createSlashHandler', () => {
     expect(ctx.gateway.rpc).not.toHaveBeenCalled()
   })
 
+  it('opens setup panel from setup-required startup screen before a session exists', () => {
+    patchUiState({ sid: null, status: 'setup required' })
+    const ctx = buildCtx()
+
+    expect(createSlashHandler(ctx)('/setup')).toBe(true)
+    expect(getOverlayState().setupPanel).toBe(true)
+    expect(getUiState().sid).toBeNull()
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+    expect(ctx.gateway.rpc).not.toHaveBeenCalled()
+  })
+
   it('opens model setup in-place without launching an external command', () => {
     const ctx = buildCtx()
 

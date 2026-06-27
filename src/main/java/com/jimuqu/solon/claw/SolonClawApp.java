@@ -68,6 +68,10 @@ public class SolonClawApp {
         }
         Props props = new Props();
         props.loadAddIfAbsent("app.yml");
+        String workspace = System.getProperty("solonclaw.workspace");
+        if (workspace != null && !workspace.trim().isEmpty()) {
+            props.put("solonclaw.workspace", workspace.trim());
+        }
         AppConfig appConfig = AppConfig.load(props);
         LlmProviderService providerService = new LlmProviderService(appConfig);
         TerminalSetupCommands setupCommands =

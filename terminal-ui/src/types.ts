@@ -90,6 +90,7 @@ export interface DelegationStatus {
 }
 
 export interface ApprovalReq {
+  approvalId?: string
   command: string
   description: string
 }

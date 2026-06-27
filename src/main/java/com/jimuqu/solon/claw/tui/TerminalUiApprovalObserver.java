@@ -33,6 +33,7 @@ public class TerminalUiApprovalObserver
             return;
         }
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("approval_id", event.getApprovalSelector());
         payload.put("command", event.getCommand());
         payload.put("description", StrUtil.blankToDefault(event.getDescription(), "dangerous command"));
         send("approval.request", payload, event.getSessionId());

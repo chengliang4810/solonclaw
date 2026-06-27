@@ -24,6 +24,9 @@ export const completionToApplyOnSubmit = (
   if (!rowText) {
     return null
   }
+  if (compReplace === 0 && value.startsWith('/') && rowText.startsWith('/') && !rowText.startsWith(value.trim())) {
+    return null
+  }
 
   const next = applyCompletion(value, rowText, compReplace)
 

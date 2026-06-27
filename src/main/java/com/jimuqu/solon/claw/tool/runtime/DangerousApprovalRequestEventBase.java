@@ -74,6 +74,11 @@ class DangerousApprovalRequestEventBase {
         return keys.isEmpty() ? "" : keys.get(0);
     }
 
+    /** 读取可安全展示和回传的审批选择器，用于前端准确响应当前审批项。 */
+    public String getApprovalSelector() {
+        return DangerousCommandApprovalService.approvalSelector(pendingApproval);
+    }
+
     /** 读取原始待审批对象，供子类扩展时保持上下文。 */
     DangerousCommandApprovalService.PendingApproval rawPendingApproval() {
         return pendingApproval;

@@ -35,4 +35,9 @@ describe('completionToApplyOnSubmit', () => {
     expect(completionToApplyOnSubmit('/exit', '', 1)).toBeNull()
     expect(completionToApplyOnSubmit('/exit', 'exit', 1)).toBeNull()
   })
+
+  it('does not replace an exact slash command with a different completion on Enter', () => {
+    expect(completionToApplyOnSubmit('/config check', '/commands', 0)).toBeNull()
+    expect(completionToApplyOnSubmit('/skin', '/sessions', 0)).toBeNull()
+  })
 })

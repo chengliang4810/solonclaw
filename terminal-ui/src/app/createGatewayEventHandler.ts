@@ -673,7 +673,13 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       case 'approval.request': {
         const description = String(ev.payload.description ?? 'dangerous command')
 
-        patchOverlayState({ approval: { command: String(ev.payload.command ?? ''), description } })
+        patchOverlayState({
+          approval: {
+            approvalId: String(ev.payload.approval_id ?? ''),
+            command: String(ev.payload.command ?? ''),
+            description
+          }
+        })
         setStatus('需要审批')
 
         return
