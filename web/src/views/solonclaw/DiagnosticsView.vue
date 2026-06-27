@@ -5,7 +5,9 @@ import { useI18n } from 'vue-i18n'
 import {
   auditSecurity,
   fetchAlwaysApprovals,
+  fetchApprovalEvents,
   fetchApprovalHistory,
+  fetchApprovalStats,
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
@@ -15,6 +17,9 @@ import {
   type AlwaysApproval,
   type AlwaysApprovalsResult,
   type ApprovalAuditEvent,
+  type ApprovalEventsResult,
+  type ApprovalRuntimeEvent,
+  type ApprovalStatsResult,
   type ApprovalHistoryResult,
   type Diagnostics,
   type PendingApproval,
@@ -32,6 +37,7 @@ const loading = ref(false)
 const auditLoading = ref(false)
 const approvalsLoading = ref(false)
 const historyLoading = ref(false)
+const eventsLoading = ref(false)
 const alwaysLoading = ref(false)
 const confirmsLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
@@ -40,6 +46,9 @@ const pendingApprovals = ref<PendingApproval[]>([])
 const pendingApprovalMeta = ref<PendingApprovalsResult | null>(null)
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
 const approvalHistoryMeta = ref<ApprovalHistoryResult | null>(null)
+const approvalEvents = ref<ApprovalRuntimeEvent[]>([])
+const approvalEventsMeta = ref<ApprovalEventsResult | null>(null)
+const approvalStats = ref<ApprovalStatsResult | null>(null)
 const alwaysApprovals = ref<AlwaysApproval[]>([])
 const alwaysApprovalMeta = ref<AlwaysApprovalsResult | null>(null)
 const pendingSlashConfirms = ref<PendingSlashConfirm[]>([])
@@ -471,6 +480,7 @@ const pendingApprovalScanText = computed(() => {
   return d('pendingScanText', { scanned, limit })
 })
 const historyCount = computed(() => approvalHistory.value.length)
+const approvalEventCount = computed(() => approvalEvents.value.length)
 const alwaysCount = computed(() => alwaysApprovals.value.length)
 const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
 
@@ -549,6 +559,7 @@ async function load() {
       loadPolicyAudit(),
       loadApprovals(),
       loadHistory(),
+      loadApprovalEvents(),
       loadAlwaysApprovals(),
       loadSlashConfirms(),
     ])
@@ -581,6 +592,18 @@ async function loadHistory() {
     approvalHistory.value = result.items || []
   } finally {
     historyLoading.value = false
+  }
+}
+
+async function loadApprovalEvents() {
+  eventsLoading.value = true
+  try {
+    const [events, stats] = await Promise.all([fetchApprovalEvents(50), fetchApprovalStats()])
+    approvalEventsMeta.value = events
+    approvalEvents.value = events.events || []
+    approvalStats.value = stats
+  } finally {
+    eventsLoading.value = false
   }
 }
 
@@ -747,6 +770,12 @@ function auditChoiceType(item: ApprovalAuditEvent) {
   if (item.choice === 'deny' || item.choice === 'timeout' || item.choice === 'revoke') return 'error'
   if (item.choice === 'once' || item.choice === 'session' || item.choice === 'always') return 'success'
   return 'default'
+}
+
+function runtimeDecisionType(decision?: string) {
+  if (decision === 'allow' || decision === 'approved') return 'success'
+  if (decision === 'block' || decision === 'denied') return 'error'
+  return 'warning'
 }
 
 onMounted(load)
@@ -1041,6 +1070,40 @@ onMounted(load)
               <pre v-else>{{ auditResult }}</pre>
             </div>
           </div>
+        </section>
+        <section class="panel approvals-panel">
+          <div class="panel-title-row">
+            <h3>{{ t('diagnostics.approvalEvents') }}</h3>
+            <div class="panel-actions">
+              <Tag size="small">{{ approvalStats?.totalEvents ?? approvalEventCount }}</Tag>
+              <Tag size="small" color="success">{{ t('diagnostics.approvedCount', { count: approvalStats?.approved ?? 0 }) }}</Tag>
+              <Tag size="small" color="error">{{ t('diagnostics.blockedCount', { count: approvalStats?.blocked ?? 0 }) }}</Tag>
+              <Tag size="small" color="warning">{{ t('diagnostics.pendingCount', { count: approvalStats?.pending ?? 0 }) }}</Tag>
+              <Button size="small" :loading="eventsLoading" @click="loadApprovalEvents">{{ t('diagnostics.refresh') }}</Button>
+            </div>
+          </div>
+          <Spin :spinning="eventsLoading">
+            <p v-if="approvalEventsMeta && approvalEventsMeta.count > approvalEventCount" class="approval-note">
+              {{ t('diagnostics.showingApprovalEvents', { count: approvalEventsMeta.count }) }}
+            </p>
+            <div v-if="approvalEvents.length" class="approval-list">
+              <article v-for="(item, index) in approvalEvents" :key="`${item.timestamp || index}:${item.toolName || ''}`" class="approval-item">
+                <div class="approval-head">
+                  <div>
+                    <strong>{{ item.summary || item.toolName || '-' }}</strong>
+                    <span>{{ item.toolName || '-' }} · {{ item.sourceKey || '-' }}</span>
+                  </div>
+                  <Tag size="small" :color="runtimeDecisionType(item.decision)">
+                    {{ item.decision || '-' }}
+                  </Tag>
+                </div>
+                <div class="approval-meta">
+                  <span>{{ timeText(item.timestamp) }}</span>
+                </div>
+              </article>
+            </div>
+            <div v-else class="empty-state">{{ t('diagnostics.noApprovalEvents') }}</div>
+          </Spin>
         </section>
         <section class="panel approvals-panel">
           <div class="panel-title-row">

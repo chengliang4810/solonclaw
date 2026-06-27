@@ -119,6 +119,27 @@ export interface ApprovalAuditEvent {
   approval_expires_at?: number
 }
 
+export interface ApprovalRuntimeEvent {
+  timestamp?: number
+  toolName?: string
+  decision?: string
+  sourceKey?: string
+  summary?: string
+  details?: Record<string, unknown>
+}
+
+export interface ApprovalEventsResult {
+  count: number
+  events: ApprovalRuntimeEvent[]
+}
+
+export interface ApprovalStatsResult {
+  totalEvents?: number
+  approved?: number
+  blocked?: number
+  pending?: number
+}
+
 export interface ApprovalHistoryResult {
   count: number
   items: ApprovalAuditEvent[]
@@ -207,6 +228,14 @@ export async function fetchPendingApprovals(limit = 100): Promise<PendingApprova
 
 export async function fetchApprovalHistory(limit = 100): Promise<ApprovalHistoryResult> {
   return request<ApprovalHistoryResult>(`/api/diagnostics/approvals/history?limit=${limit}`)
+}
+
+export async function fetchApprovalEvents(limit = 50): Promise<ApprovalEventsResult> {
+  return request<ApprovalEventsResult>(`/api/approval/events?limit=${limit}`)
+}
+
+export async function fetchApprovalStats(): Promise<ApprovalStatsResult> {
+  return request<ApprovalStatsResult>('/api/approval/stats')
 }
 
 export async function fetchAlwaysApprovals(limit = 100): Promise<AlwaysApprovalsResult> {
