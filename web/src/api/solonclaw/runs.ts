@@ -98,6 +98,11 @@ export interface SubagentRun {
   heartbeat_at: number
 }
 
+export interface ActiveSubagentsResponse {
+  subagents: SubagentRun[]
+  spawn_paused?: boolean
+}
+
 export interface RunRecovery {
   recovery_id: string
   run_id: string
@@ -163,12 +168,15 @@ export async function fetchRunSubagents(runId: string): Promise<SubagentRun[]> {
   return res.subagents || []
 }
 
-export async function fetchActiveSubagents(): Promise<SubagentRun[]> {
-  const res = await request<{ subagents: SubagentRun[] }>('/api/runs/subagents/active')
-  return res.subagents || []
+export async function fetchActiveSubagents(): Promise<ActiveSubagentsResponse> {
+  const res = await request<ActiveSubagentsResponse>('/api/runs/subagents/active')
+  return {
+    subagents: res.subagents || [],
+    spawn_paused: Boolean(res.spawn_paused),
+  }
 }
 
-export async function controlSubagent(subagentId: string, command: 'interrupt') {
+export async function controlSubagent(subagentId: string, command: 'interrupt' | 'pause_spawn' | 'resume_spawn') {
   return request(`/api/runs/subagents/${encodeURIComponent(subagentId)}/control`, {
     method: 'POST',
     body: JSON.stringify({ command }),

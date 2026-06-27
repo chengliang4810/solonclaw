@@ -32,6 +32,7 @@ const events = ref<AgentRunEvent[]>([])
 const tools = ref<ToolCall[]>([])
 const subagents = ref<SubagentRun[]>([])
 const activeSubagents = ref<SubagentRun[]>([])
+const subagentSpawnPaused = ref(false)
 const recoveries = ref<RunRecovery[]>([])
 const commands = ref<RunControlCommand[]>([])
 const checkpoints = ref<any[]>([])
@@ -48,6 +49,7 @@ const previewingCheckpoint = ref('')
 const savingTrajectory = ref(false)
 const runControlLoading = ref('')
 const subagentControlLoading = ref('')
+const subagentSpawnLoading = ref(false)
 const { t } = useI18n()
 
 const sessionOptions = computed(() => sessions.value.map(session => ({
@@ -131,7 +133,9 @@ async function loadRunDetail(runId: string) {
 }
 
 async function loadActiveSubagents() {
-  activeSubagents.value = await fetchActiveSubagents()
+  const state = await fetchActiveSubagents()
+  activeSubagents.value = state.subagents
+  subagentSpawnPaused.value = Boolean(state.spawn_paused)
 }
 
 async function handleRollback(id: string) {
@@ -195,6 +199,20 @@ async function handleSubagentInterrupt(subagentId: string) {
     message.error(err.message || t('runs.subagentInterruptFailed'))
   } finally {
     subagentControlLoading.value = ''
+  }
+}
+
+async function handleSubagentSpawnToggle() {
+  const command = subagentSpawnPaused.value ? 'resume_spawn' : 'pause_spawn'
+  subagentSpawnLoading.value = true
+  try {
+    await controlSubagent('_spawn', command)
+    message.success(t(subagentSpawnPaused.value ? 'runs.subagentSpawnResumed' : 'runs.subagentSpawnPaused'))
+    await loadActiveSubagents()
+  } catch (err: any) {
+    message.error(err.message || t('runs.subagentSpawnControlFailed'))
+  } finally {
+    subagentSpawnLoading.value = false
   }
 }
 
@@ -358,7 +376,13 @@ onMounted(async () => {
         </section>
 
         <section class="panel side-panel">
-          <h3>{{ t('runs.activeSubagents') }}</h3>
+          <div class="section-heading">
+            <h3>{{ t('runs.activeSubagents') }}</h3>
+            <Button size="small" :loading="subagentSpawnLoading" @click="handleSubagentSpawnToggle">
+              {{ t(subagentSpawnPaused ? 'runs.resumeSubagentSpawn' : 'runs.pauseSubagentSpawn') }}
+            </Button>
+          </div>
+          <div v-if="subagentSpawnPaused" class="empty compact">{{ t('runs.subagentSpawnPausedHint') }}</div>
           <div v-for="subagent in activeSubagents" :key="subagent.subagent_id" class="mini-row">
             <span>{{ subagent.name || subagent.subagent_id }}</span>
             <small>{{ statusLabel(subagent.status) }} · {{ subagent.goal_preview || subagent.goal || '-' }}</small>

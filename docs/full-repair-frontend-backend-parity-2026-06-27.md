@@ -84,6 +84,12 @@
     - 说明：本次只补齐只读诊断入口，不提供原始配置编辑或保存能力，避免绕过现有配置写入边界。
     - 提交：`b31691fc2`
 
+15. 子代理生成暂停与恢复
+    - 后端接口：`/api/runs/subagents/active`、`/api/runs/subagents/{subagentId}/control`
+    - 前端入口：运行页活跃子代理面板新增暂停生成和恢复生成按钮，并展示当前暂停状态。
+    - 说明：后端已有 `pause_spawn` / `resume_spawn` 控制，本次只补齐 Web 操作入口和状态透传。
+    - 提交：本次提交
+
 ## 已补齐的后端接口缺口
 
 1. 工作区文件下载
@@ -117,6 +123,7 @@
 - `npm run build --prefix web`：2026-06-28 会话轨迹保存入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 日志组件过滤入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 配置诊断只读入口补齐后通过。
+- `npm run build --prefix web`：2026-06-28 子代理生成暂停与恢复入口补齐后通过。
 - 多次执行 `git diff --check`，通过。
 - `git diff --check -- web/src/components/solonclaw/files/FileToolbar.vue web/src/components/solonclaw/files/FileContextMenu.vue web/src/views/solonclaw/FilesView.vue docs/full-repair-frontend-backend-parity-2026-06-27.md`：通过。
 - 执行 `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`，通过。
