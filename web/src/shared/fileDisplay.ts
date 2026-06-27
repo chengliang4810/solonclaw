@@ -31,3 +31,7 @@ export function fileContextPrimaryAction(entry: { isDir: boolean; name: string }
 
   return mode === 'navigate' ? 'open' : mode === 'none' ? null : mode
 }
+
+export function shouldShowInlineEditAction(entry: { isDir: boolean; name: string }): boolean {
+  return fileOpenMode(entry) === 'edit'
+}

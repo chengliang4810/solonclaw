@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { NButton, NSpin, NEmpty, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { useFilesStore, isTextFile } from '@/stores/solonclaw/files'
+import { useFilesStore } from '@/stores/solonclaw/files'
 import { downloadFile } from '@/api/solonclaw/download'
-import { fileOpenMode } from '@/shared/fileDisplay'
+import { fileOpenMode, shouldShowInlineEditAction } from '@/shared/fileDisplay'
 import type { FileEntry } from '@/api/solonclaw/files'
 
 const { t } = useI18n()
@@ -106,7 +106,7 @@ async function handleDownload(entry: FileEntry) {
           <div class="file-size">{{ entry.isDir ? '—' : formatSize(entry.size) }}</div>
           <div class="file-date">{{ formatDate(entry.modTime) }}</div>
           <div class="file-actions">
-            <NButton v-if="isTextFile(entry.name) && !entry.isDir" size="tiny" quaternary @click.stop="filesStore.openEditor(entry.path)" :title="t('files.edit')">✏️</NButton>
+            <NButton v-if="shouldShowInlineEditAction(entry)" size="tiny" quaternary @click.stop="filesStore.openEditor(entry.path)" :title="t('files.edit')">✏️</NButton>
             <NButton v-if="!entry.isDir" size="tiny" quaternary @click.stop="handleDownload(entry)" :title="t('files.download')">⬇️</NButton>
           </div>
         </div>
