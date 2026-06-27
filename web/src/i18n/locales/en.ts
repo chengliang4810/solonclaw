@@ -1542,6 +1542,9 @@ export default {
     recoveries: 'Recoveries',
     recoveryId: 'Recovery ID',
     recoverableRuns: 'Recoverable runs',
+    activeSubagents: 'Active subagents',
+    spawnPaused: 'Spawn paused',
+    depthAndTask: 'depth {depth}, task {task}',
     commands: 'Control commands',
     commandId: 'Command ID',
     payload: 'Payload',
@@ -1555,6 +1558,7 @@ export default {
     noTools: 'This run has no tool calls',
     noRecoveries: 'This run has no recoveries',
     noRecoverableRuns: 'No recoverable runs',
+    noActiveSubagents: 'No active subagents',
     noCommands: 'This run has no control commands',
     status: {
       success: 'Success',

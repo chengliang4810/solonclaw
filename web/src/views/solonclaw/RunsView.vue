@@ -4,6 +4,7 @@ import { Button, Select, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
 import {
+  fetchActiveSubagents,
   fetchRunDetail,
   fetchRecoverableRuns,
   fetchSessionRuns,
@@ -11,12 +12,15 @@ import {
   type AgentRunEvent,
   type RunControlCommand,
   type RunRecovery,
+  type SubagentRun,
   type ToolCall,
 } from '@/api/solonclaw/runs'
 
 const sessions = ref<any[]>([])
 const runs = ref<AgentRun[]>([])
 const recoverableRuns = ref<AgentRun[]>([])
+const activeSubagents = ref<SubagentRun[]>([])
+const subagentSpawnPaused = ref(false)
 const events = ref<AgentRunEvent[]>([])
 const tools = ref<ToolCall[]>([])
 const recoveries = ref<RunRecovery[]>([])
@@ -52,6 +56,7 @@ async function loadSessionDetail() {
       fetchSessionTree(selectedSessionId.value),
       fetchSessionCheckpoints(selectedSessionId.value),
       loadRecoverableRuns(),
+      loadActiveSubagents(),
     ])
     runs.value = loadedRuns
     tree.value = loadedTree
@@ -76,6 +81,12 @@ async function loadSessionDetail() {
 
 async function loadRecoverableRuns() {
   recoverableRuns.value = await fetchRecoverableRuns(20)
+}
+
+async function loadActiveSubagents() {
+  const result = await fetchActiveSubagents()
+  activeSubagents.value = result.subagents || []
+  subagentSpawnPaused.value = !!result.spawn_paused
 }
 
 async function loadRunDetail(runId: string) {
@@ -279,6 +290,21 @@ onMounted(async () => {
             <small>{{ time(run.started_at) }}</small>
           </button>
           <div v-if="recoverableRuns.length === 0" class="empty">{{ t('runs.noRecoverableRuns') }}</div>
+
+          <div class="side-title-row section-title">
+            <h3>{{ t('runs.activeSubagents') }}</h3>
+            <Button size="small" @click="loadActiveSubagents">{{ t('common.refresh') }}</Button>
+          </div>
+          <div class="mini-row">
+            <span>{{ t('runs.spawnPaused') }}</span>
+            <small>{{ subagentSpawnPaused ? t('common.yes') : t('common.no') }}</small>
+          </div>
+          <div v-for="subagent in activeSubagents" :key="subagent.subagent_id" class="mini-row">
+            <span>{{ subagent.name || subagent.subagent_id }}</span>
+            <small>{{ statusLabel(subagent.status) }} · {{ t('runs.depthAndTask', { depth: subagent.depth, task: subagent.task_index }) }}</small>
+            <small>{{ subagent.goal_preview || subagent.error || '-' }}</small>
+          </div>
+          <div v-if="activeSubagents.length === 0" class="empty">{{ t('runs.noActiveSubagents') }}</div>
 
           <h3>{{ t('runs.sessionTree') }}</h3>
           <div v-for="node in tree?.nodes || []" :key="node.id" class="mini-row">

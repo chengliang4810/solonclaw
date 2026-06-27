@@ -1593,6 +1593,9 @@ export default {
     recoveries: '恢复记录',
     recoveryId: '恢复 ID',
     recoverableRuns: '可恢复运行',
+    activeSubagents: '活跃子代理',
+    spawnPaused: '派生已暂停',
+    depthAndTask: '深度 {depth}，任务 {task}',
     commands: '控制命令',
     commandId: '命令 ID',
     payload: '载荷',
@@ -1606,6 +1609,7 @@ export default {
     noTools: '本次运行没有工具调用记录',
     noRecoveries: '本次运行没有恢复记录',
     noRecoverableRuns: '暂无可恢复运行',
+    noActiveSubagents: '暂无活跃子代理',
     noCommands: '本次运行没有控制命令',
     status: {
       success: '成功',

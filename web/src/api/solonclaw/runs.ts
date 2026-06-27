@@ -128,6 +128,11 @@ export interface RunDetail {
   commands: RunControlCommand[]
 }
 
+export interface ActiveSubagentsResult {
+  subagents: SubagentRun[]
+  spawn_paused?: boolean
+}
+
 export async function fetchSessionRuns(sessionId: string, limit = 20): Promise<AgentRun[]> {
   const res = await request<{ runs: AgentRun[] }>(`/api/sessions/${sessionId}/runs?limit=${limit}`)
   return res.runs || []
@@ -155,6 +160,10 @@ export async function fetchRunSubagents(runId: string): Promise<SubagentRun[]> {
 export async function fetchRecoverableRuns(limit = 50): Promise<AgentRun[]> {
   const res = await request<{ runs: AgentRun[] }>(`/api/runs/recoverable?limit=${limit}`)
   return res.runs || []
+}
+
+export async function fetchActiveSubagents(): Promise<ActiveSubagentsResult> {
+  return request<ActiveSubagentsResult>('/api/runs/subagents/active')
 }
 
 export async function controlRun(runId: string, command: string, payload: Record<string, unknown> = {}) {
