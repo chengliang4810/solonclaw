@@ -66,6 +66,11 @@
 11. 检查点预览
     - 后端接口：`/api/checkpoints/{id}/preview`
     - 前端入口：运行页检查点列表新增预览按钮，右侧抽屉展示后端返回的检查点预览内容。
+    - 提交：`cab1f2178`
+
+12. 会话轨迹保存
+    - 后端接口：`/api/sessions/{id}/trajectory/save`
+    - 前端入口：运行页会话轨迹区块新增保存轨迹按钮，用于把当前轨迹样本追加到工作区 artifacts。
     - 提交：待提交
 
 ## 已补齐的后端接口缺口
@@ -98,6 +103,7 @@
 - `npm run build --prefix web`：2026-06-28 子代理运行查看与中断入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 模型运行时富状态入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 检查点预览入口补齐后通过。
+- `npm run build --prefix web`：2026-06-28 会话轨迹保存入口补齐后通过。
 - 多次执行 `git diff --check`，通过。
 - `git diff --check -- web/src/components/solonclaw/files/FileToolbar.vue web/src/components/solonclaw/files/FileContextMenu.vue web/src/views/solonclaw/FilesView.vue docs/full-repair-frontend-backend-parity-2026-06-27.md`：通过。
 - 执行 `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`，通过。

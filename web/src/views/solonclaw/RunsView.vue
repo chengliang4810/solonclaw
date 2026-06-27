@@ -10,6 +10,7 @@ import {
   fetchSessionTrajectory,
   fetchSessionTree,
   rollbackCheckpoint,
+  saveSessionTrajectory,
 } from '@/api/solonclaw/sessions'
 import {
   controlSubagent,
@@ -44,6 +45,7 @@ const selectedRunId = ref('')
 const loading = ref(false)
 const rollingBack = ref('')
 const previewingCheckpoint = ref('')
+const savingTrajectory = ref(false)
 const runControlLoading = ref('')
 const subagentControlLoading = ref('')
 const { t } = useI18n()
@@ -149,6 +151,19 @@ async function handleCheckpointPreview(id: string) {
     previewOpen.value = true
   } finally {
     previewingCheckpoint.value = ''
+  }
+}
+
+async function handleSaveTrajectory() {
+  if (!selectedSessionId.value) return
+  savingTrajectory.value = true
+  try {
+    await saveSessionTrajectory(selectedSessionId.value)
+    message.success(t('runs.trajectorySaved'))
+  } catch (err: any) {
+    message.error(err.message || t('runs.trajectorySaveFailed'))
+  } finally {
+    savingTrajectory.value = false
   }
 }
 
@@ -354,7 +369,10 @@ onMounted(async () => {
           <div v-if="activeSubagents.length === 0" class="empty compact">{{ t('runs.noActiveSubagents') }}</div>
           <h3>{{ t('runs.sessionRecap') }}</h3>
           <pre class="artifact-block">{{ artifactText(recap) }}</pre>
-          <h3>{{ t('runs.sessionTrajectory') }}</h3>
+          <div class="section-heading">
+            <h3>{{ t('runs.sessionTrajectory') }}</h3>
+            <Button size="small" :loading="savingTrajectory" @click="handleSaveTrajectory">{{ t('runs.saveTrajectory') }}</Button>
+          </div>
           <pre class="artifact-block">{{ artifactText(trajectory) }}</pre>
           <h3>{{ t('runs.sessionTree') }}</h3>
           <div v-for="node in tree?.nodes || []" :key="node.id" class="mini-row">
@@ -427,6 +445,18 @@ h3 {
 
 .section-title {
   margin-top: 18px;
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+
+  h3 {
+    margin: 0;
+  }
 }
 
 .run-row,

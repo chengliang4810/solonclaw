@@ -377,6 +377,10 @@ export async function fetchSessionTrajectory(id: string): Promise<SessionTraject
   return request<SessionTrajectory>(`${sessionPath(id)}/trajectory`)
 }
 
+export async function saveSessionTrajectory(id: string): Promise<any> {
+  return request(`${sessionPath(id)}/trajectory/save`, { method: 'POST' })
+}
+
 export async function fetchCheckpointPreview(id: string): Promise<any> {
   return request(`${checkpointPath(id)}/preview`)
 }
