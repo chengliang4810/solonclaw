@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.gateway.service;
 
-import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;

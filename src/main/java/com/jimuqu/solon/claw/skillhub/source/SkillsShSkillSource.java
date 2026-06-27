@@ -6,7 +6,6 @@ import com.jimuqu.solon.claw.skillhub.model.SkillMeta;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.noear.snack4.ONode;
 
