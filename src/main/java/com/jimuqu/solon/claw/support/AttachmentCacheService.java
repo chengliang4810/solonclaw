@@ -135,7 +135,6 @@ public class AttachmentCacheService {
             throw new IllegalArgumentException("Attachment file does not exist: " + safePath(file));
         }
         File canonical = FileUtil.file(file).getAbsoluteFile();
-        FileUtil.file(platformDir(platform)).getAbsoluteFile();
         if (!isUnderCacheRoot(canonical)) {
             throw new IllegalArgumentException(
                     "Attachment file is outside runtime cache: " + safePath(file));
