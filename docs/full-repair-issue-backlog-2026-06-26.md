@@ -138,7 +138,7 @@ java -jar target/solonclaw-0.0.1.jar --tui -p /setup gateway
 
 ### P0-06：版本号改动未归属
 
-状态：已处理，提交 `053a8a1c5`
+状态：已处理并复核通过，提交 `053a8a1c5`
 
 证据：
 
@@ -150,6 +150,7 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 
 - `terminal-ui` 版本号从 `0.0.6` 改为 `0.0.7`。
 - `terminal-ui/package.json`、`terminal-ui/package-lock.json` 和 lock 根 package 版本字段一致。
+- 当前复核确认三处版本字段均为 `0.0.7`。
 
 归属阶段：
 
@@ -158,7 +159,7 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 
 ### P0-07：未使用变量门禁不一致
 
-状态：已复核，提交 `f657b6594`
+状态：已复核通过，提交 `f657b6594`
 
 证据文件：
 
@@ -175,6 +176,7 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 - `npm run --prefix terminal-ui type-check` 通过，未发现 TypeScript 未使用变量错误。
 - `npm run build --prefix web` 通过，未发现前端未使用变量错误。
 - `npm run --prefix terminal-ui lint` 原有 2 个导入排序 error 已修复，当前剩余为 padding、hooks 与 react-compiler warning，后续按独立问题处理。
+- 当前复核中 `npm --prefix terminal-ui run type-check` 与 `npm --prefix web run build` 均通过。
 
 归属阶段：
 
@@ -183,7 +185,7 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 
 ### P0-08：缺少明确的代码重复检测工具
 
-状态：已补充，提交 `d3a0b00ae`
+状态：已补充并复核通过，提交 `d3a0b00ae`
 
 证据命令：
 
@@ -198,6 +200,7 @@ python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/
 - 已新增 `scripts/check-code-duplication.py`，使用 Python 标准库检测归一化后的精确重复代码块。
 - 已新增 `scripts/check-code-duplication.selftest.py`，覆盖重复阻断、report-only 和唯一代码放行。
 - 当前保守阈值 `--min-lines 40` 已无重复输出；已在提交 `835abf206` 消除工具全集重复，在提交 `9d0cf94f4` 消除工具注册表生产代码重复，在提交 `4cd7d499c` 消除测试夹具重复，详见 `docs/full-repair-duplication-review-2026-06-27.md`。
+- 当前复核中 `scripts/check-code-duplication.selftest.py` 和 `scripts/check-code-duplication.py --report-only --min-lines 40 ...` 均通过。
 
 归属阶段：
 
