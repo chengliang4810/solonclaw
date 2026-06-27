@@ -93,6 +93,6 @@ public class DashboardAuthFilter implements Filter {
             return false;
         }
         String origin = ctx.header("Origin");
-        return StrUtil.isNotBlank(origin) && !authService.isAllowedDashboardOrigin(origin);
+        return StrUtil.isNotBlank(origin) && !authService.isAllowedDashboardOrigin(ctx, origin);
     }
 }

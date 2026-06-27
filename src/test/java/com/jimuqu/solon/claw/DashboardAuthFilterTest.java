@@ -159,6 +159,52 @@ public class DashboardAuthFilterTest {
         assertThat(invoked).isTrue();
     }
 
+    @Test
+    void shouldAllowUnsafeDashboardWriteFromSameRequestOrigin() throws Throwable {
+        DashboardAuthFilter filter = filter();
+        FakeContext context = new FakeContext("POST", "/api/private");
+        context.requestHeader("Authorization", "Bearer test-token");
+        context.requestHeader("Origin", "http://dashboard.example.com");
+        context.requestHeader("Host", "dashboard.example.com");
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(
+                context,
+                new FilterChain() {
+                    /** 用户通过同一域名打开 Dashboard 时，写请求不应被 CSRF Origin 校验误拦截。 */
+                    @Override
+                    public void doFilter(Context ctx) {
+                        invoked.set(true);
+                    }
+                });
+
+        assertThat(context.status()).isEqualTo(200);
+        assertThat(invoked).isTrue();
+    }
+
+    @Test
+    void shouldAllowUnsafeDashboardWriteFromSameHostBehindTlsProxy() throws Throwable {
+        DashboardAuthFilter filter = filter();
+        FakeContext context = new FakeContext("POST", "/api/private");
+        context.requestHeader("Authorization", "Bearer test-token");
+        context.requestHeader("Origin", "https://dashboard.example.com");
+        context.requestHeader("Host", "dashboard.example.com");
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(
+                context,
+                new FilterChain() {
+                    /** HTTPS 在反向代理终止但未透传协议头时，同 Host 仍应被视为当前 Dashboard 入口。 */
+                    @Override
+                    public void doFilter(Context ctx) {
+                        invoked.set(true);
+                    }
+                });
+
+        assertThat(context.status()).isEqualTo(200);
+        assertThat(invoked).isTrue();
+    }
+
     /** 创建带固定测试令牌的过滤器实例。 */
     private DashboardAuthFilter filter() {
         AppConfig config = new AppConfig();
