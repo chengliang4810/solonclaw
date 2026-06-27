@@ -1,4 +1,5 @@
 import { request } from '../client'
+import { fetchWorkspaceFile, saveWorkspaceFile } from './files'
 import { getPersonaMeta } from '@/shared/personaMeta'
 
 export interface PersonaFileData {
@@ -16,20 +17,12 @@ export interface PersonaDiaryEntry {
   path: string
 }
 
-interface WorkspaceFile {
-  key: string
-  name: string
-  path: string
-  exists: boolean
-  content: string
-}
-
 export function personaMeta(key: string) {
   return getPersonaMeta(key)
 }
 
 export async function fetchPersonaFile(key: string): Promise<PersonaFileData> {
-  const file = await request<WorkspaceFile>(`/api/workspace/files/${encodeURIComponent(key)}`)
+  const file = await fetchWorkspaceFile(key)
   const meta = personaMeta(key)
   return {
     key,
@@ -42,10 +35,7 @@ export async function fetchPersonaFile(key: string): Promise<PersonaFileData> {
 }
 
 export async function savePersonaFile(key: string, content: string): Promise<void> {
-  await request(`/api/workspace/files/${encodeURIComponent(key)}`, {
-    method: 'PUT',
-    body: JSON.stringify({ content }),
-  })
+  await saveWorkspaceFile(key, content)
 }
 
 export async function fetchPersonaDiaries(): Promise<PersonaDiaryEntry[]> {

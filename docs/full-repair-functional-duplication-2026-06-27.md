@@ -97,6 +97,9 @@
 - 建议：
   - 阶段 3.2 可把 `WorkspaceFile` 类型和 `fetchWorkspaceFile()` 统一放到 `files.ts`。
   - 不建议改后端路径，避免扩大影响面。
+- 处理结果：
+  - 已将 `WorkspaceFile`、`fetchWorkspaceFile()` 和 `saveWorkspaceFile()` 统一放到 `files.ts`。
+  - `persona.ts` 与 `skills.ts` 复用统一工作区文件 API，不再各自定义局部 `WorkspaceFile` 或重复拼接读写路径。
 
 ### 6. 模型配置、运行时模型、模型信息入口重叠
 

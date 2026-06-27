@@ -1,4 +1,5 @@
 import { request } from '../client'
+import { fetchWorkspaceFile, saveWorkspaceFile, type WorkspaceFile } from './files'
 
 export interface SkillInfo {
   name: string
@@ -40,12 +41,6 @@ interface DashboardSkill {
 }
 
 interface SkillContentResponse {
-  content: string
-}
-
-interface WorkspaceFile {
-  key: string
-  path: string
   content: string
 }
 
@@ -98,8 +93,7 @@ export async function fetchSkillFiles(category: string, skill: string): Promise<
 }
 
 async function getWorkspaceFile(key: string): Promise<WorkspaceFile | null> {
-  const res = await request<{ files: WorkspaceFile[] }>('/api/workspace/files')
-  return (res.files || []).find((item) => item.key === key) || null
+  return fetchWorkspaceFile(key)
 }
 
 export async function fetchMemory(): Promise<MemoryData> {
@@ -120,10 +114,7 @@ export async function fetchMemory(): Promise<MemoryData> {
 }
 
 export async function saveMemory(section: 'memory' | 'user' | 'soul', content: string): Promise<void> {
-  await request(`/api/workspace/files/${encodeURIComponent(section)}`, {
-    method: 'PUT',
-    body: JSON.stringify({ content }),
-  })
+  await saveWorkspaceFile(section, content)
 }
 
 export async function toggleSkill(category: string, skill: string, enabled: boolean): Promise<void> {

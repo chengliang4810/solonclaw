@@ -17,7 +17,7 @@ export interface FileStat {
   permissions?: string
 }
 
-interface WorkspaceFile {
+export interface WorkspaceFile {
   key: string
   name: string
   path: string
@@ -48,6 +48,17 @@ function keyForPath(path: string): string {
 async function workspaceFiles(): Promise<WorkspaceFile[]> {
   const res = await request<{ files: WorkspaceFile[] }>('/api/workspace/files')
   return res.files || []
+}
+
+export async function fetchWorkspaceFile(key: string): Promise<WorkspaceFile> {
+  return request<WorkspaceFile>(`/api/workspace/files/${encodeURIComponent(key)}`)
+}
+
+export async function saveWorkspaceFile(key: string, content: string): Promise<void> {
+  await request(`/api/workspace/files/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ content }),
+  })
 }
 
 export async function listFiles(path: string = ''): Promise<{ entries: FileEntry[]; path: string }> {
@@ -83,7 +94,7 @@ export async function statFile(path: string): Promise<FileStat> {
 
 export async function readFile(path: string): Promise<{ content: string; path: string; size: number }> {
   const key = keyForPath(path)
-  const file = await request<WorkspaceFile>(`/api/workspace/files/${encodeURIComponent(key)}`)
+  const file = await fetchWorkspaceFile(key)
   return {
     content: file.content || '',
     path,
@@ -93,10 +104,7 @@ export async function readFile(path: string): Promise<{ content: string; path: s
 
 export async function writeFile(path: string, content: string): Promise<void> {
   const key = keyForPath(path)
-  await request(`/api/workspace/files/${encodeURIComponent(key)}`, {
-    method: 'PUT',
-    body: JSON.stringify({ content }),
-  })
+  await saveWorkspaceFile(key, content)
 }
 
 export function getFileDownloadUrl(relativePath: string, fileName?: string): string {
