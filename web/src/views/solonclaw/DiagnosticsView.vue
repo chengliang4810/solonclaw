@@ -11,6 +11,7 @@ import {
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
+  probeSubprocessEnvironment,
   resolveApproval,
   resolveSlashConfirm,
   revokeAlwaysApproval,
@@ -28,6 +29,7 @@ import {
   type SecurityPolicyProbe,
   type SecurityAuditFinding,
   type SecurityAuditResult,
+  type SubprocessEnvironmentProbeResult,
 } from '@/api/solonclaw/diagnostics'
 import {
   fetchInsightsOverview,
@@ -49,6 +51,8 @@ const alwaysLoading = ref(false)
 const confirmsLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
 const policyAuditResult = ref<SecurityAuditResult | null>(null)
+const subprocessEnvProbeResult = ref<SubprocessEnvironmentProbeResult | null>(null)
+const subprocessEnvProbeLoading = ref(false)
 const pendingApprovals = ref<PendingApproval[]>([])
 const approvalStats = ref<ApprovalStats | null>(null)
 const pendingApprovalMeta = ref<PendingApprovalsResult | null>(null)
@@ -70,6 +74,7 @@ const auditForm = ref({
   writeLike: false,
   argsJson: '',
 })
+const subprocessEnvProbeNames = ref('OPENAI_API_KEY, PATH, SOLONCLAW_HOME')
 const resolvingKey = ref('')
 const revokingAlwaysKey = ref('')
 const resolvingConfirmKey = ref('')
@@ -665,6 +670,21 @@ async function runAudit() {
   }
 }
 
+async function handleSubprocessEnvProbe() {
+  const names = subprocessEnvProbeNames.value
+    .split(/[\s,]+/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+  subprocessEnvProbeLoading.value = true
+  try {
+    subprocessEnvProbeResult.value = await probeSubprocessEnvironment(names)
+  } catch (e: any) {
+    message.error(e.message || t('diagnostics.subprocessEnvProbeFailed'))
+  } finally {
+    subprocessEnvProbeLoading.value = false
+  }
+}
+
 async function handleApproval(item: PendingApproval, action: 'approve' | 'deny', scope: 'once' | 'session' | 'always' = 'once') {
   const approvalSelector = item.selector || item.approval_id || ''
   const key = `${item.session_id}:${approvalSelector}:${action}:${scope}`
@@ -1080,6 +1100,36 @@ onMounted(load)
               </div>
             </div>
             <div v-else class="surface-empty">{{ t('diagnostics.noProbeData') }}</div>
+          </div>
+          <div class="probe-section">
+            <div class="coverage-title">
+              <h4>{{ t('diagnostics.subprocessEnvProbe') }}</h4>
+              <Button size="small" :loading="subprocessEnvProbeLoading" @click="handleSubprocessEnvProbe">
+                {{ t('diagnostics.runProbe') }}
+              </Button>
+            </div>
+            <TextArea
+              v-model:value="subprocessEnvProbeNames"
+              class="probe-input"
+              :rows="2"
+              :placeholder="t('diagnostics.subprocessEnvProbePlaceholder')"
+            />
+            <p class="approval-note">{{ t('diagnostics.subprocessEnvProbeHint') }}</p>
+            <div v-if="subprocessEnvProbeResult" class="probe-result">
+              <p>{{ subprocessEnvProbeResult.summary || '-' }}</p>
+              <div class="probe-grid">
+                <div v-for="decision in subprocessEnvProbeResult.decisions || []" :key="String(decision.name || decision.key)" class="probe-item">
+                  <div class="probe-head">
+                    <strong>{{ decision.name || decision.key || '-' }}</strong>
+                    <Tag size="small" :bordered="false">{{ decision.decision || '-' }}</Tag>
+                  </div>
+                  <div class="probe-meta">
+                    <span>{{ decision.visibility || '-' }}</span>
+                    <span>{{ decision.reason || '-' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
         <section class="panel audit-panel">
@@ -1506,6 +1556,17 @@ onMounted(load)
   border-radius: $radius-sm;
   padding: 12px;
   background: $bg-secondary;
+}
+
+.probe-input,
+.probe-result {
+  margin-top: 8px;
+}
+
+.probe-result > p {
+  margin-bottom: 8px;
+  color: $text-secondary;
+  font-size: 13px;
 }
 
 .coverage-title {

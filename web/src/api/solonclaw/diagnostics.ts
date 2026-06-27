@@ -66,6 +66,17 @@ export interface SecurityAuditResult {
   [key: string]: unknown
 }
 
+export interface SubprocessEnvironmentProbeResult {
+  success?: boolean
+  surface?: string
+  summary?: string
+  requested_count?: number
+  requested_names?: string[]
+  decision_categories?: string[]
+  decisions?: Array<Record<string, unknown>>
+  policy?: Record<string, unknown>
+}
+
 export interface PendingApproval {
   session_id: string
   source_ref?: string
@@ -229,6 +240,13 @@ export async function auditSecurity(payload: SecurityAuditRequest): Promise<Secu
   return request<SecurityAuditResult>('/api/diagnostics/security-audit', {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export async function probeSubprocessEnvironment(names: string[]): Promise<SubprocessEnvironmentProbeResult> {
+  return request<SubprocessEnvironmentProbeResult>('/api/diagnostics/subprocess-environment/probe', {
+    method: 'POST',
+    body: JSON.stringify({ names }),
   })
 }
 
