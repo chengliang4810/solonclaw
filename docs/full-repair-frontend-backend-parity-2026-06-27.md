@@ -41,6 +41,11 @@
    - 前端入口：全局会话搜索弹窗改用通用搜索接口，保留原有弹窗交互。
    - 提交：`c0d8fe09e`
 
+7. 媒体缓存下载与引用
+   - 后端接口：`/api/media/{mediaId}/download`、`/api/media/{mediaId}/reference`
+   - 前端入口：渠道页媒体详情抽屉新增下载引用和生成引用操作。
+   - 提交：`bd0d53272`
+
 ## 已补齐的后端接口缺口
 
 1. 工作区文件下载
@@ -66,6 +71,7 @@
 
 - 多次执行 `npm run build`，通过。
 - `npm run build --prefix web`：2026-06-27 文件页未支持写操作入口收敛后通过。
+- `npm run build --prefix web`：2026-06-27 媒体缓存下载与引用入口补齐后通过。
 - 多次执行 `git diff --check`，通过。
 - `git diff --check -- web/src/components/solonclaw/files/FileToolbar.vue web/src/components/solonclaw/files/FileContextMenu.vue web/src/views/solonclaw/FilesView.vue docs/full-repair-frontend-backend-parity-2026-06-27.md`：通过。
 - 执行 `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`，通过。
