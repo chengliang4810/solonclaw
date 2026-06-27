@@ -49,18 +49,36 @@ find src/main/java web/src terminal-ui/src -type f \( -name '*.java' -o -name '*
 
 ### P0-02：历史终端 setup 计划仍有未完成复选项
 
+状态：已修复，顶层一次性 setup/config/model 命令已恢复真实 jar 可执行路径
+
 证据文件：`docs/superpowers/plans/2026-06-05-terminal-setup-commands.md`
 
-未完成项包括：
+复核结论：
 
-- 顶层命令解析：`model`、`setup model`、`setup gateway`、`gateway setup`、`config path` 的解析测试与实现。
-- 共享终端 setup service、CLI/TUI 接入、命令 registry/help 对齐。
-- 真实命令验证：构建 jar 后运行 `model`、`setup`、`setup model`、`setup gateway`、`config path`、`config check`、`--cli -p /setup model`、`--tui -p /setup gateway`。
+- 顶层命令解析已有实现，并新增 `CliModeParserTest` 覆盖 `model`、`setup model`、`setup gateway`、`gateway setup`、`config path`、`config check`、`--cli -p /setup model`、`--tui -p /setup gateway`。
+- 真实 jar 命令原本会在进入 `CliRunner` 前启动完整 Solon 容器，并因 Agent/Gateway 组件注入 `toolRegistry` 失败而无输出退出 1。
+- 已在应用入口增加一次性本地 setup/config/model fast path：命令只加载配置并复用 `TerminalSetupCommands` 渲染，不初始化 Agent/Gateway 全量组件。
+
+验证命令：
+
+```bash
+mvn -Dskip.web.build=true -Dtest=CliModeParserTest test
+mvn -Dskip.web.build=true -DskipTests package
+java -jar target/solonclaw-0.0.1.jar model
+java -jar target/solonclaw-0.0.1.jar setup
+java -jar target/solonclaw-0.0.1.jar setup model
+java -jar target/solonclaw-0.0.1.jar setup gateway
+java -jar target/solonclaw-0.0.1.jar config path
+java -jar target/solonclaw-0.0.1.jar config check
+java -jar target/solonclaw-0.0.1.jar --cli -p /setup model
+java -jar target/solonclaw-0.0.1.jar --tui -p /setup gateway
+```
+
+当前验证结果：以上 8 条真实 jar 命令均退出 `0`，且输出 setup/config/model 本地说明，不再路由到 LLM 或因 `toolRegistry` 注入失败退出。
 
 归属阶段：
 
-- 阶段 1.1：先确认这些未完成项在当前源码中是否仍是 bug。
-- 阶段 2.2 / 2.3：若当前 CLI/TUI 或 Dashboard 入口缺失，应补齐对应入口和交互。
+- 阶段 1.1：已完成真实 bug 复核和修复。
 
 ### P0-03：历史主动协作计划仍有大量未完成复选项
 

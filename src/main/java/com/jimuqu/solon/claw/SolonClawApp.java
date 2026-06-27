@@ -3,9 +3,14 @@ package com.jimuqu.solon.claw;
 import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.CliModeParser;
 import com.jimuqu.solon.claw.cli.CliRunner;
+import com.jimuqu.solon.claw.cli.TerminalModelPicker;
+import com.jimuqu.solon.claw.cli.TerminalSetupCommands;
 import com.jimuqu.solon.claw.bootstrap.StartupModeContext;
+import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import org.noear.solon.Solon;
 import org.noear.solon.annotation.SolonMain;
+import org.noear.solon.core.Props;
 
 /** 应用启动入口。 */
 @SolonMain
@@ -23,6 +28,9 @@ public class SolonClawApp {
         final CliMode cliMode = CliModeParser.parse(startupArgs);
         StartupModeContext.set(cliMode);
         configureConsoleLogging(cliMode);
+        if (runLocalSetupCommand(cliMode)) {
+            return;
+        }
         Solon.start(
                 SolonClawApp.class,
                 args,
@@ -46,6 +54,29 @@ public class SolonClawApp {
                 System.exit(exitCode);
             }
         }
+    }
+
+    /**
+     * 在 Solon 容器启动前处理一次性 setup/config/model 命令，避免为打印本地配置说明初始化 Agent/Gateway 全量组件。
+     *
+     * @param cliMode 已解析的启动模式。
+     * @return 已处理并可直接退出时返回 true。
+     */
+    static boolean runLocalSetupCommand(CliMode cliMode) {
+        if (cliMode == null || !cliMode.isConsoleMode() || cliMode.getKind() == CliMode.Kind.COMPLETION) {
+            return false;
+        }
+        Props props = new Props();
+        props.loadAddIfAbsent("app.yml");
+        AppConfig appConfig = AppConfig.load(props);
+        LlmProviderService providerService = new LlmProviderService(appConfig);
+        TerminalSetupCommands setupCommands =
+                new TerminalSetupCommands(appConfig, new TerminalModelPicker(appConfig, providerService));
+        if (!setupCommands.isSetupCommand(cliMode.getInput())) {
+            return false;
+        }
+        System.out.println(setupCommands.render(cliMode.getInput()));
+        return true;
     }
 
     /**
