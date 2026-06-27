@@ -25,9 +25,17 @@ import {
   type SecurityAuditFinding,
   type SecurityAuditResult,
 } from '@/api/solonclaw/diagnostics'
+import {
+  fetchInsightsOverview,
+  fetchSkillInsights,
+  type InsightsOverview,
+  type SkillInsights,
+} from '@/api/solonclaw/insights'
 
 const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
+const insightsOverview = ref<InsightsOverview | null>(null)
+const skillInsights = ref<SkillInsights>({})
 const loading = ref(false)
 const auditLoading = ref(false)
 const approvalsLoading = ref(false)
@@ -473,6 +481,15 @@ const pendingApprovalScanText = computed(() => {
 const historyCount = computed(() => approvalHistory.value.length)
 const alwaysCount = computed(() => alwaysApprovals.value.length)
 const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
+const insightRuntime = computed(() => insightsOverview.value?.runtime || {})
+const insightSessions = computed(() => insightsOverview.value?.sessions || {})
+const insightSkills = computed(() => insightsOverview.value?.skills || {})
+const skillInsightRows = computed<Array<{ key: string } & Record<string, unknown>>>(() =>
+  Object.entries(skillInsights.value)
+    .map(([key, value]) => ({ key, ...value }))
+    .sort((left, right) => Number(right.count || 0) - Number(left.count || 0))
+    .slice(0, 6),
+)
 
 function valueOf(source: Record<string, unknown>, key: string, fallback: unknown = '-') {
   const value = source[key]
@@ -544,8 +561,10 @@ function surfaceLabel(surface: string) {
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData] = await Promise.all([
+    const [diagnosticsData, insightsData, skillInsightData] = await Promise.all([
       fetchDiagnostics(),
+      fetchInsightsOverview(),
+      fetchSkillInsights(),
       loadPolicyAudit(),
       loadApprovals(),
       loadHistory(),
@@ -553,6 +572,8 @@ async function load() {
       loadSlashConfirms(),
     ])
     diagnostics.value = diagnosticsData
+    insightsOverview.value = insightsData
+    skillInsights.value = skillInsightData
   } finally {
     loading.value = false
   }
@@ -778,6 +799,43 @@ onMounted(load)
         <section class="panel">
           <h3>{{ t('diagnostics.toolsAndMcp') }}</h3>
           <pre>{{ diagnostics?.tools }}&#10;{{ diagnostics?.mcp }}</pre>
+        </section>
+        <section class="panel insights-panel">
+          <h3>{{ t('diagnostics.insights') }}</h3>
+          <div class="insight-stats">
+            <div>
+              <span>{{ t('diagnostics.insightSessions') }}</span>
+              <strong>{{ valueOf(insightSessions, 'total', 0) }}</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightTrackedSkills') }}</span>
+              <strong>{{ valueOf(insightSkills, 'tracked', 0) }}</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightActiveSkills') }}</span>
+              <strong>{{ valueOf(insightSkills, 'active', 0) }}</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightMemory') }}</span>
+              <strong>{{ valueOf(insightRuntime, 'usedMemoryMb', 0) }} / {{ valueOf(insightRuntime, 'maxMemoryMb', 0) }} MB</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightProcessors') }}</span>
+              <strong>{{ valueOf(insightRuntime, 'availableProcessors', 0) }}</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightUptime') }}</span>
+              <strong>{{ Math.round(Number(valueOf(insightRuntime, 'uptimeMs', 0)) / 1000) }}s</strong>
+            </div>
+          </div>
+          <div class="skill-insight-list">
+            <div v-for="row in skillInsightRows" :key="String(row.key)" class="skill-insight-row">
+              <span>{{ row.key }}</span>
+              <Tag size="small" :bordered="false">{{ row.state || 'active' }}</Tag>
+              <strong>{{ row.count || 0 }}</strong>
+            </div>
+            <div v-if="!skillInsightRows.length" class="empty-state">{{ t('diagnostics.noSkillInsights') }}</div>
+          </div>
         </section>
         <section class="panel security-panel">
           <h3>{{ t('diagnostics.securityPolicy') }}</h3>
@@ -1319,6 +1377,10 @@ onMounted(load)
   grid-column: 1 / -1;
 }
 
+.insights-panel {
+  grid-column: 1 / -1;
+}
+
 .approvals-panel {
   grid-column: 1 / -1;
 }
@@ -1441,6 +1503,53 @@ onMounted(load)
   align-items: center;
   font-size: 12px;
   color: $text-secondary;
+}
+
+.insight-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.insight-stats div,
+.skill-insight-row {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  padding: 10px;
+}
+
+.insight-stats span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.insight-stats strong {
+  font-size: 18px;
+  color: $text-primary;
+}
+
+.skill-insight-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.skill-insight-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.skill-insight-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .probe-grid {
