@@ -4,6 +4,7 @@ import { Button, SpaceCompact, Input, Select, Spin, Switch, Tag, TextArea, messa
 import { useI18n } from 'vue-i18n'
 import {
   auditSecurity,
+  fetchApprovalStats,
   fetchAlwaysApprovals,
   fetchApprovalHistory,
   fetchPendingApprovals,
@@ -14,6 +15,7 @@ import {
   revokeAlwaysApproval,
   type AlwaysApproval,
   type AlwaysApprovalsResult,
+  type ApprovalStats,
   type ApprovalAuditEvent,
   type ApprovalHistoryResult,
   type Diagnostics,
@@ -45,6 +47,7 @@ const confirmsLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
 const policyAuditResult = ref<SecurityAuditResult | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
+const approvalStats = ref<ApprovalStats | null>(null)
 const pendingApprovalMeta = ref<PendingApprovalsResult | null>(null)
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
 const approvalHistoryMeta = ref<ApprovalHistoryResult | null>(null)
@@ -481,6 +484,12 @@ const pendingApprovalScanText = computed(() => {
 const historyCount = computed(() => approvalHistory.value.length)
 const alwaysCount = computed(() => alwaysApprovals.value.length)
 const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
+const approvalStatItems = computed(() => [
+  { label: d('approvalStatTotal'), value: approvalStats.value?.totalEvents ?? 0 },
+  { label: d('approvalStatApproved'), value: approvalStats.value?.approved ?? 0 },
+  { label: d('approvalStatBlocked'), value: approvalStats.value?.blocked ?? 0 },
+  { label: d('approvalStatPending'), value: approvalStats.value?.pending ?? 0 },
+])
 const insightRuntime = computed(() => insightsOverview.value?.runtime || {})
 const insightSessions = computed(() => insightsOverview.value?.sessions || {})
 const insightSkills = computed(() => insightsOverview.value?.skills || {})
@@ -586,6 +595,7 @@ async function loadPolicyAudit() {
 async function loadApprovals() {
   approvalsLoading.value = true
   try {
+    approvalStats.value = await fetchApprovalStats()
     const result = await fetchPendingApprovals(100)
     pendingApprovalMeta.value = result
     pendingApprovals.value = result.items || []
@@ -1112,6 +1122,15 @@ onMounted(load)
             </div>
           </div>
           <Spin :spinning="approvalsLoading">
+            <div class="approval-stats">
+              <h4>{{ t('diagnostics.approvalStats') }}</h4>
+              <div class="metric-grid">
+                <div v-for="item in approvalStatItems" :key="item.label" class="metric-item">
+                  <span>{{ item.label }}</span>
+                  <Tag size="small" :bordered="false">{{ item.value }}</Tag>
+                </div>
+              </div>
+            </div>
             <p v-if="pendingApprovalMeta?.available === false" class="approval-note">
               {{ pendingApprovalMeta.message || t('diagnostics.approvalServiceUnavailable') }}
             </p>
@@ -1383,6 +1402,10 @@ onMounted(load)
 
 .approvals-panel {
   grid-column: 1 / -1;
+}
+
+.approval-stats {
+  margin-bottom: 12px;
 }
 
 .panel-title-row {

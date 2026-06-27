@@ -166,6 +166,13 @@ export interface PendingSlashConfirmsResult {
   message?: string
 }
 
+export interface ApprovalStats {
+  totalEvents: number
+  approved: number
+  blocked: number
+  pending: number
+}
+
 export interface ResolveSlashConfirmRequest {
   confirmId: string
   action: 'approve' | 'always' | 'deny'
@@ -192,6 +199,10 @@ export interface ResolveApprovalResult {
 
 export async function fetchDiagnostics(): Promise<Diagnostics> {
   return request<Diagnostics>('/api/diagnostics')
+}
+
+export async function fetchApprovalStats(): Promise<ApprovalStats> {
+  return request<ApprovalStats>('/api/approval/stats')
 }
 
 export async function auditSecurity(payload: SecurityAuditRequest): Promise<SecurityAuditResult> {
