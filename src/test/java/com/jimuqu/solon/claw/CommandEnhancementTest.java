@@ -309,6 +309,26 @@ public class CommandEnhancementTest {
     }
 
     @Test
+    void shouldTreatApprovalListsAsReadonlyWithoutBoundSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        GatewayMessage message = env.message("fresh-chat", "fresh-user", "/approve list");
+        GatewayReply approveList = env.commandService.handle(message, "/approve list");
+        GatewayReply denyList = env.commandService.handle(message, "/deny list");
+
+        assertThat(approveList.isError()).isFalse();
+        assertThat(approveList.getContent())
+                .contains("pending=none")
+                .contains("session_approvals_count=0")
+                .contains("always_approvals_count=0");
+        assertThat(denyList.isError()).isFalse();
+        assertThat(denyList.getContent())
+                .contains("pending=none")
+                .contains("session_approvals_count=0")
+                .contains("always_approvals_count=0");
+    }
+
+    @Test
     void shouldRedactTrackedSlashCommandEventArgsBeforeStorage() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         bootstrapAdmin(env);

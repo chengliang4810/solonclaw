@@ -273,7 +273,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                 return;
             }
             if ("slash.exec".equals(method)) {
-                sendRpcResult(socket, id, slashExec(params));
+                sendRpcResult(socket, id, slashExec(socket, params));
                 return;
             }
             if ("command.dispatch".equals(method)) {
@@ -528,10 +528,34 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /** 执行终端 UI 透传到后端的 slash 命令。 */
-    private Map<String, Object> slashExec(ONode params) throws Exception {
+    private Map<String, Object> slashExec(WebSocket socket, ONode params) throws Exception {
         String normalized = StrUtil.nullToEmpty(params.get("command").getString()).trim();
         String sessionId = params.get("session_id").getString();
-        return runSlash(sessionId, normalized);
+        bindApprovalObserver(socket, sessionId);
+        bindRuntimeSource(sessionId);
+        ConversationEventSink eventSink =
+                shouldStreamSlashCommand(normalized)
+                        ? new TerminalUiWebSocketEventSink(socket, true)
+                        : ConversationEventSink.noop();
+        return runSlash(sessionId, normalized, eventSink);
+    }
+
+    /**
+     * 判断 slash.exec 是否需要把后续运行事件推回 TUI，审批命令恢复运行后必须可见。
+     *
+     * @param command 已去掉斜杠的命令正文。
+     * @return 如果命令可能恢复被挂起运行则返回 true。
+     */
+    private boolean shouldStreamSlashCommand(String command) {
+        String text =
+                StrUtil.nullToEmpty(command)
+                        .trim()
+                        .toLowerCase(java.util.Locale.ROOT);
+        if (StrUtil.isBlank(text)) {
+            return false;
+        }
+        String first = text.split("\\s+", 2)[0];
+        return "approve".equals(first) || "deny".equals(first) || "cancel".equals(first);
     }
 
     /** 通过统一 CliRuntime 执行 slash 命令并转换为 RPC 输出。 */

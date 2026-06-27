@@ -153,6 +153,63 @@ class TerminalUiApprovalRespondTest {
                 .containsExactly("first delete");
     }
 
+    @Test
+    void slashExecApprovalCommandStreamsResumedRunToSocket() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        null,
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-slash-approval");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf workspace/cache");
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-3\",\"method\":\"slash.exec\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"command\":\"approve session\"}}");
+
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-3\""));
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"message.complete\"")
+                && text.contains("echo:resume"));
+    }
+
     /** 收集 WebSocket 文本帧，避免测试依赖真实网络连接。 */
     private static final class RecordingSocket implements WebSocket {
         /** 已发送文本帧。 */

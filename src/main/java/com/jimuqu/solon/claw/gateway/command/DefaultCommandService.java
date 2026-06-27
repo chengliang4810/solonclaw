@@ -3310,14 +3310,17 @@ public class DefaultCommandService implements CommandService {
     private GatewayReply handleDangerousApprove(
             GatewayMessage message, String args, ConversationEventSink eventSink)
             throws Exception {
+        String safeArgs = cleanApprovalCommandArgs(args);
+        String normalizedArgs = safeArgs.toLowerCase();
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (session == null) {
+            if ("list".equals(normalizedArgs) || "status".equals(normalizedArgs)) {
+                return GatewayReply.ok(formatEmptyApprovalList());
+            }
             return GatewayReply.error("当前没有绑定会话，也没有待审批的危险命令。请先触发需要审批的工具调用。");
         }
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
-        String safeArgs = cleanApprovalCommandArgs(args);
-        String normalizedArgs = safeArgs.toLowerCase();
         if (isSessionAutoApprovalCommand(normalizedArgs)) {
             return handleSessionAutoApproval(message, SlashCommandLine.remainingTokens(safeArgs));
         }
@@ -3470,6 +3473,16 @@ public class DefaultCommandService implements CommandService {
     }
 
     /**
+     * 生成未绑定会话时的只读审批状态，避免查询型命令被误判为执行失败。
+     *
+     * @return 返回空审批列表展示文本。
+     */
+    private String formatEmptyApprovalList() {
+        return "pending=none\nsession_approvals_count=0\nalways_approvals_count="
+                + dangerousCommandApprovalService.listAlwaysApprovals().size();
+    }
+
+    /**
      * 生成安全展示用的审批预览。
      *
      * @param value 待规范化或校验的原始值。
@@ -3594,14 +3607,17 @@ public class DefaultCommandService implements CommandService {
     private GatewayReply handleDangerousDeny(
             GatewayMessage message, String args, ConversationEventSink eventSink)
             throws Exception {
+        String safeArgs = cleanApprovalCommandArgs(args);
+        String selector = SlashCommandLine.firstToken(safeArgs);
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (session == null) {
+            if ("list".equalsIgnoreCase(selector) || "status".equalsIgnoreCase(selector)) {
+                return GatewayReply.ok(formatEmptyApprovalList());
+            }
             return GatewayReply.error("当前没有待审批的危险命令。");
         }
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
-        String safeArgs = cleanApprovalCommandArgs(args);
-        String selector = SlashCommandLine.firstToken(safeArgs);
         if ("list".equalsIgnoreCase(selector) || "status".equalsIgnoreCase(selector)) {
             return GatewayReply.ok(formatApprovalList(agentSession));
         }
