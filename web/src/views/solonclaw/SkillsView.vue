@@ -1,19 +1,31 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
-import { Input } from 'antdv-next'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { Button, Input, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import SkillList from '@/components/solonclaw/skills/SkillList.vue'
 import SkillDetail from '@/components/solonclaw/skills/SkillDetail.vue'
+import {
+  applyCuratorSuggestion,
+  fetchCuratorImprovements,
+  ignoreCuratorSuggestion,
+  runCurator,
+  type CuratorImprovement,
+} from '@/api/solonclaw/curator'
 import { fetchSkills, type SkillCategory } from '@/api/solonclaw/skills'
 
 const { t } = useI18n()
 const categories = ref<SkillCategory[]>([])
+const improvements = ref<CuratorImprovement[]>([])
 const loading = ref(false)
+const curatorLoading = ref(false)
+const curatorActionId = ref('')
 const selectedCategory = ref('')
 const selectedSkill = ref('')
 const searchQuery = ref('')
 const showSidebar = ref(true)
 let mobileQuery: MediaQueryList | null = null
+
+const pendingImprovements = computed(() => improvements.value.filter(item => item.needs_review !== false))
 
 function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
   showSidebar.value = !e.matches
@@ -24,6 +36,7 @@ onMounted(() => {
   handleMobileChange(mobileQuery)
   mobileQuery.addEventListener('change', handleMobileChange)
   loadSkills()
+  loadCuratorImprovements()
 })
 
 onUnmounted(() => {
@@ -39,6 +52,54 @@ async function loadSkills() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadCuratorImprovements() {
+  curatorLoading.value = true
+  try {
+    improvements.value = await fetchCuratorImprovements()
+  } catch (err: any) {
+    message.error(`${t('skills.curatorLoadFailed')}: ${err.message}`)
+  } finally {
+    curatorLoading.value = false
+  }
+}
+
+async function runCuratorNow() {
+  curatorLoading.value = true
+  try {
+    await runCurator(true)
+    improvements.value = await fetchCuratorImprovements()
+    message.success(t('skills.curatorRunComplete'))
+  } catch (err: any) {
+    message.error(`${t('skills.curatorRunFailed')}: ${err.message}`)
+  } finally {
+    curatorLoading.value = false
+  }
+}
+
+async function resolveCuratorSuggestion(item: CuratorImprovement, action: 'apply' | 'ignore') {
+  const suggestion = item.summary || item.action || item.improvement_id
+  curatorActionId.value = `${action}:${item.improvement_id}`
+  try {
+    if (action === 'apply') {
+      await applyCuratorSuggestion(item.skill_name, suggestion)
+      message.success(t('skills.curatorApplied'))
+    } else {
+      await ignoreCuratorSuggestion(item.skill_name, suggestion)
+      message.success(t('skills.curatorIgnored'))
+    }
+    improvements.value = improvements.value.filter(current => current.improvement_id !== item.improvement_id)
+  } catch (err: any) {
+    message.error(`${t('skills.curatorActionFailed')}: ${err.message}`)
+  } finally {
+    curatorActionId.value = ''
+  }
+}
+
+function formatCuratorTime(value?: number) {
+  if (!value) return ''
+  return new Date(value).toLocaleString()
 }
 
 function handleSelect(category: string, skill: string) {
@@ -81,6 +142,59 @@ function handleSelect(category: string, skill: string) {
             />
           </div>
           <div class="skills-main">
+            <section class="curator-panel">
+              <div class="curator-header">
+                <div>
+                  <h3>{{ t('skills.curatorTitle') }}</h3>
+                  <p>{{ t('skills.curatorDescription') }}</p>
+                </div>
+                <div class="curator-actions">
+                  <Button size="small" :loading="curatorLoading" @click="loadCuratorImprovements">
+                    {{ t('skills.refresh') }}
+                  </Button>
+                  <Button size="small" type="primary" :loading="curatorLoading" @click="runCuratorNow">
+                    {{ t('skills.curatorRun') }}
+                  </Button>
+                </div>
+              </div>
+
+              <div v-if="pendingImprovements.length === 0" class="curator-empty">
+                {{ curatorLoading ? t('common.loading') : t('skills.curatorEmpty') }}
+              </div>
+              <div v-else class="curator-list">
+                <article v-for="item in pendingImprovements" :key="item.improvement_id" class="curator-item">
+                  <div class="curator-item-main">
+                    <div class="curator-item-title">
+                      <span>{{ item.skill_name || t('skills.curatorUnknownSkill') }}</span>
+                      <small v-if="item.action">{{ item.action }}</small>
+                    </div>
+                    <p>{{ item.summary || item.improvement_id }}</p>
+                    <div class="curator-item-meta">
+                      <span v-if="item.created_at">{{ formatCuratorTime(item.created_at) }}</span>
+                      <span v-if="item.run_id">{{ item.run_id }}</span>
+                    </div>
+                  </div>
+                  <div class="curator-item-actions">
+                    <Button
+                      size="small"
+                      :loading="curatorActionId === `ignore:${item.improvement_id}`"
+                      @click="resolveCuratorSuggestion(item, 'ignore')"
+                    >
+                      {{ t('skills.curatorIgnore') }}
+                    </Button>
+                    <Button
+                      size="small"
+                      type="primary"
+                      :loading="curatorActionId === `apply:${item.improvement_id}`"
+                      @click="resolveCuratorSuggestion(item, 'apply')"
+                    >
+                      {{ t('skills.curatorApply') }}
+                    </Button>
+                  </div>
+                </article>
+              </div>
+            </section>
+
             <SkillDetail
               v-if="selectedCategory && selectedSkill"
               :category="selectedCategory"
@@ -153,6 +267,98 @@ function handleSelect(category: string, skill: string) {
   min-width: 0;
 }
 
+.curator-panel {
+  border-bottom: 1px solid $border-color;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
+.curator-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  h3 {
+    margin: 0;
+    font-size: 14px;
+    color: $text-primary;
+  }
+
+  p {
+    margin: 4px 0 0;
+    color: $text-muted;
+    font-size: 12px;
+  }
+}
+
+.curator-actions,
+.curator-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.curator-empty {
+  margin-top: 10px;
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.curator-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.curator-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  padding: 10px 12px;
+  background: $bg-secondary;
+}
+
+.curator-item-main {
+  min-width: 0;
+  flex: 1;
+
+  p {
+    margin: 6px 0;
+    color: $text-secondary;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
+
+.curator-item-title,
+.curator-item-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.curator-item-title {
+  color: $text-primary;
+  font-weight: 600;
+  font-size: 13px;
+
+  small {
+    color: $text-muted;
+    font-weight: 400;
+  }
+}
+
+.curator-item-meta {
+  color: $text-muted;
+  font-size: 11px;
+}
+
 .sidebar-toggle {
   display: none;
   border: none;
@@ -184,6 +390,17 @@ function handleSelect(category: string, skill: string) {
 
   .skills-layout {
     position: relative;
+  }
+
+  .curator-header,
+  .curator-item {
+    flex-direction: column;
+  }
+
+  .curator-actions,
+  .curator-item-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .mobile-backdrop {
