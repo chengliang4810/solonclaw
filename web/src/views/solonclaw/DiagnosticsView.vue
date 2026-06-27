@@ -8,6 +8,7 @@ import {
   fetchApprovalEvents,
   fetchApprovalHistory,
   fetchApprovalStats,
+  fetchDiagnosticsDoctor,
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
@@ -23,6 +24,7 @@ import {
   type ApprovalStatsResult,
   type ApprovalHistoryResult,
   type Diagnostics,
+  type DoctorDiagnostics,
   type PendingApproval,
   type PendingApprovalsResult,
   type PendingSlashConfirm,
@@ -35,6 +37,8 @@ import {
 
 const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
+const doctorDiagnostics = ref<DoctorDiagnostics | null>(null)
+const doctorError = ref('')
 const loading = ref(false)
 const auditLoading = ref(false)
 const approvalsLoading = ref(false)
@@ -561,6 +565,7 @@ async function load() {
   try {
     const [diagnosticsData] = await Promise.all([
       fetchDiagnostics(),
+      loadDoctorDiagnostics(),
       loadPolicyAudit(),
       loadApprovals(),
       loadHistory(),
@@ -571,6 +576,16 @@ async function load() {
     diagnostics.value = diagnosticsData
   } finally {
     loading.value = false
+  }
+}
+
+async function loadDoctorDiagnostics() {
+  doctorError.value = ''
+  try {
+    doctorDiagnostics.value = await fetchDiagnosticsDoctor()
+  } catch (err: any) {
+    doctorDiagnostics.value = null
+    doctorError.value = err?.message || d('doctorUnavailable')
   }
 }
 
@@ -810,6 +825,11 @@ onMounted(load)
     </header>
     <Spin :spinning="loading">
       <main class="diagnostics-grid">
+        <section class="panel">
+          <h3>{{ t('diagnostics.doctor') }}</h3>
+          <pre v-if="doctorDiagnostics">{{ doctorDiagnostics }}</pre>
+          <p v-else class="empty-state">{{ doctorError || t('diagnostics.doctorEmpty') }}</p>
+        </section>
         <section class="panel">
           <h3>{{ t('diagnostics.runtime') }}</h3>
           <pre>{{ diagnostics?.runtime }}</pre>

@@ -21,6 +21,8 @@ export interface Diagnostics {
   }
 }
 
+export type DoctorDiagnostics = Record<string, unknown>
+
 export interface SecurityPolicyProbe {
   key?: string
   label?: string
@@ -224,6 +226,10 @@ export interface ResolveApprovalResult {
 
 export async function fetchDiagnostics(): Promise<Diagnostics> {
   return request<Diagnostics>('/api/diagnostics')
+}
+
+export async function fetchDiagnosticsDoctor(): Promise<DoctorDiagnostics> {
+  return request<DoctorDiagnostics>('/api/diagnostics/doctor')
 }
 
 export async function auditSecurity(payload: SecurityAuditRequest): Promise<SecurityAuditResult> {
