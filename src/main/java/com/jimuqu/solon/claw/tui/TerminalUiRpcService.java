@@ -710,7 +710,32 @@ public class TerminalUiRpcService {
 
     /** 重新发现已启用 MCP 服务的工具列表。 */
     public Map<String, Object> reloadMcp() {
+        return reloadMcp(false, false);
+    }
+
+    /**
+     * 按 TUI 明确确认参数重新发现 MCP 工具，避免误触发会改变下一轮工具 schema 的操作。
+     *
+     * @param confirmed 用户是否已在本次请求中明确确认。
+     * @param rememberAlways 是否把确认要求持久关闭。
+     * @return 返回 MCP 重载状态。
+     */
+    public Map<String, Object> reloadMcp(boolean confirmed, boolean rememberAlways) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
+        if (appConfig != null
+                && appConfig.getApprovals() != null
+                && appConfig.getApprovals().isMcpReloadConfirm()
+                && !confirmed) {
+            result.put("status", "confirm_required");
+            result.put("message", "/reload-mcp 会刷新下一轮工具 schema。请使用 /reload-mcp now 确认本次执行，或 /reload-mcp always 以后不再提示。");
+            return result;
+        }
+        if (rememberAlways && appConfig != null && appConfig.getApprovals() != null) {
+            appConfig.getApprovals().setMcpReloadConfirm(false);
+            if (runtimeSettingsService != null) {
+                runtimeSettingsService.setConfigValue("approvals.mcpReloadConfirm", "false");
+            }
+        }
         if (mcpRuntimeService == null) {
             result.put("status", "reloaded");
             result.put("message", "MCP runtime is not configured");

@@ -99,6 +99,35 @@ class TerminalUiRpcServiceTest {
         assertThat(service.sessionUsage(session.getSessionId()).get("active_subagents")).isEqualTo(2);
     }
 
+    @Test
+    void reloadMcpRequiresExplicitConfirmationWhenPolicyRequiresIt() throws Exception {
+        AppConfig config = testConfig();
+        config.getApprovals().setMcpReloadConfirm(true);
+        TerminalUiRpcService service = new TerminalUiRpcService(config);
+
+        Map<String, Object> response = service.reloadMcp();
+
+        assertThat(response.get("status")).isEqualTo("confirm_required");
+        assertThat(response.get("message")).asString().contains("/reload-mcp now");
+    }
+
+    @Test
+    void reloadMcpRunsWhenConfirmedAndCanRememberAlways() throws Exception {
+        AppConfig config = testConfig();
+        config.getApprovals().setMcpReloadConfirm(true);
+        TerminalUiRpcService service = new TerminalUiRpcService(config);
+
+        Map<String, Object> once = service.reloadMcp(true, false);
+
+        assertThat(once.get("status")).isEqualTo("reloaded");
+        assertThat(config.getApprovals().isMcpReloadConfirm()).isTrue();
+
+        Map<String, Object> always = service.reloadMcp(true, true);
+
+        assertThat(always.get("status")).isEqualTo("reloaded");
+        assertThat(config.getApprovals().isMcpReloadConfirm()).isFalse();
+    }
+
     private static SessionRecord session(String id, String sourceKey) {
         SessionRecord session = new SessionRecord();
         session.setSessionId(id);

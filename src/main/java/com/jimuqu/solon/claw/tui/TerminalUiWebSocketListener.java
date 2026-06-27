@@ -468,7 +468,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return rpcService.processStop();
         }
         if ("reload.mcp".equals(method)) {
-            return rpcService.reloadMcp();
+            return rpcService.reloadMcp(params.get("confirm").getBoolean(), params.get("always").getBoolean());
         }
         if ("reload.env".equals(method)) {
             return rpcService.reloadEnv();
