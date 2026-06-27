@@ -18,12 +18,10 @@
 - 助手工具调用签名比较：SQLite 会话去重复用 `MessageSupport.sameAssistantToolCalls`。
 - 助手可见文本比较：LLM 网关复用 `MessageSupport.sameVisibleContent`。
 - 工具全集策略：`DefaultDelegationService` 与 `DefaultToolRegistry` 复用 `AgentRuntimePolicy.knownToolNames()`，同时补齐 dashboard/manage 工具，避免委托子会话在 toolsets 限制下漏关工具。
+- 工具注册表构造链：短构造函数逐层委托已有长构造函数，消除重复的可选依赖 null 参数展开。
 
 ## 当前保留的重复项
 
-- `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java:257-329` 与 `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java:440-501` 存在工具注册描述重复，后续应优先抽取同类 schema 构造或注册辅助方法。
-- `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java:260-332`、`443-504`、`527-589`、`613-677` 存在多段工具 schema 重复，后续应与上一个 `DefaultToolRegistry` 重复项合并处理。
-- `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java:593-632` 与 `859-898` 存在 40 行级别精确重复，后续应检查是否可复用参数定义。
 - `src/test/java/com/jimuqu/solon/claw/QuietContextCollectorTest.java:204-251` 与 `src/test/java/com/jimuqu/solon/claw/RunStateCollectorTest.java:383-430` 存在测试夹具重复，优先级低于生产代码重复。
 - `YuanbaoChannelAdapter`、`WeComChannelAdapter`、`QQBotChannelAdapter` 的 `disconnect()` 只剩状态字段清理薄包装，已复用 `ChannelConnectionSupport.disconnect(...)`，继续抽象会增加不必要的回调或继承约束。
 - `DomesticQrSetupService.fail(...)` 与 `WeixinQrSetupService.fail(...)` 的私有 `TicketState` 类型不同，强制复用需要引入接口或基类，代码会更重。
@@ -36,6 +34,8 @@
 
 - `python3 scripts/check-code-duplication.selftest.py`
 - `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
+- `mvn -Dskip.web.build=true -DskipTests compile`
+- `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest,DelegationServiceTest test`
 - `mvn -Dskip.web.build=true -Dtest=DelegationServiceTest test`
 - `DomesticChannelEnhancementTest`
 - `SessionSearchServiceTest`

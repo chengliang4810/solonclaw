@@ -167,7 +167,7 @@ python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/
 
 - 已新增 `scripts/check-code-duplication.py`，使用 Python 标准库检测归一化后的精确重复代码块。
 - 已新增 `scripts/check-code-duplication.selftest.py`，覆盖重复阻断、report-only 和唯一代码放行。
-- 当前保守阈值 `--min-lines 40` 扫描出 4 组重复代码块，已在提交 `835abf206` 消除工具全集重复，详见 `docs/full-repair-duplication-review-2026-06-27.md`。
+- 当前保守阈值 `--min-lines 40` 只剩 1 组测试夹具重复；已在提交 `835abf206` 消除工具全集重复，在提交 `9d0cf94f4` 消除工具注册表生产代码重复，详见 `docs/full-repair-duplication-review-2026-06-27.md`。
 
 归属阶段：
 
