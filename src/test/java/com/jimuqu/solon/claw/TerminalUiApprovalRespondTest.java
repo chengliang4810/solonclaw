@@ -229,6 +229,64 @@ class TerminalUiApprovalRespondTest {
     }
 
     @Test
+    void sessionResumeBindsApprovalObserverForResumedRunRequests() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        null,
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-resume-approval");
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onOpen(socket);
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-resume\",\"method\":\"session.resume\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\"}}");
+
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf workspace/cache");
+
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"approval.request\"")
+                && text.contains("\"session_id\":\"" + session.getSessionId() + "\""));
+    }
+
+    @Test
     void approvalRespondRejectsMissingSessionId() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CliRuntime runtime =
@@ -396,7 +454,7 @@ class TerminalUiApprovalRespondTest {
 
         @Override
         public InetSocketAddress remoteAddress() {
-            return null;
+            return new InetSocketAddress("127.0.0.1", 0);
         }
 
         @Override

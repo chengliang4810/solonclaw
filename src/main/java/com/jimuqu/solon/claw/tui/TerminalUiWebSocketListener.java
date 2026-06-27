@@ -288,7 +288,9 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                 sendRpcResult(socket, id, approvalRespond(socket, params));
                 return;
             }
-            sendRpcResult(socket, id, rpcResult(method, params));
+            Object result = rpcResult(method, params);
+            bindApprovalObserverAfterSessionRpc(socket, method, result);
+            sendRpcResult(socket, id, result);
         } catch (Throwable e) {
             sendRpcError(socket, id, safeError(e));
         }
@@ -675,6 +677,22 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         if (observer != null) {
             observer.bindSession(sessionId);
         }
+    }
+
+    /**
+     * 会话生命周期 RPC 成功后同步当前 TUI socket 的审批观察器，避免恢复会话后首次安全策略审批
+     * 无法投递到前端弹层。
+     */
+    @SuppressWarnings("unchecked")
+    private void bindApprovalObserverAfterSessionRpc(WebSocket socket, String method, Object result) {
+        if (!"session.create".equals(method) && !"session.activate".equals(method) && !"session.resume".equals(method)) {
+            return;
+        }
+        if (!(result instanceof Map)) {
+            return;
+        }
+        Object sessionId = ((Map<String, Object>) result).get("session_id");
+        bindApprovalObserver(socket, sessionId == null ? "" : String.valueOf(sessionId));
     }
 
     /** 处理终端 UI 命令分发兜底，优先复用 Java 后端统一命令服务。 */
