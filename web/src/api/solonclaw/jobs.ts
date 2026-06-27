@@ -303,6 +303,10 @@ function unwrapSchedule(schedule: string | { kind: string; raw?: string; expr?: 
   return schedule.raw || schedule.expr || schedule.display
 }
 
+function encodeJobPath(jobId: string): string {
+  return `/api/cron/jobs/${encodeURIComponent(jobId)}`
+}
+
 export async function listJobs(): Promise<Job[]> {
   const jobs = await request<DashboardJob[]>('/api/cron/jobs')
   return jobs.map(mapJob)
@@ -338,7 +342,7 @@ export async function fetchCronStatus(includeDisabled = true, limit = 5): Promis
 }
 
 export async function getJob(jobId: string): Promise<Job> {
-  const job = await request<DashboardJob>(`/api/cron/jobs/${encodeURIComponent(jobId)}`)
+  const job = await request<DashboardJob>(encodeJobPath(jobId))
   return mapJob(job)
 }
 
@@ -349,7 +353,7 @@ export async function inspectJob(jobId: string, limit = 5): Promise<JobInspectRe
     run_count: number
     limit: number
   }>(
-    `/api/cron/jobs/${encodeURIComponent(jobId)}/inspect?limit=${encodeURIComponent(String(limit))}`,
+    `${encodeJobPath(jobId)}/inspect?limit=${encodeURIComponent(String(limit))}`,
   )
   return {
     job: mapJob(result.job),
@@ -393,7 +397,7 @@ export async function createJob(data: CreateJobRequest): Promise<Job> {
 }
 
 export async function updateJob(jobId: string, data: UpdateJobRequest): Promise<Job> {
-  const job = await request<DashboardJob>(`/api/cron/jobs/${jobId}`, {
+  const job = await request<DashboardJob>(encodeJobPath(jobId), {
     method: 'PUT',
     body: JSON.stringify({
       name: data.name,
@@ -430,13 +434,13 @@ export async function updateJob(jobId: string, data: UpdateJobRequest): Promise<
 }
 
 export async function deleteJob(jobId: string): Promise<{ ok: boolean }> {
-  return request<{ ok: boolean }>(`/api/cron/jobs/${jobId}`, {
+  return request<{ ok: boolean }>(encodeJobPath(jobId), {
     method: 'DELETE',
   })
 }
 
 export async function pauseJob(jobId: string, reason?: string): Promise<Job> {
-  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/pause`, {
+  await request<{ ok: boolean }>(`${encodeJobPath(jobId)}/pause`, {
     method: 'POST',
     body: JSON.stringify({ reason: reason?.trim() || undefined }),
   })
@@ -444,12 +448,12 @@ export async function pauseJob(jobId: string, reason?: string): Promise<Job> {
 }
 
 export async function resumeJob(jobId: string): Promise<Job> {
-  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/resume`, { method: 'POST' })
+  await request<{ ok: boolean }>(`${encodeJobPath(jobId)}/resume`, { method: 'POST' })
   return getJob(jobId)
 }
 
 export async function runJob(jobId: string): Promise<Job> {
-  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/trigger`, {
+  await request<{ ok: boolean }>(`${encodeJobPath(jobId)}/trigger`, {
     method: 'POST',
     body: JSON.stringify({ trigger_type: 'dashboard' }),
   })
@@ -457,7 +461,7 @@ export async function runJob(jobId: string): Promise<Job> {
 }
 
 export async function retryJob(jobId: string): Promise<Job> {
-  await request<{ ok: boolean }>(`/api/cron/jobs/${jobId}/retry`, {
+  await request<{ ok: boolean }>(`${encodeJobPath(jobId)}/retry`, {
     method: 'POST',
     body: JSON.stringify({ trigger_type: 'dashboard_retry' }),
   })
@@ -466,7 +470,7 @@ export async function retryJob(jobId: string): Promise<Job> {
 
 export async function fetchJobRuns(jobId: string, limit = 20): Promise<JobRun[]> {
   const result = await request<{ job_id: string; runs: JobRun[]; count: number }>(
-    `/api/cron/jobs/${jobId}/runs?limit=${encodeURIComponent(String(limit))}`,
+    `${encodeJobPath(jobId)}/runs?limit=${encodeURIComponent(String(limit))}`,
   )
   return result.runs || []
 }
