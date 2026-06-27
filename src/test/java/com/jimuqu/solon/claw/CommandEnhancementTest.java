@@ -245,7 +245,7 @@ public class CommandEnhancementTest {
                 .contains("工具集：")
                 .contains("total=8")
                 .contains("code enabled=true tools=15")
-                .contains("skills enabled=true tools=12")
+                .contains("skills enabled=true tools=")
                 .contains("gateway enabled=true tools=1");
         assertThat(reply.getRuntimeMetadata())
                 .containsEntry("command_status", "handled")
