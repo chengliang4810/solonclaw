@@ -1453,6 +1453,10 @@ export default {
     attempts: '{count} attempts',
     noRuns: 'No runs yet',
     noEvents: 'Select a run to inspect its event timeline',
+    recoveries: 'Recoveries',
+    commands: 'Control commands',
+    noRecoveries: 'No recoveries for this run',
+    noCommands: 'No control commands for this run',
     status: {
       success: 'Success',
       failed: 'Failed',

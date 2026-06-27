@@ -3,12 +3,22 @@ import { computed, onMounted, ref } from 'vue'
 import { Button, Select, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
-import { fetchRunDetail, fetchSessionRuns, type AgentRun, type AgentRunEvent, type ToolCall } from '@/api/solonclaw/runs'
+import {
+  fetchRunDetail,
+  fetchSessionRuns,
+  type AgentRun,
+  type AgentRunEvent,
+  type RunControlCommand,
+  type RunRecovery,
+  type ToolCall,
+} from '@/api/solonclaw/runs'
 
 const sessions = ref<any[]>([])
 const runs = ref<AgentRun[]>([])
 const events = ref<AgentRunEvent[]>([])
 const tools = ref<ToolCall[]>([])
+const recoveries = ref<RunRecovery[]>([])
+const commands = ref<RunControlCommand[]>([])
 const checkpoints = ref<any[]>([])
 const tree = ref<any>(null)
 const selectedSessionId = ref('')
@@ -48,9 +58,13 @@ async function loadSessionDetail() {
       const detail = await fetchRunDetail(selectedRunId.value)
       events.value = detail.events || []
       tools.value = detail.tools || []
+      recoveries.value = detail.recoveries || []
+      commands.value = detail.commands || []
     } else {
       events.value = []
       tools.value = []
+      recoveries.value = []
+      commands.value = []
     }
   } finally {
     loading.value = false
@@ -62,11 +76,15 @@ async function loadRunDetail(runId: string) {
   if (!runId) {
     events.value = []
     tools.value = []
+    recoveries.value = []
+    commands.value = []
     return
   }
   const detail = await fetchRunDetail(runId)
   events.value = detail.events || []
   tools.value = detail.tools || []
+  recoveries.value = detail.recoveries || []
+  commands.value = detail.commands || []
 }
 
 async function handleRollback(id: string) {
@@ -192,6 +210,22 @@ onMounted(async () => {
             </div>
           </div>
           <div v-if="selectedRunId && tools.length === 0" class="empty">{{ t('runs.noTools') }}</div>
+
+          <h3 class="section-title">{{ t('runs.recoveries') }}</h3>
+          <div v-for="recovery in recoveries" :key="recovery.recovery_id" class="event-row">
+            <span class="event-type">{{ recovery.recovery_type }}</span>
+            <span>{{ recovery.summary || recovery.status }}</span>
+            <small>{{ time(recovery.created_at) }}</small>
+          </div>
+          <div v-if="selectedRunId && recoveries.length === 0" class="empty">{{ t('runs.noRecoveries') }}</div>
+
+          <h3 class="section-title">{{ t('runs.commands') }}</h3>
+          <div v-for="command in commands" :key="command.command_id" class="event-row">
+            <span class="event-type">{{ command.command }}</span>
+            <span>{{ statusLabel(command.status) }}</span>
+            <small>{{ time(command.created_at) }}</small>
+          </div>
+          <div v-if="selectedRunId && commands.length === 0" class="empty">{{ t('runs.noCommands') }}</div>
         </section>
 
         <section class="panel side-panel">

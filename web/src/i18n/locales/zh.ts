@@ -1520,6 +1520,10 @@ export default {
     noRuns: '暂无运行记录',
     noEvents: '请选择一条运行记录查看事件时间线',
     noTools: '本次运行没有工具调用记录',
+    recoveries: '恢复记录',
+    commands: '控制命令',
+    noRecoveries: '本次运行没有恢复记录',
+    noCommands: '本次运行没有控制命令',
     status: {
       success: '成功',
       failed: '失败',

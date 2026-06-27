@@ -108,12 +108,24 @@ export interface RunRecovery {
   resolved_at: number
 }
 
+export interface RunControlCommand {
+  command_id: string
+  run_id: string
+  source_key?: string
+  command: string
+  status: string
+  created_at: number
+  handled_at: number
+  payload?: unknown
+}
+
 export interface RunDetail {
   run: AgentRun
   events: AgentRunEvent[]
   tools: ToolCall[]
   subagents: SubagentRun[]
   recoveries: RunRecovery[]
+  commands: RunControlCommand[]
 }
 
 export async function fetchSessionRuns(sessionId: string, limit = 20): Promise<AgentRun[]> {
