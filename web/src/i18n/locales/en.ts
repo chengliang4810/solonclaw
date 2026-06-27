@@ -1273,6 +1273,14 @@ export default {
   logs: {
     title: 'Logs',
     all: 'All',
+    allComponents: 'All components',
+    components: {
+      agent: 'Agent',
+      gateway: 'Gateway',
+      tools: 'Tools',
+      cron: 'Cron',
+      proactive: 'Proactive',
+    },
     searchPlaceholder: 'Search...',
     refresh: 'Refresh',
     noEntries: 'No log entries',

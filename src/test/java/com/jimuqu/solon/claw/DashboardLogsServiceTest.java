@@ -16,6 +16,31 @@ import org.junit.jupiter.api.Test;
 
 class DashboardLogsServiceTest {
     @Test
+    void shouldFilterDashboardLogsByProactiveComponent() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-logs-proactive-component").toFile();
+        try {
+            AppConfig config = new AppConfig();
+            config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
+            FileUtil.mkdir(config.getRuntime().getLogsDir());
+            File agentLog = FileUtil.file(config.getRuntime().getLogsDir(), "agent.log");
+            FileUtil.appendUtf8String(
+                    "2026-06-27 10:00:00.000 INFO [main] "
+                            + "com.jimuqu.solon.claw.proactive.ProactiveScheduler - proactive-hit\n"
+                            + "2026-06-27 10:00:01.000 INFO [main] "
+                            + "com.jimuqu.solon.claw.web.DashboardLogsService - web-miss\n",
+                    agentLog);
+
+            DashboardLogsService service = new DashboardLogsService(config);
+            List<String> lines = service.read("agent", 20, null, "proactive");
+
+            assertThat(lines).hasSize(1);
+            assertThat(lines.get(0)).contains("proactive-hit");
+        } finally {
+            FileUtil.del(workspaceHome);
+        }
+    }
+
+    @Test
     void shouldIncludeCronRunIndexMatchesInDashboardLogQuery() throws Exception {
         File workspaceHome = Files.createTempDirectory("solonclaw-logs-cron-index").toFile();
         SqliteDatabase database = null;

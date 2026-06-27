@@ -48,6 +48,7 @@ export async function fetchLogFiles(): Promise<LogFileInfo[]> {
 export async function fetchLogs(name: string, params?: {
   lines?: number
   level?: string
+  component?: string
   session?: string
   since?: string
   query?: string
@@ -56,6 +57,7 @@ export async function fetchLogs(name: string, params?: {
   query.set('file', name)
   if (params?.lines) query.set('lines', String(params.lines))
   if (params?.level) query.set('level', params.level)
+  if (params?.component) query.set('component', params.component)
   if (params?.query) query.set('query', params.query)
   const res = await request<{ file: string; lines: string[] }>(`/api/logs?${query}`)
   return (res.lines || []).map(parseLine)

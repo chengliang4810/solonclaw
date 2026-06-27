@@ -12,6 +12,7 @@ const entries = ref<LogEntry[]>([])
 const loading = ref(false)
 const lineCount = ref(100)
 const levelFilter = ref<string>('')
+const componentFilter = ref<string>('')
 const searchQuery = ref('')
 const appliedSearchQuery = ref('')
 
@@ -33,6 +34,15 @@ const lineOptions = [
   { label: '200', value: 200 },
   { label: '500', value: 500 },
 ]
+
+const componentOptions = computed(() => [
+  { label: t('logs.allComponents'), value: '' },
+  { label: t('logs.components.agent'), value: 'agent' },
+  { label: t('logs.components.gateway'), value: 'gateway' },
+  { label: t('logs.components.tools'), value: 'tools' },
+  { label: t('logs.components.cron'), value: 'cron' },
+  { label: t('logs.components.proactive'), value: 'proactive' },
+])
 
 const filteredEntries = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
@@ -71,6 +81,7 @@ async function loadLogs() {
     const data = await fetchLogs(selectedLog.value, {
       lines: lineCount.value,
       level: levelFilter.value || undefined,
+      component: componentFilter.value || undefined,
       query: query || undefined,
     })
     entries.value = data.filter((e): e is LogEntry => e !== null)
@@ -109,6 +120,13 @@ onMounted(async () => {
           size="small"
           class="input-sm"
           @update:value="(v: string) => { levelFilter = v; loadLogs() }"
+        />
+        <NSelect
+          :value="componentFilter"
+          :options="componentOptions"
+          size="small"
+          class="input-md"
+          @update:value="(v: string) => { componentFilter = v; loadLogs() }"
         />
         <NSelect
           :value="lineCount"

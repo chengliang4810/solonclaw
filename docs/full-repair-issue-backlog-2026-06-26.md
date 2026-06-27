@@ -82,18 +82,24 @@ java -jar target/solonclaw-0.0.1.jar --tui -p /setup gateway
 
 ### P0-03：历史主动协作计划仍有大量未完成复选项
 
+状态：已复核并补齐 Dashboard 日志页组件筛选，提交待生成。
+
 证据文件：`docs/superpowers/plans/2026-06-16-proactive-collaboration.md`
 
-当前计划中仍有大量未勾选任务，覆盖：
+当前源码已覆盖历史计划中的主动协作主链：
 
 - proactive 配置模型与 runtime override。
 - proactive persistence schema 和 repository。
 - observation、candidate、decision、dispatch、diagnostics、dashboard、README 和命名 guard。
 
+本轮发现的真实缺口：
+
+- 后端 `/api/logs` 已支持 `component=proactive`，但 Dashboard 日志页没有组件筛选入口，前端也没有透传 `component` 参数，导致用户不能从 UI 直接查看主动协作日志。
+
 归属阶段：
 
-- 阶段 1.1：对当前主动协作功能做原子级 bug 查找，确认哪些计划项已实现、哪些仍缺失。
-- 阶段 2：核对后端 proactive 能力与前端 Dashboard 是否一致。
+- 阶段 1.1：已完成当前主动协作功能复核，确认主链测试通过。
+- 阶段 2：已补齐日志页主动协作组件筛选入口。
 - 阶段 4：重点检查 LLM 决策是否真正结合数据、次数、真实聊天内容文本，而不是硬编码或浅层统计。
 - 阶段 5：检查主动协作诊断、状态和历史记录在 UI 中是否持久显示并自动刷新。
 
