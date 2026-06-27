@@ -2,10 +2,11 @@ import type { ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type { createInterface } from 'node:readline'
 
+import { WebSocket as WsWebSocket } from 'ws'
+
 import type { GatewayEvent } from './gatewayTypes.js'
 import { CircularBuffer } from './lib/circularBuffer.js'
 import { recordParentLifecycle } from './lib/parentLog.js'
-import { WebSocket as WsWebSocket } from 'ws'
 
 // Node.js 20 没有全局 WebSocket，用 ws 模块补全
 // 懒解析：每次调用时检查全局 WebSocket（测试会动态 mock/delete）
