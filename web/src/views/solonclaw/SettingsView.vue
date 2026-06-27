@@ -12,7 +12,6 @@ import AgentSettings from "@/components/solonclaw/settings/AgentSettings.vue";
 import ModelSettings from "@/components/solonclaw/settings/ModelSettings.vue";
 import SessionSettings from "@/components/solonclaw/settings/SessionSettings.vue";
 import AccountSettings from "@/components/solonclaw/settings/AccountSettings.vue";
-import ConfigDiagnosticsSettings from "@/components/solonclaw/settings/ConfigDiagnosticsSettings.vue";
 
 const settingsStore = useSettingsStore();
 const { t } = useI18n();
@@ -53,9 +52,6 @@ onMounted(() => {
           </TabPane>
           <TabPane tabKey="session" :tab="t('settings.tabs.session')">
             <SessionSettings />
-          </TabPane>
-          <TabPane tabKey="configDiagnostics" :tab="t('settings.tabs.configDiagnostics')">
-            <ConfigDiagnosticsSettings />
           </TabPane>
         </Tabs>
       </Spin>
