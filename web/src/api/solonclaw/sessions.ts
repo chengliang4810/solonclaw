@@ -72,6 +72,33 @@ export interface SolonClawMessage {
   reasoning: string | null
 }
 
+export interface SessionRecap {
+  session_id?: string
+  title?: string
+  message_count?: number
+  displayed?: number
+  entries?: Array<{ role?: string; content?: string }>
+  text?: string
+}
+
+export interface SessionTrajectory {
+  session_id?: string
+  title?: string
+  completed?: boolean
+  model?: string
+  provider?: string
+  conversations?: Array<{ from?: string; value?: string }>
+}
+
+export interface SaveTrajectoryResult {
+  saved?: boolean
+  file_name?: string
+  path?: string
+  bytes_appended?: number
+  timestamp?: number
+  [key: string]: unknown
+}
+
 interface DashboardSessionSummary {
   id: string
   source: string | null
@@ -307,6 +334,32 @@ export async function fetchSessionUsageSingle(id: string): Promise<{ input_token
 
 export async function fetchSessionTree(id: string): Promise<any> {
   return request(`/api/sessions/${id}/tree`)
+}
+
+export async function fetchSessionRecap(id: string, limit = 10): Promise<SessionRecap> {
+  return request<SessionRecap>(`/api/sessions/${id}/recap?limit=${limit}`)
+}
+
+export async function fetchSessionTrajectory(
+  id: string,
+  userQuery = '',
+  completed = true,
+): Promise<SessionTrajectory> {
+  const params = new URLSearchParams()
+  if (userQuery.trim()) params.set('user_query', userQuery.trim())
+  params.set('completed', String(completed))
+  return request<SessionTrajectory>(`/api/sessions/${id}/trajectory?${params.toString()}`)
+}
+
+export async function saveSessionTrajectory(
+  id: string,
+  userQuery = '',
+  completed = true,
+): Promise<SaveTrajectoryResult> {
+  const params = new URLSearchParams()
+  if (userQuery.trim()) params.set('user_query', userQuery.trim())
+  params.set('completed', String(completed))
+  return request<SaveTrajectoryResult>(`/api/sessions/${id}/trajectory/save?${params.toString()}`, { method: 'POST' })
 }
 
 export async function fetchSessionCheckpoints(id: string): Promise<any[]> {

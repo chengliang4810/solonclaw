@@ -2,7 +2,18 @@
 import { computed, onMounted, ref } from 'vue'
 import { Button, Select, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
-import { fetchCheckpointPreview, fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
+import {
+  fetchCheckpointPreview,
+  fetchSessionRecap,
+  fetchSessions,
+  fetchSessionCheckpoints,
+  fetchSessionTrajectory,
+  fetchSessionTree,
+  rollbackCheckpoint,
+  saveSessionTrajectory,
+  type SessionRecap,
+  type SessionTrajectory,
+} from '@/api/solonclaw/sessions'
 import {
   controlSubagent,
   fetchActiveSubagents,
@@ -28,12 +39,15 @@ const recoveries = ref<RunRecovery[]>([])
 const commands = ref<RunControlCommand[]>([])
 const checkpoints = ref<any[]>([])
 const checkpointPreview = ref<Record<string, unknown> | null>(null)
+const sessionRecap = ref<SessionRecap | null>(null)
+const sessionTrajectory = ref<SessionTrajectory | null>(null)
 const tree = ref<any>(null)
 const selectedSessionId = ref('')
 const selectedRunId = ref('')
 const loading = ref(false)
 const rollingBack = ref('')
 const previewingCheckpoint = ref('')
+const savingTrajectory = ref('')
 const controllingSubagent = ref('')
 const { t } = useI18n()
 
@@ -55,10 +69,12 @@ async function loadSessionDetail() {
   if (!selectedSessionId.value) return
   loading.value = true
   try {
-    const [loadedRuns, loadedTree, loadedCheckpoints] = await Promise.all([
+    const [loadedRuns, loadedTree, loadedCheckpoints, loadedRecap, loadedTrajectory] = await Promise.all([
       fetchSessionRuns(selectedSessionId.value, 30),
       fetchSessionTree(selectedSessionId.value),
       fetchSessionCheckpoints(selectedSessionId.value),
+      fetchSessionRecap(selectedSessionId.value),
+      fetchSessionTrajectory(selectedSessionId.value),
       loadRecoverableRuns(),
       loadActiveSubagents(),
     ])
@@ -66,6 +82,8 @@ async function loadSessionDetail() {
     tree.value = loadedTree
     checkpoints.value = loadedCheckpoints
     checkpointPreview.value = null
+    sessionRecap.value = loadedRecap
+    sessionTrajectory.value = loadedTrajectory
     selectedRunId.value = loadedRuns[0]?.run_id || ''
     if (selectedRunId.value) {
       const detail = await fetchRunDetail(selectedRunId.value)
@@ -126,6 +144,17 @@ async function handleCheckpointPreview(id: string) {
     checkpointPreview.value = await fetchCheckpointPreview(id)
   } finally {
     previewingCheckpoint.value = ''
+  }
+}
+
+async function handleSaveTrajectory(completed: boolean) {
+  if (!selectedSessionId.value) return
+  const key = completed ? 'success' : 'failure'
+  savingTrajectory.value = key
+  try {
+    await saveSessionTrajectory(selectedSessionId.value, '', completed)
+  } finally {
+    savingTrajectory.value = ''
   }
 }
 
@@ -354,6 +383,22 @@ onMounted(async () => {
           <div v-for="node in tree?.nodes || []" :key="node.id" class="mini-row">
             <span>{{ node.branch_name || t('runs.mainBranch') }}</span>
             <small>{{ node.id }}</small>
+          </div>
+          <h3>{{ t('runs.sessionRecap') }}</h3>
+          <div class="preview-block">
+            <span>{{ t('runs.recapStats', { displayed: sessionRecap?.displayed || 0, total: sessionRecap?.message_count || 0 }) }}</span>
+            <pre>{{ sessionRecap?.text || t('runs.noSessionRecap') }}</pre>
+          </div>
+          <div class="side-title-row section-title">
+            <h3>{{ t('runs.sessionTrajectory') }}</h3>
+            <div class="side-actions">
+              <Button size="small" :loading="savingTrajectory === 'success'" @click="handleSaveTrajectory(true)">{{ t('runs.saveSuccessTrajectory') }}</Button>
+              <Button size="small" :loading="savingTrajectory === 'failure'" @click="handleSaveTrajectory(false)">{{ t('runs.saveFailureTrajectory') }}</Button>
+            </div>
+          </div>
+          <div class="preview-block">
+            <span>{{ t('runs.trajectoryStats', { count: sessionTrajectory?.conversations?.length || 0 }) }}</span>
+            <pre>{{ sessionTrajectory?.conversations?.length ? jsonText(sessionTrajectory) : t('runs.noSessionTrajectory') }}</pre>
           </div>
           <h3>{{ t('runs.checkpoints') }}</h3>
           <div v-for="checkpoint in checkpoints" :key="checkpoint.checkpoint_id" class="mini-row">
