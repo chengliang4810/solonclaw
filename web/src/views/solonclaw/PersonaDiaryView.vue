@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useMessage } from 'naive-ui'
 import MarkdownRenderer from '@/components/solonclaw/chat/MarkdownRenderer.vue'
 import { fetchPersonaDiaries, fetchPersonaDiary, type PersonaDiaryEntry } from '@/api/solonclaw/persona'
 
 const { t } = useI18n()
+const message = useMessage()
 const diaries = ref<PersonaDiaryEntry[]>([])
 const loading = ref(false)
 const selectedPath = ref('')
@@ -23,17 +25,29 @@ async function loadDiaryList() {
     if (!selectedPath.value && diaries.value.length > 0) {
       await selectDiary(diaries.value[0].relativePath)
     }
+  } catch (err: any) {
+    diaries.value = []
+    selectedPath.value = ''
+    content.value = ''
+    message.error(err?.message || t('personaDiary.loadFailed'))
   } finally {
     loading.value = false
   }
 }
 
 async function selectDiary(path: string) {
+  const previousPath = selectedPath.value
   selectedPath.value = path
-  const diary = await fetchPersonaDiary(path)
-  content.value = diary.content || ''
-  if (window.innerWidth <= 768) {
-    showSidebar.value = false
+  content.value = ''
+  try {
+    const diary = await fetchPersonaDiary(path)
+    content.value = diary.content || ''
+    if (window.innerWidth <= 768) {
+      showSidebar.value = false
+    }
+  } catch (err: any) {
+    selectedPath.value = previousPath
+    message.error(err?.message || t('personaDiary.loadFailed'))
   }
 }
 
