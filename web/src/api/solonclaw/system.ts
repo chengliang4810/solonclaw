@@ -67,6 +67,15 @@ export interface CustomProvider {
   dialect: string
 }
 
+export interface ProviderValidationResult {
+  ok?: boolean
+  reachable?: boolean
+  status?: string
+  message?: string
+  url?: string
+  models?: string[]
+}
+
 interface DashboardStatus {
   version?: string
   update_available?: boolean
@@ -196,6 +205,18 @@ export async function fetchProviderModels(data: {
   dialect: string
 }): Promise<{ url: string; models: string[] }> {
   return request<{ url: string; models: string[] }>('/api/providers/models', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function validateProviderConfig(data: {
+  providerKey?: string
+  baseUrl: string
+  apiKey?: string
+  dialect: string
+}): Promise<ProviderValidationResult> {
+  return request<ProviderValidationResult>('/api/providers/validate', {
     method: 'POST',
     body: JSON.stringify(data),
   })

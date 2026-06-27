@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { Modal, Form, FormItem, Input, Button, Select, AutoComplete, message } from 'antdv-next'
 import { useModelsStore } from '@/stores/solonclaw/models'
-import type { AvailableModelGroup } from '@/api/solonclaw/system'
+import { validateProviderConfig, type AvailableModelGroup } from '@/api/solonclaw/system'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -21,6 +21,7 @@ const modelsStore = useModelsStore()
 const showModal = ref(true)
 const loading = ref(false)
 const modelsLoading = ref(false)
+const validating = ref(false)
 const modelOptions = ref<Array<{ label: string; value: string }>>([])
 const isEdit = computed(() => !!props.provider)
 const formData = ref({
@@ -150,6 +151,32 @@ async function fetchModelList() {
   }
 }
 
+async function handleValidateProvider() {
+  if (!formData.value.baseUrl.trim()) {
+    message.warning(t('models.baseUrlRequired'))
+    return
+  }
+  validating.value = true
+  try {
+    const result = await validateProviderConfig({
+      providerKey: isEdit.value ? formData.value.providerKey.trim() : undefined,
+      baseUrl: formData.value.baseUrl.trim(),
+      apiKey: formData.value.apiKey.trim(),
+      dialect: formData.value.dialect,
+    })
+    const text = result.message || result.status || t('models.validateComplete')
+    if (result.ok) {
+      message.success(text)
+    } else {
+      message.warning(text)
+    }
+  } catch (e: any) {
+    message.error(e.message || t('models.validateFailed'))
+  } finally {
+    validating.value = false
+  }
+}
+
 function handleClose() {
   showModal.value = false
   setTimeout(() => emit('close'), 200)
@@ -225,6 +252,9 @@ function handleClose() {
     <template #footer>
       <div class="modal-footer">
         <Button @click="handleClose">{{ t('common.cancel') }}</Button>
+        <Button :loading="validating" @click="handleValidateProvider">
+          {{ t('models.validateProvider') }}
+        </Button>
         <Button type="primary" :loading="loading" @click="handleSave">
           {{ isEdit ? t('common.save') : t('common.add') }}
         </Button>
