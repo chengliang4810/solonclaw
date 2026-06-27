@@ -1355,6 +1355,8 @@ export default {
       description: '只读查看解析后的配置诊断，不直接编辑原始配置。',
       refresh: '刷新',
       empty: '暂无配置诊断',
+      rawTitle: '解析后的原始 YAML',
+      rawEmpty: '暂无原始配置',
     },
     models: {
       apiKey: '接口密钥',

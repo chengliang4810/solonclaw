@@ -57,6 +57,10 @@ export interface AppConfig {
 
 export type ConfigDiagnostics = Record<string, unknown>
 
+export interface RawConfig {
+  yaml?: string
+}
+
 export interface PlatformToolsetsConfig {
   platform: string
   enabledToolsets?: string[]
@@ -191,6 +195,10 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
 
 export async function fetchConfigDiagnostics(): Promise<ConfigDiagnostics> {
   return request<ConfigDiagnostics>('/api/config/diagnostics')
+}
+
+export async function fetchRawConfig(): Promise<RawConfig> {
+  return request<RawConfig>('/api/config/raw')
 }
 
 export async function fetchPlatformToolsets(): Promise<PlatformToolsetsOverview> {

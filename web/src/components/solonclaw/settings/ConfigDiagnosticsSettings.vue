@@ -2,16 +2,19 @@
 import { onMounted, ref } from 'vue'
 import { Button } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
-import { fetchConfigDiagnostics, type ConfigDiagnostics } from '@/api/solonclaw/config'
+import { fetchConfigDiagnostics, fetchRawConfig, type ConfigDiagnostics } from '@/api/solonclaw/config'
 
 const { t } = useI18n()
 const diagnostics = ref<ConfigDiagnostics | null>(null)
+const rawConfig = ref('')
 const loading = ref(false)
 
 async function load() {
   loading.value = true
   try {
-    diagnostics.value = await fetchConfigDiagnostics()
+    const [diagnosticsData, rawData] = await Promise.all([fetchConfigDiagnostics(), fetchRawConfig()])
+    diagnostics.value = diagnosticsData
+    rawConfig.value = rawData.yaml || ''
   } finally {
     loading.value = false
   }
@@ -35,6 +38,10 @@ onMounted(load)
       </div>
       <Button size="small" :loading="loading" @click="load">{{ t('settings.configDiagnostics.refresh') }}</Button>
     </div>
+    <section class="raw-config">
+      <h4>{{ t('settings.configDiagnostics.rawTitle') }}</h4>
+      <pre>{{ rawConfig || t('settings.configDiagnostics.rawEmpty') }}</pre>
+    </section>
     <div v-if="diagnostics" class="diagnostics-list">
       <article v-for="(value, key) in diagnostics" :key="String(key)">
         <strong>{{ key }}</strong>
@@ -75,6 +82,31 @@ onMounted(load)
 .diagnostics-list {
   display: grid;
   gap: 10px;
+}
+
+.raw-config {
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  padding: 12px;
+  margin-bottom: 14px;
+}
+
+.raw-config h4 {
+  margin: 0 0 8px;
+  color: $text-primary;
+  font-size: 13px;
+}
+
+.raw-config pre {
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: $text-secondary;
+  font-family: $font-code;
+  font-size: 12px;
 }
 
 .diagnostics-list article {

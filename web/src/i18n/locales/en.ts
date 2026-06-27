@@ -1319,6 +1319,8 @@ export default {
       description: 'Read the resolved configuration diagnostics without editing raw configuration.',
       refresh: 'Refresh',
       empty: 'No config diagnostics',
+      rawTitle: 'Resolved raw YAML',
+      rawEmpty: 'No raw config',
     },
     models: {
       apiKey: 'API Key',
