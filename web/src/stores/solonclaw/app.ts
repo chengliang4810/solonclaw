@@ -47,7 +47,7 @@ export const useAppStore = defineStore('app', () => {
       connected.value = res.status === 'ok'
       if (res.webui_version) serverVersion.value = res.webui_version
       if (res.webui_latest) latestVersion.value = res.webui_latest
-      updateAvailable.value = !!res.webui_update_available
+      updateAvailable.value = false
       if (res.node_version) nodeVersion.value = res.node_version
     } catch {
       connected.value = false
