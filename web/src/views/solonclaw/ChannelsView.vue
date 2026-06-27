@@ -3,13 +3,14 @@ import { onMounted, ref } from 'vue'
 import { Button, Drawer, Spin, Tag } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
-import { fetchMedia, fetchMediaDetail, type ChannelMedia } from '@/api/solonclaw/media'
+import { fetchMedia, fetchMediaDetail, refreshMedia, type ChannelMedia } from '@/api/solonclaw/media'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
 
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
 const mediaItems = ref<ChannelMedia[]>([])
 const mediaLoading = ref(false)
+const mediaRefreshLoading = ref(false)
 const selectedMediaDetail = ref<ChannelMedia | null>(null)
 const mediaDetailOpen = ref(false)
 
@@ -30,6 +31,18 @@ async function loadMedia() {
 async function openMediaDetail(mediaId: string) {
   selectedMediaDetail.value = await fetchMediaDetail(mediaId)
   mediaDetailOpen.value = true
+}
+
+async function refreshSelectedMedia() {
+  const mediaId = selectedMediaDetail.value?.media_id
+  if (!mediaId) return
+  mediaRefreshLoading.value = true
+  try {
+    selectedMediaDetail.value = await refreshMedia(mediaId)
+    mediaItems.value = await fetchMedia('', 30)
+  } finally {
+    mediaRefreshLoading.value = false
+  }
 }
 
 function formatBytes(value?: number) {
@@ -81,6 +94,9 @@ function formatTime(value?: number) {
 
     <Drawer v-model:open="mediaDetailOpen" placement="right" :width="520" :title="t('channels.mediaDetail')">
       <div v-if="selectedMediaDetail" class="media-detail">
+        <Button size="small" :loading="mediaRefreshLoading" @click="refreshSelectedMedia">
+          {{ t('channels.mediaRefreshDetail') }}
+        </Button>
         <div><span>{{ t('channels.mediaStatus') }}</span><strong>{{ selectedMediaDetail.status || '-' }}</strong></div>
         <div><span>ID</span><strong>{{ selectedMediaDetail.media_id }}</strong></div>
         <div><span>{{ t('channels.mediaPlatform') }}</span><strong>{{ selectedMediaDetail.platform || '-' }}</strong></div>

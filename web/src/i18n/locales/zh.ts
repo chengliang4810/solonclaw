@@ -1536,6 +1536,7 @@ export default {
     mediaCache: '媒体缓存',
     mediaDescription: '查看国内消息渠道已索引的图片、文件、语音等媒体记录。',
     mediaRefresh: '刷新',
+    mediaRefreshDetail: '刷新详情',
     mediaDetail: '媒体详情',
     mediaEmpty: '暂无媒体缓存记录',
     mediaStatus: '状态',

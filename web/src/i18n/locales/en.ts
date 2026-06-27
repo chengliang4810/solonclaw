@@ -1468,6 +1468,7 @@ export default {
     mediaCache: 'Media cache',
     mediaDescription: 'Review indexed media records from supported domestic channels.',
     mediaRefresh: 'Refresh',
+    mediaRefreshDetail: 'Refresh detail',
     mediaDetail: 'Media detail',
     mediaEmpty: 'No media cache records',
     mediaStatus: 'Status',
