@@ -108,8 +108,5 @@
 - `npm run build --prefix web`：通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
 - `git diff --check -- web/src/shared/fileDisplay.ts web/tests/fileDisplay.test.ts web/src/components/solonclaw/files/FileContextMenu.vue`：通过。
+- `node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('terminal-ui/package.json','utf8')); const l=JSON.parse(fs.readFileSync('terminal-ui/package-lock.json','utf8')); console.log(JSON.stringify({package:p.version, lock:l.version, root:l.packages[''].version}, null, 2)); if (p.version!==l.version || p.version!==l.packages[''].version) process.exit(1)"`：通过，三处版本号均为 `0.0.7`。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
-
-## 剩余风险
-
-- 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 版本号改动。

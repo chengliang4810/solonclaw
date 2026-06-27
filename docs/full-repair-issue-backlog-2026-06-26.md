@@ -17,10 +17,10 @@
 - 已提交：
   - `abfddf0c fix: 调整 TUI 品牌展示 / Adjust TUI brand display`
   - `c6f86d20 docs: 恢复全面修复上下文 / Restore full repair context`
-- 未纳入本清单提交的既有改动：
+- 已归属并提交的既有改动：
   - `terminal-ui/package.json`
   - `terminal-ui/package-lock.json`
-  - 两者仅表现为版本号 `0.0.6` 到 `0.0.7` 的变更，需后续单独判断是否属于发布版本更新。
+  - 两者仅表现为版本号 `0.0.6` 到 `0.0.7` 的变更，已作为 TUI 版本号更新单独提交。
 
 ## 已发现的预存问题与阶段归属
 
@@ -108,6 +108,8 @@ find src/main/java src/test/java web/src terminal-ui/src -type f \( -name '*.jav
 
 ### P0-06：版本号改动未归属
 
+状态：已处理，提交 `053a8a1c5`
+
 证据：
 
 ```bash
@@ -117,11 +119,12 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 发现：
 
 - `terminal-ui` 版本号从 `0.0.6` 改为 `0.0.7`。
+- `terminal-ui/package.json`、`terminal-ui/package-lock.json` 和 lock 根 package 版本字段一致。
 
 归属阶段：
 
-- 阶段 7.1：提交前确认是否应作为发布版本更新单独提交。
-- 不应混入 bug、结构拆分或 UI 修复提交。
+- 阶段 7.1：已作为发布版本元数据单独提交。
+- 未混入 bug、结构拆分或 UI 修复提交。
 
 ### P0-07：未使用变量门禁不一致
 
