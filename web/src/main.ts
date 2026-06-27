@@ -26,13 +26,15 @@ const urlToken = searchToken || hashToken
 if (urlToken) {
   ;(window as any).__LOGIN_TOKEN__ = urlToken
 }
+if (searchToken) {
+  urlParams.delete('token')
+}
 if (hashToken && hashParams) {
   hashParams.delete('token')
-  if (!searchToken) {
-    urlParams.set('token', hashToken)
-  }
+}
+if (searchToken || hashToken) {
   const nextSearch = urlParams.toString()
-  const nextHashQuery = hashParams.toString()
+  const nextHashQuery = hashParams?.toString() || ''
   const nextHash = `${hashRoutePath || '#/'}${nextHashQuery ? `?${nextHashQuery}` : ''}`
   window.history.replaceState(null, document.title, `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${nextHash}`)
 }
