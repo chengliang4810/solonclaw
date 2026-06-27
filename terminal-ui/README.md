@@ -197,11 +197,14 @@ The local slash handler covers the built-ins that need direct client behavior:
 - `/quit`, `/exit`, `/q`
 - `/clear`
 - `/new`
-- `/compact`
+- `/compact`, `/compress`
+- `/density`, `/dense`
 - `/resume`
 - `/copy`
 - `/paste`
 - `/details`
+- `/mouse`
+- `/voice`
 - `/logs`
 - `/statusbar`, `/sb`
 - `/queue`

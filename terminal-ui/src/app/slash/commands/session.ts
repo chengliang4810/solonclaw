@@ -193,6 +193,7 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
+    aliases: ['compact'],
     help: 'compress transcript',
     name: 'compress',
     run: (arg, ctx) => {

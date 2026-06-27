@@ -15,6 +15,7 @@ import type {
 } from '../../../gatewayTypes.js'
 import { writeClipboardText } from '../../../lib/clipboard.js'
 import { writeOsc52Clipboard } from '../../../lib/osc52.js'
+import { rpcErrorMessage } from '../../../lib/rpc.js'
 import { configureDetectedTerminalKeybindings, configureTerminalKeybindings } from '../../../lib/terminalSetup.js'
 import type { Msg, PanelSection } from '../../../types.js'
 import type { StatusBarMode } from '../../interfaces.js'
@@ -76,6 +77,13 @@ const DETAILS_USAGE =
 
 const DETAILS_SECTION_USAGE = 'usage: /details <section> [hidden|collapsed|expanded|reset]'
 
+const warnConfigSaveFailed = (ctx: { stale: () => boolean; transcript: { sys: (text: string) => void } }, label: string) =>
+  (error: unknown) => {
+    if (!ctx.stale()) {
+      ctx.transcript.sys(`warning: ${label} changed for this session, but config was not saved: ${rpcErrorMessage(error)}`)
+    }
+  }
+
 export const coreCommands: SlashCommand[] = [
   {
     help: 'list commands + hotkeys',
@@ -93,11 +101,15 @@ export const coreCommands: SlashCommand[] = [
       sections.push(
         {
           rows: [
+            ['/compact [focus]', 'compress the current session context'],
+            ['/density [on|off|toggle]', 'toggle compact display density'],
             ['/details [hidden|collapsed|expanded|cycle]', 'set global agent detail visibility mode'],
             [
               '/details <section> [hidden|collapsed|expanded|reset]',
               'override one section (thinking/tools/subagents/activity)'
             ],
+            ['/mouse [off|wheel|buttons|all]', 'set terminal mouse tracking preset'],
+            ['/voice [on|off|tts|status]', 'show or control terminal voice mode'],
             ['/fortune [random|daily]', 'show a random or daily local fortune']
           ],
           title: 'TUI'
@@ -140,7 +152,9 @@ export const coreCommands: SlashCommand[] = [
       }
 
       patchUiState({ mouseTracking: next })
-      ctx.gateway.rpc<ConfigSetResponse>('config.set', { key: 'mouse', value: next }).catch(() => {})
+      ctx.gateway
+        .rpc<ConfigSetResponse>('config.set', { key: 'mouse', value: next })
+        .catch(warnConfigSaveFailed(ctx, 'mouse tracking'))
 
       queueMicrotask(() => ctx.transcript.sys(`mouse tracking ${next}`))
     }
@@ -246,17 +260,20 @@ export const coreCommands: SlashCommand[] = [
   },
 
   {
-    help: 'toggle compact transcript',
-    name: 'compact',
+    aliases: ['dense'],
+    help: 'toggle compact display density',
+    name: 'density',
     run: (arg, ctx) => {
       const next = flagFromArg(arg, ctx.ui.compact)
 
       if (next === null) {
-        return ctx.transcript.sys('usage: /compact [on|off|toggle]')
+        return ctx.transcript.sys('usage: /density [on|off|toggle]')
       }
 
       patchUiState({ compact: next })
-      ctx.gateway.rpc<ConfigSetResponse>('config.set', { key: 'compact', value: next ? 'on' : 'off' }).catch(() => {})
+      ctx.gateway
+        .rpc<ConfigSetResponse>('config.set', { key: 'compact', value: next ? 'on' : 'off' })
+        .catch(warnConfigSaveFailed(ctx, 'compact'))
 
       queueMicrotask(() => ctx.transcript.sys(`compact ${next ? 'on' : 'off'}`))
     }
@@ -306,7 +323,7 @@ export const coreCommands: SlashCommand[] = [
         patchUiState({ sections: mode ? { ...rest, [first]: mode } : rest })
         gateway
           .rpc<ConfigSetResponse>('config.set', { key: `details_mode.${first}`, value: mode ?? '' })
-          .catch(() => {})
+          .catch(warnConfigSaveFailed(ctx, `details ${first}`))
         transcript.sys(`details ${first}: ${mode ?? 'reset'}`)
 
         return
@@ -321,7 +338,9 @@ export const coreCommands: SlashCommand[] = [
       const sections = Object.fromEntries(SECTION_NAMES.map(section => [section, next]))
 
       patchUiState({ detailsMode: next, detailsModeCommandOverride: true, sections })
-      gateway.rpc<ConfigSetResponse>('config.set', { key: 'details_mode', value: next }).catch(() => {})
+      gateway
+        .rpc<ConfigSetResponse>('config.set', { key: 'details_mode', value: next })
+        .catch(warnConfigSaveFailed(ctx, 'details'))
       transcript.sys(`details: ${next}`)
     }
   },
@@ -397,10 +416,7 @@ export const coreCommands: SlashCommand[] = [
   {
     help: 'paste clipboard text',
     name: 'paste',
-    run: (arg, ctx) =>
-      arg
-        ? ctx.transcript.sys('usage: /paste')
-        : (ctx.transcript.sys('clipboard image paste is not available yet'), ctx.composer.paste())
+    run: (arg, ctx) => (arg ? ctx.transcript.sys('usage: /paste') : ctx.composer.paste())
   },
 
   {
@@ -542,7 +558,9 @@ export const coreCommands: SlashCommand[] = [
       }
 
       patchUiState({ statusBar: next })
-      ctx.gateway.rpc<ConfigSetResponse>('config.set', { key: 'statusbar', value: next }).catch(() => {})
+      ctx.gateway
+        .rpc<ConfigSetResponse>('config.set', { key: 'statusbar', value: next })
+        .catch(warnConfigSaveFailed(ctx, 'status bar'))
 
       queueMicrotask(() => ctx.transcript.sys(`status bar ${next}`))
     }

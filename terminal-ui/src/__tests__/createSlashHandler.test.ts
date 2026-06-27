@@ -463,6 +463,37 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).toHaveBeenCalledWith('details: expanded')
   })
 
+  it('reports /density persistence failures after the local UI change', async () => {
+    const rpc = vi.fn(() => Promise.reject(new Error('config write failed')))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    expect(createSlashHandler(ctx)('/density on')).toBe(true)
+    expect(getUiState().compact).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('warning: compact changed for this session, but config was not saved: config write failed')
+    })
+  })
+
+  it.each([
+    ['/mouse wheel', 'mouse tracking', 'wheel'],
+    ['/details expanded', 'details', 'expanded'],
+    ['/details tools hidden', 'details tools', 'hidden'],
+    ['/statusbar bottom', 'status bar', 'bottom']
+  ])('reports %s persistence failures after the local UI change', async (command, label, expectedValue) => {
+    const rpc = vi.fn(() => Promise.reject(new Error('config write failed')))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    expect(createSlashHandler(ctx)(command)).toBe(true)
+    expect(rpc).toHaveBeenCalledWith('config.set', expect.objectContaining({ value: expectedValue }))
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith(
+        `warning: ${label} changed for this session, but config was not saved: config write failed`
+      )
+    })
+  })
+
   it('sets a per-section override and persists it under details_mode.<section>', () => {
     const ctx = buildCtx()
 
@@ -895,6 +926,15 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /image <path>')
   })
 
+  it('/paste invokes text paste without showing an image-only warning', () => {
+    const ctx = buildCtx()
+
+    createSlashHandler(ctx)('/paste')
+
+    expect(ctx.composer.paste).toHaveBeenCalledTimes(1)
+    expect(ctx.transcript.sys).not.toHaveBeenCalledWith('clipboard image paste is not available yet')
+  })
+
   it('/background reports when no active run can be moved to background', async () => {
     patchUiState({ sid: 'sid-abc' })
     const rpc = vi.fn(() => Promise.resolve({ task_id: '' }))
@@ -905,6 +945,20 @@ describe('createSlashHandler', () => {
     await vi.waitFor(() => {
       expect(ctx.transcript.sys).toHaveBeenCalledWith('no active run to move to background')
     })
+  })
+
+  it('routes /compact <focus> to context compression instead of display density', () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve({ removed: 0, summary: { headline: 'nothing to compress' } }))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/compact 发布流程')
+
+    expect(rpc).toHaveBeenCalledWith('session.compress', {
+      focus_topic: '发布流程',
+      session_id: 'sid-abc'
+    })
+    expect(rpc).not.toHaveBeenCalledWith('config.set', expect.objectContaining({ key: 'compact' }))
   })
 
   it('/yolo does not pretend to change approval policy', () => {
