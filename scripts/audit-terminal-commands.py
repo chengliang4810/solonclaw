@@ -175,7 +175,7 @@ NODE_TUI_ACTIONS = [
     {"type": "panel", "value": "/setup", "expect": "模型、渠道与工作区检查", "keys": "\x1b[B\x1b[B\r", "post_expect": "model.provider", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/setup model", "expect": "Select provider", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/setup gateway", "expect": "Channel setup", "after": "q", "close_expect": "ready"},
-    {"type": "command", "value": "/model --refresh", "expect": "providers:", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/model --refresh", "expect": "Models", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/config path", "expect": "config.yml"},
     {"type": "command", "value": "/config check", "expect": "has_issues=false", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/skin", "expect": "skin:"},

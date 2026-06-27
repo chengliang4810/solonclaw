@@ -192,6 +192,21 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
         self.assertEqual(issues, [])
 
+    def test_node_tui_model_refresh_uses_stable_pager_title(self) -> None:
+        mod = load_module()
+
+        action = next(
+            item for item in mod.NODE_TUI_ACTIONS if item.get("value") == "/model --refresh"
+        )
+        issues = mod.audit_node_tui_transcript(
+            "· /model --refresh\n║ Models ║\ncurrent: audit-model\nprovi\x1b[1Cers:\n",
+            [action],
+            0,
+        )
+
+        self.assertEqual(action.get("expect"), "Models")
+        self.assertEqual(issues, [])
+
     def test_node_tui_startup_accepts_setup_required_screen(self) -> None:
         mod = load_module()
 
@@ -285,7 +300,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
                 {
                     "type": "command",
                     "value": "/model --refresh",
-                    "expect": "providers:",
+                    "expect": "Models",
                     "after": "q",
                     "close_expect": "ready",
                 },
