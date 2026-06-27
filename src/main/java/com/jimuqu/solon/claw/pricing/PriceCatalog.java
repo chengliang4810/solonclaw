@@ -681,34 +681,7 @@ public class PriceCatalog {
      */
     private static void applyTokenPrice(
             ModelPrice price, String field, String costPerMillion, Long microsPerToken) {
-        if (StrUtil.isNotBlank(costPerMillion)) {
-            if ("input".equals(field)) {
-                price.setInputCostPerMillion(costPerMillion);
-            } else if ("output".equals(field)) {
-                price.setOutputCostPerMillion(costPerMillion);
-            } else if ("cache_read".equals(field)) {
-                price.setCacheReadCostPerMillion(costPerMillion);
-            } else if ("cache_write".equals(field)) {
-                price.setCacheWriteCostPerMillion(costPerMillion);
-            } else if ("reasoning".equals(field)) {
-                price.setReasoningCostPerMillion(costPerMillion);
-            }
-            return;
-        }
-        if (microsPerToken == null) {
-            return;
-        }
-        if ("input".equals(field)) {
-            price.setInputMicrosPerToken(microsPerToken.longValue());
-        } else if ("output".equals(field)) {
-            price.setOutputMicrosPerToken(microsPerToken.longValue());
-        } else if ("cache_read".equals(field)) {
-            price.setCacheReadMicrosPerToken(microsPerToken.longValue());
-        } else if ("cache_write".equals(field)) {
-            price.setCacheWriteMicrosPerToken(microsPerToken.longValue());
-        } else if ("reasoning".equals(field)) {
-            price.setReasoningMicrosPerToken(microsPerToken.longValue());
-        }
+        price.applyTokenPrice(field, costPerMillion, microsPerToken);
     }
 
     /**

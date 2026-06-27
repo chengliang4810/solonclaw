@@ -223,6 +223,44 @@ public class ModelPrice {
     }
 
     /**
+     * 按价格字段统一写入 token 单价，供配置加载和价格目录解析复用同一套字段语义。
+     *
+     * @param field 价格字段，支持 input、output、cache_read、cache_write、reasoning。
+     * @param costPerMillion 每百万 token 成本；非空时优先使用。
+     * @param microsPerToken 每 token 微单位成本。
+     */
+    public void applyTokenPrice(String field, String costPerMillion, Long microsPerToken) {
+        if (StrUtil.isNotBlank(costPerMillion)) {
+            if ("input".equals(field)) {
+                setInputCostPerMillion(costPerMillion);
+            } else if ("output".equals(field)) {
+                setOutputCostPerMillion(costPerMillion);
+            } else if ("cache_read".equals(field)) {
+                setCacheReadCostPerMillion(costPerMillion);
+            } else if ("cache_write".equals(field)) {
+                setCacheWriteCostPerMillion(costPerMillion);
+            } else if ("reasoning".equals(field)) {
+                setReasoningCostPerMillion(costPerMillion);
+            }
+            return;
+        }
+        if (microsPerToken == null) {
+            return;
+        }
+        if ("input".equals(field)) {
+            setInputMicrosPerToken(microsPerToken.longValue());
+        } else if ("output".equals(field)) {
+            setOutputMicrosPerToken(microsPerToken.longValue());
+        } else if ("cache_read".equals(field)) {
+            setCacheReadMicrosPerToken(microsPerToken.longValue());
+        } else if ("cache_write".equals(field)) {
+            setCacheWriteMicrosPerToken(microsPerToken.longValue());
+        } else if ("reasoning".equals(field)) {
+            setReasoningMicrosPerToken(microsPerToken.longValue());
+        }
+    }
+
+    /**
      * 执行输入MicrosPertoken精确相关逻辑。
      *
      * @return 返回输入Micros Per token Exact结果。
