@@ -1407,6 +1407,12 @@ export default {
   platform: {
     channelEnabled: 'Enable channel',
     channelEnabledHint: 'When closed, this channel will not connect, receive, or deliver messages',
+    toolsets: 'Toolsets',
+    toolsetsHint: 'Read-only platform toolset policy. Editing will be added with the dedicated policy flow.',
+    toolsetsLoadFailed: 'Failed to load platform toolsets',
+    enabledToolsets: 'Enabled',
+    disabledToolsets: 'Disabled',
+    approvalRequired: 'Approval required',
     requireMention: "Require {'@'}Mention",
     requireMentionGroup: "Require {'@'}mention in groups to respond",
     requireMentionChannel: "Require {'@'}mention in channels to respond",

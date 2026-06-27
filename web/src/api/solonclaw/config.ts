@@ -57,6 +57,17 @@ export interface AppConfig {
 
 export type ConfigDiagnostics = Record<string, unknown>
 
+export interface PlatformToolsetsConfig {
+  platform: string
+  enabledToolsets?: string[]
+  disabledToolsets?: string[]
+  approvalRequired?: boolean
+}
+
+export interface PlatformToolsetsOverview {
+  platforms?: Record<string, PlatformToolsetsConfig>
+}
+
 interface WorkspaceConfigInfo {
   is_set: boolean
   redacted_value?: string | null
@@ -180,6 +191,10 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
 
 export async function fetchConfigDiagnostics(): Promise<ConfigDiagnostics> {
   return request<ConfigDiagnostics>('/api/config/diagnostics')
+}
+
+export async function fetchPlatformToolsets(): Promise<PlatformToolsetsOverview> {
+  return request<PlatformToolsetsOverview>('/api/tools/platform-toolsets')
 }
 
 export async function updateConfigSection(

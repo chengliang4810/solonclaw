@@ -1443,6 +1443,12 @@ export default {
   platform: {
     channelEnabled: '启用频道',
     channelEnabledHint: '关闭后不会连接该频道，也不会接收或投递消息',
+    toolsets: '工具集',
+    toolsetsHint: '只读查看平台工具集策略；编辑能力将走独立策略流程。',
+    toolsetsLoadFailed: '加载平台工具集失败',
+    enabledToolsets: '启用',
+    disabledToolsets: '禁用',
+    approvalRequired: '需要审批',
     requireMention: "需要 {'@'}提及",
     requireMentionGroup: "群组中需要 {'@'}机器人 才会响应",
     requireMentionChannel: "频道中需要 {'@'}机器人 才会响应",

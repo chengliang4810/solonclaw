@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { reactive, onUnmounted } from 'vue'
+import { onMounted, reactive, onUnmounted } from 'vue'
 import * as QRCode from 'qrcode'
 import { Switch, Input, Button, Spin, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import {
   saveCredentials as saveCredsApi,
+  fetchPlatformToolsets,
   fetchPlatformQrCode,
   pollPlatformQrStatus,
+  type PlatformToolsetsConfig,
 } from '@/api/solonclaw/config'
 import type { ChannelQrPlatform, ChannelQrStatus } from '@/shared/channelQr'
 import PlatformCard from './PlatformCard.vue'
@@ -18,6 +20,8 @@ const { t } = useI18n()
 
 // Track saving state per platform.field
 const saving = reactive<Record<string, boolean>>({})
+const platformToolsets = reactive<Record<string, PlatformToolsetsConfig>>({})
+const platformToolsetsLoading = reactive<Record<string, boolean>>({})
 
 function savingKey(platform: string, field: string) {
   return `${platform}.${field}`
@@ -55,6 +59,22 @@ async function saveCredentials(platform: string, field: string, values: Record<s
 
 function getCreds(key: string) {
   return (settingsStore.platforms[key] || {}) as Record<string, any>
+}
+
+async function loadPlatformToolsets() {
+  for (const platform of platforms) {
+    platformToolsetsLoading[platform.key] = true
+  }
+  try {
+    const data = await fetchPlatformToolsets()
+    Object.assign(platformToolsets, data.platforms || {})
+  } catch (err: any) {
+    message.error(err.message || t('platform.toolsetsLoadFailed'))
+  } finally {
+    for (const platform of platforms) {
+      platformToolsetsLoading[platform.key] = false
+    }
+  }
 }
 
 type UiQrStatus = 'idle' | 'loading' | 'waiting' | 'scaned' | 'confirmed' | 'error' | 'expired'
@@ -165,6 +185,8 @@ onUnmounted(() => {
   stopQrPoll('weixin')
 })
 
+onMounted(loadPlatformToolsets)
+
 const platforms = [
   {
     key: 'feishu',
@@ -209,6 +231,25 @@ const platforms = [
       :config="settingsStore[p.key as keyof typeof settingsStore] as Record<string, any>"
       :credentials="getCreds(p.key)"
     >
+      <SettingRow :label="t('platform.toolsets')" :hint="t('platform.toolsetsHint')">
+        <Spin :spinning="platformToolsetsLoading[p.key]">
+          <div class="platform-toolsets">
+            <div class="platform-toolsets-line">
+              <span>{{ t('platform.approvalRequired') }}</span>
+              <strong>{{ platformToolsets[p.key]?.approvalRequired ? t('common.yes') : t('common.no') }}</strong>
+            </div>
+            <div class="platform-toolsets-line">
+              <span>{{ t('platform.enabledToolsets') }}</span>
+              <code>{{ (platformToolsets[p.key]?.enabledToolsets || []).join(', ') || '-' }}</code>
+            </div>
+            <div class="platform-toolsets-line">
+              <span>{{ t('platform.disabledToolsets') }}</span>
+              <code>{{ (platformToolsets[p.key]?.disabledToolsets || []).join(', ') || '-' }}</code>
+            </div>
+          </div>
+        </Spin>
+      </SettingRow>
+
       <!-- 飞书 -->
       <template v-if="p.key === 'feishu'">
         <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
@@ -414,6 +455,31 @@ const platforms = [
 .channel-qr-section {
   margin-top: 12px;
   margin-bottom: 12px;
+}
+
+.platform-toolsets {
+  display: grid;
+  gap: 6px;
+  min-width: 220px;
+  color: $text-secondary;
+  font-size: 12px;
+}
+
+.platform-toolsets-line {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.platform-toolsets-line strong,
+.platform-toolsets-line code {
+  color: $text-primary;
+  overflow-wrap: anywhere;
+}
+
+.platform-toolsets-line code {
+  font-family: $font-code;
 }
 
 .channel-qr-loading {
