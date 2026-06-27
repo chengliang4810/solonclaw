@@ -23,6 +23,7 @@ function translatedLabel(t: DashboardTranslator, path: string, fallback = ''): s
 }
 
 function lookupTokenLabel(t: DashboardTranslator, token: string, paths: readonly string[]): string {
+  if (!/^[A-Za-z0-9_.-]+$/.test(token)) return ''
   for (const path of paths) {
     const label = translatedLabel(t, `${path}.${token}`)
     if (label) return label

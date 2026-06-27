@@ -23,6 +23,7 @@ const jobsStore = useJobsStore()
 
 const showModal = ref(true)
 const loading = ref(false)
+const showAdvanced = ref(false)
 
 const formData = ref({
   name: '',
@@ -422,19 +423,44 @@ function handlePresetChange(value: SelectValue) {
     :title="isEdit ? t('jobs.editJob') : t('jobs.createJob')"
     :style="{ width: 'min(760px, calc(100vw - 32px))' }"
     :mask-closable="!loading"
-    @after-leave="emit('close')"
+    @cancel="handleClose"
   >
     <Form layout="vertical">
-      <FormItem :label="t('jobs.name')" required>
-        <Input
-          v-model:value="formData.name"
-          :placeholder="t('jobs.namePlaceholder')"
-          :maxlength="200"
-          show-count
-        />
-      </FormItem>
+      <section class="wizard-section">
+        <div class="section-head">
+          <span class="section-number">1</span>
+          <div>
+            <h3>{{ t('jobs.stepTaskTitle') }}</h3>
+            <p>{{ t('jobs.stepTaskDesc') }}</p>
+          </div>
+        </div>
+        <FormItem :label="t('jobs.name')" required>
+          <Input
+            v-model:value="formData.name"
+            :placeholder="t('jobs.namePlaceholder')"
+            :maxlength="200"
+            show-count
+          />
+        </FormItem>
+        <FormItem :label="t('jobs.prompt')" :required="!formData.no_agent">
+          <TextArea
+            v-model:value="formData.prompt"
+            :placeholder="t('jobs.promptPlaceholder')"
+            :rows="5"
+            :maxlength="5000"
+            show-count
+          />
+        </FormItem>
+      </section>
 
-      <div class="schedule-panel">
+      <section class="wizard-section">
+        <div class="section-head">
+          <span class="section-number">2</span>
+          <div>
+            <h3>{{ t('jobs.stepTimeTitle') }}</h3>
+            <p>{{ t('jobs.stepTimeDesc') }}</p>
+          </div>
+        </div>
         <div class="form-grid">
           <FormItem :label="t('jobs.scheduleKind')" required>
             <Select
@@ -495,203 +521,218 @@ function handlePresetChange(value: SelectValue) {
             :placeholder="t('jobs.scheduleOncePlaceholder')"
           />
         </FormItem>
-      </div>
+      </section>
 
-      <div class="form-grid">
-        <FormItem v-if="isEdit" :label="t('jobs.skillEditMode')">
-          <Select
-            v-model:value="skillEditMode"
-            :options="skillEditModeOptions"
-          />
-        </FormItem>
+      <section class="wizard-section">
+        <div class="section-head">
+          <span class="section-number">3</span>
+          <div>
+            <h3>{{ t('jobs.stepDeliveryTitle') }}</h3>
+            <p>{{ t('jobs.stepDeliveryDesc') }}</p>
+          </div>
+        </div>
+        <div class="form-grid">
+          <FormItem :label="t('jobs.deliveryMode')">
+            <Select
+              v-model:value="deliveryMode"
+              :options="deliveryModeOptions"
+            />
+          </FormItem>
+        </div>
 
-        <FormItem
-          v-if="!isEdit || skillEditMode === 'replace'"
-          :label="t('jobs.skills')"
+        <div
+          v-if="deliveryMode === 'platform' || deliveryMode === 'specific'"
+          class="form-grid"
         >
-          <Input
-            v-model:value="formData.skills_text"
-            :placeholder="t('jobs.skillsPlaceholder')"
-          />
-        </FormItem>
-
-        <template v-if="isEdit && skillEditMode === 'merge'">
-          <FormItem :label="t('jobs.addSkills')">
-            <Input
-              v-model:value="addSkillsText"
-              :placeholder="t('jobs.addSkillsPlaceholder')"
+          <FormItem :label="t('jobs.deliveryPlatform')">
+            <Select
+              v-model:value="deliveryPlatform"
+              :options="deliveryPlatformOptions"
             />
           </FormItem>
 
-          <FormItem :label="t('jobs.removeSkills')">
+          <FormItem
+            v-if="deliveryMode === 'specific'"
+            :label="t('jobs.deliverChatId')"
+            required
+          >
             <Input
-              v-model:value="removeSkillsText"
-              :placeholder="t('jobs.removeSkillsPlaceholder')"
+              v-model:value="formData.deliver_chat_id"
+              :placeholder="t('jobs.deliverChatIdPlaceholder')"
             />
           </FormItem>
-        </template>
+        </div>
+
+        <div v-if="deliveryMode === 'specific'" class="form-grid">
+          <FormItem :label="t('jobs.deliverThreadId')">
+            <Input
+              v-model:value="formData.deliver_thread_id"
+              :placeholder="t('jobs.deliverThreadIdPlaceholder')"
+            />
+          </FormItem>
+
+          <FormItem :label="t('jobs.deliverPreview')">
+            <Input
+              :value="`${deliveryPlatform}:${formData.deliver_chat_id || t('jobs.deliverPreviewEmptyChat')}${formData.deliver_thread_id ? ':' + formData.deliver_thread_id : ''}`"
+              readonly
+            />
+          </FormItem>
+        </div>
 
         <FormItem
-          v-if="isEdit && skillEditMode === 'clear'"
-          :label="t('jobs.skills')"
+          v-if="deliveryMode === 'multi'"
+          :label="t('jobs.deliverTarget')"
         >
           <Input
-            :value="t('jobs.clearSkillsNotice')"
-            readonly
+            v-model:value="deliveryMultiText"
+            :placeholder="t('jobs.deliverPlaceholder')"
           />
         </FormItem>
+      </section>
+
+      <div class="advanced-toggle">
+        <Button type="text" size="small" @click="showAdvanced = !showAdvanced">
+          {{ showAdvanced ? t('jobs.advancedHide') : t('jobs.advancedShow') }}
+        </Button>
       </div>
 
-      <div class="form-grid">
-        <FormItem :label="t('jobs.deliveryMode')">
-          <Select
-            v-model:value="deliveryMode"
-            :options="deliveryModeOptions"
-          />
-        </FormItem>
-      </div>
+      <section v-if="showAdvanced" class="wizard-section advanced-section">
+        <div class="section-head">
+          <span class="section-number">+</span>
+          <div>
+            <h3>{{ t('jobs.advancedTitle') }}</h3>
+            <p>{{ t('jobs.advancedDesc') }}</p>
+          </div>
+        </div>
 
-      <div
-        v-if="deliveryMode === 'platform' || deliveryMode === 'specific'"
-        class="form-grid"
-      >
-        <FormItem :label="t('jobs.deliveryPlatform')">
-          <Select
-            v-model:value="deliveryPlatform"
-            :options="deliveryPlatformOptions"
-          />
-        </FormItem>
+        <div class="form-grid">
+          <FormItem v-if="isEdit" :label="t('jobs.skillEditMode')">
+            <Select
+              v-model:value="skillEditMode"
+              :options="skillEditModeOptions"
+            />
+          </FormItem>
 
-        <FormItem
-          v-if="deliveryMode === 'specific'"
-          :label="t('jobs.deliverChatId')"
-          required
-        >
+          <FormItem
+            v-if="!isEdit || skillEditMode === 'replace'"
+            :label="t('jobs.skills')"
+          >
+            <Input
+              v-model:value="formData.skills_text"
+              :placeholder="t('jobs.skillsPlaceholder')"
+            />
+          </FormItem>
+
+          <template v-if="isEdit && skillEditMode === 'merge'">
+            <FormItem :label="t('jobs.addSkills')">
+              <Input
+                v-model:value="addSkillsText"
+                :placeholder="t('jobs.addSkillsPlaceholder')"
+              />
+            </FormItem>
+
+            <FormItem :label="t('jobs.removeSkills')">
+              <Input
+                v-model:value="removeSkillsText"
+                :placeholder="t('jobs.removeSkillsPlaceholder')"
+              />
+            </FormItem>
+          </template>
+
+          <FormItem
+            v-if="isEdit && skillEditMode === 'clear'"
+            :label="t('jobs.skills')"
+          >
+            <Input
+              :value="t('jobs.clearSkillsNotice')"
+              readonly
+            />
+          </FormItem>
+        </div>
+
+        <div class="form-grid">
+          <FormItem :label="t('jobs.repeatCount')">
+            <InputNumber
+              v-model:value="formData.repeat_times"
+              :min="1"
+              :placeholder="t('jobs.repeatPlaceholder')"
+              clearable
+              style="width: 100%"
+            />
+          </FormItem>
+
+          <FormItem :label="t('jobs.wrapResponse')">
+            <Switch v-model:value="formData.wrap_response" />
+          </FormItem>
+        </div>
+
+        <div v-if="isEdit" class="form-grid">
+          <FormItem :label="t('jobs.state')">
+            <Select
+              v-model:value="formData.state"
+              :options="stateOptions"
+            />
+          </FormItem>
+
+          <FormItem :label="t('jobs.pausedReason')">
+            <Input
+              v-model:value="formData.paused_reason"
+              :disabled="formData.state !== 'paused'"
+              :placeholder="t('jobs.pausedReasonPlaceholder')"
+              :maxlength="300"
+              show-count
+            />
+          </FormItem>
+        </div>
+
+        <div class="form-grid">
+          <FormItem :label="t('jobs.script')">
+            <Input
+              v-model:value="formData.script"
+              :placeholder="t('jobs.scriptPlaceholder')"
+            />
+          </FormItem>
+
+          <FormItem :label="t('jobs.noAgent')">
+            <Switch v-model:value="formData.no_agent" />
+          </FormItem>
+        </div>
+
+        <FormItem :label="t('jobs.workdir')">
           <Input
-            v-model:value="formData.deliver_chat_id"
-            :placeholder="t('jobs.deliverChatIdPlaceholder')"
-          />
-        </FormItem>
-      </div>
-
-      <div v-if="deliveryMode === 'specific'" class="form-grid">
-        <FormItem :label="t('jobs.deliverThreadId')">
-          <Input
-            v-model:value="formData.deliver_thread_id"
-            :placeholder="t('jobs.deliverThreadIdPlaceholder')"
+            v-model:value="formData.workdir"
+            :placeholder="t('jobs.workdirPlaceholder')"
           />
         </FormItem>
 
-        <FormItem :label="t('jobs.deliverPreview')">
-          <Input
-            :value="`${deliveryPlatform}:${formData.deliver_chat_id || t('jobs.deliverPreviewEmptyChat')}${formData.deliver_thread_id ? ':' + formData.deliver_thread_id : ''}`"
-            readonly
-          />
-        </FormItem>
-      </div>
+        <div class="form-grid">
+          <FormItem :label="t('jobs.contextFrom')">
+            <Input
+              v-model:value="formData.context_from_text"
+              :placeholder="t('jobs.contextFromPlaceholder')"
+            />
+          </FormItem>
 
-      <FormItem
-        v-if="deliveryMode === 'multi'"
-        :label="t('jobs.deliverTarget')"
-      >
-        <Input
-          v-model:value="deliveryMultiText"
-          :placeholder="t('jobs.deliverPlaceholder')"
-        />
-      </FormItem>
+          <FormItem :label="t('jobs.enabledToolsets')">
+            <Input
+              v-model:value="formData.enabled_toolsets_text"
+              :placeholder="t('jobs.enabledToolsetsPlaceholder')"
+            />
+          </FormItem>
+        </div>
 
-      <FormItem :label="t('jobs.prompt')" :required="!formData.no_agent">
-        <TextArea
-          v-model:value="formData.prompt"
-          :placeholder="t('jobs.promptPlaceholder')"
-          :rows="4"
-          :maxlength="5000"
-          show-count
-        />
-      </FormItem>
-
-      <div class="form-grid">
-        <FormItem :label="t('jobs.repeatCount')">
-          <InputNumber
-            v-model:value="formData.repeat_times"
-            :min="1"
-            :placeholder="t('jobs.repeatPlaceholder')"
-            clearable
-            style="width: 100%"
-          />
-        </FormItem>
-
-        <FormItem :label="t('jobs.wrapResponse')">
-          <Switch v-model:value="formData.wrap_response" />
-        </FormItem>
-      </div>
-
-      <div v-if="isEdit" class="form-grid">
-        <FormItem :label="t('jobs.state')">
-          <Select
-            v-model:value="formData.state"
-            :options="stateOptions"
-          />
-        </FormItem>
-
-        <FormItem :label="t('jobs.pausedReason')">
-          <Input
-            v-model:value="formData.paused_reason"
-            :disabled="formData.state !== 'paused'"
-            :placeholder="t('jobs.pausedReasonPlaceholder')"
-            :maxlength="300"
-            show-count
-          />
-        </FormItem>
-      </div>
-
-      <div class="form-grid">
-        <FormItem :label="t('jobs.script')">
-          <Input
-            v-model:value="formData.script"
-            :placeholder="t('jobs.scriptPlaceholder')"
-          />
-        </FormItem>
-
-        <FormItem :label="t('jobs.noAgent')">
-          <Switch v-model:value="formData.no_agent" />
-        </FormItem>
-      </div>
-
-      <FormItem :label="t('jobs.workdir')">
-        <Input
-          v-model:value="formData.workdir"
-          :placeholder="t('jobs.workdirPlaceholder')"
-        />
-      </FormItem>
-
-      <div class="form-grid">
-        <FormItem :label="t('jobs.contextFrom')">
-          <Input
-            v-model:value="formData.context_from_text"
-            :placeholder="t('jobs.contextFromPlaceholder')"
-          />
-        </FormItem>
-
-        <FormItem :label="t('jobs.enabledToolsets')">
-          <Input
-            v-model:value="formData.enabled_toolsets_text"
-            :placeholder="t('jobs.enabledToolsetsPlaceholder')"
-          />
-        </FormItem>
-      </div>
-
-      <div class="form-grid three">
-        <FormItem :label="t('jobs.provider')">
-          <Input v-model:value="formData.provider" :placeholder="t('jobs.providerPlaceholder')" />
-        </FormItem>
-        <FormItem :label="t('jobs.model')">
-          <Input v-model:value="formData.model" :placeholder="t('jobs.modelPlaceholder')" />
-        </FormItem>
-        <FormItem :label="t('jobs.baseUrl')">
-          <Input v-model:value="formData.base_url" :placeholder="t('jobs.baseUrlPlaceholder')" />
-        </FormItem>
-      </div>
+        <div class="form-grid three">
+          <FormItem :label="t('jobs.provider')">
+            <Input v-model:value="formData.provider" :placeholder="t('jobs.providerPlaceholder')" />
+          </FormItem>
+          <FormItem :label="t('jobs.model')">
+            <Input v-model:value="formData.model" :placeholder="t('jobs.modelPlaceholder')" />
+          </FormItem>
+          <FormItem :label="t('jobs.baseUrl')">
+            <Input v-model:value="formData.base_url" :placeholder="t('jobs.baseUrlPlaceholder')" />
+          </FormItem>
+        </div>
+      </section>
     </Form>
 
     <template #footer>
@@ -706,10 +747,69 @@ function handlePresetChange(value: SelectValue) {
 </template>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as *;
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.wizard-section {
+  border: 1px solid $border-light;
+  border-radius: 8px;
+  background: $bg-card;
+  padding: 14px;
+
+  + .wizard-section {
+    margin-top: 12px;
+  }
+}
+
+.section-head {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.section-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(var(--accent-primary-rgb), 0.12);
+  color: $accent-primary;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.section-head h3 {
+  margin: 0;
+  color: $text-primary;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.section-head p {
+  margin: 3px 0 0;
+  color: $text-muted;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.advanced-toggle {
+  display: flex;
+  justify-content: center;
+  margin: 10px 0;
+}
+
+.advanced-section {
+  background: rgba(var(--accent-primary-rgb), 0.03);
 }
 
 .form-grid {

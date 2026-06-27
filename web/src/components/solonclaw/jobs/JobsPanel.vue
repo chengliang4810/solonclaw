@@ -2,9 +2,7 @@
 import JobCard from './JobCard.vue'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
 import { useI18n } from 'vue-i18n'
-import { computed, onMounted } from 'vue'
-import { formatJobTime, humanizeJobToken, jobScheduleLabel } from '@/shared/jobsDisplay'
-import { asArray } from '@/shared/text'
+import { formatJobTime, jobScheduleLabel } from '@/shared/jobsDisplay'
 
 const { t } = useI18n()
 
@@ -18,67 +16,6 @@ const jobsStore = useJobsStore()
 function refreshUpcoming() {
   jobsStore.fetchUpcomingJobs()
 }
-
-const guideActions = computed(() => {
-  const actions = jobsStore.guide?.actions || {}
-  return Object.keys(actions).map(key => `${humanizeJobToken(t, key)}：${actions[key]}`)
-})
-
-const guideAliases = computed(() => {
-  const aliases = jobsStore.guide?.aliases || {}
-  return Object.keys(aliases).map(key => {
-    const value = aliases[key]
-    const items = asArray<string>(value)
-    return items.length ? `${humanizeJobToken(t, key)}：${items.join('、')}` : humanizeJobToken(t, key)
-  })
-})
-
-const guideExamples = computed(() => asArray<string>(jobsStore.guide?.slash_examples).slice(0, 6))
-
-const guideDeliveries = computed(() => {
-  const delivery = jobsStore.guide?.delivery || {}
-  const modes = asArray<unknown>(delivery.modes)
-  const targets = asArray<unknown>(delivery.targets)
-  return [
-    ...modes.map(item => humanizeJobToken(t, String(item))),
-    targets.length ? `${t('jobs.guideTargets')}：${targets.map(item => humanizeJobToken(t, String(item))).join('、')}` : '',
-  ].filter(Boolean)
-})
-
-const guideAutomation = computed(() => {
-  const policy = jobsStore.policy
-  const skillBinding = policy?.skill_binding || {}
-  return [
-    skillBinding.multipleSkillsSupported ? t('jobs.guideMultiSkill') : '',
-    skillBinding.skillRewriteSupported ? t('jobs.guideSkillRewrite') : '',
-    skillBinding.contextFromSupported ? t('jobs.guideDependencies') : '',
-    skillBinding.enabledToolsetsSupported ? t('jobs.guideToolsets') : '',
-    policy?.schedule?.intervalSupported ? t('jobs.guideInterval') : '',
-    policy?.schedule?.onceSupported ? t('jobs.guideOnce') : '',
-    policy?.execution?.noAgentScriptSupported ? t('jobs.guideNoAgent') : '',
-    policy?.delivery?.multiTargetDeliverySupported ? t('jobs.guideMultiTarget') : '',
-    policy?.delivery?.wrapResponseSupported ? t('jobs.guideWrap') : '',
-  ].filter(Boolean)
-})
-
-const guideTriggerSources = computed(() => {
-  const policy = jobsStore.policy
-  const fields = asArray<unknown>(policy?.trigger_type_fields)
-  return [
-    policy?.custom_manual_trigger_supported ? t('jobs.guideManualTriggerSource') : '',
-    policy?.custom_retry_trigger_supported ? t('jobs.guideRetryTriggerSource') : '',
-    policy?.queued_trigger_type_persisted ? t('jobs.guideQueuedTriggerSource') : '',
-    fields.length
-      ? `${t('jobs.guideTriggerFields')}：${fields.map(item => humanizeJobToken(t, String(item))).join('、')}`
-      : '',
-  ].filter(Boolean)
-})
-
-onMounted(() => {
-  if (!jobsStore.guide && !jobsStore.guideLoading) {
-    jobsStore.fetchGuideAndPolicy()
-  }
-})
 </script>
 
 <template>
@@ -106,46 +43,11 @@ onMounted(() => {
       </div>
     </section>
 
-    <section class="guide-panel">
-      <div class="guide-head">
+    <section class="list-panel">
+      <div class="list-head">
         <div>
-          <span class="guide-title">{{ t('jobs.guideTitle') }}</span>
-          <p>{{ t('jobs.guideDescription') }}</p>
-        </div>
-        <button class="upcoming-refresh" type="button" @click="jobsStore.fetchGuideAndPolicy">
-          {{ jobsStore.guideLoading ? t('common.loading') : t('common.refresh') }}
-        </button>
-      </div>
-      <div class="guide-grid">
-        <div class="guide-block">
-          <span class="guide-block-title">{{ t('jobs.guideAutomation') }}</span>
-          <span v-for="item in guideAutomation" :key="item" class="guide-chip">{{ item }}</span>
-          <span v-if="!guideAutomation.length" class="guide-muted">{{ t('common.noData') }}</span>
-        </div>
-        <div class="guide-block">
-          <span class="guide-block-title">{{ t('jobs.guideDelivery') }}</span>
-          <span v-for="item in guideDeliveries" :key="item" class="guide-chip">{{ item }}</span>
-          <span v-if="!guideDeliveries.length" class="guide-muted">{{ t('common.noData') }}</span>
-        </div>
-        <div class="guide-block">
-          <span class="guide-block-title">{{ t('jobs.guideTriggerSources') }}</span>
-          <span v-for="item in guideTriggerSources" :key="item" class="guide-chip">{{ item }}</span>
-          <span v-if="!guideTriggerSources.length" class="guide-muted">{{ t('common.noData') }}</span>
-        </div>
-        <div class="guide-block">
-          <span class="guide-block-title">{{ t('jobs.guideActions') }}</span>
-          <span v-for="item in guideActions" :key="item" class="guide-chip">{{ item }}</span>
-          <span v-if="!guideActions.length" class="guide-muted">{{ t('common.noData') }}</span>
-        </div>
-        <div class="guide-block">
-          <span class="guide-block-title">{{ t('jobs.guideAliases') }}</span>
-          <span v-for="item in guideAliases" :key="item" class="guide-chip">{{ item }}</span>
-          <span v-if="!guideAliases.length" class="guide-muted">{{ t('common.noData') }}</span>
-        </div>
-        <div class="guide-block examples">
-          <span class="guide-block-title">{{ t('jobs.guideExamples') }}</span>
-          <code v-for="item in guideExamples" :key="item" class="guide-example">{{ item }}</code>
-          <span v-if="!guideExamples.length" class="guide-muted">{{ t('common.noData') }}</span>
+          <span class="list-title">{{ t('jobs.myJobsTitle') }}</span>
+          <p>{{ t('jobs.myJobsDesc') }}</p>
         </div>
       </div>
     </section>
@@ -187,19 +89,18 @@ onMounted(() => {
   padding: 12px;
 }
 
-.guide-panel {
+.list-panel {
   border: 1px solid $border-light;
   border-radius: $radius-md;
   background: $bg-card;
   padding: 12px;
 }
 
-.guide-head {
+.list-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
 
   p {
     margin: 4px 0 0;
@@ -223,69 +124,10 @@ onMounted(() => {
   color: $text-primary;
 }
 
-.guide-title {
+.list-title {
   font-size: 13px;
   font-weight: 600;
   color: $text-primary;
-}
-
-.guide-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.guide-block {
-  min-width: 0;
-  border: 1px solid $border-light;
-  border-radius: 6px;
-  padding: 10px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-content: flex-start;
-
-  &.examples {
-    grid-column: span 2;
-  }
-}
-
-.guide-block-title {
-  flex-basis: 100%;
-  color: $text-secondary;
-  font-size: 12px;
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.guide-chip {
-  max-width: 100%;
-  border: 1px solid $border-light;
-  border-radius: 6px;
-  color: $text-secondary;
-  font-size: 12px;
-  line-height: 1.4;
-  padding: 2px 6px;
-  overflow-wrap: anywhere;
-}
-
-.guide-muted {
-  color: $text-muted;
-  font-size: 12px;
-}
-
-.guide-example {
-  flex-basis: 100%;
-  max-width: 100%;
-  border: 1px solid $border-light;
-  border-radius: 6px;
-  color: $text-secondary;
-  font-family: $font-code;
-  font-size: 12px;
-  line-height: 1.45;
-  padding: 4px 6px;
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 
 .upcoming-meta {
@@ -389,14 +231,6 @@ onMounted(() => {
 }
 
 @media (max-width: $breakpoint-mobile) {
-  .guide-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .guide-block.examples {
-    grid-column: span 1;
-  }
-
   .upcoming-item {
     grid-template-columns: minmax(0, 1fr);
   }

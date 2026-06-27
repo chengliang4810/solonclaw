@@ -228,11 +228,8 @@ async function handleDelete() {
 
     <div class="card-body">
       <div class="info-row">
-        <span class="info-label">{{ t('jobs.info.schedule') }}</span>
-        <span class="schedule-value">
-          <span class="schedule-kind">{{ scheduleKindLabel }}</span>
-          <code class="info-value mono">{{ scheduleExpr }}</code>
-        </span>
+        <span class="info-label">{{ t('jobs.info.nextRun') }}</span>
+        <span class="info-value primary-time">{{ formatJobTime(job.next_run_at) }}</span>
       </div>
       <div class="info-row">
         <span class="info-label">{{ t('jobs.info.lastRun') }}</span>
@@ -244,12 +241,12 @@ async function handleDelete() {
         </span>
       </div>
       <div class="info-row">
-        <span class="info-label">{{ t('jobs.info.nextRun') }}</span>
-        <span class="info-value">{{ formatJobTime(job.next_run_at) }}</span>
-      </div>
-      <div class="info-row">
         <span class="info-label">{{ t('jobs.info.deliver') }}</span>
         <span class="info-value">{{ deliverDetail }}</span>
+      </div>
+      <div class="schedule-line">
+        <span class="schedule-kind">{{ scheduleKindLabel }}</span>
+        <code class="mono">{{ scheduleExpr }}</code>
       </div>
       <div v-if="job.repeat" class="info-row">
         <span class="info-label">{{ t('jobs.info.repeat') }}</span>
@@ -300,7 +297,7 @@ async function handleDelete() {
       <TextArea
         v-model:value="pauseReason"
         :rows="3"
-        ::maxlength="300"
+        :maxlength="300"
         show-count
         :placeholder="t('jobs.pauseReasonPlaceholder')"
       />
@@ -488,15 +485,6 @@ async function handleDelete() {
   text-align: right;
 }
 
-.schedule-value {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
 .schedule-kind {
   font-size: 11px;
   line-height: 1.5;
@@ -505,6 +493,27 @@ async function handleDelete() {
   border: 1px solid rgba(var(--accent-primary-rgb), 0.18);
   border-radius: 6px;
   padding: 1px 6px;
+}
+
+.schedule-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 2px;
+  color: $text-muted;
+
+  code {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.primary-time {
+  color: $text-primary;
+  font-weight: 600;
 }
 
 .run-status {
