@@ -2439,35 +2439,6 @@ final class AppConfigLoader {
         }
     }
 
-    /** 深拷贝 gateway platforms 配置。 */
-    private static Map<String, PlatformConfig> cloneGatewayPlatforms(
-            Map<String, PlatformConfig> source) {
-        Map<String, PlatformConfig> result = new LinkedHashMap<String, PlatformConfig>();
-        if (source == null) {
-            return result;
-        }
-        for (Map.Entry<String, PlatformConfig> entry : source.entrySet()) {
-            PlatformConfig src = entry.getValue();
-            if (src == null) {
-                continue;
-            }
-            PlatformConfig copy = new PlatformConfig();
-            copy.setEnabledToolsets(new ArrayList<String>(src.getEnabledToolsets()));
-            copy.setDisabledToolsets(new ArrayList<String>(src.getDisabledToolsets()));
-            copy.setApprovalRequired(src.isApprovalRequired());
-            result.put(entry.getKey(), copy);
-        }
-        return result;
-    }
-
-    /** 将相对路径转换为绝对路径。 */
-    private File asAbsolute(File file, File base) {
-        if (file.isAbsolute()) {
-            return file;
-        }
-        return new File(base, file.getPath());
-    }
-
     /**
      * 读取String。
      *
