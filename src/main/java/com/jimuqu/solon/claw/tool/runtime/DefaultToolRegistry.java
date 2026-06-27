@@ -253,33 +253,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 attachmentCacheService,
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
-                (SecurityPolicyService) null,
-                (DangerousCommandApprovalService) null,
-                (ProcessRegistry) null,
-                (McpRuntimeService) null,
-                (DashboardMcpService) null,
-                (DashboardCuratorService) null,
-                (DashboardPlatformToolsetsService) null,
-                (DashboardProviderService) null,
-                (DashboardStatusService) null,
-                (DashboardGatewayDoctorService) null,
-                (DashboardInsightsService) null,
-                (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
-                (DashboardWorkspaceService) null,
-                (DashboardConfigService) null,
-                (DashboardRuntimeConfigService) null,
-                (WeixinQrSetupService) null,
-                (DomesticQrSetupService) null,
-                (BrowserRuntimeService) null,
-                (ImageGenerationService) null,
-                (SpeechService) null,
-                (DashboardRunService) null,
-                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
-                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
-                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
-                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
-                (List<ToolRegistration>) null);
+                (SecurityPolicyService) null);
     }
 
     /**
@@ -437,32 +411,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
-                (ProcessRegistry) null,
-                (McpRuntimeService) null,
-                (DashboardMcpService) null,
-                (DashboardCuratorService) null,
-                (DashboardPlatformToolsetsService) null,
-                (DashboardProviderService) null,
-                (DashboardStatusService) null,
-                (DashboardGatewayDoctorService) null,
-                (DashboardInsightsService) null,
-                (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
-                (DashboardWorkspaceService) null,
-                (DashboardConfigService) null,
-                (DashboardRuntimeConfigService) null,
-                (WeixinQrSetupService) null,
-                (DomesticQrSetupService) null,
-                (BrowserRuntimeService) null,
-                (ImageGenerationService) null,
-                (SpeechService) null,
-                (DashboardRunService) null,
-                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
-                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
-                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
-                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
-                (List<ToolRegistration>) null);
+                (McpRuntimeService) null);
     }
 
     /**
@@ -521,32 +470,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
                 (ProcessRegistry) null,
-                mcpRuntimeService,
-                (DashboardMcpService) null,
-                (DashboardCuratorService) null,
-                (DashboardPlatformToolsetsService) null,
-                (DashboardProviderService) null,
-                (DashboardStatusService) null,
-                (DashboardGatewayDoctorService) null,
-                (DashboardInsightsService) null,
-                (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
-                (DashboardWorkspaceService) null,
-                (DashboardConfigService) null,
-                (DashboardRuntimeConfigService) null,
-                (WeixinQrSetupService) null,
-                (DomesticQrSetupService) null,
-                (BrowserRuntimeService) null,
-                (ImageGenerationService) null,
-                (SpeechService) null,
-                (DashboardRunService) null,
-                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
-                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
-                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
-                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
-                (List<ToolRegistration>) null);
+                mcpRuntimeService);
     }
 
     /**
@@ -607,32 +532,10 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
-                (DashboardMcpService) null,
-                (DashboardCuratorService) null,
-                (DashboardPlatformToolsetsService) null,
-                (DashboardProviderService) null,
-                (DashboardStatusService) null,
-                (DashboardGatewayDoctorService) null,
-                (DashboardInsightsService) null,
-                (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
-                (DashboardWorkspaceService) null,
-                (DashboardConfigService) null,
-                (DashboardRuntimeConfigService) null,
-                (WeixinQrSetupService) null,
-                (DomesticQrSetupService) null,
-                (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
-                (SpeechService) null,
-                (DashboardRunService) null,
-                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
-                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
-                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
-                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
-                (List<ToolRegistration>) null);
+                (SpeechService) null);
     }
 
     /**
@@ -697,32 +600,11 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
-                (DashboardMcpService) null,
-                (DashboardCuratorService) null,
-                (DashboardPlatformToolsetsService) null,
-                (DashboardProviderService) null,
-                (DashboardStatusService) null,
-                (DashboardGatewayDoctorService) null,
-                (DashboardInsightsService) null,
-                (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
-                (DashboardWorkspaceService) null,
-                (DashboardConfigService) null,
-                (DashboardRuntimeConfigService) null,
-                (WeixinQrSetupService) null,
-                (DomesticQrSetupService) null,
                 (BrowserRuntimeService) null,
                 imageGenerationService,
-                speechService,
-                (DashboardRunService) null,
-                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
-                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
-                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
-                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
-                (List<ToolRegistration>) null);
+                speechService);
     }
 
     /**
@@ -788,29 +670,9 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
-                (DashboardMcpService) null,
-                (DashboardCuratorService) null,
-                (DashboardPlatformToolsetsService) null,
-                (DashboardProviderService) null,
-                (DashboardStatusService) null,
-                (DashboardGatewayDoctorService) null,
-                (DashboardInsightsService) null,
-                (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
-                (DashboardWorkspaceService) null,
-                (DashboardConfigService) null,
-                (DashboardRuntimeConfigService) null,
-                (WeixinQrSetupService) null,
-                (DomesticQrSetupService) null,
                 browserRuntimeService,
                 (ImageGenerationService) null,
-                (SpeechService) null,
-                (DashboardRunService) null,
-                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
-                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
-                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
-                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
-                (List<ToolRegistration>) null);
+                (SpeechService) null);
     }
 
     /**
@@ -876,28 +738,9 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
-                (DashboardMcpService) null,
-                (DashboardCuratorService) null,
-                (DashboardPlatformToolsetsService) null,
-                (DashboardProviderService) null,
-                (DashboardStatusService) null,
-                (DashboardGatewayDoctorService) null,
-                (DashboardInsightsService) null,
-                (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
-                (DashboardWorkspaceService) null,
-                (DashboardConfigService) null,
-                (DashboardRuntimeConfigService) null,
-                (WeixinQrSetupService) null,
-                (DomesticQrSetupService) null,
                 (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
                 (SpeechService) null,
-                (DashboardRunService) null,
-                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
-                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
-                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
-                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 pluginTools);
     }
 
@@ -965,32 +808,162 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
-                (DashboardMcpService) null,
-                (DashboardCuratorService) null,
-                (DashboardPlatformToolsetsService) null,
-                (DashboardProviderService) null,
-                (DashboardStatusService) null,
-                (DashboardGatewayDoctorService) null,
-                (DashboardInsightsService) null,
-                (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
-                (DashboardWorkspaceService) null,
-                (DashboardConfigService) null,
-                (DashboardRuntimeConfigService) null,
-                (WeixinQrSetupService) null,
-                (DomesticQrSetupService) null,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
-                (DashboardRunService) null,
-                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
-                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
-                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
-                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
+    }
+
+    /**
+     * 创建默认工具注册表实例，并注入审批、浏览器和媒体能力依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService Agent profile 服务依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService approvalService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                approvalService,
+                processRegistry,
+                mcpRuntimeService,
+                browserRuntimeService,
+                imageGenerationService,
+                speechService,
+                (List<ToolRegistration>) null);
+    }
+
+    /**
+     * 创建默认工具注册表实例，并注入浏览器、媒体和插件工具依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService Agent profile 服务依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     * @param pluginTools 插件Tools参数。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService,
+            List<ToolRegistration> pluginTools) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                (DangerousCommandApprovalService) null,
+                processRegistry,
+                mcpRuntimeService,
+                browserRuntimeService,
+                imageGenerationService,
+                speechService,
+                pluginTools);
     }
 
     /**
