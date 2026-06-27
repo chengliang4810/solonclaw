@@ -15,6 +15,7 @@ import {
   type SessionTrajectory,
 } from '@/api/solonclaw/sessions'
 import {
+  controlRun,
   controlSubagent,
   fetchActiveSubagents,
   fetchRunDetail,
@@ -48,6 +49,7 @@ const loading = ref(false)
 const rollingBack = ref('')
 const previewingCheckpoint = ref('')
 const savingTrajectory = ref('')
+const controllingRun = ref('')
 const controllingSubagent = ref('')
 const { t } = useI18n()
 
@@ -57,6 +59,8 @@ const sessionOptions = computed(() => sessions.value.map(session => ({
 })))
 
 const selectedRun = computed(() => runs.value.find(run => run.run_id === selectedRunId.value))
+const selectedRunRunning = computed(() => ['running', 'queued', 'waiting_approval', 'interrupting'].includes((selectedRun.value?.status || '').toLowerCase()))
+const selectedRunRecoverable = computed(() => !!selectedRun.value?.recoverable || (selectedRun.value?.status || '').toLowerCase() === 'recoverable')
 
 async function loadSessions() {
   sessions.value = await fetchSessions(undefined, 200)
@@ -158,6 +162,18 @@ async function handleSaveTrajectory(completed: boolean) {
   }
 }
 
+async function handleRunControl(command: 'interrupt' | 'background' | 'resume') {
+  if (!selectedRunId.value) return
+  controllingRun.value = command
+  try {
+    await controlRun(selectedRunId.value, command)
+    await loadRunDetail(selectedRunId.value)
+    await loadRecoverableRuns()
+  } finally {
+    controllingRun.value = ''
+  }
+}
+
 async function handleSubagentControl(subagentId: string, command: 'interrupt' | 'pause_spawn' | 'resume_spawn') {
   const key = `${subagentId}:${command}`
   controllingSubagent.value = key
@@ -237,6 +253,34 @@ onMounted(async () => {
         <section class="panel">
           <h3>{{ t('runs.runDetail') }}</h3>
           <div v-if="selectedRun" class="run-detail">
+            <div class="run-control-actions">
+              <Button
+                v-if="selectedRunRecoverable"
+                size="small"
+                type="primary"
+                :loading="controllingRun === 'resume'"
+                @click="handleRunControl('resume')"
+              >
+                {{ t('runs.resumeRun') }}
+              </Button>
+              <Button
+                v-if="selectedRunRunning"
+                size="small"
+                :loading="controllingRun === 'background'"
+                @click="handleRunControl('background')"
+              >
+                {{ t('runs.backgroundRun') }}
+              </Button>
+              <Button
+                v-if="selectedRunRunning"
+                size="small"
+                danger
+                :loading="controllingRun === 'interrupt'"
+                @click="handleRunControl('interrupt')"
+              >
+                {{ t('runs.interruptRun') }}
+              </Button>
+            </div>
             <div class="detail-line">
               <span>{{ t('runs.runId') }}</span>
               <code>{{ selectedRun.run_id }}</code>
@@ -558,6 +602,12 @@ h3 {
   border: 1px solid rgba($border-color, 0.7);
   border-radius: $radius-sm;
   background: rgba($bg-secondary, 0.45);
+}
+
+.run-control-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .detail-line {
