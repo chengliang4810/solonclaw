@@ -645,9 +645,8 @@ export const useChatStore = defineStore('chat', () => {
     if (!activeSession.value) return
     activeSession.value.model = modelId
     activeSession.value.provider = provider || ''
-    // If provider changed, update global config too (Jimuqu requires it)
+    // If provider changed, update global config too.
     if (provider) {
-      const { useAppStore } = await import('./app')
       await useAppStore().switchModel(modelId, provider)
     }
   }

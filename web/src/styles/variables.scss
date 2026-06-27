@@ -1,5 +1,4 @@
-// 黑白水墨 — Pure Ink
-// 纯黑白灰，无彩色
+// shadcn zinc — crisp neutral UI
 // 支持 light / dark 双主题
 
 // ─── CSS Custom Properties ─────────────────────────────────────
@@ -7,105 +6,109 @@
 :root {
   // Backgrounds
   --bg-primary: #fafafa;
-  --bg-secondary: #f0f0f0;
-  --bg-sidebar: #f5f5f5;
+  --bg-secondary: #f4f4f5;
+  --bg-sidebar: #ffffff;
   --bg-card: #ffffff;
-  --bg-card-hover: #fafafa;
+  --bg-card-hover: #f4f4f5;
   --bg-input: #ffffff;
 
   // Borders
-  --border-color: #e0e0e0;
-  --border-light: #ebebeb;
+  --border-color: #e4e4e7;
+  --border-light: #f1f1f3;
 
   // Accent
-  --accent-primary: #333333;
-  --accent-hover: #1a1a1a;
-  --accent-muted: #888888;
+  --accent-primary: #18181b;
+  --accent-hover: #27272a;
+  --accent-muted: #71717a;
 
   // Text
-  --text-primary: #1a1a1a;
-  --text-secondary: #666666;
-  --text-muted: #999999;
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
 
   // Status
-  --success: #2e7d32;
-  --error: #c62828;
-  --warning: #f57f17;
+  --success: #16a34a;
+  --error: #dc2626;
+  --warning: #ea580c;
 
   // Message bubbles
-  --msg-user-bg: #f5f5f5;
-  --msg-assistant-bg: #f5f5f5;
-  --msg-system-border: #bdbdbd;
+  --msg-user-bg: #f4f4f5;
+  --msg-assistant-bg: #ffffff;
+  --msg-system-border: #d4d4d8;
 
   // Code
-  --code-bg: #f4f4f4;
+  --code-bg: #f4f4f5;
 
   // Utility
   --text-on-accent: #ffffff;
   --text-on-overlay: #ffffff;
-  --accent-info: #4a90d9;
+  --accent-info: #2563eb;
+  --focus-ring: rgba(24, 24, 27, 0.16);
 
   // RGB components (for rgba() usage)
-  --accent-primary-rgb: 51, 51, 51;
-  --accent-hover-rgb: 26, 26, 26;
-  --text-primary-rgb: 26, 26, 26;
-  --text-muted-rgb: 153, 153, 153;
-  --success-rgb: 46, 125, 50;
-  --error-rgb: 198, 40, 40;
-  --warning-rgb: 245, 127, 23;
-  --accent-info-rgb: 74, 144, 217;
+  --accent-primary-rgb: 24, 24, 27;
+  --accent-hover-rgb: 39, 39, 42;
+  --text-primary-rgb: 24, 24, 27;
+  --text-muted-rgb: 113, 113, 122;
+  --success-rgb: 22, 163, 74;
+  --error-rgb: 220, 38, 38;
+  --warning-rgb: 234, 88, 12;
+  --accent-info-rgb: 37, 99, 235;
+  --focus-ring-rgb: 24, 24, 27;
 }
 
 .dark {
   // Backgrounds
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #252525;
-  --bg-sidebar: #202020;
-  --bg-card: #333333;
-  --bg-card-hover: #333333;
-  --bg-input: #2a2a2a;
+  --bg-primary: #09090b;
+  --bg-secondary: #18181b;
+  --bg-sidebar: #09090b;
+  --bg-card: #18181b;
+  --bg-card-hover: #27272a;
+  --bg-input: #09090b;
 
   // Borders
-  --border-color: #3a3a3a;
-  --border-light: #333333;
+  --border-color: #27272a;
+  --border-light: #18181b;
 
   // Accent
-  --accent-primary: #e0e0e0;
-  --accent-hover: #f5f5f5;
-  --accent-muted: #888888;
+  --accent-primary: #fafafa;
+  --accent-hover: #e4e4e7;
+  --accent-muted: #a1a1aa;
 
   // Text
-  --text-primary: #f0f0f0;
-  --text-secondary: #c0c0c0;
-  --text-muted: #888888;
+  --text-primary: #fafafa;
+  --text-secondary: #d4d4d8;
+  --text-muted: #a1a1aa;
 
   // Status
-  --success: #66bb6a;
-  --error: #ef5350;
-  --warning: #ffb74d;
+  --success: #22c55e;
+  --error: #f87171;
+  --warning: #fb923c;
 
   // Message bubbles
-  --msg-user-bg: #252525;
-  --msg-assistant-bg: #252525;
-  --msg-system-border: #555555;
+  --msg-user-bg: #27272a;
+  --msg-assistant-bg: #18181b;
+  --msg-system-border: #3f3f46;
 
   // Code
-  --code-bg: #1e1e1e;
+  --code-bg: #18181b;
 
   // Utility
-  --text-on-accent: #1a1a1a;
+  --text-on-accent: #18181b;
   --text-on-overlay: #ffffff;
-  --accent-info: #6ba3d6;
+  --accent-info: #93c5fd;
+  --focus-ring: rgba(250, 250, 250, 0.18);
 
   // RGB components
-  --accent-primary-rgb: 240, 240, 240;
-  --accent-hover-rgb: 245, 245, 245;
-  --text-primary-rgb: 240, 240, 240;
-  --text-muted-rgb: 136, 136, 136;
-  --success-rgb: 102, 187, 106;
-  --error-rgb: 239, 83, 80;
-  --warning-rgb: 255, 183, 77;
-  --accent-info-rgb: 107, 163, 214;
+  --accent-primary-rgb: 250, 250, 250;
+  --accent-hover-rgb: 228, 228, 231;
+  --text-primary-rgb: 250, 250, 250;
+  --text-muted-rgb: 161, 161, 170;
+  --success-rgb: 34, 197, 94;
+  --error-rgb: 248, 113, 113;
+  --warning-rgb: 251, 146, 60;
+  --accent-info-rgb: 147, 197, 253;
+  --focus-ring-rgb: 250, 250, 250;
 }
 
 // ─── SCSS Variables (delegate to CSS custom properties) ────────
@@ -137,6 +140,9 @@ $success: var(--success);
 $error: var(--error);
 $warning: var(--warning);
 $info: $accent-primary;
+$text-on-accent: var(--text-on-accent);
+$text-on-overlay: var(--text-on-overlay);
+$focus-ring: var(--focus-ring);
 
 // Message bubbles
 $msg-user-bg: var(--msg-user-bg);
@@ -158,9 +164,9 @@ $breakpoint-mobile: 768px;
 
 // Radius
 $radius-sm: 6px;
-$radius-md: 10px;
-$radius-lg: 14px;
+$radius-md: 8px;
+$radius-lg: 12px;
 
 // Transition
-$transition-fast: 0.15s ease;
-$transition-normal: 0.25s ease;
+$transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+$transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);

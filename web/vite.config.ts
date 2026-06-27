@@ -15,6 +15,13 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 4000,
+    rolldownOptions: {
+      checks: {
+        invalidAnnotation: false,
+        pluginTimings: false,
+      },
+    },
   },
   optimizeDeps: {
     include: ['monaco-editor'],

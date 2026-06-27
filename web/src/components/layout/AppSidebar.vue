@@ -302,14 +302,14 @@ function handleLogout() {
   border-right: 1px solid $border-color;
   display: flex;
   flex-direction: column;
-  padding: 0 12px 20px;
+  padding: 14px 12px 16px;
   flex-shrink: 0;
   transition: width $transition-normal;
 }
 
 .logo-img {
-  width: 44px;
-  height: 44px;
+  width: 34px;
+  height: 34px;
   border-radius: 0;
   flex-shrink: 0;
   object-fit: contain;
@@ -318,23 +318,20 @@ function handleLogout() {
 .sidebar-logo {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 12px;
-  min-height: 76px;
-  padding: 16px 18px;
-  margin: 0 -12px;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 8px 14px;
+  margin: 0 0 8px;
   color: $text-primary;
   cursor: pointer;
-  background-color: $bg-card;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-
-  .dark & {
-    background-color: #393939;
-  }
+  background-color: transparent;
+  border-bottom: 1px solid $border-color;
+  box-shadow: none;
 
   .logo-text {
-    font-size: 22px;
-    font-weight: 700;
+    font-size: 15px;
+    font-weight: 650;
     line-height: 1;
     letter-spacing: 0;
   }
@@ -344,9 +341,9 @@ function handleLogout() {
 .sidebar-nav {
   flex: 1;
   display: flex;
-  padding-top: 12px;
+  padding-top: 4px;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
   overflow-y: auto;
   min-height: 0;
   scrollbar-width: none;
@@ -359,7 +356,8 @@ function handleLogout() {
 .nav-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
+  margin-top: 6px;
 
   &.nav-group-bottom {
     margin-top: auto;
@@ -369,12 +367,12 @@ function handleLogout() {
 }
 
 .nav-group-label {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: $text-muted;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  padding: 8px 12px 4px;
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 10px 8px 5px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -404,12 +402,14 @@ function handleLogout() {
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
+  gap: 9px;
+  min-height: 36px;
+  padding: 8px 10px;
   border: none;
   background: none;
   color: $text-secondary;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
   border-radius: $radius-sm;
   cursor: pointer;
   transition: all $transition-fast;
@@ -417,13 +417,13 @@ function handleLogout() {
   text-align: left;
 
   &:hover {
-    background-color: rgba(var(--accent-primary-rgb), 0.06);
+    background-color: $bg-card-hover;
     color: $text-primary;
   }
 
   &.active {
-    background-color: rgba(var(--accent-primary-rgb), 0.12);
-    color: $accent-primary;
+    background-color: $accent-primary;
+    color: $text-on-accent;
   }
 }
 
@@ -442,14 +442,14 @@ function handleLogout() {
 }
 
 .sidebar-footer {
-  padding-top: 8px;
+  padding-top: 10px;
   border-top: 1px solid $border-color;
 }
 
 .logout-item {
-  margin: 0 -12px;
-  padding: 10px 12px;
-  border-radius: 0;
+  margin: 0 0 6px;
+  padding: 8px 10px;
+  border-radius: $radius-sm;
   font-size: 13px;
   color: $text-muted;
 
@@ -463,7 +463,7 @@ function handleLogout() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 8px 4px 0;
 }
 
 .status-indicator {

@@ -36,7 +36,7 @@ onMounted(() => {
         size="large"
         :description="t('common.loading')"
       >
-        <Tabs v-model:activeKey="activeTab" type="line" animated>
+        <Tabs v-model:activeKey="activeTab" type="card" animated>
           <TabPane tabKey="account" :tab="t('settings.tabs.account')">
             <AccountSettings />
           </TabPane>

@@ -283,8 +283,7 @@ function buildDeliveryPayload() {
 onMounted(async () => {
   if (props.jobId) {
     try {
-      const { getJob } = await import('@/api/solonclaw/jobs')
-      const job = await getJob(props.jobId)
+      const job = await jobsStore.fetchJob(props.jobId)
       formData.value = {
         name: job.name,
         schedule: '',
