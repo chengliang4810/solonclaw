@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Button, Drawer, Spin, Tag, message } from 'antdv-next'
+import { Button, Drawer, Input, Spin, Tag, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
-import { downloadMedia, fetchMedia, fetchMediaDetail, referenceMedia, refreshMedia, type ChannelMedia } from '@/api/solonclaw/media'
+import { downloadMedia, fetchMedia, fetchMediaDetail, indexMedia, referenceMedia, refreshMedia, type ChannelMedia } from '@/api/solonclaw/media'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
 
 const settingsStore = useSettingsStore()
@@ -12,7 +12,9 @@ const mediaItems = ref<ChannelMedia[]>([])
 const mediaLoading = ref(false)
 const mediaRefreshLoading = ref(false)
 const mediaDownloadLoading = ref(false)
+const mediaIndexLoading = ref(false)
 const mediaReferenceLoading = ref(false)
+const mediaIndexPath = ref('')
 const selectedMediaDetail = ref<ChannelMedia | null>(null)
 const mediaDetailOpen = ref(false)
 
@@ -59,6 +61,22 @@ async function downloadSelectedMedia() {
     message.error(err.message || t('channels.mediaDownloadFailed'))
   } finally {
     mediaDownloadLoading.value = false
+  }
+}
+
+async function handleIndexMedia() {
+  const localPath = mediaIndexPath.value.trim()
+  if (!localPath) return
+  mediaIndexLoading.value = true
+  try {
+    await indexMedia({ localPath })
+    mediaIndexPath.value = ''
+    await loadMedia()
+    message.success(t('channels.mediaIndexReady'))
+  } catch (err: any) {
+    message.error(err.message || t('channels.mediaIndexFailed'))
+  } finally {
+    mediaIndexLoading.value = false
   }
 }
 
@@ -110,6 +128,17 @@ function formatTime(value?: number) {
             <p>{{ t('channels.mediaDescription') }}</p>
           </div>
           <Button size="small" :loading="mediaLoading" @click="loadMedia">{{ t('channels.mediaRefresh') }}</Button>
+        </div>
+        <div class="media-index-row">
+          <Input
+            v-model:value="mediaIndexPath"
+            size="small"
+            :placeholder="t('channels.mediaIndexPlaceholder')"
+            @press-enter="handleIndexMedia"
+          />
+          <Button size="small" type="primary" :loading="mediaIndexLoading" :disabled="!mediaIndexPath.trim()" @click="handleIndexMedia">
+            {{ t('channels.mediaIndexLocal') }}
+          </Button>
         </div>
         <Spin :spinning="mediaLoading" size="small">
           <div v-if="mediaItems.length === 0" class="empty-state">{{ t('channels.mediaEmpty') }}</div>
@@ -192,6 +221,13 @@ function formatTime(value?: number) {
     font-size: 12px;
     color: $text-muted;
   }
+}
+
+.media-index-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .empty-state {
