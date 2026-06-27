@@ -7,6 +7,7 @@ import {
   fetchApprovalStats,
   fetchAlwaysApprovals,
   fetchApprovalHistory,
+  fetchDiagnosticsDoctor,
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
@@ -19,6 +20,7 @@ import {
   type ApprovalAuditEvent,
   type ApprovalHistoryResult,
   type Diagnostics,
+  type DiagnosticsDoctor,
   type PendingApproval,
   type PendingApprovalsResult,
   type PendingSlashConfirm,
@@ -36,6 +38,7 @@ import {
 
 const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
+const doctor = ref<DiagnosticsDoctor | null>(null)
 const insightsOverview = ref<InsightsOverview | null>(null)
 const skillInsights = ref<SkillInsights>({})
 const loading = ref(false)
@@ -490,6 +493,9 @@ const approvalStatItems = computed(() => [
   { label: d('approvalStatBlocked'), value: approvalStats.value?.blocked ?? 0 },
   { label: d('approvalStatPending'), value: approvalStats.value?.pending ?? 0 },
 ])
+const doctorSummary = computed(() => doctor.value?.summary || {})
+const doctorIssues = computed(() => doctor.value?.summary?.issues || [])
+const doctorNextActions = computed(() => doctor.value?.summary?.nextActions || [])
 const insightRuntime = computed(() => insightsOverview.value?.runtime || {})
 const insightSessions = computed(() => insightsOverview.value?.sessions || {})
 const insightSkills = computed(() => insightsOverview.value?.skills || {})
@@ -581,6 +587,7 @@ async function load() {
       loadSlashConfirms(),
     ])
     diagnostics.value = diagnosticsData
+    doctor.value = await fetchDiagnosticsDoctor()
     insightsOverview.value = insightsData
     skillInsights.value = skillInsightData
   } finally {
@@ -794,6 +801,44 @@ onMounted(load)
     </header>
     <Spin :spinning="loading">
       <main class="diagnostics-grid">
+        <section class="panel doctor-panel">
+          <div class="panel-title-row">
+            <h3>{{ t('diagnostics.doctor') }}</h3>
+            <Tag size="small" :color="doctorSummary.issueCount ? 'warning' : 'success'" :bordered="false">
+              {{ doctorSummary.highestSeverity || t('diagnostics.allPassed') }}
+            </Tag>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-item">
+              <span>{{ t('diagnostics.doctorIssues') }}</span>
+              <Tag size="small" :bordered="false">{{ doctorSummary.issueCount ?? 0 }}</Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.doctorWarnings') }}</span>
+              <Tag size="small" :bordered="false">{{ doctorSummary.warningCount ?? 0 }}</Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.doctorPlatforms') }}</span>
+              <Tag size="small" :bordered="false">{{ doctor?.platforms?.length || 0 }}</Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.doctorGeneratedAt') }}</span>
+              <span>{{ doctor?.generated_at || '-' }}</span>
+            </div>
+          </div>
+          <div v-if="doctorIssues.length" class="doctor-list">
+            <div v-for="(issue, index) in doctorIssues.slice(0, 4)" :key="index" class="doctor-item">
+              <Tag size="small" :bordered="false">{{ issue.severity || '-' }}</Tag>
+              <span>{{ issue.message || issue.code || '-' }}</span>
+            </div>
+          </div>
+          <div v-if="doctorNextActions.length" class="doctor-list">
+            <div v-for="action in doctorNextActions.slice(0, 3)" :key="action" class="doctor-item">
+              <Tag size="small" :bordered="false">{{ t('diagnostics.doctorNextAction') }}</Tag>
+              <span>{{ action }}</span>
+            </div>
+          </div>
+        </section>
         <section class="panel">
           <h3>{{ t('diagnostics.runtime') }}</h3>
           <pre>{{ diagnostics?.runtime }}</pre>
@@ -1392,6 +1437,10 @@ onMounted(load)
   grid-column: 1 / -1;
 }
 
+.doctor-panel {
+  grid-column: 1 / -1;
+}
+
 .audit-panel {
   grid-column: 1 / -1;
 }
@@ -1573,6 +1622,25 @@ onMounted(load)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.doctor-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.doctor-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.doctor-item span {
+  overflow-wrap: anywhere;
 }
 
 .probe-grid {

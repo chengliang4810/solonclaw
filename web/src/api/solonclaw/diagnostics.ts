@@ -173,6 +173,22 @@ export interface ApprovalStats {
   pending: number
 }
 
+export interface DiagnosticsDoctor {
+  generated_at?: string
+  workspace_home?: string
+  model?: Record<string, unknown>
+  last_shutdown?: Record<string, unknown>
+  config?: Record<string, unknown>
+  platforms?: Array<Record<string, unknown>>
+  summary?: {
+    issueCount?: number
+    warningCount?: number
+    highestSeverity?: string
+    issues?: Array<Record<string, unknown>>
+    nextActions?: string[]
+  }
+}
+
 export interface ResolveSlashConfirmRequest {
   confirmId: string
   action: 'approve' | 'always' | 'deny'
@@ -203,6 +219,10 @@ export async function fetchDiagnostics(): Promise<Diagnostics> {
 
 export async function fetchApprovalStats(): Promise<ApprovalStats> {
   return request<ApprovalStats>('/api/approval/stats')
+}
+
+export async function fetchDiagnosticsDoctor(): Promise<DiagnosticsDoctor> {
+  return request<DiagnosticsDoctor>('/api/diagnostics/doctor')
 }
 
 export async function auditSecurity(payload: SecurityAuditRequest): Promise<SecurityAuditResult> {
