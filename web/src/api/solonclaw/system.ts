@@ -145,13 +145,6 @@ export async function fetchDetailedHealth(): Promise<DetailedHealthResponse> {
   return request<DetailedHealthResponse>('/health/detailed')
 }
 
-export async function triggerUpdate(): Promise<{ success: boolean; message: string }> {
-  return {
-    success: false,
-    message: '当前后端未开放在线更新',
-  }
-}
-
 function toGroup(provider: ProviderRecord, defaultModel: string): AvailableModelGroup {
   const model = provider.defaultModel || defaultModel || ''
   return {
