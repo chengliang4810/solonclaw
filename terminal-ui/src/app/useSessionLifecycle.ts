@@ -71,6 +71,18 @@ export const hydrateLiveSessionInflight = (inflight?: null | SessionInflightTurn
   turnController.hydrateStreamingText(assistant)
 }
 
+export const lastUserTextFromMessages = (items: Msg[]) => {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]
+
+    if (item?.role === 'user' && item.text.trim()) {
+      return item.text
+    }
+  }
+
+  return ''
+}
+
 const trimTail = (items: Msg[]) => {
   const q = [...items]
 
@@ -272,6 +284,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
           resetSession()
           setSessionStartedAt(r.started_at ? r.started_at * 1000 : Date.now())
           const transcript = [...toTranscriptMessages(r.messages), ...liveSessionInflightMessages(r.inflight)]
+          setLastUserMsg(lastUserTextFromMessages(transcript))
           setHistoryItems(info ? [introMsg(info), ...transcript] : transcript)
           writeActiveSessionFile(r.session_key ?? r.session_id)
           patchUiState({
@@ -322,6 +335,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
               setSessionStartedAt(r.started_at ? r.started_at * 1000 : Date.now())
 
               const resumed = [...toTranscriptMessages(r.messages), ...liveSessionInflightMessages(r.inflight)]
+              setLastUserMsg(lastUserTextFromMessages(resumed))
               setHistoryItems(r.info ? [introMsg(r.info), ...resumed] : resumed)
               writeActiveSessionFile(r.resumed ?? r.session_id)
               patchUiState({

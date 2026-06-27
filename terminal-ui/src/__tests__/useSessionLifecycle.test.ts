@@ -10,6 +10,7 @@ import { patchUiState, resetUiState } from '../app/uiStore.js'
 import {
   hydrateLiveSessionInflight,
   isLiveSessionRunning,
+  lastUserTextFromMessages,
   liveSessionInflightMessages,
   writeActiveSessionFile
 } from '../app/useSessionLifecycle.js'
@@ -70,5 +71,19 @@ describe('live session resume status', () => {
     expect(isLiveSessionRunning(false, 'working')).toBe(true)
     expect(isLiveSessionRunning(true, 'idle')).toBe(true)
     expect(isLiveSessionRunning(false, 'idle')).toBe(false)
+  })
+})
+
+describe('resume retry source', () => {
+  it('uses the last restored user message as the retry source', () => {
+    expect(
+      lastUserTextFromMessages([
+        { role: 'user', text: 'first prompt' },
+        { role: 'assistant', text: 'first answer' },
+        { role: 'tool', text: 'tool output' },
+        { role: 'user', text: 'latest prompt' },
+        { role: 'assistant', text: 'latest answer' }
+      ])
+    ).toBe('latest prompt')
   })
 })
