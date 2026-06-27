@@ -3,7 +3,7 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
-import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -16,7 +16,7 @@ public class DashboardInsightsService {
     private final SkillUsageTracker skillUsageTracker;
 
     /** 保存会话仓储依赖，用于访问持久化数据。 */
-    private final SqliteSessionRepository sessionRepository;
+    private final SessionRepository sessionRepository;
 
     /**
      * 创建控制台洞察服务实例，并注入运行所需依赖。
@@ -28,7 +28,7 @@ public class DashboardInsightsService {
     public DashboardInsightsService(
             AppConfig appConfig,
             SkillUsageTracker skillUsageTracker,
-            SqliteSessionRepository sessionRepository) {
+            SessionRepository sessionRepository) {
         this.appConfig = appConfig;
         this.skillUsageTracker = skillUsageTracker;
         this.sessionRepository = sessionRepository;

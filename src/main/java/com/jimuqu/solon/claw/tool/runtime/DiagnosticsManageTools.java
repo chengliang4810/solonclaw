@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -12,14 +13,14 @@ import org.noear.solon.annotation.Param;
 /** 提供 Dashboard 诊断总览只读查询工具。 */
 public class DiagnosticsManageTools {
     /** Dashboard 诊断服务，用于读取运行、工具、MCP 和安全诊断总览。 */
-    private final DashboardDiagnosticsService diagnosticsService;
+    private final Supplier<DashboardDiagnosticsService> diagnosticsService;
 
     /**
      * 创建诊断总览查询工具。
      *
-     * @param diagnosticsService Dashboard 诊断服务。
+     * @param diagnosticsService Dashboard 诊断服务供应器。
      */
-    public DiagnosticsManageTools(DashboardDiagnosticsService diagnosticsService) {
+    public DiagnosticsManageTools(Supplier<DashboardDiagnosticsService> diagnosticsService) {
         this.diagnosticsService = diagnosticsService;
     }
 
@@ -41,10 +42,11 @@ public class DiagnosticsManageTools {
                             description = "JSON array of environment variable names for subprocess_environment")
                     String namesJson) {
         try {
-            if (diagnosticsService == null) {
+            DashboardDiagnosticsService service = resolveDiagnosticsService();
+            if (service == null) {
                 return ToolResultEnvelope.error("diagnostics service unavailable").toJson();
             }
-            Map<String, Object> result = run(action, namesJson);
+            Map<String, Object> result = run(service, action, namesJson);
             return ToolResultEnvelope.ok("诊断总览查询完成")
                     .preview(SecretRedactor.redact(ONode.serialize(result), 3000))
                     .data("result", result)
@@ -67,7 +69,8 @@ public class DiagnosticsManageTools {
      * @param namesJson 环境变量名 JSON 数组。
      * @return 返回诊断结果。
      */
-    private Map<String, Object> run(String action, String namesJson) {
+    private Map<String, Object> run(
+            DashboardDiagnosticsService service, String action, String namesJson) {
         String normalized =
                 action == null ? "overview" : action.trim().toLowerCase(java.util.Locale.ROOT);
         if ("subprocess_environment".equals(normalized)
@@ -75,9 +78,18 @@ public class DiagnosticsManageTools {
                 || "env".equals(normalized)) {
             Map<String, Object> body = new LinkedHashMap<String, Object>();
             body.put("names", parseNames(namesJson));
-            return diagnosticsService.subprocessEnvironmentProbe(body);
+            return service.subprocessEnvironmentProbe(body);
         }
-        return diagnosticsService.diagnostics();
+        return service.diagnostics();
+    }
+
+    /**
+     * 延迟读取 Dashboard 诊断服务，避免工具注册表创建阶段形成循环依赖。
+     *
+     * @return 返回诊断服务实例，无法解析时返回 null。
+     */
+    private DashboardDiagnosticsService resolveDiagnosticsService() {
+        return diagnosticsService == null ? null : diagnosticsService.get();
     }
 
     /**

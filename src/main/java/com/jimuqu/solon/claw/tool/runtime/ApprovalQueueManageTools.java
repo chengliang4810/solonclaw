@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -13,14 +14,14 @@ import org.noear.solon.annotation.Param;
 /** 提供审批队列和确认队列只读查询工具，复用 Dashboard 诊断服务。 */
 public class ApprovalQueueManageTools {
     /** Dashboard 诊断服务，用于读取 pending/history/always/slash confirm 队列。 */
-    private final DashboardDiagnosticsService diagnosticsService;
+    private final Supplier<DashboardDiagnosticsService> diagnosticsService;
 
     /**
      * 创建审批队列管理工具。
      *
-     * @param diagnosticsService Dashboard 诊断服务。
+     * @param diagnosticsService Dashboard 诊断服务供应器。
      */
-    public ApprovalQueueManageTools(DashboardDiagnosticsService diagnosticsService) {
+    public ApprovalQueueManageTools(Supplier<DashboardDiagnosticsService> diagnosticsService) {
         this.diagnosticsService = diagnosticsService;
     }
 
@@ -45,10 +46,11 @@ public class ApprovalQueueManageTools {
                             description = "Max queue items")
                     Integer limit) {
         try {
-            if (diagnosticsService == null) {
+            DashboardDiagnosticsService service = resolveDiagnosticsService();
+            if (service == null) {
                 return ToolResultEnvelope.error("approval queue service unavailable").toJson();
             }
-            Map<String, Object> result = run(action, limit);
+            Map<String, Object> result = run(service, action, limit);
             return ToolResultEnvelope.ok("审批队列查询完成")
                     .preview(SecretRedactor.redact(ONode.serialize(result), 3000))
                     .data("result", result)
@@ -66,23 +68,24 @@ public class ApprovalQueueManageTools {
      * @param limit 最大返回数量。
      * @return 返回 Dashboard 诊断服务结果。
      */
-    private Map<String, Object> run(String action, Integer limit) throws Exception {
+    private Map<String, Object> run(
+            DashboardDiagnosticsService service, String action, Integer limit) throws Exception {
         String normalized =
                 action == null ? "pending" : action.trim().toLowerCase(Locale.ROOT);
         int safeLimit = limit == null ? 50 : Math.min(Math.max(1, limit.intValue()), 200);
         if ("history".equals(normalized)) {
-            return diagnosticsService.approvalHistory(safeLimit);
+            return service.approvalHistory(safeLimit);
         }
         if ("always".equals(normalized)) {
-            return diagnosticsService.alwaysApprovals(safeLimit);
+            return service.alwaysApprovals(safeLimit);
         }
         if ("slash_confirms".equals(normalized) || "slash-confirms".equals(normalized)) {
-            return diagnosticsService.pendingSlashConfirms(safeLimit);
+            return service.pendingSlashConfirms(safeLimit);
         }
         if ("summary".equals(normalized)) {
-            return summary(safeLimit);
+            return summary(service, safeLimit);
         }
-        return diagnosticsService.pendingApprovals(safeLimit);
+        return service.pendingApprovals(safeLimit);
     }
 
     /**
@@ -91,12 +94,22 @@ public class ApprovalQueueManageTools {
      * @param limit 每类队列的最大读取数量。
      * @return 返回聚合结果。
      */
-    private Map<String, Object> summary(int limit) throws Exception {
+    private Map<String, Object> summary(DashboardDiagnosticsService service, int limit)
+            throws Exception {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("pending", diagnosticsService.pendingApprovals(limit));
-        result.put("history", diagnosticsService.approvalHistory(limit));
-        result.put("always", diagnosticsService.alwaysApprovals(limit));
-        result.put("slash_confirms", diagnosticsService.pendingSlashConfirms(limit));
+        result.put("pending", service.pendingApprovals(limit));
+        result.put("history", service.approvalHistory(limit));
+        result.put("always", service.alwaysApprovals(limit));
+        result.put("slash_confirms", service.pendingSlashConfirms(limit));
         return result;
+    }
+
+    /**
+     * 延迟读取 Dashboard 诊断服务，避免工具注册表创建阶段形成循环依赖。
+     *
+     * @return 返回诊断服务实例，无法解析时返回 null。
+     */
+    private DashboardDiagnosticsService resolveDiagnosticsService() {
+        return diagnosticsService == null ? null : diagnosticsService.get();
     }
 }

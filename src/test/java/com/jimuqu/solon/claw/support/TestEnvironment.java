@@ -396,7 +396,7 @@ public class TestEnvironment {
                         dashboardGatewayDoctorService,
                         dashboardInsightsService,
                         dashboardApprovalEventsService,
-                        dashboardDiagnosticsService,
+                        () -> dashboardDiagnosticsService,
                         dashboardWorkspaceService,
                         dashboardConfigService,
                         dashboardRuntimeConfigService,

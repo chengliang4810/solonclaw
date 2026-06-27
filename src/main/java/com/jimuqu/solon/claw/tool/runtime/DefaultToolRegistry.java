@@ -57,6 +57,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.function.Supplier;
 import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.talent.Talent;
 import org.noear.solon.ai.chat.tool.FunctionTool;
@@ -65,6 +66,7 @@ import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.ai.talents.sys.ShellTalent;
 import org.noear.solon.ai.talents.sys.SystemClockTalent;
 import org.noear.solon.ai.talents.gateway.ToolGatewayTalent;
+import org.noear.solon.Solon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -154,8 +156,8 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** Dashboard 审批事件服务，用于给 Agent 暴露审批事件只读查询。 */
     private final DashboardApprovalEventsService dashboardApprovalEventsService;
 
-    /** Dashboard 诊断服务，用于给 Agent 暴露审批队列只读查询。 */
-    private final DashboardDiagnosticsService dashboardDiagnosticsService;
+    /** Dashboard 诊断服务供应器，用于给 Agent 暴露诊断与审批队列只读查询。 */
+    private final Supplier<DashboardDiagnosticsService> dashboardDiagnosticsService;
 
     /** Dashboard 工作区服务，用于给 Agent 暴露人格工作区只读查询。 */
     private final DashboardWorkspaceService dashboardWorkspaceService;
@@ -340,7 +342,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
+                (Supplier<DashboardDiagnosticsService>) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (DashboardRuntimeConfigService) null,
@@ -1044,7 +1046,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 (DashboardGatewayDoctorService) null,
                 (DashboardInsightsService) null,
                 (DashboardApprovalEventsService) null,
-                (DashboardDiagnosticsService) null,
+                (Supplier<DashboardDiagnosticsService>) null,
                 (DashboardWorkspaceService) null,
                 (DashboardConfigService) null,
                 (DashboardRuntimeConfigService) null,
@@ -1090,7 +1092,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @param dashboardGatewayDoctorService Dashboard Doctor 服务依赖。
      * @param dashboardInsightsService Dashboard 洞察服务依赖。
      * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
-     * @param dashboardDiagnosticsService Dashboard 诊断服务依赖。
+     * @param dashboardDiagnosticsService Dashboard 诊断服务供应器。
      * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
      * @param dashboardConfigService Dashboard 配置服务依赖。
      * @param dashboardRuntimeConfigService Dashboard 工作区配置服务依赖。
@@ -1134,7 +1136,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             DashboardGatewayDoctorService dashboardGatewayDoctorService,
             DashboardInsightsService dashboardInsightsService,
             DashboardApprovalEventsService dashboardApprovalEventsService,
-            DashboardDiagnosticsService dashboardDiagnosticsService,
+            Supplier<DashboardDiagnosticsService> dashboardDiagnosticsService,
             DashboardWorkspaceService dashboardWorkspaceService,
             DashboardConfigService dashboardConfigService,
             DashboardRuntimeConfigService dashboardRuntimeConfigService,
@@ -1175,7 +1177,10 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.dashboardGatewayDoctorService = dashboardGatewayDoctorService;
         this.dashboardInsightsService = dashboardInsightsService;
         this.dashboardApprovalEventsService = dashboardApprovalEventsService;
-        this.dashboardDiagnosticsService = dashboardDiagnosticsService;
+        this.dashboardDiagnosticsService =
+                dashboardDiagnosticsService == null
+                        ? this::resolveDashboardDiagnosticsService
+                        : dashboardDiagnosticsService;
         this.dashboardWorkspaceService = dashboardWorkspaceService;
         this.dashboardConfigService = dashboardConfigService;
         this.dashboardRuntimeConfigService = dashboardRuntimeConfigService;
@@ -1823,6 +1828,19 @@ public class DefaultToolRegistry implements ToolRegistry {
      */
     private boolean isDelegateSourceKey(String sourceKey) {
         return StrUtil.nullToEmpty(sourceKey).contains(":delegate:");
+    }
+
+    /**
+     * 按需解析 Dashboard 诊断服务，避免工具注册表创建时要求诊断服务先完成注入。
+     *
+     * @return 返回 Dashboard 诊断服务，容器尚未就绪时返回 null。
+     */
+    private DashboardDiagnosticsService resolveDashboardDiagnosticsService() {
+        try {
+            return Solon.context().getBean(DashboardDiagnosticsService.class);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     /**

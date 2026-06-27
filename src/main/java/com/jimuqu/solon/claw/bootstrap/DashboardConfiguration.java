@@ -26,7 +26,6 @@ import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
-import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimeMemoryMonitorService;
@@ -547,7 +546,7 @@ public class DashboardConfiguration {
     public DashboardInsightsService dashboardInsightsService(
             AppConfig appConfig,
             SkillUsageTracker skillUsageTracker,
-            SqliteSessionRepository sessionRepository) {
+            SessionRepository sessionRepository) {
         return new DashboardInsightsService(appConfig, skillUsageTracker, sessionRepository);
     }
 
