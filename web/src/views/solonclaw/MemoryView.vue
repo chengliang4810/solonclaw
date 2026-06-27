@@ -132,56 +132,11 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
 
 <style scoped lang="scss">
 @use '@/styles/variables' as *;
+@use '@/styles/memory-editor';
 
 .memory-view {
-  height: calc(100 * var(--vh));
-  display: flex;
-  flex-direction: column;
-}
-
-.memory-content {
-  flex: 1;
-  overflow: hidden;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-}
-
-.memory-loading {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  color: $text-muted;
-}
-
-.memory-sections {
-  flex: 1;
-  min-height: 0;
-
-  &.single {
-    width: 100%;
-  }
-
-  @media (max-width: $breakpoint-mobile) {
-    flex-direction: column;
-  }
-}
-
-.memory-section {
-  flex: 1;
-  min-height: 0;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.page-actions {
-  display: flex;
-  gap: 8px;
+  --memory-section-body-padding: 16px;
+  --memory-section-edit-padding: 12px 16px;
 }
 
 .memory-intro {
@@ -207,51 +162,4 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
   color: $text-muted;
 }
 
-.section-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  min-height: 0;
-}
-
-.empty-text {
-  color: $text-muted;
-  font-style: italic;
-  font-size: 13px;
-}
-
-.section-edit {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 12px 16px;
-  min-height: 0;
-}
-
-.edit-textarea {
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  padding: 12px;
-  border: 1px solid $border-color;
-  border-radius: $radius-sm;
-  background: $bg-input;
-  color: $text-primary;
-  font-family: $font-code;
-  font-size: 13px;
-  line-height: 1.6;
-  resize: none;
-  outline: none;
-
-  &:focus {
-    border-color: $accent-primary;
-  }
-}
-
-.edit-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 10px;
-}
 </style>
