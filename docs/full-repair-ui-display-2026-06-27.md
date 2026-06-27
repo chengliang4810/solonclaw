@@ -117,6 +117,16 @@
    - 改造后：
      - 日记列表加载失败时清空列表、选中路径和正文，并展示错误提示。
      - 切换日记失败时清空正文、回退到原选中路径，并展示错误提示。
+   - 提交：`ce17ec7ba`
+
+10. 日志页失败后清理旧数据
+    - 位置：`web/src/views/solonclaw/LogsView.vue`
+    - 改造前：
+      - 日志刷新失败时会继续展示上一轮日志数据和搜索结果，用户难以判断当前筛选是否真的生效。
+      - 日志文件列表初始化失败没有捕获，会中断页面初始加载流程。
+    - 改造后：
+      - 日志刷新失败时清空当前日志条目和已应用搜索条件，并展示错误提示。
+      - 日志文件列表初始化失败时清空列表并提示错误，后续仍尝试加载当前默认日志。
 
 ## 验证
 
@@ -128,9 +138,11 @@
 - `npm run build --prefix web`：通过。
 - `npm run build --prefix web`：2026-06-27 用量页自动刷新改造后通过。
 - `npm run build --prefix web`：2026-06-27 人格日记加载失败反馈改造后通过。
+- `npm run build --prefix web`：2026-06-27 日志页失败状态清理改造后通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
 - `git diff --check -- web/src/shared/fileDisplay.ts web/tests/fileDisplay.test.ts web/src/components/solonclaw/files/FileContextMenu.vue`：通过。
 - `git diff --check -- web/src/views/solonclaw/UsageView.vue`：通过。
 - `git diff --check -- web/src/views/solonclaw/PersonaDiaryView.vue`：通过。
+- `git diff --check -- web/src/views/solonclaw/LogsView.vue`：通过。
 - `node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('terminal-ui/package.json','utf8')); const l=JSON.parse(fs.readFileSync('terminal-ui/package-lock.json','utf8')); console.log(JSON.stringify({package:p.version, lock:l.version, root:l.packages[''].version}, null, 2)); if (p.version!==l.version || p.version!==l.packages[''].version) process.exit(1)"`：通过，三处版本号均为 `0.0.7`。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。

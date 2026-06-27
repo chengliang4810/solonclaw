@@ -87,14 +87,21 @@ async function loadLogs() {
     entries.value = data.filter((e): e is LogEntry => e !== null)
     appliedSearchQuery.value = query
   } catch (e: any) {
-    message.error(e.message)
+    entries.value = []
+    appliedSearchQuery.value = ''
+    message.error(e?.message || t('common.fetchFailed'))
   } finally {
     loading.value = false
   }
 }
 
 onMounted(async () => {
-  logFiles.value = await fetchLogFiles()
+  try {
+    logFiles.value = await fetchLogFiles()
+  } catch (e: any) {
+    logFiles.value = []
+    message.error(e?.message || t('common.fetchFailed'))
+  }
   await loadLogs()
 })
 </script>
