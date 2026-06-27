@@ -91,6 +91,10 @@ function policyFlags(): string[] {
       </NButton>
     </header>
 
+    <section v-if="jobsStore.error" class="jobs-error">
+      {{ jobsStore.error || t('common.fetchFailed') }}
+    </section>
+
     <section v-if="guide" class="guide-panel" :class="{ expanded: showGuide }">
       <div class="guide-summary">
         <div>
@@ -257,6 +261,17 @@ function policyFlags(): string[] {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+}
+
+.jobs-error {
+  margin: 12px 20px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(var(--error-rgb), 0.24);
+  border-radius: $radius-md;
+  background: rgba(var(--error-rgb), 0.1);
+  color: $error;
+  font-size: 13px;
+  flex-shrink: 0;
 }
 
 .status-panel {

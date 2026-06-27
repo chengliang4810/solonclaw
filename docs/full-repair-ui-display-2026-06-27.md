@@ -150,6 +150,19 @@
       - 模型 store 暴露加载错误状态。
       - 加载失败时清空旧 provider、runtime model、健康状态、默认模型和 fallback 数据。
       - 模型页展示错误提示卡片，避免用户把旧数据当成当前状态。
+    - 提交：`d6bfa3312`
+
+13. 定时任务页加载失败反馈
+    - 位置：
+      - `web/src/stores/solonclaw/jobs.ts`
+      - `web/src/views/solonclaw/JobsView.vue`
+    - 改造前：
+      - 定时任务、即将运行、运行状态、指南策略加载失败时只写入控制台，页面没有错误提示。
+      - 刷新失败后会继续展示上一轮任务、状态或策略数据，容易误导用户。
+    - 改造后：
+      - 定时任务 store 暴露聚合错误状态。
+      - 各加载入口失败时清空对应旧数据，成功重试时只清理对应错误，不会覆盖其他并发失败提示。
+      - 定时任务页展示错误提示卡片，避免用户把旧数据当成当前状态。
 
 ## 验证
 
@@ -164,6 +177,7 @@
 - `npm run build --prefix web`：2026-06-27 日志页失败状态清理改造后通过。
 - `npm run build --prefix web`：2026-06-27 人格文件切换失败清理旧正文改造后通过。
 - `npm run build --prefix web`：2026-06-27 模型页加载失败反馈改造后通过。
+- `npm run build --prefix web`：2026-06-27 定时任务页加载失败反馈改造后通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
 - `git diff --check -- web/src/shared/fileDisplay.ts web/tests/fileDisplay.test.ts web/src/components/solonclaw/files/FileContextMenu.vue`：通过。
 - `git diff --check -- web/src/views/solonclaw/UsageView.vue`：通过。
@@ -171,5 +185,6 @@
 - `git diff --check -- web/src/views/solonclaw/LogsView.vue`：通过。
 - `git diff --check -- web/src/views/solonclaw/PersonaFileView.vue`：通过。
 - `git diff --check -- web/src/stores/solonclaw/models.ts web/src/views/solonclaw/ModelsView.vue`：通过。
+- `git diff --check -- web/src/stores/solonclaw/jobs.ts web/src/views/solonclaw/JobsView.vue docs/full-repair-ui-display-2026-06-27.md`：通过。
 - `node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('terminal-ui/package.json','utf8')); const l=JSON.parse(fs.readFileSync('terminal-ui/package-lock.json','utf8')); console.log(JSON.stringify({package:p.version, lock:l.version, root:l.packages[''].version}, null, 2)); if (p.version!==l.version || p.version!==l.packages[''].version) process.exit(1)"`：通过，三处版本号均为 `0.0.7`。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
