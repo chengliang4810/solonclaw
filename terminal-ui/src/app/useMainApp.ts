@@ -75,6 +75,18 @@ const statusColorOf = (status: string, t: { error: string; muted: string; ok: st
   return t.muted
 }
 
+export function isPositiveRpcAck(value: unknown): boolean {
+  if (!value) {
+    return false
+  }
+
+  if (typeof value === 'object' && 'ok' in value) {
+    return (value as { ok?: unknown }).ok !== false
+  }
+
+  return true
+}
+
 export interface PromptLiveSessionOptions {
   dispatchSubmission: (full: string) => void
   maybeWarn: (value: unknown) => void
@@ -864,8 +876,14 @@ export function useMainApp(gw: GatewayClient) {
   slashRef.current = slash
 
   const respondWith = useCallback(
-    (method: string, params: Record<string, unknown>, done: () => void) => rpc(method, params).then(r => r && done()),
-    [rpc]
+    (method: string, params: Record<string, unknown>, done: () => void) =>
+      rpc(method, params).then(r => {
+        maybeWarn(r)
+        if (isPositiveRpcAck(r)) {
+          done()
+        }
+      }),
+    [maybeWarn, rpc]
   )
 
   const answerApproval = useCallback(

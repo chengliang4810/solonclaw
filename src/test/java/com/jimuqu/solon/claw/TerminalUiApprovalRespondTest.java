@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
 import com.jimuqu.solon.claw.tui.TerminalUiWebSocketListener;
+import java.io.File;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -22,6 +23,80 @@ import org.noear.solon.core.util.MultiMap;
 import org.noear.solon.net.websocket.WebSocket;
 
 class TerminalUiApprovalRespondTest {
+    @Test
+    void approvalRespondRemembersSecurityPolicyForSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        null,
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-policy-approval");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        File outsideFile =
+                new File(System.getProperty("java.io.tmpdir"), "solonclaw-tui-policy-outside.txt");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "write_file",
+                "policy:workspace_outside_write",
+                "工作区外写入需要审批",
+                outsideFile.getAbsolutePath());
+        DangerousCommandApprovalService.PendingApproval pending =
+                env.dangerousCommandApprovalService.listPendingApprovals(agentSession).get(0);
+        String selector = DangerousCommandApprovalService.approvalSelector(pending);
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-policy-session\",\"method\":\"approval.respond\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"approval_id\":\""
+                        + selector
+                        + "\",\"choice\":\"session\"}}");
+
+        SessionRecord refreshed = env.sessionRepository.findById(session.getSessionId());
+        SqliteAgentSession refreshedAgentSession =
+                new SqliteAgentSession(refreshed, env.sessionRepository);
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-policy-session\"")
+                && text.contains("\"ok\":true"));
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionApproved(
+                                refreshedAgentSession,
+                                "write_file",
+                                "policy:workspace_outside_write",
+                                new File(System.getProperty("java.io.tmpdir"), "another-outside.txt")
+                                        .getAbsolutePath()))
+                .isTrue();
+    }
+
     @Test
     void approvalRespondStreamsResumedRunToSocket() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
