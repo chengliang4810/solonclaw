@@ -1356,6 +1356,7 @@ export default {
   logs: {
     title: 'Logs',
     all: 'All',
+    componentPlaceholder: 'Component, e.g. proactive',
     searchPlaceholder: 'Search...',
     refresh: 'Refresh',
     noEntries: 'No log entries',

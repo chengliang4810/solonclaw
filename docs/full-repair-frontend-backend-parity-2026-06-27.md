@@ -71,6 +71,11 @@
 12. 会话轨迹保存
     - 后端接口：`/api/sessions/{id}/trajectory/save`
     - 前端入口：运行页会话轨迹区块新增保存轨迹按钮，用于把当前轨迹样本追加到工作区 artifacts。
+    - 提交：`6818f2edd`
+
+13. 日志组件过滤
+    - 后端接口：`/api/logs?component=...`
+    - 前端入口：日志页新增组件过滤输入，前端日志 API 透传 `component` 参数。
     - 提交：待提交
 
 ## 已补齐的后端接口缺口
@@ -104,6 +109,7 @@
 - `npm run build --prefix web`：2026-06-28 模型运行时富状态入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 检查点预览入口补齐后通过。
 - `npm run build --prefix web`：2026-06-28 会话轨迹保存入口补齐后通过。
+- `npm run build --prefix web`：2026-06-28 日志组件过滤入口补齐后通过。
 - 多次执行 `git diff --check`，通过。
 - `git diff --check -- web/src/components/solonclaw/files/FileToolbar.vue web/src/components/solonclaw/files/FileContextMenu.vue web/src/views/solonclaw/FilesView.vue docs/full-repair-frontend-backend-parity-2026-06-27.md`：通过。
 - 执行 `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`，通过。

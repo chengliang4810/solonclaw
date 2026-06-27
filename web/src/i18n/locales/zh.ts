@@ -1387,6 +1387,7 @@ export default {
     title: '日志',
     description: '这里查看运行日志、访问日志和错误信息，可按日志文件、级别和关键字筛选。',
     all: '全部',
+    componentPlaceholder: '组件，如 proactive',
     searchPlaceholder: '搜索日志内容...',
     refresh: '刷新',
     noEntries: '暂无符合条件的日志记录',

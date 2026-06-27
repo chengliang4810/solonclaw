@@ -12,6 +12,7 @@ const entries = ref<LogEntry[]>([])
 const loading = ref(false)
 const lineCount = ref(100)
 const levelFilter = ref<string>('')
+const componentFilter = ref('')
 const searchQuery = ref('')
 const appliedSearchQuery = ref('')
 
@@ -71,6 +72,7 @@ async function loadLogs() {
     const data = await fetchLogs(selectedLog.value, {
       lines: lineCount.value,
       level: levelFilter.value || undefined,
+      component: componentFilter.value.trim() || undefined,
       query: query || undefined,
     })
     entries.value = data.filter((e): e is LogEntry => e !== null)
@@ -127,6 +129,12 @@ onMounted(async () => {
           size="small"
           class="input-sm"
           @update:value="handleLineCountChange"
+        />
+        <input
+          v-model="componentFilter"
+          class="component-input"
+          :placeholder="t('logs.componentPlaceholder')"
+          @keydown.enter="loadLogs"
         />
         <input
           v-model="searchQuery"
@@ -189,7 +197,8 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
-.search-input {
+.search-input,
+.component-input {
   padding: 4px 10px;
   border: 1px solid $border-color;
   border-radius: $radius-sm;
@@ -202,6 +211,10 @@ onMounted(async () => {
 
   &:focus { border-color: $accent-primary; }
   &::placeholder { color: $text-muted; }
+}
+
+.component-input {
+  width: 132px;
 }
 
 .logs-body {
