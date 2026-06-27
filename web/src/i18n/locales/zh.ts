@@ -1334,6 +1334,13 @@ export default {
     noSummary: '暂无摘要',
     startedAt: '开始：',
     finishedAt: '结束：',
+    improvements: '改进建议',
+    noImprovements: '暂无改进建议',
+    markApplied: '标记已应用',
+    markIgnored: '标记忽略',
+    markAppliedSuccess: '已标记为已应用',
+    markIgnoredSuccess: '已标记为忽略',
+    markFailed: '标记失败',
   },
 
   // 配置

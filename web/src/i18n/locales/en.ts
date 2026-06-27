@@ -1299,6 +1299,13 @@ export default {
     noSummary: 'No summary',
     startedAt: 'Started:',
     finishedAt: 'Finished:',
+    improvements: 'Improvements',
+    noImprovements: 'No improvement suggestions',
+    markApplied: 'Mark applied',
+    markIgnored: 'Mark ignored',
+    markAppliedSuccess: 'Marked as applied',
+    markIgnoredSuccess: 'Marked as ignored',
+    markFailed: 'Failed to mark suggestion',
   },
 
   // Profiles

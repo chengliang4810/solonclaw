@@ -4,17 +4,22 @@ import { Button, Spin, Tag, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import {
   fetchCuratorReport,
+  fetchCuratorImprovements,
   fetchCuratorReports,
+  markCuratorSuggestion,
   runCurator,
+  type CuratorImprovement,
   type CuratorReportDetail,
   type CuratorReportSummary,
 } from '@/api/solonclaw/curator'
 
 const { t } = useI18n()
 const reports = ref<CuratorReportSummary[]>([])
+const improvements = ref<CuratorImprovement[]>([])
 const selected = ref<CuratorReportDetail | null>(null)
 const loading = ref(false)
 const running = ref(false)
+const markingId = ref('')
 
 const selectedJson = computed(() => {
   if (!selected.value) return ''
@@ -35,7 +40,12 @@ function statusColor(status?: string) {
 async function loadReports(selectFirst = false) {
   loading.value = true
   try {
-    reports.value = await fetchCuratorReports(30)
+    const [nextReports, nextImprovements] = await Promise.all([
+      fetchCuratorReports(30),
+      fetchCuratorImprovements(20),
+    ])
+    reports.value = nextReports
+    improvements.value = nextImprovements
     if (selectFirst && reports.value[0]) {
       await selectReport(reports.value[0])
     }
@@ -60,6 +70,19 @@ async function handleRun() {
     message.error(e.message || t('curator.runFailed'))
   } finally {
     running.value = false
+  }
+}
+
+async function handleSuggestion(item: CuratorImprovement, action: 'apply' | 'ignore') {
+  markingId.value = `${item.improvement_id}:${action}`
+  try {
+    await markCuratorSuggestion(item.skill_name, item.summary || item.action || item.improvement_id, action)
+    message.success(action === 'apply' ? t('curator.markAppliedSuccess') : t('curator.markIgnoredSuccess'))
+    improvements.value = await fetchCuratorImprovements(20)
+  } catch (e: any) {
+    message.error(e.message || t('curator.markFailed'))
+  } finally {
+    markingId.value = ''
   }
 }
 
@@ -117,6 +140,31 @@ onMounted(() => loadReports(true))
           </template>
           <div v-else class="empty-state">{{ t('curator.selectReport') }}</div>
         </section>
+
+        <section class="improvement-list">
+          <div class="section-head">
+            <h3>{{ t('curator.improvements') }}</h3>
+            <Tag size="small" :bordered="false">{{ improvements.length }}</Tag>
+          </div>
+          <article v-for="item in improvements" :key="item.improvement_id" class="improvement-row">
+            <div class="report-row-head">
+              <span class="report-id">{{ item.skill_name || '-' }}</span>
+              <Tag size="small" :color="item.needs_review ? 'warning' : 'default'" :bordered="false">
+                {{ item.action || '-' }}
+              </Tag>
+            </div>
+            <p>{{ item.summary || t('curator.noSummary') }}</p>
+            <div class="improvement-actions">
+              <Button size="small" type="text" :loading="markingId === `${item.improvement_id}:apply`" @click="handleSuggestion(item, 'apply')">
+                {{ t('curator.markApplied') }}
+              </Button>
+              <Button size="small" type="text" :loading="markingId === `${item.improvement_id}:ignore`" @click="handleSuggestion(item, 'ignore')">
+                {{ t('curator.markIgnored') }}
+              </Button>
+            </div>
+          </article>
+          <div v-if="!improvements.length && !loading" class="empty-state">{{ t('curator.noImprovements') }}</div>
+        </section>
       </main>
     </Spin>
   </div>
@@ -145,7 +193,8 @@ onMounted(() => loadReports(true))
 }
 
 .report-list,
-.report-detail {
+.report-detail,
+.improvement-list {
   min-height: 0;
   overflow: auto;
   border: 1px solid $border-color;
@@ -206,6 +255,35 @@ onMounted(() => loadReports(true))
 .detail-head h3 {
   font-size: 15px;
   font-family: $font-code;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border-bottom: 1px solid $border-light;
+}
+
+.section-head h3 {
+  font-size: 14px;
+}
+
+.improvement-row {
+  padding: 14px;
+  border-bottom: 1px solid $border-light;
+}
+
+.improvement-row p {
+  margin-top: 8px;
+  color: $text-secondary;
+  font-size: 13px;
+}
+
+.improvement-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .detail-meta {

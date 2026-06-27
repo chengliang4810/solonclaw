@@ -27,9 +27,9 @@
 
 4. 技能改进记录
    - 后端接口：`/api/curator/improvements`、`/api/curator/apply`、`/api/curator/ignore`
-   - 前端入口：技能页侧栏新增技能改进记录，支持标记已应用或忽略。
+   - 前端入口：Curator 页面新增技能改进记录，支持标记已应用或忽略。
    - 说明：后端 `apply/ignore` 当前语义是记录建议状态，不直接修改技能文件；前端文案按“标记”表达。
-   - 提交：`8dafb8740`
+   - 提交：`8dafb8740`、本次提交
 
 5. 平台工具集策略
    - 后端接口：`/api/tools/toolsets`、`/api/tools/platform-toolsets`、`/api/tools/platform-toolsets/{platform}`
@@ -82,7 +82,7 @@
     - 后端接口：`/api/config/diagnostics`、`/api/config/schema`、`/api/config/raw`
     - 前端入口：设置页新增配置诊断卡片式页签，只读展示诊断结果、配置结构和原始配置。
     - 说明：本次只补齐只读诊断入口，不提供原始配置编辑或保存能力，避免绕过现有配置写入边界。
-    - 提交：待提交
+    - 提交：`b31691fc2`
 
 ## 已补齐的后端接口缺口
 
