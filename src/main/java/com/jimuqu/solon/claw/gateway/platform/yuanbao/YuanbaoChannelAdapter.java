@@ -22,7 +22,6 @@ import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;

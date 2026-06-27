@@ -200,7 +200,7 @@ public class DashboardAuthService {
             return;
         }
 
-        if (!isAllowedDashboardOrigin(origin)) {
+        if (!isAllowedDashboardOrigin(context, origin)) {
             return;
         }
 
@@ -257,6 +257,17 @@ public class DashboardAuthService {
      */
     public boolean isAllowedDashboardOrigin(String origin) {
         return isLocalOrigin(origin) || isBoundDashboardOrigin(origin);
+    }
+
+    /**
+     * 判断浏览器请求 Origin 是否允许访问当前 Dashboard 请求入口。
+     *
+     * @param context 当前请求上下文，用于识别实际访问 Host 或反向代理 Host。
+     * @param origin 浏览器提交的 Origin 头。
+     * @return 如果是本机、显式绑定地址或当前请求同源地址则返回 true。
+     */
+    public boolean isAllowedDashboardOrigin(Context context, String origin) {
+        return isAllowedDashboardOrigin(origin) || isSameRequestOrigin(context, origin);
     }
 
     /**
@@ -318,6 +329,85 @@ public class DashboardAuthService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * 判断 Origin 是否与当前请求入口同源，支持直连 Host 与常见反向代理 Host 头。
+     *
+     * @param context 当前请求上下文。
+     * @param origin 浏览器提交的 Origin 头。
+     * @return 如果 scheme、host、port 都匹配当前请求入口则返回 true。
+     */
+    private boolean isSameRequestOrigin(Context context, String origin) {
+        if (context == null || StrUtil.isBlank(origin)) {
+            return false;
+        }
+        try {
+            URI originUri = URI.create(origin);
+            String originScheme = originUri.getScheme();
+            if (!("http".equalsIgnoreCase(originScheme) || "https".equalsIgnoreCase(originScheme))
+                    || StrUtil.isBlank(originUri.getHost())) {
+                return false;
+            }
+            String requestHost = firstHeaderValue(context.header("X-Forwarded-Host"));
+            if (StrUtil.isBlank(requestHost)) {
+                requestHost = firstHeaderValue(context.header("Host"));
+            }
+            if (StrUtil.isBlank(requestHost)) {
+                return false;
+            }
+            String requestScheme =
+                    StrUtil.blankToDefault(firstHeaderValue(context.header("X-Forwarded-Proto")),
+                            context.isSecure() ? "https" : "http");
+            URI requestUri = URI.create(requestScheme + "://" + requestHost.trim());
+            return originUri.getHost().equalsIgnoreCase(requestUri.getHost())
+                    && isCompatibleRequestScheme(originScheme, requestScheme)
+                    && isCompatibleRequestPort(originUri, requestUri);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 判断请求协议是否可视为同一 Dashboard 入口，兼容 TLS 在反向代理层终止但未透传协议头的部署。
+     *
+     * @param originScheme 浏览器 Origin 中的协议。
+     * @param requestScheme 服务端看到的请求协议。
+     * @return 如果协议一致，或仅为 http/https 代理终止差异，则返回 true。
+     */
+    private boolean isCompatibleRequestScheme(String originScheme, String requestScheme) {
+        if (originScheme.equalsIgnoreCase(requestScheme)) {
+            return true;
+        }
+        return ("https".equalsIgnoreCase(originScheme) && "http".equalsIgnoreCase(requestScheme))
+                || ("http".equalsIgnoreCase(originScheme) && "https".equalsIgnoreCase(requestScheme));
+    }
+
+    /**
+     * 判断 Origin 端口与请求 Host 端口是否匹配；Host 未显式带端口时交给浏览器默认端口处理。
+     *
+     * @param originUri 浏览器 Origin URI。
+     * @param requestUri 当前请求入口 URI。
+     * @return 如果端口一致，或请求 Host 没有显式端口，则返回 true。
+     */
+    private boolean isCompatibleRequestPort(URI originUri, URI requestUri) {
+        if (requestUri.getPort() <= 0) {
+            return true;
+        }
+        return normalizeOriginPort(originUri) == normalizeOriginPort(requestUri);
+    }
+
+    /**
+     * 提取代理头中的第一个值，避免多级代理追加列表影响同源判断。
+     *
+     * @param value 原始请求头。
+     * @return 去掉逗号后续内容的首个头值。
+     */
+    private String firstHeaderValue(String value) {
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        return StrUtil.subBefore(value, ",", false).trim();
     }
 
     /**
