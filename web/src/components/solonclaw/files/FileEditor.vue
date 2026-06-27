@@ -21,6 +21,7 @@ const filesStore = useFilesStore()
 const editorContainer = ref<HTMLElement | null>(null)
 let editor: monaco.editor.IStandaloneCodeEditor | null = null
 const saving = ref(false)
+const restoring = ref(false)
 
 onMounted(() => {
   if (!editorContainer.value || !filesStore.editingFile) return
@@ -67,6 +68,32 @@ async function handleSave() {
   }
 }
 
+function syncEditorValue() {
+  if (editor && filesStore.editingFile) {
+    editor.setValue(filesStore.editingFile.content)
+  }
+}
+
+function handleRestore() {
+  Modal.confirm({
+    title: t('files.restoreConfirm'),
+    okText: t('common.confirm'),
+    cancelText: t('common.cancel'),
+    onOk: async () => {
+      restoring.value = true
+      try {
+        await filesStore.restoreEditor()
+        syncEditorValue()
+        message.success(t('files.restored'))
+      } catch {
+        message.error(t('files.restoreFailed'))
+      } finally {
+        restoring.value = false
+      }
+    },
+  })
+}
+
 function handleClose() {
   if (filesStore.hasUnsavedChanges) {
     Modal.confirm({
@@ -90,6 +117,9 @@ function handleClose() {
       <Space>
         <Button size="small" type="primary" :loading="saving" @click="handleSave">
           {{ t('files.saveFile') }}
+        </Button>
+        <Button size="small" danger :loading="restoring" @click="handleRestore">
+          {{ t('files.restoreDefault') }}
         </Button>
         <Button size="small" @click="handleClose">
           {{ t('files.closeEditor') }}

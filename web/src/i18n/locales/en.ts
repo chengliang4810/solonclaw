@@ -1672,6 +1672,10 @@ export default {
     closeEditor: 'Close Editor',
     closePreview: 'Close',
     saveFile: 'Save',
+    restoreDefault: 'Restore default',
+    restoreConfirm: 'Restore the default content for this file? Unsaved changes will be lost.',
+    restored: 'Default content restored',
+    restoreFailed: 'Restore failed',
   },
   // Download
   download: {

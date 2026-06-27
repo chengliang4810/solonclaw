@@ -99,6 +99,13 @@ export async function writeFile(path: string, content: string): Promise<void> {
   })
 }
 
+export async function restoreFile(path: string): Promise<void> {
+  const key = keyForPath(path)
+  await request(`/api/workspace/files/${encodeURIComponent(key)}/restore`, {
+    method: 'POST',
+  })
+}
+
 function unsupported(): never {
   throw new Error('当前后端仅开放工作区文件的读取与保存')
 }

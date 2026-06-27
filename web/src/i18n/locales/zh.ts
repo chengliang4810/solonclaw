@@ -1724,6 +1724,10 @@ export default {
     closeEditor: '关闭编辑器',
     closePreview: '关闭',
     saveFile: '保存',
+    restoreDefault: '恢复默认',
+    restoreConfirm: '确定恢复当前文件默认内容吗？未保存的更改会丢失。',
+    restored: '已恢复默认内容',
+    restoreFailed: '恢复默认失败',
   },
   // 下载
   download: {
