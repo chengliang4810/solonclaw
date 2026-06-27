@@ -71,6 +71,7 @@ export const sessionCommands: SlashCommand[] = [
       ctx.gateway.rpc<BackgroundStartResponse>('prompt.background', { session_id: ctx.sid, text: arg }).then(
         ctx.guarded<BackgroundStartResponse>(r => {
           if (!r.task_id) {
+            ctx.transcript.sys('no active run to move to background')
             return
           }
 
@@ -153,6 +154,10 @@ export const sessionCommands: SlashCommand[] = [
     help: 'attach an image',
     name: 'image',
     run: (arg, ctx) => {
+      if (!arg.trim()) {
+        return ctx.transcript.sys('usage: /image <path>')
+      }
+
       ctx.gateway.rpc<ImageAttachResponse>('image.attach', { path: arg, session_id: ctx.sid }).then(
         ctx.guarded<ImageAttachResponse>(r => {
           ctx.transcript.sys(attachedImageNotice(r))
@@ -405,13 +410,10 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'toggle yolo mode (per-session approvals)',
+    help: 'show approval policy guidance',
     name: 'yolo',
-    run: (_arg, ctx) => {
-      ctx.gateway
-        .rpc<ConfigSetResponse>('config.set', { key: 'yolo', session_id: ctx.sid })
-        .then(ctx.guarded<ConfigSetResponse>(r => ctx.transcript.sys(`yolo ${r.value === '1' ? 'on' : 'off'}`)))
-    }
+    run: (_arg, ctx) =>
+      ctx.transcript.sys('yolo is not available: use explicit approval controls instead')
   },
 
   {

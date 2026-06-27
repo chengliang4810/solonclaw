@@ -5,7 +5,6 @@ import { useEffect, useRef } from 'react'
 import { TYPING_IDLE_MS } from '../config/timing.js'
 import type {
   ApprovalRespondResponse,
-  ConfigSetResponse,
   SecretRespondResponse,
   SudoRespondResponse,
   VoiceRecordResponse
@@ -532,27 +531,11 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
       })
     }
 
-    // Shift-tab flips yolo without spending a turn.
+    // Shift+Tab used to toggle a local yolo flag that did not change the
+    // backend approval policy. Keep the key non-destructive until a real
+    // approval-mode switch exists.
     if (key.shift && key.tab && !cState.completions.length) {
-      if (!live.sid) {
-        return void actions.sys('yolo needs an active session')
-      }
-
-      // gateway.rpc swallows errors with its own sys() message and resolves to null,
-      // so we only speak when it came back with a real shape. null = rpc already spoke.
-      return void gateway.rpc<ConfigSetResponse>('config.set', { key: 'yolo', session_id: live.sid }).then(r => {
-        if (r?.value === '1') {
-          return actions.sys('yolo on')
-        }
-
-        if (r?.value === '0') {
-          return actions.sys('yolo off')
-        }
-
-        if (r) {
-          actions.sys('failed to toggle yolo')
-        }
-      })
+      return void actions.sys('yolo is not available: use explicit approval controls instead')
     }
 
     if (key.tab && cState.completions.length) {

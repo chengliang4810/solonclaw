@@ -395,9 +395,12 @@ export const coreCommands: SlashCommand[] = [
   },
 
   {
-    help: 'attach clipboard image',
+    help: 'paste clipboard text',
     name: 'paste',
-    run: (arg, ctx) => (arg ? ctx.transcript.sys('usage: /paste') : ctx.composer.paste())
+    run: (arg, ctx) =>
+      arg
+        ? ctx.transcript.sys('usage: /paste')
+        : (ctx.transcript.sys('clipboard image paste is not available yet'), ctx.composer.paste())
   },
 
   {
@@ -410,28 +413,39 @@ export const coreCommands: SlashCommand[] = [
         return ctx.transcript.sys('usage: /terminal-setup [auto|vscode|cursor|windsurf]')
       }
 
-      const runner =
-        !target || target === 'auto'
-          ? configureDetectedTerminalKeybindings()
-          : configureTerminalKeybindings(target as 'cursor' | 'vscode' | 'windsurf')
+      patchOverlayState({
+        confirm: {
+          cancelLabel: 'No, leave keybindings unchanged',
+          confirmLabel: 'Yes, configure keybindings',
+          danger: false,
+          detail: 'This may update your IDE keybindings.json for multiline input and undo/redo.',
+          onConfirm: () => {
+            const runner =
+              !target || target === 'auto'
+                ? configureDetectedTerminalKeybindings()
+                : configureTerminalKeybindings(target as 'cursor' | 'vscode' | 'windsurf')
 
-      void runner
-        .then(result => {
-          if (ctx.stale()) {
-            return
-          }
+            void runner
+              .then(result => {
+                if (ctx.stale()) {
+                  return
+                }
 
-          ctx.transcript.sys(result.message)
+                ctx.transcript.sys(result.message)
 
-          if (result.success && result.requiresRestart) {
-            ctx.transcript.sys('restart the IDE terminal for the new keybindings to take effect')
-          }
-        })
-        .catch(error => {
-          if (!ctx.stale()) {
-            ctx.transcript.sys(`terminal setup failed: ${String(error)}`)
-          }
-        })
+                if (result.success && result.requiresRestart) {
+                  ctx.transcript.sys('restart the IDE terminal for the new keybindings to take effect')
+                }
+              })
+              .catch(error => {
+                if (!ctx.stale()) {
+                  ctx.transcript.sys(`terminal setup failed: ${String(error)}`)
+                }
+              })
+          },
+          title: 'Configure terminal keybindings?'
+        }
+      })
     }
   },
 

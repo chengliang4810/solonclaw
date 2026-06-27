@@ -852,6 +852,73 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).toHaveBeenCalledWith('no active session — nothing to rollback')
   })
 
+  it('/rollback <checkpoint> asks for confirmation before restoring', () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve({ success: true }))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/rollback abc123 src/App.vue')
+
+    expect(rpc).not.toHaveBeenCalled()
+    expect(getOverlayState().confirm).toMatchObject({
+      danger: true,
+      title: 'Restore checkpoint?'
+    })
+
+    getOverlayState().confirm?.onConfirm()
+    expect(rpc).toHaveBeenCalledWith('rollback.restore', {
+      file_path: 'src/App.vue',
+      hash: 'abc123',
+      session_id: 'sid-abc'
+    })
+  })
+
+  it('/image requires a path before calling the backend', () => {
+    const rpc = vi.fn(() => Promise.resolve({}))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/image')
+
+    expect(rpc).not.toHaveBeenCalled()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /image <path>')
+  })
+
+  it('/background reports when no active run can be moved to background', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve({ task_id: '' }))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/background summarize this')
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('no active run to move to background')
+    })
+  })
+
+  it('/yolo does not pretend to change approval policy', () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve({ value: '1' }))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/yolo')
+
+    expect(rpc).not.toHaveBeenCalled()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith(
+      'yolo is not available: use explicit approval controls instead'
+    )
+  })
+
+  it('/terminal-setup asks before writing IDE keybindings', () => {
+    const ctx = buildCtx()
+
+    createSlashHandler(ctx)('/terminal-setup vscode')
+
+    expect(getOverlayState().confirm).toMatchObject({
+      danger: false,
+      title: 'Configure terminal keybindings?'
+    })
+  })
+
   it('/title <name> uses session.title RPC and bypasses slash.exec', async () => {
     patchUiState({ sid: 'sid-abc' })
     const rpc = vi.fn(() => Promise.resolve({ pending: false, title: 'my title' }))

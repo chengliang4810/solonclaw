@@ -264,29 +264,40 @@ export const opsCommands: SlashCommand[] = [
 
       const hash = first
       const filePath = rest.join(' ').trim()
-
-      return ctx.gateway
-        .rpc<RollbackRestoreResponse>('rollback.restore', {
-          ...(filePath ? { file_path: filePath } : {}),
-          hash,
-          session_id: ctx.sid
-        })
-        .then(
-          ctx.guarded<RollbackRestoreResponse>(r => {
-            if (!r.success) {
-              return ctx.transcript.sys(`rollback failed: ${r.error || r.message || 'unknown error'}`)
-            }
-
-            const target = filePath || 'workspace'
-            const detail = r.reason || r.message || r.restored_to || 'restored'
-            ctx.transcript.sys(`rollback restored ${target}: ${detail}`)
-
-            if ((r.history_removed ?? 0) > 0) {
-              ctx.transcript.setHistoryItems(prev => ctx.transcript.trimLastExchange(prev))
-            }
+      const restore = () =>
+        ctx.gateway
+          .rpc<RollbackRestoreResponse>('rollback.restore', {
+            ...(filePath ? { file_path: filePath } : {}),
+            hash,
+            session_id: ctx.sid
           })
-        )
-        .catch(ctx.guardedErr)
+          .then(
+            ctx.guarded<RollbackRestoreResponse>(r => {
+              if (!r.success) {
+                return ctx.transcript.sys(`rollback failed: ${r.error || r.message || 'unknown error'}`)
+              }
+
+              const target = filePath || 'workspace'
+              const detail = r.reason || r.message || r.restored_to || 'restored'
+              ctx.transcript.sys(`rollback restored ${target}: ${detail}`)
+
+              if ((r.history_removed ?? 0) > 0) {
+                ctx.transcript.setHistoryItems(prev => ctx.transcript.trimLastExchange(prev))
+              }
+            })
+          )
+          .catch(ctx.guardedErr)
+
+      return patchOverlayState({
+        confirm: {
+          cancelLabel: 'No, keep current files',
+          confirmLabel: 'Yes, restore checkpoint',
+          danger: true,
+          detail: `Checkpoint ${hash}${filePath ? ` · ${filePath}` : ' · entire workspace'}`,
+          onConfirm: restore,
+          title: 'Restore checkpoint?'
+        }
+      })
     }
   },
 
