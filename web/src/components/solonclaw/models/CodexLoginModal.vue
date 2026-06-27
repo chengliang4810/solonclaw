@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onUnmounted } from 'vue'
-import { Modal, Button, message } from 'antdv-next'
+import { Modal, Button, Spin, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { startCodexLogin, pollCodexLogin } from '@/api/solonclaw/codex-auth'
 import { copyToClipboard } from '@/utils/clipboard'

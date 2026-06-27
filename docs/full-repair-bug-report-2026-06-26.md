@@ -98,3 +98,23 @@
 
 1. 阶段 2.3 / 5.2：先补处理状态表情回应的 Dashboard 配置入口，因为它是后端已有能力但 UI 不可见。
 2. 阶段 5.3：再修 TUI Markdown 表格行内格式丢失，因为它属于展示层质量问题，不影响核心处理链。
+
+## BUG-007：Codex 登录弹窗使用 Spin 但未导入
+
+状态：已修复，本次提交
+
+影响范围：
+
+- `web/src/components/solonclaw/models/CodexLoginModal.vue`
+
+根因：
+
+- 模板中使用了 `<Spin>`，但脚本只从 `antdv-next` 导入 `Modal`、`Button` 和 `message`。
+
+修复：
+
+- 从 `antdv-next` 补充导入 `Spin`。
+
+验证：
+
+- `npm run build --prefix web`
