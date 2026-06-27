@@ -90,6 +90,10 @@ export async function reloadAllMcpServers(): Promise<McpReloadAllResult> {
   return request('/api/mcp/reload', { method: 'POST' })
 }
 
+export async function reloadAllMcpServersAsync(): Promise<McpReloadAllResult> {
+  return request('/api/mcp/reload/async', { method: 'POST' })
+}
+
 export async function checkMcpServer(serverId: string): Promise<McpActionResult> {
   return request(`/api/mcp/${serverId}/check`, { method: 'POST' })
 }
