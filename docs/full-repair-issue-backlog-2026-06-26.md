@@ -128,6 +128,8 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 
 ### P0-07：未使用变量门禁不一致
 
+状态：已复核，提交 `f657b6594`
+
 证据文件：
 
 - `terminal-ui/package.json`
@@ -140,11 +142,14 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 
 - `terminal-ui` 有 `npm run lint`，并启用 `eslint-plugin-unused-imports`，但普通未使用变量规则被关闭，主要拦截未使用 import。
 - `web` 通过 `vue-tsc -b && vite build` 验证，`noUnusedLocals` 与 `noUnusedParameters` 已启用，可作为前端未使用变量门禁。
+- `npm run --prefix terminal-ui type-check` 通过，未发现 TypeScript 未使用变量错误。
+- `npm run build --prefix web` 通过，未发现前端未使用变量错误。
+- `npm run --prefix terminal-ui lint` 原有 2 个导入排序 error 已修复，当前剩余为 padding、hooks 与 react-compiler warning，后续按独立问题处理。
 
 归属阶段：
 
-- 阶段 1.3：先运行现有门禁确认真实 warning，再逐项修复。
-- 若 `terminal-ui` 需要覆盖普通未使用变量，应先评估现有 ESLint 配置意图，不直接扩大规则造成大面积噪音。
+- 阶段 1.3：现有未使用变量门禁已复核通过。
+- 暂不扩大 `terminal-ui` ESLint 未使用变量规则，避免把普通变量策略调整与当前 lint error 修复混在同一项。
 
 ### P0-08：缺少明确的代码重复检测工具
 
