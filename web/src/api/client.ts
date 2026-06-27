@@ -1,4 +1,5 @@
 import router from '@/router'
+import { isDashboardOriginRejected } from './dashboardAuthError.ts'
 export {
   clearApiKey,
   getApiKey,
@@ -35,6 +36,12 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
+    if (isDashboardOriginRejected(res.status, text)) {
+      clearApiKey()
+      if (router.currentRoute.value.name !== 'login') {
+        router.replace({ name: 'login' })
+      }
+    }
     throw new Error(`API Error ${res.status}: ${text || res.statusText}`)
   }
 

@@ -117,6 +117,27 @@ public class DashboardAuthFilterTest {
     }
 
     @Test
+    void shouldReturnUnauthorizedBeforeOriginRejectionForMissingToken() throws Throwable {
+        DashboardAuthFilter filter = filter();
+        FakeContext context = new FakeContext("POST", "/api/private");
+        context.requestHeader("Origin", "https://evil.example.com");
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(
+                context,
+                new FilterChain() {
+                    /** 未登录请求应优先返回 401，让前端能够回到登录页。 */
+                    @Override
+                    public void doFilter(Context ctx) {
+                        invoked.set(true);
+                    }
+                });
+
+        assertThat(context.status()).isEqualTo(401);
+        assertThat(invoked).isFalse();
+    }
+
+    @Test
     void shouldAllowUnsafeDashboardWriteFromLocalOrigin() throws Throwable {
         DashboardAuthFilter filter = filter();
         FakeContext context = new FakeContext("POST", "/api/private");

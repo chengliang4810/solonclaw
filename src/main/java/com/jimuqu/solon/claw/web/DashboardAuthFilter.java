@@ -37,27 +37,26 @@ public class DashboardAuthFilter implements Filter {
         }
 
         String path = ctx.path();
-        if (path.startsWith("/api/") && isUnsafeBrowserWriteFromDisallowedOrigin(ctx)) {
-            ctx.status(403);
-            ctx.contentType("application/json;charset=UTF-8");
-            ctx.output(
-                    ONode.serialize(
-                            Collections.singletonMap(
-                                    "detail", "Forbidden dashboard request origin")));
-            return;
-        }
         boolean signedGatewayInjection =
                 "/api/gateway/message".equals(path)
                         && "POST".equalsIgnoreCase(ctx.method())
                         && ctx.header("X-solonclaw-Signature") != null;
-        if (path.startsWith("/api/")
-                && !signedGatewayInjection
-                && !authService.isPublicApiPath(path, ctx.method())
-                && !authService.isAuthorized(ctx)) {
-            ctx.status(401);
-            ctx.contentType("application/json;charset=UTF-8");
-            ctx.output(ONode.serialize(Collections.singletonMap("detail", "Unauthorized")));
-            return;
+        if (path.startsWith("/api/")) {
+            if (!signedGatewayInjection
+                    && !authService.isPublicApiPath(path, ctx.method())
+                    && !authService.isAuthorized(ctx)) {
+                authService.writeUnauthorized(ctx);
+                return;
+            }
+            if (isUnsafeBrowserWriteFromDisallowedOrigin(ctx)) {
+                ctx.status(403);
+                ctx.contentType("application/json;charset=UTF-8");
+                ctx.output(
+                        ONode.serialize(
+                                Collections.singletonMap(
+                                        "detail", "Forbidden dashboard request origin")));
+                return;
+            }
         }
 
         try {

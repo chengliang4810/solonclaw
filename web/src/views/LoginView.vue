@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { setApiKey, hasApiKey } from "@/api/client";
+import { isDashboardOriginRejected } from "@/api/dashboardAuthError";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -34,8 +35,12 @@ async function handleLogin() {
       headers: { Authorization: `Bearer ${key}` },
     });
 
-    if (res.status === 401) {
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
       errorMsg.value = t("login.invalidToken");
+      if (isDashboardOriginRejected(res.status, body)) {
+        errorMsg.value = t("login.connectionFailed");
+      }
       loading.value = false;
       return;
     }
