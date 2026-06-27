@@ -8,6 +8,13 @@ const en = readFileSync(new URL('../src/i18n/locales/en.ts', import.meta.url), '
 
 assert.ok(api.includes('/api/mcp/reload/async'), 'MCP async reload endpoint should be wrapped')
 assert.ok(api.includes('reloadAllMcpServersAsync'), 'MCP async reload wrapper should be exported')
+assert.ok(api.includes('function mcpServerPath(serverId: string)'), 'MCP server path parameters should use one encoding helper')
+assert.equal(
+  (api.match(/mcpServerPath\(serverId\)/g) || []).length,
+  11,
+  'each MCP server action should encode serverId before building the URL',
+)
+assert.ok(!api.includes('/api/mcp/${serverId}'), 'MCP URLs should not interpolate raw serverId path segments')
 assert.ok(view.includes('reloadAllServersAsync'), 'MCP view should expose async reload action')
 assert.ok(view.includes("actionLoading === 'reload-all-async'"), 'MCP view should track async reload loading state separately')
 assert.ok(zh.includes('后台重载'), 'Chinese locale should label async MCP reload')

@@ -94,52 +94,56 @@ export async function reloadAllMcpServersAsync(): Promise<McpReloadAllResult> {
   return request('/api/mcp/reload/async', { method: 'POST' })
 }
 
+function mcpServerPath(serverId: string) {
+  return `/api/mcp/${encodeURIComponent(serverId)}`
+}
+
 export async function checkMcpServer(serverId: string): Promise<McpActionResult> {
-  return request(`/api/mcp/${serverId}/check`, { method: 'POST' })
+  return request(`${mcpServerPath(serverId)}/check`, { method: 'POST' })
 }
 
 export async function connectMcpServer(serverId: string): Promise<McpActionResult> {
-  return request(`/api/mcp/${serverId}/connect`, { method: 'POST' })
+  return request(`${mcpServerPath(serverId)}/connect`, { method: 'POST' })
 }
 
 export async function reloadMcpServer(serverId: string): Promise<McpActionResult> {
-  return request(`/api/mcp/${serverId}/reload`, { method: 'POST' })
+  return request(`${mcpServerPath(serverId)}/reload`, { method: 'POST' })
 }
 
 export async function refreshMcpTools(serverId: string): Promise<McpActionResult> {
-  return request(`/api/mcp/${serverId}/tools/refresh`, { method: 'POST' })
+  return request(`${mcpServerPath(serverId)}/tools/refresh`, { method: 'POST' })
 }
 
 export async function fetchMcpOAuthStatus(serverId: string): Promise<McpOAuthStatus> {
-  return request(`/api/mcp/${serverId}/oauth/status`)
+  return request(`${mcpServerPath(serverId)}/oauth/status`)
 }
 
 export async function beginMcpOAuth(serverId: string, data: Record<string, unknown>): Promise<McpOAuthBeginResult> {
-  return request(`/api/mcp/${serverId}/oauth/begin`, {
+  return request(`${mcpServerPath(serverId)}/oauth/begin`, {
     method: 'POST',
     body: JSON.stringify(data),
   })
 }
 
 export async function completeMcpOAuth(serverId: string, data: Record<string, unknown>) {
-  return request(`/api/mcp/${serverId}/oauth/callback`, {
+  return request(`${mcpServerPath(serverId)}/oauth/callback`, {
     method: 'POST',
     body: JSON.stringify(data),
   })
 }
 
 export async function refreshMcpOAuth(serverId: string) {
-  return request(`/api/mcp/${serverId}/oauth/refresh`, { method: 'POST' })
+  return request(`${mcpServerPath(serverId)}/oauth/refresh`, { method: 'POST' })
 }
 
 export async function handleMcpOAuth401(serverId: string) {
-  return request(`/api/mcp/${serverId}/oauth/handle-401`, { method: 'POST' })
+  return request(`${mcpServerPath(serverId)}/oauth/handle-401`, { method: 'POST' })
 }
 
 export async function clearMcpOAuth(serverId: string) {
-  return request(`/api/mcp/${serverId}/oauth/clear`, { method: 'POST' })
+  return request(`${mcpServerPath(serverId)}/oauth/clear`, { method: 'POST' })
 }
 
 export async function deleteMcpServer(serverId: string) {
-  return request(`/api/mcp/${serverId}`, { method: 'DELETE' })
+  return request(mcpServerPath(serverId), { method: 'DELETE' })
 }
