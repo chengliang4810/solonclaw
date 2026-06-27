@@ -125,6 +125,28 @@ public class BrowserRuntimeServiceTests {
     }
 
     @Test
+    void shouldRefreshLeaseAfterSuccessfulBrowserAction() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(true);
+        RecordingProvider provider = new RecordingProvider(true);
+        BrowserRuntimeService service =
+                new BrowserRuntimeService(
+                        config,
+                        Collections.<BrowserProvider>singletonList(provider),
+                        new SecurityPolicyService(config),
+                        1);
+        BrowserRuntimeService.BrowserResult created = service.create("task-1");
+        long nearExpiry = System.currentTimeMillis() + 1_000L;
+        setLeaseExpiry(service, created.getSessionId(), nearExpiry);
+
+        BrowserRuntimeService.BrowserResult clicked =
+                service.click(created.getSessionId(), "#submit", 8);
+
+        assertThat(clicked.isSuccess()).isTrue();
+        assertThat(readLeaseExpiry(service, created.getSessionId())).isGreaterThan(nearExpiry);
+    }
+
+    @Test
     void shouldRewriteLoopbackNavigationForContainerBrowserProviders() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(true);
@@ -371,6 +393,11 @@ public class BrowserRuntimeServiceTests {
 
     @SuppressWarnings("unchecked")
     private static void expireLease(BrowserRuntimeService service, String sessionId) throws Exception {
+        setLeaseExpiry(service, sessionId, System.currentTimeMillis() - 1000L);
+    }
+
+    private static void setLeaseExpiry(BrowserRuntimeService service, String sessionId, long expiresAt)
+            throws Exception {
         Field leasesField = BrowserRuntimeService.class.getDeclaredField("leases");
         leasesField.setAccessible(true);
         ConcurrentMap<String, Object> leases =
@@ -378,6 +405,19 @@ public class BrowserRuntimeServiceTests {
         Object lease = leases.get(sessionId);
         Field expiresAtField = lease.getClass().getDeclaredField("expiresAtMillis");
         expiresAtField.setAccessible(true);
-        expiresAtField.setLong(lease, System.currentTimeMillis() - 1000L);
+        expiresAtField.setLong(lease, expiresAt);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static long readLeaseExpiry(BrowserRuntimeService service, String sessionId)
+            throws Exception {
+        Field leasesField = BrowserRuntimeService.class.getDeclaredField("leases");
+        leasesField.setAccessible(true);
+        ConcurrentMap<String, Object> leases =
+                (ConcurrentMap<String, Object>) leasesField.get(service);
+        Object lease = leases.get(sessionId);
+        Field expiresAtField = lease.getClass().getDeclaredField("expiresAtMillis");
+        expiresAtField.setAccessible(true);
+        return expiresAtField.getLong(lease);
     }
 }

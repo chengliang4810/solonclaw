@@ -479,8 +479,18 @@ public class BrowserRuntimeService {
                 && !details.containsKey(fallbackKey)) {
             details.put(fallbackKey, sanitizeFallbackValue(fallbackKey, fallbackValue));
         }
+        refreshLease(lease);
         return BrowserResult.success(
                 lease.id, StrUtil.blankToDefault(actionResult.getStatus(), defaultStatus), details);
+    }
+
+    /**
+     * 刷新浏览器租约过期时间，避免活跃会话在固定创建时间后被误判超时。
+     *
+     * @param lease 当前浏览器租约。
+     */
+    private void refreshLease(Lease lease) {
+        lease.expiresAtMillis = System.currentTimeMillis() + DEFAULT_TIMEOUT_SECONDS * 1000L;
     }
 
     /**
@@ -741,7 +751,7 @@ public class BrowserRuntimeService {
         private final BrowserProvider.BrowserSession providerSession;
 
         /** 记录Lease中的expires时间Millis。 */
-        private final long expiresAtMillis;
+        private volatile long expiresAtMillis;
 
         /** 记录Lease中的创建时间。 */
         private final String createdAt = Instant.now().toString();
