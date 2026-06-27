@@ -11,6 +11,7 @@ import {
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
+  fetchPlatformToolsets,
   probeSubprocessEnvironment,
   resolveApproval,
   resolveSlashConfirm,
@@ -26,6 +27,7 @@ import {
   type PendingApprovalsResult,
   type PendingSlashConfirm,
   type PendingSlashConfirmsResult,
+  type PlatformToolsetsOverview,
   type SecurityPolicyProbe,
   type SecurityAuditFinding,
   type SecurityAuditResult,
@@ -53,6 +55,7 @@ const auditResult = ref<SecurityAuditResult | null>(null)
 const policyAuditResult = ref<SecurityAuditResult | null>(null)
 const subprocessEnvProbeResult = ref<SubprocessEnvironmentProbeResult | null>(null)
 const subprocessEnvProbeLoading = ref(false)
+const platformToolsets = ref<PlatformToolsetsOverview | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
 const approvalStats = ref<ApprovalStats | null>(null)
 const pendingApprovalMeta = ref<PendingApprovalsResult | null>(null)
@@ -95,6 +98,7 @@ const securitySurfaces = computed<string[]>(() => {
   const surfaces = policy?.activeSurfaces || securityAuditPolicy.value.activeSurfaces
   return Array.isArray(surfaces) ? surfaces.map((item) => String(item)) : []
 })
+const platformToolsetRows = computed(() => Object.values(platformToolsets.value?.platforms || {}))
 type SecurityMetric = {
   label: string
   value: unknown
@@ -578,6 +582,10 @@ function surfaceLabel(surface: string) {
   return translated === key ? surface : translated
 }
 
+function listText(values?: string[]) {
+  return values?.length ? values.join(', ') : '-'
+}
+
 async function load() {
   loading.value = true
   try {
@@ -593,6 +601,7 @@ async function load() {
     ])
     diagnostics.value = diagnosticsData
     doctor.value = await fetchDiagnosticsDoctor()
+    platformToolsets.value = await fetchPlatformToolsets()
     insightsOverview.value = insightsData
     skillInsights.value = skillInsightData
   } finally {
@@ -874,6 +883,20 @@ onMounted(load)
         <section class="panel">
           <h3>{{ t('diagnostics.toolsAndMcp') }}</h3>
           <pre>{{ diagnostics?.tools }}&#10;{{ diagnostics?.mcp }}</pre>
+        </section>
+        <section class="panel">
+          <h3>{{ t('diagnostics.platformToolsets') }}</h3>
+          <div v-if="platformToolsetRows.length" class="toolset-list">
+            <div v-for="row in platformToolsetRows" :key="row.platform" class="toolset-row">
+              <strong>{{ row.platform }}</strong>
+              <span>{{ t('diagnostics.enabledToolsets') }}: {{ listText(row.enabledToolsets) }}</span>
+              <span>{{ t('diagnostics.disabledToolsets') }}: {{ listText(row.disabledToolsets) }}</span>
+              <Tag size="small" :color="row.approvalRequired ? 'warning' : 'default'" :bordered="false">
+                {{ row.approvalRequired ? t('diagnostics.approvalRequired') : t('diagnostics.approvalNotRequired') }}
+              </Tag>
+            </div>
+          </div>
+          <div v-else class="empty-state">{{ t('diagnostics.noPlatformToolsets') }}</div>
         </section>
         <section class="panel insights-panel">
           <h3>{{ t('diagnostics.insights') }}</h3>
@@ -1683,6 +1706,34 @@ onMounted(load)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.toolset-list {
+  display: grid;
+  gap: 8px;
+}
+
+.toolset-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  padding: 10px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.toolset-row span {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: $breakpoint-mobile) {
+  .toolset-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .doctor-list {

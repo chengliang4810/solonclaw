@@ -77,6 +77,17 @@ export interface SubprocessEnvironmentProbeResult {
   policy?: Record<string, unknown>
 }
 
+export interface PlatformToolsetConfig {
+  platform: string
+  enabledToolsets: string[]
+  disabledToolsets: string[]
+  approvalRequired: boolean
+}
+
+export interface PlatformToolsetsOverview {
+  platforms: Record<string, PlatformToolsetConfig>
+}
+
 export interface PendingApproval {
   session_id: string
   source_ref?: string
@@ -248,6 +259,10 @@ export async function probeSubprocessEnvironment(names: string[]): Promise<Subpr
     method: 'POST',
     body: JSON.stringify({ names }),
   })
+}
+
+export async function fetchPlatformToolsets(): Promise<PlatformToolsetsOverview> {
+  return request<PlatformToolsetsOverview>('/api/tools/platform-toolsets')
 }
 
 export async function fetchPendingApprovals(limit = 100): Promise<PendingApprovalsResult> {
