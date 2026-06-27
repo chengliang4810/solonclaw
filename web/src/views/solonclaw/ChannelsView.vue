@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { Button, Drawer, Spin, Tag } from 'antdv-next'
+import { Button, Drawer, Spin, Tag, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
-import { fetchMedia, fetchMediaDetail, refreshMedia, type ChannelMedia } from '@/api/solonclaw/media'
+import { downloadMedia, fetchMedia, fetchMediaDetail, referenceMedia, refreshMedia, type ChannelMedia } from '@/api/solonclaw/media'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
 
 const settingsStore = useSettingsStore()
@@ -11,6 +11,8 @@ const { t } = useI18n()
 const mediaItems = ref<ChannelMedia[]>([])
 const mediaLoading = ref(false)
 const mediaRefreshLoading = ref(false)
+const mediaDownloadLoading = ref(false)
+const mediaReferenceLoading = ref(false)
 const selectedMediaDetail = ref<ChannelMedia | null>(null)
 const mediaDetailOpen = ref(false)
 
@@ -42,6 +44,36 @@ async function refreshSelectedMedia() {
     mediaItems.value = await fetchMedia('', 30)
   } finally {
     mediaRefreshLoading.value = false
+  }
+}
+
+async function downloadSelectedMedia() {
+  const mediaId = selectedMediaDetail.value?.media_id
+  if (!mediaId) return
+  mediaDownloadLoading.value = true
+  try {
+    selectedMediaDetail.value = await downloadMedia(mediaId)
+    mediaItems.value = await fetchMedia('', 30)
+    message.success(t('channels.mediaDownloadReady'))
+  } catch (err: any) {
+    message.error(err.message || t('channels.mediaDownloadFailed'))
+  } finally {
+    mediaDownloadLoading.value = false
+  }
+}
+
+async function referenceSelectedMedia() {
+  const mediaId = selectedMediaDetail.value?.media_id
+  if (!mediaId) return
+  mediaReferenceLoading.value = true
+  try {
+    selectedMediaDetail.value = await referenceMedia(mediaId)
+    mediaItems.value = await fetchMedia('', 30)
+    message.success(t('channels.mediaReferenceReady'))
+  } catch (err: any) {
+    message.error(err.message || t('channels.mediaReferenceFailed'))
+  } finally {
+    mediaReferenceLoading.value = false
   }
 }
 
@@ -94,9 +126,17 @@ function formatTime(value?: number) {
 
     <Drawer v-model:open="mediaDetailOpen" placement="right" :width="520" :title="t('channels.mediaDetail')">
       <div v-if="selectedMediaDetail" class="media-detail">
-        <Button size="small" :loading="mediaRefreshLoading" @click="refreshSelectedMedia">
-          {{ t('channels.mediaRefreshDetail') }}
-        </Button>
+        <div class="media-actions">
+          <Button size="small" :loading="mediaRefreshLoading" @click="refreshSelectedMedia">
+            {{ t('channels.mediaRefreshDetail') }}
+          </Button>
+          <Button size="small" :loading="mediaDownloadLoading" @click="downloadSelectedMedia">
+            {{ t('channels.mediaDownload') }}
+          </Button>
+          <Button size="small" :loading="mediaReferenceLoading" @click="referenceSelectedMedia">
+            {{ t('channels.mediaMakeReference') }}
+          </Button>
+        </div>
         <div><span>{{ t('channels.mediaStatus') }}</span><strong>{{ selectedMediaDetail.status || '-' }}</strong></div>
         <div><span>ID</span><strong>{{ selectedMediaDetail.media_id }}</strong></div>
         <div><span>{{ t('channels.mediaPlatform') }}</span><strong>{{ selectedMediaDetail.platform || '-' }}</strong></div>
@@ -207,6 +247,12 @@ function formatTime(value?: number) {
     display: grid;
     grid-template-columns: 120px minmax(0, 1fr);
     gap: 12px;
+  }
+
+  .media-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   span {

@@ -35,6 +35,18 @@ export async function refreshMedia(mediaId: string): Promise<ChannelMedia> {
   })
 }
 
+export async function downloadMedia(mediaId: string): Promise<ChannelMedia> {
+  return request<ChannelMedia>(`/api/media/${encodeURIComponent(mediaId)}/download`, {
+    method: 'POST',
+  })
+}
+
+export async function referenceMedia(mediaId: string): Promise<ChannelMedia> {
+  return request<ChannelMedia>(`/api/media/${encodeURIComponent(mediaId)}/reference`, {
+    method: 'POST',
+  })
+}
+
 export async function indexMedia(data: Record<string, unknown>) {
   return request('/api/media/index', {
     method: 'POST',
