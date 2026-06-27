@@ -101,11 +101,6 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   // Public pages don't need auth
   if (to.meta.public) {
-    // Already has key, skip login
-    if (to.name === 'login' && hasApiKey()) {
-      next({ path: '/solonclaw/chat' })
-      return
-    }
     next()
     return
   }

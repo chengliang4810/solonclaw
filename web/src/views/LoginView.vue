@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { dashboardFetch, getBaseUrlValue, handleDashboardAuthFailure, setApiKey, hasApiKey } from "@/api/client";
+import { clearApiKey, dashboardFetch, getApiKey, getBaseUrlValue, handleDashboardAuthFailure, setApiKey, hasApiKey } from "@/api/client";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -14,10 +14,41 @@ const token = ref(urlToken);
 const loading = ref(false);
 const errorMsg = ref("");
 
-// If already has a key, try to go to main page
-if (hasApiKey()) {
-  router.replace("/solonclaw/chat");
+async function validateExistingToken() {
+  const existingKey = (urlToken || getApiKey()).trim();
+  if (!existingKey) {
+    return;
+  }
+
+  loading.value = true;
+  errorMsg.value = "";
+  try {
+    const res = await dashboardFetch(`${getBaseUrlValue()}/api/sessions`, {
+      headers: { Authorization: `Bearer ${existingKey}` },
+    });
+
+    if (res.ok) {
+      router.replace("/solonclaw/chat");
+      return;
+    }
+
+    const body = await res.text().catch(() => "");
+    handleDashboardAuthFailure(res.status, body);
+    clearApiKey();
+    token.value = "";
+  } catch {
+    clearApiKey();
+    token.value = "";
+  } finally {
+    loading.value = false;
+  }
 }
+
+onMounted(async () => {
+  if (hasApiKey()) {
+    await validateExistingToken();
+  }
+});
 
 async function handleLogin() {
   const key = token.value.trim();
