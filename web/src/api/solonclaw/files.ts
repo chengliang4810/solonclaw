@@ -61,6 +61,13 @@ export async function saveWorkspaceFile(key: string, content: string): Promise<v
   })
 }
 
+export async function restoreWorkspaceFile(key: string): Promise<WorkspaceFile> {
+  const res = await request<{ file: WorkspaceFile }>(`/api/workspace/files/${encodeURIComponent(key)}/restore`, {
+    method: 'POST',
+  })
+  return res.file
+}
+
 export async function listFiles(path: string = ''): Promise<{ entries: FileEntry[]; path: string }> {
   if (path) {
     return { entries: [], path }
@@ -105,6 +112,11 @@ export async function readFile(path: string): Promise<{ content: string; path: s
 export async function writeFile(path: string, content: string): Promise<void> {
   const key = keyForPath(path)
   await saveWorkspaceFile(key, content)
+}
+
+export async function restoreFile(path: string): Promise<WorkspaceFile> {
+  const key = keyForPath(path)
+  return restoreWorkspaceFile(key)
 }
 
 export function getFileDownloadUrl(relativePath: string, fileName?: string): string {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
-import { Dropdown, message } from 'antdv-next'
+import { Dropdown, message, Modal } from 'antdv-next'
 import type { MenuProps } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore, isTextFile, isImageFile, isMarkdownFile } from '@/stores/solonclaw/files'
@@ -41,6 +41,7 @@ function getOptions() {
       options.push({ label: t('files.preview'), key: 'preview' })
     }
     options.push({ label: t('files.download'), key: 'download' })
+    options.push({ label: t('files.restoreDefault'), key: 'restoreDefault' })
   }
   options.push({ type: 'divider', key: 'd1' })
   options.push({ label: t('files.copyPath'), key: 'copyPath' })
@@ -68,6 +69,21 @@ async function handleSelect(key: string) {
       break
     case 'download':
       try { await downloadFile(entry.path, entry.name) } catch (err: any) { message.error(err.message) }
+      break
+    case 'restoreDefault':
+      Modal.confirm({
+        title: t('files.confirmRestore', { name: entry.name }),
+        okText: t('common.ok'),
+        cancelText: t('common.cancel'),
+        onOk: async () => {
+          try {
+            await filesStore.restoreFile(entry.path)
+            message.success(t('files.restored'))
+          } catch {
+            message.error(t('files.backendError'))
+          }
+        },
+      })
       break
     case 'copyPath': {
       const ok = await copyToClipboard(entry.path)

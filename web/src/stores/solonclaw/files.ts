@@ -145,6 +145,17 @@ export const useFilesStore = defineStore('files', () => {
     editingFile.value.originalContent = editingFile.value.content
   }
 
+  async function restoreFile(filePath: string) {
+    const restored = await filesApi.restoreFile(filePath)
+    const content = restored.content || ''
+    if (editingFile.value?.path === filePath) {
+      editingFile.value.content = content
+      editingFile.value.originalContent = content
+    }
+    await fetchEntries()
+    return restored
+  }
+
   function closeEditor() { editingFile.value = null }
 
   async function openPreview(entry: FileEntry) {
@@ -177,7 +188,7 @@ export const useFilesStore = defineStore('files', () => {
     editingFile, previewFile,
     pathSegments, sortedEntries, hasUnsavedChanges,
     fetchEntries, navigateTo, navigateUp,
-    openEditor, saveEditor, closeEditor,
+    openEditor, saveEditor, restoreFile, closeEditor,
     openPreview, closePreview,
     setSort,
   }
