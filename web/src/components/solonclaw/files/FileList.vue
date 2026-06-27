@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { NButton, NSpin, NEmpty, useMessage } from 'naive-ui'
 import { useI18n } from 'vue-i18n'
-import { useFilesStore, isImageFile, isMarkdownFile, isTextFile } from '@/stores/solonclaw/files'
+import { useFilesStore, isTextFile } from '@/stores/solonclaw/files'
 import { downloadFile } from '@/api/solonclaw/download'
+import { fileOpenMode } from '@/shared/fileDisplay'
 import type { FileEntry } from '@/api/solonclaw/files'
 
 const { t } = useI18n()
@@ -46,12 +47,14 @@ function getFileIcon(entry: FileEntry): string {
 }
 
 function handleDoubleClick(entry: FileEntry) {
-  if (entry.isDir) {
+  const mode = fileOpenMode(entry)
+
+  if (mode === 'navigate') {
     filesStore.navigateTo(entry.path)
-  } else if (isTextFile(entry.name)) {
-    filesStore.openEditor(entry.path)
-  } else if (isImageFile(entry.name) || isMarkdownFile(entry.name)) {
+  } else if (mode === 'preview') {
     filesStore.openPreview(entry)
+  } else if (mode === 'edit') {
+    filesStore.openEditor(entry.path)
   }
 }
 

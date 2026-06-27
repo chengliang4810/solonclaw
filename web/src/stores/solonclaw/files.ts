@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as filesApi from '@/api/solonclaw/files'
 import type { FileEntry } from '@/api/solonclaw/files'
+import { isImageFileName, isMarkdownFileName, isTextFileName } from '@/shared/fileDisplay'
 
 const EXT_LANG_MAP: Record<string, string> = {
   '.js': 'javascript', '.jsx': 'javascript',
@@ -41,25 +42,16 @@ function getLanguageFromPath(filePath: string): string {
   return EXT_LANG_MAP[ext] || 'plaintext'
 }
 
-const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico'])
-
-function getFileExt(name: string): string {
-  const idx = name.lastIndexOf('.')
-  return idx >= 0 ? name.slice(idx).toLowerCase() : ''
-}
-
 export function isImageFile(name: string): boolean {
-  return IMAGE_EXTS.has(getFileExt(name))
+  return isImageFileName(name)
 }
 
 export function isMarkdownFile(name: string): boolean {
-  const ext = getFileExt(name)
-  return ext === '.md' || ext === '.markdown'
+  return isMarkdownFileName(name)
 }
 
 export function isTextFile(name: string): boolean {
-  const binaryExts = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.ico', '.zip', '.gz', '.tar', '.7z', '.rar', '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.mp3', '.mp4', '.wav', '.webm', '.avi', '.mov', '.exe', '.dll', '.so', '.dylib', '.bin', '.dat', '.db', '.sqlite'])
-  return !binaryExts.has(getFileExt(name))
+  return isTextFileName(name)
 }
 
 // Returns true if `targetPath` is the same as `changedPath` or lives inside it
