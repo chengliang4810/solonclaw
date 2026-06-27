@@ -156,6 +156,20 @@ final class DashboardDiagnosticTestSupport {
     static class FixedDeliveryService implements DeliveryService {
         final List<ChannelStatus> statuses;
 
+        /**
+         * 创建不返回任何渠道状态的测试投递服务，避免用 null 触发可变参数调用歧义。
+         *
+         * @return 无渠道状态的测试投递服务。
+         */
+        static FixedDeliveryService empty() {
+            return new FixedDeliveryService();
+        }
+
+        /**
+         * 创建返回多个渠道状态的测试投递服务。
+         *
+         * @param statuses 测试用渠道状态列表。
+         */
         FixedDeliveryService(ChannelStatus... statuses) {
             if (statuses == null || statuses.length == 0) {
                 this.statuses = Collections.emptyList();

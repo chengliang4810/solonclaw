@@ -90,7 +90,7 @@ public class DashboardDiagnosticOutputTest {
             DashboardDiagnosticsService diagnosticsService =
                     new DashboardDiagnosticsService(
                             config,
-                            new FixedDeliveryService(null),
+                            FixedDeliveryService.empty(),
                             new LlmProviderService(config),
                             new FixedToolRegistry(),
                             null,
@@ -363,7 +363,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardGatewayDoctorService doctorService =
                 new DashboardGatewayDoctorService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new GatewayRuntimeRefreshService(
                                 config, new ChannelConnectionManager(Collections.emptyMap())));
@@ -426,7 +426,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardGatewayDoctorService doctorService =
                 new DashboardGatewayDoctorService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new GatewayRuntimeRefreshService(
                                 config, new ChannelConnectionManager(Collections.emptyMap())));
@@ -490,7 +490,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardGatewayDoctorService doctorService =
                 new DashboardGatewayDoctorService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new GatewayRuntimeRefreshService(
                                 config, new ChannelConnectionManager(Collections.emptyMap())));
@@ -498,7 +498,7 @@ public class DashboardDiagnosticOutputTest {
                 new DashboardDiagnosticsController(
                         new DashboardDiagnosticsService(
                                 config,
-                                new FixedDeliveryService(null),
+                                FixedDeliveryService.empty(),
                                 new LlmProviderService(config),
                                 new FixedToolRegistry(),
                                 null,
@@ -582,7 +582,7 @@ public class DashboardDiagnosticOutputTest {
         ShutdownForensicsService forensicsService = new ShutdownForensicsService(config);
         forensicsService.persistShutdownRecord("SIGTERM token=ghp_shutdownsecret123");
 
-        FixedDeliveryService deliveryService = new FixedDeliveryService(null);
+        FixedDeliveryService deliveryService = FixedDeliveryService.empty();
         GatewayRuntimeRefreshService refreshService =
                 new GatewayRuntimeRefreshService(
                         config, new ChannelConnectionManager(Collections.emptyMap()));
@@ -782,7 +782,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -861,7 +861,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -938,7 +938,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -983,7 +983,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1043,7 +1043,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1097,7 +1097,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1149,7 +1149,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1222,7 +1222,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         new FixedSessionRepository(records),
@@ -1271,7 +1271,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         new FixedSessionRepository(records),
@@ -1312,7 +1312,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         new FixedSessionRepository(records),
@@ -1346,7 +1346,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService missingSessionRepository =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1366,7 +1366,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService missingApprovalService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         new FixedSessionRepository(Collections.<SessionRecord>emptyList()),
@@ -1406,7 +1406,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1433,7 +1433,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1473,7 +1473,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1515,7 +1515,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1546,7 +1546,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1573,7 +1573,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1614,7 +1614,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         new FixedSessionRepository(Collections.singletonList(record)),
@@ -1668,7 +1668,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         new FixedSessionRepository(Collections.singletonList(record)),
@@ -1706,7 +1706,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1770,7 +1770,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         new FixedSessionRepository(Collections.singletonList(record)),
@@ -1825,7 +1825,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         new FixedSessionRepository(Collections.singletonList(record)),
@@ -1882,7 +1882,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1945,7 +1945,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -1989,7 +1989,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -2047,7 +2047,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -2086,7 +2086,7 @@ public class DashboardDiagnosticOutputTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,

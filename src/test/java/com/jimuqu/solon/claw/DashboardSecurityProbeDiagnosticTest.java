@@ -81,7 +81,7 @@ public class DashboardSecurityProbeDiagnosticTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -2889,7 +2889,7 @@ public class DashboardSecurityProbeDiagnosticTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -2927,7 +2927,7 @@ public class DashboardSecurityProbeDiagnosticTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -2982,7 +2982,7 @@ public class DashboardSecurityProbeDiagnosticTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -3018,7 +3018,7 @@ public class DashboardSecurityProbeDiagnosticTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         null,
@@ -3087,7 +3087,7 @@ public class DashboardSecurityProbeDiagnosticTest {
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
                         config,
-                        new FixedDeliveryService(null),
+                        FixedDeliveryService.empty(),
                         new LlmProviderService(config),
                         new FixedToolRegistry(),
                         new FixedSessionRepository(Arrays.asList(record, localRecord)),
