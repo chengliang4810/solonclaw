@@ -470,6 +470,23 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldRejectInvalidSchedulerIntegerBeforeRefreshing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        int previousTimeout = env.appConfig.getScheduler().getScriptTimeoutSeconds();
+        FileUtil.writeUtf8String(
+                "solonclaw:\n  scheduler:\n    scriptTimeoutSeconds: wrong\n",
+                env.appConfig.getRuntime().getConfigFile());
+
+        GatewayRuntimeRefreshService.RefreshResult result =
+                env.gatewayRuntimeRefreshService.refreshConfigOnly();
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getMessage()).contains("solonclaw.scheduler.scriptTimeoutSeconds");
+        assertThat(env.appConfig.getScheduler().getScriptTimeoutSeconds())
+                .isEqualTo(previousTimeout);
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void shouldRetainLastRuntimeRefreshFailureWithRedactedMessage() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

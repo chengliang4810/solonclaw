@@ -2551,8 +2551,7 @@ final class AppConfigLoader {
             try {
                 return Integer.parseInt(String.valueOf(override).trim());
             } catch (Exception e) {
-                log.debug("整型覆盖配置解析失败，使用默认值: key={}, error={}", key, exceptionSummary(e));
-                return defaultValue;
+                throw new IllegalStateException("整型覆盖配置解析失败: key=" + key, e);
             }
         }
         return props.getInt(key, defaultValue);
