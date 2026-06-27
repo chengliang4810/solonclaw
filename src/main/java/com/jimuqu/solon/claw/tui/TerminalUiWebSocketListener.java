@@ -410,7 +410,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                     params.get("session_id").getString(), params.get("title").getString());
         }
         if ("session.compress".equals(method)) {
-            return rpcService.sessionCompress(params.get("session_id").getString());
+            return rpcService.sessionCompress(
+                    params.get("session_id").getString(), params.get("focus_topic").getString());
         }
         if ("session.steer".equals(method)) {
             return rpcService.sessionSteer(

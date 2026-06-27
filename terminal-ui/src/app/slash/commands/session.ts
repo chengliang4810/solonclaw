@@ -337,6 +337,20 @@ export const sessionCommands: SlashCommand[] = [
             return
           }
 
+          if (r.available === false && (action === 'on' || action === 'tts')) {
+            ctx.transcript.sys('Voice mode is not available in this terminal backend.')
+
+            if (r.details) {
+              for (const line of r.details.split('\n')) {
+                if (line.trim()) {
+                  ctx.transcript.sys(`  ${line}`)
+                }
+              }
+            }
+
+            return
+          }
+
           if (action === 'tts') {
             ctx.transcript.sys(`Voice TTS ${r.tts ? 'enabled' : 'disabled'}.`)
 

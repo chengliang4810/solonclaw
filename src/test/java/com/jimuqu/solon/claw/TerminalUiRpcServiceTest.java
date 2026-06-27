@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
+import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -173,6 +175,40 @@ class TerminalUiRpcServiceTest {
         assertThat(service.fullConfig().get("config").toString()).contains("mouse_tracking=off");
     }
 
+    @Test
+    void sessionCompressPassesFocusTopicToCompressionService() throws Exception {
+        AppConfig config = testConfig();
+        SqliteDatabase database = new SqliteDatabase(config);
+        SqliteSessionRepository sessions = new SqliteSessionRepository(database);
+        SessionRecord session = session("session-compress", "MEMORY:terminal-ui:session-compress");
+        sessions.save(session);
+        RecordingCompressionService compression = new RecordingCompressionService();
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        config,
+                        sessions,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        compression,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+
+        service.sessionCompress(session.getSessionId(), "发布流程");
+
+        assertThat(compression.focus).isEqualTo("发布流程");
+    }
+
     private static SessionRecord session(String id, String sourceKey) {
         SessionRecord session = new SessionRecord();
         session.setSessionId(id);
@@ -215,6 +251,34 @@ class TerminalUiRpcServiceTest {
                 active.add(Collections.<String, Object>singletonMap("subagent_id", "sub-" + i));
             }
             return active;
+        }
+    }
+
+    private static class RecordingCompressionService implements ContextCompressionService {
+        private String focus;
+
+        @Override
+        public SessionRecord compressIfNeeded(
+                SessionRecord session, String systemPrompt, String userMessage) {
+            return session;
+        }
+
+        @Override
+        public SessionRecord compressNow(SessionRecord session, String systemPrompt) {
+            return session;
+        }
+
+        @Override
+        public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus) {
+            this.focus = focus;
+            return session;
+        }
+
+        @Override
+        public CompressionOutcome compressNowWithOutcome(
+                SessionRecord session, String systemPrompt, String focus) {
+            this.focus = focus;
+            return CompressionOutcome.skipped(session);
         }
     }
 }

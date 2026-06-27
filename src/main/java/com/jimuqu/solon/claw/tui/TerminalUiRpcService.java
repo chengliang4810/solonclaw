@@ -600,12 +600,18 @@ public class TerminalUiRpcService {
 
     /** 强制压缩当前会话并返回终端 UI /compact 期望的 transcript 更新。 */
     public Map<String, Object> sessionCompress(String sessionId) throws Exception {
+        return sessionCompress(sessionId, "");
+    }
+
+    /** 强制压缩当前会话，并把用户在 /compact 后输入的关注主题传递给摘要生成逻辑。 */
+    public Map<String, Object> sessionCompress(String sessionId, String focusTopic) throws Exception {
         SessionRecord session = findSession(sessionId);
         int beforeMessages = messageCount(session);
         int beforeTokens = session == null ? 0 : (int) session.getCumulativeTotalTokens();
         CompressionOutcome outcome = null;
         if (session != null && contextCompressionService != null) {
-            outcome = contextCompressionService.compressNowWithOutcome(session, "");
+            outcome = contextCompressionService.compressNowWithOutcome(
+                    session, "", StrUtil.nullToEmpty(focusTopic));
             if (outcome != null && outcome.getSession() != null && sessionRepository != null) {
                 session = outcome.getSession();
                 sessionRepository.save(session);
