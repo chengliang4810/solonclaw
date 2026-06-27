@@ -140,6 +140,17 @@ export interface ApprovalStatsResult {
   pending?: number
 }
 
+export interface SubprocessEnvironmentProbeResult {
+  success?: boolean
+  surface?: string
+  summary?: string
+  requested_count?: number
+  requested_names?: string[]
+  decision_categories?: string[]
+  decisions?: Array<Record<string, unknown>>
+  policy?: Record<string, unknown>
+}
+
 export interface ApprovalHistoryResult {
   count: number
   items: ApprovalAuditEvent[]
@@ -236,6 +247,13 @@ export async function fetchApprovalEvents(limit = 50): Promise<ApprovalEventsRes
 
 export async function fetchApprovalStats(): Promise<ApprovalStatsResult> {
   return request<ApprovalStatsResult>('/api/approval/stats')
+}
+
+export async function probeSubprocessEnvironment(names: string[]): Promise<SubprocessEnvironmentProbeResult> {
+  return request<SubprocessEnvironmentProbeResult>('/api/diagnostics/subprocess-environment/probe', {
+    method: 'POST',
+    body: JSON.stringify({ names }),
+  })
 }
 
 export async function fetchAlwaysApprovals(limit = 100): Promise<AlwaysApprovalsResult> {

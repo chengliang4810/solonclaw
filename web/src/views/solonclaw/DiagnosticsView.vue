@@ -11,6 +11,7 @@ import {
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
+  probeSubprocessEnvironment,
   resolveApproval,
   resolveSlashConfirm,
   revokeAlwaysApproval,
@@ -29,6 +30,7 @@ import {
   type SecurityPolicyProbe,
   type SecurityAuditFinding,
   type SecurityAuditResult,
+  type SubprocessEnvironmentProbeResult,
 } from '@/api/solonclaw/diagnostics'
 
 const { t } = useI18n()
@@ -40,8 +42,10 @@ const historyLoading = ref(false)
 const eventsLoading = ref(false)
 const alwaysLoading = ref(false)
 const confirmsLoading = ref(false)
+const subprocessProbeLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
 const policyAuditResult = ref<SecurityAuditResult | null>(null)
+const subprocessProbeResult = ref<SubprocessEnvironmentProbeResult | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
 const pendingApprovalMeta = ref<PendingApprovalsResult | null>(null)
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
@@ -65,6 +69,7 @@ const auditForm = ref({
   writeLike: false,
   argsJson: '',
 })
+const subprocessProbeInput = ref('PATH, HOME, OPENAI_API_KEY')
 const resolvingKey = ref('')
 const revokingAlwaysKey = ref('')
 const resolvingConfirmKey = ref('')
@@ -650,6 +655,19 @@ async function runAudit() {
   }
 }
 
+async function runSubprocessProbe() {
+  const names = subprocessProbeInput.value
+    .split(/[,\n]/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+  subprocessProbeLoading.value = true
+  try {
+    subprocessProbeResult.value = await probeSubprocessEnvironment(names)
+  } finally {
+    subprocessProbeLoading.value = false
+  }
+}
+
 async function handleApproval(item: PendingApproval, action: 'approve' | 'deny', scope: 'once' | 'session' | 'always' = 'once') {
   const approvalSelector = item.selector || item.approval_id || ''
   const key = `${item.session_id}:${approvalSelector}:${action}:${scope}`
@@ -996,6 +1014,52 @@ onMounted(load)
               </div>
             </div>
             <div v-else class="surface-empty">{{ t('diagnostics.noProbeData') }}</div>
+            <div class="subprocess-probe">
+              <div class="coverage-title">
+                <h4>{{ t('diagnostics.subprocessProbe') }}</h4>
+                <Button size="small" type="primary" :loading="subprocessProbeLoading" @click="runSubprocessProbe">
+                  {{ t('diagnostics.subprocessProbeRun') }}
+                </Button>
+              </div>
+              <label>
+                <span>{{ t('diagnostics.subprocessProbeInput') }}</span>
+                <TextArea
+                  v-model:value="subprocessProbeInput"
+                  :autosize="{ minRows: 2, maxRows: 5 }"
+                  :placeholder="t('diagnostics.subprocessProbePlaceholder')"
+                />
+              </label>
+              <div v-if="subprocessProbeResult" class="subprocess-probe-result">
+                <div class="audit-summary">
+                  <Tag size="small" :color="subprocessProbeResult.success === false ? 'error' : 'success'" :bordered="false">
+                    {{ subprocessProbeResult.success === false ? t('diagnostics.abnormal') : t('diagnostics.passed') }}
+                  </Tag>
+                  <span>{{ subprocessProbeResult.summary || t('diagnostics.subprocessProbeEmpty') }}</span>
+                </div>
+                <div class="surface-list">
+                  <Tag v-for="name in subprocessProbeResult.requested_names || []" :key="name" size="small" :bordered="false">
+                    {{ name }}
+                  </Tag>
+                </div>
+                <div v-if="subprocessProbeResult.decisions?.length" class="probe-grid">
+                  <div v-for="(decision, index) in subprocessProbeResult.decisions" :key="index" class="probe-item">
+                    <div class="probe-head">
+                      <strong>{{ decision.name || decision.key || '-' }}</strong>
+                      <Tag size="small" :color="decision.decision === 'allow' || decision.decision === 'force' ? 'success' : 'error'" :bordered="false">
+                        {{ decision.decision || '-' }}
+                      </Tag>
+                    </div>
+                    <div class="probe-meta">
+                      <span>{{ decision.category || '-' }}</span>
+                      <span>{{ decision.visibility || '-' }}</span>
+                    </div>
+                    <p>{{ decision.reason || decision.summary || '-' }}</p>
+                  </div>
+                </div>
+                <pre>{{ subprocessProbeResult.policy }}</pre>
+              </div>
+              <div v-else class="surface-empty">{{ t('diagnostics.subprocessProbeEmpty') }}</div>
+            </div>
           </div>
         </section>
         <section class="panel audit-panel">
@@ -1551,6 +1615,26 @@ onMounted(load)
   font-size: 12px;
   color: $text-muted;
   word-break: break-word;
+}
+
+.subprocess-probe {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.subprocess-probe label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.subprocess-probe-result {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-primary;
+  padding: 10px;
 }
 
 h3 {
