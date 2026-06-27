@@ -1,4 +1,5 @@
 import router from '@/router'
+import { isDashboardOriginRejected } from './dashboardAuthError.ts'
 export {
   clearApiKey,
   getApiKey,
@@ -8,6 +9,31 @@ export {
   setServerUrl,
 } from './sessionAuth.ts'
 import { clearApiKey, getApiKey, getBaseUrlValue } from './sessionAuth.ts'
+
+export function redirectToLogin() {
+  clearApiKey()
+  if (router.currentRoute.value.name !== 'login') {
+    router.replace({ name: 'login' })
+  }
+}
+
+export function handleDashboardAuthFailure(status: number, body: string): boolean {
+  if (status === 401 || isDashboardOriginRejected(status, body)) {
+    redirectToLogin()
+    return true
+  }
+  return false
+}
+
+export async function dashboardFetch(input: RequestInfo | URL, options: RequestInit = {}): Promise<Response> {
+  const res = await fetch(input, options)
+  if (res.ok) {
+    return res
+  }
+  const text = await res.clone().text().catch(() => '')
+  handleDashboardAuthFailure(res.status, text)
+  return res
+}
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const base = getBaseUrlValue()
@@ -23,18 +49,17 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     headers.set('Authorization', `Bearer ${apiKey}`)
   }
 
-  const res = await fetch(url, { ...options, headers })
+  const res = await dashboardFetch(url, { ...options, headers })
 
   if (res.status === 401) {
-    clearApiKey()
-    if (router.currentRoute.value.name !== 'login') {
-      router.replace({ name: 'login' })
-    }
     throw new Error('Unauthorized')
   }
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
+    if (handleDashboardAuthFailure(res.status, text)) {
+      throw new Error('Unauthorized')
+    }
     throw new Error(`API Error ${res.status}: ${text || res.statusText}`)
   }
 

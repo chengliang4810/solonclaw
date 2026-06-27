@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { setApiKey, hasApiKey } from "@/api/client";
+import { dashboardFetch, getBaseUrlValue, handleDashboardAuthFailure, setApiKey, hasApiKey } from "@/api/client";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -30,12 +30,16 @@ async function handleLogin() {
   errorMsg.value = "";
 
   try {
-    const res = await fetch("/api/sessions", {
+    const res = await dashboardFetch(`${getBaseUrlValue()}/api/sessions`, {
       headers: { Authorization: `Bearer ${key}` },
     });
 
-    if (res.status === 401) {
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
       errorMsg.value = t("login.invalidToken");
+      if (res.status !== 401 && handleDashboardAuthFailure(res.status, body)) {
+        errorMsg.value = t("login.connectionFailed");
+      }
       loading.value = false;
       return;
     }
