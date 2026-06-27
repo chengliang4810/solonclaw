@@ -2,15 +2,15 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import static com.jimuqu.solon.claw.DashboardDiagnosticTestSupport.FixedDeliveryService;
+
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
-import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
-import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
@@ -527,22 +527,6 @@ public class DashboardStatusServiceTest {
 
         assertThat(modelInfo.get("model")).isEqualTo("custom-text-model");
         assertThat(capabilities.get("supports_vision")).isEqualTo(Boolean.FALSE);
-    }
-
-    private static class FixedDeliveryService implements DeliveryService {
-        private final ChannelStatus status;
-
-        private FixedDeliveryService(ChannelStatus status) {
-            this.status = status;
-        }
-
-        @Override
-        public void deliver(DeliveryRequest request) {}
-
-        @Override
-        public List<ChannelStatus> statuses() {
-            return Collections.singletonList(status);
-        }
     }
 
     private static class FixedUpdateService extends AppUpdateService {
