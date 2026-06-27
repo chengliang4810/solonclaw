@@ -558,6 +558,19 @@
       - 只新增只读诊断，不增加命令执行、外部访问或配置写入能力。
     - 提交：`9b124d788`
 
+36. 更新 TUI 品牌图案
+    - 位置：
+      - `terminal-ui/src/banner.ts`
+      - `terminal-ui/src/__tests__/banner.test.ts`
+    - 改造前：
+      - 顶部大标题源码已渲染为 `SOLON CLAW` 字间距版本，并已有无连字符测试覆盖。
+      - `Available Tools` 左侧的会话 hero 仍是旧蛇杖/螺旋状块图案，与 Solon favicon 不一致。
+    - 改造后：
+      - 保留顶部 `SOLON CLAW` 无连字符标题。
+      - 将会话 hero 替换为 Solon favicon 的终端块状近似图案，不引入图片渲染依赖。
+      - 更新单测，要求 hero 包含圆环/中空结构并排除旧蛇杖图案关键行。
+    - 提交：`c5e872f40`
+
 ## 验证
 
 - `mvn -Dskip.web.build=true -Dtest=GoalServiceTest test`：通过。
@@ -601,6 +614,7 @@
 - `mvn -Dskip.web.build=true -Dtest=MemoryAndSkillsTest#shouldPreprocessSkillTemplateVarsBeforeSkillView+shouldToggleSkillVisibilityThroughNaturalLanguageTool+shouldListSkillSupportFilesThroughNaturalLanguageTool+shouldFilterPromptAndSkillToolsByAgentSkills,ToolRegistryExposureTest#shouldExposeBuiltinSearchTools+shouldExposeToolsetsManagementToolForNaturalLanguageToolsetInspection+shouldInspectDashboardToolsetsThroughNaturalLanguageTool test`：通过。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldProbeSubprocessEnvironmentThroughNaturalLanguageDiagnosticsTool test`：先红后绿。
 - `mvn -Dskip.web.build=true -Dtest=ToolRegistryExposureTest#shouldExposeDiagnosticsManagementToolForNaturalLanguageDiagnosticsInspection+shouldInspectDashboardDiagnosticsThroughNaturalLanguageTool+shouldProbeSubprocessEnvironmentThroughNaturalLanguageDiagnosticsTool+shouldExposeApprovalQueueManagementToolForNaturalLanguageApprovalInspection+shouldInspectApprovalQueuesThroughNaturalLanguageTool,DashboardDiagnosticOutputTest#shouldRedactGatewayDoctorAndDiagnosticsOutput test`：通过。
+- `npm test --prefix terminal-ui -- banner.test.ts`：先红后绿，通过。
 - `git diff --check`：相关文件检查通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
