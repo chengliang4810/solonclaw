@@ -243,6 +243,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     private void handleChatSend(WebSocket socket, ONode payload) throws Exception {
         String sessionId = payload.get("session_id").getString();
         bindApprovalObserver(socket, sessionId);
+        bindRuntimeSource(sessionId);
         String input = payload.get("input").getString();
         if (StrUtil.isBlank(input)) {
             send(socket, "error", pair("message", "input must not be blank"));
@@ -300,6 +301,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     private void handlePromptSubmit(WebSocket socket, String id, ONode params) throws Exception {
         String sessionId = params.get("session_id").getString();
         bindApprovalObserver(socket, sessionId);
+        bindRuntimeSource(sessionId);
         String input = params.get("text").getString();
         if (StrUtil.isBlank(input)) {
             sendRpcResult(socket, id, rpcService.ok());

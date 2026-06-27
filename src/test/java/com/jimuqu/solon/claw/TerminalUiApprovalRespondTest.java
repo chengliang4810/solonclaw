@@ -387,6 +387,81 @@ class TerminalUiApprovalRespondTest {
                 && text.contains("echo:resume"));
     }
 
+    @Test
+    void promptSubmitUsesProvidedTuiSessionBeforeCheckingPendingApprovals() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        null,
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:terminal-ui:imported-without-active-binding");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf workspace/cache");
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onOpen(socket);
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-submit\",\"method\":\"prompt.submit\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"text\":\"继续执行\"}}");
+
+        waitForSocketText(socket, "\"type\":\"error\"", 2000L);
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-submit\"")
+                && text.contains("\"ok\":true"));
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"error\"")
+                && text.contains("approve session"));
+        assertThat(socket.sentText()).noneMatch(text -> text.contains("echo:继续执行"));
+    }
+
+    /** 等待后台 prompt.submit 线程把预期帧写入测试 socket。 */
+    private static void waitForSocketText(RecordingSocket socket, String expected, long timeoutMs)
+            throws Exception {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        while (System.currentTimeMillis() < deadline) {
+            for (String text : socket.sentText()) {
+                if (text.contains(expected)) {
+                    return;
+                }
+            }
+            Thread.sleep(20L);
+        }
+    }
+
     /** 收集 WebSocket 文本帧，避免测试依赖真实网络连接。 */
     private static final class RecordingSocket implements WebSocket {
         /** 已发送文本帧。 */
