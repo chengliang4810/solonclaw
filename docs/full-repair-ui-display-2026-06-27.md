@@ -59,6 +59,19 @@
      - 单测改为约束 favicon 轮廓关键行，并继续排除旧图案关键行。
    - 提交：`bae710bca`
 
+5. 文件右键菜单打开模式统一
+   - 位置：
+     - `web/src/components/solonclaw/files/FileContextMenu.vue`
+     - `web/src/shared/fileDisplay.ts`
+     - `web/tests/fileDisplay.test.ts`
+   - 改造前：
+     - 文件列表双击已使用统一打开模式，但右键菜单仍单独判断文本、图片、Markdown。
+     - Markdown 文件右键会同时出现编辑和预览，和双击优先预览不一致。
+   - 改造后：
+     - 新增 `fileContextPrimaryAction`，复用 `fileOpenMode` 生成右键菜单主操作。
+     - 目录显示打开，图片和 Markdown 显示预览，普通文本显示编辑，二进制文件只保留下载等通用操作。
+   - 提交：`16075d8d3`
+
 ## 验证
 
 - `npm test --prefix terminal-ui -- markdown.test.ts`：通过，43 个测试通过。
@@ -68,6 +81,7 @@
 - `npm run --prefix web test:file-display`：通过。
 - `npm run build --prefix web`：通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
+- `git diff --check -- web/src/shared/fileDisplay.ts web/tests/fileDisplay.test.ts web/src/components/solonclaw/files/FileContextMenu.vue`：通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
 ## 剩余风险
