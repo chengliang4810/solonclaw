@@ -374,19 +374,20 @@ const renderTable = (k: number, rows: string[][], t: Theme, cols?: number) => {
   const isHard = totalMin > availableWidth // tier 3 needs hard word breaks
   const sep = columnWidths.map(w => '─'.repeat(Math.max(1, w))).join('  ')
 
-  // When wrapping isn't needed, build single-line strings per row.
-  // All cells render as plain text via stripInlineMarkup.
-  // TODO: follow-up — format to ANSI then wrap with wrapAnsi for inline markdown preservation.
-  // See free-code/src/components/MarkdownTable.tsx L44-L62 for approach.
+  // When wrapping isn't needed, keep cells as inline Markdown nodes and only
+  // use stripped text for visible-width padding.
   if (!needsWrap) {
-    const buildRowString = (row: string[]): string =>
-      row.map((cell, ci) => {
+    const buildRow = (row: string[]): ReactNode[] =>
+      row.flatMap((cell, ci) => {
         const text = stripInlineMarkup(cell)
         const pad = ' '.repeat(Math.max(0, columnWidths[ci]! - stringWidth(text)))
         const gap = ci < numCols - 1 ? '  ' : ''
 
-        return text + pad + gap
-      }).join('')
+        return [
+          <MdInline key={`${ci}:cell`} t={t} text={cell} />,
+          pad + gap
+        ]
+      })
 
     return (
       <Box flexDirection="column" key={k} paddingLeft={TABLE_PADDING_LEFT}>
@@ -397,7 +398,7 @@ const renderTable = (k: number, rows: string[][], t: Theme, cols?: number) => {
               color={ri === 0 ? t.color.accent : undefined}
               wrap="truncate-end"
             >
-              {buildRowString(row)}
+              {buildRow(row)}
             </Text>
             {ri === 0 && normalizedRows.length > 1 ? (
               <Text color={t.color.muted} dimColor wrap="truncate-end">{sep}</Text>
