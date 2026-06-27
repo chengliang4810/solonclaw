@@ -1,0 +1,25 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+const systemApi = readFileSync(new URL('../src/api/solonclaw/system.ts', import.meta.url), 'utf8')
+const store = readFileSync(new URL('../src/stores/solonclaw/models.ts', import.meta.url), 'utf8')
+const view = readFileSync(new URL('../src/views/solonclaw/ModelsView.vue', import.meta.url), 'utf8')
+const card = readFileSync(new URL('../src/components/solonclaw/models/ProviderCard.vue', import.meta.url), 'utf8')
+const zh = readFileSync(new URL('../src/i18n/locales/zh.ts', import.meta.url), 'utf8')
+const en = readFileSync(new URL('../src/i18n/locales/en.ts', import.meta.url), 'utf8')
+
+assert.ok(systemApi.includes('validateProvider'), 'system API should expose provider validation')
+assert.ok(systemApi.includes("'/api/providers/validate'"), 'provider validation should call backend validate endpoint')
+assert.ok(systemApi.includes('fetchModelsHealth'), 'system API should expose model health fetch')
+assert.ok(systemApi.includes("'/api/models/health'"), 'model health should call backend health endpoint')
+assert.ok(store.includes('providerHealth'), 'models store should keep provider health by provider key')
+assert.ok(view.includes('modelsStore.fetchModelsHealth()'), 'models page should fetch static provider health')
+assert.ok(card.includes('modelsStore.validateProvider'), 'provider card should trigger validation through the store')
+assert.ok(card.includes("providerKey: props.provider.providerKey || props.provider.provider"), 'validation should send provider key')
+assert.ok(card.includes("t('models.health.configured')"), 'provider card should render health labels')
+assert.ok(card.includes("t('models.validateProvider')"), 'provider card should render validation action')
+assert.ok(card.includes('validationResult'), 'provider card should render last validation result')
+assert.ok(zh.includes("validateProvider: '校验'"), 'Chinese locale should include validation action')
+assert.ok(zh.includes("healthStatus: '健康状态'"), 'Chinese locale should include health label')
+assert.ok(en.includes("validateProvider: 'Validate'"), 'English locale should include validation action')
+assert.ok(en.includes("healthStatus: 'Health'"), 'English locale should include health label')

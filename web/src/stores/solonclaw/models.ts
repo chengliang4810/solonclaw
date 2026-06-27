@@ -1,7 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import * as systemApi from '@/api/solonclaw/system'
-import type { AvailableModelGroup, CustomProvider, FallbackProvider } from '@/api/solonclaw/system'
+import type {
+  AvailableModelGroup,
+  CustomProvider,
+  FallbackProvider,
+  ProviderValidationRequest,
+  ProviderValidationResponse,
+  ModelsHealthProvider,
+} from '@/api/solonclaw/system'
 import { useAppStore } from './app'
 
 export const useModelsStore = defineStore('models', () => {
@@ -11,6 +18,7 @@ export const useModelsStore = defineStore('models', () => {
   const defaultModel = ref('')
   const defaultProvider = ref('')
   const loading = ref(false)
+  const providerHealth = ref<Record<string, ModelsHealthProvider>>({})
 
   const allModels = computed(() =>
     providers.value.flatMap(g =>
@@ -59,6 +67,15 @@ export const useModelsStore = defineStore('models', () => {
     return systemApi.fetchProviderModels(data)
   }
 
+  async function fetchModelsHealth() {
+    const res = await systemApi.fetchModelsHealth()
+    providerHealth.value = Object.fromEntries(res.providers.map(item => [item.provider, item]))
+  }
+
+  async function validateProvider(data: ProviderValidationRequest): Promise<ProviderValidationResponse> {
+    return systemApi.validateProvider(data)
+  }
+
   async function updateProvider(providerKey: string, data: {
     name?: string
     baseUrl?: string
@@ -92,11 +109,14 @@ export const useModelsStore = defineStore('models', () => {
     defaultModel,
     defaultProvider,
     loading,
+    providerHealth,
     allModels,
     fetchProviders,
     setDefaultModel,
     addProvider,
     fetchProviderModels,
+    fetchModelsHealth,
+    validateProvider,
     updateProvider,
     saveFallbackProviders,
     removeProvider,
