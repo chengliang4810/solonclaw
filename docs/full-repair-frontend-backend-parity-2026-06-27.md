@@ -48,6 +48,13 @@
    - 后端补齐：新增受控下载接口，只允许下载 `PersonaWorkspaceService` 暴露的固定工作区文件 key 或文件名。
    - 提交：`38d9fcdfd`
 
+## 已收敛的前端超前入口
+
+1. 文件页未支持写操作入口
+   - 前端入口：文件工具栏的新建文件、新建文件夹、上传；文件右键菜单的重命名、删除。
+   - 后端现状：`/api/workspace/files` 当前只开放受控工作区文件读取、保存、恢复、日记读取和下载；`web/src/api/solonclaw/files.ts` 对新建、上传、重命名、删除明确返回 unsupported。
+   - 处理结果：文件页只保留读取、预览、编辑保存、刷新、复制路径和下载等已接通能力，不再展示会必然失败的写操作入口。
+
 ## 已确认无需新增 UI 的接口
 
 - `/api/gateway/doctor`：与 `/api/diagnostics/doctor` 使用同一 doctor 服务，诊断页已通过后者接入。
@@ -58,7 +65,9 @@
 ## 验证
 
 - 多次执行 `npm run build`，通过。
+- `npm run build --prefix web`：2026-06-27 文件页未支持写操作入口收敛后通过。
 - 多次执行 `git diff --check`，通过。
+- `git diff --check -- web/src/components/solonclaw/files/FileToolbar.vue web/src/components/solonclaw/files/FileContextMenu.vue web/src/views/solonclaw/FilesView.vue docs/full-repair-frontend-backend-parity-2026-06-27.md`：通过。
 - 执行 `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`，通过。
 - 针对后端下载接口执行 `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dtest=DashboardControllerHttpTest test`，通过。
 
