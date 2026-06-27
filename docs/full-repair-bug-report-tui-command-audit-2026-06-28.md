@@ -6,7 +6,7 @@
 
 ## BUG-004：Cron 创建任务输出在非 UTF-8 终端下无法稳定解析 job id
 
-状态：已修复，提交 `0962d68ec`
+状态：已修复，提交 `0962d68ec`、`9778790bc`
 
 影响范围：
 
@@ -35,6 +35,7 @@ OUT: 未能从创建输出中解析 cron job id
 
 - `/cron add` 成功回复保留中文说明，同时追加稳定 ASCII 字段 `job_id=<id>`。
 - 审计脚本优先解析 `job_id=`，再兼容旧中文输出。
+- 直接 `java -jar ... --cli` 终端模式固定使用 UTF-8 输出，避免不经过安装脚本时中文仍被写成问号。
 
 验证结果：
 
@@ -43,7 +44,10 @@ mvn -q -Dskip.web.build=true -Dtest=CommandEnhancementTest#shouldSupportJimuquCr
 python3 scripts/audit-terminal-commands.selftest.py
 mvn -q -Dskip.web.build=true -DskipTests package
 python3 scripts/audit-terminal-commands.py --no-defaults --include-write-commands --cron-lifecycle --timeout-seconds 20
+tmp=$(mktemp -d /tmp/solonclaw-cron-check.XXXXXX); java -Dsolonclaw.workspace="$tmp" -jar target/solonclaw-0.0.1.jar --cli -p '/cron add "every 2h" "检查状态" --name utf8-audit --script "echo ok" --no-agent'; rm -rf "$tmp"
 ```
+
+最新复核结果：直接 Java CLI 输出同时包含 `已创建定时任务：<id>` 和 `job_id=<id>`，没有 `????` 乱码。
 
 结果：Cron 生命周期 10 项通过，`audit.findings=0`。
 
