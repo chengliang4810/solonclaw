@@ -39,6 +39,47 @@ public final class ChannelConfigSupport {
     }
 
     /**
+     * 按字段名读取渠道凭据或连接字段，供 setup 与 TUI 状态检查共享同一套字段映射。
+     *
+     * @param config 渠道配置。
+     * @param key 字段名。
+     * @return 字段文本；未知字段或空配置返回空字符串。
+     */
+    public static String fieldValue(AppConfig.ChannelConfig config, String key) {
+        if (config == null) {
+            return "";
+        }
+        if ("appId".equals(key)) {
+            return config.getAppId();
+        }
+        if ("appSecret".equals(key)) {
+            return config.getAppSecret();
+        }
+        if ("clientId".equals(key)) {
+            return config.getClientId();
+        }
+        if ("clientSecret".equals(key)) {
+            return config.getClientSecret();
+        }
+        if ("botId".equals(key)) {
+            return config.getBotId();
+        }
+        if ("secret".equals(key)) {
+            return config.getSecret();
+        }
+        if ("token".equals(key)) {
+            return config.getToken();
+        }
+        if ("accountId".equals(key)) {
+            return config.getAccountId();
+        }
+        if ("robotCode".equals(key)) {
+            return config.getRobotCode();
+        }
+        return "";
+    }
+
+    /**
      * 按渠道标识读取渠道配置。
      *
      * @param channels 渠道配置集合。

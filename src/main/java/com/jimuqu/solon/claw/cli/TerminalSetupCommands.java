@@ -1661,49 +1661,11 @@ public class TerminalSetupCommands {
             return "disabled";
         }
         for (String key : requiredKeys) {
-            if (StrUtil.isBlank(channelField(config, key))) {
+            if (StrUtil.isBlank(ChannelConfigSupport.fieldValue(config, key))) {
                 return "missing_config";
             }
         }
         return "configured";
-    }
-
-    /**
-     * 读取渠道字段。
-     *
-     * @param config 渠道配置。
-     * @param key 字段名。
-     * @return 字段文本。
-     */
-    private String channelField(AppConfig.ChannelConfig config, String key) {
-        if ("appId".equals(key)) {
-            return config.getAppId();
-        }
-        if ("appSecret".equals(key)) {
-            return config.getAppSecret();
-        }
-        if ("clientId".equals(key)) {
-            return config.getClientId();
-        }
-        if ("clientSecret".equals(key)) {
-            return config.getClientSecret();
-        }
-        if ("botId".equals(key)) {
-            return config.getBotId();
-        }
-        if ("secret".equals(key)) {
-            return config.getSecret();
-        }
-        if ("token".equals(key)) {
-            return config.getToken();
-        }
-        if ("accountId".equals(key)) {
-            return config.getAccountId();
-        }
-        if ("robotCode".equals(key)) {
-            return config.getRobotCode();
-        }
-        return "";
     }
 
     /**
