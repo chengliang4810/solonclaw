@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { checkHealth, fetchAvailableModels, updateDefaultModel, triggerUpdate, type AvailableModelGroup } from '@/api/solonclaw/system'
+import { checkHealth, fetchAvailableModels, updateDefaultModel, type AvailableModelGroup } from '@/api/solonclaw/system'
 
 const WEB_UI_VERSION = __APP_VERSION__
 
@@ -14,8 +14,6 @@ export const useAppStore = defineStore('app', () => {
   const connected = ref(false)
   const serverVersion = ref(WEB_UI_VERSION)
   const latestVersion = ref('')
-  const updateAvailable = ref(false)
-  const updating = ref(false)
   const modelGroups = ref<AvailableModelGroup[]>([])
   const selectedModel = ref('')
   const selectedProvider = ref('')
@@ -27,27 +25,12 @@ export const useAppStore = defineStore('app', () => {
   const sessionPersistence = ref(true)
   const maxTokens = ref(4096)
 
-  async function doUpdate(): Promise<boolean> {
-    updating.value = true
-    try {
-      const res = await triggerUpdate()
-      if (res.success) {
-        updateAvailable.value = false
-        await checkConnection()
-      }
-      return res.success
-    } finally {
-      updating.value = false
-    }
-  }
-
   async function checkConnection() {
     try {
       const res = await checkHealth()
       connected.value = res.status === 'ok'
       if (res.webui_version) serverVersion.value = res.webui_version
       if (res.webui_latest) latestVersion.value = res.webui_latest
-      updateAvailable.value = !!res.webui_update_available
       if (res.node_version) nodeVersion.value = res.node_version
     } catch {
       connected.value = false
@@ -118,9 +101,6 @@ export const useAppStore = defineStore('app', () => {
     serverVersion,
     latestVersion,
     nodeVersion,
-    updateAvailable,
-    updating,
-    doUpdate,
     modelGroups,
     selectedModel,
     selectedProvider,

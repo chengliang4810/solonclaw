@@ -5,7 +5,6 @@ export interface HealthResponse {
   version?: string
   webui_version?: string
   webui_latest?: string
-  webui_update_available?: boolean
   node_version?: string
 }
 
@@ -69,7 +68,6 @@ export interface CustomProvider {
 
 interface DashboardStatus {
   version?: string
-  update_available?: boolean
 }
 
 interface ProvidersPayload {
@@ -102,15 +100,7 @@ export async function checkHealth(): Promise<HealthResponse> {
     version: status.version,
     webui_version: status.version,
     webui_latest: status.version,
-    webui_update_available: !!status.update_available,
     node_version: '',
-  }
-}
-
-export async function triggerUpdate(): Promise<{ success: boolean; message: string }> {
-  return {
-    success: false,
-    message: '当前后端未开放在线更新',
   }
 }
 

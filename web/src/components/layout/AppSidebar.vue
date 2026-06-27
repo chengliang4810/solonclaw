@@ -2,7 +2,6 @@
 import { computed, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { Button, message } from "antdv-next";
 import { useAppStore } from "@/stores/solonclaw/app";
 import ThemeSwitch from "./ThemeSwitch.vue";
 import danceVideoLight from "@/assets/dance-light.mp4";
@@ -74,15 +73,6 @@ function isGroupCollapsed(key: string) {
 
 function handleNav(key: string) {
   router.push({ name: key });
-}
-
-async function handleUpdate() {
-  const ok = await appStore.doUpdate();
-  if (ok) {
-    message.success(t('sidebar.updateSuccess'), 5);
-  } else {
-    message.error(t('sidebar.updateFailed'));
-  }
 }
 
 function handleLogout() {
@@ -294,9 +284,6 @@ function handleLogout() {
         </div>
         <ThemeSwitch />
       </div>
-      <Button v-if="appStore.updateAvailable" type="primary" size="small" block class="update-btn" :loading="appStore.updating" @click="handleUpdate">
-        {{ appStore.updating ? t('sidebar.updating') : t('sidebar.updateVersion', { version: appStore.latestVersion }) }}
-      </Button>
     </div>
   </aside>
 </template>
