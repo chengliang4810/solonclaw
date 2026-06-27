@@ -1572,6 +1572,11 @@ export default {
     noTools: '本次运行没有工具调用记录',
     recoveries: '恢复记录',
     commands: '控制命令',
+    stopRun: '停止运行',
+    cancelRun: '取消运行',
+    resumeRun: '恢复运行',
+    controlSent: '运行控制命令已发送',
+    controlFailed: '运行控制命令发送失败',
     noRecoveries: '本次运行没有恢复记录',
     noCommands: '本次运行没有控制命令',
     status: {

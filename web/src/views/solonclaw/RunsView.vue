@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Button, Select, Spin } from 'antdv-next'
+import { Button, Select, Spin, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import {
   fetchSessionCheckpoints,
@@ -11,6 +11,7 @@ import {
   rollbackCheckpoint,
 } from '@/api/solonclaw/sessions'
 import {
+  controlRun,
   fetchRunDetail,
   fetchSessionRuns,
   type AgentRun,
@@ -34,6 +35,7 @@ const selectedSessionId = ref('')
 const selectedRunId = ref('')
 const loading = ref(false)
 const rollingBack = ref('')
+const runControlLoading = ref('')
 const { t } = useI18n()
 
 const sessionOptions = computed(() => sessions.value.map(session => ({
@@ -42,6 +44,10 @@ const sessionOptions = computed(() => sessions.value.map(session => ({
 })))
 
 const selectedRun = computed(() => runs.value.find(run => run.run_id === selectedRunId.value))
+const selectedRunActive = computed(() => {
+  const status = (selectedRun.value?.status || '').toLowerCase()
+  return Boolean(selectedRun.value && !['success', 'ok', 'failed', 'error', 'cancelled', 'stopped', 'finished'].includes(status))
+})
 
 async function loadSessions() {
   sessions.value = await fetchSessions(undefined, 200)
@@ -114,6 +120,21 @@ async function handleRollback(id: string) {
     await loadSessionDetail()
   } finally {
     rollingBack.value = ''
+  }
+}
+
+async function handleRunControl(command: 'stop' | 'cancel' | 'resume') {
+  const runId = selectedRun.value?.run_id
+  if (!runId) return
+  runControlLoading.value = command
+  try {
+    await controlRun(runId, command)
+    message.success(t('runs.controlSent'))
+    await loadSessionDetail()
+  } catch (err: any) {
+    message.error(err.message || t('runs.controlFailed'))
+  } finally {
+    runControlLoading.value = ''
   }
 }
 
@@ -195,6 +216,17 @@ onMounted(async () => {
             <div class="detail-metrics">
               <span>{{ t('runs.toolCount', { count: selectedRun.tool_call_count || tools.length }) }}</span>
               <span>{{ t('runs.tokenCount', { count: selectedRun.total_tokens || 0 }) }}</span>
+            </div>
+            <div class="run-actions">
+              <Button v-if="selectedRunActive" size="small" :loading="runControlLoading === 'stop'" @click="handleRunControl('stop')">
+                {{ t('runs.stopRun') }}
+              </Button>
+              <Button v-if="selectedRunActive" size="small" danger :loading="runControlLoading === 'cancel'" @click="handleRunControl('cancel')">
+                {{ t('runs.cancelRun') }}
+              </Button>
+              <Button v-if="selectedRun.recoverable" size="small" type="primary" :loading="runControlLoading === 'resume'" @click="handleRunControl('resume')">
+                {{ t('runs.resumeRun') }}
+              </Button>
             </div>
           </div>
 
@@ -394,6 +426,7 @@ h3 {
 }
 
 .detail-metrics,
+.run-actions,
 .tool-header {
   display: flex;
   gap: 10px;

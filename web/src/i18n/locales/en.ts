@@ -1505,6 +1505,11 @@ export default {
     noEvents: 'Select a run to inspect its event timeline',
     recoveries: 'Recoveries',
     commands: 'Control commands',
+    stopRun: 'Stop run',
+    cancelRun: 'Cancel run',
+    resumeRun: 'Resume run',
+    controlSent: 'Run control command sent',
+    controlFailed: 'Failed to send run control command',
     noRecoveries: 'No recoveries for this run',
     noCommands: 'No control commands for this run',
     status: {
