@@ -18,6 +18,7 @@ const editingProvider = ref<AvailableModelGroup | null>(null)
 onMounted(async () => {
   await modelsStore.fetchProviders()
   modelsStore.fetchModelsHealth().catch(() => undefined)
+  modelsStore.fetchRuntimeModels().catch(() => undefined)
 })
 
 function openCreateModal() {
@@ -60,6 +61,17 @@ async function handleSaved() {
     <div class="models-content">
       <Spin :spinning="modelsStore.loading && modelsStore.providers.length === 0">
         <ModelSettings v-if="modelsStore.providers.length > 0" />
+        <section v-if="modelsStore.runtimeModels.length > 0" class="runtime-models">
+          <h3>{{ t('models.runtimeModels') }}</h3>
+          <div class="runtime-grid">
+            <div v-for="model in modelsStore.runtimeModels" :key="`${model.provider}:${model.model}`" class="runtime-row">
+              <strong>{{ model.provider }} / {{ model.model || '-' }}</strong>
+              <span>{{ model.dialect }} · {{ t(`models.health.${model.status}`, model.status) }}</span>
+              <small>{{ t('models.contextWindow', { count: model.context_window || '-' }) }} · {{ t('models.maxOutput', { count: model.max_output || '-' }) }}</small>
+              <small v-if="model.input_price || model.output_price">{{ t('models.price', { input: model.input_price || 0, output: model.output_price || 0 }) }}</small>
+            </div>
+          </div>
+        </section>
         <ProvidersPanel @edit="openEditModal" />
       </Spin>
     </div>
@@ -91,5 +103,38 @@ async function handleSaved() {
 :deep(.settings-section) {
   margin-top: 0;
   margin-bottom: 8px;
+}
+
+.runtime-models {
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-primary;
+
+  h3 {
+    margin: 0 0 10px;
+    font-size: 14px;
+  }
+}
+
+.runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 10px;
+}
+
+.runtime-row {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-radius: $radius-sm;
+  background: rgba($bg-secondary, 0.65);
+  color: $text-muted;
+
+  strong {
+    color: $text-primary;
+    overflow-wrap: anywhere;
+  }
 }
 </style>

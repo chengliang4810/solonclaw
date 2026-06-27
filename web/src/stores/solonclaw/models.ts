@@ -8,6 +8,7 @@ import type {
   ProviderValidationRequest,
   ProviderValidationResponse,
   ModelsHealthProvider,
+  RuntimeModelStatus,
 } from '@/api/solonclaw/system'
 import { useAppStore } from './app'
 
@@ -19,6 +20,7 @@ export const useModelsStore = defineStore('models', () => {
   const defaultProvider = ref('')
   const loading = ref(false)
   const providerHealth = ref<Record<string, ModelsHealthProvider>>({})
+  const runtimeModels = ref<RuntimeModelStatus[]>([])
 
   const allModels = computed(() =>
     providers.value.flatMap(g =>
@@ -72,6 +74,11 @@ export const useModelsStore = defineStore('models', () => {
     providerHealth.value = Object.fromEntries(res.providers.map(item => [item.provider, item]))
   }
 
+  async function fetchRuntimeModels() {
+    const res = await systemApi.fetchRuntimeModels()
+    runtimeModels.value = res.models || []
+  }
+
   async function validateProvider(data: ProviderValidationRequest): Promise<ProviderValidationResponse> {
     return systemApi.validateProvider(data)
   }
@@ -110,12 +117,14 @@ export const useModelsStore = defineStore('models', () => {
     defaultProvider,
     loading,
     providerHealth,
+    runtimeModels,
     allModels,
     fetchProviders,
     setDefaultModel,
     addProvider,
     fetchProviderModels,
     fetchModelsHealth,
+    fetchRuntimeModels,
     validateProvider,
     updateProvider,
     saveFallbackProviders,

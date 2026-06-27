@@ -48,6 +48,23 @@ export interface ModelsHealthResponse {
   providers: ModelsHealthProvider[]
 }
 
+export interface RuntimeModelStatus {
+  provider: string
+  model: string
+  dialect: string
+  role: string
+  status: string
+  context_window?: number
+  max_output?: number
+  input_price?: number
+  output_price?: number
+  group_label?: string
+}
+
+export interface RuntimeModelsResponse {
+  models: RuntimeModelStatus[]
+}
+
 export interface ProviderValidationRequest {
   providerKey?: string
   baseUrl: string
@@ -173,6 +190,10 @@ export async function fetchModelInfo(): Promise<DashboardModelInfo> {
 
 export async function fetchModelsHealth(): Promise<ModelsHealthResponse> {
   return request<ModelsHealthResponse>('/api/models/health')
+}
+
+export async function fetchRuntimeModels(): Promise<RuntimeModelsResponse> {
+  return request<RuntimeModelsResponse>('/api/models')
 }
 
 export async function validateProvider(data: ProviderValidationRequest): Promise<ProviderValidationResponse> {
