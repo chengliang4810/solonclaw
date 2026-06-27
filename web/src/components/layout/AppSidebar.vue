@@ -4,15 +4,11 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/solonclaw/app";
 import ThemeSwitch from "./ThemeSwitch.vue";
-import danceVideoLight from "@/assets/dance-light.mp4";
-import danceVideoDark from "@/assets/dance-dark.mp4";
 
-import { useTheme } from "@/composables/useTheme";
 import { clearApiKey } from "@/api/client";
 import { getPersonaMeta } from "@/shared/personaMeta";
 
 const { t } = useI18n();
-const { isDark } = useTheme();
 const route = useRoute();
 const router = useRouter();
 const appStore = useAppStore();
@@ -86,7 +82,6 @@ function handleLogout() {
     <div class="sidebar-logo" @click="router.push('/solonclaw/chat')">
       <img :src="logoPath" alt="solonclaw" class="logo-img" />
       <span class="logo-text">solonclaw</span>
-      <video class="logo-dance" :src="isDark ? danceVideoDark : danceVideoLight" autoplay loop muted playsinline />
     </div>
 
     <nav class="sidebar-nav">
@@ -313,17 +308,20 @@ function handleLogout() {
 }
 
 .logo-img {
-  width: 28px;
-  height: 28px;
+  width: 44px;
+  height: 44px;
   border-radius: 0;
   flex-shrink: 0;
+  object-fit: contain;
 }
 
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 20px 12px;
+  justify-content: center;
+  gap: 12px;
+  min-height: 76px;
+  padding: 16px 18px;
   margin: 0 -12px;
   color: $text-primary;
   cursor: pointer;
@@ -333,27 +331,14 @@ function handleLogout() {
   .dark & {
     background-color: #393939;
   }
-  position: relative;
-  overflow: hidden;
 
   .logo-text {
-    font-size: 18px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0;
   }
 
-  .logo-dance {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 100px;
-    border-radius: $radius-md;
-    object-fit: contain;
-    flex-shrink: 0;
-    width: auto;
-    pointer-events: none;
-  }
 }
 
 .sidebar-nav {
@@ -514,10 +499,6 @@ function handleLogout() {
 }
 
 @media (max-width: $breakpoint-mobile) {
-  .logo-dance {
-    display: none;
-  }
-
   .status-row {
     flex-direction: column;
     align-items: flex-start;

@@ -10,15 +10,12 @@ import { getSourceLabel } from '@/shared/session-display'
 import { copyToClipboard } from '@/utils/clipboard'
 import AgentSelector from '@/components/layout/AgentSelector.vue'
 import ChatInput from './ChatInput.vue'
-import ConversationMonitorPane from './ConversationMonitorPane.vue'
 import MessageList from './MessageList.vue'
 import SessionListItem from './SessionListItem.vue'
 
 const chatStore = useChatStore()
 const sessionBrowserPrefsStore = useSessionBrowserPrefsStore()
 const { t } = useI18n()
-
-const currentMode = ref<'chat' | 'live'>('chat')
 
 // Initialize synchronously from the media query so first paint is correct.
 // On narrow viewports the session list is an absolute-positioned overlay
@@ -29,7 +26,6 @@ const currentMode = ref<'chat' | 'live'>('chat')
 const showSessions = ref(
   typeof window === 'undefined' || !window.matchMedia('(max-width: 768px)').matches,
 )
-const lastChatSessionsVisibility = ref(showSessions.value)
 let mobileQuery: MediaQueryList | null = null
 let passiveRefreshTimer: ReturnType<typeof setInterval> | null = null
 const isMobile = ref(false)
@@ -69,17 +65,6 @@ function handleSessionClick(sessionId: string) {
   if (mobileQuery?.matches) showSessions.value = false
 }
 
-function handleModeChange(mode: 'chat' | 'live') {
-  if (mode === currentMode.value) return
-  if (mode === 'live') {
-    lastChatSessionsVisibility.value = showSessions.value
-    showSessions.value = false
-  } else {
-    showSessions.value = mobileQuery?.matches ? false : lastChatSessionsVisibility.value
-  }
-  currentMode.value = mode
-}
-
 function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
   isMobile.value = e.matches
   if (e.matches && showSessions.value) {
@@ -88,7 +73,7 @@ function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
 }
 
 async function refreshVisibleActiveSession() {
-  if (currentMode.value !== 'chat' || chatStore.isRunActive || document.hidden) return
+  if (chatStore.isRunActive || document.hidden) return
   await chatStore.refreshActiveSession()
 }
 
@@ -211,15 +196,15 @@ const activeSessionTitle = computed(() =>
 )
 
 const headerTitle = computed(() =>
-  currentMode.value === 'live' ? t('chat.liveSessions') : activeSessionTitle.value,
+  activeSessionTitle.value,
 )
 
 const activeSessionSource = computed(() =>
-  currentMode.value === 'chat' ? (chatStore.activeSession?.source || '') : '',
+  chatStore.activeSession?.source || '',
 )
 
 const activeGoalState = computed(() =>
-  currentMode.value === 'chat' ? chatStore.activeSession?.goalState || null : null,
+  chatStore.activeSession?.goalState || null,
 )
 
 const activeGoalLabel = computed(() => {
@@ -249,16 +234,15 @@ const activeGoalTitle = computed(() => {
 })
 
 const canPauseGoal = computed(() =>
-  currentMode.value === 'chat' && activeGoalState.value?.status === 'active' && !chatStore.isStreaming,
+  activeGoalState.value?.status === 'active' && !chatStore.isStreaming,
 )
 
 const canResumeGoal = computed(() =>
-  currentMode.value === 'chat' && activeGoalState.value?.status === 'paused' && !chatStore.isStreaming,
+  activeGoalState.value?.status === 'paused' && !chatStore.isStreaming,
 )
 
 const canClearGoal = computed(() =>
-  currentMode.value === 'chat'
-    && !!activeGoalState.value
+  !!activeGoalState.value
     && activeGoalState.value.status !== 'done'
     && !chatStore.isStreaming,
 )
@@ -365,8 +349,8 @@ async function handleRenameConfirm() {
 
 <template>
   <div class="chat-panel">
-    <div v-if="currentMode === 'chat'" class="session-backdrop" :class="{ active: showSessions }" @click="showSessions = false" />
-    <aside v-if="currentMode === 'chat'" class="session-list" :class="{ collapsed: !showSessions }">
+    <div class="session-backdrop" :class="{ active: showSessions }" @click="showSessions = false" />
+    <aside class="session-list" :class="{ collapsed: !showSessions }">
       <div class="session-list-header">
         <span v-if="showSessions" class="session-list-title">{{ t('chat.sessions') }}</span>
         <div class="session-list-actions">
@@ -394,7 +378,6 @@ async function handleRenameConfirm() {
             :key="`pinned-${s.id}`"
             :session="s"
             :active="s.id === chatStore.activeSessionId"
-            :live="chatStore.isSessionLive(s.id)"
             :pinned="true"
             :can-delete="s.id !== chatStore.activeSessionId || chatStore.sessions.length > 1"
             @select="handleSessionClick(s.id)"
@@ -415,7 +398,6 @@ async function handleRenameConfirm() {
               :key="s.id"
               :session="s"
               :active="s.id === chatStore.activeSessionId"
-              :live="chatStore.isSessionLive(s.id)"
               :pinned="false"
               :can-delete="s.id !== chatStore.activeSessionId || chatStore.sessions.length > 1"
               @select="handleSessionClick(s.id)"
@@ -456,7 +438,7 @@ async function handleRenameConfirm() {
     <div class="chat-main">
       <header class="chat-header">
         <div class="header-left">
-          <Button v-if="currentMode === 'chat'" type="text" size="small" @click="showSessions = !showSessions" shape="circle">
+          <Button type="text" size="small" @click="showSessions = !showSessions" shape="circle">
             <template #icon>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
             </template>
@@ -504,44 +486,25 @@ async function handleRenameConfirm() {
           </div>
         </div>
         <div class="header-actions">
-          <AgentSelector v-if="currentMode === 'chat'" :session-id="chatStore.activeSessionId" />
-          <div class="chat-mode-toggle">
-            <Button
-              size="small"
-              :type="currentMode === 'chat' ? 'primary' : 'default'"
-              :aria-pressed="currentMode === 'chat'"
-              @click="handleModeChange('chat')"
-            >{{ t('chat.chatMode') }}</Button>
-            <Button
-              size="small"
-              :type="currentMode === 'live' ? 'primary' : 'default'"
-              :aria-pressed="currentMode === 'live'"
-              @click="handleModeChange('live')"
-            >{{ t('chat.liveMode') }}</Button>
-          </div>
-          <template v-if="currentMode === 'chat'">
-            <Tooltip :title="t('chat.copySessionId')" trigger="hover">
-              <Button type="text" size="small" @click="copySessionId()" shape="circle">
-                <template #icon>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </template>
-              </Button>
-            </Tooltip>
-            <Button size="small" :shape="isMobile ? 'circle' : 'default'" @click="handleNewChat">
+          <AgentSelector :session-id="chatStore.activeSessionId" />
+          <Tooltip :title="t('chat.copySessionId')" trigger="hover">
+            <Button type="text" size="small" @click="copySessionId()" shape="circle">
               <template #icon>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </template>
-              <template v-if="!isMobile">{{ t('chat.newChat') }}</template>
             </Button>
-          </template>
+          </Tooltip>
+          <Button class="new-chat-btn" size="small" :shape="isMobile ? 'circle' : 'default'" @click="handleNewChat">
+            <template #icon>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </template>
+            <span v-if="!isMobile" class="new-chat-label">{{ t('chat.newChat') }}</span>
+          </Button>
         </div>
       </header>
 
-      <template v-if="currentMode === 'chat'">
-        <MessageList />
-        <ChatInput />
-      </template>
-      <ConversationMonitorPane v-else :human-only="sessionBrowserPrefsStore.humanOnly" />
+      <MessageList />
+      <ChatInput />
     </div>
   </div>
 </template>
@@ -729,10 +692,6 @@ async function handleRenameConfirm() {
   &.active .session-item-title {
     color: $accent-primary;
   }
-
-  &.live .session-item-title {
-    color: $accent-primary;
-  }
 }
 
 :deep(.session-item-content) {
@@ -755,47 +714,6 @@ async function handleRenameConfirm() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-:deep(.session-item-active-indicator) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: $accent-primary;
-}
-
-:deep(.session-item-active-spinner) {
-  animation: session-spin 1.1s linear infinite;
-}
-
-:deep(.session-item-live-badge) {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: 10px;
-  line-height: 16px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: $accent-primary;
-  background: rgba(var(--accent-primary-rgb), 0.10);
-}
-
-:deep(.live-dot) {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: $accent-primary;
-  animation: live-pulse 2s ease-in-out infinite;
-}
-
-@keyframes live-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.4; transform: scale(0.7); }
 }
 
 :deep(.session-item-pin) {
@@ -962,13 +880,33 @@ async function handleRenameConfirm() {
   align-items: center;
   gap: 4px;
   flex-shrink: 0;
+  min-width: 0;
 }
 
-.chat-mode-toggle {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 4px;
+:deep(.agent-selector) {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .chat-header {
+    padding: 18px 12px;
+  }
+
+  .header-actions {
+    gap: 2px;
+  }
+
+  :deep(.agent-selector-label) {
+    display: none;
+  }
+
+  :deep(.agent-selector-control) {
+    width: 112px;
+  }
+
+  .new-chat-label {
+    display: none;
+  }
 }
 
 @media (max-width: $breakpoint-mobile) {

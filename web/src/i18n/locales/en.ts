@@ -1141,7 +1141,7 @@ export default {
   models: {
     title: 'Models',
     pageTitle: 'Model Providers',
-    pageDescription: 'Manage provider connections, base URLs, API keys, and default models here. Workspace defaults and fallback chains belong in Settings > Models.',
+    pageDescription: 'Manage provider connections, base URLs, API keys, default models, and fallback chains here.',
     searchPlaceholder: 'Search models...',
     addProvider: 'Add Provider',
     editProvider: 'Edit Provider',

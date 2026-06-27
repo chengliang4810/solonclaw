@@ -9,7 +9,6 @@ import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/solonclaw/settings";
 import DisplaySettings from "@/components/solonclaw/settings/DisplaySettings.vue";
 import AgentSettings from "@/components/solonclaw/settings/AgentSettings.vue";
-import ModelSettings from "@/components/solonclaw/settings/ModelSettings.vue";
 import SessionSettings from "@/components/solonclaw/settings/SessionSettings.vue";
 import AccountSettings from "@/components/solonclaw/settings/AccountSettings.vue";
 
@@ -46,9 +45,6 @@ onMounted(() => {
           </TabPane>
           <TabPane tabKey="agent" :tab="t('settings.tabs.agent')">
             <AgentSettings />
-          </TabPane>
-          <TabPane tabKey="models" :tab="t('settings.tabs.models')">
-            <ModelSettings />
           </TabPane>
           <TabPane tabKey="session" :tab="t('settings.tabs.session')">
             <SessionSettings />

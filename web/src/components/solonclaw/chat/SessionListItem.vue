@@ -7,7 +7,6 @@ import { formatTimestampMs } from '@/shared/session-display'
 const props = defineProps<{
   session: Session
   active: boolean
-  live: boolean
   pinned: boolean
   canDelete: boolean
 }>()
@@ -24,19 +23,13 @@ const { t } = useI18n()
 <template>
   <button
     class="session-item"
-    :class="{ active, live }"
+    :class="{ active }"
     :aria-current="active ? 'page' : undefined"
     @click="emit('select')"
     @contextmenu="emit('contextmenu', $event)"
   >
     <div class="session-item-content">
       <span class="session-item-title-row">
-        <span v-if="live" class="session-item-active-indicator" aria-hidden="true">
-          <svg class="session-item-active-spinner" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-            <circle cx="12" cy="12" r="8" opacity="0.2" />
-            <path d="M20 12a8 8 0 0 0-8-8" />
-          </svg>
-        </span>
         <span v-if="pinned" class="session-item-pin" aria-hidden="true">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 17v5" />
@@ -45,10 +38,6 @@ const { t } = useI18n()
           </svg>
         </span>
         <span class="session-item-title">{{ session.title }}</span>
-        <span v-if="live" class="session-item-live-badge">
-          <span class="live-dot"></span>
-          <span>{{ t('chat.liveMode') }}</span>
-        </span>
       </span>
       <span class="session-item-meta">
         <span v-if="session.model" class="session-item-model">{{ session.model }}</span>

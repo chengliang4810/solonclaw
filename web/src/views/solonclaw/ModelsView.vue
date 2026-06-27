@@ -4,6 +4,7 @@ import { Button, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import ProvidersPanel from '@/components/solonclaw/models/ProvidersPanel.vue'
 import ProviderFormModal from '@/components/solonclaw/models/ProviderFormModal.vue'
+import ModelSettings from '@/components/solonclaw/settings/ModelSettings.vue'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import { useAppStore } from '@/stores/solonclaw/app'
 import type { AvailableModelGroup } from '@/api/solonclaw/system'
@@ -58,6 +59,7 @@ async function handleSaved() {
 
     <div class="models-content">
       <Spin :spinning="modelsStore.loading && modelsStore.providers.length === 0">
+        <ModelSettings v-if="modelsStore.providers.length > 0" />
         <ProvidersPanel @edit="openEditModal" />
       </Spin>
     </div>
@@ -84,5 +86,10 @@ async function handleSaved() {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+}
+
+:deep(.settings-section) {
+  margin-top: 0;
+  margin-bottom: 8px;
 }
 </style>
