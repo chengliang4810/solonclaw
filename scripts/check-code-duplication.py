@@ -24,6 +24,7 @@ CODE_EXTENSIONS = {
     ".vue",
 }
 COMMENT_PREFIXES = ("//", "/*", "*", "*/", "<!--", "-->")
+IMPORT_PREFIXES = ("package ", "import ")
 
 
 @dataclass(frozen=True)
@@ -43,11 +44,15 @@ def is_comment_only(line: str) -> bool:
     return any(line.startswith(prefix) for prefix in COMMENT_PREFIXES)
 
 
+def is_import_only(line: str) -> bool:
+    return any(line.startswith(prefix) for prefix in IMPORT_PREFIXES)
+
+
 def normalize_code_lines(path: Path) -> list[CodeLine]:
     lines: list[CodeLine] = []
     for line_number, raw_line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), start=1):
         stripped = raw_line.strip()
-        if not stripped or is_comment_only(stripped):
+        if not stripped or is_comment_only(stripped) or is_import_only(stripped):
             continue
         lines.append(CodeLine(line_number, re.sub(r"\s+", " ", stripped)))
     return lines

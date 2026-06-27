@@ -36,10 +36,14 @@
 - `AgentRunSupervisor.extractText(...)`、`DefaultConversationOrchestrator.extractText(...)`、`SolonAiLlmGateway.extractText(...)` 的日志语义和 `<think>` 处理不同，未合并。
 - `TerminalSetupCommands.applyProviderTemplateDefaults(...)` 面向两个不同请求对象，缺少共同协议；为消除相似代码引入接口或 adapter 不划算。
 - 敏感键判断分布在配置、工具预览、MCP 展示等不同安全边界，语义不完全相同，未统一。
-- `CronjobToolsSchedulerTest` / `DefaultCronSchedulerTest` 与 `DashboardDiagnosticOutputTest` / `DashboardSecurityProbeDiagnosticTest` 当前剩余重复检测命中均为 import 头部，属于同功能测试自然共享的依赖清单；为消除此类命中拆分 import 或包装类型没有实际维护收益。
 - `TerminalSessionBrowser.shellTokens(...)` 支持反斜杠转义，与 `BasicValueSupport.shellTokens(...)` 的无转义语义不同，暂不强行合并。
 - `CronjobTools.cronjob(...)` 多个重载仍存在相似转发，但属于公开工具签名兼容层；当前只做低风险短重载收口，完整私有 helper 搬移会移动主工具方法体，暂缓。
 - `MemoryView.vue` 与 `PersonaFileView.vue`、`PersonaDiaryView.vue` 与 `SkillsView.vue` 的 UI 相似点已确认，但涉及前端组件抽取和视觉回归，先作为后续前端原子项处理。
+
+## 2026-06-28 扫描器噪声收口
+
+- 重复检测脚本已忽略 `package` / `import` 前言行，避免把同类测试文件的依赖清单误报为代码重复。
+- 当前 `--min-lines 40` 扫描无重复输出。
 
 ## 验证
 
@@ -69,3 +73,5 @@
 - `mvn -Dskip.web.build=true -DskipTests test-compile`
 - `mvn -Dskip.web.build=true -Dtest=RuntimeSetupServiceTest test`
 - `mvn -Dskip.web.build=true -Dtest=CronjobToolsSchedulerTest,DefaultCronSchedulerTest test`
+- `python3 scripts/check-code-duplication.selftest.py`
+- `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`

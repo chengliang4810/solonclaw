@@ -67,6 +67,39 @@ class Second {
 
         shutil.rmtree(sandbox)
         sandbox.mkdir(parents=True)
+        import_block = "\n".join(f"import example.Dependency{i};" for i in range(1, 6))
+        write_text(
+            sandbox / "src" / "main" / "java" / "example" / "ImportFirst.java",
+            f"""package example;
+
+{import_block}
+
+class ImportFirst {{
+    void one() {{
+        System.out.println("one");
+    }}
+}}
+""",
+        )
+        write_text(
+            sandbox / "src" / "main" / "java" / "example" / "ImportSecond.java",
+            f"""package example;
+
+{import_block}
+
+class ImportSecond {{
+    void two() {{
+        System.out.println("two");
+    }}
+}}
+""",
+        )
+        import_only = run_check(sandbox, "--min-lines", "3")
+        if import_only.returncode != 0:
+            raise AssertionError("Duplicate detector should ignore package/import-only overlap: " + import_only.stderr)
+
+        shutil.rmtree(sandbox)
+        sandbox.mkdir(parents=True)
         write_text(
             sandbox / "src" / "main" / "java" / "example" / "Unique.java",
             """package example;
