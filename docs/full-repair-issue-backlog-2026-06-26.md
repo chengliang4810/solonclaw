@@ -177,6 +177,9 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 - `npm run build --prefix web` 通过，未发现前端未使用变量错误。
 - `npm run --prefix terminal-ui lint` 原有 2 个导入排序 error 已修复，当前剩余为 padding、hooks 与 react-compiler warning，后续按独立问题处理。
 - 当前复核中 `npm --prefix terminal-ui run type-check` 与 `npm --prefix web run build` 均通过。
+- 2026-06-27 复核中 `npm --prefix terminal-ui run type-check` 通过，未发现 TypeScript 未使用变量错误。
+- 2026-06-27 复核中 `npm --prefix web run build` 通过，`vue-tsc -b` 未发现前端未使用变量错误。
+- 2026-06-27 复核中 `npm --prefix terminal-ui run lint` 通过且无 error，剩余 24 个 warning 均为 padding、React hooks 或 react-compiler 类型，不属于未使用变量/导入问题。
 
 归属阶段：
 
