@@ -3,6 +3,7 @@ import { Button, Spin, Empty, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore, isImageFile, isMarkdownFile, isTextFile } from '@/stores/solonclaw/files'
 import { downloadFile } from '@/api/solonclaw/download'
+import { formatFileSize } from '@/shared/file-size'
 import type { FileEntry } from '@/api/solonclaw/files'
 
 const { t } = useI18n()
@@ -11,18 +12,6 @@ const filesStore = useFilesStore()
 const emit = defineEmits<{
   (e: 'contextmenu-entry', event: MouseEvent, entry: FileEntry): void
 }>()
-
-function formatSize(bytes: number): string {
-  if (bytes === 0) return '—'
-  const units = ['B', 'KB', 'MB', 'GB']
-  let i = 0
-  let size = bytes
-  while (size >= 1024 && i < units.length - 1) {
-    size /= 1024
-    i++
-  }
-  return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
-}
 
 function formatDate(iso: string): string {
   if (!iso) return '—'
@@ -99,7 +88,7 @@ async function handleDownload(entry: FileEntry) {
             <span class="file-icon">{{ getFileIcon(entry) }}</span>
             <span>{{ entry.name }}</span>
           </div>
-          <div class="file-size">{{ entry.isDir ? '—' : formatSize(entry.size) }}</div>
+          <div class="file-size">{{ entry.isDir ? '—' : formatFileSize(entry.size, '—') }}</div>
           <div class="file-date">{{ formatDate(entry.modTime) }}</div>
           <div class="file-actions">
             <Button v-if="isTextFile(entry.name) && !entry.isDir" size="small" type="text" @click.stop="filesStore.openEditor(entry.path)" :title="t('files.edit')">✏️</Button>

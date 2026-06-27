@@ -4,6 +4,7 @@ import { useChatStore } from '@/stores/solonclaw/chat'
 import { useAppStore } from '@/stores/solonclaw/app'
 import { fetchContextLength } from '@/api/solonclaw/sessions'
 import { computeChatContextUsage } from '@/shared/chatContextUsage'
+import { formatFileSize } from '@/shared/file-size'
 import { Button, Tooltip } from 'antdv-next'
 import { computed, ref, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -178,12 +179,6 @@ function removeAttachment(id: string) {
   }
 }
 
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-}
-
 function isImage(type: string): boolean {
   return type.startsWith('image/')
 }
@@ -230,7 +225,7 @@ function isImage(type: string): boolean {
           <div class="attachment-file">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             <span class="file-name">{{ att.name }}</span>
-            <span class="file-size">{{ formatSize(att.size) }}</span>
+            <span class="file-size">{{ formatFileSize(att.size) }}</span>
           </div>
         </template>
         <button class="attachment-remove" @click="removeAttachment(att.id)">

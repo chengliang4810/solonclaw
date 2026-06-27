@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Button, Select, Spin, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
+import { formatFileSize } from '@/shared/file-size'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
 import {
   downloadMedia,
@@ -68,13 +69,6 @@ function formatMediaTime(value?: number) {
   return new Date(value).toLocaleString()
 }
 
-function formatBytes(value?: number) {
-  if (!value) return '0 B'
-  if (value < 1024) return `${value} B`
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
-  return `${(value / 1024 / 1024).toFixed(1)} MB`
-}
-
 onMounted(() => {
   settingsStore.fetchSettings()
   loadMedia()
@@ -124,7 +118,7 @@ onMounted(() => {
                 </div>
                 <div class="media-meta">
                   <span>{{ item.kind || item.mime_type || '-' }}</span>
-                  <span>{{ formatBytes(item.size_bytes) }}</span>
+                  <span>{{ formatFileSize(item.size_bytes) }}</span>
                   <span>{{ formatMediaTime(item.updated_at) }}</span>
                 </div>
                 <code>{{ item.reference || item.local_path || '-' }}</code>
