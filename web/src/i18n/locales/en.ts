@@ -1564,6 +1564,8 @@ export default {
     payload: 'Payload',
     sessionTree: 'Session tree',
     checkpoints: 'Checkpoints',
+    checkpointPreview: 'Checkpoint preview',
+    previewCheckpoint: 'Preview',
     rollback: 'Rollback',
     mainBranch: 'Main branch',
     attempts: '{count} attempts',

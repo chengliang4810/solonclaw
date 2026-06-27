@@ -2,7 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { Button, Select, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
-import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
+import { fetchCheckpointPreview, fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
 import {
   controlSubagent,
   fetchActiveSubagents,
@@ -27,11 +27,13 @@ const tools = ref<ToolCall[]>([])
 const recoveries = ref<RunRecovery[]>([])
 const commands = ref<RunControlCommand[]>([])
 const checkpoints = ref<any[]>([])
+const checkpointPreview = ref<Record<string, unknown> | null>(null)
 const tree = ref<any>(null)
 const selectedSessionId = ref('')
 const selectedRunId = ref('')
 const loading = ref(false)
 const rollingBack = ref('')
+const previewingCheckpoint = ref('')
 const controllingSubagent = ref('')
 const { t } = useI18n()
 
@@ -63,6 +65,7 @@ async function loadSessionDetail() {
     runs.value = loadedRuns
     tree.value = loadedTree
     checkpoints.value = loadedCheckpoints
+    checkpointPreview.value = null
     selectedRunId.value = loadedRuns[0]?.run_id || ''
     if (selectedRunId.value) {
       const detail = await fetchRunDetail(selectedRunId.value)
@@ -114,6 +117,15 @@ async function handleRollback(id: string) {
     await loadSessionDetail()
   } finally {
     rollingBack.value = ''
+  }
+}
+
+async function handleCheckpointPreview(id: string) {
+  previewingCheckpoint.value = id
+  try {
+    checkpointPreview.value = await fetchCheckpointPreview(id)
+  } finally {
+    previewingCheckpoint.value = ''
   }
 }
 
@@ -346,7 +358,12 @@ onMounted(async () => {
           <h3>{{ t('runs.checkpoints') }}</h3>
           <div v-for="checkpoint in checkpoints" :key="checkpoint.checkpoint_id" class="mini-row">
             <span>{{ time(checkpoint.created_at) }}</span>
+            <Button size="small" type="default" :loading="previewingCheckpoint === checkpoint.checkpoint_id" @click="handleCheckpointPreview(checkpoint.checkpoint_id)">{{ t('runs.previewCheckpoint') }}</Button>
             <Button size="small" type="default" :loading="rollingBack === checkpoint.checkpoint_id" @click="handleRollback(checkpoint.checkpoint_id)">{{ t('runs.rollback') }}</Button>
+          </div>
+          <div v-if="checkpointPreview" class="preview-block checkpoint-preview">
+            <span>{{ t('runs.checkpointPreview') }}</span>
+            <pre>{{ jsonText(checkpointPreview) }}</pre>
           </div>
         </section>
       </main>
