@@ -23,6 +23,14 @@ export interface SkillFileEntry {
   isDir: boolean
 }
 
+export interface ToolsetInfo {
+  name: string
+  label?: string
+  description?: string
+  tools?: string[]
+  enabled?: boolean
+}
+
 export interface MemoryData {
   memory: string
   user: string
@@ -78,6 +86,10 @@ export async function fetchSkills(): Promise<SkillCategory[]> {
     description: name,
     skills: groupedSkills,
   }))
+}
+
+export async function fetchToolsets(): Promise<ToolsetInfo[]> {
+  return request<ToolsetInfo[]>('/api/tools/toolsets')
 }
 
 function canonicalSkillName(category: string, skill: string): string {

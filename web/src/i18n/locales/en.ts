@@ -1123,6 +1123,10 @@ export default {
     insightActive: 'Active',
     insightStale: 'Stale',
     insightArchived: 'Archived',
+    toolsetsTitle: 'Toolsets',
+    toolsetsLoadFailed: 'Failed to load toolsets',
+    toolsetsEmpty: 'No toolsets',
+    toolsetToolCount: '{count} tools',
   },
 
   // Memory

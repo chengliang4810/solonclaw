@@ -600,6 +600,10 @@ export default {
     insightActive: '活跃',
     insightStale: '待整理',
     insightArchived: '已归档',
+    toolsetsTitle: '工具集',
+    toolsetsLoadFailed: '加载工具集失败',
+    toolsetsEmpty: '暂无工具集',
+    toolsetToolCount: '{count} 个工具',
   },
 
   // 记忆

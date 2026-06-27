@@ -12,15 +12,17 @@ import {
   type CuratorImprovement,
 } from '@/api/solonclaw/curator'
 import { fetchInsightsSkills, type InsightsSkills } from '@/api/solonclaw/insights'
-import { fetchSkills, type SkillCategory } from '@/api/solonclaw/skills'
+import { fetchSkills, fetchToolsets, type SkillCategory, type ToolsetInfo } from '@/api/solonclaw/skills'
 
 const { t } = useI18n()
 const categories = ref<SkillCategory[]>([])
+const toolsets = ref<ToolsetInfo[]>([])
 const improvements = ref<CuratorImprovement[]>([])
 const skillInsights = ref<InsightsSkills>({})
 const loading = ref(false)
 const curatorLoading = ref(false)
 const insightsLoading = ref(false)
+const toolsetsLoading = ref(false)
 const curatorActionId = ref('')
 const selectedCategory = ref('')
 const selectedSkill = ref('')
@@ -51,6 +53,7 @@ onMounted(() => {
   loadSkills()
   loadCuratorImprovements()
   loadSkillInsights()
+  loadToolsets()
 })
 
 onUnmounted(() => {
@@ -87,6 +90,17 @@ async function loadSkillInsights() {
     message.error(`${t('skills.insightsLoadFailed')}: ${err.message}`)
   } finally {
     insightsLoading.value = false
+  }
+}
+
+async function loadToolsets() {
+  toolsetsLoading.value = true
+  try {
+    toolsets.value = await fetchToolsets()
+  } catch (err: any) {
+    message.error(`${t('skills.toolsetsLoadFailed')}: ${err.message}`)
+  } finally {
+    toolsetsLoading.value = false
   }
 }
 
@@ -247,6 +261,34 @@ function handleSelect(category: string, skill: string) {
               </div>
             </section>
 
+            <section class="toolsets-panel">
+              <div class="insights-header">
+                <h3>{{ t('skills.toolsetsTitle') }}</h3>
+                <Button size="small" :loading="toolsetsLoading" @click="loadToolsets">
+                  {{ t('skills.refresh') }}
+                </Button>
+              </div>
+              <div v-if="toolsets.length" class="toolsets-grid">
+                <article v-for="toolset in toolsets" :key="toolset.name" class="toolset-card">
+                  <div class="toolset-head">
+                    <strong>{{ toolset.label || toolset.name }}</strong>
+                    <small>{{ toolset.name }}</small>
+                  </div>
+                  <p>{{ toolset.description || '-' }}</p>
+                  <div class="toolset-meta">
+                    <span>{{ t('skills.toolsetToolCount', { count: toolset.tools?.length || 0 }) }}</span>
+                    <span>{{ toolset.enabled === false ? t('common.no') : t('common.yes') }}</span>
+                  </div>
+                  <div class="toolset-tools">
+                    <code v-for="tool in toolset.tools || []" :key="tool">{{ tool }}</code>
+                  </div>
+                </article>
+              </div>
+              <div v-else class="curator-empty">
+                {{ toolsetsLoading ? t('common.loading') : t('skills.toolsetsEmpty') }}
+              </div>
+            </section>
+
             <SkillDetail
               v-if="selectedCategory && selectedSkill"
               :category="selectedCategory"
@@ -331,6 +373,12 @@ function handleSelect(category: string, skill: string) {
   margin-bottom: 14px;
 }
 
+.toolsets-panel {
+  border-bottom: 1px solid $border-color;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+
 .insights-header {
   display: flex;
   justify-content: space-between;
@@ -368,6 +416,65 @@ function handleSelect(category: string, skill: string) {
     margin-top: 6px;
     font-size: 18px;
     color: $text-primary;
+  }
+}
+
+.toolsets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.toolset-card {
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  padding: 10px;
+
+  p {
+    margin: 8px 0;
+    color: $text-secondary;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+}
+
+.toolset-head,
+.toolset-meta,
+.toolset-tools {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.toolset-head {
+  justify-content: space-between;
+
+  strong {
+    color: $text-primary;
+    font-size: 13px;
+  }
+
+  small {
+    color: $text-muted;
+    font-family: $font-code;
+  }
+}
+
+.toolset-meta {
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.toolset-tools {
+  margin-top: 8px;
+
+  code {
+    color: $text-secondary;
+    font-size: 11px;
+    font-family: $font-code;
+    overflow-wrap: anywhere;
   }
 }
 
