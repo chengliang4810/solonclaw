@@ -1716,41 +1716,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param result 结果响应或执行结果。
      */
     private void applyUsage(SessionRecord session, LlmResult result) {
-        if (session == null || result == null) {
-            return;
-        }
-        session.setLastInputTokens(result.getInputTokens());
-        session.setLastOutputTokens(result.getOutputTokens());
-        session.setLastReasoningTokens(result.getReasoningTokens());
-        session.setLastCacheReadTokens(result.getCacheReadTokens());
-        session.setLastCacheWriteTokens(result.getCacheWriteTokens());
-        session.setLastTotalTokens(result.getTotalTokens());
-        session.setCumulativeInputTokens(
-                session.getCumulativeInputTokens() + Math.max(0L, result.getInputTokens()));
-        session.setCumulativeOutputTokens(
-                session.getCumulativeOutputTokens() + Math.max(0L, result.getOutputTokens()));
-        session.setCumulativeReasoningTokens(
-                session.getCumulativeReasoningTokens() + Math.max(0L, result.getReasoningTokens()));
-        session.setCumulativeCacheReadTokens(
-                session.getCumulativeCacheReadTokens() + Math.max(0L, result.getCacheReadTokens()));
-        session.setCumulativeCacheWriteTokens(
-                session.getCumulativeCacheWriteTokens()
-                        + Math.max(0L, result.getCacheWriteTokens()));
-        session.setCumulativeTotalTokens(
-                session.getCumulativeTotalTokens() + Math.max(0L, result.getTotalTokens()));
-        if (result.getTotalTokens() > 0
-                || result.getInputTokens() > 0
-                || result.getOutputTokens() > 0
-                || result.getCacheReadTokens() > 0
-                || result.getCacheWriteTokens() > 0) {
-            session.setLastUsageAt(System.currentTimeMillis());
-        }
-        if (StrUtil.isNotBlank(result.getProvider())) {
-            session.setLastResolvedProvider(result.getProvider());
-        }
-        if (StrUtil.isNotBlank(result.getModel())) {
-            session.setLastResolvedModel(result.getModel());
-        }
+        LlmUsageSupport.applyUsage(session, result);
     }
 
     /**
@@ -1861,24 +1827,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param extra extra 参数。
      */
     private void mergeUsage(LlmResult base, LlmResult extra) {
-        if (base == null || extra == null) {
-            return;
-        }
-        extra.setInputTokens(
-                Math.max(0L, extra.getInputTokens()) + Math.max(0L, base.getInputTokens()));
-        extra.setOutputTokens(
-                Math.max(0L, extra.getOutputTokens()) + Math.max(0L, base.getOutputTokens()));
-        extra.setReasoningTokens(
-                Math.max(0L, extra.getReasoningTokens()) + Math.max(0L, base.getReasoningTokens()));
-        extra.setCacheReadTokens(
-                Math.max(0L, extra.getCacheReadTokens()) + Math.max(0L, base.getCacheReadTokens()));
-        extra.setCacheWriteTokens(
-                Math.max(0L, extra.getCacheWriteTokens())
-                        + Math.max(0L, base.getCacheWriteTokens()));
-        extra.setRequestCount(
-                Math.max(0L, extra.getRequestCount()) + Math.max(0L, base.getRequestCount()));
-        extra.setTotalTokens(
-                Math.max(0L, extra.getTotalTokens()) + Math.max(0L, base.getTotalTokens()));
+        LlmUsageSupport.mergeUsage(base, extra);
     }
 
     /**

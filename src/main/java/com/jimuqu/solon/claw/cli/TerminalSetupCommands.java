@@ -4,7 +4,9 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.support.ChannelConfigSupport;
 import com.jimuqu.solon.claw.support.RuntimeProviderSetupSpec;
+import com.jimuqu.solon.claw.support.RuntimeConfigResolverSupport;
 import com.jimuqu.solon.claw.support.RuntimeSetupService;
 import com.jimuqu.solon.claw.support.RuntimeSetupSpec;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -1506,11 +1508,7 @@ public class TerminalSetupCommands {
 
     /** 读取当前工作区配置解析器。 */
     private RuntimeConfigResolver configResolver() {
-        String home =
-                appConfig == null || appConfig.getRuntime() == null
-                        ? ""
-                        : appConfig.getRuntime().getHome();
-        return RuntimeConfigResolver.initialize(home);
+        return RuntimeConfigResolverSupport.fromAppConfig(appConfig);
     }
 
     /** 创建共享初始化配置服务，保证终端命令与后续 TUI/slash 配置入口共用写入规则。 */
@@ -1644,28 +1642,7 @@ public class TerminalSetupCommands {
      * @return 渠道配置。
      */
     private AppConfig.ChannelConfig channelConfig(String channel) {
-        if (appConfig == null || appConfig.getChannels() == null) {
-            return null;
-        }
-        if ("feishu".equals(channel)) {
-            return appConfig.getChannels().getFeishu();
-        }
-        if ("dingtalk".equals(channel)) {
-            return appConfig.getChannels().getDingtalk();
-        }
-        if ("wecom".equals(channel)) {
-            return appConfig.getChannels().getWecom();
-        }
-        if ("weixin".equals(channel)) {
-            return appConfig.getChannels().getWeixin();
-        }
-        if ("qqbot".equals(channel)) {
-            return appConfig.getChannels().getQqbot();
-        }
-        if ("yuanbao".equals(channel)) {
-            return appConfig.getChannels().getYuanbao();
-        }
-        return null;
+        return ChannelConfigSupport.get(appConfig, channel);
     }
 
     /**

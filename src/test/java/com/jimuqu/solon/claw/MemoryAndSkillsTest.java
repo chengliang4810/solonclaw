@@ -171,6 +171,56 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldToggleSkillVisibilityThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill(
+                "toggle-skill",
+                null,
+                "---\nname: toggle-skill\ndescription: toggle test\n---\n\n# Steps\n- test\n");
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.sessionRepository,
+                        "MEMORY:toggle:user");
+
+        tools.skillManage(
+                "toggle", "toggle-skill", null, null, null, null, null, null, null, false);
+
+        assertThat(tools.skillsList(null)).doesNotContain("toggle-skill");
+
+        tools.skillManage(
+                "toggle", "toggle-skill", null, null, null, null, null, null, null, true);
+
+        assertThat(tools.skillsList(null)).contains("toggle-skill");
+    }
+
+    @Test
+    void shouldListSkillSupportFilesThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.localSkillService.createSkill(
+                "files-skill",
+                null,
+                "---\n"
+                        + "name: files-skill\n"
+                        + "description: files test\n"
+                        + "---\n\n"
+                        + "Use [brief](references/brief.md).\n");
+        env.localSkillService.writeSkillFile(
+                "files-skill", "references/brief.md", "brief content");
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.sessionRepository,
+                        "MEMORY:files:user");
+
+        String files = tools.skillFiles("files-skill");
+
+        assertThat(files).contains("SKILL.md").contains("references/brief.md");
+    }
+
+    @Test
     void shouldExpandInlineShellWhenSkillsConfigEnablesIt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSkills().setInlineShell(true);

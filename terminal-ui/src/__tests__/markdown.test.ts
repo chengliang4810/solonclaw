@@ -14,13 +14,13 @@ const ESC = String.fromCharCode(27)
 const CSI_RE = new RegExp(`${ESC}\\[[0-?]*[ -/]*[@-~]`, 'g')
 const OSC_RE = new RegExp(`${ESC}\\][\\s\\S]*?(?:${BEL}|${ESC}\\\\)`, 'g')
 
-const renderPlain = (node: React.ReactNode) => {
+const renderOutput = (node: React.ReactNode, styled = false) => {
   const stdout = new PassThrough()
   const stdin = new PassThrough()
   const stderr = new PassThrough()
   let output = ''
 
-  Object.assign(stdout, { columns: 80, isTTY: false, rows: 24 })
+  Object.assign(stdout, { columns: 80, isTTY: styled, rows: 24 })
   Object.assign(stdin, { isTTY: false })
   Object.assign(stderr, { isTTY: false })
   stdout.on('data', chunk => {
@@ -37,8 +37,13 @@ const renderPlain = (node: React.ReactNode) => {
   instance.unmount()
   instance.cleanup()
 
+  return output.replace(OSC_RE, '')
+}
+
+const renderPlain = (node: React.ReactNode) => {
+  const output = renderOutput(node)
+
   return output
-    .replace(OSC_RE, '')
     .split('\n')
     .map(line => stripAnsi(line).replace(CSI_RE, '').trimEnd())
 }
@@ -283,6 +288,65 @@ describe('Md link labels', () => {
 })
 
 describe('renderTable CJK width alignment', () => {
+  it('preserves inline markdown styling inside table cells that do not wrap', async () => {
+    const { default: chalk } = await import('chalk')
+
+    chalk.level = 2
+
+    const output = renderOutput(
+      React.createElement(
+        Box,
+        { width: 120 },
+        React.createElement(Md, {
+          compact: true,
+          t: DEFAULT_THEME,
+          text: [
+            '| 名称 | 说明 |',
+            '| --- | --- |',
+            '| `solonclaw` | **重要** [文档](https://solon.noear.org) |'
+          ].join('\n')
+        })
+      ),
+      true
+    )
+
+    expect(stripAnsi(output)).toContain('solonclaw')
+    expect(stripAnsi(output)).toContain('重要')
+    expect(stripAnsi(output)).toContain('文档')
+    expect(output).toContain(`${ESC}[1m重要`)
+    expect(output).toContain(`${ESC}[4m文档`)
+  })
+
+  it('preserves inline markdown styling inside wrapped table cells', async () => {
+    const { default: chalk } = await import('chalk')
+
+    chalk.level = 2
+
+    const output = renderOutput(
+      React.createElement(
+        Box,
+        { width: 40 },
+        React.createElement(Md, {
+          cols: 30,
+          compact: true,
+          t: DEFAULT_THEME,
+          text: [
+            '| 名称 | 说明 |',
+            '| --- | --- |',
+            '| `solonclaw` | **重要** [文档](https://solon.noear.org) longer text |'
+          ].join('\n')
+        })
+      ),
+      true
+    )
+
+    expect(stripAnsi(output)).toContain('solonclaw')
+    expect(stripAnsi(output)).toContain('重要')
+    expect(stripAnsi(output)).toContain('文档')
+    expect(output).toContain(`${ESC}[1m重要`)
+    expect(output).toContain(`${ESC}[4m文档`)
+  })
+
   it('column starts share the same display offset across CJK rows', async () => {
     const { stringWidth } = await import('@solonclaw/ink')
 

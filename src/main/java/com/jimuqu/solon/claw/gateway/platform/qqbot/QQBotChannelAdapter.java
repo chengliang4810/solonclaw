@@ -8,13 +8,14 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
-import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelHttpSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelInboundPolicySupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.GatewayApprovalCardSupport;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -298,11 +299,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 如果审批Card请求满足条件则返回 true，否则返回 false。
      */
     private boolean isApprovalCardRequest(DeliveryRequest request) {
-        return DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD.equalsIgnoreCase(
-                stringValue(
-                        request.getChannelExtras() == null
-                                ? null
-                                : request.getChannelExtras().get("mode")));
+        return GatewayApprovalCardSupport.isApprovalCardRequest(request);
     }
 
     /**
@@ -445,8 +442,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回审批Card Allow Always结果。
      */
     private boolean approvalCardAllowAlways(Map<String, Object> extras) {
-        Object value = extras == null ? null : extras.get("approvalAllowAlways");
-        return value == null || Boolean.parseBoolean(stringValue(value));
+        return GatewayApprovalCardSupport.approvalCardAllowAlways(extras);
     }
 
     /**
@@ -627,25 +623,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回post JSON结果。
      */
     private ONode postJson(String path, String body) throws Exception {
-        String url = apiDomain() + path;
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "QQBot API URL");
-        Request request =
-                new Request.Builder()
-                        .url(url)
-                        .header("Authorization", "QQBot " + accessToken)
-                        .post(RequestBody.create(JSON, body))
-                        .build();
-        Response response = client.newCall(request).execute();
-        try {
-            String raw = safeBody(response);
-            if (!response.isSuccessful()) {
-                throw new IllegalStateException(
-                        "QQBot HTTP " + response.code() + ": " + safeHttpErrorBody(raw));
-            }
-            return StrUtil.isBlank(raw) ? new ONode() : ONode.ofJson(raw);
-        } finally {
-            response.close();
-        }
+        return requestJson("POST", path, body);
     }
 
     /**
@@ -656,13 +634,26 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回JSON结果。
      */
     private ONode putJson(String path, String body) throws Exception {
+        return requestJson("PUT", path, body);
+    }
+
+    /**
+     * 执行QQ机器人JSON请求，统一复用安全URL校验、响应限流读取与错误脱敏。
+     *
+     * @param method HTTP请求方法。
+     * @param path API路径。
+     * @param body 请求体或消息正文内容。
+     * @return 返回解析后的JSON结果，空响应返回空节点。
+     */
+    private ONode requestJson(String method, String path, String body) throws Exception {
         String url = apiDomain() + path;
         ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "QQBot API URL");
+        RequestBody requestBody = RequestBody.create(JSON, body);
         Request request =
                 new Request.Builder()
                         .url(url)
                         .header("Authorization", "QQBot " + accessToken)
-                        .put(RequestBody.create(JSON, body))
+                        .method(method, requestBody)
                         .build();
         Response response = client.newCall(request).execute();
         try {
@@ -1219,30 +1210,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 如果入站满足条件则返回 true，否则返回 false。
      */
     private boolean allowInbound(String chatType, String chatId, String userId) {
-        if (config.isAllowAllUsers()) {
-            return true;
-        }
-        if (GatewayBehaviorConstants.CHAT_TYPE_GROUP.equalsIgnoreCase(chatType)) {
-            String policy =
-                    StrUtil.blankToDefault(
-                                    config.getGroupPolicy(),
-                                    GatewayBehaviorConstants.GROUP_POLICY_OPEN)
-                            .toLowerCase();
-            if (GatewayBehaviorConstants.GROUP_POLICY_DISABLED.equals(policy)) {
-                return false;
-            }
-            return !GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(policy)
-                    || ChannelAllowListSupport.contains(config.getGroupAllowedUsers(), chatId);
-        }
-        String policy =
-                StrUtil.blankToDefault(
-                                config.getDmPolicy(), GatewayBehaviorConstants.DM_POLICY_OPEN)
-                        .toLowerCase();
-        if (GatewayBehaviorConstants.DM_POLICY_DISABLED.equals(policy)) {
-            return false;
-        }
-        return !GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(policy)
-                || ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
+        return ChannelInboundPolicySupport.allowInbound(config, chatType, chatId, userId);
     }
 
     /**

@@ -184,7 +184,7 @@ public class SolonClawCodeExecutionSkills {
                 AppConfig appConfig,
                 SolonClawWebTools.SafeWebsearchTool websearchTool,
                 SolonClawWebTools.SafeWebfetchTool webfetchTool) {
-            this.workDir = checkedWorkDir(workDir);
+            this.workDir = TerminalPathSupport.checkedWorkDir(workDir);
             this.pythonCommand = StrUtil.blankToDefault(pythonCommand, defaultPythonCommand());
             this.securityPolicyService = securityPolicyService;
             this.appConfig = appConfig;
@@ -1009,19 +1009,7 @@ public class SolonClawCodeExecutionSkills {
          * @return 返回safe路径。
          */
         private String safePath(String path) {
-            String value =
-                    SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path))
-                            .replace('\\', '/')
-                            .trim();
-            if (value.length() == 0) {
-                return "[unknown]";
-            }
-            int slash = value.lastIndexOf('/');
-            String name = slash >= 0 ? value.substring(slash + 1) : value;
-            if (StrUtil.isBlank(name)) {
-                name = "[path]";
-            }
-            return SecretRedactor.redact(name, 400);
+            return ToolWorkspacePathSupport.safePath(path);
         }
 
         /**
@@ -1759,23 +1747,6 @@ public class SolonClawCodeExecutionSkills {
                             StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
                             1000);
         }
-    }
-
-    /**
-     * 执行checked工作目录相关逻辑。
-     *
-     * @param workDir 命令执行工作目录。
-     * @return 返回checked Work Dir结果。
-     */
-    private static String checkedWorkDir(String workDir) {
-        SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(workDir);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    "Blocked: "
-                            + verdict.getMessage()
-                            + ". Use a simple filesystem path without shell metacharacters.");
-        }
-        return workDir;
     }
 
     /**

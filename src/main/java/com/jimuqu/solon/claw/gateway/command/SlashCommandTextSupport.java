@@ -67,4 +67,25 @@ final class SlashCommandTextSupport {
         }
         return tokens;
     }
+
+    /**
+     * 格式化字节数。
+     *
+     * @param bytes 字节数。
+     * @return 返回带单位的容量文本。
+     */
+    static String formatBytes(long bytes) {
+        if (bytes < 1024L) {
+            return bytes + " B";
+        }
+        double value = bytes;
+        String[] units = new String[] {"B", "KB", "MB", "GB", "TB"};
+        int unitIndex = 0;
+        while (value >= 1024D && unitIndex < units.length - 1) {
+            value = value / 1024D;
+            unitIndex++;
+        }
+        return String.format(
+                java.util.Locale.ROOT, "%.1f %s", Double.valueOf(value), units[unitIndex]);
+    }
 }

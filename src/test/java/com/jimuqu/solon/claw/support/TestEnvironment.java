@@ -76,6 +76,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteUsageEventRepository;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
@@ -86,11 +87,21 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
+import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
+import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
+import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
+import com.jimuqu.solon.claw.web.DashboardStatusService;
+import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -191,7 +202,9 @@ public class TestEnvironment {
         SqlitePreferenceStore preferenceStore = new SqlitePreferenceStore(database);
         GlobalSettingRepository globalSettingRepository =
                 new SqliteGlobalSettingRepository(database);
-        SessionRepository sessionRepository = new SqliteSessionRepository(database);
+        SqliteSessionRepository sqliteSessionRepository = new SqliteSessionRepository(database);
+        SessionRepository sessionRepository = sqliteSessionRepository;
+        SqliteUsageEventRepository usageEventRepository = new SqliteUsageEventRepository(database);
         AgentRunRepository agentRunRepository = new SqliteAgentRunRepository(database);
         CronJobRepository cronJobRepository = new SqliteCronJobRepository(database);
         GatewayPolicyRepository gatewayPolicyRepository =
@@ -299,15 +312,61 @@ public class TestEnvironment {
         DashboardCuratorService dashboardCuratorService =
                 new DashboardCuratorService(
                         new SkillCuratorService(config, localSkillService), database);
+        DashboardPlatformToolsetsService dashboardPlatformToolsetsService =
+                new DashboardPlatformToolsetsService(config, dashboardConfigService);
         DashboardSkillsService dashboardSkillsService =
                 new DashboardSkillsService(localSkillService, preferenceStore);
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(config);
+        DashboardStatusService dashboardStatusService =
+                new DashboardStatusService(
+                        config,
+                        sessionRepository,
+                        deliveryService,
+                        null,
+                        refreshService,
+                        appVersionService,
+                        appUpdateService,
+                        llmProviderService,
+                        null);
+        DashboardGatewayDoctorService dashboardGatewayDoctorService =
+                new DashboardGatewayDoctorService(
+                        config, deliveryService, llmProviderService, refreshService, null);
+        DashboardInsightsService dashboardInsightsService =
+                new DashboardInsightsService(
+                        config,
+                        new com.jimuqu.solon.claw.context.SkillUsageTracker(config),
+                        sqliteSessionRepository);
+        DashboardApprovalEventsService dashboardApprovalEventsService =
+                new DashboardApprovalEventsService(config);
+        DashboardDiagnosticsService dashboardDiagnosticsService =
+                new DashboardDiagnosticsService(
+                        config,
+                        deliveryService,
+                        llmProviderService,
+                        null,
+                        sessionRepository,
+                        null,
+                        null,
+                        new SlashConfirmService(globalSettingRepository),
+                        null,
+                        dangerousCommandApprovalService,
+                        securityPolicyService,
+                        new TirithSecurityService(config));
+        DashboardWorkspaceService dashboardWorkspaceService =
+                new DashboardWorkspaceService(personaWorkspaceService);
+        WeixinQrSetupService weixinQrSetupService =
+                new WeixinQrSetupService(
+                        config, dashboardConfigService, refreshService, securityPolicyService);
+        DomesticQrSetupService domesticQrSetupService =
+                new DomesticQrSetupService(
+                        config, dashboardConfigService, refreshService, securityPolicyService);
         BrowserRuntimeService browserRuntimeService =
                 new BrowserRuntimeService(
                         config,
                         java.util.Collections
                                 .<com.jimuqu.solon.claw.plugin.provider.BrowserProvider>emptyList(),
                         securityPolicyService);
+        DashboardRunService dashboardRunService = new DashboardRunService(agentRunRepository);
         ToolRegistry toolRegistry =
                 new DefaultToolRegistry(
                         config,
@@ -326,9 +385,32 @@ public class TestEnvironment {
                         runtimeSettingsService,
                         refreshService,
                         securityPolicyService,
+                        dangerousCommandApprovalService,
                         processRegistry,
                         null,
-                        browserRuntimeService);
+                        dashboardMcpService,
+                        dashboardCuratorService,
+                        dashboardPlatformToolsetsService,
+                        dashboardProviderService,
+                        dashboardStatusService,
+                        dashboardGatewayDoctorService,
+                        dashboardInsightsService,
+                        dashboardApprovalEventsService,
+                        dashboardDiagnosticsService,
+                        dashboardWorkspaceService,
+                        dashboardConfigService,
+                        dashboardRuntimeConfigService,
+                        weixinQrSetupService,
+                        domesticQrSetupService,
+                        browserRuntimeService,
+                        null,
+                        null,
+                        dashboardRunService,
+                        database,
+                        agentRunRepository,
+                        cronJobRepository,
+                        usageEventRepository,
+                        null);
         ContextBudgetService contextBudgetService = new DefaultContextBudgetService(config);
         AgentRunSupervisor agentRunSupervisor =
                 new AgentRunSupervisor(

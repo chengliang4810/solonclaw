@@ -212,7 +212,7 @@ public final class MessageSupport {
      * @param current 当前待检查消息。
      * @return 如果工具调用签名完全一致则返回 true。
      */
-    private static boolean sameAssistantToolCalls(ChatMessage previous, ChatMessage current) {
+    public static boolean sameAssistantToolCalls(ChatMessage previous, ChatMessage current) {
         if (!(previous instanceof AssistantMessage) || !(current instanceof AssistantMessage)) {
             return false;
         }
@@ -258,7 +258,7 @@ public final class MessageSupport {
      * @param message assistant 消息。
      * @return 返回可比较的信息量分数。
      */
-    private static int assistantInformationScore(AssistantMessage message) {
+    public static int assistantInformationScore(AssistantMessage message) {
         if (message == null) {
             return 0;
         }
@@ -410,7 +410,7 @@ public final class MessageSupport {
      * @param right 右侧消息。
      * @return 如果文本相同则返回 true。
      */
-    private static boolean sameVisibleContent(AssistantMessage left, AssistantMessage right) {
+    public static boolean sameVisibleContent(AssistantMessage left, AssistantMessage right) {
         String leftText = StrUtil.nullToEmpty(left.getContent()).trim();
         String rightText = StrUtil.nullToEmpty(right.getContent()).trim();
         return StrUtil.isNotBlank(leftText) && StrUtil.equals(leftText, rightText);

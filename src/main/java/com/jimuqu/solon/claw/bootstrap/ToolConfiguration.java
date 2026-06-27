@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
+import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
@@ -63,6 +64,21 @@ import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
+import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
+import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
+import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
+import com.jimuqu.solon.claw.web.DashboardInsightsService;
+import com.jimuqu.solon.claw.web.DashboardRunService;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.DashboardCuratorService;
+import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
+import com.jimuqu.solon.claw.web.DashboardProviderService;
+import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import com.jimuqu.solon.claw.web.DashboardStatusService;
+import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
@@ -282,9 +298,28 @@ public class ToolConfiguration {
      * @param dangerousCommandApprovalService 危险或外部操作审批服务依赖。
      * @param processRegistry 进程注册表依赖组件。
      * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param dashboardMcpService Dashboard MCP服务依赖。
+     * @param dashboardCuratorService Dashboard技能维护服务依赖。
+     * @param dashboardPlatformToolsetsService Dashboard平台工具集服务依赖。
+     * @param dashboardProviderService Dashboard provider服务依赖。
+     * @param dashboardStatusService Dashboard 状态服务依赖。
+     * @param dashboardGatewayDoctorService Dashboard Doctor 服务依赖。
+     * @param dashboardInsightsService Dashboard 洞察服务依赖。
+     * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
+     * @param dashboardDiagnosticsService Dashboard 诊断服务依赖。
+     * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
+     * @param dashboardConfigService Dashboard 配置服务依赖。
+     * @param dashboardRuntimeConfigService Dashboard 工作区配置服务依赖。
+     * @param weixinQrSetupService 微信二维码 setup 服务依赖。
+     * @param domesticQrSetupService 国内二维码 setup 服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param imageGenerationService 图片Generation服务依赖。
      * @param speechService 语音服务依赖。
+     * @param dashboardRunService Dashboard运行服务依赖。
+     * @param sqliteDatabase SQLite数据库依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param cronJobRepository 定时任务仓储依赖。
+     * @param usageEventRepository 用量事件仓储依赖。
      * @param pluginTools 插件Tools参数。
      * @return 返回工具注册表结果。
      */
@@ -309,9 +344,28 @@ public class ToolConfiguration {
             DangerousCommandApprovalService dangerousCommandApprovalService,
             ProcessRegistry processRegistry,
             McpRuntimeService mcpRuntimeService,
+            DashboardMcpService dashboardMcpService,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardPlatformToolsetsService dashboardPlatformToolsetsService,
+            DashboardProviderService dashboardProviderService,
+            DashboardStatusService dashboardStatusService,
+            DashboardGatewayDoctorService dashboardGatewayDoctorService,
+            DashboardInsightsService dashboardInsightsService,
+            DashboardApprovalEventsService dashboardApprovalEventsService,
+            DashboardDiagnosticsService dashboardDiagnosticsService,
+            DashboardWorkspaceService dashboardWorkspaceService,
+            DashboardConfigService dashboardConfigService,
+            DashboardRuntimeConfigService dashboardRuntimeConfigService,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService,
             BrowserRuntimeService browserRuntimeService,
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
+            DashboardRunService dashboardRunService,
+            SqliteDatabase sqliteDatabase,
+            AgentRunRepository agentRunRepository,
+            CronJobRepository cronJobRepository,
+            UsageEventRepository usageEventRepository,
             List<ToolRegistration> pluginTools) {
         return new DefaultToolRegistry(
                 appConfig,
@@ -333,9 +387,28 @@ public class ToolConfiguration {
                 dangerousCommandApprovalService,
                 processRegistry,
                 mcpRuntimeService,
+                dashboardMcpService,
+                dashboardCuratorService,
+                dashboardPlatformToolsetsService,
+                dashboardProviderService,
+                dashboardStatusService,
+                dashboardGatewayDoctorService,
+                dashboardInsightsService,
+                dashboardApprovalEventsService,
+                dashboardDiagnosticsService,
+                dashboardWorkspaceService,
+                dashboardConfigService,
+                dashboardRuntimeConfigService,
+                weixinQrSetupService,
+                domesticQrSetupService,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
+                dashboardRunService,
+                sqliteDatabase,
+                agentRunRepository,
+                cronJobRepository,
+                usageEventRepository,
                 pluginTools);
     }
 

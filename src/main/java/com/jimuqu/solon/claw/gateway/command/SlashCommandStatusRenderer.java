@@ -94,7 +94,7 @@ final class SlashCommandStatusRenderer {
                 + "\nmissing_dirs="
                 + status.get("missing_dirs")
                 + "\ntotal_size="
-                + formatBytes(asLong(status.get("total_size_bytes")))
+                + SlashCommandTextSupport.formatBytes(asLong(status.get("total_size_bytes")))
                 + "\nmax_checkpoints_per_source="
                 + status.get("max_checkpoints_per_source")
                 + "\nmax_file_size_mb="
@@ -119,7 +119,7 @@ final class SlashCommandStatusRenderer {
                 + "\ndeleted_overflow="
                 + result.get("deleted_overflow")
                 + "\nbytes_freed="
-                + formatBytes(asLong(result.get("bytes_freed")))
+                + SlashCommandTextSupport.formatBytes(asLong(result.get("bytes_freed")))
                 + "\nremaining="
                 + result.get("checkpoint_count");
     }
@@ -138,7 +138,7 @@ final class SlashCommandStatusRenderer {
                 + "\ndeleted="
                 + result.get("deleted")
                 + "\nbytes_freed="
-                + formatBytes(asLong(result.get("bytes_freed")))
+                + SlashCommandTextSupport.formatBytes(asLong(result.get("bytes_freed")))
                 + "\nremaining="
                 + result.get("checkpoint_count");
     }
@@ -154,27 +154,6 @@ final class SlashCommandStatusRenderer {
             return "never";
         }
         return DateUtil.formatDateTime(new java.util.Date(timestamp));
-    }
-
-    /**
-     * 格式化字节数。
-     *
-     * @param bytes 字节数。
-     * @return 返回带单位的容量文本。
-     */
-    private static String formatBytes(long bytes) {
-        if (bytes < 1024L) {
-            return bytes + " B";
-        }
-        double value = bytes;
-        String[] units = new String[] {"B", "KB", "MB", "GB", "TB"};
-        int unitIndex = 0;
-        while (value >= 1024D && unitIndex < units.length - 1) {
-            value = value / 1024D;
-            unitIndex++;
-        }
-        return String.format(
-                java.util.Locale.ROOT, "%.1f %s", Double.valueOf(value), units[unitIndex]);
     }
 
     /**

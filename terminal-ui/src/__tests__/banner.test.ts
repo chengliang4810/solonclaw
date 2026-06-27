@@ -18,7 +18,9 @@ describe('banner art', () => {
   it('uses Solon favicon art for the session hero', () => {
     const lines = text(caduceus(DEFAULT_THEME.color))
 
-    expect(lines).toContain('   ██████████      ██████████████')
-    expect(lines).toContain('                  ███████████████')
+    expect(lines).toContain('          ▒▓██████▒          ')
+    expect(lines).toContain('███████████         ████████')
+    expect(lines).toContain('        ▒▓████████████████░ ')
+    expect(lines.join('\n')).not.toContain('██████████      ██████████████')
   })
 })

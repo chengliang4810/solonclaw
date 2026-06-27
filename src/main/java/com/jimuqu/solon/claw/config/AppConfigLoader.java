@@ -1019,6 +1019,14 @@ final class AppConfigLoader {
                                         "solonclaw.gateway.filterSilenceNarration",
                                         true)));
         config.getGateway()
+                .setProcessingReactionsEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.gateway.processingReactionsEnabled",
+                                        true)));
+        config.getGateway()
                 .setPlatforms(loadGatewayPlatforms(props, overrides, structuredOverrides));
         config.getDashboard()
                 .setAccessToken(
@@ -3052,36 +3060,11 @@ final class AppConfigLoader {
             }
 
             Map<String, Object> result = new LinkedHashMap<String, Object>();
-            flatten("", (Map<?, ?>) parsed, result);
+            ConfigFlattenSupport.flatten("", (Map<?, ?>) parsed, result);
             return result;
         } catch (Exception e) {
             log.warn("运行时扁平配置读取失败，忽略 config.yml 覆盖: error={}", exceptionSummary(e));
             return Collections.emptyMap();
-        }
-    }
-
-    /**
-     * 执行flatten相关逻辑。
-     *
-     * @param prefix prefix 参数。
-     * @param input 输入参数。
-     * @param output 命令执行输出文本。
-     */
-    private static void flatten(String prefix, Map<?, ?> input, Map<String, Object> output) {
-        for (Map.Entry<?, ?> entry : input.entrySet()) {
-            if (entry.getKey() == null) {
-                continue;
-            }
-            String key =
-                    prefix.length() == 0
-                            ? String.valueOf(entry.getKey())
-                            : prefix + "." + entry.getKey();
-            Object value = entry.getValue();
-            if (value instanceof Map) {
-                flatten(key, (Map<?, ?>) value, output);
-            } else {
-                output.put(key, value);
-            }
         }
     }
 

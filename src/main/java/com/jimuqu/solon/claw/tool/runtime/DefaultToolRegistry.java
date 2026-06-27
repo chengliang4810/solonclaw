@@ -6,6 +6,8 @@ import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
+import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
+import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
@@ -21,11 +23,32 @@ import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.plugin.ToolRegistration;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import com.jimuqu.solon.claw.usage.UsageEventRepository;
+import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
+import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
+import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardCuratorService;
+import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
+import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
+import com.jimuqu.solon.claw.web.DashboardInsightsService;
+import com.jimuqu.solon.claw.web.DashboardLogsService;
+import com.jimuqu.solon.claw.web.DashboardMediaService;
+import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
+import com.jimuqu.solon.claw.web.DashboardProviderService;
+import com.jimuqu.solon.claw.web.DashboardRunService;
+import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import com.jimuqu.solon.claw.web.DashboardSessionService;
+import com.jimuqu.solon.claw.web.DashboardStatusService;
+import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,57 +74,7 @@ public class DefaultToolRegistry implements ToolRegistry {
     private static final Logger log = LoggerFactory.getLogger(DefaultToolRegistry.class);
 
     /** 默认内置工具清单。 */
-    private static final List<String> TOOL_NAMES =
-            Arrays.asList(
-                    ToolNameConstants.FILE_READ,
-                    ToolNameConstants.FILE_WRITE,
-                    ToolNameConstants.READ_FILE,
-                    ToolNameConstants.WRITE_FILE,
-                    ToolNameConstants.SEARCH_FILES,
-                    ToolNameConstants.FILE_LIST,
-                    ToolNameConstants.FILE_DELETE,
-                    ToolNameConstants.PATCH,
-                    ToolNameConstants.EXECUTE_SHELL,
-                    ToolNameConstants.TERMINAL,
-                    ToolNameConstants.PROCESS,
-                    ToolNameConstants.EXECUTE_CODE,
-                    ToolNameConstants.EXECUTE_PYTHON,
-                    ToolNameConstants.EXECUTE_JS,
-                    ToolNameConstants.GET_CURRENT_TIME,
-                    ToolNameConstants.TODO,
-                    ToolNameConstants.AGENT_MANAGE,
-                    ToolNameConstants.DELEGATE_TASK,
-                    ToolNameConstants.MEMORY,
-                    ToolNameConstants.SESSION_SEARCH,
-                    ToolNameConstants.SKILLS_LIST,
-                    ToolNameConstants.SKILL_VIEW,
-                    ToolNameConstants.SKILL_MANAGE,
-                    ToolNameConstants.SKILLS_HUB_SEARCH,
-                    ToolNameConstants.SKILLS_HUB_INSPECT,
-                    ToolNameConstants.SKILLS_HUB_INSTALL,
-                    ToolNameConstants.SKILLS_HUB_LIST,
-                    ToolNameConstants.SKILLS_HUB_CHECK,
-                    ToolNameConstants.SKILLS_HUB_UPDATE,
-                    ToolNameConstants.SKILLS_HUB_AUDIT,
-                    ToolNameConstants.SKILLS_HUB_UNINSTALL,
-                    ToolNameConstants.SKILLS_HUB_TAP,
-                    ToolNameConstants.SEND_MESSAGE,
-                    ToolNameConstants.CRONJOB,
-                    ToolNameConstants.CONFIG_GET,
-                    ToolNameConstants.CONFIG_SET,
-                    ToolNameConstants.CONFIG_SET_SECRET,
-                    ToolNameConstants.CONFIG_REFRESH,
-                    ToolNameConstants.TOOL_GATEWAY,
-                    ToolNameConstants.MCP,
-                    ToolNameConstants.CODESEARCH,
-                    ToolNameConstants.WEBSEARCH,
-                    ToolNameConstants.WEBFETCH,
-                    ToolNameConstants.IMAGE_GENERATE,
-                    ToolNameConstants.TEXT_TO_SPEECH,
-                    ToolNameConstants.SPEECH_TRANSCRIBE,
-                    ToolNameConstants.BROWSER,
-                    ToolNameConstants.SECURITY_AUDIT,
-                    ToolNameConstants.CLARIFY);
+    private static final List<String> TOOL_NAMES = AgentRuntimePolicy.knownToolNames();
 
     /** 应用配置。 */
     private final AppConfig appConfig;
@@ -157,6 +130,48 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** MCP 运行时工具发现服务。 */
     private final McpRuntimeService mcpRuntimeService;
 
+    /** Dashboard MCP 服务，用于给 Agent 暴露服务端管理工具。 */
+    private final DashboardMcpService dashboardMcpService;
+
+    /** Dashboard 技能维护服务，用于给 Agent 暴露维护建议管理工具。 */
+    private final DashboardCuratorService dashboardCuratorService;
+
+    /** Dashboard 平台工具集服务，用于给 Agent 暴露渠道工具集管理工具。 */
+    private final DashboardPlatformToolsetsService dashboardPlatformToolsetsService;
+
+    /** Dashboard provider 服务，用于给 Agent 暴露模型提供方管理工具。 */
+    private final DashboardProviderService dashboardProviderService;
+
+    /** Dashboard 状态服务，用于给 Agent 暴露运行状态查询工具。 */
+    private final DashboardStatusService dashboardStatusService;
+
+    /** Dashboard Doctor 服务，用于给 Agent 暴露消息网关诊断工具。 */
+    private final DashboardGatewayDoctorService dashboardGatewayDoctorService;
+
+    /** Dashboard 洞察服务，用于给 Agent 暴露概览和技能用量查询。 */
+    private final DashboardInsightsService dashboardInsightsService;
+
+    /** Dashboard 审批事件服务，用于给 Agent 暴露审批事件只读查询。 */
+    private final DashboardApprovalEventsService dashboardApprovalEventsService;
+
+    /** Dashboard 诊断服务，用于给 Agent 暴露审批队列只读查询。 */
+    private final DashboardDiagnosticsService dashboardDiagnosticsService;
+
+    /** Dashboard 工作区服务，用于给 Agent 暴露人格工作区只读查询。 */
+    private final DashboardWorkspaceService dashboardWorkspaceService;
+
+    /** Dashboard 配置服务，用于给 Agent 暴露配置元数据只读查询。 */
+    private final DashboardConfigService dashboardConfigService;
+
+    /** Dashboard 工作区配置服务，用于给 Agent 暴露已脱敏配置项只读查询。 */
+    private final DashboardRuntimeConfigService dashboardRuntimeConfigService;
+
+    /** 微信二维码 setup 服务，用于给 Agent 暴露 Dashboard 配置引导。 */
+    private final WeixinQrSetupService weixinQrSetupService;
+
+    /** 国内渠道二维码 setup 服务，用于给 Agent 暴露 Dashboard 配置引导。 */
+    private final DomesticQrSetupService domesticQrSetupService;
+
     /** 受管后台进程注册表。 */
     private final ProcessRegistry processRegistry;
 
@@ -171,6 +186,21 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** 插件注册工具。 */
     private final List<ToolRegistration> pluginTools;
+
+    /** Dashboard 运行服务，用于给 Agent 暴露一等运行管理工具。 */
+    private final DashboardRunService dashboardRunService;
+
+    /** 用量事件仓储，用于给 Agent 暴露与 Dashboard 一致的用量分析。 */
+    private final UsageEventRepository usageEventRepository;
+
+    /** Agent 运行仓储，用于给 Agent 暴露 Dashboard 日志结构化运行索引。 */
+    private final AgentRunRepository agentRunRepository;
+
+    /** 定时任务仓储，用于给 Agent 暴露 Dashboard 日志结构化定时任务索引。 */
+    private final CronJobRepository cronJobRepository;
+
+    /** SQLite 数据库，用于给 Agent 暴露 Dashboard 媒体索引查询。 */
+    private final SqliteDatabase sqliteDatabase;
 
     /**
      * 创建默认工具注册表实例，并注入运行所需依赖。
@@ -223,13 +253,107 @@ public class DefaultToolRegistry implements ToolRegistry {
                 attachmentCacheService,
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
-                (SecurityPolicyService) null,
+                (SecurityPolicyService) null);
+    }
+
+    /**
+     * 创建默认工具注册表实例，并注入 MCP 管理和浏览器运行时依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService Agent profile 服务依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param dashboardMcpService Dashboard MCP服务依赖。
+     * @param dashboardCuratorService Dashboard 技能维护服务依赖。
+     * @param dashboardPlatformToolsetsService Dashboard 平台工具集服务依赖。
+     * @param dashboardProviderService Dashboard provider 服务依赖。
+     * @param dashboardStatusService Dashboard 状态服务依赖。
+     * @param dashboardGatewayDoctorService Dashboard Doctor 服务依赖。
+     * @param dashboardInsightsService Dashboard 洞察服务依赖。
+     * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
+     * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            DashboardMcpService dashboardMcpService,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardPlatformToolsetsService dashboardPlatformToolsetsService,
+            DashboardProviderService dashboardProviderService,
+            BrowserRuntimeService browserRuntimeService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
                 (DangerousCommandApprovalService) null,
-                (ProcessRegistry) null,
-                (McpRuntimeService) null,
-                (BrowserRuntimeService) null,
+                processRegistry,
+                mcpRuntimeService,
+                dashboardMcpService,
+                dashboardCuratorService,
+                dashboardPlatformToolsetsService,
+                dashboardProviderService,
+                (DashboardStatusService) null,
+                (DashboardGatewayDoctorService) null,
+                (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
+                (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
+                (DashboardRuntimeConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
+                browserRuntimeService,
                 (ImageGenerationService) null,
                 (SpeechService) null,
+                (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
+                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
+                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
                 (List<ToolRegistration>) null);
     }
 
@@ -287,13 +411,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
-                (ProcessRegistry) null,
-                (McpRuntimeService) null,
-                (BrowserRuntimeService) null,
-                (ImageGenerationService) null,
-                (SpeechService) null,
-                (List<ToolRegistration>) null);
+                (McpRuntimeService) null);
     }
 
     /**
@@ -352,13 +470,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
                 (ProcessRegistry) null,
-                mcpRuntimeService,
-                (BrowserRuntimeService) null,
-                (ImageGenerationService) null,
-                (SpeechService) null,
-                (List<ToolRegistration>) null);
+                mcpRuntimeService);
     }
 
     /**
@@ -419,13 +532,10 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
-                (BrowserRuntimeService) null,
                 (ImageGenerationService) null,
-                (SpeechService) null,
-                (List<ToolRegistration>) null);
+                (SpeechService) null);
     }
 
     /**
@@ -490,13 +600,11 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
                 (BrowserRuntimeService) null,
                 imageGenerationService,
-                speechService,
-                (List<ToolRegistration>) null);
+                speechService);
     }
 
     /**
@@ -564,8 +672,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 mcpRuntimeService,
                 browserRuntimeService,
                 (ImageGenerationService) null,
-                (SpeechService) null,
-                (List<ToolRegistration>) null);
+                (SpeechService) null);
     }
 
     /**
@@ -701,13 +808,162 @@ public class DefaultToolRegistry implements ToolRegistry {
                 runtimeSettingsService,
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
-                (DangerousCommandApprovalService) null,
                 processRegistry,
                 mcpRuntimeService,
                 browserRuntimeService,
                 imageGenerationService,
                 speechService,
                 (List<ToolRegistration>) null);
+    }
+
+    /**
+     * 创建默认工具注册表实例，并注入审批、浏览器和媒体能力依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService Agent profile 服务依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService approvalService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                approvalService,
+                processRegistry,
+                mcpRuntimeService,
+                browserRuntimeService,
+                imageGenerationService,
+                speechService,
+                (List<ToolRegistration>) null);
+    }
+
+    /**
+     * 创建默认工具注册表实例，并注入浏览器、媒体和插件工具依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService Agent profile 服务依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     * @param pluginTools 插件Tools参数。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService,
+            List<ToolRegistration> pluginTools) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                (DangerousCommandApprovalService) null,
+                processRegistry,
+                mcpRuntimeService,
+                browserRuntimeService,
+                imageGenerationService,
+                speechService,
+                pluginTools);
     }
 
     /**
@@ -760,6 +1016,139 @@ public class DefaultToolRegistry implements ToolRegistry {
             ImageGenerationService imageGenerationService,
             SpeechService speechService,
             List<ToolRegistration> pluginTools) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                approvalService,
+                processRegistry,
+                mcpRuntimeService,
+                (DashboardMcpService) null,
+                (DashboardCuratorService) null,
+                (DashboardPlatformToolsetsService) null,
+                (DashboardProviderService) null,
+                (DashboardStatusService) null,
+                (DashboardGatewayDoctorService) null,
+                (DashboardInsightsService) null,
+                (DashboardApprovalEventsService) null,
+                (DashboardDiagnosticsService) null,
+                (DashboardWorkspaceService) null,
+                (DashboardConfigService) null,
+                (DashboardRuntimeConfigService) null,
+                (WeixinQrSetupService) null,
+                (DomesticQrSetupService) null,
+                browserRuntimeService,
+                imageGenerationService,
+                speechService,
+                (DashboardRunService) null,
+                (com.jimuqu.solon.claw.storage.repository.SqliteDatabase) null,
+                (com.jimuqu.solon.claw.core.repository.AgentRunRepository) null,
+                (com.jimuqu.solon.claw.core.repository.CronJobRepository) null,
+                (com.jimuqu.solon.claw.usage.UsageEventRepository) null,
+                pluginTools);
+    }
+
+    /**
+     * 创建默认工具注册表实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService 文件或目录路径参数。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param dashboardCuratorService Dashboard 技能维护服务依赖。
+     * @param dashboardPlatformToolsetsService Dashboard 平台工具集服务依赖。
+     * @param dashboardProviderService Dashboard provider 服务依赖。
+     * @param dashboardStatusService Dashboard 状态服务依赖。
+     * @param dashboardGatewayDoctorService Dashboard Doctor 服务依赖。
+     * @param dashboardInsightsService Dashboard 洞察服务依赖。
+     * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
+     * @param dashboardDiagnosticsService Dashboard 诊断服务依赖。
+     * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
+     * @param dashboardConfigService Dashboard 配置服务依赖。
+     * @param dashboardRuntimeConfigService Dashboard 工作区配置服务依赖。
+     * @param weixinQrSetupService 微信二维码 setup 服务依赖。
+     * @param domesticQrSetupService 国内二维码 setup 服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     * @param dashboardRunService Dashboard运行服务依赖。
+     * @param sqliteDatabase SQLite数据库依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param cronJobRepository 定时任务仓储依赖。
+     * @param usageEventRepository 用量事件仓储依赖。
+     * @param pluginTools 插件Tools参数。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService approvalService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            DashboardMcpService dashboardMcpService,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardPlatformToolsetsService dashboardPlatformToolsetsService,
+            DashboardProviderService dashboardProviderService,
+            DashboardStatusService dashboardStatusService,
+            DashboardGatewayDoctorService dashboardGatewayDoctorService,
+            DashboardInsightsService dashboardInsightsService,
+            DashboardApprovalEventsService dashboardApprovalEventsService,
+            DashboardDiagnosticsService dashboardDiagnosticsService,
+            DashboardWorkspaceService dashboardWorkspaceService,
+            DashboardConfigService dashboardConfigService,
+            DashboardRuntimeConfigService dashboardRuntimeConfigService,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService,
+            DashboardRunService dashboardRunService,
+            SqliteDatabase sqliteDatabase,
+            AgentRunRepository agentRunRepository,
+            CronJobRepository cronJobRepository,
+            UsageEventRepository usageEventRepository,
+            List<ToolRegistration> pluginTools) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
@@ -778,6 +1167,20 @@ public class DefaultToolRegistry implements ToolRegistry {
         this.securityPolicyService = securityPolicyService;
         this.approvalService = approvalService;
         this.mcpRuntimeService = mcpRuntimeService;
+        this.dashboardMcpService = dashboardMcpService;
+        this.dashboardCuratorService = dashboardCuratorService;
+        this.dashboardPlatformToolsetsService = dashboardPlatformToolsetsService;
+        this.dashboardProviderService = dashboardProviderService;
+        this.dashboardStatusService = dashboardStatusService;
+        this.dashboardGatewayDoctorService = dashboardGatewayDoctorService;
+        this.dashboardInsightsService = dashboardInsightsService;
+        this.dashboardApprovalEventsService = dashboardApprovalEventsService;
+        this.dashboardDiagnosticsService = dashboardDiagnosticsService;
+        this.dashboardWorkspaceService = dashboardWorkspaceService;
+        this.dashboardConfigService = dashboardConfigService;
+        this.dashboardRuntimeConfigService = dashboardRuntimeConfigService;
+        this.weixinQrSetupService = weixinQrSetupService;
+        this.domesticQrSetupService = domesticQrSetupService;
         this.processRegistry = processRegistry;
         this.browserRuntimeService =
                 browserRuntimeService == null
@@ -788,6 +1191,11 @@ public class DefaultToolRegistry implements ToolRegistry {
                         : browserRuntimeService;
         this.imageGenerationService = imageGenerationService;
         this.speechService = speechService;
+        this.dashboardRunService = dashboardRunService;
+        this.sqliteDatabase = sqliteDatabase;
+        this.agentRunRepository = agentRunRepository;
+        this.cronJobRepository = cronJobRepository;
+        this.usageEventRepository = usageEventRepository;
         this.pluginTools =
                 pluginTools == null
                         ? Collections.<ToolRegistration>emptyList()
@@ -840,6 +1248,25 @@ public class DefaultToolRegistry implements ToolRegistry {
         MemoryTools memoryTools = new MemoryTools(memoryService);
         SessionSearchTools sessionSearchTools =
                 new SessionSearchTools(sessionSearchService, sourceKey);
+        SearchManageTools searchManageTools = new SearchManageTools(sessionSearchService);
+        SessionManageTools sessionManageTools =
+                new SessionManageTools(
+                        new DashboardSessionService(sessionRepository, checkpointService));
+        AnalyticsManageTools analyticsManageTools =
+                new AnalyticsManageTools(
+                        new DashboardAnalyticsService(sessionRepository, usageEventRepository));
+        LogsManageTools logsManageTools =
+                new LogsManageTools(
+                        new DashboardLogsService(appConfig, agentRunRepository, cronJobRepository));
+        MediaManageTools mediaManageTools =
+                new MediaManageTools(
+                        sqliteDatabase == null
+                                ? null
+                                : new DashboardMediaService(
+                                        sqliteDatabase,
+                                        new com.jimuqu.solon.claw.support.RuntimePathGuard(
+                                                appConfig),
+                                        attachmentCacheService));
         SkillTools skillTools =
                 new SkillTools(
                         localSkillService,
@@ -849,11 +1276,38 @@ public class DefaultToolRegistry implements ToolRegistry {
                         agentScope,
                         cronJobService);
         SkillHubTools skillHubTools = new SkillHubTools(skillHubService);
+        ToolsetsManageTools toolsetsManageTools =
+                new ToolsetsManageTools(
+                        new com.jimuqu.solon.claw.web.DashboardSkillsService(
+                                localSkillService, preferenceStore));
         MessagingTools messagingTools =
                 new MessagingTools(deliveryService, sourceKey, attachmentCacheService, appConfig);
         CronjobTools cronjobTools = new CronjobTools(cronJobService, sourceKey);
         TodoTools todoTools = new TodoTools(appConfig, sourceKey);
         AgentTools agentTools = new AgentTools(agentProfileService, sessionRepository, sourceKey);
+        RunTools runTools = new RunTools(dashboardRunService);
+        McpManageTools mcpManageTools = new McpManageTools(dashboardMcpService);
+        CuratorManageTools curatorManageTools = new CuratorManageTools(dashboardCuratorService);
+        PlatformToolsetsManageTools platformToolsetsManageTools =
+                new PlatformToolsetsManageTools(dashboardPlatformToolsetsService);
+        ProviderManageTools providerManageTools = new ProviderManageTools(dashboardProviderService);
+        StatusManageTools statusManageTools = new StatusManageTools(dashboardStatusService);
+        DiagnosticsManageTools diagnosticsManageTools =
+                new DiagnosticsManageTools(dashboardDiagnosticsService);
+        DoctorManageTools doctorManageTools = new DoctorManageTools(dashboardGatewayDoctorService);
+        TuiRuntimeManageTools tuiRuntimeManageTools = new TuiRuntimeManageTools(appConfig);
+        InsightsManageTools insightsManageTools = new InsightsManageTools(dashboardInsightsService);
+        ApprovalEventsManageTools approvalEventsManageTools =
+                new ApprovalEventsManageTools(dashboardApprovalEventsService);
+        ApprovalQueueManageTools approvalQueueManageTools =
+                new ApprovalQueueManageTools(dashboardDiagnosticsService);
+        WorkspaceManageTools workspaceManageTools =
+                new WorkspaceManageTools(dashboardWorkspaceService);
+        WorkspaceConfigManageTools workspaceConfigManageTools =
+                new WorkspaceConfigManageTools(dashboardRuntimeConfigService);
+        ConfigManageTools configManageTools = new ConfigManageTools(dashboardConfigService);
+        GatewaySetupManageTools gatewaySetupManageTools =
+                new GatewaySetupManageTools(weixinQrSetupService, domesticQrSetupService);
         DelegateTools delegateTools = new DelegateTools(delegationService, sourceKey);
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
@@ -912,7 +1366,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 continue;
             }
 
-            if (isFileTool(toolName)) {
+            if (ToolNameConstants.isFileTool(toolName)) {
                 if (!fileSkillAdded) {
                     tools.add(fileSkill);
                     fileSkillAdded = true;
@@ -952,16 +1406,58 @@ public class DefaultToolRegistry implements ToolRegistry {
                 if (mcpRuntimeService != null) {
                     tools.addAll(mcpRuntimeService.resolveEnabledToolProviders());
                 }
+            } else if (ToolNameConstants.MCP_MANAGE.equals(toolName)) {
+                tools.add(mcpManageTools);
+            } else if (ToolNameConstants.CURATOR_MANAGE.equals(toolName)) {
+                tools.add(curatorManageTools);
+            } else if (ToolNameConstants.PLATFORM_TOOLSETS_MANAGE.equals(toolName)) {
+                tools.add(platformToolsetsManageTools);
+            } else if (ToolNameConstants.PROVIDER_MANAGE.equals(toolName)) {
+                tools.add(providerManageTools);
             } else if (ToolNameConstants.MEMORY.equals(toolName)) {
                 tools.add(memoryTools);
             } else if (ToolNameConstants.SESSION_SEARCH.equals(toolName)) {
                 tools.add(sessionSearchTools);
+            } else if (ToolNameConstants.SEARCH_MANAGE.equals(toolName)) {
+                tools.add(searchManageTools);
+            } else if (ToolNameConstants.SESSION_MANAGE.equals(toolName)) {
+                tools.add(sessionManageTools);
+            } else if (ToolNameConstants.ANALYTICS_MANAGE.equals(toolName)) {
+                tools.add(analyticsManageTools);
+            } else if (ToolNameConstants.LOGS_MANAGE.equals(toolName)) {
+                tools.add(logsManageTools);
+            } else if (ToolNameConstants.MEDIA_MANAGE.equals(toolName)) {
+                tools.add(mediaManageTools);
+            } else if (ToolNameConstants.STATUS_MANAGE.equals(toolName)) {
+                tools.add(statusManageTools);
+            } else if (ToolNameConstants.DIAGNOSTICS_MANAGE.equals(toolName)) {
+                tools.add(diagnosticsManageTools);
+            } else if (ToolNameConstants.DOCTOR_MANAGE.equals(toolName)) {
+                tools.add(doctorManageTools);
+            } else if (ToolNameConstants.TUI_RUNTIME_MANAGE.equals(toolName)) {
+                tools.add(tuiRuntimeManageTools);
+            } else if (ToolNameConstants.INSIGHTS_MANAGE.equals(toolName)) {
+                tools.add(insightsManageTools);
+            } else if (ToolNameConstants.APPROVAL_EVENTS_MANAGE.equals(toolName)) {
+                tools.add(approvalEventsManageTools);
+            } else if (ToolNameConstants.APPROVAL_QUEUE_MANAGE.equals(toolName)) {
+                tools.add(approvalQueueManageTools);
+            } else if (ToolNameConstants.WORKSPACE_MANAGE.equals(toolName)) {
+                tools.add(workspaceManageTools);
+            } else if (ToolNameConstants.WORKSPACE_CONFIG_MANAGE.equals(toolName)) {
+                tools.add(workspaceConfigManageTools);
+            } else if (ToolNameConstants.CONFIG_MANAGE.equals(toolName)) {
+                tools.add(configManageTools);
+            } else if (ToolNameConstants.GATEWAY_SETUP_MANAGE.equals(toolName)) {
+                tools.add(gatewaySetupManageTools);
             } else if (ToolNameConstants.SKILLS_LIST.equals(toolName)) {
                 tools.add(new SkillTools.SkillsListTool(skillTools));
             } else if (ToolNameConstants.SKILL_VIEW.equals(toolName)) {
                 tools.add(new SkillTools.SkillViewTool(skillTools));
             } else if (ToolNameConstants.SKILL_MANAGE.equals(toolName)) {
                 tools.add(new SkillTools.SkillManageTool(skillTools));
+            } else if (ToolNameConstants.TOOLSETS_MANAGE.equals(toolName)) {
+                tools.add(toolsetsManageTools);
             } else if (ToolNameConstants.SKILLS_HUB_SEARCH.equals(toolName)) {
                 tools.add(new SkillHubTools.SearchTool(skillHubTools));
             } else if (ToolNameConstants.SKILLS_HUB_INSPECT.equals(toolName)) {
@@ -988,6 +1484,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(todoTools);
             } else if (ToolNameConstants.AGENT_MANAGE.equals(toolName)) {
                 tools.add(agentTools);
+            } else if (ToolNameConstants.RUN_MANAGE.equals(toolName)) {
+                tools.add(runTools);
             } else if (ToolNameConstants.DELEGATE_TASK.equals(toolName)) {
                 tools.add(delegateTools);
             } else if (ToolNameConstants.WEBSEARCH.equals(toolName)) {
@@ -1078,22 +1576,6 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     /**
-     * 判断是否文件工具。
-     *
-     * @param toolName 工具名称。
-     * @return 如果文件工具满足条件则返回 true，否则返回 false。
-     */
-    private boolean isFileTool(String toolName) {
-        return ToolNameConstants.FILE_READ.equals(toolName)
-                || ToolNameConstants.FILE_WRITE.equals(toolName)
-                || ToolNameConstants.READ_FILE.equals(toolName)
-                || ToolNameConstants.WRITE_FILE.equals(toolName)
-                || ToolNameConstants.SEARCH_FILES.equals(toolName)
-                || ToolNameConstants.FILE_LIST.equals(toolName)
-                || ToolNameConstants.FILE_DELETE.equals(toolName);
-    }
-
-    /**
      * 解析来源键在当前 Agent 范围下启用的工具名称。
      *
      * @param sourceKey 渠道来源键。
@@ -1165,7 +1647,7 @@ public class DefaultToolRegistry implements ToolRegistry {
     /** 读取工具启用状态。 */
     private boolean isEnabled(String sourceKey, String toolName) {
         try {
-            if (isFileTool(toolName) && areCoreFileToolsDisabled(sourceKey)) {
+            if (ToolNameConstants.isFileTool(toolName) && areCoreFileToolsDisabled(sourceKey)) {
                 return false;
             }
             if (ToolNameConstants.TOOL_GATEWAY.equals(toolName)) {

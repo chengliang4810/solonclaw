@@ -1805,7 +1805,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (assistantIndex >= 0 && messages.get(assistantIndex) instanceof AssistantMessage) {
             int previousAssistantIndex = previousAssistantMessageIndex(messages, assistantIndex);
             if (previousAssistantIndex >= 0
-                    && sameAssistantVisibleText(
+                    && MessageSupport.sameVisibleContent(
                             (AssistantMessage) messages.get(previousAssistantIndex),
                             assistantMessage)) {
                 messages.remove(previousAssistantIndex);
@@ -1842,23 +1842,6 @@ public class SolonAiLlmGateway implements LlmGateway {
             }
         }
         return -1;
-    }
-
-    /**
-     * 判断两条assistant消息是否包含同一段可见文本。
-     *
-     * @param left 已存在的assistant文本消息。
-     * @param right 当前包含工具调用的assistant消息。
-     * @return 如果可见文本相同则返回 true。
-     */
-    private boolean sameAssistantVisibleText(AssistantMessage left, AssistantMessage right) {
-        if (left == null || right == null) {
-            return false;
-        }
-        return StrUtil.isNotBlank(left.getContent())
-                && StrUtil.equals(
-                        StrUtil.nullToEmpty(left.getContent()).trim(),
-                        StrUtil.nullToEmpty(right.getContent()).trim());
     }
 
     /**

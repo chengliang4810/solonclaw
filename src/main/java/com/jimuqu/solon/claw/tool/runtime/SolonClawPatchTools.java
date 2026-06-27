@@ -5,7 +5,6 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -14,7 +13,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
@@ -74,7 +72,7 @@ public class SolonClawPatchTools {
             SolonClawFileStateTracker fileStateTracker) {
         String dir = StrUtil.blankToDefault(workDir, ".");
         this.rootPath = Paths.get(dir).toAbsolutePath().normalize();
-        this.realRootPath = safeRealPath(this.rootPath);
+        this.realRootPath = ToolWorkspacePathSupport.safeRealPath(this.rootPath);
         this.securityPolicyService = securityPolicyService;
         this.fileStateTracker =
                 fileStateTracker == null ? new SolonClawFileStateTracker() : fileStateTracker;
@@ -914,93 +912,14 @@ public class SolonClawPatchTools {
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
             throw new IllegalArgumentException("invalid file path: " + rawPath);
         }
-        Path target = rootPath.resolve(normalizeWorkspacePath(value)).normalize();
+        Path target =
+                rootPath.resolve(ToolWorkspacePathSupport.normalizeWorkspacePath(rootPath, value))
+                        .normalize();
         if (!target.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
         }
-        assertResolvedWithinRoot(target);
+        ToolWorkspacePathSupport.assertResolvedWithinRoot(target, realRootPath);
         return target;
-    }
-
-    /**
-     * 将用户可见的 workspace 根目录前缀折叠到当前工具根，确保 patch 与读写工具使用一致的相对路径语义。
-     *
-     * @param rawPath 用户传入的文件路径。
-     * @return 返回用于解析的工作区相对路径。
-     */
-    private String normalizeWorkspacePath(String rawPath) {
-        String value = StrUtil.nullToEmpty(rawPath);
-        if (StrUtil.isBlank(value)) {
-            return value;
-        }
-        String normalized = value.replace('\\', '/');
-        if (normalized.startsWith("./")) {
-            normalized = normalized.substring(2);
-        }
-        if (normalized.startsWith("/")) {
-            return value;
-        }
-        Path fileName = rootPath.getFileName();
-        if (fileName == null) {
-            return value;
-        }
-        String rootName = fileName.toString();
-        if (!"workspace".equalsIgnoreCase(rootName)) {
-            return value;
-        }
-        String prefix = rootName + "/";
-        if (normalized.length() > prefix.length()
-                && normalized.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))) {
-            return normalized.substring(prefix.length());
-        }
-        return value;
-    }
-
-    /**
-     * 执行assertResolvedWithin根用户相关逻辑。
-     *
-     * @param target target 参数。
-     */
-    private void assertResolvedWithinRoot(Path target) {
-        Path existing = nearestExistingPath(target);
-        if (existing == null) {
-            return;
-        }
-        Path real = safeRealPath(existing);
-        if (!real.startsWith(realRootPath)) {
-            throw new SecurityException("禁止通过符号链接访问沙箱外部");
-        }
-    }
-
-    /**
-     * 执行nearestExisting路径相关逻辑。
-     *
-     * @param target target 参数。
-     * @return 返回nearest Existing路径。
-     */
-    private Path nearestExistingPath(Path target) {
-        Path current = target;
-        while (current != null) {
-            if (Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
-                return current;
-            }
-            current = current.getParent();
-        }
-        return null;
-    }
-
-    /**
-     * 生成安全展示用的Real路径。
-     *
-     * @param path 文件或目录路径。
-     * @return 返回safe Real路径。
-     */
-    private Path safeRealPath(Path path) {
-        try {
-            return path.toRealPath();
-        } catch (Exception e) {
-            return path.toAbsolutePath().normalize();
-        }
     }
 
     /**
@@ -1010,7 +929,7 @@ public class SolonClawPatchTools {
      * @return 返回resolved输出路径。
      */
     private String resolvedOutputPath(Path path) {
-        return safeRealPath(path).toString();
+        return ToolWorkspacePathSupport.safeRealPath(path).toString();
     }
 
     /**
@@ -1156,19 +1075,7 @@ public class SolonClawPatchTools {
      * @return 返回safe路径。
      */
     private String safePath(String path) {
-        String value =
-                SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path))
-                        .replace('\\', '/')
-                        .trim();
-        if (value.length() == 0) {
-            return "[unknown]";
-        }
-        int slash = value.lastIndexOf('/');
-        String name = slash >= 0 ? value.substring(slash + 1) : value;
-        if (StrUtil.isBlank(name)) {
-            name = "[path]";
-        }
-        return SecretRedactor.redact(name, 400);
+        return ToolWorkspacePathSupport.safePath(path);
     }
 
     /**

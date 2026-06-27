@@ -321,72 +321,110 @@ const renderTable = (k: number, rows: string[][], t: Theme, cols?: number) => {
       ? [...segmenter.segment(s)].map((seg: { segment: string }) => seg.segment)
       : [...s]
 
-  // Word-wrap plain text to fit within `width` display columns.
-  // Operates on stripped text for correct width measurement.
-  const wrapCell = (raw: string, width: number, hard: boolean): string[] => {
+  type CellLine = { raw: string; text: string }
+
+  const markdownWords = (raw: string): CellLine[] => {
+    const words: CellLine[] = []
+    let last = 0
+
+    const pushPlain = (chunk: string) => {
+      for (const word of chunk.split(/\s+/).filter(Boolean)) {
+        words.push({ raw: word, text: word })
+      }
+    }
+
+    for (const match of raw.matchAll(INLINE_RE)) {
+      const index = match.index ?? 0
+
+      if (index > last) {
+        pushPlain(raw.slice(last, index))
+      }
+
+      const token = match[0]
+      words.push({ raw: token, text: stripInlineMarkup(token) })
+      last = index + token.length
+    }
+
+    if (last < raw.length) {
+      pushPlain(raw.slice(last))
+    }
+
+    return words
+  }
+
+  // Word-wrap cells by visible width while retaining the original Markdown
+  // token text for rendering. Width math still uses stripped text.
+  const wrapCell = (raw: string, width: number, hard: boolean): CellLine[] => {
     const text = stripInlineMarkup(raw)
 
-    if (width <= 0) {return [text]}
+    if (width <= 0) {return [{ raw: text, text }]}
 
-    if (stringWidth(text) <= width) {return [text]}
+    if (stringWidth(text) <= width) {return [{ raw, text }]}
 
-    const words = text.split(/\s+/).filter(w => w.length > 0)
-    const lines: string[] = []
-    let current = ''
+    const words = markdownWords(raw)
+    const lines: CellLine[] = []
+    let currentRaw = ''
+    let currentText = ''
     let currentWidth = 0
 
     for (const word of words) {
-      const w = stringWidth(word)
+      const w = stringWidth(word.text)
 
       if (currentWidth === 0) {
         if (hard && w > width) {
-          for (const ch of graphemes(word)) {
+          for (const ch of graphemes(word.text)) {
             const cw = stringWidth(ch)
 
-            if (currentWidth + cw > width && current) {
-              lines.push(current)
-              current = ''
+            if (currentWidth + cw > width && currentText) {
+              lines.push({ raw: currentText, text: currentText })
+              currentRaw = ''
+              currentText = ''
               currentWidth = 0
             }
 
-            current += ch
+            currentRaw += ch
+            currentText += ch
             currentWidth += cw
           }
         } else {
-          current = word
+          currentRaw = word.raw
+          currentText = word.text
           currentWidth = w
         }
       } else if (currentWidth + 1 + w <= width) {
-        current += ' ' + word
+        currentRaw += ' ' + word.raw
+        currentText += ' ' + word.text
         currentWidth += 1 + w
       } else {
-        lines.push(current)
-        current = word
+        lines.push({ raw: currentRaw, text: currentText })
+        currentRaw = word.raw
+        currentText = word.text
         currentWidth = w
       }
     }
 
-    if (current) {lines.push(current)}
+    if (currentText) {lines.push({ raw: currentRaw, text: currentText })}
 
-    return lines.length > 0 ? lines : ['']
+    return lines.length > 0 ? lines : [{ raw: '', text: '' }]
   }
 
   const isHard = totalMin > availableWidth // tier 3 needs hard word breaks
   const sep = columnWidths.map(w => '─'.repeat(Math.max(1, w))).join('  ')
 
-  // When wrapping isn't needed, build single-line strings per row.
-  // All cells render as plain text via stripInlineMarkup.
-  // TODO: follow-up — format to ANSI then wrap with wrapAnsi for inline markdown preservation.
-  // See free-code/src/components/MarkdownTable.tsx L44-L62 for approach.
+  // When wrapping isn't needed, keep cells as inline Markdown nodes and only
+  // use stripped text for visible-width padding.
   if (!needsWrap) {
-    const buildRowString = (row: string[]): string =>
-      row.map((cell, ci) => {
+    const buildRow = (row: string[]): ReactNode[] =>
+      row.flatMap((cell, ci) => {
         const text = stripInlineMarkup(cell)
         const pad = ' '.repeat(Math.max(0, columnWidths[ci]! - stringWidth(text)))
         const gap = ci < numCols - 1 ? '  ' : ''
 
-        return text + pad + gap
-      }).join('')
+        return [
+          <MdInline key={`${ci}:cell`} t={t} text={cell} />,
+          pad + gap
+        ]
+      })
 
     return (
       <Box flexDirection="column" key={k} paddingLeft={TABLE_PADDING_LEFT}>
@@ -397,7 +435,7 @@ const renderTable = (k: number, rows: string[][], t: Theme, cols?: number) => {
               color={ri === 0 ? t.color.accent : undefined}
               wrap="truncate-end"
             >
-              {buildRowString(row)}
+              {buildRow(row)}
             </Text>
             {ri === 0 && normalizedRows.length > 1 ? (
               <Text color={t.color.muted} dimColor wrap="truncate-end">{sep}</Text>
@@ -409,30 +447,37 @@ const renderTable = (k: number, rows: string[][], t: Theme, cols?: number) => {
   }
 
   // Wrapping path: build multi-line rows as complete strings.
-  type LineEntry = { text: string; kind: 'header' | 'separator' | 'body' }
+  type LineEntry = { content: ReactNode; text: string; kind: 'header' | 'separator' | 'body' }
 
-  const buildRowLines = (row: string[]): string[] => {
+  const buildRowLines = (row: string[]): Array<{ content: ReactNode[]; text: string }> => {
     const cellLines = row.map((cell, ci) =>
       wrapCell(cell, columnWidths[ci]!, isHard)
     )
 
     const maxLines = Math.max(...cellLines.map(l => l.length), 1)
 
-    const result: string[] = []
+    const result: Array<{ content: ReactNode[]; text: string }> = []
 
     for (let li = 0; li < maxLines; li++) {
       let line = ''
+      const content: ReactNode[] = []
 
       for (let ci = 0; ci < numCols; ci++) {
-        const cl = cellLines[ci] ?? ['']
-        const cellText = li < cl.length ? cl[li]! : ''
+        const cl = cellLines[ci] ?? [{ raw: '', text: '' }]
+        const cellLine = li < cl.length ? cl[li]! : { raw: '', text: '' }
+        const cellText = cellLine.text
         const pad = ' '.repeat(Math.max(0, columnWidths[ci]! - stringWidth(cellText)))
         line += cellText + pad
+        content.push(<MdInline key={`${li}:${ci}`} t={t} text={cellLine.raw} />)
+        content.push(pad)
 
-        if (ci < numCols - 1) {line += '  '}
+        if (ci < numCols - 1) {
+          line += '  '
+          content.push('  ')
+        }
       }
 
-      result.push(line)
+      result.push({ content, text: line })
     }
 
     return result
@@ -444,12 +489,12 @@ const renderTable = (k: number, rows: string[][], t: Theme, cols?: number) => {
   normalizedRows.forEach((row, ri) => {
     const kind = ri === 0 ? 'header' as const : 'body' as const
     const rowLines = buildRowLines(row)
-    rowLines.forEach(text => allEntries.push({ text, kind }))
+    rowLines.forEach(line => allEntries.push({ content: line.content, text: line.text, kind }))
 
     if (ri > 0) {tallestBodyRow = Math.max(tallestBodyRow, rowLines.length)}
 
     if (ri === 0 && normalizedRows.length > 1) {
-      allEntries.push({ text: sep, kind: 'separator' })
+      allEntries.push({ content: sep, text: sep, kind: 'separator' })
     }
   })
 
@@ -492,7 +537,7 @@ const renderTable = (k: number, rows: string[][], t: Theme, cols?: number) => {
               return (
                 <Text key={ci} wrap="wrap-trim">
                   <Text bold color={t.color.accent}>{label}:</Text>
-                  {' '}{stripInlineMarkup(cell)}
+                  {' '}<MdInline t={t} text={cell} />
                 </Text>
               )
             })}
@@ -513,7 +558,7 @@ const renderTable = (k: number, rows: string[][], t: Theme, cols?: number) => {
           key={i}
           wrap="truncate-end"
         >
-          {entry.text}
+          {entry.content}
         </Text>
       ))}
     </Box>

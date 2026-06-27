@@ -118,6 +118,22 @@ public class ProactiveDashboardDiagnosticTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shouldExposeProcessingReactionToggleInDashboardSchema() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DashboardConfigService service =
+                new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
+
+        Map<String, Object> schema = service.getSchema();
+        Map<String, Object> fields = (Map<String, Object>) schema.get("fields");
+
+        assertThat(ONode.serialize(schema.get("category_order"))).contains("messaging");
+        assertThat(fields).containsKey("gateway.processingReactionsEnabled");
+        assertThat(ONode.serialize(fields.get("gateway.processingReactionsEnabled")))
+                .contains("处理状态表情回应");
+    }
+
+    @Test
     void shouldFilterProactiveComponentLogs() throws Exception {
         AppConfig config = new AppConfig();
         File logsDir = new File("target/proactive-dashboard-logs").getAbsoluteFile();

@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.GatewayMediaDeliverySupport;
@@ -55,6 +56,9 @@ public class DefaultGatewayService {
     /** 平台到渠道适配器的映射，用于触发处理状态表情回应生命周期。 */
     private final Map<PlatformType, ChannelAdapter> channelAdapters;
 
+    /** 应用配置，用于读取消息网关运行时开关。 */
+    private final AppConfig appConfig;
+
     /** 回复文本中的 MEDIA: 指令解析器。 */
     private final GatewayMediaDeliverySupport mediaDeliverySupport;
 
@@ -87,6 +91,7 @@ public class DefaultGatewayService {
                 gatewayAuthorizationService,
                 skillLearningService,
                 null,
+                null,
                 null);
     }
 
@@ -117,6 +122,7 @@ public class DefaultGatewayService {
                 gatewayAuthorizationService,
                 skillLearningService,
                 attachmentCacheService,
+                null,
                 null);
     }
 
@@ -141,12 +147,48 @@ public class DefaultGatewayService {
             SkillLearningService skillLearningService,
             AttachmentCacheService attachmentCacheService,
             Map<PlatformType, ChannelAdapter> channelAdapters) {
+        this(
+                commandService,
+                conversationOrchestrator,
+                deliveryService,
+                sessionRepository,
+                gatewayAuthorizationService,
+                skillLearningService,
+                attachmentCacheService,
+                channelAdapters,
+                null);
+    }
+
+    /**
+     * 创建默认消息网关服务实例，并注入运行所需依赖。
+     *
+     * @param commandService 命令服务依赖。
+     * @param conversationOrchestrator conversationOrchestrator 参数。
+     * @param deliveryService 投递服务依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param gatewayAuthorizationService 网关授权服务依赖。
+     * @param skillLearningService 技能Learning服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param channelAdapters 渠道Adapters参数。
+     * @param appConfig 应用配置，用于读取网关运行时开关。
+     */
+    public DefaultGatewayService(
+            CommandService commandService,
+            ConversationOrchestrator conversationOrchestrator,
+            DeliveryService deliveryService,
+            SessionRepository sessionRepository,
+            GatewayAuthorizationService gatewayAuthorizationService,
+            SkillLearningService skillLearningService,
+            AttachmentCacheService attachmentCacheService,
+            Map<PlatformType, ChannelAdapter> channelAdapters,
+            AppConfig appConfig) {
         this.commandService = commandService;
         this.conversationOrchestrator = conversationOrchestrator;
         this.deliveryService = deliveryService;
         this.sessionRepository = sessionRepository;
         this.gatewayAuthorizationService = gatewayAuthorizationService;
         this.skillLearningService = skillLearningService;
+        this.appConfig = appConfig;
         this.channelAdapters =
                 channelAdapters == null
                         ? Collections.<PlatformType, ChannelAdapter>emptyMap()
@@ -469,6 +511,9 @@ public class DefaultGatewayService {
 
     /** 安全触发渠道处理开始表情回应，不让渠道状态反馈影响主处理链。 */
     private void safeProcessingStart(GatewayMessage message) {
+        if (!processingReactionsEnabled()) {
+            return;
+        }
         ChannelAdapter adapter = channelAdapter(message);
         if (adapter == null) {
             return;
@@ -488,6 +533,9 @@ public class DefaultGatewayService {
 
     /** 安全触发渠道处理完成表情回应，不让渠道状态反馈影响主处理链。 */
     private void safeProcessingComplete(GatewayMessage message, ProcessingOutcome outcome) {
+        if (!processingReactionsEnabled()) {
+            return;
+        }
         ChannelAdapter adapter = channelAdapter(message);
         if (adapter == null) {
             return;
@@ -512,6 +560,11 @@ public class DefaultGatewayService {
             return null;
         }
         return channelAdapters.get(message.getPlatform());
+    }
+
+    /** 判断是否启用渠道处理状态表情回应，未注入配置时沿用默认启用。 */
+    private boolean processingReactionsEnabled() {
+        return appConfig == null || appConfig.getGateway().isProcessingReactionsEnabled();
     }
 
     /** 安全触发后台学习，不让后台线程调度问题影响当前回复。 */

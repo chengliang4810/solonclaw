@@ -93,6 +93,24 @@ public final class BasicValueSupport {
     }
 
     /**
+     * 剥离首尾匹配的单引号或双引号。
+     *
+     * @param value 原始字符串。
+     * @return 去掉包裹引号并 trim 后的文本。
+     */
+    public static String stripMatchingQuotes(String value) {
+        String text = trimToEmpty(value);
+        if (text.length() >= 2) {
+            char first = text.charAt(0);
+            char last = text.charAt(text.length() - 1);
+            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                return text.substring(1, text.length() - 1).trim();
+            }
+        }
+        return text;
+    }
+
+    /**
      * 判断文本是否包含 ISO 控制字符，用于路径、配置键等安全输入边界。
      *
      * @param value 待检查文本。

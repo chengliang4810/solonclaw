@@ -74,6 +74,10 @@ public class CliRunner {
         if (mode.getKind() == CliMode.Kind.COMPLETION) {
             return new ShellCompletionGenerator().write(mode.getInput(), System.out, System.err);
         }
+        if (setupCommands != null && setupCommands.isSetupCommand(mode.getInput())) {
+            System.out.println(setupCommands.render(mode.getInput()));
+            return 0;
+        }
         System.err.println("本地 CLI/TUI 已移除，请使用 npm 包 solonclaw 连接后端: npm install -g solonclaw");
         return 1;
     }

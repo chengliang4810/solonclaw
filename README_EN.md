@@ -213,7 +213,7 @@ Main HTTP endpoints:
 
 - `GET /api/status`: workspace status
 - `POST /api/gateway/message`: signed gateway message injection
-- `GET /api/gateway/doctor`: channel diagnostics
+- `GET /api/diagnostics/doctor`: channel diagnostics
 - `GET /api/sessions`: session list
 - `POST /api/chat/runs`: Dashboard chat run
 - `GET /api/config`: read configuration

@@ -2,7 +2,9 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -111,6 +113,20 @@ public class DashboardWorkspaceService {
     }
 
     /**
+     * 读取受控工作区文件的下载内容；只允许 PersonaWorkspaceService 暴露的固定 key。
+     *
+     * @param path 前端传入的工作区文件路径、文件名或 workspace:// 引用。
+     * @param fileName 可选下载文件名。
+     * @return 返回下载内容。
+     */
+    public DownloadContent downloadFile(String path, String fileName) {
+        String key = normalizeDownloadKey(path);
+        String resolvedName = safeDownloadName(fileName, personaWorkspaceService.fileName(key));
+        return new DownloadContent(
+                resolvedName, personaWorkspaceService.read(key).getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
      * 执行describe文件相关逻辑。
      *
      * @param key 配置键或映射键。
@@ -124,6 +140,49 @@ public class DashboardWorkspaceService {
         result.put("exists", personaWorkspaceService.exists(key));
         result.put("content", personaWorkspaceService.read(key));
         return result;
+    }
+
+    /**
+     * 将前端路径规范化为受控工作区 key。
+     *
+     * @param path 文件或目录路径参数。
+     * @return 返回受控 key。
+     */
+    private String normalizeDownloadKey(String path) {
+        String value = path == null ? "" : path.trim().replace('\\', '/');
+        if (value.startsWith("workspace://files/")) {
+            value = value.substring("workspace://files/".length());
+        }
+        if (value.indexOf('/') >= 0) {
+            value = FileUtil.file(value).getName();
+        }
+        if (personaWorkspaceService.orderedKeys().contains(value)) {
+            return value;
+        }
+        Map<String, String> names = new HashMap<String, String>();
+        for (String key : personaWorkspaceService.orderedKeys()) {
+            names.put(personaWorkspaceService.fileName(key), key);
+        }
+        String key = names.get(value);
+        if (key == null) {
+            throw new IllegalArgumentException("Workspace file is not available.");
+        }
+        return key;
+    }
+
+    /**
+     * 生成安全下载文件名，避免响应头中出现路径片段。
+     *
+     * @param requestedName 前端请求的文件名。
+     * @param fallbackName 默认文件名。
+     * @return 返回安全文件名。
+     */
+    private String safeDownloadName(String requestedName, String fallbackName) {
+        String value = requestedName == null || requestedName.trim().length() == 0
+                ? fallbackName
+                : requestedName.trim();
+        value = FileUtil.file(value.replace('\\', '/')).getName();
+        return value.length() == 0 ? fallbackName : value;
     }
 
     /**
@@ -144,5 +203,43 @@ public class DashboardWorkspaceService {
      */
     private String diaryReference(String relativePath) {
         return "workspace://diaries/" + relativePath.replace('\\', '/');
+    }
+
+    /** 承载受控工作区文件下载内容。 */
+    public static final class DownloadContent {
+        /** 下载文件名。 */
+        private final String fileName;
+
+        /** 下载文件内容。 */
+        private final byte[] bytes;
+
+        /**
+         * 创建下载内容。
+         *
+         * @param fileName 下载文件名。
+         * @param bytes 下载文件内容。
+         */
+        public DownloadContent(String fileName, byte[] bytes) {
+            this.fileName = fileName;
+            this.bytes = bytes == null ? new byte[0] : bytes.clone();
+        }
+
+        /**
+         * 读取下载文件名。
+         *
+         * @return 返回下载文件名。
+         */
+        public String getFileName() {
+            return fileName;
+        }
+
+        /**
+         * 读取下载文件内容。
+         *
+         * @return 返回下载文件内容。
+         */
+        public byte[] getBytes() {
+            return bytes.clone();
+        }
     }
 }

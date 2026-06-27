@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
 import com.jimuqu.solon.claw.support.CronSupport;
+import com.jimuqu.solon.claw.support.FilePathSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -1648,7 +1649,7 @@ public class CronJobService {
                             + textVerdict.getMessage());
         }
         try {
-            File file = FileUtil.file(expandUserHome(value));
+            File file = FileUtil.file(FilePathSupport.expandUserHome(value));
             if (!file.isAbsolute() || !file.exists() || !file.isDirectory()) {
                 throw new IllegalStateException("workdir must be an existing absolute directory");
             }
@@ -1739,29 +1740,6 @@ public class CronJobService {
      */
     private boolean usesForwardSlash(String path) {
         return path != null && path.indexOf('/') >= 0 && path.indexOf('\\') < 0;
-    }
-
-    /**
-     * 执行expand用户主渠道相关逻辑。
-     *
-     * @param path 文件或目录路径。
-     * @return 返回expand用户主渠道结果。
-     */
-    private String expandUserHome(String path) {
-        if (StrUtil.isBlank(path)) {
-            return path;
-        }
-        String home = StrUtil.nullToEmpty(System.getProperty("user.home")).trim();
-        if (StrUtil.isBlank(home)) {
-            return path;
-        }
-        if ("~".equals(path)) {
-            return home;
-        }
-        if (path.startsWith("~/") || path.startsWith("~\\")) {
-            return home + path.substring(1);
-        }
-        return path;
     }
 
     /**

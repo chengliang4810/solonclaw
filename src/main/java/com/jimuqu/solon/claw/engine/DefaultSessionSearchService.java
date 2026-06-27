@@ -469,7 +469,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
             LlmResult result =
                     llmGateway.chat(
                             synthetic, SUMMARY_SYSTEM_PROMPT, userPrompt, Collections.emptyList());
-            String summary = extractText(result == null ? null : result.getAssistantMessage());
+            String summary =
+                    MessageSupport.assistantText(
+                            result == null ? null : result.getAssistantMessage());
             return StrUtil.blankToDefault(
                     summary, StrUtil.blankToDefault(fallback, "No summary available"));
         } catch (Exception e) {
@@ -496,25 +498,6 @@ public class DefaultSessionSearchService implements SessionSearchService {
         buffer.append("\n匹配片段：")
                 .append(StrUtil.blankToDefault(entry.getMatchPreview(), "未生成匹配片段"));
         return trim(buffer.toString(), 1200);
-    }
-
-    /**
-     * 提取Text。
-     *
-     * @param assistantMessage assistant消息参数。
-     * @return 返回Text结果。
-     */
-    private String extractText(AssistantMessage assistantMessage) {
-        if (assistantMessage == null) {
-            return "";
-        }
-        if (StrUtil.isNotBlank(assistantMessage.getResultContent())) {
-            return assistantMessage.getResultContent().trim();
-        }
-        if (StrUtil.isNotBlank(assistantMessage.getContent())) {
-            return assistantMessage.getContent().trim();
-        }
-        return "";
     }
 
     /**

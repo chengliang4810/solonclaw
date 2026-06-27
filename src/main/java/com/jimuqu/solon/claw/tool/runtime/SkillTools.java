@@ -159,6 +159,30 @@ public class SkillTools {
     }
 
     /**
+     * 列出技能主文件和可见支持文件。
+     *
+     * @param name 技能名或 category/name。
+     * @return 返回技能文件列表 JSON。
+     */
+    @ToolMapping(
+            name = "skill_files",
+            description = "List SKILL.md and linked support files for a skill.")
+    public String skillFiles(@Param(name = "name", description = "技能名或 category/name") String name)
+            throws Exception {
+        try {
+            SkillView view = localSkillService.viewSkill(name, null, agentScope);
+            List<Map<String, Object>> files = new ArrayList<Map<String, Object>>();
+            files.add(skillFile(SkillConstants.SKILL_FILE_NAME));
+            for (String path : view.getDescriptor().getLinkedFiles()) {
+                files.add(skillFile(path));
+            }
+            return safeResult(ONode.serialize(files), 20000);
+        } catch (Exception e) {
+            return toolError(e.getMessage());
+        }
+    }
+
+    /**
      * 执行技能Manage相关逻辑。
      *
      * @param action 操作参数。
@@ -170,14 +194,17 @@ public class SkillTools {
      * @param filePath 目标文件相对路径或绝对路径。
      * @param fileContent 文件或目录路径参数。
      * @param absorbedInto absorbedInto 参数。
+     * @param enabled 启用状态开关值。
      * @return 返回技能Manage结果。
      */
     @ToolMapping(
             name = "skill_manage",
             description =
-                    "Create, patch, edit, delete or manage supporting files for a local skill.")
+                    "Create, patch, edit, delete, toggle or manage supporting files for a local skill.")
     public String skillManage(
-            @Param(name = "action", description = "create、edit、patch、delete、write_file、remove_file")
+            @Param(
+                            name = "action",
+                            description = "create、edit、patch、delete、toggle、write_file、remove_file")
                     String action,
             @Param(name = "name", description = "技能名或 category/name") String name,
             @Param(name = "category", description = "create 时可选分类", required = false)
@@ -195,7 +222,9 @@ public class SkillTools {
                             name = "absorbed_into",
                             description = "delete 时可选；传入合并后的 umbrella 技能名会迁移 cron 绑定，空字符串表示仅剪枝",
                             required = false)
-                    String absorbedInto)
+                    String absorbedInto,
+            @Param(name = "enabled", description = "toggle 时设置技能是否全局启用", required = false)
+                    Boolean enabled)
             throws Exception {
         try {
             if (SkillConstants.ACTION_CREATE.equalsIgnoreCase(action)) {
@@ -207,29 +236,33 @@ public class SkillTools {
                         20000);
             }
             if (SkillConstants.ACTION_EDIT.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 return safeResult(
                         ONode.serialize(localSkillService.editSkill(name, content)), 20000);
             }
             if (SkillConstants.ACTION_PATCH.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 return safeResult(
                         localSkillService.patchSkill(name, oldText, newText, filePath), 1000);
             }
             if (SkillConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 String result = localSkillService.deleteSkill(name);
                 return safeResult(
                         result + rewriteCronSkillRefsAfterDelete(name, absorbedInto), 1000);
             }
             if (SkillConstants.ACTION_WRITE_FILE.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 return safeResult(
                         localSkillService.writeSkillFile(name, filePath, fileContent), 1000);
             }
             if (SkillConstants.ACTION_REMOVE_FILE.equalsIgnoreCase(action)) {
-                checkpoint(skillFiles(name));
+                checkpoint(checkpointSkillFiles(name));
                 return safeResult(localSkillService.removeSkillFile(name, filePath), 1000);
+            }
+            if ("toggle".equalsIgnoreCase(action)) {
+                localSkillService.setGlobalVisible(name, enabled == null || enabled.booleanValue());
+                return safeResult("Skill visibility updated: " + name, 1000);
             }
             return toolError("Unsupported skill_manage action");
         } catch (Exception e) {
@@ -264,8 +297,35 @@ public class SkillTools {
                 action, name, category, content, oldText, newText, filePath, fileContent, null);
     }
 
+    /**
+     * 保留旧签名，默认不传 toggle 启用值。
+     */
+    public String skillManage(
+            String action,
+            String name,
+            String category,
+            String content,
+            String oldText,
+            String newText,
+            String filePath,
+            String fileContent,
+            String absorbedInto)
+            throws Exception {
+        return skillManage(
+                action,
+                name,
+                category,
+                content,
+                oldText,
+                newText,
+                filePath,
+                fileContent,
+                absorbedInto,
+                null);
+    }
+
     /** 收集技能目录中的全部文件，用于 checkpoint。 */
-    private List<File> skillFiles(String nameOrPath) throws Exception {
+    private List<File> checkpointSkillFiles(String nameOrPath) throws Exception {
         SkillView view = localSkillService.viewSkill(nameOrPath, null, agentScope);
         File skillDir = FileUtil.file(view.getDescriptor().getSkillDir());
         List<File> files = FileUtil.loopFiles(skillDir);
@@ -273,6 +333,35 @@ public class SkillTools {
             files.add(FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME));
         }
         return files;
+    }
+
+    /**
+     * 构造技能文件列表项。
+     *
+     * @param path 技能目录内相对路径。
+     * @return 返回文件列表项。
+     */
+    private Map<String, Object> skillFile(String path) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        item.put("path", path);
+        item.put("name", fileName(path));
+        item.put("isDir", false);
+        return item;
+    }
+
+    /**
+     * 提取文件名用于展示。
+     *
+     * @param path 文件路径。
+     * @return 返回文件名。
+     */
+    private String fileName(String path) {
+        if (path == null) {
+            return "";
+        }
+        String normalized = path.replace('\\', '/');
+        int index = normalized.lastIndexOf('/');
+        return index < 0 ? normalized : normalized.substring(index + 1);
     }
 
     /**
@@ -414,16 +503,17 @@ public class SkillTools {
          * @param filePath 目标文件相对路径或绝对路径。
          * @param fileContent 文件或目录路径参数。
          * @param absorbedInto absorbedInto 参数。
+         * @param enabled 启用状态开关值。
          * @return 返回技能Manage结果。
          */
         @ToolMapping(
                 name = "skill_manage",
                 description =
-                        "Create, patch, edit, delete or manage supporting files for a local skill.")
+                        "Create, patch, edit, delete, toggle or manage supporting files for a local skill.")
         public String skillManage(
                 @Param(
                                 name = "action",
-                                description = "create、edit、patch、delete、write_file、remove_file")
+                                description = "create、edit、patch、delete、toggle、write_file、remove_file")
                         String action,
                 @Param(name = "name", description = "技能名或 category/name") String name,
                 @Param(name = "category", description = "create 时可选分类", required = false)
@@ -442,7 +532,9 @@ public class SkillTools {
                                 name = "absorbed_into",
                                 description = "delete 时可选；传入合并后的 umbrella 技能名会迁移 cron 绑定，空字符串表示仅剪枝",
                                 required = false)
-                        String absorbedInto)
+                        String absorbedInto,
+                @Param(name = "enabled", description = "toggle 时设置技能是否全局启用", required = false)
+                        Boolean enabled)
                 throws Exception {
             return delegate.skillManage(
                     action,
@@ -453,7 +545,8 @@ public class SkillTools {
                     newText,
                     filePath,
                     fileContent,
-                    absorbedInto);
+                    absorbedInto,
+                    enabled);
         }
     }
 

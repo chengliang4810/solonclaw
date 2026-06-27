@@ -3618,10 +3618,7 @@ public class DefaultCommandService implements CommandService {
      * @return 如果Priority服务Tier满足条件则返回 true，否则返回 false。
      */
     private boolean isPriorityServiceTier(SessionRecord session) {
-        return session != null
-                && "priority"
-                        .equalsIgnoreCase(
-                                StrUtil.nullToEmpty(session.getServiceTierOverride()).trim());
+        return GatewayCommandSessionSupport.isPriorityServiceTier(session);
     }
 
     /**
@@ -3699,11 +3696,7 @@ public class DefaultCommandService implements CommandService {
 
     /** 获取当前来源键的会话；若不存在则立即创建。 */
     private SessionRecord requireSession(String sourceKey) throws Exception {
-        SessionRecord session = sessionRepository.getBoundSession(sourceKey);
-        if (session == null) {
-            session = sessionRepository.bindNewSession(sourceKey);
-        }
-        return session;
+        return GatewayCommandSessionSupport.requireSession(sessionRepository, sourceKey);
     }
 
     /**
@@ -3849,27 +3842,6 @@ public class DefaultCommandService implements CommandService {
             return "never";
         }
         return DateUtil.formatDateTime(new java.util.Date(timestamp));
-    }
-
-    /**
-     * 格式化Bytes。
-     *
-     * @param bytes 字节参数。
-     * @return 返回Bytes结果。
-     */
-    private String formatBytes(long bytes) {
-        if (bytes < 1024L) {
-            return bytes + " B";
-        }
-        double value = bytes;
-        String[] units = new String[] {"B", "KB", "MB", "GB", "TB"};
-        int unitIndex = 0;
-        while (value >= 1024D && unitIndex < units.length - 1) {
-            value = value / 1024D;
-            unitIndex++;
-        }
-        return String.format(
-                java.util.Locale.ROOT, "%.1f %s", Double.valueOf(value), units[unitIndex]);
     }
 
     /**

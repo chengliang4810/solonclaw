@@ -17,7 +17,6 @@ import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.UserMessage;
-import org.noear.solon.ai.chat.tool.ToolCall;
 import org.noear.solon.flow.FlowContext;
 import org.noear.solon.flow.FlowContextInternal;
 import org.slf4j.Logger;
@@ -387,9 +386,9 @@ public class SqliteAgentSession implements AgentSession {
         if (messages != null && !messages.isEmpty()) {
             int lastIndex = messages.size() - 1;
             ChatMessage previous = messages.get(lastIndex);
-            if (sameAssistantToolCalls(previous, message)) {
-                if (assistantInformationScore((AssistantMessage) message)
-                        > assistantInformationScore((AssistantMessage) previous)) {
+            if (MessageSupport.sameAssistantToolCalls(previous, message)) {
+                if (MessageSupport.assistantInformationScore((AssistantMessage) message)
+                        > MessageSupport.assistantInformationScore((AssistantMessage) previous)) {
                     messages.set(lastIndex, message);
                     return true;
                 }
@@ -400,70 +399,6 @@ public class SqliteAgentSession implements AgentSession {
         int before = messages == null ? 0 : messages.size();
         cache.addMessage(Collections.singletonList(message));
         return cache.getMessages().size() != before;
-    }
-
-    /**
-     * 判断两条 assistant 消息是否承载同一组工具调用；相同工具调用只能在历史中保留一次。
-     *
-     * @param previous 已存在的消息。
-     * @param incoming 待追加的消息。
-     * @return 如果两条消息代表同一批工具调用则返回 true。
-     */
-    private boolean sameAssistantToolCalls(ChatMessage previous, ChatMessage incoming) {
-        if (!(previous instanceof AssistantMessage) || !(incoming instanceof AssistantMessage)) {
-            return false;
-        }
-        List<ToolCall> previousCalls = ((AssistantMessage) previous).getToolCalls();
-        List<ToolCall> incomingCalls = ((AssistantMessage) incoming).getToolCalls();
-        if (previousCalls == null
-                || incomingCalls == null
-                || previousCalls.isEmpty()
-                || previousCalls.size() != incomingCalls.size()) {
-            return false;
-        }
-        for (int i = 0; i < previousCalls.size(); i++) {
-            if (!sameToolCall(previousCalls.get(i), incomingCalls.get(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 比较工具调用签名，避免同一个 tool_call_id 在相邻 assistant 消息中重复落盘。
-     *
-     * @param previous 已存在的工具调用。
-     * @param incoming 待追加的工具调用。
-     * @return 如果工具调用签名一致则返回 true。
-     */
-    private boolean sameToolCall(ToolCall previous, ToolCall incoming) {
-        if (previous == null || incoming == null) {
-            return false;
-        }
-        return StrUtil.equals(previous.getIndex(), incoming.getIndex())
-                && StrUtil.equals(previous.getId(), incoming.getId())
-                && StrUtil.equals(previous.getName(), incoming.getName())
-                && StrUtil.equals(previous.getArgumentsStr(), incoming.getArgumentsStr())
-                && StrUtil.equals(
-                        String.valueOf(previous.getArguments()),
-                        String.valueOf(incoming.getArguments()));
-    }
-
-    /**
-     * 计算 assistant 消息的信息量，重复工具调用去重时优先保留文本和推理内容更完整的一条。
-     *
-     * @param message assistant 消息。
-     * @return 返回可比较的信息量分数。
-     */
-    private int assistantInformationScore(AssistantMessage message) {
-        if (message == null) {
-            return 0;
-        }
-        return StrUtil.nullToEmpty(message.getContent()).length()
-                + StrUtil.nullToEmpty(message.getResultContent()).length()
-                + StrUtil.nullToEmpty(message.getReasoning()).length()
-                + (message.getContentRaw() == null ? 0 : 1)
-                + (message.getToolCallsRaw() == null ? 0 : message.getToolCallsRaw().size());
     }
 
     /**

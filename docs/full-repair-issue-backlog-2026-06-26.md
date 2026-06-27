@@ -17,92 +17,128 @@
 - 已提交：
   - `abfddf0c fix: 调整 TUI 品牌展示 / Adjust TUI brand display`
   - `c6f86d20 docs: 恢复全面修复上下文 / Restore full repair context`
-- 未纳入本清单提交的既有改动：
+- 已归属并提交的既有改动：
   - `terminal-ui/package.json`
   - `terminal-ui/package-lock.json`
-  - 两者仅表现为版本号 `0.0.6` 到 `0.0.7` 的变更，需后续单独判断是否属于发布版本更新。
+  - 两者仅表现为版本号 `0.0.6` 到 `0.0.7` 的变更，已作为 TUI 版本号更新单独提交。
 
 ## 已发现的预存问题与阶段归属
 
 ### P0-01：生产代码文件超过 4000 行
 
+状态：已复核，当前生产代码文件均低于 4000 行
+
 证据命令：
 
 ```bash
 find src/main/java src/test/java web/src terminal-ui/src -type f \( -name '*.java' -o -name '*.ts' -o -name '*.tsx' -o -name '*.vue' \) -print0 | xargs -0 wc -l | sort -nr | sed -n '1,40p'
+find src/main/java web/src terminal-ui/src -type f \( -name '*.java' -o -name '*.ts' -o -name '*.tsx' -o -name '*.vue' \) -print0 | xargs -0 wc -l | awk '$2 != "total" && $1 > 4000 { print }'
 ```
 
-当前超过 4000 行的生产代码文件：
+当前复核结果：
 
 | 文件 | 行数 | 归属阶段 |
 | --- | ---: | --- |
-| `src/main/java/com/jimuqu/solon/claw/tool/runtime/SecurityPolicyService.java` | 6962 | 阶段 1.2 |
-| `src/main/java/com/jimuqu/solon/claw/gateway/command/DefaultCommandService.java` | 6949 | 阶段 1.2 |
-| `src/main/java/com/jimuqu/solon/claw/tool/runtime/DangerousCommandApprovalService.java` | 5512 | 阶段 1.2 |
-| `src/main/java/com/jimuqu/solon/claw/web/DashboardSecurityProbeRunner.java` | 4999 | 阶段 1.2 |
-| `src/main/java/com/jimuqu/solon/claw/config/AppConfig.java` | 4903 | 阶段 1.2 |
+| `src/main/java/com/jimuqu/solon/claw/gateway/command/DefaultCommandService.java` | 3942 | 已低于 4000 |
+| `src/main/java/com/jimuqu/solon/claw/tool/runtime/DangerousCommandApprovalService.java` | 3930 | 已低于 4000 |
+| `src/main/java/com/jimuqu/solon/claw/tool/runtime/SecurityPolicyService.java` | 3897 | 已低于 4000 |
+| `src/main/java/com/jimuqu/solon/claw/web/DashboardDiagnosticsService.java` | 3858 | 已低于 4000 |
+| `src/main/java/com/jimuqu/solon/claw/llm/SolonAiLlmGateway.java` | 3812 | 已低于 4000 |
 
-说明：测试文件中也存在多个超过 4000 行的文件，但阶段 1.2 明确要求“代码文件”拆分；优先处理生产代码，测试拆分可在对应功能重构时处理。
+说明：当前生产源码无超过 4000 行的文件；测试文件中仍存在多个超过 4000 行的文件，但阶段 1.2 优先处理生产代码，测试拆分可在对应功能重构时处理。
 
 ### P0-02：历史终端 setup 计划仍有未完成复选项
 
+状态：已修复，顶层一次性 setup/config/model 命令已恢复真实 jar 可执行路径
+
 证据文件：`docs/superpowers/plans/2026-06-05-terminal-setup-commands.md`
 
-未完成项包括：
+复核结论：
 
-- 顶层命令解析：`model`、`setup model`、`setup gateway`、`gateway setup`、`config path` 的解析测试与实现。
-- 共享终端 setup service、CLI/TUI 接入、命令 registry/help 对齐。
-- 真实命令验证：构建 jar 后运行 `model`、`setup`、`setup model`、`setup gateway`、`config path`、`config check`、`--cli -p /setup model`、`--tui -p /setup gateway`。
+- 顶层命令解析已有实现，并新增 `CliModeParserTest` 覆盖 `model`、`setup model`、`setup gateway`、`gateway setup`、`config path`、`config check`、`--cli -p /setup model`、`--tui -p /setup gateway`。
+- 真实 jar 命令原本会在进入 `CliRunner` 前启动完整 Solon 容器，并因 Agent/Gateway 组件注入 `toolRegistry` 失败而无输出退出 1。
+- 已在应用入口增加一次性本地 setup/config/model fast path：命令只加载配置并复用 `TerminalSetupCommands` 渲染，不初始化 Agent/Gateway 全量组件。
+
+验证命令：
+
+```bash
+mvn -Dskip.web.build=true -Dtest=CliModeParserTest test
+mvn -Dskip.web.build=true -DskipTests package
+java -jar target/solonclaw-0.0.1.jar model
+java -jar target/solonclaw-0.0.1.jar setup
+java -jar target/solonclaw-0.0.1.jar setup model
+java -jar target/solonclaw-0.0.1.jar setup gateway
+java -jar target/solonclaw-0.0.1.jar config path
+java -jar target/solonclaw-0.0.1.jar config check
+java -jar target/solonclaw-0.0.1.jar --cli -p /setup model
+java -jar target/solonclaw-0.0.1.jar --tui -p /setup gateway
+```
+
+当前验证结果：以上 8 条真实 jar 命令均退出 `0`，且输出 setup/config/model 本地说明，不再路由到 LLM 或因 `toolRegistry` 注入失败退出。
 
 归属阶段：
 
-- 阶段 1.1：先确认这些未完成项在当前源码中是否仍是 bug。
-- 阶段 2.2 / 2.3：若当前 CLI/TUI 或 Dashboard 入口缺失，应补齐对应入口和交互。
+- 阶段 1.1：已完成真实 bug 复核和修复。
 
 ### P0-03：历史主动协作计划仍有大量未完成复选项
 
+状态：已复核并补齐 Dashboard 日志页组件筛选，提交 `96f86d862`
+
 证据文件：`docs/superpowers/plans/2026-06-16-proactive-collaboration.md`
 
-当前计划中仍有大量未勾选任务，覆盖：
+当前源码已覆盖历史计划中的主动协作主链：
 
 - proactive 配置模型与 runtime override。
 - proactive persistence schema 和 repository。
 - observation、candidate、decision、dispatch、diagnostics、dashboard、README 和命名 guard。
 
+本轮发现的真实缺口：
+
+- 后端 `/api/logs` 已支持 `component=proactive`，但 Dashboard 日志页没有组件筛选入口，前端也没有透传 `component` 参数，导致用户不能从 UI 直接查看主动协作日志。
+
 归属阶段：
 
-- 阶段 1.1：对当前主动协作功能做原子级 bug 查找，确认哪些计划项已实现、哪些仍缺失。
-- 阶段 2：核对后端 proactive 能力与前端 Dashboard 是否一致。
+- 阶段 1.1：已完成当前主动协作功能复核，确认主链测试通过。
+- 阶段 2：已补齐日志页主动协作组件筛选入口。
 - 阶段 4：重点检查 LLM 决策是否真正结合数据、次数、真实聊天内容文本，而不是硬编码或浅层统计。
 - 阶段 5：检查主动协作诊断、状态和历史记录在 UI 中是否持久显示并自动刷新。
 
 ### P0-04：Markdown 行内格式 TODO
 
+状态：已处理并复核通过，提交 `ad80c1fb7`、`d6f197c42`
+
 证据文件：`terminal-ui/src/components/markdown.tsx`
 
 发现：
 
-- `TODO: follow-up - format to ANSI then wrap with wrapAnsi for inline markdown preservation.`
+- TUI Markdown 表格行内格式在非换行路径和窄宽度换行路径均已保留。
 
 归属阶段：
 
-- 阶段 1.1：判断是否存在真实渲染 bug。
+- 阶段 1.1：已复核当前实现，不再存在本项真实渲染 bug。
 - 阶段 5.3：若影响 TUI 文本视觉呈现，补齐格式保留与换行表现。
 
-### P0-05：处理状态表情回应计划中 Dashboard 独立开关待确认
+### P0-05：处理状态表情回应计划中 Dashboard 独立开关已确认
+
+状态：已处理并复核通过，提交 `6a86d4488`
 
 证据文件：`docs/superpowers/plans/2026-06-04-processing-status-reactions.md`
 
-发现：
+当前事实：
 
-- 文档记录“Dashboard 是否需要独立开关”仍属待确认范围。
+- `AppConfig.GatewayConfig.processingReactionsEnabled` 已提供全局开关，默认启用。
+- `AppConfigLoader` 和 `RuntimeConfigResolver` 已支持 `solonclaw.gateway.processingReactionsEnabled`。
+- `DashboardConfigService` 已在 `messaging` 分类暴露 `gateway.processingReactionsEnabled`。
+- `DefaultGatewayService` 会在处理开始和完成前检查该开关，禁用时不触发渠道表情回应。
 
 归属阶段：
 
-- 阶段 2.3：确认后端是否已有处理状态表情回应能力但 Dashboard 缺少配置入口。
-- 阶段 5.2：如缺少 UI，应补充符合功能需求的开关和状态说明。
+- 阶段 2.3：已确认后端能力与 Dashboard 配置入口一致。
+- 阶段 5.2：已通过动态配置 schema 暴露开关，无需新增独立设置页。
 
 ### P0-06：版本号改动未归属
+
+状态：已处理并复核通过，提交 `053a8a1c5`
 
 证据：
 
@@ -113,13 +149,17 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 发现：
 
 - `terminal-ui` 版本号从 `0.0.6` 改为 `0.0.7`。
+- `terminal-ui/package.json`、`terminal-ui/package-lock.json` 和 lock 根 package 版本字段一致。
+- 当前复核确认三处版本字段均为 `0.0.7`。
 
 归属阶段：
 
-- 阶段 7.1：提交前确认是否应作为发布版本更新单独提交。
-- 不应混入 bug、结构拆分或 UI 修复提交。
+- 阶段 7.1：已作为发布版本元数据单独提交。
+- 未混入 bug、结构拆分或 UI 修复提交。
 
 ### P0-07：未使用变量门禁不一致
+
+状态：已复核通过，提交 `f657b6594`
 
 证据文件：
 
@@ -133,29 +173,41 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 
 - `terminal-ui` 有 `npm run lint`，并启用 `eslint-plugin-unused-imports`，但普通未使用变量规则被关闭，主要拦截未使用 import。
 - `web` 通过 `vue-tsc -b && vite build` 验证，`noUnusedLocals` 与 `noUnusedParameters` 已启用，可作为前端未使用变量门禁。
+- `npm run --prefix terminal-ui type-check` 通过，未发现 TypeScript 未使用变量错误。
+- `npm run build --prefix web` 通过，未发现前端未使用变量错误。
+- `npm run --prefix terminal-ui lint` 原有 2 个导入排序 error 已修复，当前剩余为 padding、hooks 与 react-compiler warning，后续按独立问题处理。
+- 当前复核中 `npm --prefix terminal-ui run type-check` 与 `npm --prefix web run build` 均通过。
+- 2026-06-27 复核中 `npm --prefix terminal-ui run type-check` 通过，未发现 TypeScript 未使用变量错误。
+- 2026-06-27 复核中 `npm --prefix web run build` 通过，`vue-tsc -b` 未发现前端未使用变量错误。
+- 2026-06-27 复核中 `npm --prefix terminal-ui run lint` 通过且无 error，剩余 24 个 warning 均为 padding、React hooks 或 react-compiler 类型，不属于未使用变量/导入问题。
 
 归属阶段：
 
-- 阶段 1.3：先运行现有门禁确认真实 warning，再逐项修复。
-- 若 `terminal-ui` 需要覆盖普通未使用变量，应先评估现有 ESLint 配置意图，不直接扩大规则造成大面积噪音。
+- 阶段 1.3：现有未使用变量门禁已复核通过。
+- 暂不扩大 `terminal-ui` ESLint 未使用变量规则，避免把普通变量策略调整与当前 lint error 修复混在同一项。
 
 ### P0-08：缺少明确的代码重复检测工具
+
+状态：已补充并复核通过，提交 `d3a0b00ae`
 
 证据命令：
 
 ```bash
 rg '\b(jscpd|pmd|cpd|duplication|重复代码|重复检测)\b' .
 find . -iname '*jscpd*' -o -iname '*pmd*' -o -iname '*cpd*'
+python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages
 ```
 
 发现：
 
-- 当前未发现 jscpd、PMD CPD 或其他明确重复代码检测脚本/配置。
-- “重复”相关命中大多是业务去重逻辑，不是代码重复检测工具。
+- 已新增 `scripts/check-code-duplication.py`，使用 Python 标准库检测归一化后的精确重复代码块。
+- 已新增 `scripts/check-code-duplication.selftest.py`，覆盖重复阻断、report-only 和唯一代码放行。
+- 当前保守阈值 `--min-lines 40` 已无重复输出；已在提交 `835abf206` 消除工具全集重复，在提交 `9d0cf94f4` 消除工具注册表生产代码重复，在提交 `4cd7d499c` 消除测试夹具重复，详见 `docs/full-repair-duplication-review-2026-06-27.md`。
+- 当前复核中 `scripts/check-code-duplication.selftest.py` 和 `scripts/check-code-duplication.py --report-only --min-lines 40 ...` 均通过。
 
 归属阶段：
 
-- 阶段 1.4：优先使用现有语言工具和针对性扫描识别重复逻辑；是否引入新检测工具需单独评估，不默认新增依赖。
+- 阶段 1.4：先用本地脚本做明确重复检测入口；不默认引入 jscpd、PMD CPD 等新依赖。
 
 ## 后续执行顺序
 

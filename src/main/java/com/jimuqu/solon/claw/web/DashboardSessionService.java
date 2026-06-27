@@ -261,37 +261,6 @@ public class DashboardSessionService {
     }
 
     /**
-     * 搜索Sessions。
-     *
-     * @param query 查询参数。
-     * @return 返回Sessions结果。
-     */
-    public Map<String, Object> searchSessions(String query) throws Exception {
-        List<Map<String, Object>> results = new ArrayList<Map<String, Object>>();
-        if (StrUtil.isBlank(query)) {
-            return Collections.singletonMap("results", results);
-        }
-
-        for (SessionRecord record : sessionRepository.search(query.trim(), 50)) {
-            Map<String, Object> item = new LinkedHashMap<String, Object>();
-            item.put("session_id", safe(record.getSessionId(), 400));
-            item.put("snippet", safe(buildSnippet(record, query), 2000));
-            item.put("role", null);
-            item.put("source", parseSource(record.getSourceKey()));
-            item.put(
-                    "model",
-                    safe(
-                            StrUtil.blankToDefault(
-                                    record.getLastResolvedModel(), record.getModelOverride()),
-                            400));
-            item.put("session_started", record.getCreatedAt());
-            results.add(item);
-        }
-
-        return Collections.singletonMap("results", results);
-    }
-
-    /**
      * 删除会话。
      *
      * @param sessionId 当前会话标识。
@@ -539,38 +508,6 @@ public class DashboardSessionService {
         item.put("created_at", checkpoint.getCreatedAt());
         item.put("restored_at", checkpoint.getRestoredAt());
         return item;
-    }
-
-    /**
-     * 构建Snippet。
-     *
-     * @param record 记录参数。
-     * @param query 查询参数。
-     * @return 返回创建好的Snippet。
-     */
-    private String buildSnippet(SessionRecord record, String query) throws Exception {
-        String lowerQuery = query.toLowerCase(Locale.ROOT);
-        for (ChatMessage message : MessageSupport.loadMessages(record.getNdjson())) {
-            String content = StrUtil.nullToEmpty(message.getContent()).replace('\n', ' ').trim();
-            if (StrUtil.isBlank(content)) {
-                continue;
-            }
-            int index = content.toLowerCase(Locale.ROOT).indexOf(lowerQuery);
-            if (index >= 0) {
-                int start = Math.max(0, index - 60);
-                int end = Math.min(content.length(), index + lowerQuery.length() + 60);
-                String prefix = start > 0 ? "..." : "";
-                String suffix = end < content.length() ? "..." : "";
-                return prefix
-                        + content.substring(start, index)
-                        + ">>>"
-                        + content.substring(index, index + lowerQuery.length())
-                        + "<<<"
-                        + content.substring(index + lowerQuery.length(), end)
-                        + suffix;
-            }
-        }
-        return trim(StrUtil.blankToDefault(record.getCompressedSummary(), record.getTitle()), 160);
     }
 
     /**

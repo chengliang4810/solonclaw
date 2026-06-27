@@ -171,10 +171,7 @@ public class LlmProviderService {
 
     /** 返回当前 workspace/config.yml 解析器，保证模型请求能读取 TUI 和配置命令的即时写入。 */
     private RuntimeConfigResolver configResolver() {
-        String home = appConfig == null || appConfig.getRuntime() == null
-                ? ""
-                : appConfig.getRuntime().getHome();
-        return RuntimeConfigResolver.initialize(home);
+        return RuntimeConfigResolverSupport.fromAppConfig(appConfig);
     }
 
     /**

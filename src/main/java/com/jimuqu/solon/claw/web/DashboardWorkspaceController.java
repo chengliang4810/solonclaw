@@ -5,6 +5,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
+import org.noear.solon.core.handle.DownloadedFile;
 import org.noear.solon.core.handle.MethodType;
 
 /** Dashboard 人格工作区文件接口。 */
@@ -163,6 +164,28 @@ public class DashboardWorkspaceController {
                         return workspaceService.getDiaryFile(relativePath);
                     }
                 });
+    }
+
+    /**
+     * 下载受控工作区文件；仅允许工作区固定文件 key 或文件名。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回下载文件。
+     */
+    @Mapping(value = "/api/solonclaw/download", method = MethodType.GET)
+    public Object download(Context context) {
+        try {
+            DashboardWorkspaceService.DownloadContent content =
+                    workspaceService.downloadFile(context.param("path"), context.param("name"));
+            return new DownloadedFile(
+                            "text/plain;charset=UTF-8",
+                            content.getBytes(),
+                            content.getFileName())
+                    .asAttachment(true);
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("WORKSPACE_BAD_REQUEST", workspaceErrorMessage(e));
+        }
     }
 
     /**

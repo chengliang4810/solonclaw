@@ -53,6 +53,9 @@ public interface ToolNameConstants {
     /** AgentMANAGE的统一常量值。 */
     String AGENT_MANAGE = "agent_manage";
 
+    /** 运行管理的统一常量值。 */
+    String RUN_MANAGE = "run_manage";
+
     /** 委托任务的统一常量值。 */
     String DELEGATE_TASK = "delegate_task";
 
@@ -62,11 +65,62 @@ public interface ToolNameConstants {
     /** 会话搜索的统一常量值。 */
     String SESSION_SEARCH = "session_search";
 
+    /** Dashboard 搜索管理的统一常量值。 */
+    String SEARCH_MANAGE = "search_manage";
+
+    /** 会话管理的统一常量值。 */
+    String SESSION_MANAGE = "session_manage";
+
+    /** 用量分析管理的统一常量值。 */
+    String ANALYTICS_MANAGE = "analytics_manage";
+
+    /** 日志管理的统一常量值。 */
+    String LOGS_MANAGE = "logs_manage";
+
+    /** 媒体管理的统一常量值。 */
+    String MEDIA_MANAGE = "media_manage";
+
+    /** 运行状态管理的统一常量值。 */
+    String STATUS_MANAGE = "status_manage";
+
+    /** 诊断总览管理的统一常量值。 */
+    String DIAGNOSTICS_MANAGE = "diagnostics_manage";
+
+    /** Doctor 诊断管理的统一常量值。 */
+    String DOCTOR_MANAGE = "doctor_manage";
+
+    /** TUI 运行时管理的统一常量值。 */
+    String TUI_RUNTIME_MANAGE = "tui_runtime_manage";
+
+    /** 洞察管理的统一常量值。 */
+    String INSIGHTS_MANAGE = "insights_manage";
+
+    /** 审批事件管理的统一常量值。 */
+    String APPROVAL_EVENTS_MANAGE = "approval_events_manage";
+
+    /** 审批队列管理的统一常量值。 */
+    String APPROVAL_QUEUE_MANAGE = "approval_queue_manage";
+
+    /** 工作区查询管理的统一常量值。 */
+    String WORKSPACE_MANAGE = "workspace_manage";
+
+    /** 工作区配置查询管理的统一常量值。 */
+    String WORKSPACE_CONFIG_MANAGE = "workspace_config_manage";
+
+    /** 配置元数据管理的统一常量值。 */
+    String CONFIG_MANAGE = "config_manage";
+
+    /** 网关配置引导管理的统一常量值。 */
+    String GATEWAY_SETUP_MANAGE = "gateway_setup_manage";
+
     /** 技能列表的统一常量值。 */
     String SKILLS_LIST = "skills_list";
 
     /** 技能视图的统一常量值。 */
     String SKILL_VIEW = "skill_view";
+
+    /** 技能文件列表的统一常量值。 */
+    String SKILL_FILES = "skill_files";
 
     /** 技能MANAGE的统一常量值。 */
     String SKILL_MANAGE = "skill_manage";
@@ -122,6 +176,21 @@ public interface ToolNameConstants {
     /** MCP的统一常量值。 */
     String MCP = "mcp";
 
+    /** MCP管理的统一常量值。 */
+    String MCP_MANAGE = "mcp_manage";
+
+    /** 技能维护管理的统一常量值。 */
+    String CURATOR_MANAGE = "curator_manage";
+
+    /** 平台工具集管理的统一常量值。 */
+    String PLATFORM_TOOLSETS_MANAGE = "platform_toolsets_manage";
+
+    /** Dashboard 工具集查询的统一常量值。 */
+    String TOOLSETS_MANAGE = "toolsets_manage";
+
+    /** 模型提供方管理的统一常量值。 */
+    String PROVIDER_MANAGE = "provider_manage";
+
     /** CODESEARCH的统一常量值。 */
     String CODESEARCH = "codesearch";
 
@@ -148,4 +217,30 @@ public interface ToolNameConstants {
 
     /** CLARIFY的统一常量值。 */
     String CLARIFY = "clarify";
+
+    /**
+     * 判断是否为文件类工具。
+     *
+     * @param toolName 工具名称。
+     * @return 文件类工具返回 true。
+     */
+    static boolean isFileTool(String toolName) {
+        return FILE_READ.equals(toolName)
+                || FILE_WRITE.equals(toolName)
+                || READ_FILE.equals(toolName)
+                || WRITE_FILE.equals(toolName)
+                || SEARCH_FILES.equals(toolName)
+                || FILE_LIST.equals(toolName)
+                || FILE_DELETE.equals(toolName);
+    }
+
+    /**
+     * 判断是否为需要文件安全策略检查的工具。
+     *
+     * @param toolName 工具名称。
+     * @return 文件安全工具返回 true。
+     */
+    static boolean isFileSecurityTool(String toolName) {
+        return isFileTool(toolName) || PATCH.equals(toolName);
+    }
 }

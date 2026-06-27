@@ -275,7 +275,8 @@ public class RuntimeConfigResolver {
             Map<String, Object> flattened = new LinkedHashMap<String, Object>();
             Object parsed = new Yaml().load(FileUtil.readUtf8String(configFile));
             if (parsed instanceof Map) {
-                flatten("", BasicValueSupport.sanitizeMap((Map<?, ?>) parsed), flattened);
+                ConfigFlattenSupport.flatten(
+                        "", BasicValueSupport.sanitizeMap((Map<?, ?>) parsed), flattened);
             }
             fileValues = flattened;
             lastLoadedAt = configFile.lastModified();
@@ -893,31 +894,6 @@ public class RuntimeConfigResolver {
     }
 
     /**
-     * 执行flatten相关逻辑。
-     *
-     * @param prefix prefix 参数。
-     * @param input 输入参数。
-     * @param output 命令执行输出文本。
-     */
-    private static void flatten(String prefix, Map<?, ?> input, Map<String, Object> output) {
-        for (Map.Entry<?, ?> entry : input.entrySet()) {
-            if (entry.getKey() == null) {
-                continue;
-            }
-            String key =
-                    prefix.length() == 0
-                            ? String.valueOf(entry.getKey())
-                            : prefix + "." + entry.getKey();
-            Object value = entry.getValue();
-            if (value instanceof Map) {
-                flatten(key, (Map<?, ?>) value, output);
-            } else {
-                output.put(key, value);
-            }
-        }
-    }
-
-    /**
      * 解析工作区主目录。
      *
      * @param workspaceHome 工作区目录参数。
@@ -989,6 +965,7 @@ public class RuntimeConfigResolver {
                 "solonclaw.gateway.injectionSecret",
                 "solonclaw.gateway.injectionMaxBodyBytes",
                 "solonclaw.gateway.injectionReplayWindowSeconds",
+                "solonclaw.gateway.processingReactionsEnabled",
                 "solonclaw.dashboard.accessToken",
                 "solonclaw.agent.heartbeat.intervalMinutes",
                 "solonclaw.proactive.enabled",

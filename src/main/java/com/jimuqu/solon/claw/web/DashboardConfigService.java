@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.config.ConfigFlattenSupport;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
@@ -766,6 +767,12 @@ public class DashboardConfigService {
                         "list",
                         "messaging",
                         "腾讯元宝群聊 allowlist"));
+        addField(
+                new FieldDefinition(
+                        "gateway.processingReactionsEnabled",
+                        "boolean",
+                        "messaging",
+                        "启用处理状态表情回应"));
     }
 
     /**
@@ -1025,7 +1032,7 @@ public class DashboardConfigService {
         }
 
         Map<String, Object> flattened = new LinkedHashMap<String, Object>();
-        flatten("", (Map<?, ?>) parsed, flattened);
+        ConfigFlattenSupport.flatten("", (Map<?, ?>) parsed, flattened);
 
         Map<String, Object> fieldValues = new LinkedHashMap<String, Object>();
         for (Map.Entry<String, Object> entry : flattened.entrySet()) {
@@ -1041,31 +1048,6 @@ public class DashboardConfigService {
             }
         }
         return fieldValues;
-    }
-
-    /**
-     * 执行flatten相关逻辑。
-     *
-     * @param prefix prefix 参数。
-     * @param input 输入参数。
-     * @param output 命令执行输出文本。
-     */
-    private void flatten(String prefix, Map<?, ?> input, Map<String, Object> output) {
-        for (Map.Entry<?, ?> entry : input.entrySet()) {
-            if (entry.getKey() == null) {
-                continue;
-            }
-            String key =
-                    prefix.length() == 0
-                            ? String.valueOf(entry.getKey())
-                            : prefix + "." + entry.getKey();
-            Object value = entry.getValue();
-            if (value instanceof Map) {
-                flatten(key, (Map<?, ?>) value, output);
-            } else {
-                output.put(key, value);
-            }
-        }
     }
 
     /**

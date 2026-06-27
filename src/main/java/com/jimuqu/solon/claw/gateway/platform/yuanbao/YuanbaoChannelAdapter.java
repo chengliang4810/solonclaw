@@ -10,9 +10,9 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
-import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelHttpSupport;
+import com.jimuqu.solon.claw.gateway.platform.ChannelInboundPolicySupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
@@ -476,30 +476,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 如果入站满足条件则返回 true，否则返回 false。
      */
     private boolean allowInbound(String chatType, String chatId, String userId) {
-        if (config.isAllowAllUsers()) {
-            return true;
-        }
-        if (GatewayBehaviorConstants.CHAT_TYPE_GROUP.equalsIgnoreCase(chatType)) {
-            String policy =
-                    StrUtil.blankToDefault(
-                                    config.getGroupPolicy(),
-                                    GatewayBehaviorConstants.GROUP_POLICY_OPEN)
-                            .toLowerCase();
-            if (GatewayBehaviorConstants.GROUP_POLICY_DISABLED.equals(policy)) {
-                return false;
-            }
-            return !GatewayBehaviorConstants.GROUP_POLICY_ALLOWLIST.equals(policy)
-                    || ChannelAllowListSupport.contains(config.getGroupAllowedUsers(), chatId);
-        }
-        String policy =
-                StrUtil.blankToDefault(
-                                config.getDmPolicy(), GatewayBehaviorConstants.DM_POLICY_OPEN)
-                        .toLowerCase();
-        if (GatewayBehaviorConstants.DM_POLICY_DISABLED.equals(policy)) {
-            return false;
-        }
-        return !GatewayBehaviorConstants.DM_POLICY_ALLOWLIST.equals(policy)
-                || ChannelAllowListSupport.contains(config.getAllowedUsers(), userId);
+        return ChannelInboundPolicySupport.allowInbound(config, chatType, chatId, userId);
     }
 
     /**

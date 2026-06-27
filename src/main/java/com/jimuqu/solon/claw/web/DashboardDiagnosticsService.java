@@ -1112,8 +1112,12 @@ public class DashboardDiagnosticsService {
      */
     private Map<String, Object> tools() {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
-        map.put("count", toolRegistry.listToolNames().size());
-        map.put("names", toolRegistry.listToolNames());
+        List<String> names =
+                toolRegistry == null
+                        ? Collections.<String>emptyList()
+                        : toolRegistry.listToolNames();
+        map.put("count", Integer.valueOf(names.size()));
+        map.put("names", names);
         map.put("policies", toolPolicies());
         map.put("attachment_policies", attachmentPolicies());
         return map;

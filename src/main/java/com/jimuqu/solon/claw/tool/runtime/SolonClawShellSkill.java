@@ -158,7 +158,7 @@ public class SolonClawShellSkill extends ShellTalent {
             AppConfig appConfig,
             SecurityPolicyService securityPolicyService,
             ProcessRegistry processRegistry) {
-        super(checkedWorkDir(workDir));
+        super(TerminalPathSupport.checkedWorkDir(workDir));
         this.defaultWorkDir = resolveSafeCwd(workPath.toString());
         this.liveWorkDir = defaultWorkDir;
         this.appConfig = appConfig;
@@ -1953,23 +1953,6 @@ public class SolonClawShellSkill extends ShellTalent {
         } catch (Exception e) {
             return false;
         }
-    }
-
-    /**
-     * 执行checked工作目录相关逻辑。
-     *
-     * @param workDir 命令执行工作目录。
-     * @return 返回checked Work Dir结果。
-     */
-    private static String checkedWorkDir(String workDir) {
-        SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(workDir);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    "Blocked: "
-                            + verdict.getMessage()
-                            + ". Use a simple filesystem path without shell metacharacters.");
-        }
-        return workDir;
     }
 
     /** 承载sudo转换相关状态和辅助逻辑。 */
