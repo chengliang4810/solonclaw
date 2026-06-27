@@ -20,6 +20,11 @@
 
 ## 当前保留的重复项
 
+- `src/main/java/com/jimuqu/solon/claw/agent/AgentRuntimePolicy.java:24-63` 与 `src/main/java/com/jimuqu/solon/claw/engine/DefaultDelegationService.java:60-99` 存在 40 行级别精确重复，后续应优先判断运行策略字段是否可复用同一个模型或映射入口。
+- `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java:329-401` 与 `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java:512-573` 存在工具注册描述重复，后续应优先抽取同类 schema 构造或注册辅助方法。
+- `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java:332-404`、`515-576`、`599-661`、`685-749` 存在多段工具 schema 重复，后续应与上一个 `DefaultToolRegistry` 重复项合并处理。
+- `src/main/java/com/jimuqu/solon/claw/tool/runtime/DefaultToolRegistry.java:665-704` 与 `931-970` 存在 40 行级别精确重复，后续应检查是否可复用参数定义。
+- `src/test/java/com/jimuqu/solon/claw/QuietContextCollectorTest.java:204-251` 与 `src/test/java/com/jimuqu/solon/claw/RunStateCollectorTest.java:383-430` 存在测试夹具重复，优先级低于生产代码重复。
 - `YuanbaoChannelAdapter`、`WeComChannelAdapter`、`QQBotChannelAdapter` 的 `disconnect()` 只剩状态字段清理薄包装，已复用 `ChannelConnectionSupport.disconnect(...)`，继续抽象会增加不必要的回调或继承约束。
 - `DomesticQrSetupService.fail(...)` 与 `WeixinQrSetupService.fail(...)` 的私有 `TicketState` 类型不同，强制复用需要引入接口或基类，代码会更重。
 - `MemoryProvider.syncTurn(...)` 与 `MemoryManager.syncTurn(...)` 是两个接口的默认协议方法，保留重复比引入额外父接口更清晰。
@@ -29,6 +34,8 @@
 
 ## 验证
 
+- `python3 scripts/check-code-duplication.selftest.py`
+- `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
 - `DomesticChannelEnhancementTest`
 - `SessionSearchServiceTest`
 - `MessageSequenceRepairTest`

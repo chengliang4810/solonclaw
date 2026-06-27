@@ -153,21 +153,25 @@ git diff -- terminal-ui/package.json terminal-ui/package-lock.json
 
 ### P0-08：缺少明确的代码重复检测工具
 
+状态：已补充，提交 `d3a0b00ae`
+
 证据命令：
 
 ```bash
 rg '\b(jscpd|pmd|cpd|duplication|重复代码|重复检测)\b' .
 find . -iname '*jscpd*' -o -iname '*pmd*' -o -iname '*cpd*'
+python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages
 ```
 
 发现：
 
-- 当前未发现 jscpd、PMD CPD 或其他明确重复代码检测脚本/配置。
-- “重复”相关命中大多是业务去重逻辑，不是代码重复检测工具。
+- 已新增 `scripts/check-code-duplication.py`，使用 Python 标准库检测归一化后的精确重复代码块。
+- 已新增 `scripts/check-code-duplication.selftest.py`，覆盖重复阻断、report-only 和唯一代码放行。
+- 当前保守阈值 `--min-lines 40` 扫描出 5 组重复代码块，详见 `docs/full-repair-duplication-review-2026-06-27.md`。
 
 归属阶段：
 
-- 阶段 1.4：优先使用现有语言工具和针对性扫描识别重复逻辑；是否引入新检测工具需单独评估，不默认新增依赖。
+- 阶段 1.4：先用本地脚本做明确重复检测入口；不默认引入 jscpd、PMD CPD 等新依赖。
 
 ## 后续执行顺序
 
