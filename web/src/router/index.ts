@@ -71,6 +71,11 @@ const router = createRouter({
       component: () => import('@/views/solonclaw/DiagnosticsView.vue'),
     },
     {
+      path: '/solonclaw/curator',
+      name: 'solonclaw.curator',
+      component: () => import('@/views/solonclaw/CuratorView.vue'),
+    },
+    {
       path: '/solonclaw/channels',
       name: 'solonclaw.channels',
       component: () => import('@/views/solonclaw/ChannelsView.vue'),

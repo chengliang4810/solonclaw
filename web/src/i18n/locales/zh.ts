@@ -107,6 +107,7 @@ export default {
     gateways: '网关',
     files: '文件',
     diagnostics: '系统诊断',
+    curator: '技能维护',
     mcp: '工具接入（MCP）',
     groupConversation: '对话',
     groupPlatform: '平台',
@@ -1243,6 +1244,19 @@ export default {
     dialectOllama: 'Ollama 协议',
     dialectGemini: 'Gemini 协议',
     dialectAnthropic: 'Anthropic 协议',
+  },
+
+  curator: {
+    title: '技能维护',
+    description: '查看 Curator 巡检报告，手动触发一次技能维护巡检。',
+    run: '立即巡检',
+    runStarted: '巡检已完成',
+    runFailed: '巡检失败',
+    empty: '暂无巡检报告',
+    selectReport: '选择左侧报告查看详情',
+    noSummary: '暂无摘要',
+    startedAt: '开始：',
+    finishedAt: '结束：',
   },
 
   // 配置

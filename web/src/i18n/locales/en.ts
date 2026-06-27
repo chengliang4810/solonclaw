@@ -104,6 +104,7 @@ export default {
     gateways: 'Gateways',
     files: 'Files',
     diagnostics: 'Diagnostics',
+    curator: 'Curator',
     mcp: 'MCP Tools',
     groupConversation: 'Conversation',
     groupPlatform: 'Platform',
@@ -1201,6 +1202,19 @@ export default {
     dialectOllama: 'Ollama protocol',
     dialectGemini: 'Gemini protocol',
     dialectAnthropic: 'Anthropic protocol',
+  },
+
+  curator: {
+    title: 'Curator',
+    description: 'Review Curator inspection reports and run one manual skill-maintenance pass.',
+    run: 'Run now',
+    runStarted: 'Curator run completed',
+    runFailed: 'Curator run failed',
+    empty: 'No curator reports',
+    selectReport: 'Select a report to view details',
+    noSummary: 'No summary',
+    startedAt: 'Started:',
+    finishedAt: 'Finished:',
   },
 
   // Profiles
