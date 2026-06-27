@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Button, message, Modal } from 'antdv-next'
-import type { AvailableModelGroup } from '@/api/solonclaw/system'
+import type { AvailableModelGroup, ProviderValidationResponse } from '@/api/solonclaw/system'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import { useI18n } from 'vue-i18n'
 
@@ -14,7 +14,10 @@ const { t } = useI18n()
 const modelsStore = useModelsStore()
 
 const displayName = computed(() => props.provider.label)
+const healthStatus = computed(() => modelsStore.providerHealth[props.provider.provider]?.status || 'unchecked')
 const deleting = ref(false)
+const validating = ref(false)
+const validationResult = ref<ProviderValidationResponse | null>(null)
 
 function dialectLabel(value: string): string {
   switch (value) {
@@ -30,6 +33,19 @@ function dialectLabel(value: string): string {
       return t('models.dialectAnthropic')
     default:
       return value
+  }
+}
+
+function healthLabel(value: string): string {
+  switch (value) {
+    case 'configured':
+      return t('models.health.configured')
+    case 'missing_key':
+      return t('models.health.missing_key')
+    case 'unreachable':
+      return t('models.health.unreachable')
+    default:
+      return t('models.health.unchecked')
   }
 }
 
@@ -51,6 +67,27 @@ async function handleDelete() {
       }
     },
   })
+}
+
+async function handleValidate() {
+  validating.value = true
+  validationResult.value = null
+  try {
+    validationResult.value = await modelsStore.validateProvider({
+      providerKey: props.provider.providerKey || props.provider.provider,
+      baseUrl: props.provider.base_url,
+      dialect: props.provider.dialect,
+    })
+    if (validationResult.value.ok) {
+      message.success(t('models.providerValid'))
+    } else {
+      message.warning(validationResult.value.message || t('models.providerInvalid'))
+    }
+  } catch (e: any) {
+    message.error(e.message || t('models.providerValidationFailed'))
+  } finally {
+    validating.value = false
+  }
 }
 </script>
 
@@ -80,9 +117,19 @@ async function handleDelete() {
         <span class="info-label">{{ t('models.apiKey') }}</span>
         <span class="info-value">{{ provider.has_api_key ? t('models.apiKeyConfigured') : t('models.apiKeyMissing') }}</span>
       </div>
+      <div class="info-row">
+        <span class="info-label">{{ t('models.healthStatus') }}</span>
+        <span class="info-value">{{ healthLabel(healthStatus) }}</span>
+      </div>
+    </div>
+
+    <div v-if="validationResult" class="validation-result" :class="validationResult.ok ? 'ok' : 'error'">
+      <span>{{ t('models.validationStatus', { status: validationResult.status }) }}</span>
+      <span class="validation-message">{{ validationResult.message }}</span>
     </div>
 
     <div class="card-actions">
+      <Button size="small" type="text" :loading="validating" @click="handleValidate">{{ t('models.validateProvider') }}</Button>
       <Button size="small" type="text" @click="emit('edit', provider)">{{ t('common.edit') }}</Button>
       <Button size="small" type="text" danger :loading="deleting" @click="handleDelete">{{ t('common.delete') }}</Button>
     </div>
@@ -171,5 +218,30 @@ async function handleDelete() {
   gap: 8px;
   border-top: 1px solid $border-light;
   padding-top: 10px;
+}
+
+.validation-result {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: $radius-sm;
+  font-size: 12px;
+
+  &.ok {
+    background: rgba(34, 197, 94, 0.1);
+    color: #16a34a;
+  }
+
+  &.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+  }
+}
+
+.validation-message {
+  color: $text-muted;
+  overflow-wrap: anywhere;
 }
 </style>

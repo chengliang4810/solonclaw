@@ -4,30 +4,47 @@ import { Button, SpaceCompact, Input, Select, Spin, Switch, Tag, TextArea, messa
 import { useI18n } from 'vue-i18n'
 import {
   auditSecurity,
+  fetchApprovalStats,
   fetchAlwaysApprovals,
   fetchApprovalHistory,
+  fetchDiagnosticsDoctor,
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
+  fetchPlatformToolsets,
+  probeSubprocessEnvironment,
   resolveApproval,
   resolveSlashConfirm,
   revokeAlwaysApproval,
   type AlwaysApproval,
   type AlwaysApprovalsResult,
+  type ApprovalStats,
   type ApprovalAuditEvent,
   type ApprovalHistoryResult,
   type Diagnostics,
+  type DiagnosticsDoctor,
   type PendingApproval,
   type PendingApprovalsResult,
   type PendingSlashConfirm,
   type PendingSlashConfirmsResult,
+  type PlatformToolsetsOverview,
   type SecurityPolicyProbe,
   type SecurityAuditFinding,
   type SecurityAuditResult,
+  type SubprocessEnvironmentProbeResult,
 } from '@/api/solonclaw/diagnostics'
+import {
+  fetchInsightsOverview,
+  fetchSkillInsights,
+  type InsightsOverview,
+  type SkillInsights,
+} from '@/api/solonclaw/insights'
 
 const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
+const doctor = ref<DiagnosticsDoctor | null>(null)
+const insightsOverview = ref<InsightsOverview | null>(null)
+const skillInsights = ref<SkillInsights>({})
 const loading = ref(false)
 const auditLoading = ref(false)
 const approvalsLoading = ref(false)
@@ -36,7 +53,11 @@ const alwaysLoading = ref(false)
 const confirmsLoading = ref(false)
 const auditResult = ref<SecurityAuditResult | null>(null)
 const policyAuditResult = ref<SecurityAuditResult | null>(null)
+const subprocessEnvProbeResult = ref<SubprocessEnvironmentProbeResult | null>(null)
+const subprocessEnvProbeLoading = ref(false)
+const platformToolsets = ref<PlatformToolsetsOverview | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
+const approvalStats = ref<ApprovalStats | null>(null)
 const pendingApprovalMeta = ref<PendingApprovalsResult | null>(null)
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
 const approvalHistoryMeta = ref<ApprovalHistoryResult | null>(null)
@@ -56,6 +77,7 @@ const auditForm = ref({
   writeLike: false,
   argsJson: '',
 })
+const subprocessEnvProbeNames = ref('OPENAI_API_KEY, PATH, SOLONCLAW_HOME')
 const resolvingKey = ref('')
 const revokingAlwaysKey = ref('')
 const resolvingConfirmKey = ref('')
@@ -76,6 +98,7 @@ const securitySurfaces = computed<string[]>(() => {
   const surfaces = policy?.activeSurfaces || securityAuditPolicy.value.activeSurfaces
   return Array.isArray(surfaces) ? surfaces.map((item) => String(item)) : []
 })
+const platformToolsetRows = computed(() => Object.values(platformToolsets.value?.platforms || {}))
 type SecurityMetric = {
   label: string
   value: unknown
@@ -473,6 +496,24 @@ const pendingApprovalScanText = computed(() => {
 const historyCount = computed(() => approvalHistory.value.length)
 const alwaysCount = computed(() => alwaysApprovals.value.length)
 const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
+const approvalStatItems = computed(() => [
+  { label: d('approvalStatTotal'), value: approvalStats.value?.totalEvents ?? 0 },
+  { label: d('approvalStatApproved'), value: approvalStats.value?.approved ?? 0 },
+  { label: d('approvalStatBlocked'), value: approvalStats.value?.blocked ?? 0 },
+  { label: d('approvalStatPending'), value: approvalStats.value?.pending ?? 0 },
+])
+const doctorSummary = computed(() => doctor.value?.summary || {})
+const doctorIssues = computed(() => doctor.value?.summary?.issues || [])
+const doctorNextActions = computed(() => doctor.value?.summary?.nextActions || [])
+const insightRuntime = computed(() => insightsOverview.value?.runtime || {})
+const insightSessions = computed(() => insightsOverview.value?.sessions || {})
+const insightSkills = computed(() => insightsOverview.value?.skills || {})
+const skillInsightRows = computed<Array<{ key: string } & Record<string, unknown>>>(() =>
+  Object.entries(skillInsights.value)
+    .map(([key, value]) => ({ key, ...value }))
+    .sort((left, right) => Number(right.count || 0) - Number(left.count || 0))
+    .slice(0, 6),
+)
 
 function valueOf(source: Record<string, unknown>, key: string, fallback: unknown = '-') {
   const value = source[key]
@@ -541,11 +582,17 @@ function surfaceLabel(surface: string) {
   return translated === key ? surface : translated
 }
 
+function listText(values?: string[]) {
+  return values?.length ? values.join(', ') : '-'
+}
+
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData] = await Promise.all([
+    const [diagnosticsData, insightsData, skillInsightData] = await Promise.all([
       fetchDiagnostics(),
+      fetchInsightsOverview(),
+      fetchSkillInsights(),
       loadPolicyAudit(),
       loadApprovals(),
       loadHistory(),
@@ -553,6 +600,10 @@ async function load() {
       loadSlashConfirms(),
     ])
     diagnostics.value = diagnosticsData
+    doctor.value = await fetchDiagnosticsDoctor()
+    platformToolsets.value = await fetchPlatformToolsets()
+    insightsOverview.value = insightsData
+    skillInsights.value = skillInsightData
   } finally {
     loading.value = false
   }
@@ -565,6 +616,7 @@ async function loadPolicyAudit() {
 async function loadApprovals() {
   approvalsLoading.value = true
   try {
+    approvalStats.value = await fetchApprovalStats()
     const result = await fetchPendingApprovals(100)
     pendingApprovalMeta.value = result
     pendingApprovals.value = result.items || []
@@ -624,6 +676,21 @@ async function runAudit() {
     }
   } finally {
     auditLoading.value = false
+  }
+}
+
+async function handleSubprocessEnvProbe() {
+  const names = subprocessEnvProbeNames.value
+    .split(/[\s,]+/)
+    .map((name) => name.trim())
+    .filter(Boolean)
+  subprocessEnvProbeLoading.value = true
+  try {
+    subprocessEnvProbeResult.value = await probeSubprocessEnvironment(names)
+  } catch (e: any) {
+    message.error(e.message || t('diagnostics.subprocessEnvProbeFailed'))
+  } finally {
+    subprocessEnvProbeLoading.value = false
   }
 }
 
@@ -763,6 +830,44 @@ onMounted(load)
     </header>
     <Spin :spinning="loading">
       <main class="diagnostics-grid">
+        <section class="panel doctor-panel">
+          <div class="panel-title-row">
+            <h3>{{ t('diagnostics.doctor') }}</h3>
+            <Tag size="small" :color="doctorSummary.issueCount ? 'warning' : 'success'" :bordered="false">
+              {{ doctorSummary.highestSeverity || t('diagnostics.allPassed') }}
+            </Tag>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-item">
+              <span>{{ t('diagnostics.doctorIssues') }}</span>
+              <Tag size="small" :bordered="false">{{ doctorSummary.issueCount ?? 0 }}</Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.doctorWarnings') }}</span>
+              <Tag size="small" :bordered="false">{{ doctorSummary.warningCount ?? 0 }}</Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.doctorPlatforms') }}</span>
+              <Tag size="small" :bordered="false">{{ doctor?.platforms?.length || 0 }}</Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.doctorGeneratedAt') }}</span>
+              <span>{{ doctor?.generated_at || '-' }}</span>
+            </div>
+          </div>
+          <div v-if="doctorIssues.length" class="doctor-list">
+            <div v-for="(issue, index) in doctorIssues.slice(0, 4)" :key="index" class="doctor-item">
+              <Tag size="small" :bordered="false">{{ issue.severity || '-' }}</Tag>
+              <span>{{ issue.message || issue.code || '-' }}</span>
+            </div>
+          </div>
+          <div v-if="doctorNextActions.length" class="doctor-list">
+            <div v-for="action in doctorNextActions.slice(0, 3)" :key="action" class="doctor-item">
+              <Tag size="small" :bordered="false">{{ t('diagnostics.doctorNextAction') }}</Tag>
+              <span>{{ action }}</span>
+            </div>
+          </div>
+        </section>
         <section class="panel">
           <h3>{{ t('diagnostics.runtime') }}</h3>
           <pre>{{ diagnostics?.runtime }}</pre>
@@ -778,6 +883,57 @@ onMounted(load)
         <section class="panel">
           <h3>{{ t('diagnostics.toolsAndMcp') }}</h3>
           <pre>{{ diagnostics?.tools }}&#10;{{ diagnostics?.mcp }}</pre>
+        </section>
+        <section class="panel">
+          <h3>{{ t('diagnostics.platformToolsets') }}</h3>
+          <div v-if="platformToolsetRows.length" class="toolset-list">
+            <div v-for="row in platformToolsetRows" :key="row.platform" class="toolset-row">
+              <strong>{{ row.platform }}</strong>
+              <span>{{ t('diagnostics.enabledToolsets') }}: {{ listText(row.enabledToolsets) }}</span>
+              <span>{{ t('diagnostics.disabledToolsets') }}: {{ listText(row.disabledToolsets) }}</span>
+              <Tag size="small" :color="row.approvalRequired ? 'warning' : 'default'" :bordered="false">
+                {{ row.approvalRequired ? t('diagnostics.approvalRequired') : t('diagnostics.approvalNotRequired') }}
+              </Tag>
+            </div>
+          </div>
+          <div v-else class="empty-state">{{ t('diagnostics.noPlatformToolsets') }}</div>
+        </section>
+        <section class="panel insights-panel">
+          <h3>{{ t('diagnostics.insights') }}</h3>
+          <div class="insight-stats">
+            <div>
+              <span>{{ t('diagnostics.insightSessions') }}</span>
+              <strong>{{ valueOf(insightSessions, 'total', 0) }}</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightTrackedSkills') }}</span>
+              <strong>{{ valueOf(insightSkills, 'tracked', 0) }}</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightActiveSkills') }}</span>
+              <strong>{{ valueOf(insightSkills, 'active', 0) }}</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightMemory') }}</span>
+              <strong>{{ valueOf(insightRuntime, 'usedMemoryMb', 0) }} / {{ valueOf(insightRuntime, 'maxMemoryMb', 0) }} MB</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightProcessors') }}</span>
+              <strong>{{ valueOf(insightRuntime, 'availableProcessors', 0) }}</strong>
+            </div>
+            <div>
+              <span>{{ t('diagnostics.insightUptime') }}</span>
+              <strong>{{ Math.round(Number(valueOf(insightRuntime, 'uptimeMs', 0)) / 1000) }}s</strong>
+            </div>
+          </div>
+          <div class="skill-insight-list">
+            <div v-for="row in skillInsightRows" :key="String(row.key)" class="skill-insight-row">
+              <span>{{ row.key }}</span>
+              <Tag size="small" :bordered="false">{{ row.state || 'active' }}</Tag>
+              <strong>{{ row.count || 0 }}</strong>
+            </div>
+            <div v-if="!skillInsightRows.length" class="empty-state">{{ t('diagnostics.noSkillInsights') }}</div>
+          </div>
         </section>
         <section class="panel security-panel">
           <h3>{{ t('diagnostics.securityPolicy') }}</h3>
@@ -968,6 +1124,36 @@ onMounted(load)
             </div>
             <div v-else class="surface-empty">{{ t('diagnostics.noProbeData') }}</div>
           </div>
+          <div class="probe-section">
+            <div class="coverage-title">
+              <h4>{{ t('diagnostics.subprocessEnvProbe') }}</h4>
+              <Button size="small" :loading="subprocessEnvProbeLoading" @click="handleSubprocessEnvProbe">
+                {{ t('diagnostics.runProbe') }}
+              </Button>
+            </div>
+            <TextArea
+              v-model:value="subprocessEnvProbeNames"
+              class="probe-input"
+              :rows="2"
+              :placeholder="t('diagnostics.subprocessEnvProbePlaceholder')"
+            />
+            <p class="approval-note">{{ t('diagnostics.subprocessEnvProbeHint') }}</p>
+            <div v-if="subprocessEnvProbeResult" class="probe-result">
+              <p>{{ subprocessEnvProbeResult.summary || '-' }}</p>
+              <div class="probe-grid">
+                <div v-for="decision in subprocessEnvProbeResult.decisions || []" :key="String(decision.name || decision.key)" class="probe-item">
+                  <div class="probe-head">
+                    <strong>{{ decision.name || decision.key || '-' }}</strong>
+                    <Tag size="small" :bordered="false">{{ decision.decision || '-' }}</Tag>
+                  </div>
+                  <div class="probe-meta">
+                    <span>{{ decision.visibility || '-' }}</span>
+                    <span>{{ decision.reason || '-' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </section>
         <section class="panel audit-panel">
           <h3>{{ t('diagnostics.audit') }}</h3>
@@ -1054,6 +1240,15 @@ onMounted(load)
             </div>
           </div>
           <Spin :spinning="approvalsLoading">
+            <div class="approval-stats">
+              <h4>{{ t('diagnostics.approvalStats') }}</h4>
+              <div class="metric-grid">
+                <div v-for="item in approvalStatItems" :key="item.label" class="metric-item">
+                  <span>{{ item.label }}</span>
+                  <Tag size="small" :bordered="false">{{ item.value }}</Tag>
+                </div>
+              </div>
+            </div>
             <p v-if="pendingApprovalMeta?.available === false" class="approval-note">
               {{ pendingApprovalMeta.message || t('diagnostics.approvalServiceUnavailable') }}
             </p>
@@ -1315,12 +1510,24 @@ onMounted(load)
   grid-column: 1 / -1;
 }
 
+.doctor-panel {
+  grid-column: 1 / -1;
+}
+
 .audit-panel {
+  grid-column: 1 / -1;
+}
+
+.insights-panel {
   grid-column: 1 / -1;
 }
 
 .approvals-panel {
   grid-column: 1 / -1;
+}
+
+.approval-stats {
+  margin-bottom: 12px;
 }
 
 .panel-title-row {
@@ -1372,6 +1579,17 @@ onMounted(load)
   border-radius: $radius-sm;
   padding: 12px;
   background: $bg-secondary;
+}
+
+.probe-input,
+.probe-result {
+  margin-top: 8px;
+}
+
+.probe-result > p {
+  margin-bottom: 8px;
+  color: $text-secondary;
+  font-size: 13px;
 }
 
 .coverage-title {
@@ -1441,6 +1659,100 @@ onMounted(load)
   align-items: center;
   font-size: 12px;
   color: $text-secondary;
+}
+
+.insight-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.insight-stats div,
+.skill-insight-row {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  padding: 10px;
+}
+
+.insight-stats span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: $text-muted;
+}
+
+.insight-stats strong {
+  font-size: 18px;
+  color: $text-primary;
+}
+
+.skill-insight-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.skill-insight-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.skill-insight-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolset-list {
+  display: grid;
+  gap: 8px;
+}
+
+.toolset-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  padding: 10px;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.toolset-row span {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: $breakpoint-mobile) {
+  .toolset-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.doctor-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.doctor-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  font-size: 12px;
+  color: $text-secondary;
+}
+
+.doctor-item span {
+  overflow-wrap: anywhere;
 }
 
 .probe-grid {

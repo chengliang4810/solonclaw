@@ -2,7 +2,6 @@
 import { computed, reactive } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { Button, message } from "antdv-next";
 import { useAppStore } from "@/stores/solonclaw/app";
 import ThemeSwitch from "./ThemeSwitch.vue";
 import danceVideoLight from "@/assets/dance-light.mp4";
@@ -74,15 +73,6 @@ function isGroupCollapsed(key: string) {
 
 function handleNav(key: string) {
   router.push({ name: key });
-}
-
-async function handleUpdate() {
-  const ok = await appStore.doUpdate();
-  if (ok) {
-    message.success(t('sidebar.updateSuccess'), 5);
-  } else {
-    message.error(t('sidebar.updateFailed'));
-  }
 }
 
 function handleLogout() {
@@ -215,6 +205,15 @@ function handleLogout() {
             </svg>
             <span>{{ t("sidebar.runs") }}</span>
           </button>
+          <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.gateways' }" @click="handleNav('solonclaw.gateways')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 7h16" />
+              <path d="M4 17h16" />
+              <circle cx="8" cy="7" r="2" />
+              <circle cx="16" cy="17" r="2" />
+            </svg>
+            <span>{{ t("sidebar.gateways") }}</span>
+          </button>
         </div>
       </div>
 
@@ -243,6 +242,15 @@ function handleLogout() {
               <circle cx="12" cy="12" r="4" />
             </svg>
             <span>{{ t("sidebar.diagnostics") }}</span>
+          </button>
+          <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.curator' }" @click="handleNav('solonclaw.curator')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 5h16" />
+              <path d="M4 12h16" />
+              <path d="M4 19h10" />
+              <circle cx="17" cy="19" r="2" />
+            </svg>
+            <span>{{ t("sidebar.curator") }}</span>
           </button>
           <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.mcp' }" @click="handleNav('solonclaw.mcp')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -285,9 +293,6 @@ function handleLogout() {
         </div>
         <ThemeSwitch />
       </div>
-      <Button v-if="appStore.updateAvailable" type="primary" size="small" block class="update-btn" :loading="appStore.updating" @click="handleUpdate">
-        {{ appStore.updating ? t('sidebar.updating') : t('sidebar.updateVersion', { version: appStore.latestVersion }) }}
-      </Button>
     </div>
   </aside>
 </template>

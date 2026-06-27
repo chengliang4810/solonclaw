@@ -6,12 +6,6 @@ import { useFilesStore } from '@/stores/solonclaw/files'
 const { t } = useI18n()
 const filesStore = useFilesStore()
 
-const emit = defineEmits<{
-  (e: 'showNewFile'): void
-  (e: 'showNewFolder'): void
-  (e: 'showUpload'): void
-}>()
-
 async function handleRefresh() {
   try {
     await filesStore.fetchEntries()
@@ -24,15 +18,6 @@ async function handleRefresh() {
 <template>
   <div class="file-toolbar">
     <Space>
-      <Button size="small" @click="emit('showNewFile')">
-        {{ t('files.newFile') }}
-      </Button>
-      <Button size="small" @click="emit('showNewFolder')">
-        {{ t('files.newFolder') }}
-      </Button>
-      <Button size="small" @click="emit('showUpload')">
-        {{ t('files.upload') }}
-      </Button>
       <Button size="small" @click="handleRefresh">
         {{ t('files.refresh') }}
       </Button>

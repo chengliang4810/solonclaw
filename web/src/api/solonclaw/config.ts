@@ -3,48 +3,20 @@ import type { ChannelQrPlatform, ChannelQrStatusView } from '@/shared/channelQr'
 import { normalizeChannelQrStatus } from '@/shared/channelQr'
 
 export interface DisplayConfig {
-  compact?: boolean
   personality?: string
   resume_display?: string
-  busy_input_mode?: string
-  bell_on_complete?: boolean
   show_reasoning?: boolean
   streaming?: boolean
-  inline_diffs?: boolean
-  skin?: string
 }
 
 export interface AgentConfig {
   max_turns?: number
-  gateway_timeout?: number
-  restart_drain_timeout?: number
   service_tier?: string
-  tool_use_enforcement?: string
-}
-
-export interface MemoryConfig {
-  memory_enabled?: boolean
-  user_profile_enabled?: boolean
-  memory_char_limit?: number
-  user_char_limit?: number
-}
-
-export interface SessionResetConfig {
-  mode?: string
-  idle_minutes?: number
-  at_hour?: number
-}
-
-export interface PrivacyConfig {
-  redact_pii?: boolean
 }
 
 export interface AppConfig {
   display?: DisplayConfig
   agent?: AgentConfig
-  memory?: MemoryConfig
-  session_reset?: SessionResetConfig
-  privacy?: PrivacyConfig
   wecom?: Record<string, any>
   feishu?: Record<string, any>
   dingtalk?: Record<string, any>
@@ -111,16 +83,6 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
     },
     agent: {
       max_turns: data.react?.maxSteps,
-    },
-    memory: {
-      memory_enabled: true,
-      user_profile_enabled: true,
-    },
-    session_reset: {
-      mode: data.scheduler?.enabled ? 'manual' : 'off',
-    },
-    privacy: {
-      redact_pii: false,
     },
     wecom: data.channels?.wecom || {},
     feishu: data.channels?.feishu || {},

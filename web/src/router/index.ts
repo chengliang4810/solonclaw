@@ -71,9 +71,19 @@ const router = createRouter({
       component: () => import('@/views/solonclaw/DiagnosticsView.vue'),
     },
     {
+      path: '/solonclaw/curator',
+      name: 'solonclaw.curator',
+      component: () => import('@/views/solonclaw/CuratorView.vue'),
+    },
+    {
       path: '/solonclaw/channels',
       name: 'solonclaw.channels',
       component: () => import('@/views/solonclaw/ChannelsView.vue'),
+    },
+    {
+      path: '/solonclaw/gateways',
+      name: 'solonclaw.gateways',
+      component: () => import('@/views/solonclaw/GatewaysView.vue'),
     },
     {
       path: '/solonclaw/mcp',
@@ -91,11 +101,6 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   // Public pages don't need auth
   if (to.meta.public) {
-    // Already has key, skip login
-    if (to.name === 'login' && hasApiKey()) {
-      next({ path: '/solonclaw/chat' })
-      return
-    }
     next()
     return
   }

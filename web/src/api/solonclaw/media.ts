@@ -25,6 +25,16 @@ export async function fetchMedia(platform = '', limit = 50): Promise<ChannelMedi
   return res.media || []
 }
 
+export async function fetchMediaDetail(mediaId: string): Promise<ChannelMedia> {
+  return request<ChannelMedia>(`/api/media/${encodeURIComponent(mediaId)}`)
+}
+
+export async function refreshMedia(mediaId: string): Promise<ChannelMedia> {
+  return request<ChannelMedia>(`/api/media/${encodeURIComponent(mediaId)}/refresh`, {
+    method: 'POST',
+  })
+}
+
 export async function indexMedia(data: Record<string, unknown>) {
   return request('/api/media/index', {
     method: 'POST',

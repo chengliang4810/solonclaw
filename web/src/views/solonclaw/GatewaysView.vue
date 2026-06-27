@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { Spin, Button, Tag, message } from 'antdv-next'
+import { Spin, Tag } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useGatewayStore } from '@/stores/solonclaw/gateways'
 
@@ -10,20 +10,6 @@ const gatewayStore = useGatewayStore()
 onMounted(() => {
   gatewayStore.fetchStatus()
 })
-
-async function handleToggle(name: string, running: boolean) {
-  try {
-    if (running) {
-      await gatewayStore.stop(name)
-      message.success(`${t('gateways.stopped')}: ${name}`)
-    } else {
-      await gatewayStore.start(name)
-      message.success(`${t('gateways.started')}: ${name}`)
-    }
-  } catch (err: any) {
-    message.error(err.message)
-  }
-}
 </script>
 
 <template>
@@ -54,15 +40,6 @@ async function handleToggle(name: string, running: boolean) {
               <Tag :color="gw.running ? 'success' : 'default'" size="small" shape="round">
                 {{ gw.running ? t('gateways.running') : t('gateways.stopped') }}
               </Tag>
-              <Button
-                size="small"
-                :type="gw.running ? 'default' : 'primary'"
-                :danger="gw.running"
-                shape="round"
-                @click="handleToggle(gw.profile, gw.running)"
-              >
-                {{ gw.running ? t('common.stop') : t('common.start') }}
-              </Button>
             </div>
           </div>
         </div>

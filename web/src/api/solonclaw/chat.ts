@@ -1,4 +1,4 @@
-import { getApiKey, getBaseUrlValue, request } from '../client'
+import { dashboardFetch, getApiKey, getBaseUrlValue, request } from '../client'
 
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -73,7 +73,7 @@ export async function uploadChatFiles(files: File[]): Promise<UploadedChatFile[]
     headers.set('Authorization', `Bearer ${apiKey}`)
   }
 
-  const res = await fetch(`${getBaseUrlValue()}/api/chat/uploads`, {
+  const res = await dashboardFetch(`${getBaseUrlValue()}/api/chat/uploads`, {
     method: 'POST',
     body: formData,
     headers,
@@ -116,7 +116,7 @@ export function streamRunEvents(
 
   void (async () => {
     try {
-      const res = await fetch(`${getBaseUrlValue()}/api/chat/runs/${encodeURIComponent(runId)}/events`, {
+      const res = await dashboardFetch(`${getBaseUrlValue()}/api/chat/runs/${encodeURIComponent(runId)}/events`, {
         method: 'GET',
         headers,
         signal: controller.signal,

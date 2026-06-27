@@ -66,6 +66,28 @@ export interface SecurityAuditResult {
   [key: string]: unknown
 }
 
+export interface SubprocessEnvironmentProbeResult {
+  success?: boolean
+  surface?: string
+  summary?: string
+  requested_count?: number
+  requested_names?: string[]
+  decision_categories?: string[]
+  decisions?: Array<Record<string, unknown>>
+  policy?: Record<string, unknown>
+}
+
+export interface PlatformToolsetConfig {
+  platform: string
+  enabledToolsets: string[]
+  disabledToolsets: string[]
+  approvalRequired: boolean
+}
+
+export interface PlatformToolsetsOverview {
+  platforms: Record<string, PlatformToolsetConfig>
+}
+
 export interface PendingApproval {
   session_id: string
   source_ref?: string
@@ -166,6 +188,29 @@ export interface PendingSlashConfirmsResult {
   message?: string
 }
 
+export interface ApprovalStats {
+  totalEvents: number
+  approved: number
+  blocked: number
+  pending: number
+}
+
+export interface DiagnosticsDoctor {
+  generated_at?: string
+  workspace_home?: string
+  model?: Record<string, unknown>
+  last_shutdown?: Record<string, unknown>
+  config?: Record<string, unknown>
+  platforms?: Array<Record<string, unknown>>
+  summary?: {
+    issueCount?: number
+    warningCount?: number
+    highestSeverity?: string
+    issues?: Array<Record<string, unknown>>
+    nextActions?: string[]
+  }
+}
+
 export interface ResolveSlashConfirmRequest {
   confirmId: string
   action: 'approve' | 'always' | 'deny'
@@ -194,11 +239,30 @@ export async function fetchDiagnostics(): Promise<Diagnostics> {
   return request<Diagnostics>('/api/diagnostics')
 }
 
+export async function fetchApprovalStats(): Promise<ApprovalStats> {
+  return request<ApprovalStats>('/api/approval/stats')
+}
+
+export async function fetchDiagnosticsDoctor(): Promise<DiagnosticsDoctor> {
+  return request<DiagnosticsDoctor>('/api/diagnostics/doctor')
+}
+
 export async function auditSecurity(payload: SecurityAuditRequest): Promise<SecurityAuditResult> {
   return request<SecurityAuditResult>('/api/diagnostics/security-audit', {
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export async function probeSubprocessEnvironment(names: string[]): Promise<SubprocessEnvironmentProbeResult> {
+  return request<SubprocessEnvironmentProbeResult>('/api/diagnostics/subprocess-environment/probe', {
+    method: 'POST',
+    body: JSON.stringify({ names }),
+  })
+}
+
+export async function fetchPlatformToolsets(): Promise<PlatformToolsetsOverview> {
+  return request<PlatformToolsetsOverview>('/api/tools/platform-toolsets')
 }
 
 export async function fetchPendingApprovals(limit = 100): Promise<PendingApprovalsResult> {

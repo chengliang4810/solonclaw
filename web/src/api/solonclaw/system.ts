@@ -5,7 +5,6 @@ export interface HealthResponse {
   version?: string
   webui_version?: string
   webui_latest?: string
-  webui_update_available?: boolean
   node_version?: string
 }
 
@@ -39,6 +38,32 @@ export interface FallbackProvider {
   model: string
 }
 
+export interface ModelsHealthProvider {
+  provider: string
+  status: string
+  checked_at: number
+}
+
+export interface ModelsHealthResponse {
+  providers: ModelsHealthProvider[]
+}
+
+export interface ProviderValidationRequest {
+  providerKey?: string
+  baseUrl: string
+  apiKey?: string
+  dialect: string
+}
+
+export interface ProviderValidationResponse {
+  ok: boolean
+  reachable: boolean
+  status: string
+  message: string
+  url: string
+  models?: string[]
+}
+
 export interface AvailableModelGroup {
   provider: string
   providerKey: string
@@ -69,7 +94,6 @@ export interface CustomProvider {
 
 interface DashboardStatus {
   version?: string
-  update_available?: boolean
 }
 
 interface ProvidersPayload {
@@ -102,15 +126,7 @@ export async function checkHealth(): Promise<HealthResponse> {
     version: status.version,
     webui_version: status.version,
     webui_latest: status.version,
-    webui_update_available: !!status.update_available,
     node_version: '',
-  }
-}
-
-export async function triggerUpdate(): Promise<{ success: boolean; message: string }> {
-  return {
-    success: false,
-    message: '当前后端未开放在线更新',
   }
 }
 
@@ -153,6 +169,17 @@ export async function fetchAvailableModels(): Promise<AvailableModelsResponse> {
 
 export async function fetchModelInfo(): Promise<DashboardModelInfo> {
   return request<DashboardModelInfo>('/api/model/info')
+}
+
+export async function fetchModelsHealth(): Promise<ModelsHealthResponse> {
+  return request<ModelsHealthResponse>('/api/models/health')
+}
+
+export async function validateProvider(data: ProviderValidationRequest): Promise<ProviderValidationResponse> {
+  return request<ProviderValidationResponse>('/api/providers/validate', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
 }
 
 export async function updateDefaultModel(data: {

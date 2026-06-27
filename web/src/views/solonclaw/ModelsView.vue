@@ -14,8 +14,9 @@ const appStore = useAppStore()
 const showModal = ref(false)
 const editingProvider = ref<AvailableModelGroup | null>(null)
 
-onMounted(() => {
-  modelsStore.fetchProviders()
+onMounted(async () => {
+  await modelsStore.fetchProviders()
+  modelsStore.fetchModelsHealth().catch(() => undefined)
 })
 
 function openCreateModal() {

@@ -9,10 +9,8 @@ import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/solonclaw/settings";
 import DisplaySettings from "@/components/solonclaw/settings/DisplaySettings.vue";
 import AgentSettings from "@/components/solonclaw/settings/AgentSettings.vue";
-import MemorySettings from "@/components/solonclaw/settings/MemorySettings.vue";
 import ModelSettings from "@/components/solonclaw/settings/ModelSettings.vue";
 import SessionSettings from "@/components/solonclaw/settings/SessionSettings.vue";
-import PrivacySettings from "@/components/solonclaw/settings/PrivacySettings.vue";
 import AccountSettings from "@/components/solonclaw/settings/AccountSettings.vue";
 
 const settingsStore = useSettingsStore();
@@ -52,14 +50,8 @@ onMounted(() => {
           <TabPane tabKey="models" :tab="t('settings.tabs.models')">
             <ModelSettings />
           </TabPane>
-          <TabPane tabKey="memory" :tab="t('settings.tabs.memory')">
-            <MemorySettings />
-          </TabPane>
           <TabPane tabKey="session" :tab="t('settings.tabs.session')">
             <SessionSettings />
-          </TabPane>
-          <TabPane tabKey="privacy" :tab="t('settings.tabs.privacy')">
-            <PrivacySettings />
           </TabPane>
         </Tabs>
       </Spin>

@@ -28,6 +28,7 @@ import {
   refreshMcpOAuth,
   refreshMcpTools,
   reloadAllMcpServers,
+  reloadAllMcpServersAsync,
   reloadMcpServer,
   saveMcpServer,
   type McpActionResult,
@@ -275,6 +276,19 @@ async function reloadAllServers() {
   }
 }
 
+async function reloadAllServersAsync() {
+  actionLoading.value = 'reload-all-async'
+  try {
+    lastReloadAll.value = await reloadAllMcpServersAsync()
+    await load()
+    message.success(t('mcp.reloadAllAsyncStarted'))
+  } catch (err: any) {
+    message.error(err.message || t('mcp.reloadAllFailed'))
+  } finally {
+    actionLoading.value = ''
+  }
+}
+
 async function loadOAuthStatus() {
   if (!selectedId.value) {
     oauthStatus.value = null
@@ -401,6 +415,7 @@ async function copy(text: string) {
         </Tag>
         <Button size="small" :loading="loading" @click="load">{{ t('mcp.refresh') }}</Button>
         <Button size="small" :loading="actionLoading === 'reload-all'" @click="reloadAllServers">{{ t('mcp.reloadAll') }}</Button>
+        <Button size="small" :loading="actionLoading === 'reload-all-async'" @click="reloadAllServersAsync">{{ t('mcp.reloadAllAsync') }}</Button>
         <Button size="small" type="primary" @click="openCreate">{{ t('mcp.create') }}</Button>
       </div>
     </header>

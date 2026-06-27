@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { InputNumber, Select, message } from 'antdv-next'
+import { InputNumber, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import SettingRow from './SettingRow.vue'
@@ -25,34 +25,6 @@ async function save(values: Record<string, any>) {
         :min="1" :max="200" :step="5"
         size="small" class="input-sm"
         @update:value="v => v != null && save({ max_turns: v })"
-      />
-    </SettingRow>
-    <SettingRow :label="t('settings.agent.gatewayTimeout')" :hint="t('settings.agent.gatewayTimeoutHint')">
-      <InputNumber
-        :value="settingsStore.agent.gateway_timeout"
-        :min="60" :max="7200" :step="60"
-        size="small" class="input-sm"
-        @update:value="v => v != null && save({ gateway_timeout: v })"
-      />
-    </SettingRow>
-    <SettingRow :label="t('settings.agent.restartDrainTimeout')" :hint="t('settings.agent.restartDrainTimeoutHint')">
-      <InputNumber
-        :value="settingsStore.agent.restart_drain_timeout"
-        :min="10" :max="300" :step="10"
-        size="small" class="input-sm"
-        @update:value="v => v != null && save({ restart_drain_timeout: v })"
-      />
-    </SettingRow>
-    <SettingRow :label="t('settings.agent.toolEnforcement')" :hint="t('settings.agent.toolEnforcementHint')">
-      <Select
-        :value="settingsStore.agent.tool_use_enforcement || 'auto'"
-        :options="[
-          { label: t('settings.agent.auto'), value: 'auto' },
-          { label: t('settings.agent.always'), value: 'always' },
-          { label: t('settings.agent.never'), value: 'never' },
-        ]"
-        size="small" class="input-sm"
-        @update:value="v => save({ tool_use_enforcement: v })"
       />
     </SettingRow>
   </section>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, nextTick } from 'vue'
-import { Dropdown, message, Modal } from 'antdv-next'
+import { Dropdown, message } from 'antdv-next'
 import type { MenuProps } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useFilesStore, isTextFile, isImageFile, isMarkdownFile } from '@/stores/solonclaw/files'
@@ -15,10 +15,6 @@ const showMenu = ref(false)
 const menuX = ref(0)
 const menuY = ref(0)
 const targetEntry = ref<FileEntry | null>(null)
-
-const emit = defineEmits<{
-  (e: 'rename', entry: FileEntry): void
-}>()
 
 function show(e: MouseEvent, entry: FileEntry) {
   targetEntry.value = entry
@@ -48,9 +44,6 @@ function getOptions() {
   }
   options.push({ type: 'divider', key: 'd1' })
   options.push({ label: t('files.copyPath'), key: 'copyPath' })
-  options.push({ label: t('files.rename'), key: 'rename' })
-  options.push({ type: 'divider', key: 'd2' })
-  options.push({ label: t('files.delete'), key: 'delete' })
   return options
 }
 
@@ -85,25 +78,6 @@ async function handleSelect(key: string) {
       }
       break
     }
-    case 'rename':
-      emit('rename', entry)
-      break
-    case 'delete':
-      Modal.confirm({
-        title: t('files.delete'),
-        content: entry.isDir ? t('files.confirmDeleteDir', { name: entry.name }) : t('files.confirmDelete', { name: entry.name }),
-        okText: t('common.delete'),
-        cancelText: t('common.cancel'),
-        onOk: async () => {
-          try {
-            await filesStore.deleteEntry(entry)
-            message.success(t('files.deleted'))
-          } catch {
-            message.error(t('files.deleteFailed'))
-          }
-        },
-      })
-      break
   }
 }
 

@@ -2,15 +2,34 @@
 import { computed, onMounted, ref } from 'vue'
 import { Button, Select, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
-import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
-import { fetchRunDetail, fetchSessionRuns, type AgentRun, type AgentRunEvent, type ToolCall } from '@/api/solonclaw/runs'
+import {
+  fetchSessionCheckpoints,
+  fetchSessionRecap,
+  fetchSessions,
+  fetchSessionTrajectory,
+  fetchSessionTree,
+  rollbackCheckpoint,
+} from '@/api/solonclaw/sessions'
+import {
+  fetchRunDetail,
+  fetchSessionRuns,
+  type AgentRun,
+  type AgentRunEvent,
+  type RunControlCommand,
+  type RunRecovery,
+  type ToolCall,
+} from '@/api/solonclaw/runs'
 
 const sessions = ref<any[]>([])
 const runs = ref<AgentRun[]>([])
 const events = ref<AgentRunEvent[]>([])
 const tools = ref<ToolCall[]>([])
+const recoveries = ref<RunRecovery[]>([])
+const commands = ref<RunControlCommand[]>([])
 const checkpoints = ref<any[]>([])
 const tree = ref<any>(null)
+const recap = ref<any>(null)
+const trajectory = ref<any>(null)
 const selectedSessionId = ref('')
 const selectedRunId = ref('')
 const loading = ref(false)
@@ -48,13 +67,28 @@ async function loadSessionDetail() {
       const detail = await fetchRunDetail(selectedRunId.value)
       events.value = detail.events || []
       tools.value = detail.tools || []
+      recoveries.value = detail.recoveries || []
+      commands.value = detail.commands || []
     } else {
       events.value = []
       tools.value = []
+      recoveries.value = []
+      commands.value = []
     }
+    await loadSessionArtifacts()
   } finally {
     loading.value = false
   }
+}
+
+async function loadSessionArtifacts() {
+  if (!selectedSessionId.value) return
+  const [loadedRecap, loadedTrajectory] = await Promise.all([
+    fetchSessionRecap(selectedSessionId.value),
+    fetchSessionTrajectory(selectedSessionId.value),
+  ])
+  recap.value = loadedRecap
+  trajectory.value = loadedTrajectory
 }
 
 async function loadRunDetail(runId: string) {
@@ -62,11 +96,15 @@ async function loadRunDetail(runId: string) {
   if (!runId) {
     events.value = []
     tools.value = []
+    recoveries.value = []
+    commands.value = []
     return
   }
   const detail = await fetchRunDetail(runId)
   events.value = detail.events || []
   tools.value = detail.tools || []
+  recoveries.value = detail.recoveries || []
+  commands.value = detail.commands || []
 }
 
 async function handleRollback(id: string) {
@@ -103,6 +141,11 @@ function booleanLabel(value?: boolean) {
   if (value === true) return t('common.yes')
   if (value === false) return t('common.no')
   return '-'
+}
+
+function artifactText(value: any) {
+  if (!value) return t('runs.noSessionArtifact')
+  return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
 }
 
 onMounted(async () => {
@@ -192,9 +235,29 @@ onMounted(async () => {
             </div>
           </div>
           <div v-if="selectedRunId && tools.length === 0" class="empty">{{ t('runs.noTools') }}</div>
+
+          <h3 class="section-title">{{ t('runs.recoveries') }}</h3>
+          <div v-for="recovery in recoveries" :key="recovery.recovery_id" class="event-row">
+            <span class="event-type">{{ recovery.recovery_type }}</span>
+            <span>{{ recovery.summary || recovery.status }}</span>
+            <small>{{ time(recovery.created_at) }}</small>
+          </div>
+          <div v-if="selectedRunId && recoveries.length === 0" class="empty">{{ t('runs.noRecoveries') }}</div>
+
+          <h3 class="section-title">{{ t('runs.commands') }}</h3>
+          <div v-for="command in commands" :key="command.command_id" class="event-row">
+            <span class="event-type">{{ command.command }}</span>
+            <span>{{ statusLabel(command.status) }}</span>
+            <small>{{ time(command.created_at) }}</small>
+          </div>
+          <div v-if="selectedRunId && commands.length === 0" class="empty">{{ t('runs.noCommands') }}</div>
         </section>
 
         <section class="panel side-panel">
+          <h3>{{ t('runs.sessionRecap') }}</h3>
+          <pre class="artifact-block">{{ artifactText(recap) }}</pre>
+          <h3>{{ t('runs.sessionTrajectory') }}</h3>
+          <pre class="artifact-block">{{ artifactText(trajectory) }}</pre>
           <h3>{{ t('runs.sessionTree') }}</h3>
           <div v-for="node in tree?.nodes || []" :key="node.id" class="mini-row">
             <span>{{ node.branch_name || t('runs.mainBranch') }}</span>
@@ -361,6 +424,21 @@ h3 {
   margin: 0;
   padding: 8px;
   max-height: 160px;
+  overflow: auto;
+  border-radius: $radius-sm;
+  background: rgba($bg-secondary, 0.72);
+  color: $text-primary;
+  font-family: $font-code;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.artifact-block {
+  margin: 0 0 16px;
+  padding: 8px;
+  max-height: 220px;
   overflow: auto;
   border-radius: $radius-sm;
   background: rgba($bg-secondary, 0.72);
