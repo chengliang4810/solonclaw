@@ -25,6 +25,17 @@ export function handleDashboardAuthFailure(status: number, body: string): boolea
   return false
 }
 
+export async function dashboardFetch(input: RequestInfo | URL, options: RequestInit = {}): Promise<Response> {
+  const res = await fetch(input, options)
+  if (res.ok) {
+    return res
+  }
+  const clone = res.clone()
+  const text = await clone.text().catch(() => '')
+  handleDashboardAuthFailure(res.status, text)
+  return res
+}
+
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const base = getBaseUrlValue()
   const url = `${base}${path}`
@@ -39,10 +50,9 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     headers.set('Authorization', `Bearer ${apiKey}`)
   }
 
-  const res = await fetch(url, { ...options, headers })
+  const res = await dashboardFetch(url, { ...options, headers })
 
   if (res.status === 401) {
-    redirectToLogin()
     throw new Error('Unauthorized')
   }
 

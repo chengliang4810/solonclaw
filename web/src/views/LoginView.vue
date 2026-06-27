@@ -2,7 +2,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
-import { getBaseUrlValue, handleDashboardAuthFailure, setApiKey, hasApiKey } from "@/api/client";
+import { dashboardFetch, getBaseUrlValue, handleDashboardAuthFailure, setApiKey, hasApiKey } from "@/api/client";
 
 const { t } = useI18n();
 const router = useRouter();
@@ -30,7 +30,7 @@ async function handleLogin() {
   errorMsg.value = "";
 
   try {
-    const res = await fetch(`${getBaseUrlValue()}/api/sessions`, {
+    const res = await dashboardFetch(`${getBaseUrlValue()}/api/sessions`, {
       headers: { Authorization: `Bearer ${key}` },
     });
 
