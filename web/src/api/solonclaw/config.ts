@@ -55,6 +55,8 @@ export interface AppConfig {
   [key: string]: any
 }
 
+export type ConfigDiagnostics = Record<string, unknown>
+
 interface WorkspaceConfigInfo {
   is_set: boolean
   redacted_value?: string | null
@@ -174,6 +176,10 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
       },
     },
   }
+}
+
+export async function fetchConfigDiagnostics(): Promise<ConfigDiagnostics> {
+  return request<ConfigDiagnostics>('/api/config/diagnostics')
 }
 
 export async function updateConfigSection(

@@ -1303,6 +1303,13 @@ export default {
       privacy: 'Privacy',
       apiServer: 'API Server',
       models: 'Models',
+      configDiagnostics: 'Config diagnostics',
+    },
+    configDiagnostics: {
+      title: 'Config diagnostics',
+      description: 'Read the resolved configuration diagnostics without editing raw configuration.',
+      refresh: 'Refresh',
+      empty: 'No config diagnostics',
     },
     models: {
       apiKey: 'API Key',

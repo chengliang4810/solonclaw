@@ -14,6 +14,7 @@ import ModelSettings from "@/components/solonclaw/settings/ModelSettings.vue";
 import SessionSettings from "@/components/solonclaw/settings/SessionSettings.vue";
 import PrivacySettings from "@/components/solonclaw/settings/PrivacySettings.vue";
 import AccountSettings from "@/components/solonclaw/settings/AccountSettings.vue";
+import ConfigDiagnosticsSettings from "@/components/solonclaw/settings/ConfigDiagnosticsSettings.vue";
 
 const settingsStore = useSettingsStore();
 const { t } = useI18n();
@@ -60,6 +61,9 @@ onMounted(() => {
           </TabPane>
           <TabPane tabKey="privacy" :tab="t('settings.tabs.privacy')">
             <PrivacySettings />
+          </TabPane>
+          <TabPane tabKey="configDiagnostics" :tab="t('settings.tabs.configDiagnostics')">
+            <ConfigDiagnosticsSettings />
           </TabPane>
         </Tabs>
       </Spin>

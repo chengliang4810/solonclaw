@@ -1339,6 +1339,13 @@ export default {
       privacy: '隐私',
       apiServer: 'API 服务器',
       models: '模型',
+      configDiagnostics: '配置诊断',
+    },
+    configDiagnostics: {
+      title: '配置诊断',
+      description: '只读查看解析后的配置诊断，不直接编辑原始配置。',
+      refresh: '刷新',
+      empty: '暂无配置诊断',
     },
     models: {
       apiKey: '接口密钥',
