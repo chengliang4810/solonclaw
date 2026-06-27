@@ -205,6 +205,16 @@ export async function fetchPlatformToolsets(): Promise<PlatformToolsetsOverview>
   return request<PlatformToolsetsOverview>('/api/tools/platform-toolsets')
 }
 
+export async function updatePlatformToolsets(
+  platform: string,
+  values: Pick<PlatformToolsetsConfig, 'enabledToolsets' | 'disabledToolsets' | 'approvalRequired'>,
+): Promise<PlatformToolsetsConfig> {
+  return request<PlatformToolsetsConfig>(`/api/tools/platform-toolsets/${encodeURIComponent(platform)}`, {
+    method: 'PUT',
+    body: JSON.stringify(values),
+  })
+}
+
 export async function updateConfigSection(
   section: string,
   values: Record<string, any>,

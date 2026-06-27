@@ -7,6 +7,7 @@ import { useSettingsStore } from '@/stores/solonclaw/settings'
 import {
   saveCredentials as saveCredsApi,
   fetchPlatformToolsets,
+  updatePlatformToolsets,
   fetchPlatformQrCode,
   pollPlatformQrStatus,
   type PlatformToolsetsConfig,
@@ -21,6 +22,7 @@ const { t } = useI18n()
 // Track saving state per platform.field
 const saving = reactive<Record<string, boolean>>({})
 const platformToolsets = reactive<Record<string, PlatformToolsetsConfig>>({})
+const platformToolsetDrafts = reactive<Record<string, { enabledToolsets: string; disabledToolsets: string; approvalRequired: boolean }>>({})
 const platformToolsetsLoading = reactive<Record<string, boolean>>({})
 
 function savingKey(platform: string, field: string) {
@@ -68,12 +70,46 @@ async function loadPlatformToolsets() {
   try {
     const data = await fetchPlatformToolsets()
     Object.assign(platformToolsets, data.platforms || {})
+    for (const platform of platforms) {
+      setPlatformToolsetDraft(platform.key, platformToolsets[platform.key])
+    }
   } catch (err: any) {
     message.error(err.message || t('platform.toolsetsLoadFailed'))
   } finally {
     for (const platform of platforms) {
       platformToolsetsLoading[platform.key] = false
     }
+  }
+}
+
+function setPlatformToolsetDraft(platform: string, config?: PlatformToolsetsConfig) {
+  platformToolsetDrafts[platform] = {
+    enabledToolsets: (config?.enabledToolsets || []).join(', '),
+    disabledToolsets: (config?.disabledToolsets || []).join(', '),
+    approvalRequired: !!config?.approvalRequired,
+  }
+}
+
+function splitToolsets(value: string) {
+  return value.split(',').map(item => item.trim()).filter(Boolean)
+}
+
+async function savePlatformToolsets(platform: string) {
+  const draft = platformToolsetDrafts[platform] || { enabledToolsets: '', disabledToolsets: '', approvalRequired: false }
+  platformToolsetsLoading[platform] = true
+  try {
+    const next = await updatePlatformToolsets(platform, {
+      enabledToolsets: splitToolsets(draft.enabledToolsets),
+      disabledToolsets: splitToolsets(draft.disabledToolsets),
+      approvalRequired: draft.approvalRequired,
+    })
+    platformToolsets[platform] = next
+    setPlatformToolsetDraft(platform, next)
+    message.success(t('settings.saved'))
+  } catch (err: any) {
+    message.error(err.message || t('settings.saveFailed'))
+  } finally {
+    platformToolsetsLoading[platform] = false
   }
 }
 
@@ -219,6 +255,10 @@ const platforms = [
     icon: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.27 2.58a1 1 0 011.46 0l2.07 2.24a1 1 0 00.55.3l3 .64a1 1 0 01.56 1.67l-2.04 2.29a1 1 0 00-.24.61l-.32 3.05a1 1 0 01-1.33.84l-2.86-1a1 1 0 00-.66 0l-2.86 1a1 1 0 01-1.33-.84l-.32-3.05a1 1 0 00-.24-.61L5.09 7.43a1 1 0 01.56-1.67l3-.64a1 1 0 00.55-.3l2.07-2.24zm.73 13.92c1.34 0 2.61.29 3.75.8V19a1 1 0 01-1.45.89L12 18.76l-2.3 1.13A1 1 0 018.25 19v-1.7c1.14-.51 2.41-.8 3.75-.8z"/></svg>',
   },
 ]
+
+for (const platform of platforms) {
+  setPlatformToolsetDraft(platform.key)
+}
 </script>
 
 <template>
@@ -236,16 +276,33 @@ const platforms = [
           <div class="platform-toolsets">
             <div class="platform-toolsets-line">
               <span>{{ t('platform.approvalRequired') }}</span>
-              <strong>{{ platformToolsets[p.key]?.approvalRequired ? t('common.yes') : t('common.no') }}</strong>
+              <Switch
+                :value="platformToolsetDrafts[p.key]?.approvalRequired"
+                size="small"
+                @update:value="v => { platformToolsetDrafts[p.key].approvalRequired = !!v }"
+              />
             </div>
             <div class="platform-toolsets-line">
               <span>{{ t('platform.enabledToolsets') }}</span>
-              <code>{{ (platformToolsets[p.key]?.enabledToolsets || []).join(', ') || '-' }}</code>
+              <Input
+                :value="platformToolsetDrafts[p.key]?.enabledToolsets"
+                size="small"
+                :placeholder="t('platform.toolsetsPlaceholder')"
+                @update:value="v => { platformToolsetDrafts[p.key].enabledToolsets = v }"
+              />
             </div>
             <div class="platform-toolsets-line">
               <span>{{ t('platform.disabledToolsets') }}</span>
-              <code>{{ (platformToolsets[p.key]?.disabledToolsets || []).join(', ') || '-' }}</code>
+              <Input
+                :value="platformToolsetDrafts[p.key]?.disabledToolsets"
+                size="small"
+                :placeholder="t('platform.toolsetsPlaceholder')"
+                @update:value="v => { platformToolsetDrafts[p.key].disabledToolsets = v }"
+              />
             </div>
+            <Button size="small" type="primary" @click="savePlatformToolsets(p.key)">
+              {{ t('platform.saveToolsets') }}
+            </Button>
           </div>
         </Spin>
       </SettingRow>
@@ -459,7 +516,7 @@ const platforms = [
 
 .platform-toolsets {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   min-width: 220px;
   color: $text-secondary;
   font-size: 12px;
@@ -472,14 +529,9 @@ const platforms = [
   align-items: start;
 }
 
-.platform-toolsets-line strong,
-.platform-toolsets-line code {
+.platform-toolsets-line strong {
   color: $text-primary;
   overflow-wrap: anywhere;
-}
-
-.platform-toolsets-line code {
-  font-family: $font-code;
 }
 
 .channel-qr-loading {
