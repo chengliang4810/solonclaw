@@ -128,6 +128,17 @@ class TerminalUiRpcServiceTest {
         assertThat(config.getApprovals().isMcpReloadConfirm()).isFalse();
     }
 
+    @Test
+    void compactConfigSetRespectsExplicitOnOffValues() throws Exception {
+        AppConfig config = testConfig();
+        TerminalUiRpcService service = new TerminalUiRpcService(config);
+
+        assertThat(service.configSet("compact", "on", "").get("value")).isEqualTo("1");
+        assertThat(service.configSet("compact", "on", "").get("value")).isEqualTo("1");
+        assertThat(service.configSet("compact", "off", "").get("value")).isEqualTo("0");
+        assertThat(service.configSet("compact", "off", "").get("value")).isEqualTo("0");
+    }
+
     private static SessionRecord session(String id, String sourceKey) {
         SessionRecord session = new SessionRecord();
         session.setSessionId(id);

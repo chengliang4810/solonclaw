@@ -1296,7 +1296,7 @@ public class TerminalUiRpcService {
             return statusbar;
         }
         if ("compact".equals(normalized)) {
-            boolean enabled = !booleanPreference("tui_compact", false);
+            boolean enabled = normalizeBooleanToggle(raw, booleanPreference("tui_compact", false));
             writePreference("tui_compact", enabled ? "true" : "false");
             return enabled ? "1" : "0";
         }
@@ -1517,6 +1517,27 @@ public class TerminalUiRpcService {
             return "on";
         }
         return "off";
+    }
+
+    /** 归一化显式布尔开关；空值和 toggle 表示反转当前值。 */
+    private boolean normalizeBooleanToggle(String value, boolean current) {
+        String normalized = StrUtil.blankToDefault(value, "toggle").trim().toLowerCase(Locale.ROOT);
+        if ("toggle".equals(normalized)) {
+            return !current;
+        }
+        if ("on".equals(normalized)
+                || "true".equals(normalized)
+                || "1".equals(normalized)
+                || "yes".equals(normalized)) {
+            return true;
+        }
+        if ("off".equals(normalized)
+                || "false".equals(normalized)
+                || "0".equals(normalized)
+                || "no".equals(normalized)) {
+            return false;
+        }
+        return current;
     }
 
     /** 归一化状态指示器样式。 */
