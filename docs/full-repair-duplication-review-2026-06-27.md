@@ -27,6 +27,7 @@
 - 模型价格字段写入：`AppConfigLoader` 与 `PriceCatalog` 复用 `ModelPrice.applyTokenPrice(...)`，保留各自解析入口，只统一 `input`、`output`、`cache_read`、`cache_write`、`reasoning` 的字段写入语义。
 - 终端参数切分：`TerminalSetupCommands` 与 `TuiRuntimeProtocolService` 复用 `BasicValueSupport.shellTokens(...)`，只合并不处理转义字符的单双引号切分逻辑。
 - 定时任务短重载转发：`CronjobTools` 无 `limit/reason` 的短重载改为复用已有中间重载，减少一份长参数 null 展开。
+- 终端工具重载元数据：`SolonClawShellSkill` 仅保留真正 `@ToolMapping` 方法上的 `@Param` 元数据，删除两个 Java 便捷转发重载上的重复注解块，方法签名和行为不变。
 
 ## 当前保留的重复项
 
@@ -75,3 +76,5 @@
 - `mvn -Dskip.web.build=true -Dtest=CronjobToolsSchedulerTest,DefaultCronSchedulerTest test`
 - `python3 scripts/check-code-duplication.selftest.py`
 - `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
+- `python3 scripts/check-code-duplication.py --report-only --min-lines 25 src/main/java/com/jimuqu/solon/claw/tool/runtime/SolonClawShellSkill.java`
+- `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=SolonClawShellSkillTest,ToolRegistryProcessToolsTest test`

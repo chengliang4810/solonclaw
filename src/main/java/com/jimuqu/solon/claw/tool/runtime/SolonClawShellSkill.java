@@ -245,32 +245,11 @@ public class SolonClawShellSkill extends ShellTalent {
      * @return 返回终端结果。
      */
     public String terminal(
-            @Param(name = "command", description = "Command to execute") String command,
-            @Param(
-                            name = "background",
-                            required = false,
-                            defaultValue = "false",
-                            description = "Run in the managed background process registry")
-                    Boolean background,
-            @Param(
-                            name = "timeout",
-                            required = false,
-                            defaultValue = "180",
-                            description =
-                                    "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
-                    Integer timeoutSeconds,
-            @Param(
-                            name = "workdir",
-                            required = false,
-                            description = "Working directory. Defaults to the tool workdir.")
-                    String workdir,
-            @Param(
-                            name = "notify_on_complete",
-                            required = false,
-                            defaultValue = "false",
-                            description =
-                                    "Background process completion notification toggle.")
-                    Boolean notifyOnComplete) {
+            String command,
+            Boolean background,
+            Integer timeoutSeconds,
+            String workdir,
+            Boolean notifyOnComplete) {
         return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, null, null);
     }
 
@@ -286,38 +265,12 @@ public class SolonClawShellSkill extends ShellTalent {
      * @return 返回终端结果。
      */
     public String terminal(
-            @Param(name = "command", description = "Command to execute") String command,
-            @Param(
-                            name = "background",
-                            required = false,
-                            defaultValue = "false",
-                            description = "Run in the managed background process registry")
-                    Boolean background,
-            @Param(
-                            name = "timeout",
-                            required = false,
-                            defaultValue = "180",
-                            description =
-                                    "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
-                    Integer timeoutSeconds,
-            @Param(
-                            name = "workdir",
-                            required = false,
-                            description = "Working directory. Defaults to the tool workdir.")
-                    String workdir,
-            @Param(
-                            name = "notify_on_complete",
-                            required = false,
-                            defaultValue = "false",
-                            description =
-                                    "Background process completion notification toggle.")
-                    Boolean notifyOnComplete,
-            @Param(
-                            name = "pty",
-                            required = false,
-                            defaultValue = "false",
-                            description = "PTY request flag. Stdin-pipe commands run without PTY.")
-                    Boolean pty) {
+            String command,
+            Boolean background,
+            Integer timeoutSeconds,
+            String workdir,
+            Boolean notifyOnComplete,
+            Boolean pty) {
         return terminal(command, background, timeoutSeconds, workdir, notifyOnComplete, pty, null);
     }
 
