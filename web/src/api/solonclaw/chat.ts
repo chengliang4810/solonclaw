@@ -91,7 +91,9 @@ export async function uploadChatFiles(files: File[]): Promise<UploadedChatFile[]
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    handleDashboardAuthFailure(res.status, text)
+    if (handleDashboardAuthFailure(res.status, text)) {
+      throw new Error('Unauthorized')
+    }
     throw new Error(`Upload failed: ${res.status} ${text || res.statusText}`)
   }
 
@@ -135,7 +137,9 @@ export function streamRunEvents(
 
       if (!res.ok || !res.body) {
         const text = await res.text().catch(() => '')
-        handleDashboardAuthFailure(res.status, text)
+        if (handleDashboardAuthFailure(res.status, text)) {
+          throw new Error('Unauthorized')
+        }
         throw new Error(`SSE failed: ${res.status} ${text || res.statusText}`)
       }
 

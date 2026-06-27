@@ -48,7 +48,9 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    handleDashboardAuthFailure(res.status, text)
+    if (handleDashboardAuthFailure(res.status, text)) {
+      throw new Error('Unauthorized')
+    }
     throw new Error(`API Error ${res.status}: ${text || res.statusText}`)
   }
 
