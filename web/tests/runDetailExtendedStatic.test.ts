@@ -7,6 +7,15 @@ const zh = readFileSync(new URL('../src/i18n/locales/zh.ts', import.meta.url), '
 const en = readFileSync(new URL('../src/i18n/locales/en.ts', import.meta.url), 'utf8')
 
 assert.ok(api.includes('commands: RunControlCommand[]'), 'run detail type should include control commands from backend detail')
+assert.ok(api.includes('function runPath(runId: string)'), 'run path parameters should use one encoding helper')
+assert.ok(api.includes('function sessionRunsPath(sessionId: string)'), 'session run path should encode sessionId')
+assert.equal(
+  (api.match(/runPath\(runId\)/g) || []).length,
+  5,
+  'each run-specific endpoint should encode runId before building the URL',
+)
+assert.ok(!api.includes('/api/runs/${runId}'), 'runs API should not interpolate raw runId path segments')
+assert.ok(!api.includes('/api/sessions/${sessionId}'), 'runs API should not interpolate raw sessionId path segments')
 assert.ok(view.includes('recoveries.value = detail.recoveries || []'), 'runs view should read recoveries from run detail')
 assert.ok(view.includes('commands.value = detail.commands || []'), 'runs view should read commands from run detail')
 assert.ok(view.includes("t('runs.recoveries')"), 'runs view should render recoveries')

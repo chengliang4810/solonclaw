@@ -253,11 +253,19 @@ export async function searchSessions(q: string, source?: string, limit?: number)
     })
 }
 
+function sessionPath(id: string) {
+  return `/api/sessions/${encodeURIComponent(id)}`
+}
+
+function checkpointPath(id: string) {
+  return `/api/checkpoints/${encodeURIComponent(id)}`
+}
+
 export async function fetchSession(id: string): Promise<SessionDetail | null> {
   try {
     const [sessionsRes, detail] = await Promise.all([
       request<{ sessions: DashboardSessionSummary[] }>('/api/sessions?limit=500&offset=0'),
-      request<DashboardSessionDetail>(`/api/sessions/${id}/messages`),
+      request<DashboardSessionDetail>(`${sessionPath(id)}/messages`),
     ])
     const summary = sessionsRes.sessions.find((session) => session.id === id)
     const base = summary ? mapSummary(summary) : {
@@ -300,7 +308,7 @@ export async function fetchSession(id: string): Promise<SessionDetail | null> {
 
 export async function fetchLatestSessionDescendant(id: string): Promise<SessionLatestDescendant | null> {
   try {
-    return await request<SessionLatestDescendant>(`/api/sessions/${id}/latest-descendant`)
+    return await request<SessionLatestDescendant>(`${sessionPath(id)}/latest-descendant`)
   } catch {
     return null
   }
@@ -308,7 +316,7 @@ export async function fetchLatestSessionDescendant(id: string): Promise<SessionL
 
 export async function deleteSession(id: string): Promise<boolean> {
   try {
-    await request(`/api/sessions/${id}`, { method: 'DELETE' })
+    await request(sessionPath(id), { method: 'DELETE' })
     return true
   } catch {
     return false
@@ -317,7 +325,7 @@ export async function deleteSession(id: string): Promise<boolean> {
 
 export async function renameSession(id: string, title: string): Promise<boolean> {
   try {
-    await request<DashboardSessionSummary>(`/api/sessions/${encodeURIComponent(id)}`, {
+    await request<DashboardSessionSummary>(sessionPath(id), {
       method: 'PUT',
       body: JSON.stringify({ title }),
     })
@@ -353,28 +361,28 @@ export async function fetchSessionUsageSingle(id: string): Promise<{ input_token
 }
 
 export async function fetchSessionTree(id: string): Promise<any> {
-  return request(`/api/sessions/${id}/tree`)
+  return request(`${sessionPath(id)}/tree`)
 }
 
 export async function fetchSessionCheckpoints(id: string): Promise<any[]> {
-  const res = await request<{ checkpoints: any[] }>(`/api/sessions/${id}/checkpoints`)
+  const res = await request<{ checkpoints: any[] }>(`${sessionPath(id)}/checkpoints`)
   return res.checkpoints || []
 }
 
 export async function fetchSessionRecap(id: string, limit = 10): Promise<SessionRecap> {
-  return request<SessionRecap>(`/api/sessions/${id}/recap?limit=${limit}`)
+  return request<SessionRecap>(`${sessionPath(id)}/recap?limit=${limit}`)
 }
 
 export async function fetchSessionTrajectory(id: string): Promise<SessionTrajectory> {
-  return request<SessionTrajectory>(`/api/sessions/${id}/trajectory`)
+  return request<SessionTrajectory>(`${sessionPath(id)}/trajectory`)
 }
 
 export async function fetchCheckpointPreview(id: string): Promise<any> {
-  return request(`/api/checkpoints/${id}/preview`)
+  return request(`${checkpointPath(id)}/preview`)
 }
 
 export async function rollbackCheckpoint(id: string): Promise<any> {
-  return request(`/api/checkpoints/${id}/rollback`, { method: 'POST' })
+  return request(`${checkpointPath(id)}/rollback`, { method: 'POST' })
 }
 
 export async function fetchContextLength(): Promise<number> {

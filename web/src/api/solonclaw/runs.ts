@@ -128,27 +128,35 @@ export interface RunDetail {
   commands: RunControlCommand[]
 }
 
+function runPath(runId: string) {
+  return `/api/runs/${encodeURIComponent(runId)}`
+}
+
+function sessionRunsPath(sessionId: string) {
+  return `/api/sessions/${encodeURIComponent(sessionId)}/runs`
+}
+
 export async function fetchSessionRuns(sessionId: string, limit = 20): Promise<AgentRun[]> {
-  const res = await request<{ runs: AgentRun[] }>(`/api/sessions/${sessionId}/runs?limit=${limit}`)
+  const res = await request<{ runs: AgentRun[] }>(`${sessionRunsPath(sessionId)}?limit=${limit}`)
   return res.runs || []
 }
 
 export async function fetchRunEvents(runId: string): Promise<AgentRunEvent[]> {
-  const res = await request<{ events: AgentRunEvent[] }>(`/api/runs/${runId}/events`)
+  const res = await request<{ events: AgentRunEvent[] }>(`${runPath(runId)}/events`)
   return res.events || []
 }
 
 export async function fetchRunDetail(runId: string): Promise<RunDetail> {
-  return request<RunDetail>(`/api/runs/${runId}/detail`)
+  return request<RunDetail>(`${runPath(runId)}/detail`)
 }
 
 export async function fetchRunTools(runId: string): Promise<ToolCall[]> {
-  const res = await request<{ tools: ToolCall[] }>(`/api/runs/${runId}/tools`)
+  const res = await request<{ tools: ToolCall[] }>(`${runPath(runId)}/tools`)
   return res.tools || []
 }
 
 export async function fetchRunSubagents(runId: string): Promise<SubagentRun[]> {
-  const res = await request<{ subagents: SubagentRun[] }>(`/api/runs/${runId}/subagents`)
+  const res = await request<{ subagents: SubagentRun[] }>(`${runPath(runId)}/subagents`)
   return res.subagents || []
 }
 
@@ -158,7 +166,7 @@ export async function fetchRecoverableRuns(limit = 50): Promise<AgentRun[]> {
 }
 
 export async function controlRun(runId: string, command: string, payload: Record<string, unknown> = {}) {
-  return request(`/api/runs/${runId}/control`, {
+  return request(`${runPath(runId)}/control`, {
     method: 'POST',
     body: JSON.stringify({ command, ...payload }),
   })
