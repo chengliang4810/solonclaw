@@ -1485,6 +1485,21 @@ export default {
       running: 'Running',
     },
   },
+  channels: {
+    description: 'Configure domestic messaging channels, credentials, and login flows here. Use the gateway page to inspect runtime status.',
+    mediaTitle: 'Channel media',
+    mediaDescription: 'Review cached channel attachments and handle refresh, download preparation, and media references.',
+    mediaAllPlatforms: 'All platforms',
+    mediaRefresh: 'Refresh status',
+    mediaDownload: 'Prepare download',
+    mediaCopyReference: 'Copy reference',
+    mediaEmpty: 'No channel media records',
+    mediaLoadFailed: 'Failed to load media',
+    mediaActionFailed: 'Media action failed',
+    mediaRefreshQueued: 'Refresh requested',
+    mediaDownloadReady: 'Download prepared',
+    mediaReferenceCopied: 'Media reference copied',
+  },
   // Files
   files: {
     title: 'Files',
