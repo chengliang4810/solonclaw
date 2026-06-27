@@ -11,13 +11,16 @@ import {
   rollbackCheckpoint,
 } from '@/api/solonclaw/sessions'
 import {
+  controlSubagent,
   controlRun,
+  fetchActiveSubagents,
   fetchRunDetail,
   fetchSessionRuns,
   type AgentRun,
   type AgentRunEvent,
   type RunControlCommand,
   type RunRecovery,
+  type SubagentRun,
   type ToolCall,
 } from '@/api/solonclaw/runs'
 
@@ -25,6 +28,8 @@ const sessions = ref<any[]>([])
 const runs = ref<AgentRun[]>([])
 const events = ref<AgentRunEvent[]>([])
 const tools = ref<ToolCall[]>([])
+const subagents = ref<SubagentRun[]>([])
+const activeSubagents = ref<SubagentRun[]>([])
 const recoveries = ref<RunRecovery[]>([])
 const commands = ref<RunControlCommand[]>([])
 const checkpoints = ref<any[]>([])
@@ -36,6 +41,7 @@ const selectedRunId = ref('')
 const loading = ref(false)
 const rollingBack = ref('')
 const runControlLoading = ref('')
+const subagentControlLoading = ref('')
 const { t } = useI18n()
 
 const sessionOptions = computed(() => sessions.value.map(session => ({
@@ -68,16 +74,19 @@ async function loadSessionDetail() {
     runs.value = loadedRuns
     tree.value = loadedTree
     checkpoints.value = loadedCheckpoints
+    await loadActiveSubagents()
     selectedRunId.value = loadedRuns[0]?.run_id || ''
     if (selectedRunId.value) {
       const detail = await fetchRunDetail(selectedRunId.value)
       events.value = detail.events || []
       tools.value = detail.tools || []
+      subagents.value = detail.subagents || []
       recoveries.value = detail.recoveries || []
       commands.value = detail.commands || []
     } else {
       events.value = []
       tools.value = []
+      subagents.value = []
       recoveries.value = []
       commands.value = []
     }
@@ -102,6 +111,7 @@ async function loadRunDetail(runId: string) {
   if (!runId) {
     events.value = []
     tools.value = []
+    subagents.value = []
     recoveries.value = []
     commands.value = []
     return
@@ -109,8 +119,13 @@ async function loadRunDetail(runId: string) {
   const detail = await fetchRunDetail(runId)
   events.value = detail.events || []
   tools.value = detail.tools || []
+  subagents.value = detail.subagents || []
   recoveries.value = detail.recoveries || []
   commands.value = detail.commands || []
+}
+
+async function loadActiveSubagents() {
+  activeSubagents.value = await fetchActiveSubagents()
 }
 
 async function handleRollback(id: string) {
@@ -135,6 +150,22 @@ async function handleRunControl(command: 'stop' | 'cancel' | 'resume') {
     message.error(err.message || t('runs.controlFailed'))
   } finally {
     runControlLoading.value = ''
+  }
+}
+
+async function handleSubagentInterrupt(subagentId: string) {
+  subagentControlLoading.value = subagentId
+  try {
+    await controlSubagent(subagentId, 'interrupt')
+    message.success(t('runs.subagentInterruptSent'))
+    await Promise.all([
+      loadActiveSubagents(),
+      selectedRunId.value ? loadRunDetail(selectedRunId.value) : Promise.resolve(),
+    ])
+  } catch (err: any) {
+    message.error(err.message || t('runs.subagentInterruptFailed'))
+  } finally {
+    subagentControlLoading.value = ''
   }
 }
 
@@ -268,6 +299,18 @@ onMounted(async () => {
           </div>
           <div v-if="selectedRunId && tools.length === 0" class="empty">{{ t('runs.noTools') }}</div>
 
+          <h3 class="section-title">{{ t('runs.subagents') }}</h3>
+          <div v-for="subagent in subagents" :key="subagent.subagent_id" class="event-row">
+            <div class="tool-header">
+              <span class="event-type">{{ subagent.name || subagent.subagent_id }}</span>
+              <span class="run-status" :class="subagent.status">{{ statusLabel(subagent.status) }}</span>
+              <small>{{ t('runs.subagentDepth', { depth: subagent.depth }) }}</small>
+            </div>
+            <p>{{ subagent.goal_preview || subagent.goal || subagent.error || '-' }}</p>
+            <small>{{ time(subagent.started_at) }}</small>
+          </div>
+          <div v-if="selectedRunId && subagents.length === 0" class="empty">{{ t('runs.noSubagents') }}</div>
+
           <h3 class="section-title">{{ t('runs.recoveries') }}</h3>
           <div v-for="recovery in recoveries" :key="recovery.recovery_id" class="event-row">
             <span class="event-type">{{ recovery.recovery_type }}</span>
@@ -286,6 +329,15 @@ onMounted(async () => {
         </section>
 
         <section class="panel side-panel">
+          <h3>{{ t('runs.activeSubagents') }}</h3>
+          <div v-for="subagent in activeSubagents" :key="subagent.subagent_id" class="mini-row">
+            <span>{{ subagent.name || subagent.subagent_id }}</span>
+            <small>{{ statusLabel(subagent.status) }} · {{ subagent.goal_preview || subagent.goal || '-' }}</small>
+            <Button size="small" danger :loading="subagentControlLoading === subagent.subagent_id" @click="handleSubagentInterrupt(subagent.subagent_id)">
+              {{ t('runs.interruptSubagent') }}
+            </Button>
+          </div>
+          <div v-if="activeSubagents.length === 0" class="empty compact">{{ t('runs.noActiveSubagents') }}</div>
           <h3>{{ t('runs.sessionRecap') }}</h3>
           <pre class="artifact-block">{{ artifactText(recap) }}</pre>
           <h3>{{ t('runs.sessionTrajectory') }}</h3>
@@ -494,6 +546,10 @@ h3 {
   color: $text-muted;
   padding: 24px 0;
   text-align: center;
+}
+
+.empty.compact {
+  padding: 8px 0 16px;
 }
 
 @media (max-width: 1100px) {

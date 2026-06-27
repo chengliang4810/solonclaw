@@ -52,6 +52,12 @@
    - 说明：本次只接入 `stop`、`cancel`、`resume` 三个基础动作；子代理控制和 steer 文本输入后续单独处理。
    - 提交：`559a8c149`
 
+9. 子代理运行查看与中断
+   - 后端接口：`/api/runs/{runId}/subagents`、`/api/runs/subagents/active`、`/api/runs/subagents/{subagentId}/control`
+   - 前端入口：运行页新增当前运行的子代理记录、右侧活跃子代理列表，以及活跃子代理中断操作。
+   - 说明：本次只接入后端已有的 `interrupt` 控制，不新增子代理生成、暂停生成或调度策略入口。
+   - 提交：待提交
+
 ## 已补齐的后端接口缺口
 
 1. 工作区文件下载
@@ -79,6 +85,7 @@
 - `npm run build --prefix web`：2026-06-27 文件页未支持写操作入口收敛后通过。
 - `npm run build --prefix web`：2026-06-27 媒体缓存下载与引用入口补齐后通过。
 - `npm run build --prefix web`：2026-06-27 运行记录基础控制入口补齐后通过。
+- `npm run build --prefix web`：2026-06-28 子代理运行查看与中断入口补齐后通过。
 - 多次执行 `git diff --check`，通过。
 - `git diff --check -- web/src/components/solonclaw/files/FileToolbar.vue web/src/components/solonclaw/files/FileContextMenu.vue web/src/views/solonclaw/FilesView.vue docs/full-repair-frontend-backend-parity-2026-06-27.md`：通过。
 - 执行 `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`，通过。

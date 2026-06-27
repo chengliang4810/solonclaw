@@ -85,7 +85,10 @@ export interface SubagentRun {
   session_id?: string
   name?: string
   goal_preview?: string
+  goal?: string
   status: string
+  active?: boolean
+  interrupt_requested?: boolean
   depth: number
   task_index: number
   output_tail?: unknown
@@ -158,6 +161,18 @@ export async function fetchRunTools(runId: string): Promise<ToolCall[]> {
 export async function fetchRunSubagents(runId: string): Promise<SubagentRun[]> {
   const res = await request<{ subagents: SubagentRun[] }>(`${runPath(runId)}/subagents`)
   return res.subagents || []
+}
+
+export async function fetchActiveSubagents(): Promise<SubagentRun[]> {
+  const res = await request<{ subagents: SubagentRun[] }>('/api/runs/subagents/active')
+  return res.subagents || []
+}
+
+export async function controlSubagent(subagentId: string, command: 'interrupt') {
+  return request(`/api/runs/subagents/${encodeURIComponent(subagentId)}/control`, {
+    method: 'POST',
+    body: JSON.stringify({ command }),
+  })
 }
 
 export async function fetchRecoverableRuns(limit = 50): Promise<AgentRun[]> {
