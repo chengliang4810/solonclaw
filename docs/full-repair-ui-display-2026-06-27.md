@@ -85,9 +85,22 @@
      - Markdown、图片和二进制文件不显示编辑按钮，普通文本保留编辑按钮。
    - 提交：`b7429a50a`
 
+7. TUI Markdown 换行表格行内格式保留
+   - 预存问题：`docs/full-repair-bug-report-2026-06-26.md` 中 `BUG-002` 的窄宽度剩余路径。
+   - 位置：
+     - `terminal-ui/src/components/markdown.tsx`
+     - `terminal-ui/src/__tests__/markdown.test.ts`
+   - 改造前：
+     - 表格换行路径先把单元格内容转成纯文本字符串，再按视觉行渲染。
+     - 窄宽度下的表格单元格会丢失加粗、链接、代码等行内 Markdown 样式。
+   - 改造后：
+     - 表格换行仍使用脱标记文本计算宽度，保持 CJK 对齐和换行行为。
+     - 每个视觉行保留原始 Markdown token 并交给 `MdInline` 渲染，换行表格也能保留行内样式。
+   - 提交：`d6f197c42`
+
 ## 验证
 
-- `npm test --prefix terminal-ui -- markdown.test.ts`：通过，43 个测试通过。
+- `npm test --prefix terminal-ui -- markdown.test.ts`：通过，44 个测试通过，覆盖换行表格行内格式。
 - `npm test --prefix terminal-ui -- banner.test.ts`：通过，2 个测试通过。
 - `npm run --prefix terminal-ui type-check`：通过。
 - `mvn -Dskip.web.build=true -Dtest=GatewayProcessingReactionLifecycleTest,ProactiveDashboardDiagnosticTest,RuntimeConfigResolverTest test`：通过，16 个测试通过。
@@ -99,5 +112,4 @@
 
 ## 剩余风险
 
-- 本次只修复无需换行的 Markdown 表格路径；窄宽度下的换行表格仍按纯文本换行，后续如要保留换行单元格内行内样式，需要单独处理 ANSI 换行。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 版本号改动。
