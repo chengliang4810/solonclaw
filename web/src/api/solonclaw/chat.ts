@@ -61,6 +61,16 @@ export interface RunEvent {
   }
 }
 
+export interface ChatModelInfo {
+  id: string
+  provider?: string
+  status?: string
+}
+
+interface DashboardModelsResponse {
+  models?: Array<{ model?: string; id?: string; provider?: string; status?: string }>
+}
+
 export async function uploadChatFiles(files: File[]): Promise<UploadedChatFile[]> {
   const formData = new FormData()
   for (const file of files) {
@@ -184,5 +194,10 @@ export function streamRunEvents(
 }
 
 export async function fetchModels(): Promise<{ data: Array<{ id: string }> }> {
-  return { data: [] }
+  const result = await request<DashboardModelsResponse>('/api/models')
+  return {
+    data: (result.models || [])
+      .map(model => ({ id: model.model || model.id || '' }))
+      .filter(model => model.id),
+  }
 }
