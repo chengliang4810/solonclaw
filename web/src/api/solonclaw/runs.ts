@@ -166,6 +166,13 @@ export async function fetchActiveSubagents(): Promise<ActiveSubagentsResult> {
   return request<ActiveSubagentsResult>('/api/runs/subagents/active')
 }
 
+export async function controlSubagent(subagentId: string, command: string): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>(`/api/runs/subagents/${subagentId}/control`, {
+    method: 'POST',
+    body: JSON.stringify({ command }),
+  })
+}
+
 export async function controlRun(runId: string, command: string, payload: Record<string, unknown> = {}) {
   return request(`/api/runs/${runId}/control`, {
     method: 'POST',

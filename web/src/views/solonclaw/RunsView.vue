@@ -4,6 +4,7 @@ import { Button, Select, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { fetchSessions, fetchSessionCheckpoints, fetchSessionTree, rollbackCheckpoint } from '@/api/solonclaw/sessions'
 import {
+  controlSubagent,
   fetchActiveSubagents,
   fetchRunDetail,
   fetchRecoverableRuns,
@@ -31,6 +32,7 @@ const selectedSessionId = ref('')
 const selectedRunId = ref('')
 const loading = ref(false)
 const rollingBack = ref('')
+const controllingSubagent = ref('')
 const { t } = useI18n()
 
 const sessionOptions = computed(() => sessions.value.map(session => ({
@@ -112,6 +114,17 @@ async function handleRollback(id: string) {
     await loadSessionDetail()
   } finally {
     rollingBack.value = ''
+  }
+}
+
+async function handleSubagentControl(subagentId: string, command: 'interrupt' | 'pause_spawn' | 'resume_spawn') {
+  const key = `${subagentId}:${command}`
+  controllingSubagent.value = key
+  try {
+    await controlSubagent(subagentId, command)
+    await loadActiveSubagents()
+  } finally {
+    controllingSubagent.value = ''
   }
 }
 
@@ -293,14 +306,33 @@ onMounted(async () => {
 
           <div class="side-title-row section-title">
             <h3>{{ t('runs.activeSubagents') }}</h3>
-            <Button size="small" @click="loadActiveSubagents">{{ t('common.refresh') }}</Button>
+            <div class="side-actions">
+              <Button
+                size="small"
+                :loading="controllingSubagent === `spawn:${subagentSpawnPaused ? 'resume_spawn' : 'pause_spawn'}`"
+                @click="handleSubagentControl('spawn', subagentSpawnPaused ? 'resume_spawn' : 'pause_spawn')"
+              >
+                {{ subagentSpawnPaused ? t('runs.resumeSpawn') : t('runs.pauseSpawn') }}
+              </Button>
+              <Button size="small" @click="loadActiveSubagents">{{ t('common.refresh') }}</Button>
+            </div>
           </div>
           <div class="mini-row">
             <span>{{ t('runs.spawnPaused') }}</span>
             <small>{{ subagentSpawnPaused ? t('common.yes') : t('common.no') }}</small>
           </div>
           <div v-for="subagent in activeSubagents" :key="subagent.subagent_id" class="mini-row">
-            <span>{{ subagent.name || subagent.subagent_id }}</span>
+            <div class="mini-row-head">
+              <span>{{ subagent.name || subagent.subagent_id }}</span>
+              <Button
+                size="small"
+                danger
+                :loading="controllingSubagent === `${subagent.subagent_id}:interrupt`"
+                @click="handleSubagentControl(subagent.subagent_id, 'interrupt')"
+              >
+                {{ t('runs.interruptSubagent') }}
+              </Button>
+            </div>
             <small>{{ statusLabel(subagent.status) }} · {{ t('runs.depthAndTask', { depth: subagent.depth, task: subagent.task_index }) }}</small>
             <small>{{ subagent.goal_preview || subagent.error || '-' }}</small>
           </div>
@@ -399,6 +431,24 @@ h3 {
   h3 {
     margin: 0;
   }
+}
+
+.side-actions,
+.mini-row-head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.side-actions {
+  flex-wrap: wrap;
+}
+
+.mini-row-head span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .run-row {
