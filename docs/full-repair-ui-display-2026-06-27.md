@@ -35,10 +35,23 @@
      - 网关在触发处理开始/完成表情回应前读取该开关，关闭时不调用渠道适配器生命周期。
    - 提交：`6a86d4488`
 
+3. 文件列表 Markdown 双击预览
+   - 位置：
+     - `web/src/components/solonclaw/files/FileList.vue`
+     - `web/src/shared/fileDisplay.ts`
+   - 改造前：
+     - Markdown 文件同时被识别为文本文件，双击时先进入编辑器，Markdown 预览路径实际不会触发。
+   - 改造后：
+     - 新增文件打开模式判断，目录进入导航，图片和 Markdown 进入预览，普通文本进入编辑器。
+     - 文件 store 和列表组件复用同一组文件类型判断，避免展示路径和操作路径不一致。
+   - 提交：`00f9bfbdd`
+
 ## 验证
 
 - `npm test --prefix terminal-ui -- markdown.test.ts`：通过，43 个测试通过。
 - `mvn -Dskip.web.build=true -Dtest=GatewayProcessingReactionLifecycleTest,ProactiveDashboardDiagnosticTest,RuntimeConfigResolverTest test`：通过，16 个测试通过。
+- `npm run --prefix web test:file-display`：通过。
+- `npm run build --prefix web`：通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 
