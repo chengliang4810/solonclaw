@@ -9,39 +9,15 @@ import FileList from '@/components/solonclaw/files/FileList.vue'
 import FileContextMenu from '@/components/solonclaw/files/FileContextMenu.vue'
 import FileEditor from '@/components/solonclaw/files/FileEditor.vue'
 import FilePreview from '@/components/solonclaw/files/FilePreview.vue'
-import FileUploadModal from '@/components/solonclaw/files/FileUploadModal.vue'
-import FileRenameModal from '@/components/solonclaw/files/FileRenameModal.vue'
 import type { FileEntry } from '@/api/solonclaw/files'
 
 const filesStore = useFilesStore()
 const { t } = useI18n()
 
 const contextMenuRef = ref<InstanceType<typeof FileContextMenu> | null>(null)
-const showUpload = ref(false)
-const showRenameModal = ref(false)
-const renameMode = ref<'newFile' | 'newFolder' | 'rename'>('newFile')
-const renameEntry = ref<FileEntry | null>(null)
 
 function handleContextMenu(e: MouseEvent, entry: FileEntry) {
   contextMenuRef.value?.show(e, entry)
-}
-
-function handleShowNewFile() {
-  renameMode.value = 'newFile'
-  renameEntry.value = null
-  showRenameModal.value = true
-}
-
-function handleShowNewFolder() {
-  renameMode.value = 'newFolder'
-  renameEntry.value = null
-  showRenameModal.value = true
-}
-
-function handleRename(entry: FileEntry) {
-  renameMode.value = 'rename'
-  renameEntry.value = entry
-  showRenameModal.value = true
 }
 
 onMounted(() => {
@@ -62,11 +38,7 @@ onMounted(() => {
         <FileTree />
       </div>
       <div class="files-main-panel">
-        <FileToolbar
-          @show-new-file="handleShowNewFile"
-          @show-new-folder="handleShowNewFolder"
-          @show-upload="showUpload = true"
-        />
+        <FileToolbar />
         <FileBreadcrumb />
         <div class="files-content">
           <FileEditor v-if="filesStore.editingFile" />
@@ -75,9 +47,7 @@ onMounted(() => {
         </div>
       </div>
     </div>
-    <FileContextMenu ref="contextMenuRef" @rename="handleRename" />
-    <FileUploadModal v-model:open="showUpload" />
-    <FileRenameModal v-model:open="showRenameModal" :mode="renameMode" :entry="renameEntry" />
+    <FileContextMenu ref="contextMenuRef" />
   </div>
 </template>
 
