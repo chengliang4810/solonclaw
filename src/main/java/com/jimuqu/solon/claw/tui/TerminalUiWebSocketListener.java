@@ -285,7 +285,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                 return;
             }
             if ("approval.respond".equals(method)) {
-                sendRpcResult(socket, id, approvalRespond(params));
+                sendRpcResult(socket, id, approvalRespond(socket, params));
                 return;
             }
             sendRpcResult(socket, id, rpcResult(method, params));
@@ -536,33 +536,11 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
 
     /** 通过统一 CliRuntime 执行 slash 命令并转换为 RPC 输出。 */
     private Map<String, Object> runSlash(String sessionId, String command) throws Exception {
-        String normalized = StrUtil.nullToEmpty(command).trim();
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        if (StrUtil.isBlank(normalized)) {
-            result.put("output", "");
-            return result;
-        }
-        String line = normalized.startsWith("/") ? normalized : "/" + normalized;
-        if (setupCommands != null && setupCommands.isSetupCommand(line)) {
-            result.put("output", setupCommands.render(line));
-            return result;
-        }
-        GatewayReply reply = runtime.send(sessionId, line, ConversationEventSink.noop());
-        result.put("output", reply == null ? "" : StrUtil.nullToEmpty(reply.getContent()));
-        if (reply != null && reply.isError()) {
-            result.put("warning", reply.getContent());
-        }
-        if (reply != null && reply.getSessionId() != null) {
-            result.put("session_id", reply.getSessionId());
-        }
-        if ("undo".equals(normalized)) {
-            result.put("removed", reply != null && !reply.isError() ? Integer.valueOf(2) : Integer.valueOf(0));
-        }
-        return result;
+        return runSlash(sessionId, command, ConversationEventSink.noop());
     }
 
     /** 将终端 UI 审批弹层选择转换为真实后端 /approve 或 /deny 流程。 */
-    private Map<String, Object> approvalRespond(ONode params) throws Exception {
+    private Map<String, Object> approvalRespond(WebSocket socket, ONode params) throws Exception {
         String sessionId = params.get("session_id").getString();
         String choice =
                 StrUtil.nullToEmpty(params.get("choice").getString())
@@ -588,8 +566,47 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         } else {
             command = "approve";
         }
-        Map<String, Object> result = runSlash(sessionId, command);
+        Map<String, Object> result =
+                runSlash(
+                        sessionId,
+                        command,
+                        new TerminalUiWebSocketEventSink(socket, true));
         result.put("ok", Boolean.valueOf(!result.containsKey("warning")));
+        return result;
+    }
+
+    /**
+     * 通过统一 CliRuntime 执行 slash 命令并转换为 RPC 输出，同时把长运行事件推给终端 UI。
+     *
+     * @param sessionId 当前会话标识。
+     * @param command 命令正文。
+     * @param eventSink 事件Sink参数。
+     * @return 返回终端 UI RPC 输出。
+     */
+    private Map<String, Object> runSlash(
+            String sessionId, String command, ConversationEventSink eventSink) throws Exception {
+        String normalized = StrUtil.nullToEmpty(command).trim();
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        if (StrUtil.isBlank(normalized)) {
+            result.put("output", "");
+            return result;
+        }
+        String line = normalized.startsWith("/") ? normalized : "/" + normalized;
+        if (setupCommands != null && setupCommands.isSetupCommand(line)) {
+            result.put("output", setupCommands.render(line));
+            return result;
+        }
+        GatewayReply reply = runtime.send(sessionId, line, eventSink);
+        result.put("output", reply == null ? "" : StrUtil.nullToEmpty(reply.getContent()));
+        if (reply != null && reply.isError()) {
+            result.put("warning", reply.getContent());
+        }
+        if (reply != null && reply.getSessionId() != null) {
+            result.put("session_id", reply.getSessionId());
+        }
+        if ("undo".equals(normalized)) {
+            result.put("removed", reply != null && !reply.isError() ? Integer.valueOf(2) : Integer.valueOf(0));
+        }
         return result;
     }
 

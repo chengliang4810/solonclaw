@@ -1,0 +1,209 @@
+package com.jimuqu.solon.claw;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.jimuqu.solon.claw.cli.CliRuntime;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
+import com.jimuqu.solon.claw.tui.TerminalUiWebSocketListener;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
+import org.junit.jupiter.api.Test;
+import org.noear.solon.core.util.MultiMap;
+import org.noear.solon.net.websocket.WebSocket;
+
+class TerminalUiApprovalRespondTest {
+    @Test
+    void approvalRespondStreamsResumedRunToSocket() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        null,
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-approval");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf workspace/cache");
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-1\",\"method\":\"approval.respond\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"choice\":\"session\"}}");
+
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-1\""));
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"message.complete\"")
+                && text.contains("echo:resume"));
+    }
+
+    /** 收集 WebSocket 文本帧，避免测试依赖真实网络连接。 */
+    private static final class RecordingSocket implements WebSocket {
+        /** 已发送文本帧。 */
+        private final List<String> sentText = new ArrayList<String>();
+        /** WebSocket 属性。 */
+        private final Map<String, Object> attrs = new LinkedHashMap<String, Object>();
+
+        private List<String> sentText() {
+            return sentText;
+        }
+
+        @Override
+        public String id() {
+            return "test-socket";
+        }
+
+        @Override
+        public String name() {
+            return "test";
+        }
+
+        @Override
+        public void nameAs(String name) {}
+
+        @Override
+        public boolean isValid() {
+            return true;
+        }
+
+        @Override
+        public boolean isSecure() {
+            return false;
+        }
+
+        @Override
+        public String url() {
+            return "ws://127.0.0.1/ws/tui";
+        }
+
+        @Override
+        public String path() {
+            return "/ws/tui";
+        }
+
+        @Override
+        public void pathNew(String path) {}
+
+        @Override
+        public MultiMap<String> paramMap() {
+            return new MultiMap<String>();
+        }
+
+        @Override
+        public String param(String name) {
+            return null;
+        }
+
+        @Override
+        public String paramOrDefault(String name, String def) {
+            return def;
+        }
+
+        @Override
+        public void param(String name, String value) {}
+
+        @Override
+        public InetSocketAddress remoteAddress() {
+            return null;
+        }
+
+        @Override
+        public InetSocketAddress localAddress() {
+            return null;
+        }
+
+        @Override
+        public Map<String, Object> attrMap() {
+            return attrs;
+        }
+
+        @Override
+        public boolean attrHas(String name) {
+            return attrs.containsKey(name);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T attr(String name) {
+            return (T) attrs.get(name);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <T> T attrOrDefault(String name, T def) {
+            Object value = attrs.get(name);
+            return value == null ? def : (T) value;
+        }
+
+        @Override
+        public <T> void attr(String name, T value) {
+            attrs.put(name, value);
+        }
+
+        @Override
+        public long getIdleTimeout() {
+            return 0L;
+        }
+
+        @Override
+        public void setIdleTimeout(long timeout) {}
+
+        @Override
+        public Future<Void> send(String text) {
+            sentText.add(text);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public Future<Void> send(ByteBuffer bytes) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public void close(int code, String reason) {}
+    }
+}

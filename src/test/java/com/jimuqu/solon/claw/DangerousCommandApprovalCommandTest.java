@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -65,6 +67,35 @@ public class DangerousCommandApprovalCommandTest {
                                 "recursive_delete",
                                 "rm -rf workspace/logs"))
                 .isTrue();
+    }
+
+    @Test
+    void shouldStreamResumedRunAfterApprovalCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.gatewayService.handle(env.message("room-stream", "user-stream", "hello"));
+        env.gatewayAuthorizationService.claimAdmin(
+                env.message("room-stream", "user-stream", "/pairing claim-admin"));
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:room-stream:user-stream");
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                agentSession,
+                "execute_shell",
+                "recursive_delete",
+                "recursive delete",
+                "rm -rf workspace/cache");
+
+        RecordingEventSink sink = new RecordingEventSink();
+        GatewayReply reply =
+                env.commandService.handle(
+                        env.message("room-stream", "user-stream", "/approve session"),
+                        "/approve session",
+                        sink);
+
+        assertThat(reply.getContent()).isEqualTo("echo:resume");
+        assertThat(sink.completedText).isEqualTo("echo:resume");
+        assertThat(sink.completedSessionId).isEqualTo(session.getSessionId());
     }
 
     @Test
@@ -814,5 +845,19 @@ public class DangerousCommandApprovalCommandTest {
         SessionRecord session =
                 env.sessionRepository.getBoundSession("MEMORY:" + chatId + ":user-auto");
         return new SqliteAgentSession(session, env.sessionRepository);
+    }
+
+    /** 记录审批恢复事件，验证 TUI/事件流路径不会只返回 RPC 而丢掉最终回复。 */
+    private static class RecordingEventSink implements ConversationEventSink {
+        /** 恢复完成时收到的会话编号。 */
+        private String completedSessionId;
+        /** 恢复完成时收到的最终文本。 */
+        private String completedText;
+
+        @Override
+        public void onRunCompleted(String sessionId, String finalReply, LlmResult result) {
+            completedSessionId = sessionId;
+            completedText = finalReply;
+        }
     }
 }

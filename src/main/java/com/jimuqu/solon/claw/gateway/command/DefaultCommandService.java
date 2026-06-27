@@ -1923,6 +1923,23 @@ public class DefaultCommandService implements CommandService {
         String command = parsed.getCommand();
         String args = parsed.getArgs();
 
+        if (GatewayCommandConstants.COMMAND_APPROVE.equals(command)
+                && hasPendingDangerousApproval(message)) {
+            recordSlashCommand(message, command, args);
+            GatewayReply reply = handleDangerousApprove(message, args, eventSink);
+            emitDirectReplyIfNeeded(reply, eventSink, message.sourceKey());
+            return reply;
+        }
+
+        if ((GatewayCommandConstants.COMMAND_DENY.equals(command)
+                        || GatewayCommandConstants.COMMAND_CANCEL.equals(command))
+                && hasPendingDangerousApproval(message)) {
+            recordSlashCommand(message, command, args);
+            GatewayReply reply = handleDangerousDeny(message, args, eventSink);
+            emitDirectReplyIfNeeded(reply, eventSink, message.sourceKey());
+            return reply;
+        }
+
         if (GatewayCommandConstants.COMMAND_RETRY.equals(command)) {
             recordSlashCommand(message, command, args);
             SessionRecord session = requireSession(message.sourceKey());
@@ -1970,6 +1987,23 @@ public class DefaultCommandService implements CommandService {
             return conversationOrchestrator.handleIncoming(kickoffMessage, eventSink);
         }
         return reply;
+    }
+
+    /**
+     * 对没有启动模型恢复的审批类命令补发直接回复；已经恢复的运行会自行发 message.complete。
+     *
+     * @param reply 回复参数。
+     * @param eventSink 事件Sink参数。
+     * @param sourceKey 渠道来源键。
+     */
+    private void emitDirectReplyIfNeeded(
+            GatewayReply reply, ConversationEventSink eventSink, String sourceKey)
+            throws Exception {
+        if (reply == null || reply.getRuntimeMetadata().containsKey("resumed_pending_run")) {
+            return;
+        }
+        SessionRecord session = sessionRepository.getBoundSession(sourceKey);
+        emitDirectReply(reply, eventSink, session == null ? null : session.getSessionId());
     }
 
     /**
@@ -3262,6 +3296,20 @@ public class DefaultCommandService implements CommandService {
      */
     private GatewayReply handleDangerousApprove(GatewayMessage message, String args)
             throws Exception {
+        return handleDangerousApprove(message, args, ConversationEventSink.noop());
+    }
+
+    /**
+     * 执行DangerousApprove相关逻辑，并把审批后的恢复运行事件输出给调用方。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @param eventSink 事件Sink参数。
+     * @return 返回Dangerous Approve结果。
+     */
+    private GatewayReply handleDangerousApprove(
+            GatewayMessage message, String args, ConversationEventSink eventSink)
+            throws Exception {
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (session == null) {
             return GatewayReply.error("当前没有绑定会话，也没有待审批的危险命令。请先触发需要审批的工具调用。");
@@ -3280,7 +3328,7 @@ public class DefaultCommandService implements CommandService {
             return clearApprovals(agentSession, normalizedArgs);
         }
         if (isApproveAllCommand(normalizedArgs)) {
-            return approveAllDangerousCommands(message, agentSession, args);
+            return approveAllDangerousCommands(message, agentSession, args, eventSink);
         }
 
         ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(safeArgs);
@@ -3297,7 +3345,10 @@ public class DefaultCommandService implements CommandService {
                 message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试原始请求。");
         }
-        return conversationOrchestrator.resumePending(message.sourceKey());
+        GatewayReply reply =
+                conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
+        return reply;
     }
 
     /**
@@ -3334,6 +3385,25 @@ public class DefaultCommandService implements CommandService {
      */
     private GatewayReply approveAllDangerousCommands(
             GatewayMessage message, SqliteAgentSession agentSession, String args) throws Exception {
+        return approveAllDangerousCommands(
+                message, agentSession, args, ConversationEventSink.noop());
+    }
+
+    /**
+     * 执行approve全部DangerousCommands相关逻辑，并输出审批后的恢复运行事件。
+     *
+     * @param message 平台消息或错误消息。
+     * @param agentSession Agent会话参数。
+     * @param args 工具或命令参数。
+     * @param eventSink 事件Sink参数。
+     * @return 返回approve全部Dangerous Commands结果。
+     */
+    private GatewayReply approveAllDangerousCommands(
+            GatewayMessage message,
+            SqliteAgentSession agentSession,
+            String args,
+            ConversationEventSink eventSink)
+            throws Exception {
         ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(cleanApprovalCommandArgs(args));
         DangerousCommandApprovalService.ApprovalScope scope =
                 approvalArgs.getScope() == null
@@ -3345,7 +3415,10 @@ public class DefaultCommandService implements CommandService {
         if (approved <= 0) {
             return GatewayReply.error("当前没有待审批的危险命令。若刚刚收到审批提示，请重试原始请求；也可以使用 /approve list 查看审批状态。");
         }
-        return conversationOrchestrator.resumePending(message.sourceKey());
+        GatewayReply reply =
+                conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
+        return reply;
     }
 
     /**
@@ -3507,6 +3580,20 @@ public class DefaultCommandService implements CommandService {
      * @return 返回Dangerous Deny结果。
      */
     private GatewayReply handleDangerousDeny(GatewayMessage message, String args) throws Exception {
+        return handleDangerousDeny(message, args, ConversationEventSink.noop());
+    }
+
+    /**
+     * 执行DangerousDeny相关逻辑，并把拒绝后的恢复运行事件输出给调用方。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @param eventSink 事件Sink参数。
+     * @return 返回Dangerous Deny结果。
+     */
+    private GatewayReply handleDangerousDeny(
+            GatewayMessage message, String args, ConversationEventSink eventSink)
+            throws Exception {
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (session == null) {
             return GatewayReply.error("当前没有待审批的危险命令。");
@@ -3524,7 +3611,10 @@ public class DefaultCommandService implements CommandService {
             if (rejected <= 0) {
                 return GatewayReply.error("当前没有待审批的危险命令。");
             }
-            return conversationOrchestrator.resumePending(message.sourceKey());
+            GatewayReply reply =
+                    conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+            reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
+            return reply;
         }
         DangerousCommandApprovalService.PendingApproval pending =
                 selectPendingApproval(agentSession, selector);
@@ -3536,7 +3626,10 @@ public class DefaultCommandService implements CommandService {
                 agentSession, selector, message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试。");
         }
-        return conversationOrchestrator.resumePending(message.sourceKey());
+        GatewayReply reply =
+                conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
+        return reply;
     }
 
     /** 承载审批命令参数相关状态和辅助逻辑。 */
