@@ -78,6 +78,8 @@ find src/main/java src/test/java web/src terminal-ui/src -type f \( -name '*.jav
 
 ### P0-04：Markdown 行内格式 TODO
 
+状态：已处理，提交 `ad80c1fb7`
+
 证据文件：`terminal-ui/src/components/markdown.tsx`
 
 发现：
@@ -90,6 +92,8 @@ find src/main/java src/test/java web/src terminal-ui/src -type f \( -name '*.jav
 - 阶段 5.3：若影响 TUI 文本视觉呈现，补齐格式保留与换行表现。
 
 ### P0-05：处理状态表情回应计划中 Dashboard 独立开关待确认
+
+状态：已处理，提交 `6a86d4488`
 
 证据文件：`docs/superpowers/plans/2026-06-04-processing-status-reactions.md`
 

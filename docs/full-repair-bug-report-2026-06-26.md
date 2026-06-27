@@ -6,7 +6,7 @@
 
 ## BUG-001：处理状态表情回应缺少 Dashboard 配置入口
 
-状态：待修复
+状态：已修复，提交 `6a86d4488`
 
 影响范围：
 
@@ -35,7 +35,7 @@
 - `web/src/i18n/locales/zh.ts`
 - `src/main/java/com/jimuqu/solon/claw/web/DashboardConfigService.java`
 
-建议修复阶段：阶段 2.3 或阶段 5.2。
+建议修复阶段：阶段 2.3 或阶段 5.2。已在阶段 5.2 增加 Dashboard schema 开关和网关运行时开关。
 
 最小修复方向：
 
@@ -45,7 +45,7 @@
 
 ## BUG-002：TUI Markdown 表格单元格会丢失行内格式
 
-状态：待修复
+状态：已修复，提交 `ad80c1fb7`
 
 影响范围：
 
@@ -78,7 +78,7 @@
   - `renderTable` 非换行路径直接输出 `stripInlineMarkup(cell)`。
   - `wrapCell` 换行路径也基于 `stripInlineMarkup(raw)`。
 
-建议修复阶段：阶段 5.3。
+建议修复阶段：阶段 5.3。已在无需换行的表格路径保留行内 Markdown 渲染。
 
 最小修复方向：
 
