@@ -958,6 +958,18 @@ describe('createSlashHandler', () => {
       expect(ctx.transcript.sys).toHaveBeenCalledWith('title: demo title')
     })
   })
+
+  it('reports /undo RPC failures instead of failing silently', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.reject(new Error('undo unavailable')))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/undo')
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('error: undo unavailable')
+    })
+  })
 })
 
 const buildCtx = (overrides: Partial<Ctx> = {}): Ctx => ({

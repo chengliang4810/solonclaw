@@ -617,7 +617,7 @@ export const coreCommands: SlashCommand[] = [
             ctx.transcript.sys('nothing to undo')
           }
         })
-      )
+      ).catch(ctx.guardedErr)
     }
   },
 
@@ -644,7 +644,7 @@ export const coreCommands: SlashCommand[] = [
           ctx.transcript.setHistoryItems((prev: Msg[]) => ctx.transcript.trimLastExchange(prev))
           ctx.transcript.send(last)
         })
-      )
+      ).catch(ctx.guardedErr)
     }
   }
 ]
