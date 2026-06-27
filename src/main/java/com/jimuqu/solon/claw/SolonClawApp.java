@@ -8,6 +8,8 @@ import com.jimuqu.solon.claw.cli.TerminalSetupCommands;
 import com.jimuqu.solon.claw.bootstrap.StartupModeContext;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import org.noear.solon.Solon;
 import org.noear.solon.annotation.SolonMain;
 import org.noear.solon.core.Props;
@@ -101,8 +103,15 @@ public class SolonClawApp {
         if (cliMode == null || !cliMode.isConsoleMode()) {
             return;
         }
+        configureUtf8ConsoleStreams();
         if (System.getProperty("solon.logging.appender.console.level") == null) {
             System.setProperty("solon.logging.appender.console.level", "OFF");
         }
+    }
+
+    /** 终端模式固定使用 UTF-8 输出，避免直接 java -jar 在非 UTF-8 默认编码下把中文写成问号。 */
+    private static void configureUtf8ConsoleStreams() {
+        System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(System.err, true, StandardCharsets.UTF_8));
     }
 }

@@ -19,13 +19,14 @@ fi
 TERMINAL_UI="${SOLONCLAW_TERMINAL_UI:-$ROOT/terminal-ui/dist/entry.js}"
 JAVA_RUNTIME_ARGS=()
 SOLONCLAW_WORKSPACE="${SOLONCLAW_WORKSPACE:-}"
+JAVA_RUNTIME_ARGS=("-Dfile.encoding=UTF-8")
 # 指定 workspace 时同步 SOLONCLAW_HOME，保证后端和终端 UI 看到同一目录。
 if [ -n "$SOLONCLAW_WORKSPACE" ]; then
-    JAVA_RUNTIME_ARGS=("-Dsolonclaw.workspace=$SOLONCLAW_WORKSPACE")
+    JAVA_RUNTIME_ARGS+=("-Dsolonclaw.workspace=$SOLONCLAW_WORKSPACE")
     export SOLONCLAW_HOME="${SOLONCLAW_HOME:-$SOLONCLAW_WORKSPACE}"
 elif [ "$JAR" = "$RUNTIME_JAR" ]; then
     # 发布包以包根目录作为 workspace，符合 target/solonclaw-workspace 的布局约定。
-    JAVA_RUNTIME_ARGS=("-Dsolonclaw.workspace=$ROOT")
+    JAVA_RUNTIME_ARGS+=("-Dsolonclaw.workspace=$ROOT")
     export SOLONCLAW_HOME="${SOLONCLAW_HOME:-$ROOT}"
 fi
 
