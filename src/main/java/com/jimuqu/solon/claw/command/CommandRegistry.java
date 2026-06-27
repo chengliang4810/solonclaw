@@ -84,14 +84,11 @@ public final class CommandRegistry {
         register(terminal("background", "管理后台任务运行方式").alias("bg").alias("btw"));
         register(terminal("tasks", "查看后台任务列表").alias("agents"));
         register(terminal("statusbar", "管理 TUI 状态栏显示").alias("status-bar").alias("sb"));
-        register(terminal("footer", "管理 TUI 底部栏显示"));
         register(terminal("skin", "查看或切换 TUI 皮肤"));
         register(terminal("copy", "复制终端选区或输出"));
         register(terminal("paste", "粘贴终端剪贴板内容"));
         register(terminal("image", "附加或管理图片输入"));
         register(terminal("history", "预览当前终端会话的最近历史"));
-        register(terminal("handoff", "生成会话交接信息"));
-        register(terminal("subgoal", "管理当前目标的子目标"));
         register(terminal("quit", "退出当前终端会话").alias("exit"));
     }
 

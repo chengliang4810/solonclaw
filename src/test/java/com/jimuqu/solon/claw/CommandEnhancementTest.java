@@ -1790,18 +1790,13 @@ public class CommandEnhancementTest {
     }
 
     @Test
-    void shouldReturnStructuredUnsupportedReplyForRegisteredCommandsWithoutHandlers()
+    void shouldNotExposeRemovedTerminalPlaceholdersAsRegisteredCommands()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        bootstrapAdmin(env);
 
-        GatewayReply reply = env.send("admin-chat", "admin-user", "/footer compact");
-
-        assertThat(reply.isError()).isTrue();
-        assertThat(reply.getContent()).contains("命令已登记但当前运行时未启用或不支持：/footer");
-        assertThat(reply.getRuntimeMetadata())
-                .containsEntry("command_status", "registered_unimplemented")
-                .containsEntry("command", "footer");
+        assertThat(env.commandService.supports("footer")).isFalse();
+        assertThat(env.commandService.supports("handoff")).isFalse();
+        assertThat(env.commandService.supports("subgoal")).isFalse();
     }
 
     private void bootstrapAdmin(TestEnvironment env) throws Exception {

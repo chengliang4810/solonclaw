@@ -98,7 +98,11 @@ public class GatewayCommandFlowTest {
         env.send("room-registry", "user-registry", "/pairing claim-admin");
 
         GatewayReply helpReply = env.send("room-registry", "user-registry", "/help");
-        assertThat(helpReply.getContent()).contains("/footer - 管理 TUI 底部栏显示");
+        assertThat(helpReply.getContent())
+                .contains("/statusbar - 管理 TUI 状态栏显示")
+                .doesNotContain("/footer -")
+                .doesNotContain("/handoff -")
+                .doesNotContain("/subgoal -");
 
         GatewayReply aliasReply = env.send("room-registry", "user-registry", "/status-bar");
         assertThat(aliasReply.isError()).isTrue();

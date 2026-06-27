@@ -15,12 +15,9 @@ final class SlashCommandHelpRenderer {
                     "background",
                     "tasks",
                     "statusbar",
-                    "footer",
                     "copy",
                     "paste",
-                    "image",
-                    "handoff",
-                    "subgoal");
+                    "image");
 
     /** 阻止工具类被实例化。 */
     private SlashCommandHelpRenderer() {}
