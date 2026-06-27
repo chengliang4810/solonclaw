@@ -5,6 +5,7 @@
 ## 对应能力点
 
 - 对应本地 TUI Markdown 渲染展示质量。
+- 对应本地 TUI 会话首屏品牌图案展示质量。
 - 本文只记录当前已经完成并提交的阶段 5.3 展示修复项，不把阶段 5 标记为完成。
 
 ## 已处理项
@@ -46,9 +47,23 @@
      - 文件 store 和列表组件复用同一组文件类型判断，避免展示路径和操作路径不一致。
    - 提交：`00f9bfbdd`
 
+4. TUI 会话品牌图案替换
+   - 位置：
+     - `terminal-ui/src/banner.ts`
+     - `terminal-ui/src/__tests__/banner.test.ts`
+   - 改造前：
+     - 顶部标题源码已保持 `SOLON CLAW` 的空格版，但 `Available Tools` 左侧默认会话 hero 仍接近旧螺旋状块图。
+   - 改造后：
+     - 保留顶部默认标题的无连字符空格版。
+     - 默认会话 hero 改为 Solon favicon 的终端块状近似图案，不新增运行时图片或网络依赖。
+     - 单测改为约束 favicon 轮廓关键行，并继续排除旧图案关键行。
+   - 提交：`bae710bca`
+
 ## 验证
 
 - `npm test --prefix terminal-ui -- markdown.test.ts`：通过，43 个测试通过。
+- `npm test --prefix terminal-ui -- banner.test.ts`：通过，2 个测试通过。
+- `npm run --prefix terminal-ui type-check`：通过。
 - `mvn -Dskip.web.build=true -Dtest=GatewayProcessingReactionLifecycleTest,ProactiveDashboardDiagnosticTest,RuntimeConfigResolverTest test`：通过，16 个测试通过。
 - `npm run --prefix web test:file-display`：通过。
 - `npm run build --prefix web`：通过。
