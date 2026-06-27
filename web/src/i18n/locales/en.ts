@@ -136,7 +136,6 @@ export default {
     attachFiles: 'Attach files',
     stop: 'Stop',
     start: 'Start',
-    stopGateway: 'Stop Gateway',
     send: 'Send',
     contextUsed: 'Context used:',
     sessions: 'Sessions',
@@ -1193,9 +1192,6 @@ export default {
     title: 'Gateways',
     running: 'Running',
     stopped: 'Stopped',
-    started: 'Started',
-    startFailed: 'Failed to start gateway',
-    stopFailed: 'Failed to stop gateway',
   },
   profiles: {
     title: 'Profiles',

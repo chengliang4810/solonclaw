@@ -30,14 +30,6 @@ export async function fetchGateways(): Promise<GatewayStatus[]> {
   }))
 }
 
-export async function startGateway(_name: string): Promise<GatewayStatus> {
-  throw new Error('当前后端未开放 dashboard 网关启停能力')
-}
-
-export async function stopGateway(_name: string): Promise<void> {
-  throw new Error('当前后端未开放 dashboard 网关启停能力')
-}
-
 export async function checkGatewayHealth(name: string): Promise<GatewayStatus> {
   const gateways = await fetchGateways()
   const gateway = gateways.find((item) => item.profile === name)
