@@ -56,57 +56,7 @@ public class DefaultDelegationService implements DelegationService {
                     ToolNameConstants.EXECUTE_JS);
 
     /** 当前系统已知工具清单。 */
-    private static final List<String> ALL_TOOLS =
-            Arrays.asList(
-                    ToolNameConstants.FILE_READ,
-                    ToolNameConstants.FILE_WRITE,
-                    ToolNameConstants.READ_FILE,
-                    ToolNameConstants.WRITE_FILE,
-                    ToolNameConstants.SEARCH_FILES,
-                    ToolNameConstants.FILE_LIST,
-                    ToolNameConstants.FILE_DELETE,
-                    ToolNameConstants.PATCH,
-                    ToolNameConstants.EXECUTE_SHELL,
-                    ToolNameConstants.TERMINAL,
-                    ToolNameConstants.PROCESS,
-                    ToolNameConstants.EXECUTE_CODE,
-                    ToolNameConstants.EXECUTE_PYTHON,
-                    ToolNameConstants.EXECUTE_JS,
-                    ToolNameConstants.GET_CURRENT_TIME,
-                    ToolNameConstants.TODO,
-                    ToolNameConstants.AGENT_MANAGE,
-                    ToolNameConstants.DELEGATE_TASK,
-                    ToolNameConstants.MEMORY,
-                    ToolNameConstants.SESSION_SEARCH,
-                    ToolNameConstants.SKILLS_LIST,
-                    ToolNameConstants.SKILL_VIEW,
-                    ToolNameConstants.SKILL_MANAGE,
-                    ToolNameConstants.SKILLS_HUB_SEARCH,
-                    ToolNameConstants.SKILLS_HUB_INSPECT,
-                    ToolNameConstants.SKILLS_HUB_INSTALL,
-                    ToolNameConstants.SKILLS_HUB_LIST,
-                    ToolNameConstants.SKILLS_HUB_CHECK,
-                    ToolNameConstants.SKILLS_HUB_UPDATE,
-                    ToolNameConstants.SKILLS_HUB_AUDIT,
-                    ToolNameConstants.SKILLS_HUB_UNINSTALL,
-                    ToolNameConstants.SKILLS_HUB_TAP,
-                    ToolNameConstants.SEND_MESSAGE,
-                    ToolNameConstants.CRONJOB,
-                    ToolNameConstants.CONFIG_GET,
-                    ToolNameConstants.CONFIG_SET,
-                    ToolNameConstants.CONFIG_SET_SECRET,
-                    ToolNameConstants.CONFIG_REFRESH,
-                    ToolNameConstants.TOOL_GATEWAY,
-                    ToolNameConstants.MCP,
-                    ToolNameConstants.CODESEARCH,
-                    ToolNameConstants.WEBSEARCH,
-                    ToolNameConstants.WEBFETCH,
-                    ToolNameConstants.IMAGE_GENERATE,
-                    ToolNameConstants.TEXT_TO_SPEECH,
-                    ToolNameConstants.SPEECH_TRANSCRIBE,
-                    ToolNameConstants.BROWSER,
-                    ToolNameConstants.SECURITY_AUDIT,
-                    ToolNameConstants.CLARIFY);
+    private static final List<String> ALL_TOOLS = AgentRuntimePolicy.knownToolNames();
 
     /** 对话编排器。 */
     private final ConversationOrchestratorHolder conversationHolder;

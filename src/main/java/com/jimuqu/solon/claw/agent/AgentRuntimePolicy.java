@@ -39,12 +39,30 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.GET_CURRENT_TIME,
                     ToolNameConstants.TODO,
                     ToolNameConstants.AGENT_MANAGE,
+                    ToolNameConstants.RUN_MANAGE,
                     ToolNameConstants.DELEGATE_TASK,
                     ToolNameConstants.MEMORY,
                     ToolNameConstants.SESSION_SEARCH,
+                    ToolNameConstants.SEARCH_MANAGE,
+                    ToolNameConstants.SESSION_MANAGE,
+                    ToolNameConstants.ANALYTICS_MANAGE,
+                    ToolNameConstants.LOGS_MANAGE,
+                    ToolNameConstants.MEDIA_MANAGE,
+                    ToolNameConstants.STATUS_MANAGE,
+                    ToolNameConstants.DIAGNOSTICS_MANAGE,
+                    ToolNameConstants.DOCTOR_MANAGE,
+                    ToolNameConstants.TUI_RUNTIME_MANAGE,
+                    ToolNameConstants.INSIGHTS_MANAGE,
+                    ToolNameConstants.APPROVAL_EVENTS_MANAGE,
+                    ToolNameConstants.APPROVAL_QUEUE_MANAGE,
+                    ToolNameConstants.WORKSPACE_MANAGE,
+                    ToolNameConstants.WORKSPACE_CONFIG_MANAGE,
+                    ToolNameConstants.CONFIG_MANAGE,
+                    ToolNameConstants.GATEWAY_SETUP_MANAGE,
                     ToolNameConstants.SKILLS_LIST,
                     ToolNameConstants.SKILL_VIEW,
                     ToolNameConstants.SKILL_MANAGE,
+                    ToolNameConstants.TOOLSETS_MANAGE,
                     ToolNameConstants.SKILLS_HUB_SEARCH,
                     ToolNameConstants.SKILLS_HUB_INSPECT,
                     ToolNameConstants.SKILLS_HUB_INSTALL,
@@ -62,6 +80,10 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.CONFIG_REFRESH,
                     ToolNameConstants.TOOL_GATEWAY,
                     ToolNameConstants.MCP,
+                    ToolNameConstants.MCP_MANAGE,
+                    ToolNameConstants.CURATOR_MANAGE,
+                    ToolNameConstants.PLATFORM_TOOLSETS_MANAGE,
+                    ToolNameConstants.PROVIDER_MANAGE,
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
@@ -74,6 +96,15 @@ public final class AgentRuntimePolicy {
 
     /** 工具类只暴露静态策略方法，不允许实例化。 */
     private AgentRuntimePolicy() {}
+
+    /**
+     * 返回当前系统已知的内置工具名清单。
+     *
+     * @return 返回保持声明顺序的工具名副本，调用方可按自身策略过滤。
+     */
+    public static List<String> knownToolNames() {
+        return new ArrayList<String>(KNOWN_TOOL_NAMES);
+    }
 
     /**
      * 根据 Agent 配置解析本轮实际允许注册给模型的工具集合。
