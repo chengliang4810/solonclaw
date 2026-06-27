@@ -22,6 +22,7 @@
 - 运行仓储测试基类：`QuietContextCollectorTest` 与 `RunStateCollectorTest` 复用 `UnsupportedAgentRunRepository`，只保留各自采集器会调用的方法。
 - 危险命令审批测试支撑：`DangerousCommandApprovalServiceTest`、`DangerousCommandCredentialPolicyTest`、`DangerousCommandCodeAndNetworkPolicyTest`、`DangerousCommandFilePolicyTest` 与 `DangerousCommandGatewayApprovalTest` 复用 `DangerousCommandApprovalTestSupport`，删除拆分后复制的 Tirith、DNS、trace 与安全断言 helper。
 - 仪表盘诊断测试支撑：`DashboardDiagnosticOutputTest` 与 `DashboardSecurityProbeDiagnosticTest` 复用 `DashboardDiagnosticTestSupport`，删除拆分后复制的诊断服务替身、仓储替身与探针断言 helper。
+- 定时任务测试支撑：`CronjobToolsSchedulerTest` 与 `DefaultCronSchedulerTest` 复用 `CronSchedulerTestSupport`，删除重复的定时任务记录构造、字符串重复、工具方法定位、工具列表与参数元数据 helper。
 
 ## 当前保留的重复项
 
@@ -31,6 +32,7 @@
 - `AgentRunSupervisor.extractText(...)`、`DefaultConversationOrchestrator.extractText(...)`、`SolonAiLlmGateway.extractText(...)` 的日志语义和 `<think>` 处理不同，未合并。
 - `TerminalSetupCommands.applyProviderTemplateDefaults(...)` 面向两个不同请求对象，缺少共同协议；为消除相似代码引入接口或 adapter 不划算。
 - 敏感键判断分布在配置、工具预览、MCP 展示等不同安全边界，语义不完全相同，未统一。
+- `CronjobToolsSchedulerTest` / `DefaultCronSchedulerTest` 与 `DashboardDiagnosticOutputTest` / `DashboardSecurityProbeDiagnosticTest` 当前剩余重复检测命中均为 import 头部，属于同功能测试自然共享的依赖清单；为消除此类命中拆分 import 或包装类型没有实际维护收益。
 
 ## 验证
 
@@ -53,3 +55,4 @@
 - `mvn -Dskip.web.build=true -Dtest=DangerousCommandApprovalServiceTest,DangerousCommandCredentialPolicyTest,DangerousCommandCodeAndNetworkPolicyTest,DangerousCommandFilePolicyTest,DangerousCommandGatewayApprovalTest test`
 - `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
 - `mvn -Dskip.web.build=true -Dtest=DashboardDiagnosticOutputTest,DashboardSecurityProbeDiagnosticTest test`
+- `mvn -Dskip.web.build=true -Dtest=CronjobToolsSchedulerTest,DefaultCronSchedulerTest test`

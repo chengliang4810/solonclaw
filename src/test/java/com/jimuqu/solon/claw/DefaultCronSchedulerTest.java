@@ -1,5 +1,6 @@
 package com.jimuqu.solon.claw;
 
+import static com.jimuqu.solon.claw.CronSchedulerTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -42,7 +43,6 @@ import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
 import com.jimuqu.solon.claw.web.DashboardCronService;
 import java.io.File;
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,13 +57,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
-import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.FunctionTool;
 import org.noear.solon.ai.chat.tool.FunctionToolDesc;
 import org.noear.solon.ai.chat.tool.MethodToolProvider;
 import org.noear.solon.ai.chat.tool.ToolProvider;
-import org.noear.solon.annotation.Param;
 
 public class DefaultCronSchedulerTest {
     @Test
@@ -3323,76 +3321,6 @@ public class DefaultCronSchedulerTest {
 
         assertThat(order).isEmpty();
         assertThat(env.cronJobRepository.findById(job.getJobId()).getLastStatus()).isEqualTo("ok");
-    }
-
-    private CronJobRecord job(String id, String sourceKey) {
-        long now = System.currentTimeMillis();
-        CronJobRecord job = new CronJobRecord();
-        job.setJobId(id);
-        job.setName(id);
-        job.setCronExpr("* * * * *");
-        job.setPrompt("scheduled prompt");
-        job.setSourceKey(sourceKey);
-        job.setDeliverPlatform("local");
-        job.setStatus("ACTIVE");
-        job.setNextRunAt(now - 1000L);
-        job.setLastRunAt(0L);
-        job.setCreatedAt(now);
-        job.setUpdatedAt(now);
-        return job;
-    }
-
-    private String repeat(String value, int times) {
-        StringBuilder builder = new StringBuilder(value.length() * times);
-        for (int i = 0; i < times; i++) {
-            builder.append(value);
-        }
-        return builder.toString();
-    }
-
-    private Method cronjobToolMethod() {
-        for (Method method : CronjobTools.class.getMethods()) {
-            if ("cronjob".equals(method.getName())
-                    && method.getAnnotation(ToolMapping.class) != null) {
-                return method;
-            }
-        }
-        throw new IllegalStateException("cronjob tool method not found");
-    }
-
-    private FunctionTool cronjobFunctionTool(ToolProvider provider) {
-        for (FunctionTool tool : provider.getTools()) {
-            if ("cronjob".equals(tool.name())) {
-                return tool;
-            }
-        }
-        throw new IllegalStateException("cronjob function tool not found");
-    }
-
-    private String cronjobList(CronjobTools tools) throws Exception {
-        return tools.cronjob(
-                "list", null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null);
-    }
-
-    private String paramDescription(Method method, String name) {
-        for (Parameter parameter : method.getParameters()) {
-            Param annotation = parameter.getAnnotation(Param.class);
-            if (annotation != null && name.equals(annotation.name())) {
-                return annotation.description();
-            }
-        }
-        throw new IllegalStateException("cronjob parameter not found: " + name);
-    }
-
-    private boolean paramRequired(Method method, String name) {
-        for (Parameter parameter : method.getParameters()) {
-            Param annotation = parameter.getAnnotation(Param.class);
-            if (annotation != null && name.equals(annotation.name())) {
-                return annotation.required();
-            }
-        }
-        throw new IllegalStateException("cronjob parameter not found: " + name);
     }
 
     private CronJobRecord createNoAgentScriptJob(
