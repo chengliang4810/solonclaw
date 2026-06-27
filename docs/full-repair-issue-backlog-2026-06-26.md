@@ -105,7 +105,7 @@ java -jar target/solonclaw-0.0.1.jar --tui -p /setup gateway
 
 ### P0-04：Markdown 行内格式 TODO
 
-状态：已处理，提交 `ad80c1fb7`、`d6f197c42`
+状态：已处理并复核通过，提交 `ad80c1fb7`、`d6f197c42`
 
 证据文件：`terminal-ui/src/components/markdown.tsx`
 
@@ -115,7 +115,7 @@ java -jar target/solonclaw-0.0.1.jar --tui -p /setup gateway
 
 归属阶段：
 
-- 阶段 1.1：判断是否存在真实渲染 bug。
+- 阶段 1.1：已复核当前实现，不再存在本项真实渲染 bug。
 - 阶段 5.3：若影响 TUI 文本视觉呈现，补齐格式保留与换行表现。
 
 ### P0-05：处理状态表情回应计划中 Dashboard 独立开关待确认
