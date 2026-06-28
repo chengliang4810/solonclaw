@@ -39,6 +39,9 @@ const expandSnips = (snips: PasteSnippet[]) => {
 const spliceMatches = (text: string, matches: RegExpMatchArray[], results: string[]) =>
   matches.reduceRight((acc, m, i) => acc.slice(0, m.index!) + results[i] + acc.slice(m.index! + m[0].length), text)
 
+export const shellExecSettledUiState = (approvalRequired: boolean) =>
+  approvalRequired ? { busy: true, status: '需要审批' } : { busy: false, status: 'ready' }
+
 export function useSubmission(opts: UseSubmissionOptions) {
   const {
     appendMessage,
@@ -159,6 +162,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
       appendMessage({ role: 'user', text: `!${cmd}` })
       patchUiState({ busy: true, status: '运行中…' })
+      let approvalRequired = false
 
       gw.request<ShellExecResponse>('shell.exec', { command: cmd, session_id: sid })
         .then(raw => {
@@ -169,6 +173,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
           }
 
           if (r.approval_required) {
+            approvalRequired = true
             return
           }
 
@@ -183,7 +188,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
           }
         })
         .catch((e: Error) => sys(`error: ${e.message}`))
-        .finally(() => patchUiState({ busy: false, status: 'ready' }))
+        .finally(() => patchUiState(shellExecSettledUiState(approvalRequired)))
     },
     [appendMessage, gw, sys]
   )
