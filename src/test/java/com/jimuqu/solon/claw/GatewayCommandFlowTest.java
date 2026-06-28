@@ -56,6 +56,23 @@ public class GatewayCommandFlowTest {
     }
 
     @Test
+    void undoEmptySessionReportsNoPreviousTurn() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        GatewayReply claimPrompt = env.send("room-empty-undo", "user-empty-undo", "hello");
+        assertThat(claimPrompt.getContent()).contains("/pairing claim-admin");
+        GatewayReply claimReply = env.send("room-empty-undo", "user-empty-undo", "/pairing claim-admin");
+        assertThat(claimReply.getContent()).contains("唯一管理员");
+        GatewayReply newReply = env.send("room-empty-undo", "user-empty-undo", "/new");
+
+        GatewayReply undoReply = env.send("room-empty-undo", "user-empty-undo", "/undo");
+
+        assertThat(undoReply.isError()).isTrue();
+        assertThat(undoReply.getSessionId()).isEqualTo(newReply.getSessionId());
+        assertThat(undoReply.getContent()).contains("没有可撤销的上一轮对话");
+    }
+
+    @Test
     void shouldCreateNamedSessionFromNewCommandArgument() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.send("room-new-title", "user-new-title", "hello");

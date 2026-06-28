@@ -486,6 +486,10 @@ def node_tui_command_expectation(command: str) -> str:
         return "status bar"
     if value == "/verbose" or value.startswith("/verbose "):
         return "verbose:"
+    if value == "/save":
+        return "no conversation yet"
+    if value == "/undo":
+        return "nothing to undo"
     if value == "/status" or value.startswith("/status "):
         return "model="
     return ""

@@ -1534,12 +1534,20 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_UNDO.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
+            String lastUser = MessageSupport.getLastUserMessage(session.getNdjson());
+            if (StrUtil.isBlank(lastUser)) {
+                GatewayReply reply = GatewayReply.error("没有可撤销的上一轮对话。");
+                reply.setSessionId(session.getSessionId());
+                reply.setBranchName(session.getBranchName());
+                return reply;
+            }
             session.setNdjson(MessageSupport.removeLastTurn(session.getNdjson()));
             session.setUpdatedAt(System.currentTimeMillis());
             sessionRepository.save(session);
             GatewayReply reply = GatewayReply.ok("已从会话中移除上一轮对话：" + session.getSessionId());
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
+            reply.getRuntimeMetadata().put("removed_messages", Integer.valueOf(2));
             return reply;
         }
 

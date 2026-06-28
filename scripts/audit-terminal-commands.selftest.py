@@ -420,6 +420,14 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(actions[1]["expect"], "status bar")
         self.assertEqual(actions[2]["expect"], "verbose:")
 
+    def test_build_node_tui_actions_checks_save_and_undo_empty_states(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/save", "/undo"])
+
+        self.assertEqual(actions[0]["expect"], "no conversation yet")
+        self.assertEqual(actions[1]["expect"], "nothing to undo")
+
     def test_build_node_tui_actions_expands_setup_panel_interaction_aliases(self) -> None:
         mod = load_module()
 

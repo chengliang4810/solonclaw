@@ -24,6 +24,55 @@ import org.noear.solon.net.websocket.WebSocket;
 
 class TerminalUiApprovalRespondTest {
     @Test
+    void sessionUndoReportsZeroRemovedForFreshTuiSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        null,
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-create\",\"method\":\"session.create\",\"params\":{}}");
+        String sessionId = jsonStringValue(socket.sentText(), "session_id");
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-undo\",\"method\":\"session.undo\","
+                        + "\"params\":{\"session_id\":\""
+                        + sessionId
+                        + "\"}}");
+
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-undo\"")
+                && text.contains("\"removed\":0"));
+    }
+
+    @Test
     void approvalRespondRemembersSecurityPolicyForSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CliRuntime runtime =
@@ -460,6 +509,23 @@ class TerminalUiApprovalRespondTest {
             }
             Thread.sleep(20L);
         }
+    }
+
+    /** 从测试 WebSocket 帧中提取简单 JSON 字符串字段，避免为断言引入完整协议解析。 */
+    private static String jsonStringValue(List<String> frames, String key) {
+        String needle = "\"" + key + "\":\"";
+        for (String text : frames) {
+            int start = text.indexOf(needle);
+            if (start < 0) {
+                continue;
+            }
+            int valueStart = start + needle.length();
+            int valueEnd = text.indexOf('"', valueStart);
+            if (valueEnd > valueStart) {
+                return text.substring(valueStart, valueEnd);
+            }
+        }
+        return "";
     }
 
     /** 收集 WebSocket 文本帧，避免测试依赖真实网络连接。 */

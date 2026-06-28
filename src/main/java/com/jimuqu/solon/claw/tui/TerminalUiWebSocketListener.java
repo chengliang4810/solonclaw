@@ -658,9 +658,21 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             result.put("session_id", reply.getSessionId());
         }
         if ("undo".equals(normalized)) {
-            result.put("removed", reply != null && !reply.isError() ? Integer.valueOf(2) : Integer.valueOf(0));
+            result.put("removed", Integer.valueOf(undoRemovedMessages(reply)));
         }
         return result;
+    }
+
+    /** 读取 `/undo` 的真实删除数量，禁止把空会话或失败回复误报成已撤销。 */
+    private int undoRemovedMessages(GatewayReply reply) {
+        if (reply == null || reply.isError()) {
+            return 0;
+        }
+        Object removed = reply.getRuntimeMetadata().get("removed_messages");
+        if (removed instanceof Number) {
+            return Math.max(0, ((Number) removed).intValue());
+        }
+        return 0;
     }
 
     /** 审批响应会复用 slash 命令链，执行前需要确保 TUI 会话 ID 可被 CliRuntime 找到。 */
