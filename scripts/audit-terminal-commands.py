@@ -490,6 +490,12 @@ def node_tui_command_expectation(command: str) -> str:
         return "no conversation yet"
     if value == "/undo":
         return "nothing to undo"
+    if value == "/redraw":
+        return "ready"
+    if value == "/compress" or value == "/compact":
+        return "nothing to compress"
+    if value == "/steer":
+        return "usage: /steer"
     if value == "/status" or value.startswith("/status "):
         return "model="
     return ""

@@ -428,6 +428,15 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(actions[0]["expect"], "no conversation yet")
         self.assertEqual(actions[1]["expect"], "nothing to undo")
 
+    def test_build_node_tui_actions_checks_redraw_compress_and_steer_help(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/redraw", "/compress", "/steer"])
+
+        self.assertEqual(actions[0]["expect"], "ready")
+        self.assertEqual(actions[1]["expect"], "nothing to compress")
+        self.assertEqual(actions[2]["expect"], "usage: /steer")
+
     def test_build_node_tui_actions_expands_setup_panel_interaction_aliases(self) -> None:
         mod = load_module()
 
