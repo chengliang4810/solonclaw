@@ -804,6 +804,34 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).not.toHaveBeenCalledWith(expect.stringContaining('ambiguous command'))
   })
 
+  it('keeps gateway setup commands on slash.exec even when the catalog aliases gateway', async () => {
+    const request = vi.fn(() => Promise.resolve({ output: 'gateway status' }))
+    const ctx = buildCtx({
+      gateway: { ...buildGateway(), gw: { ...buildGateway().gw, request } },
+      local: {
+        catalog: {
+          canon: {
+            '/gateway': '/platforms',
+            '/platforms': '/platforms'
+          }
+        }
+      }
+    })
+
+    expect(createSlashHandler(ctx)('/gateway status')).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(request).toHaveBeenCalledWith('slash.exec', {
+        command: 'gateway status',
+        session_id: null
+      })
+    })
+    expect(request).not.toHaveBeenCalledWith('slash.exec', {
+      command: 'platforms status',
+      session_id: null
+    })
+  })
+
   it('keeps ambiguous prefix handling when there is no exact catalog match', () => {
     const ctx = buildCtx({
       local: {

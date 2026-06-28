@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
+import com.jimuqu.solon.claw.cli.TerminalSecurityPolicyView;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
@@ -1655,6 +1656,14 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_STOP.equals(command)) {
             return handleStop(message);
+        }
+
+        if (GatewayCommandConstants.COMMAND_SECURITY.equals(command)) {
+            GatewayReply reply =
+                    GatewayReply.ok(TerminalSecurityPolicyView.render(appConfig, commandLine));
+            reply.getRuntimeMetadata().put("command_status", "handled");
+            reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_SECURITY);
+            return reply;
         }
 
         if (GatewayCommandConstants.COMMAND_PERSONALITY.equals(command)) {

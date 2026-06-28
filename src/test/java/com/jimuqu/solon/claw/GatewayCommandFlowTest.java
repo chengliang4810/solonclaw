@@ -155,6 +155,24 @@ public class GatewayCommandFlowTest {
     }
 
     @Test
+    void shouldRenderSecurityStatusFromGatewaySlashCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-security", "user-security", "hello");
+        env.send("room-security", "user-security", "/pairing claim-admin");
+
+        GatewayReply reply = env.send("room-security", "user-security", "/security status");
+
+        assertThat(reply.isError()).isFalse();
+        assertThat(reply.getContent())
+                .contains("安全策略状态摘要")
+                .contains("guardrailMode");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "security");
+    }
+
+    @Test
     void shouldListAndSearchSessionsFromSlashCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

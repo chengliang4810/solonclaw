@@ -137,6 +137,9 @@ public interface GatewayCommandConstants {
     /** 命令STOP的统一常量值。 */
     String COMMAND_STOP = "stop";
 
+    /** 命令安全策略的统一常量值。 */
+    String COMMAND_SECURITY = "security";
+
     /** 命令PERSONALITY的统一常量值。 */
     String COMMAND_PERSONALITY = "personality";
 
