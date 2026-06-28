@@ -18,14 +18,13 @@
   - `web/src/api/solonclaw/gateways.ts`
   - `web/src/router/index.ts`
 - 重叠程度：高。
-- 证据：
-  - `GatewaysView.vue` 只使用 `useGatewayStore()` 展示 `/api/status` 中的 gateway 状态，并提供启停按钮。
-  - `startGateway()` 与 `stopGateway()` 当前直接抛出“后端未开放 dashboard 网关启停能力”，不具备真实操作能力。
-  - `web/src/router/index.ts` 没有挂载 `/solonclaw/gateways` 路由，当前可用入口是 `/solonclaw/channels`。
-  - `ChannelsView.vue` 已承载渠道配置和平台工具集策略，是当前渠道/网关相关能力的主入口。
-- 建议：
-  - 阶段 3.2 优先删除未挂载的 `GatewaysView.vue`、`gateways` store 和 API 包装，或把只读运行状态并入 `ChannelsView.vue`。
-  - 不建议保留启停按钮，除非后端先提供真实启停接口。
+- 当前处理结果：
+  - `GatewaysView.vue` 已作为只读网关状态页挂载到 `/solonclaw/gateways`，侧边栏也有稳定入口。
+  - `startGateway()` 与 `stopGateway()` 假操作包装已删除，页面不再渲染不支持的启停按钮。
+  - `ChannelsView.vue` 继续承载渠道配置和平台工具集策略；`GatewaysView.vue` 仅展示运行状态，两者边界已拆开。
+- 验证：
+  - `web/tests/gatewayNavigationStatic.test.ts`
+  - `web/tests/gatewayReadOnlyStatic.test.ts`
 
 ### 2. Doctor 诊断双入口
 
@@ -34,12 +33,12 @@
   - `src/main/java/com/jimuqu/solon/claw/web/DashboardDiagnosticsController.java`
   - `src/main/java/com/jimuqu/solon/claw/web/DashboardGatewayDoctorService.java`
 - 重叠程度：高。
-- 证据：
-  - `/api/gateway/doctor` 与 `/api/diagnostics/doctor` 都调用 `DashboardGatewayDoctorService.doctor()`。
-  - 前端诊断页已使用 `/api/diagnostics/doctor`；`/api/gateway/doctor` 当前没有 Dashboard 页面依赖。
-- 建议：
-  - 阶段 3.2 可保留 `/api/diagnostics/doctor` 作为 Dashboard 统一入口。
-  - 若没有外部渠道调用依赖，删除 `/api/gateway/doctor`；若存在外部兼容需求，则在控制器注释中标明仅作为网关专用只读入口。
+- 当前处理结果：
+  - 当前源码只保留 `/api/diagnostics/doctor` 作为 Dashboard 诊断入口。
+  - `DashboardGatewayController` 只保留国内渠道二维码 setup 接口，不再暴露 `/api/gateway/doctor`。
+- 验证：
+  - `web/tests/diagnosticsDoctorUiStatic.test.ts`
+  - `rg -n "gateway/doctor|diagnostics/doctor" src/main/java web/src web/tests`
 
 ### 3. 会话搜索双入口
 
@@ -52,9 +51,13 @@
   - `/api/sessions/search` 只按 `q` 调用旧的会话搜索方法。
   - `/api/search` 支持 `sourceKey`、`sessionId`、`runId`、`toolName`、`channel`、时间范围、摘要和 limit，覆盖面更完整。
   - 前端 `searchSessions()` 已改用 `/api/search`。
-- 建议：
-  - 阶段 3.2 优先评估并删除 `/api/sessions/search`，避免维护两个搜索语义。
-  - 若后端测试仍依赖旧入口，应同步改测到 `/api/search`。
+- 当前处理结果：
+  - 前端 `searchSessions()` 已统一调用 `/api/search`。
+  - 当前源码未保留 `/api/sessions/search` 控制器入口。
+  - 静态测试防止前端重新调用旧入口。
+- 验证：
+  - `web/tests/sessionSearchApiStatic.test.ts`
+  - `rg -n "sessions/search|/api/search" web/src web/tests src/main/java`
 
 ## 中等确定性重叠功能
 
@@ -134,10 +137,10 @@
 
 ## 阶段 3.2 推荐顺序
 
-1. 删除或融合未挂载的网关页面链路，这是最小风险、收益明确的清理。
-2. 评估并移除 `/api/sessions/search` 旧搜索入口，统一到 `/api/search`。
-3. 处理 doctor 双入口，保留一个 Dashboard 主入口。
-4. 合并前端工作区文件读取包装。
+1. 已完成：网关页链路改为只读状态页，删除不支持的启停假操作。
+2. 已完成：会话搜索前端统一到 `/api/search`，旧 `/api/sessions/search` 入口不再保留。
+3. 已完成：Doctor 只保留 `/api/diagnostics/doctor` Dashboard 主入口。
+4. 已完成：前端工作区文件读取包装已统一到 `files.ts`。
 5. 精简前端渠道凭证 key 映射和模型 provider 转换函数。
 
 ## 验证方式
