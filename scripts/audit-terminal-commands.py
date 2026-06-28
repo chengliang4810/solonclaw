@@ -390,6 +390,13 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
             "after": "q",
             "close_expect": "ready",
         },
+        "/terminal-setup": {
+            "type": "confirm",
+            "value": "/terminal-setup",
+            "expect": "Configure terminal keybindings?",
+            "after": "\x1b",
+            "close_expect": "ready",
+        },
     }
     default_actions: dict[str, dict[str, object]] = {}
     for action in [*NODE_TUI_ACTIONS, *NODE_TUI_NEW_SESSION_ACTIONS]:
@@ -438,6 +445,7 @@ def node_tui_command_opens_panel(command: str) -> bool:
         or value.startswith("/logs ")
         or value == "/status"
         or value.startswith("/status ")
+        or value == "/reload-skills"
         or value == "/config check"
         or value.startswith("/config check ")
         or value == "/model --refresh"
@@ -446,6 +454,8 @@ def node_tui_command_opens_panel(command: str) -> bool:
         or value.startswith("/model configure ")
         or value == "/sessions"
         or value == "/skills"
+        or value == "/tools"
+        or value.startswith("/tools ")
         or value == "/setup"
         or value.startswith("/setup ")
         or value == "/approve list"
@@ -553,6 +563,24 @@ def node_tui_command_expectation(command: str) -> str:
         return "/paste"
     if value == "/status" or value.startswith("/status "):
         return "model="
+    if value == "/fortune" or value.startswith("/fortune "):
+        return "🔮"
+    if value == "/title":
+        return "title:"
+    if value.startswith("/title "):
+        return "session title set:"
+    if value == "/copy" or value.startswith("/copy "):
+        return "copy"
+    if value == "/terminal-setup":
+        return "Configure terminal keybindings?"
+    if value == "/reload":
+        return "reloaded .env"
+    if value == "/reload-skills":
+        return "skills"
+    if value == "/reload-mcp":
+        return "确认本次执行"
+    if value == "/tools" or value.startswith("/tools "):
+        return "Tools"
     return ""
 
 

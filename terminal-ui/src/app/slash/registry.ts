@@ -18,3 +18,10 @@ const byName = new Map<string, SlashCommand>(
 )
 
 export const findSlashCommand = (name: string) => byName.get(name.toLowerCase())
+
+export const isRegisteredSlashCommand = (text: string) => {
+  const [head = ''] = text.trim().split(/\s+/, 1)
+  const name = head.startsWith('/') ? head.slice(1) : head
+
+  return Boolean(name && byName.has(name.toLowerCase()))
+}

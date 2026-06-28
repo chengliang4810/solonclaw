@@ -20,12 +20,16 @@ export const completionToApplyOnSubmit = (
   value: string,
   rowText: string | undefined,
   compReplace: number,
-  candidateTexts: readonly string[] = []
+  candidateTexts: readonly string[] = [],
+  isExactSlashCommand = false
 ): string | null => {
   if (!rowText) {
     return null
   }
   const normalizedValue = value.trimEnd()
+  if (compReplace === 0 && value.startsWith('/') && isExactSlashCommand) {
+    return null
+  }
   if (
     compReplace === 0
     && value.startsWith('/')

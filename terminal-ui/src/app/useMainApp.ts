@@ -39,6 +39,7 @@ import { type GatewayRpc, type TranscriptRow } from './interfaces.js'
 import { $overlayState, patchOverlayState } from './overlayStore.js'
 import { isPositiveRpcAck } from './rpcAck.js'
 import { scrollWithSelectionBy } from './scroll.js'
+import { isRegisteredSlashCommand } from './slash/registry.js'
 import { turnController } from './turnController.js'
 import { patchTurnState, useTurnSelector } from './turnStore.js'
 import { $uiState, getUiState, patchUiState } from './uiStore.js'
@@ -666,6 +667,7 @@ export function useMainApp(gw: GatewayClient) {
     composerRefs,
     composerState,
     gw,
+    isExactSlashCommand: isRegisteredSlashCommand,
     maybeGoodVibes,
     setLastUserMsg,
     slashRef,

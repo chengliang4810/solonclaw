@@ -50,6 +50,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
     composerState,
     gw,
     maybeGoodVibes,
+    isExactSlashCommand,
     setLastUserMsg,
     slashRef,
     submitRef,
@@ -400,7 +401,8 @@ export function useSubmission(opts: UseSubmissionOptions) {
           value,
           row?.text,
           composerState.compReplace,
-          composerState.completions.map(item => item.text)
+          composerState.completions.map(item => item.text),
+          isExactSlashCommand(value)
         )
 
         if (next !== null) {
@@ -459,6 +461,7 @@ export interface UseSubmissionOptions {
   composerState: ComposerState
   gw: GatewayClient
   maybeGoodVibes: (text: string) => void
+  isExactSlashCommand: (value: string) => boolean
   setLastUserMsg: (value: string) => void
   slashRef: MutableRefObject<(cmd: string) => boolean>
   submitRef: MutableRefObject<(value: string) => void>

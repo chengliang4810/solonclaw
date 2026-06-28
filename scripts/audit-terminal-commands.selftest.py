@@ -426,9 +426,31 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
         actions = mod.build_node_tui_actions(["/fortune", "/statusbar", "/verbose"])
 
-        self.assertNotIn("expect", actions[0])
+        self.assertEqual(actions[0]["expect"], "🔮")
         self.assertEqual(actions[1]["expect"], "status bar")
         self.assertEqual(actions[2]["expect"], "verbose:")
+
+    def test_build_node_tui_actions_closes_terminal_setup_and_tools_panels(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/terminal-setup", "/reload-skills", "/tools"])
+
+        self.assertEqual(actions[0]["expect"], "Configure terminal keybindings?")
+        self.assertEqual(actions[0]["after"], "\x1b")
+        self.assertEqual(actions[0]["close_expect"], "ready")
+        self.assertEqual(actions[1]["expect"], "skills")
+        self.assertEqual(actions[1]["after"], "\x1b")
+        self.assertEqual(actions[1]["close_expect"], "ready")
+        self.assertEqual(actions[2]["expect"], "Tools")
+        self.assertEqual(actions[2]["after"], "\x1b")
+        self.assertEqual(actions[2]["close_expect"], "ready")
+
+    def test_build_node_tui_actions_uses_reload_mcp_confirmation_text(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/reload-mcp"])
+
+        self.assertEqual(actions[0]["expect"], "确认本次执行")
 
     def test_build_node_tui_actions_uses_repaint_stable_details_section_suffix(self) -> None:
         mod = load_module()
