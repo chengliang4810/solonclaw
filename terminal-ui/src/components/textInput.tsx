@@ -123,6 +123,15 @@ export function applyPrintableInsert(
 
 export const shouldRouteMultiCharInputAsPaste = (text: string): boolean => text.includes('\n')
 
+/**
+ * 判断括号粘贴是否应交给粘贴处理器；单行 slash 命令保持为普通输入，避免 URL 片段被误识别成文件附件。
+ */
+export const shouldRouteBracketedPaste = (text: string): boolean => {
+  const cleaned = text.trim()
+
+  return !cleaned.startsWith('/') || shouldRouteMultiCharInputAsPaste(text)
+}
+
 export function shouldPreserveCtrlJNewline(env: MinimalEnv = process.env): boolean {
   if (env.WT_SESSION) {
     return true
@@ -1133,7 +1142,7 @@ export function TextInput({
         const bracketed = event.keypress.isPasted || inp.includes('[200~')
         const text = inp.replace(BRACKET_PASTE, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 
-        if (bracketed && emitPaste({ bracketed: true, cursor: c, text, value: v })) {
+        if (bracketed && shouldRouteBracketedPaste(text) && emitPaste({ bracketed: true, cursor: c, text, value: v })) {
           return
         }
 

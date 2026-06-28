@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyPrintableInsert, shouldRouteMultiCharInputAsPaste } from '../components/textInput.js'
+import { applyPrintableInsert, shouldRouteBracketedPaste, shouldRouteMultiCharInputAsPaste } from '../components/textInput.js'
 
 describe('applyPrintableInsert', () => {
   it('applies non-bracketed multi-character bursts immediately', () => {
@@ -43,5 +43,19 @@ describe('shouldRouteMultiCharInputAsPaste', () => {
 
   it('treats repeated printable key bursts as immediate input', () => {
     expect(shouldRouteMultiCharInputAsPaste('xxxxx')).toBe(false)
+  })
+})
+
+describe('shouldRouteBracketedPaste', () => {
+  it('keeps pasted single-line slash commands in the composer input', () => {
+    expect(
+      shouldRouteBracketedPaste(
+        '/model set --provider audit --base-url http://127.0.0.1:9/v1 --api-key test-key --model audit --dialect openai'
+      )
+    ).toBe(false)
+  })
+
+  it('keeps multiline bracketed paste on the paste path', () => {
+    expect(shouldRouteBracketedPaste('/model set --provider audit\n--model audit')).toBe(true)
   })
 })
