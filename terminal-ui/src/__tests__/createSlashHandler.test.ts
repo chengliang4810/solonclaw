@@ -114,6 +114,23 @@ describe('createSlashHandler', () => {
     })
   })
 
+  it('routes /model set through backend setup instead of switching to model named set', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const request = vi.fn(() => Promise.resolve({ output: '模型配置已写入 workspace/config.yml' }))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), gw: { request } } })
+
+    expect(createSlashHandler(ctx)('/model set --provider local --model mimo-v2.5')).toBe(true)
+
+    expect(request).toHaveBeenCalledWith('slash.exec', {
+      command: 'model set --provider local --model mimo-v2.5',
+      session_id: 'sid-abc'
+    })
+    expect(ctx.gateway.rpc).not.toHaveBeenCalledWith('config.set', expect.anything())
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith(expect.stringContaining('模型配置已写入'))
+    })
+  })
+
   it('reports model switch RPC failures instead of failing silently', async () => {
     patchUiState({ sid: 'sid-abc' })
     const rpc = vi.fn(() => Promise.reject(new Error('backend unavailable')))

@@ -61,6 +61,8 @@ public class TerminalSetupCommands {
                 || value.startsWith("version ")
                 || "logout".equals(value)
                 || value.startsWith("logout ")
+                || "auth".equals(value)
+                || value.startsWith("auth ")
                 || "pairing".equals(value)
                 || value.startsWith("pairing ")
                 || "gateway".equals(value)

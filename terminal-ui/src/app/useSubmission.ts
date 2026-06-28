@@ -1,6 +1,7 @@
 import { type MutableRefObject, useCallback, useEffect, useRef } from 'react'
 
 import { TYPING_IDLE_MS } from '../config/timing.js'
+import { looksLikeLocalCliCommand } from '../domain/localCommands.js'
 import { attachedImageNotice } from '../domain/messages.js'
 import { completionToApplyOnSubmit, looksLikeSlashCommand } from '../domain/slash.js'
 import type { GatewayClient } from '../gatewayClient.js'
@@ -282,6 +283,27 @@ export function useSubmission(opts: UseSubmissionOptions) {
         composerActions.pushHistory(full)
         slashRef.current(full)
         composerActions.clearIn()
+
+        return
+      }
+
+      if (looksLikeLocalCliCommand(full)) {
+        const sid = getUiState().sid
+
+        if (!sid) {
+          return sys('session not ready yet')
+        }
+
+        appendMessage({ kind: 'slash', role: 'system', text: full })
+        composerActions.pushHistory(full)
+        composerActions.clearIn()
+        gw.request('slash.exec', { command: full, session_id: sid })
+          .then((r: unknown) => {
+            const output =
+              r && typeof r === 'object' && 'output' in r ? String((r as { output?: unknown }).output ?? '') : ''
+            sys(output || '(no output)')
+          })
+          .catch((e: Error) => sys(`error: ${e.message}`))
 
         return
       }

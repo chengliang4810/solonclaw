@@ -8,6 +8,17 @@ import { findSlashCommand } from './slash/registry.js'
 import type { SlashRunCtx } from './slash/types.js'
 import { getUiState } from './uiStore.js'
 
+const shouldUseBackendSetupCommand = (name: string, arg: string): boolean => {
+  const command = `${name} ${arg}`.trim().toLowerCase()
+
+  return command === 'auth'
+    || command.startsWith('auth ')
+    || command === 'model set'
+    || command.startsWith('model set ')
+    || command === 'model configure'
+    || command.startsWith('model configure ')
+}
+
 export function createSlashHandler(ctx: SlashHandlerContext): (cmd: string) => boolean {
   const { gw } = ctx.gateway
   const { catalog } = ctx.local
@@ -37,6 +48,18 @@ export function createSlashHandler(ctx: SlashHandlerContext): (cmd: string) => b
     }
 
     const runCtx: SlashRunCtx = { ...ctx, flight, guarded, guardedErr, sid, stale, ui }
+
+    if (shouldUseBackendSetupCommand(parsed.name, parsed.arg)) {
+      gw.request<SlashExecResponse>('slash.exec', { command: `${parsed.name}${argTail}`, session_id: sid })
+        .then(r => {
+          if (!stale()) {
+            renderSlashExecOutput(ctx.transcript, r, `/${parsed.name}: no output`, parsed.name[0]!.toUpperCase() + parsed.name.slice(1))
+          }
+        })
+        .catch(guardedErr)
+
+      return true
+    }
 
     const found = findSlashCommand(parsed.name)
 

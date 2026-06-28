@@ -74,6 +74,43 @@ class SolonClawAppLocalSetupCommandTest {
         }
     }
 
+    @Test
+    void localAuthAddUsesSystemWorkspaceProperty() throws Exception {
+        Path workspaceHome = Files.createTempDirectory("solonclaw-local-auth-workspace");
+        String previousWorkspace = System.getProperty("solonclaw.workspace");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        try {
+            System.setProperty("solonclaw.workspace", workspaceHome.toString());
+            System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8.name()));
+
+            boolean handled =
+                    SolonClawApp.runLocalSetupCommand(
+                            new CliMode(
+                                    CliMode.Kind.CLI,
+                                    "auth add audit-auth --base-url https://api.example.com/v1 "
+                                            + "--api-key Sk-Test-LocalAuthSecret123 --model audit-model --dialect openai",
+                                    "local-auth-test"));
+
+            assertThat(handled).isTrue();
+            assertThat(out.toString(StandardCharsets.UTF_8.name()))
+                    .contains("provider=audit-auth")
+                    .contains("model=audit-model")
+                    .doesNotContain("Sk-Test-LocalAuthSecret123");
+            assertThat(Files.readString(workspaceHome.resolve("config.yml")))
+                    .contains("audit-auth:")
+                    .contains("apiKey: Sk-Test-LocalAuthSecret123")
+                    .contains("defaultModel: audit-model");
+        } finally {
+            if (previousWorkspace == null) {
+                System.clearProperty("solonclaw.workspace");
+            } else {
+                System.setProperty("solonclaw.workspace", previousWorkspace);
+            }
+            System.setOut(originalOut);
+        }
+    }
+
     /** 捕获字节并按 UTF-8 解码，模拟真实终端期待的输出编码。 */
     private static class CapturingOutputStream extends OutputStream {
         /** 保存写入的原始字节，便于验证 PrintStream 实际编码。 */
