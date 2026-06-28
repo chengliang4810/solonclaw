@@ -182,14 +182,28 @@ NODE_TUI_ACTIONS = [
     {"type": "command", "value": "/config check", "expect": "has_issues=false", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/skin", "expect": "skin:"},
     {"type": "command", "value": "/doctor", "expect": "model.provider", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/sessions", "expect": "Sessions", "after": "esc", "close_expect": "ready"},
+    {"type": "command", "value": "/branch audit-branch", "expect": "branched"},
+    {"type": "command", "value": "/personality default", "expect": "personality:"},
+    {"type": "command", "value": "/auth", "expect": "认证配置", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/auth list", "expect": "认证状态", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/proxy", "expect": "本地代理", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/gateway status", "expect": "Gateway Status", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/config", "expect": "Config", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/tools", "expect": "Tools", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/voice status", "expect": "Mode:"},
+    {"type": "command", "value": "/browser status", "expect": "browser not connected"},
+    {"type": "command", "value": "/replay", "expect": "no completed spawn trees"},
+    {"type": "command", "value": "/replay-diff", "expect": "usage: /replay-diff"},
+    {"type": "command", "value": "/clear", "expect": "forging session", "wait": 4.0},
     {
         "type": "approval",
         "value": "!printf audit > /tmp/solonclaw-node-tui-approval-audit.txt",
         "expect": "approval required",
         "keys": "1",
-        "post_expect": "exit 0",
+        "post_expect": "ready",
     },
-    {"type": "command", "value": "/exit", "exit": True},
+    {"type": "command", "value": "/quit", "exit": True},
 ]
 
 NODE_TUI_NEW_SESSION_ACTIONS = [
@@ -331,11 +345,28 @@ def build_keypress_schedule(actions: list[dict[str, object]], start_delay: float
             at += 0.035
         schedule.append((at, "\r"))
         at += float(action.get("wait", 2.2))
-        after = str(action.get("after", ""))
+        keys = key_sequence(action.get("keys", ""))
+        if keys:
+            schedule.append((at, keys))
+            at += float(action.get("keys_wait", 0.8))
+        after = key_sequence(action.get("after", ""))
         if after:
             schedule.append((at, after))
             at += float(action.get("after_wait", 0.8))
     return schedule
+
+
+def key_sequence(value: object) -> str:
+    """把审计动作里的可读按键别名转换为真实终端输入序列。"""
+    raw = str(value or "")
+    aliases = {
+        "esc": "\x1b",
+        "escape": "\x1b",
+        "enter": "\r",
+        "return": "\r",
+        "tab": "\t",
+    }
+    return aliases.get(raw.lower(), raw)
 
 
 def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, object]]:
@@ -455,6 +486,14 @@ def node_tui_command_opens_panel(command: str) -> bool:
     return (
         value == "/doctor"
         or value.startswith("/doctor ")
+        or value == "/auth"
+        or value.startswith("/auth ")
+        or value == "/proxy"
+        or value.startswith("/proxy ")
+        or value == "/gateway"
+        or value.startswith("/gateway ")
+        or value == "/config"
+        or value == "/config show"
         or value == "/logs"
         or value.startswith("/logs ")
         or value == "/status"
@@ -467,7 +506,9 @@ def node_tui_command_opens_panel(command: str) -> bool:
         or value == "/model pick"
         or value.startswith("/model set ")
         or value.startswith("/model configure ")
+        or value.startswith("/rollback ")
         or value == "/sessions"
+        or value in {"/session", "/switch", "/resume"}
         or value == "/skills"
         or value == "/tools"
         or value == "/tools list"
@@ -496,6 +537,7 @@ def node_tui_command_requires_close_ready(command: str) -> bool:
         or value.startswith("/help ")
         or value == "/mem"
         or value.startswith("/mem ")
+        or value.startswith("/rollback ")
     )
 
 
@@ -513,6 +555,18 @@ def node_tui_command_needs_input_settle_wait(command: str) -> bool:
 def node_tui_command_expectation(command: str) -> str:
     """为显式 Node TUI 命令补充稳定的成功文本，避免过早关闭面板。"""
     value = command.strip().lower()
+    if value == "/auth":
+        return "认证配置"
+    if value == "/auth list" or value == "/auth ls":
+        return "认证状态"
+    if value.startswith("/auth status "):
+        return "认证状态"
+    if value == "/proxy" or value.startswith("/proxy "):
+        return "本地代理"
+    if value == "/gateway" or value == "/gateway status" or value.startswith("/gateway status "):
+        return "Gateway Status"
+    if value == "/config" or value == "/config show":
+        return "Config"
     if value == "/help" or value.startswith("/help "):
         return "Hotkeys"
     if value.startswith("/model set ") or value.startswith("/model configure "):
@@ -532,7 +586,11 @@ def node_tui_command_expectation(command: str) -> str:
     if value == "/queue" or value.startswith("/queue "):
         return "message(s)"
     if value == "/voice status":
-        return "Voice Mode Status"
+        return "Mode:"
+    if value in {"/voice on", "/voice tts"}:
+        return "Voice"
+    if value == "/voice off":
+        return "Voice mode disabled"
     if value == "/skin" or value.startswith("/skin "):
         return "skin:"
     if value == "/indicator":
@@ -555,6 +613,8 @@ def node_tui_command_expectation(command: str) -> str:
         return "browser not connected"
     if value == "/rollback" or value == "/rollback list":
         return "checkpoints"
+    if value.startswith("/rollback "):
+        return "Restore checkpoint?"
     if value in {"/approve list", "/approve status", "/deny list", "/deny status"}:
         return "pending=none"
     if value == "/security" or value == "/security audit":
@@ -573,8 +633,16 @@ def node_tui_command_expectation(command: str) -> str:
         return "Security"
     if value == "/tasks status":
         return "delegation"
+    if value == "/tasks" or value == "/agents":
+        return "Spawn tree"
+    if value == "/replay":
+        return "no completed spawn trees"
     if value == "/replay list":
         return "spawn trees"
+    if value == "/replay-diff":
+        return "usage: /replay-diff"
+    if value.startswith("/replay-diff "):
+        return "replay-diff:"
     if value == "/mem" or value.startswith("/mem "):
         return "Memory"
     if value == "/statusbar" or value.startswith("/statusbar "):
@@ -588,33 +656,39 @@ def node_tui_command_expectation(command: str) -> str:
     if value == "/redraw":
         return "ready"
     if value == "/compress" or value == "/compact":
-        return "compress"
+        return "nothing to compress"
     if value == "/steer":
         return "usage: /steer"
     if value == "/background":
         return "/background <prompt>"
+    if value.startswith("/background "):
+        return "no active run"
     if value == "/image":
         return "/image <path>"
     if value.startswith("/paste "):
-        return "/paste"
+        return "usage: /paste"
     if value == "/status" or value.startswith("/status "):
         return "model="
+    if value == "/sessions" or value in {"/session", "/switch", "/resume"}:
+        return "Sessions"
     if value == "/model pick":
         return "Select provider"
-    if value == "/fortune" or value.startswith("/fortune "):
-        return "🔮"
+    if value == "/fortune" or value == "/fortune random":
+        return ""
+    if value == "/fortune daily" or value == "/fortune stable" or value == "/fortune today":
+        return "Today"
     if value == "/title":
         return "title:"
     if value.startswith("/title "):
         return "session title set:"
     if value == "/copy" or value.startswith("/copy "):
-        return "copy"
+        return "nothing to copy"
     if value == "/terminal-setup":
         return "Configure terminal keybindings?"
     if value == "/reload":
         return "reloaded .env"
     if value == "/reload-skills":
-        return "skills"
+        return "Reload Skills"
     if value == "/reload-mcp":
         return "确认本次执行"
     if value.startswith("/tools disable "):
@@ -623,6 +697,14 @@ def node_tui_command_expectation(command: str) -> str:
         return "enabled:"
     if value == "/tools" or value == "/tools list" or value.startswith("/tools list "):
         return "Tools"
+    if value.startswith("/branch ") or value.startswith("/fork "):
+        return "branched"
+    if value == "/branch" or value == "/fork":
+        return "branched"
+    if value.startswith("/personality "):
+        return "personality:"
+    if value == "/clear" or value == "/new" or value == "/reset" or value.startswith("/new "):
+        return "forging session"
     return ""
 
 
@@ -1097,7 +1179,7 @@ def run_node_tui_sequence(
             before_len = len(output)
             write_command_like_user(master_fd, output, command, response_state)
             if action.get("exit"):
-                keys = str(action.get("keys", ""))
+                keys = key_sequence(action.get("keys", ""))
                 if keys:
                     time.sleep(0.2)
                     try:
@@ -1127,7 +1209,7 @@ def run_node_tui_sequence(
             ):
                 step_issues.append(f"step_missing_expected:{command}:{expected}")
                 break
-            keys = str(action.get("keys", ""))
+            keys = key_sequence(action.get("keys", ""))
             if keys:
                 before_keys_len = len(output)
                 os.write(master_fd, keys.encode("utf-8"))
@@ -1142,7 +1224,7 @@ def run_node_tui_sequence(
                 ):
                     step_issues.append(f"step_missing_post_expected:{command}:{post_expected}")
                     break
-            after = str(action.get("after", ""))
+            after = key_sequence(action.get("after", ""))
             if after:
                 close_start = len(output)
                 os.write(master_fd, after.encode("utf-8"))

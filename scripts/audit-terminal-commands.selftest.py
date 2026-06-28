@@ -230,6 +230,61 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(mod.node_tui_command_expectation("/indicator"), "indicator:")
         self.assertEqual(mod.node_tui_command_expectation("/indicator emoji"), "indicator")
 
+    def test_node_tui_extra_default_actions_cover_common_user_paths(self) -> None:
+        mod = load_module()
+
+        values = {str(action.get("value")) for action in mod.NODE_TUI_ACTIONS}
+
+        for command in [
+            "/sessions",
+            "/branch audit-branch",
+            "/personality default",
+            "/voice status",
+            "/browser status",
+            "/replay-diff",
+            "/clear",
+            "/quit",
+        ]:
+            self.assertIn(command, values)
+
+    def test_node_tui_actions_can_expand_confirm_key_aliases(self) -> None:
+        mod = load_module()
+
+        schedule = mod.build_keypress_schedule(
+            [{"type": "confirm", "value": "/clear", "expect": "Start a new session?", "keys": "esc"}],
+            start_delay=0.0,
+        )
+
+        self.assertEqual("".join(ch for _, ch in schedule), "/clear\r\x1b")
+
+    def test_node_tui_expectations_cover_new_safe_commands(self) -> None:
+        mod = load_module()
+
+        expectations = {
+            "/auth": "认证配置",
+            "/auth list": "认证状态",
+            "/proxy": "本地代理",
+            "/gateway status": "Gateway Status",
+            "/config": "Config",
+            "/branch audit-branch": "branched",
+            "/personality default": "personality:",
+            "/replay-diff": "usage: /replay-diff",
+            "/copy": "nothing to copy",
+            "/paste hello": "usage: /paste",
+            "/compress": "nothing to compress",
+            "/quit": "",
+        }
+
+        for command, expected in expectations.items():
+            with self.subTest(command=command):
+                self.assertEqual(mod.node_tui_command_expectation(command), expected)
+
+    def test_node_tui_commands_with_confirm_overlay_open_panels(self) -> None:
+        mod = load_module()
+
+        self.assertTrue(mod.node_tui_command_opens_panel("/rollback fake path"))
+        self.assertFalse(mod.node_tui_command_opens_panel("/clear"))
+
     def test_node_tui_startup_accepts_setup_required_screen(self) -> None:
         mod = load_module()
 
@@ -528,7 +583,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(len(actions), 1)
         self.assertEqual(actions[0]["expect"], "approval required")
         self.assertEqual(actions[0]["keys"], "1")
-        self.assertEqual(actions[0]["post_expect"], "exit 0")
+        self.assertEqual(actions[0]["post_expect"], "ready")
 
     def test_build_node_tui_actions_waits_after_plain_history_panels(self) -> None:
         mod = load_module()
@@ -543,7 +598,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
         actions = mod.build_node_tui_actions(["/fortune", "/statusbar", "/verbose"])
 
-        self.assertEqual(actions[0]["expect"], "🔮")
+        self.assertNotIn("expect", actions[0])
         self.assertEqual(actions[1]["expect"], "status bar")
         self.assertEqual(actions[2]["expect"], "verbose:")
 
@@ -555,11 +610,11 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(actions[0]["expect"], "Configure terminal keybindings?")
         self.assertEqual(actions[0]["after"], "\x1b")
         self.assertEqual(actions[0]["close_expect"], "ready")
-        self.assertEqual(actions[1]["expect"], "skills")
+        self.assertEqual(actions[1]["expect"], "Reload Skills")
         self.assertEqual(actions[1]["after"], "\x1b")
         self.assertEqual(actions[1]["close_expect"], "ready")
         self.assertEqual(actions[2]["expect"], "Tools")
-        self.assertEqual(actions[2]["after"], "\x1b")
+        self.assertEqual(actions[2]["after"], "q")
         self.assertEqual(actions[2]["close_expect"], "ready")
         self.assertEqual(actions[3]["expect"], "disabled:")
         self.assertNotIn("after", actions[3])
@@ -606,7 +661,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         actions = mod.build_node_tui_actions(["/redraw", "/compress", "/steer"])
 
         self.assertEqual(actions[0]["expect"], "ready")
-        self.assertEqual(actions[1]["expect"], "compress")
+        self.assertEqual(actions[1]["expect"], "nothing to compress")
         self.assertEqual(actions[2]["expect"], "usage: /steer")
 
     def test_build_node_tui_actions_checks_background_image_and_paste_usage(self) -> None:
@@ -616,7 +671,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
         self.assertEqual(actions[0]["expect"], "/background <prompt>")
         self.assertEqual(actions[1]["expect"], "/image <path>")
-        self.assertEqual(actions[2]["expect"], "/paste")
+        self.assertEqual(actions[2]["expect"], "usage: /paste")
 
     def test_build_node_tui_actions_expands_setup_panel_interaction_aliases(self) -> None:
         mod = load_module()
