@@ -1,24 +1,11 @@
 package com.jimuqu.solon.claw.gateway.command;
 
-import com.jimuqu.solon.claw.command.CommandDescriptor;
-import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /** 集中渲染消息网关 slash command 帮助文本，避免默认命令服务承担长文本维护职责。 */
 final class SlashCommandHelpRenderer {
-    /** 需要追加到网关帮助末尾的终端增强命令，保持原有展示顺序。 */
-    private static final List<String> REGISTRY_HELP_COMMANDS =
-            Arrays.asList(
-                    "background",
-                    "tasks",
-                    "statusbar",
-                    "copy",
-                    "paste",
-                    "image");
-
     /** 阻止工具类被实例化。 */
     private SlashCommandHelpRenderer() {}
 
@@ -30,7 +17,6 @@ final class SlashCommandHelpRenderer {
     static String render() {
         List<String> lines = new ArrayList<String>();
         appendCoreHelpLines(lines);
-        appendRegistryHelpLines(lines);
         return String.join("\n", lines);
     }
 
@@ -162,28 +148,6 @@ final class SlashCommandHelpRenderer {
         lines.add(helpLine(GatewayCommandConstants.SLASH_PLATFORMS, "查看平台连接与授权状态"));
         lines.add(helpLine(GatewayCommandConstants.SLASH_PLATFORM, "查看平台连接与授权状态"));
         lines.add(helpLine(GatewayCommandConstants.SLASH_HELP, "显示帮助信息"));
-    }
-
-    /**
-     * 追加已登记但由其他入口实现的命令帮助行。
-     *
-     * @param lines 待写入的帮助行列表。
-     */
-    private static void appendRegistryHelpLines(List<String> lines) {
-        for (String commandName : REGISTRY_HELP_COMMANDS) {
-            lines.add(registryHelpLine(commandName));
-        }
-    }
-
-    /**
-     * 从命令注册表渲染单条帮助行。
-     *
-     * @param commandName 命令规范名。
-     * @return 用户可见帮助行。
-     */
-    private static String registryHelpLine(String commandName) {
-        CommandDescriptor descriptor = CommandRegistry.get(commandName);
-        return helpLine(descriptor.slashName(), descriptor.getDescription());
     }
 
     /**

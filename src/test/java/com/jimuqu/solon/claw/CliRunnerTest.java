@@ -76,6 +76,27 @@ class CliRunnerTest {
     }
 
     @Test
+    void cliPromptGuidesTuiOnlyCommandsWithoutFailure() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService);
+        CliRunner runner =
+                new CliRunner(
+                        runtime,
+                        env.sessionRepository,
+                        env.appConfig,
+                        null,
+                        new LlmProviderService(env.appConfig));
+
+        assertLocalOutput(runner, "/background summarize", "该命令仅在交互式 TUI 中可用");
+        assertLocalOutput(runner, "/statusbar", "该命令仅在交互式 TUI 中可用");
+        assertLocalOutput(runner, "/image /tmp/nope.png", "该命令仅在交互式 TUI 中可用");
+    }
+
+    @Test
     void bareJavaTuiModeGuidesUsersToNodeTuiEntry() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CliRuntime runtime =

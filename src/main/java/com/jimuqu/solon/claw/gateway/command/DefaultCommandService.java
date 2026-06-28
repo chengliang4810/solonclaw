@@ -1438,7 +1438,10 @@ public class DefaultCommandService implements CommandService {
     /** 判断当前命令是否由默认命令服务承接。 */
     @Override
     public boolean supports(String commandName) {
-        return CommandRegistry.resolve(commandName) != null
+        CommandDescriptor descriptor = CommandRegistry.resolve(commandName);
+        return (descriptor != null
+                        && (descriptor.supportsScope(CommandRegistry.SCOPE_GATEWAY)
+                                || descriptor.supportsScope(CommandRegistry.SCOPE_TUI)))
                 || pluginCommands.containsKey(
                         StrUtil.nullToEmpty(commandName).trim().toLowerCase());
     }
@@ -1451,6 +1454,10 @@ public class DefaultCommandService implements CommandService {
         String command = parsed.getCommand();
         String args = parsed.getArgs();
         recordSlashCommand(message, command, args);
+
+        if (descriptor != null && !descriptor.supportsScope(CommandRegistry.SCOPE_GATEWAY)) {
+            return tuiOnlyCommandReply(descriptor);
+        }
 
         if (GatewayCommandConstants.COMMAND_AGENT.equals(command)) {
             return GatewayReply.ok(
@@ -2366,8 +2373,7 @@ public class DefaultCommandService implements CommandService {
     private GatewayReply handleCommands(String args) {
         int page = Math.max(1, parsePositiveInt(args, 1));
         int pageSize = 30;
-        List<CommandDescriptor> descriptors =
-                new ArrayList<CommandDescriptor>(CommandRegistry.all());
+        List<CommandDescriptor> descriptors = gatewayCommandDescriptors();
         int total = descriptors.size();
         int totalPages = Math.max(1, (total + pageSize - 1) / pageSize);
         if (page > totalPages) {
@@ -2404,6 +2410,21 @@ public class DefaultCommandService implements CommandService {
         reply.getRuntimeMetadata().put("page", Integer.valueOf(page));
         reply.getRuntimeMetadata().put("total", Integer.valueOf(total));
         return reply;
+    }
+
+    /**
+     * 返回消息网关入口可直接执行的命令清单，避免把 TUI 专属命令展示成网关可用能力。
+     *
+     * @return 网关作用域内的命令描述符。
+     */
+    private List<CommandDescriptor> gatewayCommandDescriptors() {
+        List<CommandDescriptor> descriptors = new ArrayList<CommandDescriptor>();
+        for (CommandDescriptor descriptor : CommandRegistry.all()) {
+            if (descriptor.supportsScope(CommandRegistry.SCOPE_GATEWAY)) {
+                descriptors.add(descriptor);
+            }
+        }
+        return descriptors;
     }
 
     /**
@@ -3890,6 +3911,23 @@ public class DefaultCommandService implements CommandService {
     private GatewayReply registeredUnimplementedReply(CommandDescriptor descriptor) {
         GatewayReply reply = GatewayReply.error("命令已登记但当前运行时未启用或不支持：" + descriptor.slashName());
         reply.getRuntimeMetadata().put("command_status", "registered_unimplemented");
+        reply.getRuntimeMetadata().put("command", descriptor.getName());
+        return reply;
+    }
+
+    /**
+     * 为非 TUI 入口收到 TUI 专属命令时生成清晰引导，避免被误判为后端功能失败。
+     *
+     * @param descriptor 已解析出的命令描述符。
+     * @return 成功态说明回复。
+     */
+    private GatewayReply tuiOnlyCommandReply(CommandDescriptor descriptor) {
+        GatewayReply reply =
+                GatewayReply.ok(
+                        "该命令仅在交互式 TUI 中可用："
+                                + descriptor.slashName()
+                                + "\n请使用 solonclaw 启动本地 TUI 后再执行。");
+        reply.getRuntimeMetadata().put("command_status", "tui_only");
         reply.getRuntimeMetadata().put("command", descriptor.getName());
         return reply;
     }

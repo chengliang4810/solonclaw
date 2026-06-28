@@ -116,41 +116,54 @@ public class GatewayCommandFlowTest {
 
         GatewayReply helpReply = env.send("room-registry", "user-registry", "/help");
         assertThat(helpReply.getContent())
-                .contains("/statusbar - 管理 TUI 状态栏显示")
+                .doesNotContain("/statusbar - 管理 TUI 状态栏显示")
+                .doesNotContain("/background -")
+                .doesNotContain("/image -")
                 .doesNotContain("/footer -")
                 .doesNotContain("/handoff -")
                 .doesNotContain("/subgoal -");
 
         GatewayReply aliasReply = env.send("room-registry", "user-registry", "/status-bar");
-        assertThat(aliasReply.isError()).isTrue();
+        assertThat(aliasReply.isError()).isFalse();
+        assertThat(aliasReply.getContent()).contains("该命令仅在交互式 TUI 中可用").contains("solonclaw");
         assertThat(aliasReply.getRuntimeMetadata())
-                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command_status", "tui_only")
                 .containsEntry("command", "statusbar");
 
         GatewayReply shortAliasReply = env.send("room-registry", "user-registry", "/sb");
-        assertThat(shortAliasReply.isError()).isTrue();
+        assertThat(shortAliasReply.isError()).isFalse();
+        assertThat(shortAliasReply.getContent()).contains("该命令仅在交互式 TUI 中可用").contains("solonclaw");
         assertThat(shortAliasReply.getRuntimeMetadata())
-                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command_status", "tui_only")
                 .containsEntry("command", "statusbar");
 
         GatewayReply backgroundAliasReply =
                 env.send("room-registry", "user-registry", "/bg nightly task");
-        assertThat(backgroundAliasReply.isError()).isTrue();
+        assertThat(backgroundAliasReply.isError()).isFalse();
+        assertThat(backgroundAliasReply.getContent())
+                .contains("该命令仅在交互式 TUI 中可用")
+                .contains("solonclaw");
         assertThat(backgroundAliasReply.getRuntimeMetadata())
-                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command_status", "tui_only")
                 .containsEntry("command", "background");
 
         GatewayReply backgroundBtwReply =
                 env.send("room-registry", "user-registry", "/btw nightly task");
-        assertThat(backgroundBtwReply.isError()).isTrue();
+        assertThat(backgroundBtwReply.isError()).isFalse();
+        assertThat(backgroundBtwReply.getContent())
+                .contains("该命令仅在交互式 TUI 中可用")
+                .contains("solonclaw");
         assertThat(backgroundBtwReply.getRuntimeMetadata())
-                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command_status", "tui_only")
                 .containsEntry("command", "background");
 
         GatewayReply agentsAliasReply = env.send("room-registry", "user-registry", "/agents");
-        assertThat(agentsAliasReply.isError()).isTrue();
+        assertThat(agentsAliasReply.isError()).isFalse();
+        assertThat(agentsAliasReply.getContent())
+                .contains("该命令仅在交互式 TUI 中可用")
+                .contains("solonclaw");
         assertThat(agentsAliasReply.getRuntimeMetadata())
-                .containsEntry("command_status", "registered_unimplemented")
+                .containsEntry("command_status", "tui_only")
                 .containsEntry("command", "tasks");
     }
 

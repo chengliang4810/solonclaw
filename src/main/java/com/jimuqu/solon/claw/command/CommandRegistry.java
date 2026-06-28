@@ -11,13 +11,13 @@ import java.util.Map;
 /** 维护命令注册信息，供运行时按需查询和装配。 */
 public final class CommandRegistry {
     /** 命令可在本地 CLI 入口使用。 */
-    private static final String SCOPE_CLI = "cli";
+    public static final String SCOPE_CLI = "cli";
 
     /** 命令可在消息网关入口使用。 */
-    private static final String SCOPE_GATEWAY = "gateway";
+    public static final String SCOPE_GATEWAY = "gateway";
 
     /** 命令可在独立 TUI 入口使用。 */
-    private static final String SCOPE_TUI = "tui";
+    public static final String SCOPE_TUI = "tui";
 
     /** 命令规范名到描述符的注册表，使用 LinkedHashMap 保持帮助输出顺序稳定。 */
     private static final Map<String, CommandDescriptor> COMMANDS =
@@ -163,7 +163,10 @@ public final class CommandRegistry {
      * @return 归入 terminal 分组的命令构建器。
      */
     private static CommandDescriptor.Builder terminal(String name, String description) {
-        return core(name, "terminal", description);
+        return CommandDescriptor.builder(name)
+                .category("terminal")
+                .description(description)
+                .scopes(SCOPE_TUI);
     }
 
     /**

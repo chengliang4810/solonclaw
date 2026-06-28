@@ -86,6 +86,16 @@ public final class CommandDescriptor {
     }
 
     /**
+     * 判断命令是否允许在指定入口执行。
+     *
+     * @param scope 入口范围，例如 cli、gateway 或 tui。
+     * @return 当前命令包含该入口范围时返回 true。
+     */
+    public boolean supportsScope(String scope) {
+        return scopes.contains(StrUtil.nullToEmpty(scope).trim().toLowerCase());
+    }
+
+    /**
      * 判断命令是否按默认策略启用。
      *
      * @return 默认启用返回 true。
