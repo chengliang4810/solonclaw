@@ -496,6 +496,12 @@ def node_tui_command_expectation(command: str) -> str:
         return "nothing to compress"
     if value == "/steer":
         return "usage: /steer"
+    if value == "/background":
+        return "/background <prompt>"
+    if value == "/image":
+        return "/image <path>"
+    if value.startswith("/paste "):
+        return "/paste"
     if value == "/status" or value.startswith("/status "):
         return "model="
     return ""
