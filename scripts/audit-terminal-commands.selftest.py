@@ -355,6 +355,54 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(actions[2]["close_expect"], "ready")
         self.assertEqual(actions[3]["expect"], "browser not connected")
 
+    def test_build_node_tui_actions_closes_approval_status_pages(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions([
+            "/approve list",
+            "/approve status",
+            "/deny list",
+            "/deny status",
+        ])
+
+        self.assertEqual(
+            actions,
+            [
+                {
+                    "type": "command",
+                    "value": "/approve list",
+                    "expect": "pending=none",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/approve status",
+                    "expect": "pending=none",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/deny list",
+                    "expect": "pending=none",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/deny status",
+                    "expect": "pending=none",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+            ],
+        )
+
     def test_build_node_tui_actions_waits_after_plain_history_panels(self) -> None:
         mod = load_module()
 

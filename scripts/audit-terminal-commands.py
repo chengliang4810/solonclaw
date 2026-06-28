@@ -416,6 +416,10 @@ def node_tui_command_opens_panel(command: str) -> bool:
         or value == "/skills"
         or value == "/setup"
         or value.startswith("/setup ")
+        or value == "/approve list"
+        or value == "/approve status"
+        or value == "/deny list"
+        or value == "/deny status"
         or value == "/tasks"
     )
 
@@ -470,6 +474,8 @@ def node_tui_command_expectation(command: str) -> str:
         return "browser not connected"
     if value == "/rollback" or value == "/rollback list":
         return "checkpoints"
+    if value in {"/approve list", "/approve status", "/deny list", "/deny status"}:
+        return "pending=none"
     if value == "/tasks status":
         return "delegation"
     if value == "/replay list":
