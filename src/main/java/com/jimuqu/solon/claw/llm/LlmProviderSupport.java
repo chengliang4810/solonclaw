@@ -165,6 +165,9 @@ public final class LlmProviderSupport {
             return normalized + "/v1beta";
         }
         if (LlmConstants.PROVIDER_ANTHROPIC.equals(normalizedDialect)) {
+            if (StrUtil.endWithIgnoreCase(normalized, "/v1")) {
+                return normalized + "/messages";
+            }
             return normalized + "/v1/messages";
         }
         return normalized;

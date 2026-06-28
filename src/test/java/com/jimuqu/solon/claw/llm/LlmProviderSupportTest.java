@@ -183,6 +183,18 @@ public class LlmProviderSupportTest {
     }
 
     @Test
+    void shouldResolveAnthropicChatApiUrlsWithoutDuplicatingVersionPath() {
+        assertThat(LlmProviderSupport.buildApiUrl("https://api.anthropic.com", "anthropic"))
+                .isEqualTo("https://api.anthropic.com/v1/messages");
+        assertThat(LlmProviderSupport.buildApiUrl("https://api.anthropic.com/v1", "anthropic"))
+                .isEqualTo("https://api.anthropic.com/v1/messages");
+        assertThat(
+                        LlmProviderSupport.buildApiUrl(
+                                "https://api.anthropic.com/v1/messages", "anthropic"))
+                .isEqualTo("https://api.anthropic.com/v1/messages");
+    }
+
+    @Test
     void shouldResolveProviderAwareOllamaModelListUrls() {
         assertThat(
                         LlmProviderSupport.buildModelListUrl(
