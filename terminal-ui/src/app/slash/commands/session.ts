@@ -143,6 +143,10 @@ export const sessionCommands: SlashCommand[] = [
         return ctx.session.newLiveSession()
       }
 
+      if (/^pick\s+\d+$/i.test(trimmed)) {
+        return ctx.transcript.sys('Use /sessions to open the session list, or /resume <session-id|title>.')
+      }
+
       // `/resume <id|title>` (and `/sessions <id>`) load a cold session and
       // CLOSE the current one, so guard it while a turn is in-flight to avoid
       // corrupting streaming/busy state. Bare opens the overlay to browse.
@@ -533,14 +537,14 @@ export const sessionCommands: SlashCommand[] = [
   },
 
   {
-    help: 'control busy enter mode [queue|steer|interrupt|status]',
+    help: 'control busy enter mode [queue|steer|interrupt|reject|status]',
     name: 'busy',
     run: (arg, ctx) => {
       const mode = arg.trim().toLowerCase()
-      const valid = new Set(['', 'status', 'queue', 'steer', 'interrupt'])
+      const valid = new Set(['', 'status', 'queue', 'steer', 'interrupt', 'reject'])
 
       if (!valid.has(mode)) {
-        return ctx.transcript.sys('usage: /busy [queue|steer|interrupt|status]')
+        return ctx.transcript.sys('usage: /busy [queue|steer|interrupt|reject|status]')
       }
 
       if (!mode || mode === 'status') {

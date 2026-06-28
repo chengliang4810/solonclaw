@@ -52,6 +52,14 @@ describe('createSlashHandler', () => {
     expect(getOverlayState().sessions).toBe(true)
   })
 
+  it('does not treat legacy /session pick indexes as session ids in the TUI', () => {
+    const ctx = buildCtx()
+
+    expect(createSlashHandler(ctx)('/session pick 1')).toBe(true)
+    expect(ctx.session.resumeById).not.toHaveBeenCalled()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('Use /sessions to open the session list, or /resume <session-id|title>.')
+  })
+
   it('handles /redraw locally without slash worker fallback', () => {
     const ctx = buildCtx()
 
@@ -656,6 +664,7 @@ describe('createSlashHandler', () => {
     ['/stop', 'process.stop', {}],
     ['/fast status', 'config.get', { key: 'fast', session_id: null }],
     ['/busy status', 'config.get', { key: 'busy' }],
+    ['/busy reject', 'config.set', { key: 'busy', value: 'reject' }],
     ['/indicator', 'config.get', { key: 'indicator' }]
   ])('routes %s through native RPC (no slash worker)', (command, method, params) => {
     const rpc = vi.fn(() => Promise.resolve({}))
