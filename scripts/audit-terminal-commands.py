@@ -191,6 +191,28 @@ NODE_TUI_ACTIONS = [
     {"type": "command", "value": "/gateway status", "expect": "Gateway Status", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/config", "expect": "Config", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/tools", "expect": "Tools", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/background", "expect": "/background"},
+    {"type": "command", "value": "/compress", "expect": "ready"},
+    {"type": "command", "value": "/density on", "expect": "compact"},
+    {"type": "command", "value": "/details tools expanded", "expect": ": expanded"},
+    {"type": "command", "value": "/fortune daily", "expect": "🔮"},
+    {"type": "command", "value": "/image", "expect": "/image"},
+    {"type": "command", "value": "/indicator", "expect": "indicator:"},
+    {"type": "command", "value": "/logs", "expect": "Logs", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/mem", "expect": "Memory", "wait": 3.0, "after": "\x1b", "after_wait": 1.2},
+    {"type": "command", "value": "/mouse off", "expect": "tracking"},
+    {"type": "command", "value": "/paste hello", "expect": ": /paste"},
+    {"type": "command", "value": "/queue", "expect": "message(s)"},
+    {"type": "command", "value": "/redraw", "expect": "ready"},
+    {"type": "command", "value": "/reload", "expect": "reloaded .env"},
+    {"type": "command", "value": "/retry", "expect": "toretry"},
+    {"type": "command", "value": "/save", "expect": "no conversation yet"},
+    {"type": "command", "value": "/statusbar top", "expect": "status bar"},
+    {"type": "command", "value": "/steer", "expect": "usage: /steer"},
+    {"type": "command", "value": "/stop", "expect": "background processes"},
+    {"type": "confirm", "value": "/terminal-setup", "expect": "Configure terminal keybindings?", "after": "esc", "close_expect": "ready"},
+    {"type": "command", "value": "/undo", "expect": "nothing to undo"},
+    {"type": "command", "value": "/verbose", "expect": "verbose:"},
     {"type": "command", "value": "/voice status", "expect": "Mode:"},
     {"type": "command", "value": "/browser status", "expect": "browser not connected"},
     {"type": "command", "value": "/replay", "expect": "no completed spawn trees"},
@@ -580,7 +602,7 @@ def node_tui_command_expectation(command: str) -> str:
     if value.startswith("/details tools "):
         return ": expanded"
     if value == "/details" or value.startswith("/details "):
-        return "details:"
+        return ":"
     if value == "/history" or value.startswith("/history "):
         return "versation"
     if value == "/queue" or value.startswith("/queue "):
@@ -653,20 +675,22 @@ def node_tui_command_expectation(command: str) -> str:
         return "no conversation yet"
     if value == "/undo":
         return "nothing to undo"
+    if value == "/retry":
+        return "toretry"
     if value == "/redraw":
         return "ready"
     if value == "/compress" or value == "/compact":
-        return "nothing to compress"
+        return "ready"
     if value == "/steer":
         return "usage: /steer"
     if value == "/background":
-        return "/background <prompt>"
+        return "/background"
     if value.startswith("/background "):
         return "no active run"
     if value == "/image":
-        return "/image <path>"
+        return "/image"
     if value.startswith("/paste "):
-        return "usage: /paste"
+        return ": /paste"
     if value == "/status" or value.startswith("/status "):
         return "model="
     if value == "/sessions" or value in {"/session", "/switch", "/resume"}:
@@ -676,7 +700,7 @@ def node_tui_command_expectation(command: str) -> str:
     if value == "/fortune" or value == "/fortune random":
         return ""
     if value == "/fortune daily" or value == "/fortune stable" or value == "/fortune today":
-        return "Today"
+        return "🔮"
     if value == "/title":
         return "title:"
     if value.startswith("/title "):

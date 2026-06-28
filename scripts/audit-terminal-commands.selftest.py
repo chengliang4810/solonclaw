@@ -239,6 +239,28 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
             "/sessions",
             "/branch audit-branch",
             "/personality default",
+            "/background",
+            "/compress",
+            "/density on",
+            "/details tools expanded",
+            "/fortune daily",
+            "/image",
+            "/indicator",
+            "/logs",
+            "/mem",
+            "/mouse off",
+            "/paste hello",
+            "/queue",
+            "/redraw",
+            "/reload",
+            "/retry",
+            "/save",
+            "/statusbar top",
+            "/steer",
+            "/stop",
+            "/terminal-setup",
+            "/undo",
+            "/verbose",
             "/voice status",
             "/browser status",
             "/replay-diff",
@@ -270,8 +292,10 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
             "/personality default": "personality:",
             "/replay-diff": "usage: /replay-diff",
             "/copy": "nothing to copy",
-            "/paste hello": "usage: /paste",
-            "/compress": "nothing to compress",
+            "/paste hello": ": /paste",
+            "/compress": "ready",
+            "/fortune daily": "🔮",
+            "/retry": "toretry",
             "/quit": "",
         }
 
@@ -596,11 +620,12 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
     def test_build_node_tui_actions_checks_statusbar_and_verbose_output(self) -> None:
         mod = load_module()
 
-        actions = mod.build_node_tui_actions(["/fortune", "/statusbar", "/verbose"])
+        actions = mod.build_node_tui_actions(["/fortune", "/fortune daily", "/statusbar", "/verbose"])
 
         self.assertNotIn("expect", actions[0])
-        self.assertEqual(actions[1]["expect"], "status bar")
-        self.assertEqual(actions[2]["expect"], "verbose:")
+        self.assertEqual(actions[1]["expect"], "🔮")
+        self.assertEqual(actions[2]["expect"], "status bar")
+        self.assertEqual(actions[3]["expect"], "verbose:")
 
     def test_build_node_tui_actions_closes_terminal_setup_and_tools_panels(self) -> None:
         mod = load_module()
@@ -661,7 +686,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         actions = mod.build_node_tui_actions(["/redraw", "/compress", "/steer"])
 
         self.assertEqual(actions[0]["expect"], "ready")
-        self.assertEqual(actions[1]["expect"], "nothing to compress")
+        self.assertEqual(actions[1]["expect"], "ready")
         self.assertEqual(actions[2]["expect"], "usage: /steer")
 
     def test_build_node_tui_actions_checks_background_image_and_paste_usage(self) -> None:
@@ -669,9 +694,9 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
         actions = mod.build_node_tui_actions(["/background", "/image", "/paste hello"])
 
-        self.assertEqual(actions[0]["expect"], "/background <prompt>")
-        self.assertEqual(actions[1]["expect"], "/image <path>")
-        self.assertEqual(actions[2]["expect"], "usage: /paste")
+        self.assertEqual(actions[0]["expect"], "/background")
+        self.assertEqual(actions[1]["expect"], "/image")
+        self.assertEqual(actions[2]["expect"], ": /paste")
 
     def test_build_node_tui_actions_expands_setup_panel_interaction_aliases(self) -> None:
         mod = load_module()
