@@ -450,6 +450,7 @@ def node_tui_command_opens_panel(command: str) -> bool:
         or value.startswith("/config check ")
         or value == "/model --refresh"
         or value == "/model"
+        or value == "/model pick"
         or value.startswith("/model set ")
         or value.startswith("/model configure ")
         or value == "/sessions"
@@ -563,6 +564,8 @@ def node_tui_command_expectation(command: str) -> str:
         return "/paste"
     if value == "/status" or value.startswith("/status "):
         return "model="
+    if value == "/model pick":
+        return "Select provider"
     if value == "/fortune" or value.startswith("/fortune "):
         return "🔮"
     if value == "/title":

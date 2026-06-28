@@ -433,7 +433,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
     def test_build_node_tui_actions_closes_terminal_setup_and_tools_panels(self) -> None:
         mod = load_module()
 
-        actions = mod.build_node_tui_actions(["/terminal-setup", "/reload-skills", "/tools"])
+        actions = mod.build_node_tui_actions(["/terminal-setup", "/reload-skills", "/tools", "/model pick"])
 
         self.assertEqual(actions[0]["expect"], "Configure terminal keybindings?")
         self.assertEqual(actions[0]["after"], "\x1b")
@@ -444,6 +444,9 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(actions[2]["expect"], "Tools")
         self.assertEqual(actions[2]["after"], "\x1b")
         self.assertEqual(actions[2]["close_expect"], "ready")
+        self.assertEqual(actions[3]["expect"], "Select provider")
+        self.assertEqual(actions[3]["after"], "\x1b")
+        self.assertEqual(actions[3]["close_expect"], "ready")
 
     def test_build_node_tui_actions_uses_reload_mcp_confirmation_text(self) -> None:
         mod = load_module()

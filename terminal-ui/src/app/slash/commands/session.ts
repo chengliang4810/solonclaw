@@ -90,11 +90,18 @@ export const sessionCommands: SlashCommand[] = [
         return
       }
 
-      if (!arg.trim()) {
+      const trimmedArg = arg.trim()
+      const normalizedArg = trimmedArg.toLowerCase()
+
+      if (!trimmedArg || normalizedArg === 'pick' || normalizedArg.startsWith('pick ')) {
+        if (normalizedArg.startsWith('pick ')) {
+          ctx.transcript.sys('Use the model picker list, or type /model <provider:model>.')
+        }
+
         return patchOverlayState({ modelPicker: true })
       }
 
-      if (arg.trim().toLowerCase() === '--refresh') {
+      if (normalizedArg === '--refresh') {
         return ctx.gateway
           .rpc<ModelOptionsResponse>('model.options', { session_id: ctx.sid })
           .then(ctx.guarded<ModelOptionsResponse>(r => ctx.transcript.page(modelOptionsText(r), 'Models')))

@@ -176,6 +176,27 @@ describe('createSlashHandler', () => {
     })
   })
 
+  it('opens the model picker for /model pick instead of switching to a model named pick', () => {
+    patchUiState({ sid: 'sid-abc' })
+    const ctx = buildCtx()
+
+    expect(createSlashHandler(ctx)('/model pick')).toBe(true)
+
+    expect(getOverlayState().modelPicker).toBe(true)
+    expect(ctx.gateway.rpc).not.toHaveBeenCalledWith('config.set', expect.anything())
+  })
+
+  it('rejects legacy /model pick indexes in the TUI instead of writing them as model names', () => {
+    patchUiState({ sid: 'sid-abc' })
+    const ctx = buildCtx()
+
+    expect(createSlashHandler(ctx)('/model pick 1')).toBe(true)
+
+    expect(getOverlayState().modelPicker).toBe(true)
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('Use the model picker list, or type /model <provider:model>.')
+    expect(ctx.gateway.rpc).not.toHaveBeenCalledWith('config.set', expect.anything())
+  })
+
   it('opens the setup panel in-place without launching an external command', () => {
     const ctx = buildCtx()
 
