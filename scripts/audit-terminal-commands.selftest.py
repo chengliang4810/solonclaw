@@ -617,6 +617,26 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(actions[0]["keys"], "1")
         self.assertEqual(actions[0]["post_expect"], "Example Domain")
 
+    def test_build_node_tui_actions_covers_chained_file_and_network_approval(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions([
+            "/audit:direct-shell-dual-policy-allow-session-chain",
+        ])
+
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]["type"], "approval")
+        self.assertIn("curl -fsS https://example.com", actions[0]["value"])
+        self.assertIn("/tmp/solonclaw-node-tui-dual-policy.txt", actions[0]["value"])
+        self.assertEqual(actions[0]["expect"], "approval required")
+        self.assertEqual(
+            actions[0]["key_steps"],
+            [
+                {"keys": "2", "post_expect": "网络外部操作"},
+                {"keys": "2", "post_expect": "exit 0"},
+            ],
+        )
+
     def test_default_node_tui_actions_cover_direct_shell_approval_success(self) -> None:
         mod = load_module()
 

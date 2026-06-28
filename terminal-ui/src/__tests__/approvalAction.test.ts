@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { approvalAction } from '../components/prompts.js'
+import { approvalAction, approvalChoiceFromTextCommand } from '../components/prompts.js'
 
 describe('approvalAction — pure key dispatch for ApprovalPrompt', () => {
   it('maps Esc to deny — parity with global Ctrl+C cancellation', () => {
@@ -46,5 +46,36 @@ describe('approvalAction — pure key dispatch for ApprovalPrompt', () => {
   it('returns noop for unrelated keystrokes (printable letters etc.)', () => {
     expect(approvalAction('a', {}, 0)).toEqual({ kind: 'noop' })
     expect(approvalAction(' ', {}, 0)).toEqual({ kind: 'noop' })
+  })
+
+  it('maps pasted slash approval commands to the matching choice', () => {
+    expect(approvalAction('/approve', {}, 0)).toEqual({ kind: 'choose', choice: 'once' })
+    expect(approvalAction('/approve session', {}, 0)).toEqual({ kind: 'choose', choice: 'session' })
+    expect(approvalAction('/approve always', {}, 0)).toEqual({ kind: 'choose', choice: 'always' })
+    expect(approvalAction('/deny', {}, 0)).toEqual({ kind: 'choose', choice: 'deny' })
+  })
+
+  it('does not treat bracketed-paste control wrappers as numeric quick picks', () => {
+    expect(approvalAction('\u001B[200~/approve session\u001B[201~', {}, 0)).toEqual({
+      kind: 'choose',
+      choice: 'session'
+    })
+    expect(approvalAction('\u001B[200~not an approval command\u001B[201~', {}, 0)).toEqual({ kind: 'noop' })
+  })
+
+  it('buffers typed slash approval commands until Enter', () => {
+    expect(approvalAction('/', {}, 0, '')).toEqual({ kind: 'buffer', value: '/' })
+    expect(approvalAction('a', {}, 0, '/')).toEqual({ kind: 'buffer', value: '/a' })
+    expect(approvalAction('', { return: true }, 0, '/approve session')).toEqual({
+      kind: 'choose',
+      choice: 'session'
+    })
+  })
+
+  it('parses approval text commands with optional selectors', () => {
+    expect(approvalChoiceFromTextCommand('/approve appr-123 session')).toBe('session')
+    expect(approvalChoiceFromTextCommand('approve appr-123 always')).toBe('always')
+    expect(approvalChoiceFromTextCommand('/deny appr-123')).toBe('deny')
+    expect(approvalChoiceFromTextCommand('/unknown 123')).toBeNull()
   })
 })

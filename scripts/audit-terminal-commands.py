@@ -453,6 +453,15 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
                 "expect": "exit 0",
             },
         ],
+        "/audit:direct-shell-dual-policy-allow-session-chain": {
+            "type": "approval",
+            "value": "!sh -c 'curl -fsS https://example.com -o /tmp/solonclaw-node-tui-dual-policy.txt'",
+            "expect": "approval required",
+            "key_steps": [
+                {"keys": "2", "post_expect": "网络外部操作"},
+                {"keys": "2", "post_expect": "exit 0"},
+            ],
+        },
         "/setup:enter-model": {
             "type": "panel",
             "value": "/setup",
@@ -988,6 +997,39 @@ def wait_for_new_text(
     return contains_new_terminal_text(output, expected, start_len)
 
 
+def run_node_tui_key_steps(
+    master_fd: int,
+    output: bytearray,
+    command: str,
+    key_steps: object,
+    deadline: float,
+    response_state: TerminalResponseState | None = None,
+) -> str:
+    """按顺序发送多个按键步骤，用于同一命令连续触发多张审批卡片。"""
+    if not isinstance(key_steps, list):
+        return ""
+    for step in key_steps:
+        if not isinstance(step, dict):
+            continue
+        keys = key_sequence(step.get("keys", ""))
+        if not keys:
+            continue
+        before_keys_len = len(output)
+        os.write(master_fd, keys.encode("utf-8"))
+        post_expected = str(step.get("post_expect", "")).strip()
+        if post_expected and not wait_for_new_text(
+            master_fd,
+            output,
+            post_expected,
+            before_keys_len,
+            min(15.0, max(0.1, deadline - time.monotonic())),
+            response_state,
+        ):
+            return f"step_missing_post_expected:{command}:{post_expected}"
+        read_pty(master_fd, output, float(step.get("wait", 0.3)), response_state)
+    return ""
+
+
 def run_command(jar: Path, workspace_home: Path, command: str, index: int, timeout_seconds: float) -> dict[str, object]:
     out_path = workspace_home / f"audit-{index:03d}.out"
     err_path = workspace_home / f"audit-{index:03d}.err"
@@ -1255,6 +1297,17 @@ def run_node_tui_sequence(
                 response_state,
             ):
                 step_issues.append(f"step_missing_expected:{command}:{expected}")
+                break
+            key_step_issue = run_node_tui_key_steps(
+                master_fd,
+                output,
+                command,
+                action.get("key_steps", []),
+                deadline,
+                response_state,
+            )
+            if key_step_issue:
+                step_issues.append(key_step_issue)
                 break
             keys = key_sequence(action.get("keys", ""))
             if keys:

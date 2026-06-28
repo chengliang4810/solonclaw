@@ -10,6 +10,7 @@ import { TextInput } from './textInput.js'
 const OPTS = ['once', 'session', 'always', 'deny'] as const
 const LABELS = { always: 'Always allow', deny: 'Deny', once: 'Allow once', session: 'Allow this session' } as const
 const CMD_PREVIEW_LINES = 10
+type ApprovalChoice = (typeof OPTS)[number]
 
 type ApprovalKey = {
   downArrow?: boolean
@@ -19,9 +20,42 @@ type ApprovalKey = {
 }
 
 type ApprovalAction =
-  | { kind: 'choose'; choice: (typeof OPTS)[number] }
+  | { kind: 'buffer'; value: string }
+  | { kind: 'choose'; choice: ApprovalChoice }
   | { kind: 'move'; delta: -1 | 1 }
   | { kind: 'noop' }
+
+const stripBracketedPaste = (text: string) => text.replace(/\x1B\[200~/g, '').replace(/\x1B\[201~/g, '')
+
+export function approvalChoiceFromTextCommand(text: string): null | ApprovalChoice {
+  const cleaned = stripBracketedPaste(text).trim().replace(/\s+/g, ' ')
+
+  if (!cleaned) {
+    return null
+  }
+
+  const [head = '', ...rest] = cleaned.startsWith('/') ? cleaned.slice(1).split(' ') : cleaned.split(' ')
+  const command = head.toLowerCase()
+  const args = rest.map(part => part.toLowerCase())
+
+  if (command === 'deny') {
+    return 'deny'
+  }
+
+  if (command !== 'approve') {
+    return null
+  }
+
+  if (args.includes('always')) {
+    return 'always'
+  }
+
+  if (args.includes('session')) {
+    return 'session'
+  }
+
+  return 'once'
+}
 
 /**
  * Pure key-dispatch for the approval prompt — exported so the regression
@@ -34,12 +68,31 @@ type ApprovalAction =
  * for approvals).  Numbers 1..OPTS.length pick the labelled choice.  Enter
  * confirms the current selection.  ↑/↓ moves the selection within bounds.
  */
-export function approvalAction(ch: string, key: ApprovalKey, sel: number): ApprovalAction {
+export function approvalAction(ch: string, key: ApprovalKey, sel: number, bufferedText = ''): ApprovalAction {
   if (key.escape) {
     return { kind: 'choose', choice: 'deny' }
   }
 
-  const n = parseInt(ch, 10)
+  const input = stripBracketedPaste(ch)
+  const activeBuffer = bufferedText.trim() || input.startsWith('/') ? bufferedText : ''
+
+  if (key.return && activeBuffer) {
+    const choice = approvalChoiceFromTextCommand(activeBuffer)
+
+    return choice ? { kind: 'choose', choice } : { kind: 'buffer', value: '' }
+  }
+
+  if (input.length > 1) {
+    const choice = approvalChoiceFromTextCommand(input)
+
+    return choice ? { kind: 'choose', choice } : { kind: 'noop' }
+  }
+
+  if (activeBuffer || input === '/') {
+    return input ? { kind: 'buffer', value: activeBuffer + input } : { kind: 'noop' }
+  }
+
+  const n = /^[1-4]$/.test(input) ? parseInt(input, 10) : Number.NaN
 
   if (n >= 1 && n <= OPTS.length) {
     return { kind: 'choose', choice: OPTS[n - 1]! }
@@ -62,14 +115,18 @@ export function approvalAction(ch: string, key: ApprovalKey, sel: number): Appro
 
 export function ApprovalPrompt({ cols = 80, onChoice, req, t }: ApprovalPromptProps) {
   const [sel, setSel] = useState(0)
+  const [typedApproval, setTypedApproval] = useState('')
 
   useInput((ch, key) => {
-    const action = approvalAction(ch, key, sel)
+    const action = approvalAction(ch, key, sel, typedApproval)
 
     if (action.kind === 'choose') {
+      setTypedApproval('')
       onChoice(action.choice)
     } else if (action.kind === 'move') {
       setSel(s => s + action.delta)
+    } else if (action.kind === 'buffer') {
+      setTypedApproval(action.value)
     }
   })
 

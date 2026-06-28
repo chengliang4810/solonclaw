@@ -14,9 +14,10 @@ import type {
 import { asRpcResult } from '../lib/rpc.js'
 import { hasInterpolation, INTERPOLATION_RE } from '../protocol/interpolation.js'
 import { PASTE_SNIPPET_RE } from '../protocol/paste.js'
-import type { Msg } from '../types.js'
+import type { ApprovalReq, Msg } from '../types.js'
 
 import type { ComposerActions, ComposerRefs, ComposerState, PasteSnippet } from './interfaces.js'
+import { patchOverlayState } from './overlayStore.js'
 import { turnController } from './turnController.js'
 import { getUiState, patchUiState } from './uiStore.js'
 
@@ -41,6 +42,24 @@ const spliceMatches = (text: string, matches: RegExpMatchArray[], results: strin
 
 export const shellExecSettledUiState = (approvalRequired: boolean) =>
   approvalRequired ? { busy: true, status: '需要审批' } : { busy: false, status: 'ready' }
+
+export const approvalFromShellResponse = (
+  response: Pick<ShellExecResponse, 'next_approval'>,
+  fallbackSessionId?: string
+): ApprovalReq | null => {
+  const next = response.next_approval
+
+  if (!next) {
+    return null
+  }
+
+  return {
+    approvalId: next.approval_id,
+    command: next.command ?? '',
+    description: next.description ?? '安全策略需要审批',
+    sessionId: next.session_id ?? fallbackSessionId
+  }
+}
 
 export function useSubmission(opts: UseSubmissionOptions) {
   const {
@@ -175,6 +194,11 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
           if (r.approval_required) {
             approvalRequired = true
+            const nextApproval = approvalFromShellResponse(r, sid)
+
+            if (nextApproval) {
+              patchOverlayState({ approval: nextApproval })
+            }
             return
           }
 

@@ -44,6 +44,15 @@ export const getOverlayState = () => $overlayState.get()
 export const patchOverlayState = (next: Partial<OverlayState> | ((state: OverlayState) => OverlayState)) =>
   $overlayState.set(typeof next === 'function' ? next($overlayState.get()) : { ...$overlayState.get(), ...next })
 
+export const dismissApprovalIfCurrent = (approvalId: string | undefined) =>
+  patchOverlayState(state => {
+    if (!state.approval || state.approval.approvalId !== approvalId) {
+      return state
+    }
+
+    return { ...state, approval: null }
+  })
+
 /** Full reset — used by session/turn teardown and tests. */
 export const resetOverlayState = () => $overlayState.set(buildOverlayState())
 

@@ -1471,6 +1471,46 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldConsumeApprovedCommandPathTokenBeforeCheckingCommandUrls() throws Exception {
+        File workspaceParent =
+                new File("target/workspace-boundary-test/curl-policy-" + System.nanoTime())
+                        .getCanonicalFile();
+        File workspace = new File(workspaceParent, "workspace").getCanonicalFile();
+        File outside = new File(workspaceParent, "solonclaw-policy-curl-output.txt").getCanonicalFile();
+        FileUtil.mkdir(workspace);
+        AppConfig config = new AppConfig();
+        config.getWorkspace().setDir(workspace.getAbsolutePath());
+        SecurityPolicyService policy = new FixedDnsSecurityPolicyService(config, "93.184.216.34");
+        String command = "curl -fsS https://example.com -o " + outside.getAbsolutePath();
+
+        SecurityPolicyService.FileVerdict fileVerdict = policy.checkCommandPaths(command);
+        assertFileApprovalRequired(fileVerdict, "workspace_outside_write");
+
+        SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
+
+        SecurityPolicyService.FileVerdict replayVerdict = policy.checkCommandPaths(command);
+        assertThat(replayVerdict.isAllowed())
+                .as("initial path=%s replay path=%s", fileVerdict.getPath(), replayVerdict.getPath())
+                .isTrue();
+        assertUrlApprovalRequired(policy.checkCommandUrls(command), "network_external_operation");
+    }
+
+    @Test
+    void shouldConsumeApprovedCommandUrlTokenAfterPreviewingCommandUrls() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
+        String command = "curl -fsS https://example.com -o result.txt";
+
+        SecurityPolicyService.UrlVerdict previewVerdict =
+                SecurityPolicyService.previewPolicyApprovals(() -> policy.checkCommandUrls(command));
+        assertUrlApprovalRequired(previewVerdict, "network_external_operation");
+
+        SecurityPolicyService.approveUrlPolicyForCurrentThread(previewVerdict.getApprovalToken());
+
+        assertThat(policy.checkCommandUrls(command).isAllowed()).isTrue();
+    }
+
+    @Test
     void shouldDenyCommandReadsFromEnvrcCredentialFile() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 

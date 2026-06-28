@@ -1041,8 +1041,9 @@ public class SecurityPolicyService {
         }
         String normalizedCode = normalizePathScanText(code);
         if (!normalizedCode.equals(code)) {
-            FileVerdict normalizedVerdict = checkCommandPathsCandidate(normalizedCode);
-            if (!normalizedVerdict.allowed) {
+            FileVerdict normalizedVerdict =
+                    previewPolicyApprovals(() -> checkCommandPathsCandidate(normalizedCode));
+            if (!normalizedVerdict.allowed && !normalizedVerdict.isApprovalRequired()) {
                 return normalizedVerdict;
             }
         }
@@ -1077,7 +1078,8 @@ public class SecurityPolicyService {
      * @return 返回命令Paths Candidate结果。
      */
     private FileVerdict checkCommandPathsCandidate(String code) {
-        FileVerdict compactOutputVerdict = checkCompactOutputOptionCredentialPaths(code);
+        List<String> approvedOutputPaths = new ArrayList<String>();
+        FileVerdict compactOutputVerdict = checkCompactOutputOptionCredentialPaths(code, approvedOutputPaths);
         if (!compactOutputVerdict.allowed) {
             return compactOutputVerdict;
         }
@@ -1121,6 +1123,9 @@ public class SecurityPolicyService {
         while (matcher.find()) {
             String path = matcher.group(1);
             if (isUrlLikePathToken(path)) {
+                continue;
+            }
+            if (approvedOutputPaths.contains(policyApprovalTarget(path))) {
                 continue;
             }
             FileVerdict verdict =
@@ -1561,7 +1566,8 @@ public class SecurityPolicyService {
      * @param command 待执行或解析的命令文本。
      * @return 返回Compact输出Option凭据Paths结果。
      */
-    private FileVerdict checkCompactOutputOptionCredentialPaths(String command) {
+    private FileVerdict checkCompactOutputOptionCredentialPaths(
+            String command, List<String> approvedOutputPaths) {
         List<String> tokens = shellLikeTokens(command, 200);
         for (int i = 0; i < tokens.size(); i++) {
             String token = tokens.get(i);
@@ -1576,8 +1582,16 @@ public class SecurityPolicyService {
             if (!verdict.allowed) {
                 return verdict;
             }
+            if (approvedOutputPaths != null) {
+                approvedOutputPaths.add(policyApprovalTarget(path));
+            }
         }
         return FileVerdict.allow();
+    }
+
+    /** 生成当前命令检查内部去重用的文件策略目标。 */
+    private String policyApprovalTarget(String path) {
+        return SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path)).trim();
     }
 
     /**
@@ -1679,6 +1693,7 @@ public class SecurityPolicyService {
         List<String> urls = new ArrayList<String>();
         extractCommandUrlishFromText(command, urls);
         List<String> normalizedUrls = new ArrayList<String>();
+        List<String> approvedExternalUrls = new ArrayList<String>();
         for (String url : urls) {
             String value = cleanUrlToken(url);
             if (isBareNumericCommandUrlCandidate(value)) {
@@ -1686,12 +1701,26 @@ public class SecurityPolicyService {
             }
             normalizedUrls.add(value);
             UrlVerdict verdict = checkUrlSafety(value, null);
+            if (verdict.isApprovalRequired()
+                    && "network_external_operation".equals(verdict.getPolicyKey())
+                    && isUrlPolicyApproved(verdict.getApprovalToken())) {
+                approvedExternalUrls.add(normalizeExternalApprovalUrl(value));
+                continue;
+            }
             if (!verdict.allowed) {
                 return verdict;
             }
         }
         for (String value : normalizedUrls) {
-            UrlVerdict externalVerdict = checkExternalUrlApproval(normalizeExternalApprovalUrl(value));
+            String approvalUrl = normalizeExternalApprovalUrl(value);
+            if (approvedExternalUrls.contains(approvalUrl)) {
+                continue;
+            }
+            if (isUrlPolicyApprovedWithoutConsuming(
+                    policyApprovalToken("network_external_operation", "tool://command_url"))) {
+                continue;
+            }
+            UrlVerdict externalVerdict = checkExternalUrlApproval(approvalUrl);
             if (externalVerdict.allowed && isSchemelessPublicNetworkTarget(value)) {
                 externalVerdict = checkExternalNetworkOperation("command_url");
             }
@@ -2193,6 +2222,16 @@ public class SecurityPolicyService {
     }
 
     /**
+     * 判断 URL 策略键是否已放行但不消费 token，用于命令内同策略重复候选去重。
+     *
+     * @param policyKey URL 策略键。
+     * @return 如果已放行返回 true。
+     */
+    private boolean isUrlPolicyApprovedWithoutConsuming(String policyKey) {
+        return isPolicyApprovedWithoutConsuming(APPROVED_URL_POLICY_KEYS, policyKey);
+    }
+
+    /**
      * 判断线程本地策略审批是否命中。
      *
      * @param holder 线程本地集合。
@@ -2219,6 +2258,21 @@ public class SecurityPolicyService {
             holder.remove();
         }
         return approved;
+    }
+
+    /**
+     * 判断线程本地策略审批是否命中但不消费，避免同一命令预检阶段误删后续执行需要的 token。
+     *
+     * @param holder 线程本地集合。
+     * @param policyKey 策略键。
+     * @return 如果命中返回 true。
+     */
+    private boolean isPolicyApprovedWithoutConsuming(ThreadLocal<Collection<String>> holder, String policyKey) {
+        if (StrUtil.isBlank(policyKey)) {
+            return false;
+        }
+        Collection<String> approvals = holder.get();
+        return approvals != null && approvals.contains(policyKey.trim());
     }
 
     /**

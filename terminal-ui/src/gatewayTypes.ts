@@ -309,9 +309,16 @@ export interface ClarifyRespondResponse {
 }
 
 export interface ApprovalRespondResponse {
+  approval_required?: boolean
   code?: number
   denied?: boolean
   direct_shell?: boolean
+  next_approval?: {
+    approval_id?: string
+    command?: string
+    description?: string
+    session_id?: string
+  }
   ok?: boolean
   stderr?: string
   stdout?: string
@@ -331,6 +338,12 @@ export interface SecretRespondResponse {
 export interface ShellExecResponse {
   approval_required?: boolean
   code: number
+  next_approval?: {
+    approval_id?: string
+    command?: string
+    description?: string
+    session_id?: string
+  }
   stderr?: string
   stdout?: string
 }

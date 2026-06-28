@@ -761,7 +761,10 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         String output = StrUtil.nullToEmpty(terminal.get("output").getString());
         String error = StrUtil.nullToEmpty(terminal.get("error").getString());
         if (isDirectShellApprovalRequired(exitCode, error) && storeDirectShellApproval(sessionId, normalized, error)) {
+            SqliteAgentSession agentSession =
+                    new SqliteAgentSession(sessionRepository.findById(sessionId), sessionRepository);
             result.put("approval_required", Boolean.TRUE);
+            result.put("next_approval", directShellApprovalPayload(sessionId, agentSession));
             result.put("code", Integer.valueOf(-1));
             result.put("stdout", "");
             result.put("stderr", error);
@@ -786,13 +789,17 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return;
         }
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
-        SecurityPolicyService.FileVerdict fileVerdict = securityPolicyService.checkCommandPaths(command);
+        SecurityPolicyService.FileVerdict fileVerdict =
+                SecurityPolicyService.previewPolicyApprovals(
+                        () -> securityPolicyService.checkCommandPaths(command));
         if (fileVerdict.isApprovalRequired()
                 && isStoredDirectShellPolicyApproved(
                         agentSession, directShellPolicyPatternFromPolicyKey(fileVerdict.getPolicyKey()), command)) {
             SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
         }
-        SecurityPolicyService.UrlVerdict urlVerdict = securityPolicyService.checkCommandUrls(command);
+        SecurityPolicyService.UrlVerdict urlVerdict =
+                SecurityPolicyService.previewPolicyApprovals(
+                        () -> securityPolicyService.checkCommandUrls(command));
         if (urlVerdict.isApprovalRequired()
                 && isStoredDirectShellPolicyApproved(
                         agentSession, directShellPolicyPatternFromPolicyKey(urlVerdict.getPolicyKey()), command)) {
@@ -940,31 +947,58 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             result.put("warning", "approval_not_found");
             return result;
         }
-        grantDirectShellPolicyApproval(command);
+        grantDirectShellPendingPolicyApproval(pending, command);
+        applyStoredDirectShellPolicyApproval(sessionId, command);
         DangerousCommandApprovalService.grantCurrentThreadApproval(ToolNameConstants.TERMINAL, command);
         ONode terminal = runShellTerminal(command);
+        int exitCode = terminal.get("exit_code").getInt();
+        String output = StrUtil.nullToEmpty(terminal.get("output").getString());
+        String error = StrUtil.nullToEmpty(terminal.get("error").getString());
+        if (isDirectShellApprovalRequired(exitCode, error) && storeDirectShellApproval(sessionId, command, error)) {
+            SqliteAgentSession refreshedAgentSession =
+                    new SqliteAgentSession(sessionRepository.findById(sessionId), sessionRepository);
+            result.put("ok", Boolean.TRUE);
+            result.put("direct_shell", Boolean.TRUE);
+            result.put("approval_required", Boolean.TRUE);
+            result.put("next_approval", directShellApprovalPayload(sessionId, refreshedAgentSession));
+            result.put("code", Integer.valueOf(-1));
+            result.put("stdout", "");
+            result.put("stderr", error);
+            return result;
+        }
         refreshDirectShellApprovalState(agentSession);
         result.put("ok", Boolean.TRUE);
         result.put("direct_shell", Boolean.TRUE);
-        result.put("code", Integer.valueOf(terminal.get("exit_code").getInt()));
-        result.put("stdout", StrUtil.nullToEmpty(terminal.get("output").getString()));
-        result.put("stderr", StrUtil.nullToEmpty(terminal.get("error").getString()));
+        result.put("code", Integer.valueOf(exitCode));
+        result.put("stdout", output);
+        result.put("stderr", error);
         return result;
     }
 
-    /** 为当前线程放行直接 shell 命令刚刚通过的文件或 URL 策略。 */
-    private void grantDirectShellPolicyApproval(String command) {
-        if (securityPolicyService == null || StrUtil.isBlank(command)) {
+    /** 为刚通过的 direct shell pending 审批写入当前线程 token，覆盖 once 审批场景。 */
+    private void grantDirectShellPendingPolicyApproval(
+            DangerousCommandApprovalService.PendingApproval pending, String command) {
+        if (securityPolicyService == null || pending == null || StrUtil.isBlank(command)) {
             return;
         }
-        SecurityPolicyService.FileVerdict fileVerdict = securityPolicyService.checkCommandPaths(command);
-        if (fileVerdict.isApprovalRequired()) {
-            SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
-            return;
-        }
-        SecurityPolicyService.UrlVerdict urlVerdict = securityPolicyService.checkCommandUrls(command);
-        if (urlVerdict.isApprovalRequired()) {
-            SecurityPolicyService.approveUrlPolicyForCurrentThread(urlVerdict.getApprovalToken());
+        for (String patternKey : pending.effectivePatternKeys()) {
+            if ("policy:workspace_outside_write".equals(patternKey)) {
+                SecurityPolicyService.FileVerdict fileVerdict =
+                        SecurityPolicyService.previewPolicyApprovals(
+                                () -> securityPolicyService.checkCommandPaths(command));
+                if (fileVerdict.isApprovalRequired()) {
+                    SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
+                }
+                continue;
+            }
+            if ("policy:network_external_operation".equals(patternKey)) {
+                SecurityPolicyService.UrlVerdict urlVerdict =
+                        SecurityPolicyService.previewPolicyApprovals(
+                                () -> securityPolicyService.checkCommandUrls(command));
+                if (urlVerdict.isApprovalRequired()) {
+                    SecurityPolicyService.approveUrlPolicyForCurrentThread(urlVerdict.getApprovalToken());
+                }
+            }
         }
     }
 
@@ -1041,6 +1075,20 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             agentSession.pending(true, "dangerous_command_approval");
         }
         agentSession.updateSnapshot();
+    }
+
+    /** 构造 approval.respond 结果中的下一张 direct shell 审批卡片，避免前端依赖事件顺序。 */
+    private Map<String, Object> directShellApprovalPayload(String sessionId, SqliteAgentSession agentSession) {
+        DangerousCommandApprovalService.PendingApproval pending = directShellPendingApproval(agentSession, "");
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        if (pending == null) {
+            return payload;
+        }
+        payload.put("approval_id", DangerousCommandApprovalService.approvalSelector(pending));
+        payload.put("command", pending.getCommand());
+        payload.put("description", pending.getDescription());
+        payload.put("session_id", sessionId);
+        return payload;
     }
 
     /** 把 JSON 数组节点转换为字符串列表，忽略空项。 */

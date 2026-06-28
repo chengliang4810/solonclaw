@@ -833,6 +833,130 @@ class TerminalUiApprovalRespondTest {
         }
     }
 
+    @Test
+    void directShellApprovalRequeuesNextSecurityPolicyWhenReplayIsBlockedAgain() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        new com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService(env.appConfig),
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-shell-policy-chain");
+        File outsideFile =
+                new File(
+                        new File(env.appConfig.getRuntime().getHome()).getParentFile(),
+                        "solonclaw-tui-shell-policy-chain.txt");
+        if (outsideFile.exists()) {
+            assertThat(outsideFile.delete()).isTrue();
+        }
+        try {
+            String escapedPath = outsideFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
+            String command = "curl -fsS https://example.com -o " + escapedPath;
+
+            RecordingSocket socket = new RecordingSocket();
+            listener.onOpen(socket);
+            listener.onMessage(
+                    socket,
+                    "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-chain\",\"method\":\"shell.exec\","
+                            + "\"params\":{\"session_id\":\""
+                            + session.getSessionId()
+                            + "\",\"command\":\""
+                            + command
+                            + "\"}}");
+            SessionRecord pendingSession = env.sessionRepository.findById(session.getSessionId());
+            SqliteAgentSession pendingAgentSession =
+                    new SqliteAgentSession(pendingSession, env.sessionRepository);
+            DangerousCommandApprovalService.PendingApproval pending =
+                    env.dangerousCommandApprovalService.listPendingApprovals(pendingAgentSession).get(0);
+            String selector = DangerousCommandApprovalService.approvalSelector(pending);
+
+            listener.onMessage(
+                    socket,
+                    "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-chain-approve\",\"method\":\"approval.respond\","
+                            + "\"params\":{\"session_id\":\""
+                            + session.getSessionId()
+                            + "\",\"approval_id\":\""
+                            + selector
+                            + "\",\"choice\":\"session\"}}");
+
+            SessionRecord refreshed = env.sessionRepository.findById(session.getSessionId());
+            SqliteAgentSession refreshedAgentSession =
+                    new SqliteAgentSession(refreshed, env.sessionRepository);
+            assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-shell-policy-chain-approve\"")
+                    && text.contains("\"ok\":true")
+                    && text.contains("\"direct_shell\":true")
+                    && text.contains("\"approval_required\":true")
+                    && text.contains("\"code\":-1")
+                    && text.contains("\"next_approval\"")
+                    && text.contains("网络外部操作需要审批"));
+            assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"approval.request\"")
+                    && text.contains("\"session_id\":\"" + session.getSessionId() + "\"")
+                    && text.contains("\"command\":\"" + command + "\""));
+            List<DangerousCommandApprovalService.PendingApproval> remainingApprovals =
+                    env.dangerousCommandApprovalService.listPendingApprovals(refreshedAgentSession);
+            assertThat(remainingApprovals)
+                    .extracting(item -> item.effectivePatternKeys() + "::" + item.getCommand())
+                    .anyMatch(value -> value.contains("policy:network_external_operation")
+                            && value.endsWith("::" + command));
+            assertThat(outsideFile).doesNotExist();
+
+            DangerousCommandApprovalService.PendingApproval nextPending =
+                    env.dangerousCommandApprovalService.listPendingApprovals(refreshedAgentSession).get(0);
+            String nextSelector = DangerousCommandApprovalService.approvalSelector(nextPending);
+            int frameCountBeforeSecondApproval = socket.sentText().size();
+            listener.onMessage(
+                    socket,
+                    "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-chain-approve-next\",\"method\":\"approval.respond\","
+                            + "\"params\":{\"session_id\":\""
+                            + session.getSessionId()
+                            + "\",\"approval_id\":\""
+                            + nextSelector
+                            + "\",\"choice\":\"session\"}}");
+
+            SessionRecord completed = env.sessionRepository.findById(session.getSessionId());
+            SqliteAgentSession completedAgentSession =
+                    new SqliteAgentSession(completed, env.sessionRepository);
+            assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-shell-policy-chain-approve-next\"")
+                    && text.contains("\"ok\":true")
+                    && text.contains("\"direct_shell\":true")
+                    && text.contains("\"code\":0"));
+            assertThat(socket.sentText().subList(frameCountBeforeSecondApproval, socket.sentText().size()))
+                    .noneMatch(text -> text.contains("\"type\":\"approval.request\""));
+            assertThat(env.dangerousCommandApprovalService.listPendingApprovals(completedAgentSession))
+                    .isEmpty();
+            assertThat(outsideFile).exists();
+        } finally {
+            outsideFile.delete();
+        }
+    }
+
     /** 等待后台 prompt.submit 线程把预期帧写入测试 socket。 */
     private static void waitForSocketText(RecordingSocket socket, String expected, long timeoutMs)
             throws Exception {

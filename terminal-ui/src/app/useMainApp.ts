@@ -36,7 +36,7 @@ import { createSlashHandler } from './createSlashHandler.js'
 import { planGatewayRecovery } from './gatewayRecovery.js'
 import { getInputSelection } from './inputSelectionStore.js'
 import { type GatewayRpc, type TranscriptRow } from './interfaces.js'
-import { $overlayState, patchOverlayState } from './overlayStore.js'
+import { $overlayState, dismissApprovalIfCurrent, patchOverlayState } from './overlayStore.js'
 import { isPositiveRpcAck } from './rpcAck.js'
 import { scrollWithSelectionBy } from './scroll.js'
 import { isRegisteredSlashCommand } from './slash/registry.js'
@@ -48,7 +48,7 @@ import { useConfigSync } from './useConfigSync.js'
 import { useInputHandlers } from './useInputHandlers.js'
 import { useLongRunToolCharms } from './useLongRunToolCharms.js'
 import { useSessionLifecycle } from './useSessionLifecycle.js'
-import { useSubmission } from './useSubmission.js'
+import { approvalFromShellResponse, useSubmission } from './useSubmission.js'
 
 const GOOD_VIBES_RE = /\b(good bot|thanks|thank you|thx|ty|ily|love you)\b/i
 const BRACKET_PASTE_ON = '\x1b[?2004h'
@@ -884,12 +884,23 @@ export function useMainApp(gw: GatewayClient) {
   )
 
   const answerApproval = useCallback(
-    (choice: string) =>
-      respondWith<ApprovalRespondResponse>('approval.respond', buildApprovalRespondParams(overlay.approval, choice, ui.sid), result => {
-        patchOverlayState({ approval: null })
+    (choice: string) => {
+      const approvalId = overlay.approval?.approvalId
+
+      return respondWith<ApprovalRespondResponse>('approval.respond', buildApprovalRespondParams(overlay.approval, choice, ui.sid), result => {
+        dismissApprovalIfCurrent(approvalId)
         patchTurnState({ outcome: choice === 'deny' || result.denied ? 'denied' : `approved (${choice})` })
         if (choice === 'deny' || result.denied) {
           patchUiState({ busy: false, status: 'ready' })
+          return
+        }
+        if (result.direct_shell && result.approval_required) {
+          const nextApproval = approvalFromShellResponse(result, ui.sid ?? undefined)
+
+          if (nextApproval) {
+            patchOverlayState({ approval: nextApproval })
+          }
+          patchUiState({ busy: true, status: 'waiting for approval…' })
           return
         }
         if (result.direct_shell) {
@@ -907,7 +918,8 @@ export function useMainApp(gw: GatewayClient) {
           return
         }
         patchUiState({ status: 'running…' })
-      }),
+      })
+    },
     [overlay.approval?.approvalId, overlay.approval?.sessionId, respondWith, sys, ui.sid]
   )
 
