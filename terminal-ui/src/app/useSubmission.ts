@@ -391,7 +391,12 @@ export function useSubmission(opts: UseSubmissionOptions) {
     (value: string) => {
       if (composerState.completions.length) {
         const row = composerState.completions[composerState.compIdx]
-        const next = completionToApplyOnSubmit(value, row?.text, composerState.compReplace)
+        const next = completionToApplyOnSubmit(
+          value,
+          row?.text,
+          composerState.compReplace,
+          composerState.completions.map(item => item.text)
+        )
 
         if (next !== null) {
           return composerActions.setInput(next)

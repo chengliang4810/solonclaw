@@ -156,6 +156,12 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
         self.assertEqual("".join(ch for _, ch in schedule), "/setup\rq")
 
+    def test_direct_pty_command_entry_uses_bracketed_paste(self) -> None:
+        script = SCRIPT.read_text(encoding="utf-8")
+
+        self.assertIn('os.write(master_fd, b"\\x1b[200~")', script)
+        self.assertIn('os.write(master_fd, b"\\x1b[201~")', script)
+
     def test_node_tui_transcript_requires_expected_overlay_text(self) -> None:
         mod = load_module()
 
@@ -347,9 +353,13 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         actions = mod.build_node_tui_actions(["/help", "/mem", "/status", "/browser status"])
 
         self.assertEqual(actions[0]["expect"], "Hotkeys")
-        self.assertNotIn("after", actions[0])
+        self.assertEqual(actions[0]["after"], "\x1b")
+        self.assertGreaterEqual(float(actions[0]["after_wait"]), 1.0)
+        self.assertNotIn("close_expect", actions[0])
         self.assertEqual(actions[1]["expect"], "Memory")
-        self.assertNotIn("after", actions[1])
+        self.assertEqual(actions[1]["after"], "\x1b")
+        self.assertGreaterEqual(float(actions[1]["after_wait"]), 1.0)
+        self.assertNotIn("close_expect", actions[1])
         self.assertEqual(actions[2]["expect"], "model=")
         self.assertTrue(actions[2]["after"])
         self.assertEqual(actions[2]["close_expect"], "ready")
@@ -419,6 +429,13 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertNotIn("expect", actions[0])
         self.assertEqual(actions[1]["expect"], "status bar")
         self.assertEqual(actions[2]["expect"], "verbose:")
+
+    def test_build_node_tui_actions_checks_tasks_status_signal(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/tasks status"])
+
+        self.assertEqual(actions[0]["expect"], "delegation")
 
     def test_build_node_tui_actions_checks_save_and_undo_empty_states(self) -> None:
         mod = load_module()

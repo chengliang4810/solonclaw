@@ -19,9 +19,18 @@ export const applyCompletion = (value: string, rowText: string, compReplace: num
 export const completionToApplyOnSubmit = (
   value: string,
   rowText: string | undefined,
-  compReplace: number
+  compReplace: number,
+  candidateTexts: readonly string[] = []
 ): string | null => {
   if (!rowText) {
+    return null
+  }
+  const normalizedValue = value.trimEnd()
+  if (
+    compReplace === 0
+    && value.startsWith('/')
+    && candidateTexts.some(text => text.trimEnd() === normalizedValue)
+  ) {
     return null
   }
   if (compReplace === 0 && value.startsWith('/') && rowText.startsWith('/') && !rowText.startsWith(value.trim())) {
@@ -29,7 +38,6 @@ export const completionToApplyOnSubmit = (
   }
 
   const next = applyCompletion(value, rowText, compReplace)
-  const normalizedValue = value.trimEnd()
   const normalizedNext = next.trimEnd()
 
   return next !== value && normalizedNext !== normalizedValue ? next : null

@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 
 import { TYPING_IDLE_MS } from '../config/timing.js'
 import { buildApprovalRespondParams } from '../domain/approvalRespond.js'
+import { applyCompletion } from '../domain/slash.js'
 import type {
   ApprovalRespondResponse,
   SecretRespondResponse,
@@ -540,7 +541,7 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
       const row = cState.completions[cState.compIdx]
 
       if (row?.text) {
-        cActions.setInput(cState.input.slice(0, cState.compReplace) + row.text)
+        cActions.setInput(applyCompletion(cState.input, row.text, cState.compReplace))
       }
 
       return

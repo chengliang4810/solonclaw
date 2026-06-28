@@ -399,7 +399,8 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
             if node_tui_command_opens_panel(value):
                 action["after"] = "\x1b"
                 action["after_wait"] = 1.2
-                action["close_expect"] = "ready"
+                if node_tui_command_requires_close_ready(value):
+                    action["close_expect"] = "ready"
         else:
             action.setdefault("type", "command")
             action.setdefault("value", value)
@@ -435,6 +436,21 @@ def node_tui_command_opens_panel(command: str) -> bool:
         or value == "/deny list"
         or value == "/deny status"
         or value == "/tasks"
+        or value == "/help"
+        or value.startswith("/help ")
+        or value == "/mem"
+        or value.startswith("/mem ")
+    )
+
+
+def node_tui_command_requires_close_ready(command: str) -> bool:
+    """判断关闭显式 Node TUI 命令面板后是否应等待新的 ready 文本。"""
+    value = command.strip().lower()
+    return not (
+        value == "/help"
+        or value.startswith("/help ")
+        or value == "/mem"
+        or value.startswith("/mem ")
     )
 
 
@@ -672,7 +688,7 @@ def write_text_like_user(
 ) -> None:
     for char in text:
         os.write(master_fd, char.encode("utf-8"))
-        read_pty(master_fd, output, 0.035, response_state)
+        read_pty(master_fd, output, 0.06, response_state)
 
 
 def write_command_like_user(
@@ -681,10 +697,15 @@ def write_command_like_user(
     command: str,
     response_state: TerminalResponseState | None = None,
 ) -> None:
-    write_text_like_user(master_fd, output, command, response_state)
-    read_pty(master_fd, output, 0.12, response_state)
+    # Bracketed paste avoids losing characters while the completion menu repaints.
+    os.write(master_fd, b"\x1b[200~")
+    read_pty(master_fd, output, 0.05, response_state)
+    os.write(master_fd, command.encode("utf-8"))
+    read_pty(master_fd, output, 0.08, response_state)
+    os.write(master_fd, b"\x1b[201~")
+    read_pty(master_fd, output, 0.18, response_state)
     os.write(master_fd, b"\r")
-    read_pty(master_fd, output, 0.12, response_state)
+    read_pty(master_fd, output, 0.18, response_state)
 
 
 def wait_for_text(
@@ -1049,7 +1070,7 @@ def run_node_tui_sequence(
                         step_issues.append(f"step_missing_close_expected:{command}:{close_expected}")
                         break
                 else:
-                    read_pty(master_fd, output, 0.5, response_state)
+                    read_pty(master_fd, output, float(action.get("after_wait", 0.5)), response_state)
             # 读取一小段尾部输出，避免下一步命令紧贴上一步 repaint。
             read_pty(master_fd, output, 0.8, response_state)
             if len(output) == before_len:

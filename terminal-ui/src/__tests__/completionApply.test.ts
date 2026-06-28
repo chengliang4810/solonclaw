@@ -40,4 +40,8 @@ describe('completionToApplyOnSubmit', () => {
     expect(completionToApplyOnSubmit('/config check', '/commands', 0)).toBeNull()
     expect(completionToApplyOnSubmit('/skin', '/sessions', 0)).toBeNull()
   })
+
+  it('submits an exact slash command even when a longer command is selected', () => {
+    expect(completionToApplyOnSubmit('/status', '/statusbar', 0, ['/status', '/statusbar'])).toBeNull()
+  })
 })
