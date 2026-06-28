@@ -190,8 +190,32 @@ public class LlmProviderSupportTest {
                 .isEqualTo("https://api.anthropic.com/v1/messages");
         assertThat(
                         LlmProviderSupport.buildApiUrl(
-                                "https://api.anthropic.com/v1/messages", "anthropic"))
+                        "https://api.anthropic.com/v1/messages", "anthropic"))
                 .isEqualTo("https://api.anthropic.com/v1/messages");
+    }
+
+    @Test
+    void shouldResolveTokenPlanCompatibleChatAndModelUrls() {
+        assertThat(
+                        LlmProviderSupport.buildApiUrl(
+                                "https://token-plan-cn.xiaomimimo.com", "openai"))
+                .isEqualTo("https://token-plan-cn.xiaomimimo.com/v1/chat/completions");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "openai",
+                                "https://token-plan-cn.xiaomimimo.com",
+                                "openai"))
+                .isEqualTo("https://token-plan-cn.xiaomimimo.com/v1/models");
+        assertThat(
+                        LlmProviderSupport.buildApiUrl(
+                                "https://token-plan-cn.xiaomimimo.com/anthropic", "anthropic"))
+                .isEqualTo("https://token-plan-cn.xiaomimimo.com/anthropic/v1/messages");
+        assertThat(
+                        LlmProviderSupport.buildModelListUrl(
+                                "anthropic",
+                                "https://token-plan-cn.xiaomimimo.com/anthropic",
+                                "anthropic"))
+                .isEqualTo("https://token-plan-cn.xiaomimimo.com/anthropic/v1/models");
     }
 
     @Test

@@ -829,6 +829,64 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldValidateAnthropicProviderWhenModelListEndpointIsUnavailable() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/anthropic/v1/models",
+                    exchange -> {
+                        byte[] bytes =
+                                "<html><body>Not Found</body></html>"
+                                        .getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(404, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.createContext(
+                    "/anthropic/v1/messages",
+                    exchange -> {
+                        assertThat(exchange.getRequestMethod()).isEqualTo("POST");
+                        assertThat(exchange.getRequestHeaders().getFirst("x-api-key"))
+                                .isEqualTo("sk-provider-anthropic-secret");
+                        assertThat(exchange.getRequestHeaders().getFirst("anthropic-version"))
+                                .isEqualTo("2023-06-01");
+                        String body =
+                                new String(
+                                        exchange.getRequestBody().readAllBytes(),
+                                        StandardCharsets.UTF_8);
+                        assertThat(body).contains("\"model\":\"mimo-v2.5\"");
+                        byte[] bytes =
+                                "{\"id\":\"msg_test\",\"content\":[{\"type\":\"text\",\"text\":\"ok\"}]}"
+                                        .getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(200, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.start();
+            DashboardProviderService providerService = localProviderService(new AppConfig());
+            Map<String, Object> body =
+                    providerProbe(
+                            "http://127.0.0.1:"
+                                    + server.getAddress().getPort()
+                                    + "/anthropic",
+                            "anthropic");
+            body.put("apiKey", "sk-provider-anthropic-secret");
+            body.put("model", "mimo-v2.5");
+
+            Map<String, Object> result = providerService.validateProvider(body);
+
+            assertThat(result.get("ok")).isEqualTo(Boolean.TRUE);
+            assertThat(result.get("reachable")).isEqualTo(Boolean.TRUE);
+            assertThat(result.get("status")).isEqualTo("valid");
+            assertThat(String.valueOf(result.get("url")))
+                    .endsWith("/anthropic/v1/messages");
+            assertThat(result.get("models")).asList().containsExactly("mimo-v2.5");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void shouldRedactProviderRuntimeValidationErrors() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {

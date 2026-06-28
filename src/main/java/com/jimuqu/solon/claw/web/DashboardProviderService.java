@@ -546,6 +546,9 @@ public class DashboardProviderService {
                     result.put("models", parseModels(body, probe.dialect));
                     return result;
                 }
+                if (shouldFallbackToAnthropicMessageProbe(status, probe)) {
+                    return validateAnthropicMessagesProbe(probe);
+                }
                 if (status == 429) {
                     return providerValidationResult(
                             true, true, "rate_limited", "HTTP 429 " + trimForError(body), url);
@@ -582,6 +585,7 @@ public class DashboardProviderService {
         String baseUrl = readString(data, "baseUrl");
         String apiKey = readString(data, "apiKey");
         String dialect = LlmProviderSupport.normalizeDialect(readString(data, "dialect"));
+        String model = readFirstString(data, "model", "defaultModel");
         AppConfig.ProviderConfig provider =
                 StrUtil.isBlank(providerKey) ? null : appConfig.getProviders().get(providerKey);
         if (provider != null) {
@@ -590,7 +594,9 @@ public class DashboardProviderService {
             dialect =
                     LlmProviderSupport.normalizeDialect(
                             StrUtil.blankToDefault(dialect, provider.getDialect()));
+            model = StrUtil.blankToDefault(model, provider.getDefaultModel());
         }
+        model = StrUtil.blankToDefault(model, appConfig.getModel().getDefault());
         if (StrUtil.isBlank(baseUrl)) {
             throw new IllegalArgumentException("baseUrl 不能为空。");
         }
@@ -598,7 +604,70 @@ public class DashboardProviderService {
         if (StrUtil.isBlank(dialect) || !LlmProviderSupport.isSupportedDialect(dialect)) {
             throw new IllegalArgumentException("不支持的 dialect：" + dialect);
         }
-        return new ProviderProbe(providerKey, baseUrl, apiKey, dialect);
+        return new ProviderProbe(providerKey, baseUrl, apiKey, dialect, model);
+    }
+
+    /**
+     * 判断是否需要用 Anthropic messages 端点兜底校验。部分兼容服务不提供 /models，但 /messages 可正常工作。
+     *
+     * @param status 模型列表请求状态码。
+     * @param probe provider 探针参数。
+     * @return 需要兜底校验时返回 true。
+     */
+    private boolean shouldFallbackToAnthropicMessageProbe(int status, ProviderProbe probe) {
+        return probe != null
+                && LlmConstants.PROVIDER_ANTHROPIC.equals(probe.dialect)
+                && (status == 404 || status == 405)
+                && StrUtil.isNotBlank(probe.model);
+    }
+
+    /**
+     * 通过 Anthropic messages 端点做最小连通性校验，避免把缺少模型列表接口误判为 provider 不可用。
+     *
+     * @param probe provider 探针参数。
+     * @return provider 校验结果。
+     */
+    private Map<String, Object> validateAnthropicMessagesProbe(ProviderProbe probe) {
+        String url = LlmProviderSupport.buildApiUrl(probe.baseUrl, probe.dialect);
+        assertSafeProviderUrl(url, probe.dialect);
+        try {
+            HttpResponse response =
+                    executeAnthropicMessageProbeRequest(url, probe.apiKey, probe.model);
+            try {
+                int status = response.getStatus();
+                String body = response.body();
+                if (status >= 200 && status < 300) {
+                    Map<String, Object> result =
+                            providerValidationResult(
+                                    true,
+                                    true,
+                                    "valid",
+                                    "Provider reachable; model list endpoint unavailable.",
+                                    url);
+                    result.put("models", Collections.singletonList(probe.model));
+                    return result;
+                }
+                if (status == 429) {
+                    return providerValidationResult(
+                            true, true, "rate_limited", "HTTP 429 " + trimForError(body), url);
+                }
+                if (status == 401 || status == 403) {
+                    return providerValidationResult(
+                            false,
+                            true,
+                            "rejected",
+                            "HTTP " + status + " " + trimForError(body),
+                            url);
+                }
+                return providerValidationResult(
+                        false, true, "error", "HTTP " + status + " " + trimForError(body), url);
+            } finally {
+                response.close();
+            }
+        } catch (RuntimeException e) {
+            return providerValidationResult(
+                    false, false, "unreachable", validationRuntimeMessage(e), url);
+        }
     }
 
     /**
@@ -740,6 +809,41 @@ public class DashboardProviderService {
     protected HttpResponse executeModelListRequest(
             String url, String apiKey, String dialect, int redirectCount) {
         return executeModelListRequest(url, url, apiKey, dialect, redirectCount);
+    }
+
+    /**
+     * 执行 Anthropic messages 最小校验请求，仅用于 provider 可达性诊断，不进入正式聊天链路。
+     *
+     * @param url 待校验或访问的 URL。
+     * @param apiKey api 键。
+     * @param model 模型名称。
+     * @return 返回 HTTP 响应。
+     */
+    protected HttpResponse executeAnthropicMessageProbeRequest(
+            String url, String apiKey, String model) {
+        assertSafeProviderUrl(url, LlmConstants.PROVIDER_ANTHROPIC);
+        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+        payload.put("model", StrUtil.nullToEmpty(model).trim());
+        payload.put("max_tokens", Integer.valueOf(1));
+        List<Map<String, String>> messages = new ArrayList<Map<String, String>>();
+        Map<String, String> message = new LinkedHashMap<String, String>();
+        message.put("role", "user");
+        message.put("content", "ping");
+        messages.add(message);
+        payload.put("messages", messages);
+
+        HttpRequest request =
+                HttpRequest.post(url)
+                        .timeout(15000)
+                        .setFollowRedirects(false)
+                        .header("content-type", "application/json")
+                        .body(ONode.serialize(payload));
+        if (StrUtil.isNotBlank(apiKey)) {
+            request.header("Authorization", "Bearer " + apiKey);
+            request.header("x-api-key", apiKey);
+            request.header("anthropic-version", "2023-06-01");
+        }
+        return request.execute();
     }
 
     /**
@@ -1206,6 +1310,26 @@ public class DashboardProviderService {
     }
 
     /**
+     * 按顺序读取多个候选字符串键，用于兼容同一请求体中的前端字段命名差异。
+     *
+     * @param source 来源参数。
+     * @param keys 候选键。
+     * @return 第一项非空字符串。
+     */
+    private String readFirstString(Map<String, Object> source, String... keys) {
+        if (keys == null) {
+            return "";
+        }
+        for (String key : keys) {
+            String value = readString(source, key);
+            if (StrUtil.isNotBlank(value)) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    /**
      * 解析Models。
      *
      * @param body 请求体或消息正文内容。
@@ -1375,6 +1499,9 @@ public class DashboardProviderService {
         /** 记录提供方Probe中的协议方言。 */
         private final String dialect;
 
+        /** 记录提供方Probe中的模型名称，用于不提供模型列表接口的协议校验。 */
+        private final String model;
+
         /**
          * 创建提供方Probe实例，并注入运行所需依赖。
          *
@@ -1382,12 +1509,15 @@ public class DashboardProviderService {
          * @param baseUrl 待校验或访问的地址参数。
          * @param apiKey api键标识或键值。
          * @param dialect dialect 参数。
+         * @param model 模型名称。
          */
-        private ProviderProbe(String providerKey, String baseUrl, String apiKey, String dialect) {
+        private ProviderProbe(
+                String providerKey, String baseUrl, String apiKey, String dialect, String model) {
             this.providerKey = providerKey;
             this.baseUrl = baseUrl;
             this.apiKey = apiKey;
             this.dialect = dialect;
+            this.model = model;
         }
     }
 }

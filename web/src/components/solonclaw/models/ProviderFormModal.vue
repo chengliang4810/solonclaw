@@ -133,6 +133,8 @@ async function fetchModelList() {
       baseUrl: formData.value.baseUrl.trim(),
       apiKey: formData.value.apiKey.trim(),
       dialect: formData.value.dialect,
+      model: formData.value.defaultModel.trim(),
+      defaultModel: formData.value.defaultModel.trim(),
     })
     modelOptions.value = (res.models || []).map(model => ({ label: model, value: model }))
     if (!modelOptions.value.length) {

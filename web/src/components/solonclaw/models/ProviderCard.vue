@@ -77,6 +77,8 @@ async function handleValidate() {
       providerKey: props.provider.providerKey || props.provider.provider,
       baseUrl: props.provider.base_url,
       dialect: props.provider.dialect,
+      model: props.provider.models?.[0] || '',
+      defaultModel: props.provider.models?.[0] || '',
     })
     if (validationResult.value.ok) {
       message.success(t('models.providerValid'))
