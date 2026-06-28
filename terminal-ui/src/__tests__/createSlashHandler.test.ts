@@ -184,6 +184,23 @@ describe('createSlashHandler', () => {
     })
   })
 
+  it('shows model option errors without leaking backend exception class names', async () => {
+    patchUiState({ sid: 'sid-abc' })
+
+    const rpc = vi.fn(() =>
+      Promise.reject(new Error('IllegalStateException: LLM apiUrl 被安全策略阻断：阻断内网/私有地址：127.0.0.1 -> 127.0.0.1'))
+    )
+
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    expect(createSlashHandler(ctx)('/model --refresh')).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('error: LLM apiUrl 被安全策略阻断：阻断内网/私有地址：127.0.0.1 -> 127.0.0.1')
+    })
+    expect(ctx.transcript.sys).not.toHaveBeenCalledWith(expect.stringContaining('IllegalStateException'))
+  })
+
   it('opens the model picker for /model pick instead of switching to a model named pick', () => {
     patchUiState({ sid: 'sid-abc' })
     const ctx = buildCtx()

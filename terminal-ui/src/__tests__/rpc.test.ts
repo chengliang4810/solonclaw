@@ -20,6 +20,11 @@ describe('rpcErrorMessage', () => {
     expect(rpcErrorMessage(new Error('boom'))).toBe('boom')
   })
 
+  it('removes backend exception class prefixes from user-facing errors', () => {
+    expect(rpcErrorMessage(new Error('IllegalStateException: LLM apiUrl 被安全策略阻断'))).toBe('LLM apiUrl 被安全策略阻断')
+    expect(rpcErrorMessage('java.lang.IllegalArgumentException: 参数错误')).toBe('参数错误')
+  })
+
   it('falls back for unknown errors', () => {
     expect(rpcErrorMessage('broken')).toBe('broken')
     expect(rpcErrorMessage({ code: 500 })).toBe('request failed')

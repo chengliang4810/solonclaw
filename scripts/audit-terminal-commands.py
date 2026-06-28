@@ -123,7 +123,7 @@ DEFAULT_COMMANDS = [
     "prompt-size hello world",
 ]
 
-AUDIT_MODEL_BASE_URL = "http://127.0.0.1:9/v1"
+AUDIT_MODEL_BASE_URL = "https://audit.invalid/v1"
 
 WRITE_COMMANDS = [
     f"model set --provider local-openai --base-url {AUDIT_MODEL_BASE_URL} "
@@ -478,6 +478,8 @@ def node_tui_command_opens_panel(command: str) -> bool:
         or value == "/approve status"
         or value == "/deny list"
         or value == "/deny status"
+        or value == "/security"
+        or value.startswith("/security ")
         or value == "/tasks"
         or value == "/help"
         or value.startswith("/help ")
@@ -555,6 +557,20 @@ def node_tui_command_expectation(command: str) -> str:
         return "checkpoints"
     if value in {"/approve list", "/approve status", "/deny list", "/deny status"}:
         return "pending=none"
+    if value == "/security" or value == "/security audit":
+        return "安全审计摘要"
+    if value == "/security status":
+        return "安全策略状态摘要"
+    if value == "/security policy":
+        return "Tirith"
+    if value == "/security urls":
+        return "URL：privateAllowed"
+    if value == "/security approvals":
+        return "云存储规则"
+    if value == "/security slash-confirm":
+        return "pendingQueue"
+    if value.startswith("/security "):
+        return "Security"
     if value == "/tasks status":
         return "delegation"
     if value == "/replay list":

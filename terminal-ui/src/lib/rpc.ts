@@ -45,5 +45,15 @@ export const asCommandDispatch = (value: unknown): CommandDispatchResponse | nul
   return null
 }
 
+const stripBackendExceptionPrefix = (message: string) =>
+  message
+    .trim()
+    .replace(/^(?:[a-z_$][\w$]*\.)*[A-Z][\w$]*(?:Exception|Error):\s+/u, '')
+    .trim()
+
 export const rpcErrorMessage = (err: unknown) =>
-  err instanceof Error && err.message ? err.message : typeof err === 'string' && err.trim() ? err : 'request failed'
+  err instanceof Error && err.message
+    ? stripBackendExceptionPrefix(err.message)
+    : typeof err === 'string' && err.trim()
+      ? stripBackendExceptionPrefix(err)
+      : 'request failed'

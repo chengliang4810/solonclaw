@@ -247,8 +247,8 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
     def test_node_tui_audit_model_url_stays_loopback(self) -> None:
         mod = load_module()
 
-        self.assertTrue(mod.AUDIT_MODEL_BASE_URL.startswith("http://127.0.0.1:"))
-        self.assertNotIn("api.example.com", mod.AUDIT_MODEL_BASE_URL)
+        self.assertTrue(mod.AUDIT_MODEL_BASE_URL.startswith("https://"))
+        self.assertIn(".invalid/", mod.AUDIT_MODEL_BASE_URL)
 
     def test_wait_for_new_text_ignores_historical_output(self) -> None:
         mod = load_module()
@@ -419,6 +419,81 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
                     "type": "command",
                     "value": "/deny status",
                     "expect": "pending=none",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+            ],
+        )
+
+    def test_build_node_tui_actions_closes_security_pages(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions([
+            "/security",
+            "/security status",
+            "/security policy",
+            "/security audit",
+            "/security urls",
+            "/security approvals",
+            "/security slash-confirm",
+        ])
+
+        self.assertEqual(
+            actions,
+            [
+                {
+                    "type": "command",
+                    "value": "/security",
+                    "expect": "安全审计摘要",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/security status",
+                    "expect": "安全策略状态摘要",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/security policy",
+                    "expect": "Tirith",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/security audit",
+                    "expect": "安全审计摘要",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/security urls",
+                    "expect": "URL：privateAllowed",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/security approvals",
+                    "expect": "云存储规则",
+                    "after": "\x1b",
+                    "after_wait": 1.2,
+                    "close_expect": "ready",
+                },
+                {
+                    "type": "command",
+                    "value": "/security slash-confirm",
+                    "expect": "pendingQueue",
                     "after": "\x1b",
                     "after_wait": 1.2,
                     "close_expect": "ready",
