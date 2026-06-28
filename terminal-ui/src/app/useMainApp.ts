@@ -11,6 +11,7 @@ import { composeTabTitle, fmtCwdBranch, shortCwd } from '../domain/paths.js'
 import { buildApprovalRespondParams } from '../domain/approvalRespond.js'
 import { type GatewayClient } from '../gatewayClient.js'
 import type {
+  ApprovalRespondResponse,
   ClarifyRespondResponse,
   ClipboardPasteResponse,
   ConfigSetResponse,
@@ -76,6 +77,8 @@ const statusColorOf = (status: string, t: { error: string; muted: string; ok: st
 
   return t.muted
 }
+
+const directShellOutput = (result: ApprovalRespondResponse) => [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
 
 export { isPositiveRpcAck } from './rpcAck.js'
 
@@ -868,11 +871,11 @@ export function useMainApp(gw: GatewayClient) {
   slashRef.current = slash
 
   const respondWith = useCallback(
-    (method: string, params: Record<string, unknown>, done: () => void) =>
+    <T extends Record<string, any> = Record<string, any>>(method: string, params: Record<string, unknown>, done: (result: T) => void) =>
       rpc(method, params).then(r => {
         maybeWarn(r)
         if (isPositiveRpcAck(r)) {
-          done()
+          done(r as T)
         }
       }),
     [maybeWarn, rpc]
@@ -880,12 +883,30 @@ export function useMainApp(gw: GatewayClient) {
 
   const answerApproval = useCallback(
     (choice: string) =>
-      respondWith('approval.respond', buildApprovalRespondParams(overlay.approval, choice, ui.sid), () => {
+      respondWith<ApprovalRespondResponse>('approval.respond', buildApprovalRespondParams(overlay.approval, choice, ui.sid), result => {
         patchOverlayState({ approval: null })
-        patchTurnState({ outcome: choice === 'deny' ? 'denied' : `approved (${choice})` })
+        patchTurnState({ outcome: choice === 'deny' || result.denied ? 'denied' : `approved (${choice})` })
+        if (choice === 'deny' || result.denied) {
+          patchUiState({ busy: false, status: 'ready' })
+          return
+        }
+        if (result.direct_shell) {
+          const out = directShellOutput(result)
+
+          if (out) {
+            sys(out)
+          }
+
+          if (result.code !== 0 || !out) {
+            sys(`exit ${result.code ?? -1}`)
+          }
+
+          patchUiState({ busy: false, status: 'ready' })
+          return
+        }
         patchUiState({ status: 'running…' })
       }),
-    [overlay.approval?.approvalId, overlay.approval?.sessionId, respondWith, ui.sid]
+    [overlay.approval?.approvalId, overlay.approval?.sessionId, respondWith, sys, ui.sid]
   )
 
   const answerSudo = useCallback(

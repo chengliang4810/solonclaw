@@ -497,6 +497,147 @@ class TerminalUiApprovalRespondTest {
         assertThat(socket.sentText()).noneMatch(text -> text.contains("echo:继续执行"));
     }
 
+    @Test
+    void shellExecPushesApprovalRequestForDirectSecurityPolicyBlock() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        new com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService(env.appConfig),
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-shell-policy");
+        String outsidePath =
+                new File(env.appConfig.getRuntime().getHome()).getParentFile().getAbsolutePath()
+                        + File.separator
+                        + "solonclaw-tui-shell-policy.txt";
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onOpen(socket);
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy\",\"method\":\"shell.exec\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"command\":\"printf audit > "
+                        + outsidePath.replace("\\", "\\\\").replace("\"", "\\\"")
+                        + "\"}}");
+
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-shell-policy\"")
+                && text.contains("\"approval_required\":true"));
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"approval.request\"")
+                && text.contains("\"session_id\":\"" + session.getSessionId() + "\"")
+                && text.contains("工作区外写入需要审批"));
+    }
+
+    @Test
+    void approvalRespondRunsDirectShellCommandAfterSecurityPolicyApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        new com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService(env.appConfig),
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-shell-policy-run");
+        File outsideFile =
+                new File(
+                        new File(env.appConfig.getRuntime().getHome()).getParentFile(),
+                        "solonclaw-tui-shell-policy-run.txt");
+        if (outsideFile.exists()) {
+            assertThat(outsideFile.delete()).isTrue();
+        }
+        String escapedPath = outsideFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
+
+        RecordingSocket socket = new RecordingSocket();
+        listener.onOpen(socket);
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-run\",\"method\":\"shell.exec\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"command\":\"printf audit > "
+                        + escapedPath
+                        + "\"}}");
+        SessionRecord pendingSession = env.sessionRepository.findById(session.getSessionId());
+        SqliteAgentSession pendingAgentSession =
+                new SqliteAgentSession(pendingSession, env.sessionRepository);
+        DangerousCommandApprovalService.PendingApproval pending =
+                env.dangerousCommandApprovalService.listPendingApprovals(pendingAgentSession).get(0);
+        String selector = DangerousCommandApprovalService.approvalSelector(pending);
+
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-approve\",\"method\":\"approval.respond\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"approval_id\":\""
+                        + selector
+                        + "\",\"choice\":\"session\"}}");
+
+        SessionRecord refreshed = env.sessionRepository.findById(session.getSessionId());
+        SqliteAgentSession refreshedAgentSession =
+                new SqliteAgentSession(refreshed, env.sessionRepository);
+        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-shell-policy-approve\"")
+                && text.contains("\"ok\":true")
+                && text.contains("\"direct_shell\":true")
+                && text.contains("\"code\":0"));
+        assertThat(outsideFile).exists().hasContent("audit");
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(refreshedAgentSession)).isEmpty();
+    }
+
     /** 等待后台 prompt.submit 线程把预期帧写入测试 socket。 */
     private static void waitForSocketText(RecordingSocket socket, String expected, long timeoutMs)
             throws Exception {

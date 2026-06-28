@@ -335,6 +335,20 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
     """把命令行传入的 Node TUI 命令转换成逐键审计动作。"""
     actions: list[dict[str, object]] = []
     setup_panel_aliases = {
+        "/audit:direct-shell-outside-write-deny": {
+            "type": "approval",
+            "value": "!sh -c 'printf audit > /tmp/solonclaw-node-tui-approval-audit.txt'",
+            "expect": "approval required",
+            "keys": "4",
+            "post_expect": "ready",
+        },
+        "/audit:direct-shell-outside-write-allow-once": {
+            "type": "approval",
+            "value": "!sh -c 'printf audit > /tmp/solonclaw-node-tui-approval-audit.txt'",
+            "expect": "approval required",
+            "keys": "1",
+            "post_expect": "exit 0",
+        },
         "/setup:enter-model": {
             "type": "panel",
             "value": "/setup",

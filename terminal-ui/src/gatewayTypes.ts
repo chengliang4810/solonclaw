@@ -309,7 +309,13 @@ export interface ClarifyRespondResponse {
 }
 
 export interface ApprovalRespondResponse {
+  code?: number
+  denied?: boolean
+  direct_shell?: boolean
   ok?: boolean
+  stderr?: string
+  stdout?: string
+  warning?: string
 }
 
 export interface SudoRespondResponse {
@@ -323,6 +329,7 @@ export interface SecretRespondResponse {
 // ── Shell / clipboard / input ────────────────────────────────────────
 
 export interface ShellExecResponse {
+  approval_required?: boolean
   code: number
   stderr?: string
   stdout?: string

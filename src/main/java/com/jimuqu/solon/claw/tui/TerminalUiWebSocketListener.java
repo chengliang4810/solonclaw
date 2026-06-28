@@ -20,8 +20,10 @@ import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
@@ -45,6 +47,10 @@ import org.noear.solon.net.websocket.WebSocketListener;
 
 /** 终端 UI WebSocket 协议入口，负责把前端消息转交给本地终端运行时。 */
 public class TerminalUiWebSocketListener implements WebSocketListener {
+    /** 直接 shell 命令触发审批时，在会话快照里记录原始命令，审批后用于恢复执行。 */
+    private static final String DIRECT_SHELL_APPROVAL_COMMAND =
+            "_terminal_ui_direct_shell_approval_command_";
+
     /** 后台执行 prompt.submit，避免模型请求占住 WebSocket worker 导致其他 RPC 超时。 */
     private final ExecutorService promptExecutor;
     /** 复用本地终端运行时执行会话命令与用户输入。 */
@@ -59,6 +65,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     private final SolonClawShellSkill shellSkill;
     /** 危险命令审批服务，用于把 TUI 审批弹层选择写回真实审批流。 */
     private final DangerousCommandApprovalService approvalService;
+    /** 安全策略服务，用于直接 shell 命令审批恢复时生成精确的一次性策略 token。 */
+    private final SecurityPolicyService securityPolicyService;
     /** 复用 Dashboard 访问令牌策略保护远程 TUI WebSocket 控制面。 */
     private final DashboardAuthService dashboardAuthService;
     /** 当前 WebSocket 连接对应的审批观察器，断开连接时需要注销避免泄露。 */
@@ -144,6 +152,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         this.promptExecutor = Executors.newCachedThreadPool(new TerminalUiThreadFactory());
         this.sessionRepository = sessionRepository;
         this.approvalService = approvalService;
+        this.securityPolicyService = securityPolicyService;
         this.dashboardAuthService = appConfig == null ? null : new DashboardAuthService(appConfig);
         this.rpcService =
                 new TerminalUiRpcService(
@@ -287,6 +296,16 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             }
             if ("approval.respond".equals(method)) {
                 sendRpcResult(socket, id, approvalRespond(socket, params));
+                return;
+            }
+            if ("shell.exec".equals(method)) {
+                sendRpcResult(
+                        socket,
+                        id,
+                        shellExec(
+                                socket,
+                                params.get("session_id").getString(),
+                                params.get("command").getString()));
                 return;
             }
             Object result = rpcResult(method, params);
@@ -448,9 +467,6 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                     stringMap(params.get("values")),
                     params.get("session_id").getString());
         }
-        if ("shell.exec".equals(method)) {
-            return shellExec(params.get("command").getString());
-        }
         if ("prompt.background".equals(method)) {
             return rpcService.promptBackground(
                     params.get("session_id").getString(), params.get("text").getString());
@@ -568,7 +584,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         return runSlash(sessionId, command, ConversationEventSink.noop());
     }
 
-    /** 将终端 UI 审批弹层选择转换为真实后端 /approve 或 /deny 流程。 */
+    /** 将终端 UI 审批弹层选择转换为真实后端审批流程，兼容直接 shell 命令恢复执行。 */
     private Map<String, Object> approvalRespond(WebSocket socket, ONode params) throws Exception {
         String sessionId = params.get("session_id").getString();
         String choice =
@@ -586,6 +602,9 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return result;
         }
         bindRuntimeSource(sessionId);
+        if (hasDirectShellApproval(sessionId)) {
+            return respondDirectShellApproval(socket, sessionId, choice, params);
+        }
         String command;
         if ("deny".equals(choice)) {
             command = "deny";
@@ -724,8 +743,10 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /** 执行 TUI 的感叹号 shell 命令并返回原前端需要的 stdout/stderr/code。 */
-    private Map<String, Object> shellExec(String command) throws Exception {
+    private Map<String, Object> shellExec(WebSocket socket, String sessionId, String command) throws Exception {
         String normalized = StrUtil.nullToEmpty(command).trim();
+        bindApprovalObserver(socket, sessionId);
+        bindRuntimeSource(sessionId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (StrUtil.isBlank(normalized)) {
             result.put("code", Integer.valueOf(0));
@@ -734,20 +755,183 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return result;
         }
 
-        ONode terminal = ONode.ofJson(
-                shellSkill.terminal(
-                        normalized,
-                        Boolean.FALSE,
-                        Integer.valueOf(30),
-                        System.getProperty("user.dir"),
-                        Boolean.FALSE));
+        ONode terminal = runShellTerminal(normalized);
         int exitCode = terminal.get("exit_code").getInt();
         String output = StrUtil.nullToEmpty(terminal.get("output").getString());
         String error = StrUtil.nullToEmpty(terminal.get("error").getString());
+        if (isDirectShellApprovalRequired(exitCode, error) && storeDirectShellApproval(sessionId, normalized, error)) {
+            result.put("approval_required", Boolean.TRUE);
+            result.put("code", Integer.valueOf(-1));
+            result.put("stdout", "");
+            result.put("stderr", error);
+            return result;
+        }
         result.put("code", Integer.valueOf(exitCode));
         result.put("stdout", output);
         result.put("stderr", error);
         return result;
+    }
+
+    /** 直接执行前台 shell 命令，集中保持终端工具参数与原有 shell.exec 行为一致。 */
+    private ONode runShellTerminal(String command) {
+        return ONode.ofJson(
+                shellSkill.terminal(
+                        command,
+                        Boolean.FALSE,
+                        Integer.valueOf(30),
+                        System.getProperty("user.dir"),
+                        Boolean.FALSE));
+    }
+
+    /** 判断直接 shell 命令是否被可审批安全策略拦截。 */
+    private boolean isDirectShellApprovalRequired(int exitCode, String error) {
+        return exitCode == -1 && StrUtil.nullToEmpty(error).startsWith("APPROVAL_REQUIRED:");
+    }
+
+    /** 将直接 shell 命令登记为当前 TUI 会话的一条待审批记录，并触发 approval.request。 */
+    private boolean storeDirectShellApproval(String sessionId, String command, String error) throws Exception {
+        if (approvalService == null || sessionRepository == null || StrUtil.hasBlank(sessionId, command)) {
+            return false;
+        }
+        com.jimuqu.solon.claw.core.model.SessionRecord session = sessionRepository.findById(sessionId);
+        if (session == null) {
+            return false;
+        }
+        String patternKey = directShellPolicyPattern(error);
+        if (StrUtil.isBlank(patternKey)) {
+            return false;
+        }
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+        agentSession.getContext().put(DIRECT_SHELL_APPROVAL_COMMAND, command);
+        approvalService.storePendingApproval(
+                agentSession,
+                ToolNameConstants.TERMINAL,
+                patternKey,
+                directShellPolicyDescription(patternKey, error),
+                command);
+        return true;
+    }
+
+    /** 提取直接 shell 错误对应的安全策略键，只处理可授权策略，硬阻断继续按错误展示。 */
+    private String directShellPolicyPattern(String error) {
+        String text = StrUtil.nullToEmpty(error);
+        if (text.contains("工作区外写入需要审批")) {
+            return "policy:workspace_outside_write";
+        }
+        if (text.contains("网络外部操作需要审批")) {
+            return "policy:network_external_operation";
+        }
+        return "";
+    }
+
+    /** 生成直接 shell 审批说明，保持用户看到的策略原因明确。 */
+    private String directShellPolicyDescription(String patternKey, String error) {
+        if ("policy:workspace_outside_write".equals(patternKey)) {
+            return "工作区外写入需要审批";
+        }
+        if ("policy:network_external_operation".equals(patternKey)) {
+            return "网络外部操作需要审批";
+        }
+        return StrUtil.blankToDefault(error, "安全策略需要审批");
+    }
+
+    /** 判断当前会话是否存在直接 shell 待审批记录。 */
+    private boolean hasDirectShellApproval(String sessionId) {
+        if (sessionRepository == null || StrUtil.isBlank(sessionId)) {
+            return false;
+        }
+        try {
+            com.jimuqu.solon.claw.core.model.SessionRecord session = sessionRepository.findById(sessionId);
+            if (session == null) {
+                return false;
+            }
+            return StrUtil.isNotBlank(directShellCommand(session));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** 处理直接 shell 审批响应，审批通过后重新执行原命令并返回结果。 */
+    private Map<String, Object> respondDirectShellApproval(WebSocket socket, String sessionId, String choice, ONode params)
+            throws Exception {
+        com.jimuqu.solon.claw.core.model.SessionRecord session = sessionRepository.findById(sessionId);
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+        String command = directShellCommand(agentSession);
+        String selector = StrUtil.nullToEmpty(params.get("approval_id").getString()).trim();
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        if (StrUtil.isBlank(command)) {
+            result.put("ok", Boolean.FALSE);
+            result.put("warning", "missing_direct_shell_command");
+            return result;
+        }
+        if ("deny".equals(choice)) {
+            approvalService.reject(agentSession, selector, "terminal-ui");
+            clearDirectShellApproval(agentSession);
+            result.put("ok", Boolean.TRUE);
+            result.put("denied", Boolean.TRUE);
+            return result;
+        }
+
+        DangerousCommandApprovalService.ApprovalScope scope =
+                "always".equals(choice)
+                        ? DangerousCommandApprovalService.ApprovalScope.ALWAYS
+                        : "session".equals(choice)
+                                ? DangerousCommandApprovalService.ApprovalScope.SESSION
+                                : DangerousCommandApprovalService.ApprovalScope.ONCE;
+        if (!approvalService.approve(agentSession, selector, scope, "terminal-ui")) {
+            result.put("ok", Boolean.FALSE);
+            result.put("warning", "approval_not_found");
+            return result;
+        }
+        grantDirectShellPolicyApproval(command);
+        DangerousCommandApprovalService.grantCurrentThreadApproval(ToolNameConstants.TERMINAL, command);
+        ONode terminal = runShellTerminal(command);
+        clearDirectShellApproval(agentSession);
+        result.put("ok", Boolean.TRUE);
+        result.put("direct_shell", Boolean.TRUE);
+        result.put("code", Integer.valueOf(terminal.get("exit_code").getInt()));
+        result.put("stdout", StrUtil.nullToEmpty(terminal.get("output").getString()));
+        result.put("stderr", StrUtil.nullToEmpty(terminal.get("error").getString()));
+        return result;
+    }
+
+    /** 为当前线程放行直接 shell 命令刚刚通过的文件或 URL 策略。 */
+    private void grantDirectShellPolicyApproval(String command) {
+        if (securityPolicyService == null || StrUtil.isBlank(command)) {
+            return;
+        }
+        SecurityPolicyService.FileVerdict fileVerdict = securityPolicyService.checkCommandPaths(command);
+        if (fileVerdict.isApprovalRequired()) {
+            SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
+            return;
+        }
+        SecurityPolicyService.UrlVerdict urlVerdict = securityPolicyService.checkCommandUrls(command);
+        if (urlVerdict.isApprovalRequired()) {
+            SecurityPolicyService.approveUrlPolicyForCurrentThread(urlVerdict.getApprovalToken());
+        }
+    }
+
+    /** 读取会话中的直接 shell 待审批命令。 */
+    private String directShellCommand(com.jimuqu.solon.claw.core.model.SessionRecord session) {
+        try {
+            SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+            return directShellCommand(agentSession);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    /** 从会话上下文读取直接 shell 待审批命令，兼容上下文值的 Object 存储形态。 */
+    private String directShellCommand(SqliteAgentSession agentSession) {
+        Object value = agentSession.getContext().get(DIRECT_SHELL_APPROVAL_COMMAND);
+        return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    /** 清理直接 shell 审批标记并持久化会话快照。 */
+    private void clearDirectShellApproval(SqliteAgentSession agentSession) {
+        agentSession.getContext().remove(DIRECT_SHELL_APPROVAL_COMMAND);
+        agentSession.pending(false, null);
+        agentSession.updateSnapshot();
     }
 
     /** 把 JSON 数组节点转换为字符串列表，忽略空项。 */

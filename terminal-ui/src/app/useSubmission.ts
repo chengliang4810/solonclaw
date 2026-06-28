@@ -151,15 +151,25 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
   const shellExec = useCallback(
     (cmd: string) => {
+      const sid = getUiState().sid
+
+      if (!sid) {
+        return sys('session not ready yet')
+      }
+
       appendMessage({ role: 'user', text: `!${cmd}` })
       patchUiState({ busy: true, status: '运行中…' })
 
-      gw.request<ShellExecResponse>('shell.exec', { command: cmd })
+      gw.request<ShellExecResponse>('shell.exec', { command: cmd, session_id: sid })
         .then(raw => {
           const r = asRpcResult<ShellExecResponse>(raw)
 
           if (!r) {
             return sys('error: invalid response: shell.exec')
+          }
+
+          if (r.approval_required) {
+            return
           }
 
           const out = [r.stdout, r.stderr].filter(Boolean).join('\n').trim()
@@ -180,13 +190,20 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
   const interpolate = useCallback(
     (text: string, then: (result: string) => void) => {
+      const sid = getUiState().sid
+
+      if (!sid) {
+        then(text)
+        return
+      }
+
       patchUiState({ status: 'interpolating…' })
       const matches = [...text.matchAll(new RegExp(INTERPOLATION_RE.source, 'g'))]
 
       Promise.all(
         matches.map(m =>
           gw
-            .request<ShellExecResponse>('shell.exec', { command: m[1]! })
+            .request<ShellExecResponse>('shell.exec', { command: m[1]!, session_id: sid })
             .then(raw => {
               const r = asRpcResult<ShellExecResponse>(raw)
 
