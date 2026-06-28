@@ -514,6 +514,8 @@ def node_tui_command_expectation(command: str) -> str:
         return "Hotkeys"
     if value.startswith("/model set ") or value.startswith("/model configure "):
         return "模型配置已写入"
+    if value.startswith("/model ") and value not in {"/model pick", "/model --refresh"}:
+        return "model →"
     if value == "/mouse" or value.startswith("/mouse "):
         return "tracking"
     if value == "/density" or value.startswith("/density "):

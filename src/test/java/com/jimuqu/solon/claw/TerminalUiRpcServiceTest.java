@@ -179,6 +179,37 @@ class TerminalUiRpcServiceTest {
     }
 
     @Test
+    void modelConfigSetAcceptsProviderColonModelSyntax() throws Exception {
+        AppConfig config = testConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setName("OpenAI Compatible");
+        provider.setBaseUrl("https://example.test/v1");
+        provider.setApiKey("sk-test-secret");
+        provider.setDefaultModel("mimo-v2.5");
+        provider.setDialect("openai");
+        config.getProviders().put("openai", provider);
+        config.getModel().setProviderKey("openai");
+        TerminalUiRpcService service = new TerminalUiRpcService(config);
+
+        Map<String, Object> response =
+                service.configSet("model", "openai:mimo-v2.5-pro", "session-model");
+
+        assertThat(response)
+                .containsEntry("value", "mimo-v2.5-pro")
+                .containsEntry("provider", "openai")
+                .containsEntry("session_id", "session-model");
+        assertThat(service.configValue("model"))
+                .containsEntry("value", "mimo-v2.5-pro")
+                .containsEntry("provider", "openai");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> renderedConfig =
+                (Map<String, Object>) service.fullConfig().get("config");
+        assertThat(renderedConfig)
+                .containsEntry("model", "mimo-v2.5-pro")
+                .containsEntry("provider", "openai");
+    }
+
+    @Test
     void sessionCompressPassesFocusTopicToCompressionService() throws Exception {
         AppConfig config = testConfig();
         SqliteDatabase database = new SqliteDatabase(config);

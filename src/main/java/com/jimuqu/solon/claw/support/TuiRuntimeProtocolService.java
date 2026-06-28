@@ -541,6 +541,11 @@ public class TuiRuntimeProtocolService {
         selection.providerKey = activeProviderKeyFromRuntime();
         if (!tokens.isEmpty()) {
             selection.model = tokens.get(0);
+            int providerDelimiter = selection.model.indexOf(':');
+            if (providerDelimiter > 0 && providerDelimiter < selection.model.length() - 1) {
+                selection.providerKey = selection.model.substring(0, providerDelimiter).trim();
+                selection.model = selection.model.substring(providerDelimiter + 1).trim();
+            }
         }
         for (int i = 1; i < tokens.size(); i++) {
             String token = tokens.get(i);

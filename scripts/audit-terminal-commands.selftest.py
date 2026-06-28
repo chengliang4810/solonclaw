@@ -353,6 +353,13 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertTrue(actions[1]["after"])
         self.assertEqual(actions[1]["close_expect"], "ready")
 
+    def test_node_tui_model_switch_uses_stable_success_text(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/model openai:mimo-v2.5-pro"])
+
+        self.assertEqual(actions[0]["expect"], "model →")
+
     def test_build_node_tui_actions_distinguishes_panels_from_pagers(self) -> None:
         mod = load_module()
 
