@@ -962,6 +962,21 @@ public class TerminalSetupCommands {
         if (SecretValueGuard.isPlaceholderSecret(request.apiKey)) {
             return "apiKey 不能使用示例或占位符密钥。";
         }
+        if (request.activate) {
+            RuntimeSetupService.ModelSetupRequest setupRequest =
+                    new RuntimeSetupService.ModelSetupRequest();
+            setupRequest.setProviderKey(request.providerKey);
+            setupRequest.setProviderName(request.providerName);
+            setupRequest.setBaseUrl(request.baseUrl);
+            setupRequest.setApiKey(request.apiKey);
+            setupRequest.setModel(request.model);
+            setupRequest.setDialect(dialect);
+            RuntimeSetupService.SetupResult result = runtimeSetupService().configureModel(setupRequest);
+            if (!result.isSuccess()) {
+                return "认证凭据写入失败：" + result.getMessage();
+            }
+            return authWriteSuccess(request, dialect);
+        }
         RuntimeConfigResolver resolver = configResolver();
         String prefix = "providers." + request.providerKey + ".";
         resolver.setFileValue(prefix + "name", request.providerName);
@@ -969,10 +984,43 @@ public class TerminalSetupCommands {
         resolver.setFileValue(prefix + "apiKey", request.apiKey);
         resolver.setFileValue(prefix + "defaultModel", request.model);
         resolver.setFileValue(prefix + "dialect", dialect);
-        if (request.activate) {
-            resolver.setFileValue("model.providerKey", request.providerKey);
-            resolver.setFileValue("model.default", request.model);
+        applyAuthProviderToAppConfig(request, dialect);
+        return authWriteSuccess(request, dialect);
+    }
+
+    /**
+     * 同步非激活认证写入到当前进程 provider 列表，方便后续 fallback 和 auth status 立即使用。
+     *
+     * @param request 已校验的认证写入请求。
+     * @param dialect 规范化协议方言。
+     */
+    private void applyAuthProviderToAppConfig(AuthSetRequest request, String dialect) {
+        if (appConfig == null || request == null || StrUtil.isBlank(request.providerKey)) {
+            return;
         }
+        if (appConfig.getProviders() == null) {
+            appConfig.setProviders(new java.util.LinkedHashMap<String, AppConfig.ProviderConfig>());
+        }
+        AppConfig.ProviderConfig provider = appConfig.getProviders().get(request.providerKey);
+        if (provider == null) {
+            provider = new AppConfig.ProviderConfig();
+            appConfig.getProviders().put(request.providerKey, provider);
+        }
+        provider.setName(request.providerName);
+        provider.setBaseUrl(request.baseUrl);
+        provider.setApiKey(request.apiKey);
+        provider.setDefaultModel(request.model);
+        provider.setDialect(dialect);
+    }
+
+    /**
+     * 返回认证写入成功摘要，统一保证密钥不进入终端输出。
+     *
+     * @param request 已写入请求。
+     * @param dialect 规范化协议方言。
+     * @return 已脱敏的写入结果。
+     */
+    private String authWriteSuccess(AuthSetRequest request, String dialect) {
         return "认证凭据已写入 workspace/config.yml：\n"
                 + "provider="
                 + request.providerKey
