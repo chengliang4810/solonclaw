@@ -625,6 +625,29 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).toHaveBeenNthCalledWith(3, 'MCP tool: /tools enable github:create_issue')
   })
 
+  it('renders explicit tool configuration success messages after applying changes', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve({
+      changed: ['web'],
+      info: { model: 'mimo-v2.5-pro' },
+      reset: true
+    }))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    expect(createSlashHandler(ctx)('/tools disable web')).toBe(true)
+
+    expect(rpc).toHaveBeenCalledWith('tools.configure', {
+      action: 'disable',
+      names: ['web'],
+      session_id: 'sid-abc'
+    })
+    await vi.waitFor(() => {
+      expect(ctx.session.resetVisibleHistory).toHaveBeenCalledWith({ model: 'mimo-v2.5-pro' })
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('tools disabled: web')
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('session reset. new tool configuration is active.')
+    })
+  })
+
   it.each([
     ['/browser status', 'browser.manage', { action: 'status', session_id: null }],
     ['/browser connect', 'browser.manage', { action: 'connect', session_id: null, url: 'http://127.0.0.1:9222' }],

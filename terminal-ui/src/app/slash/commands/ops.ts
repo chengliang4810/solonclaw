@@ -705,7 +705,7 @@ export const opsCommands: SlashCommand[] = [
             }
 
             if (r.changed?.length) {
-              ctx.transcript.sys(`${subcommand === 'disable' ? 'disabled' : 'enabled'}: ${r.changed.join(', ')}`)
+              ctx.transcript.sys(`tools ${subcommand === 'disable' ? 'disabled' : 'enabled'}: ${r.changed.join(', ')}`)
             }
 
             if (r.unknown?.length) {

@@ -21,7 +21,7 @@ import { $isBlocked, $overlayState, patchOverlayState } from './overlayStore.js'
 import { shouldDismissOverlayAfterRpcAck } from './rpcAck.js'
 import { turnController } from './turnController.js'
 import { patchTurnState } from './turnStore.js'
-import { getUiState } from './uiStore.js'
+import { getUiState, patchUiState } from './uiStore.js'
 
 const isCtrl = (key: { ctrl: boolean }, ch: string, target: string) => key.ctrl && ch.toLowerCase() === target
 
@@ -81,6 +81,18 @@ export function applyVoiceRecordResponse(
   }
 }
 
+export function settleDeniedApprovalOverlay(response: null | ApprovalRespondResponse): boolean {
+  if (!shouldDismissOverlayAfterRpcAck(response)) {
+    return false
+  }
+
+  patchOverlayState({ approval: null })
+  patchTurnState({ outcome: 'denied' })
+  patchUiState({ busy: false, status: 'ready' })
+
+  return true
+}
+
 export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
   const { actions, composer, gateway, terminal, voice, wheelStep } = ctx
   const { actions: cActions, refs: cRefs, state: cState } = composer
@@ -130,7 +142,7 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
     if (overlay.approval) {
       return gateway
         .rpc<ApprovalRespondResponse>('approval.respond', buildApprovalRespondParams(overlay.approval, 'deny', getUiState().sid))
-        .then(r => shouldDismissOverlayAfterRpcAck(r) && (patchOverlayState({ approval: null }), patchTurnState({ outcome: 'denied' })))
+        .then(settleDeniedApprovalOverlay)
     }
 
     if (overlay.sudo) {

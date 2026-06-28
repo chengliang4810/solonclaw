@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { applyVoiceRecordResponse, shouldFallThroughForScroll } from '../app/useInputHandlers.js'
+import { getOverlayState, patchOverlayState, resetOverlayState } from '../app/overlayStore.js'
+import { getTurnState, resetTurnState } from '../app/turnStore.js'
+import { getUiState, patchUiState, resetUiState } from '../app/uiStore.js'
+import { applyVoiceRecordResponse, settleDeniedApprovalOverlay, shouldFallThroughForScroll } from '../app/useInputHandlers.js'
 
 const baseKey = {
   downArrow: false,
@@ -73,5 +76,53 @@ describe('applyVoiceRecordResponse', () => {
 
     expect(setRecording).toHaveBeenCalledWith(false)
     expect(setProcessing).toHaveBeenCalledWith(false)
+  })
+})
+
+describe('settleDeniedApprovalOverlay', () => {
+  it('closes the approval overlay and returns the TUI to ready after Ctrl+C deny succeeds', () => {
+    resetOverlayState()
+    resetTurnState()
+    resetUiState()
+    patchOverlayState({
+      approval: {
+        approvalId: 'approval-1',
+        command: 'printf audit',
+        description: '需要审批',
+        policy: 'policy:workspace_outside_write',
+        sessionId: 'sid-abc'
+      }
+    })
+    patchUiState({ busy: true, sid: 'sid-abc', status: '需要审批' })
+
+    expect(settleDeniedApprovalOverlay({ denied: true, ok: true })).toBe(true)
+
+    expect(getOverlayState().approval).toBeNull()
+    expect(getTurnState().outcome).toBe('denied')
+    expect(getUiState().busy).toBe(false)
+    expect(getUiState().status).toBe('ready')
+  })
+
+  it('keeps the approval overlay open when the backend rejects the Ctrl+C deny response', () => {
+    resetOverlayState()
+    resetTurnState()
+    resetUiState()
+    patchOverlayState({
+      approval: {
+        approvalId: 'approval-1',
+        command: 'printf audit',
+        description: '需要审批',
+        policy: 'policy:workspace_outside_write',
+        sessionId: 'sid-abc'
+      }
+    })
+    patchUiState({ busy: true, sid: 'sid-abc', status: '需要审批' })
+
+    expect(settleDeniedApprovalOverlay({ ok: false, warning: 'approval_not_found' })).toBe(false)
+
+    expect(getOverlayState().approval?.approvalId).toBe('approval-1')
+    expect(getTurnState().outcome).toBe('')
+    expect(getUiState().busy).toBe(true)
+    expect(getUiState().status).toBe('需要审批')
   })
 })

@@ -572,7 +572,7 @@ def node_tui_command_expectation(command: str) -> str:
     if value == "/redraw":
         return "ready"
     if value == "/compress" or value == "/compact":
-        return "nothing to compress"
+        return "compress"
     if value == "/steer":
         return "usage: /steer"
     if value == "/background":
