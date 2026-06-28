@@ -80,6 +80,9 @@
 - 建议：
   - 阶段 3.2 不删除后端接口。
   - 可以先抽出前端渠道配置 key 映射，减少 `saveCredentials()` 中按平台复制粘贴的分支。
+- 处理结果：
+  - 已将 `saveCredentials()` 中六个渠道的凭证 key 分支收敛为 `CHANNEL_CREDENTIAL_FIELDS` 映射。
+  - 启用开关、令牌和 `extra` 凭证字段继续走原 `/api/workspace-config` 写入与空值删除语义。
 
 ### 5. 工作区文件、人格文件、记忆文件读取包装重叠
 
@@ -141,7 +144,7 @@
 2. 已完成：会话搜索前端统一到 `/api/search`，旧 `/api/sessions/search` 入口不再保留。
 3. 已完成：Doctor 只保留 `/api/diagnostics/doctor` Dashboard 主入口。
 4. 已完成：前端工作区文件读取包装已统一到 `files.ts`。
-5. 精简前端渠道凭证 key 映射和模型 provider 转换函数。
+5. 已完成：精简前端渠道凭证 key 映射和模型 provider 转换函数。
 
 ## 验证方式
 
