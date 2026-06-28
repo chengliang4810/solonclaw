@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { isPositiveRpcAck } from '../app/useMainApp.js'
+import { isPositiveRpcAck, shouldDismissOverlayAfterRpcAck } from '../app/rpcAck.js'
 
 describe('isPositiveRpcAck', () => {
   it('does not treat explicit ok=false responses as successful prompt acknowledgements', () => {
     expect(isPositiveRpcAck({ ok: false, warning: 'missing_session_id' })).toBe(false)
+  })
+
+  it('keeps approval overlays open when approval.respond explicitly fails', () => {
+    expect(shouldDismissOverlayAfterRpcAck({ ok: false, warning: 'missing_session_id' })).toBe(false)
   })
 
   it('keeps successful and legacy truthy responses accepted', () => {

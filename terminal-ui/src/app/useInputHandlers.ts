@@ -17,6 +17,7 @@ import { computeWheelStep, initWheelAccelForHost } from '../lib/wheelAccel.js'
 import { getInputSelection } from './inputSelectionStore.js'
 import type { InputHandlerContext, InputHandlerResult } from './interfaces.js'
 import { $isBlocked, $overlayState, patchOverlayState } from './overlayStore.js'
+import { shouldDismissOverlayAfterRpcAck } from './rpcAck.js'
 import { turnController } from './turnController.js'
 import { patchTurnState } from './turnStore.js'
 import { getUiState } from './uiStore.js'
@@ -128,7 +129,7 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
     if (overlay.approval) {
       return gateway
         .rpc<ApprovalRespondResponse>('approval.respond', buildApprovalRespondParams(overlay.approval, 'deny', getUiState().sid))
-        .then(r => r && (patchOverlayState({ approval: null }), patchTurnState({ outcome: 'denied' })))
+        .then(r => shouldDismissOverlayAfterRpcAck(r) && (patchOverlayState({ approval: null }), patchTurnState({ outcome: 'denied' })))
     }
 
     if (overlay.sudo) {

@@ -36,6 +36,7 @@ import { planGatewayRecovery } from './gatewayRecovery.js'
 import { getInputSelection } from './inputSelectionStore.js'
 import { type GatewayRpc, type TranscriptRow } from './interfaces.js'
 import { $overlayState, patchOverlayState } from './overlayStore.js'
+import { isPositiveRpcAck } from './rpcAck.js'
 import { scrollWithSelectionBy } from './scroll.js'
 import { turnController } from './turnController.js'
 import { patchTurnState, useTurnSelector } from './turnStore.js'
@@ -76,17 +77,7 @@ const statusColorOf = (status: string, t: { error: string; muted: string; ok: st
   return t.muted
 }
 
-export function isPositiveRpcAck(value: unknown): boolean {
-  if (!value) {
-    return false
-  }
-
-  if (typeof value === 'object' && 'ok' in value) {
-    return (value as { ok?: unknown }).ok !== false
-  }
-
-  return true
-}
+export { isPositiveRpcAck } from './rpcAck.js'
 
 export interface PromptLiveSessionOptions {
   dispatchSubmission: (full: string) => void
