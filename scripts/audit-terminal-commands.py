@@ -476,6 +476,8 @@ def node_tui_command_expectation(command: str) -> str:
         return "tracking"
     if value == "/density" or value.startswith("/density "):
         return "compact"
+    if value.startswith("/details tools "):
+        return ": expanded"
     if value == "/details" or value.startswith("/details "):
         return "details:"
     if value == "/history" or value.startswith("/history "):

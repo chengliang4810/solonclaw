@@ -204,7 +204,9 @@ export const sessionCommands: SlashCommand[] = [
         })
         .then(
           ctx.guarded<SessionCompressResponse>(r => {
-            if (Array.isArray(r.messages)) {
+            const noChange = Boolean(r.summary?.noop) || (r.removed ?? 0) <= 0
+
+            if (!noChange && Array.isArray(r.messages)) {
               const rows = toTranscriptMessages(r.messages)
 
               ctx.transcript.setHistoryItems(r.info ? [introMsg(r.info), ...rows] : rows)

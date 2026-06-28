@@ -430,6 +430,13 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(actions[1]["expect"], "status bar")
         self.assertEqual(actions[2]["expect"], "verbose:")
 
+    def test_build_node_tui_actions_uses_repaint_stable_details_section_suffix(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/details tools expanded"])
+
+        self.assertEqual(actions[0]["expect"], ": expanded")
+
     def test_build_node_tui_actions_checks_tasks_status_signal(self) -> None:
         mod = load_module()
 

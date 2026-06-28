@@ -14,13 +14,16 @@ import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.junit.jupiter.api.Test;
 
 class TerminalUiRpcServiceTest {
@@ -181,6 +184,7 @@ class TerminalUiRpcServiceTest {
         SqliteDatabase database = new SqliteDatabase(config);
         SqliteSessionRepository sessions = new SqliteSessionRepository(database);
         SessionRecord session = session("session-compress", "MEMORY:terminal-ui:session-compress");
+        session.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("需要压缩的发布流程上下文"))));
         sessions.save(session);
         RecordingCompressionService compression = new RecordingCompressionService();
         TerminalUiRpcService service =
@@ -207,6 +211,42 @@ class TerminalUiRpcServiceTest {
         service.sessionCompress(session.getSessionId(), "发布流程");
 
         assertThat(compression.focus).isEqualTo("发布流程");
+    }
+
+    @Test
+    void sessionCompressSkipsBackendCompressionForEmptySession() throws Exception {
+        AppConfig config = testConfig();
+        SqliteDatabase database = new SqliteDatabase(config);
+        SqliteSessionRepository sessions = new SqliteSessionRepository(database);
+        SessionRecord session = session("session-compress-empty", "MEMORY:terminal-ui:session-compress-empty");
+        sessions.save(session);
+        RecordingCompressionService compression = new RecordingCompressionService();
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        config,
+                        sessions,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        compression,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+
+        Map<String, Object> response = service.sessionCompress(session.getSessionId(), "");
+
+        assertThat(compression.compressNowCalls).isZero();
+        assertThat(response.get("removed")).isEqualTo(0);
+        assertThat(response.get("summary").toString()).contains("headline=nothing to compress");
     }
 
     private static SessionRecord session(String id, String sourceKey) {
@@ -255,6 +295,7 @@ class TerminalUiRpcServiceTest {
     }
 
     private static class RecordingCompressionService implements ContextCompressionService {
+        private int compressNowCalls;
         private String focus;
 
         @Override
@@ -270,6 +311,7 @@ class TerminalUiRpcServiceTest {
 
         @Override
         public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus) {
+            compressNowCalls++;
             this.focus = focus;
             return session;
         }
@@ -277,6 +319,7 @@ class TerminalUiRpcServiceTest {
         @Override
         public CompressionOutcome compressNowWithOutcome(
                 SessionRecord session, String systemPrompt, String focus) {
+            compressNowCalls++;
             this.focus = focus;
             return CompressionOutcome.skipped(session);
         }

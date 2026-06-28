@@ -609,7 +609,7 @@ public class TerminalUiRpcService {
         int beforeMessages = messageCount(session);
         int beforeTokens = session == null ? 0 : (int) session.getCumulativeTotalTokens();
         CompressionOutcome outcome = null;
-        if (session != null && contextCompressionService != null) {
+        if (session != null && beforeMessages > 0 && contextCompressionService != null) {
             outcome = contextCompressionService.compressNowWithOutcome(
                     session, "", StrUtil.nullToEmpty(focusTopic));
             if (outcome != null && outcome.getSession() != null && sessionRepository != null) {

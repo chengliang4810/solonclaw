@@ -998,6 +998,25 @@ describe('createSlashHandler', () => {
     expect(rpc).not.toHaveBeenCalledWith('config.set', expect.objectContaining({ key: 'compact' }))
   })
 
+  it('/compress no-op keeps the visible transcript and reports the result', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() =>
+      Promise.resolve({
+        messages: [],
+        removed: 0,
+        summary: { headline: 'nothing to compress', noop: true }
+      })
+    )
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/compress')
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('nothing to compress')
+    })
+    expect(ctx.transcript.setHistoryItems).not.toHaveBeenCalled()
+  })
+
   it('/yolo does not pretend to change approval policy', () => {
     patchUiState({ sid: 'sid-abc' })
     const rpc = vi.fn(() => Promise.resolve({ value: '1' }))
