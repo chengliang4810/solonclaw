@@ -2116,6 +2116,33 @@ public class TerminalSetupCommands {
             }
         }
         configResolver().setFileList("fallbackProviders", values);
+        applyFallbackChainToAppConfig(chain);
+    }
+
+    /**
+     * 将 fallback 链同步到当前进程配置，保证模型失败切换不需要重启 TUI 才生效。
+     *
+     * @param chain 已写入 workspace/config.yml 的 fallback 链。
+     */
+    private void applyFallbackChainToAppConfig(List<FallbackEntry> chain) {
+        if (appConfig == null) {
+            return;
+        }
+        List<AppConfig.FallbackProviderConfig> values =
+                new java.util.ArrayList<AppConfig.FallbackProviderConfig>();
+        if (chain != null) {
+            for (FallbackEntry entry : chain) {
+                if (entry == null || StrUtil.isBlank(entry.provider)) {
+                    continue;
+                }
+                AppConfig.FallbackProviderConfig config =
+                        new AppConfig.FallbackProviderConfig();
+                config.setProvider(entry.provider);
+                config.setModel(entry.model);
+                values.add(config);
+            }
+        }
+        appConfig.setFallbackProviders(values);
     }
 
     /**

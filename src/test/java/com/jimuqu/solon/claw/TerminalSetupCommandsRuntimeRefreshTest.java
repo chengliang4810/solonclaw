@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.cli.TerminalSetupCommands;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import java.io.File;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,51 @@ class TerminalSetupCommandsRuntimeRefreshTest {
                 .contains("dialect=openai")
                 .contains("api_url=https://backup.example.com/v1/chat/completions")
                 .contains("api_key=configured");
+    }
+
+    @Test
+    void fallbackCommandsRefreshCurrentProcessFallbackChain() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-fallback-refresh").toFile();
+        FileUtil.writeUtf8String(
+                "providers:\n"
+                        + "  default:\n"
+                        + "    name: 主 Provider\n"
+                        + "    baseUrl: https://primary.example.com/v1\n"
+                        + "    apiKey: primary-key\n"
+                        + "    defaultModel: primary-model\n"
+                        + "    dialect: openai\n"
+                        + "  backup:\n"
+                        + "    name: 备用 Provider\n"
+                        + "    baseUrl: https://backup.example.com/v1\n"
+                        + "    apiKey: backup-key\n"
+                        + "    defaultModel: backup-model\n"
+                        + "    dialect: openai\n"
+                        + "model:\n"
+                        + "  providerKey: default\n"
+                        + "  default: primary-model\n",
+                new File(workspaceHome, "config.yml"));
+
+        Props props = new Props();
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+        TerminalSetupCommands commands = new TerminalSetupCommands(config, null);
+        LlmProviderService providerService = new LlmProviderService(config);
+
+        String added = commands.render("fallback add --provider backup --model backup-model");
+        String listed = commands.render("fallback list");
+
+        assertThat(added).contains("chain_size=1");
+        assertThat(listed).contains("1. backup / backup-model");
+        assertThat(providerService.resolveFallbackProviders())
+                .hasSize(1)
+                .first()
+                .extracting(LlmProviderService.ResolvedProvider::getProviderKey)
+                .isEqualTo("backup");
+
+        String removed = commands.render("fallback remove --provider backup --model backup-model");
+
+        assertThat(removed).contains("chain_size=0");
+        assertThat(providerService.resolveFallbackProviders()).isEmpty();
     }
 
     /** 构造绑定临时工作区的终端命令服务。 */
