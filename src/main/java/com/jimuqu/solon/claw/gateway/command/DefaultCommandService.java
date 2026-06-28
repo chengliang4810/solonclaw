@@ -1733,6 +1733,10 @@ public class DefaultCommandService implements CommandService {
             return handleBrowser(args);
         }
 
+        if (GatewayCommandConstants.COMMAND_VOICE.equals(command)) {
+            return handleVoice(args);
+        }
+
         if (GatewayCommandConstants.COMMAND_SKILLS.equals(command)) {
             return handleSkills(message, args);
         }
@@ -3199,6 +3203,40 @@ public class DefaultCommandService implements CommandService {
      */
     private GatewayReply handleBrowser(String args) {
         return newDiagnosticsCommandHandler().handleBrowser(args);
+    }
+
+    /**
+     * 渲染语音模式状态；当前 Java 后端只保留语音附件/转写能力，不启用本地录音入口。
+     *
+     * @param args 用户传入的 voice 子命令。
+     * @return 返回语音模式状态或不可用说明。
+     */
+    private GatewayReply handleVoice(String args) {
+        String action = StrUtil.nullToEmpty(args).trim().toLowerCase();
+        if (StrUtil.isBlank(action) || "status".equals(action)) {
+            GatewayReply reply =
+                    GatewayReply.ok(
+                            "Voice Mode Status\n"
+                                    + "  Mode:       OFF\n"
+                                    + "  TTS:        OFF\n"
+                                    + "  Record key: Ctrl+B\n"
+                                    + "\n"
+                                    + "  Requirements:\n"
+                                    + "    voice mode is not enabled in this terminal backend");
+            reply.getRuntimeMetadata().put("command_status", "handled");
+            reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_VOICE);
+            return reply;
+        }
+        if ("on".equals(action) || "off".equals(action) || "tts".equals(action)) {
+            GatewayReply reply =
+                    GatewayReply.ok(
+                            "Voice mode is not available in this terminal backend.\n"
+                                    + "  voice mode is not enabled in this terminal backend");
+            reply.getRuntimeMetadata().put("command_status", "handled");
+            reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_VOICE);
+            return reply;
+        }
+        return GatewayReply.error("用法：/voice [status|on|off|tts]");
     }
 
     /**

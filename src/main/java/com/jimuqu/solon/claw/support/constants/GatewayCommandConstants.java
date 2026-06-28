@@ -164,6 +164,9 @@ public interface GatewayCommandConstants {
     /** 命令浏览器的统一常量值。 */
     String COMMAND_BROWSER = "browser";
 
+    /** 命令语音模式的统一常量值。 */
+    String COMMAND_VOICE = "voice";
+
     /** 命令DEBUG的统一常量值。 */
     String COMMAND_DEBUG = "debug";
 

@@ -173,6 +173,26 @@ public class GatewayCommandFlowTest {
     }
 
     @Test
+    void shouldRenderVoiceStatusFromGatewaySlashCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.send("room-voice-status", "user-voice-status", "hello");
+        env.send("room-voice-status", "user-voice-status", "/pairing claim-admin");
+
+        GatewayReply reply = env.send("room-voice-status", "user-voice-status", "/voice status");
+
+        assertThat(reply.isError()).isFalse();
+        assertThat(reply.getContent())
+                .contains("Voice Mode Status")
+                .contains("Mode:       OFF")
+                .contains("Record key: Ctrl+B")
+                .contains("voice mode is not enabled in this terminal backend");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("command_status", "handled")
+                .containsEntry("command", "voice");
+    }
+
+    @Test
     void shouldListAndSearchSessionsFromSlashCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 

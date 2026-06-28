@@ -66,6 +66,7 @@ class CliRunnerTest {
 
         assertLocalOutput(runner, "/models", "default:");
         assertLocalOutput(runner, "/security status", "guardrailMode");
+        assertLocalOutput(runner, "/voice status", "Voice Mode Status");
         assertLocalOutput(runner, "/tips", "/queue");
         assertLocalOutput(runner, "/skin", "classic");
         Path attachment = Files.createTempFile("cli-runner-attachment", ".txt");
