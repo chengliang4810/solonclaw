@@ -1,5 +1,12 @@
 package com.jimuqu.solon.claw.gateway.command;
 
+import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.exceptionSummary;
+import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.formatTimestamp;
+import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.parseGoalMaxTurns;
+import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.restoreInterruptIfNeeded;
+import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.safeIdentifier;
+import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.stripGoalOptions;
+
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
@@ -2186,7 +2193,7 @@ public class DefaultCommandService implements CommandService {
             reply.setBranchName(session.getBranchName());
             return reply;
         }
-        int maxTurns = parseGoalMaxTurns(raw, GoalState.DEFAULT_MAX_TURNS);
+        int maxTurns = parseGoalMaxTurns(raw, GoalState.DEFAULT_MAX_TURNS, log);
         String goal = stripGoalOptions(raw);
         GoalState state = goalService.set(session, goal, maxTurns);
         GatewayReply reply =
@@ -3979,114 +3986,6 @@ public class DefaultCommandService implements CommandService {
             }
         }
         return false;
-    }
-
-    /**
-     * 格式化时间戳。
-     *
-     * @param timestamp 请求携带的时间戳。
-     * @return 返回时间戳结果。
-     */
-    private String formatTimestamp(long timestamp) {
-        if (timestamp <= 0) {
-            return "never";
-        }
-        return DateUtil.formatDateTime(new java.util.Date(timestamp));
-    }
-
-    /**
-     * 执行as长整型相关逻辑。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回as Long结果。
-     */
-    private long asLong(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        try {
-            return Long.parseLong(String.valueOf(value));
-        } catch (Exception e) {
-            log.debug("Long value parsing failed; using 0 fallback: {}", exceptionSummary(e));
-            return 0L;
-        }
-    }
-
-    /**
-     * 生成安全展示用的Identifier。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回safe Identifier结果。
-     */
-    private String safeIdentifier(String value) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 400);
-    }
-
-    /**
-     * 解析Goal Max Turns。
-     *
-     * @param raw 原始输入值。
-     * @param defaultValue 默认值参数。
-     * @return 返回解析后的Goal Max Turns。
-     */
-    private int parseGoalMaxTurns(String raw, int defaultValue) {
-        String[] tokens = StrUtil.nullToEmpty(raw).split("\\s+");
-        for (int i = 0; i < tokens.length; i++) {
-            String token = tokens[i];
-            if (("--max-turns".equals(token) || "--max".equals(token)) && i + 1 < tokens.length) {
-                try {
-                    return Math.max(1, Integer.parseInt(tokens[i + 1]));
-                } catch (Exception e) {
-                    log.debug("Goal max turns option parsing failed; using default value: {}", exceptionSummary(e));
-                    return defaultValue;
-                }
-            }
-        }
-        return defaultValue;
-    }
-
-    /**
-     * 在命令辅助逻辑捕获中断异常时恢复中断标记，避免吞掉上层调度信号。
-     *
-     * @param error 捕获到的命令处理异常。
-     */
-    private static void restoreInterruptIfNeeded(Exception error) {
-        if (error instanceof InterruptedException) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    /**
-     * 生成命令服务异常摘要；只记录异常类型，避免命令参数或配置值进入日志。
-     *
-     * @param error 命令处理过程中捕获到的异常。
-     * @return 可写入日志的异常摘要。
-     */
-    private static String exceptionSummary(Exception error) {
-        return error == null ? "unknown" : error.getClass().getName();
-    }
-
-    /**
-     * 剥离目标Options。
-     *
-     * @param raw 原始输入值。
-     * @return 返回strip Goal Options结果。
-     */
-    private String stripGoalOptions(String raw) {
-        String[] tokens = StrUtil.nullToEmpty(raw).trim().split("\\s+");
-        StringBuilder buffer = new StringBuilder();
-        for (int i = 0; i < tokens.length; i++) {
-            String token = tokens[i];
-            if (("--max-turns".equals(token) || "--max".equals(token)) && i + 1 < tokens.length) {
-                i++;
-                continue;
-            }
-            if (buffer.length() > 0) {
-                buffer.append(' ');
-            }
-            buffer.append(token);
-        }
-        return buffer.toString().trim();
     }
 
 }
