@@ -362,6 +362,17 @@ describe('createSlashHandler', () => {
     expect(ctx.gateway.rpc).not.toHaveBeenCalled()
   })
 
+  it('passes /reset through to the session lifecycle instead of backend slash exec', () => {
+    const ctx = buildCtx()
+
+    expect(createSlashHandler(ctx)('/reset')).toBe(true)
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+
+    getOverlayState().confirm?.onConfirm()
+
+    expect(ctx.session.newSession).toHaveBeenCalledWith('new session started', undefined)
+  })
+
   it('keeps visible scrollback when branching a TUI session', async () => {
     patchUiState({ sid: 'sid-parent' })
     const rpc = vi.fn(() => Promise.resolve({ session_id: 'sid-branch', title: 'branch title' }))

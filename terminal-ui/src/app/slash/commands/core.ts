@@ -161,7 +161,7 @@ export const coreCommands: SlashCommand[] = [
   },
 
   {
-    aliases: ['new'],
+    aliases: ['new', 'reset'],
     help: 'start a new session',
     name: 'clear',
     run: (arg, ctx, cmd) => {
@@ -169,7 +169,7 @@ export const coreCommands: SlashCommand[] = [
         return
       }
 
-      const isNew = cmd.startsWith('/new')
+      const isNew = cmd.startsWith('/new') || cmd.startsWith('/reset')
       const requestedTitle = isNew ? arg.trim() : ''
 
       const commit = () => {
