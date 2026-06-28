@@ -339,7 +339,7 @@ export const sessionCommands: SlashCommand[] = [
             return
           }
 
-          if (r.available === false && (action === 'on' || action === 'tts')) {
+          if (r.available === false) {
             ctx.transcript.sys('Voice mode is not available in this terminal backend.')
 
             if (r.details) {

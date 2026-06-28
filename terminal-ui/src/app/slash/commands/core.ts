@@ -109,7 +109,7 @@ export const coreCommands: SlashCommand[] = [
               'override one section (thinking/tools/subagents/activity)'
             ],
             ['/mouse [off|wheel|buttons|all]', 'set terminal mouse tracking preset'],
-            ['/voice [on|off|tts|status]', 'show or control terminal voice mode'],
+            ['/voice [status]', 'show local voice availability'],
             ['/fortune [random|daily]', 'show a random or daily local fortune']
           ],
           title: 'TUI'

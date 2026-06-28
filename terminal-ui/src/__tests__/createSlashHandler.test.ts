@@ -491,6 +491,26 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).not.toHaveBeenCalledWith('Voice mode disabled.')
   })
 
+  it('/voice off reports unavailable backend details instead of pretending it changed state', async () => {
+    const rpc = vi.fn(() =>
+      Promise.resolve({
+        available: false,
+        details: 'voice mode is not enabled in this terminal backend',
+        enabled: false,
+        record_key: 'ctrl+b',
+        tts: false
+      })
+    )
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    expect(createSlashHandler(ctx)('/voice off')).toBe(true)
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('Voice mode is not available in this terminal backend.')
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('  voice mode is not enabled in this terminal backend')
+    })
+    expect(ctx.transcript.sys).not.toHaveBeenCalledWith('Voice mode disabled.')
+  })
+
   it('cycles details mode and persists it', async () => {
     const ctx = buildCtx()
 
