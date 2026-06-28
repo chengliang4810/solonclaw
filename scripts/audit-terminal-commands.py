@@ -482,6 +482,10 @@ def node_tui_command_expectation(command: str) -> str:
         return "spawn trees"
     if value == "/mem" or value.startswith("/mem "):
         return "Memory"
+    if value == "/statusbar" or value.startswith("/statusbar "):
+        return "status bar"
+    if value == "/verbose" or value.startswith("/verbose "):
+        return "verbose:"
     if value == "/status" or value.startswith("/status "):
         return "model="
     return ""

@@ -411,6 +411,15 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertGreater(float(actions[0]["wait"]), 0)
         self.assertGreater(float(actions[1]["wait"]), 0)
 
+    def test_build_node_tui_actions_checks_statusbar_and_verbose_output(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/fortune", "/statusbar", "/verbose"])
+
+        self.assertNotIn("expect", actions[0])
+        self.assertEqual(actions[1]["expect"], "status bar")
+        self.assertEqual(actions[2]["expect"], "verbose:")
+
     def test_build_node_tui_actions_expands_setup_panel_interaction_aliases(self) -> None:
         mod = load_module()
 
