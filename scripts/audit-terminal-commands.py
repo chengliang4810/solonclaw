@@ -470,7 +470,8 @@ def node_tui_command_opens_panel(command: str) -> bool:
         or value == "/sessions"
         or value == "/skills"
         or value == "/tools"
-        or value.startswith("/tools ")
+        or value == "/tools list"
+        or value.startswith("/tools list ")
         or value == "/setup"
         or value.startswith("/setup ")
         or value == "/approve list"
@@ -600,7 +601,11 @@ def node_tui_command_expectation(command: str) -> str:
         return "skills"
     if value == "/reload-mcp":
         return "确认本次执行"
-    if value == "/tools" or value.startswith("/tools "):
+    if value.startswith("/tools disable "):
+        return "disabled:"
+    if value.startswith("/tools enable "):
+        return "enabled:"
+    if value == "/tools" or value == "/tools list" or value.startswith("/tools list "):
         return "Tools"
     return ""
 

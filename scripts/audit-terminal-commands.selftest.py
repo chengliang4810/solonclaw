@@ -475,7 +475,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
     def test_build_node_tui_actions_closes_terminal_setup_and_tools_panels(self) -> None:
         mod = load_module()
 
-        actions = mod.build_node_tui_actions(["/terminal-setup", "/reload-skills", "/tools", "/model pick"])
+        actions = mod.build_node_tui_actions(["/terminal-setup", "/reload-skills", "/tools", "/tools disable web", "/tools enable web", "/model pick"])
 
         self.assertEqual(actions[0]["expect"], "Configure terminal keybindings?")
         self.assertEqual(actions[0]["after"], "\x1b")
@@ -486,9 +486,15 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(actions[2]["expect"], "Tools")
         self.assertEqual(actions[2]["after"], "\x1b")
         self.assertEqual(actions[2]["close_expect"], "ready")
-        self.assertEqual(actions[3]["expect"], "Select provider")
-        self.assertEqual(actions[3]["after"], "\x1b")
-        self.assertEqual(actions[3]["close_expect"], "ready")
+        self.assertEqual(actions[3]["expect"], "disabled:")
+        self.assertNotIn("after", actions[3])
+        self.assertNotIn("close_expect", actions[3])
+        self.assertEqual(actions[4]["expect"], "enabled:")
+        self.assertNotIn("after", actions[4])
+        self.assertNotIn("close_expect", actions[4])
+        self.assertEqual(actions[5]["expect"], "Select provider")
+        self.assertEqual(actions[5]["after"], "\x1b")
+        self.assertEqual(actions[5]["close_expect"], "ready")
 
     def test_build_node_tui_actions_uses_reload_mcp_confirmation_text(self) -> None:
         mod = load_module()
