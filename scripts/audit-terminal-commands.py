@@ -375,6 +375,12 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
         if not action:
             action["type"] = "command"
             action["value"] = value
+            inferred_expect = node_tui_command_expectation(value)
+            if inferred_expect:
+                action["expect"] = inferred_expect
+            if node_tui_command_opens_panel(value):
+                action["after"] = "q"
+                action["close_expect"] = "ready"
         else:
             action.setdefault("type", "command")
             action.setdefault("value", value)
@@ -382,6 +388,45 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
             action["exit"] = True
         actions.append(action)
     return actions
+
+
+def node_tui_command_opens_panel(command: str) -> bool:
+    """判断显式 Node TUI 命令是否通常打开可关闭面板。"""
+    value = command.strip().lower()
+    return (
+        value == "/doctor"
+        or value.startswith("/doctor ")
+        or value == "/status"
+        or value.startswith("/status ")
+        or value == "/config check"
+        or value.startswith("/config check ")
+        or value == "/model --refresh"
+        or value.startswith("/model set ")
+        or value.startswith("/model configure ")
+        or value == "/setup"
+        or value.startswith("/setup ")
+    )
+
+
+def node_tui_command_expectation(command: str) -> str:
+    """为显式 Node TUI 命令补充稳定的成功文本，避免过早关闭面板。"""
+    value = command.strip().lower()
+    if value.startswith("/model set ") or value.startswith("/model configure "):
+        return "模型配置已写入"
+    if value == "/status" or value.startswith("/status "):
+        return "model="
+    return ""
+
+
+def contains_node_tui_command_text(transcript: str, command: str) -> bool:
+    """匹配用户输入命令；长命令允许只匹配首个命令词，避免终端换行重排误报。"""
+    if contains_terminal_text(transcript, command):
+        return True
+    value = command.strip()
+    if len(value) <= 40:
+        return False
+    first = value.split(" ", 1)[0]
+    return bool(first) and contains_terminal_text(transcript, first)
 
 
 def audit_tui_transcript(transcript: str, commands: list[str]) -> list[str]:
@@ -412,7 +457,7 @@ def audit_node_tui_transcript(transcript: str, actions: list[dict[str, object]],
             continue
         if action.get("exit"):
             continue
-        if not contains_terminal_text(transcript, command):
+        if not contains_node_tui_command_text(transcript, command):
             issues.append(f"missing_command_text:{command}")
         expected = str(action.get("expect", "")).strip()
         if expected and not contains_terminal_text(transcript, expected):

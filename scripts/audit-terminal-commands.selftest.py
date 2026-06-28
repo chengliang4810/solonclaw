@@ -307,6 +307,22 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
             ],
         )
 
+    def test_build_node_tui_actions_adds_expectation_for_explicit_setup_panels(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions([
+            "/model set --provider audit-openai --base-url https://api.example.com/v1 "
+            "--api-key Sk-Audit-Node-Tui-Secret123 --model audit-model --dialect openai",
+            "/status",
+        ])
+
+        self.assertEqual(actions[0]["expect"], "模型配置已写入")
+        self.assertEqual(actions[0]["after"], "q")
+        self.assertEqual(actions[0]["close_expect"], "ready")
+        self.assertEqual(actions[1]["expect"], "model=")
+        self.assertEqual(actions[1]["after"], "q")
+        self.assertEqual(actions[1]["close_expect"], "ready")
+
     def test_build_node_tui_actions_expands_setup_panel_interaction_aliases(self) -> None:
         mod = load_module()
 
