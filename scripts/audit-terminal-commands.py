@@ -123,8 +123,10 @@ DEFAULT_COMMANDS = [
     "prompt-size hello world",
 ]
 
+AUDIT_MODEL_BASE_URL = "http://127.0.0.1:9/v1"
+
 WRITE_COMMANDS = [
-    "model set --provider local-openai --base-url https://api.example.com/v1 "
+    f"model set --provider local-openai --base-url {AUDIT_MODEL_BASE_URL} "
     "--api-key Sk-Audit-Model-Secret123 --model smoke-model --dialect openai",
     "setup gateway feishu --app-id audit_app --app-secret Sk-Audit-Feishu-Secret123 --enabled true",
     "config show",
@@ -378,14 +380,18 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
             inferred_expect = node_tui_command_expectation(value)
             if inferred_expect:
                 action["expect"] = inferred_expect
+                if node_tui_command_needs_input_settle_wait(value):
+                    action["wait"] = 3.0
             if node_tui_command_opens_panel(value):
-                action["after"] = "q"
+                action["after"] = "\x1b"
+                action["after_wait"] = 1.2
                 action["close_expect"] = "ready"
         else:
             action.setdefault("type", "command")
             action.setdefault("value", value)
         if value.lower() in {"/exit", "/quit", "/exit!", "/quit!"}:
             action["exit"] = True
+            action.setdefault("keys", "\r")
         actions.append(action)
     return actions
 
@@ -396,23 +402,80 @@ def node_tui_command_opens_panel(command: str) -> bool:
     return (
         value == "/doctor"
         or value.startswith("/doctor ")
+        or value == "/logs"
+        or value.startswith("/logs ")
         or value == "/status"
         or value.startswith("/status ")
         or value == "/config check"
         or value.startswith("/config check ")
         or value == "/model --refresh"
+        or value == "/model"
         or value.startswith("/model set ")
         or value.startswith("/model configure ")
+        or value == "/sessions"
+        or value == "/skills"
         or value == "/setup"
         or value.startswith("/setup ")
+        or value == "/tasks"
+    )
+
+
+def node_tui_command_needs_input_settle_wait(command: str) -> bool:
+    """判断命令输出不需要关闭但需要等待输入框清空后再继续。"""
+    value = command.strip().lower()
+    return (
+        value == "/help"
+        or value.startswith("/help ")
+        or value == "/mem"
+        or value.startswith("/mem ")
     )
 
 
 def node_tui_command_expectation(command: str) -> str:
     """为显式 Node TUI 命令补充稳定的成功文本，避免过早关闭面板。"""
     value = command.strip().lower()
+    if value == "/help" or value.startswith("/help "):
+        return "Hotkeys"
     if value.startswith("/model set ") or value.startswith("/model configure "):
         return "模型配置已写入"
+    if value == "/mouse" or value.startswith("/mouse "):
+        return "tracking"
+    if value == "/density" or value.startswith("/density "):
+        return "compact"
+    if value == "/details" or value.startswith("/details "):
+        return "details:"
+    if value == "/history" or value.startswith("/history "):
+        return "versation"
+    if value == "/queue" or value.startswith("/queue "):
+        return "message(s)"
+    if value == "/voice status":
+        return "Voice Mode Status"
+    if value == "/skin" or value.startswith("/skin "):
+        return "skin:"
+    if value == "/indicator" or value.startswith("/indicator "):
+        return "indicator:"
+    if value == "/yolo" or value.startswith("/yolo "):
+        return "is not available"
+    if value == "/reasoning" or value.startswith("/reasoning "):
+        return "reasoning:"
+    if value == "/fast" or value == "/fast status":
+        return "fast mode:"
+    if value == "/busy" or value == "/busy status":
+        return "busy input mode:"
+    if value == "/usage":
+        return "no API calls yet"
+    if value == "/stop" or value.startswith("/stop "):
+        return "background processes"
+    if value == "/browser status":
+        return "browser not connected"
+    if value == "/rollback" or value == "/rollback list":
+        return "checkpoints"
+    if value == "/tasks status":
+        return "delegation"
+    if value == "/replay list":
+        return "spawn trees"
+    if value == "/mem" or value.startswith("/mem "):
+        return "Memory"
     if value == "/status" or value.startswith("/status "):
         return "model="
     return ""
@@ -457,9 +520,10 @@ def audit_node_tui_transcript(transcript: str, actions: list[dict[str, object]],
             continue
         if action.get("exit"):
             continue
-        if not contains_node_tui_command_text(transcript, command):
-            issues.append(f"missing_command_text:{command}")
         expected = str(action.get("expect", "")).strip()
+        has_expected = not expected or contains_terminal_text(transcript, expected)
+        if not has_expected and not contains_node_tui_command_text(transcript, command):
+            issues.append(f"missing_command_text:{command}")
         if expected and not contains_terminal_text(transcript, expected):
             issues.append(f"missing_expected_text:{expected}")
         post_expected = str(action.get("post_expect", "")).strip()
@@ -578,6 +642,7 @@ def write_command_like_user(
     response_state: TerminalResponseState | None = None,
 ) -> None:
     write_text_like_user(master_fd, output, command, response_state)
+    read_pty(master_fd, output, 0.12, response_state)
     os.write(master_fd, b"\r")
     read_pty(master_fd, output, 0.12, response_state)
 
@@ -882,6 +947,13 @@ def run_node_tui_sequence(
             before_len = len(output)
             write_command_like_user(master_fd, output, command, response_state)
             if action.get("exit"):
+                keys = str(action.get("keys", ""))
+                if keys:
+                    time.sleep(0.2)
+                    try:
+                        os.write(master_fd, keys.encode("utf-8"))
+                    except OSError:
+                        pass
                 saw_exit_action = True
                 exit_code = normalize_node_tui_exit_code(
                     wait_child_exit_reading(
@@ -895,10 +967,11 @@ def run_node_tui_sequence(
                     step_issues.append(f"exit_not_completed:{command}")
                 break
             expected = str(action.get("expect", "")).strip()
-            if expected and not wait_for_text(
+            if expected and not wait_for_new_text(
                 master_fd,
                 output,
                 expected,
+                before_len,
                 min(15.0, max(0.1, deadline - time.monotonic())),
                 response_state,
             ):
@@ -925,14 +998,16 @@ def run_node_tui_sequence(
                 os.write(master_fd, after.encode("utf-8"))
                 close_expected = str(action.get("close_expect", "")).strip()
                 if close_expected:
-                    wait_for_new_text(
+                    if not wait_for_new_text(
                         master_fd,
                         output,
                         close_expected,
                         close_start,
                         min(5.0, max(0.1, deadline - time.monotonic())),
                         response_state,
-                    )
+                    ):
+                        step_issues.append(f"step_missing_close_expected:{command}:{close_expected}")
+                        break
                 else:
                     read_pty(master_fd, output, 0.5, response_state)
             # 读取一小段尾部输出，避免下一步命令紧贴上一步 repaint。
@@ -976,7 +1051,7 @@ def run_node_tui_pty(
     bootstrap = run_command(
         jar,
         workspace_home,
-        "model set --provider audit-openai --base-url https://api.example.com/v1 "
+        f"model set --provider audit-openai --base-url {AUDIT_MODEL_BASE_URL} "
         "--api-key Sk-Audit-Node-Tui-Secret123 --model audit-model --dialect openai",
         0,
         timeout_seconds,

@@ -281,8 +281,8 @@ export function useSubmission(opts: UseSubmissionOptions) {
       if (looksLikeSlashCommand(full)) {
         appendMessage({ kind: 'slash', role: 'system', text: full })
         composerActions.pushHistory(full)
-        slashRef.current(full)
         composerActions.clearIn()
+        slashRef.current(full)
 
         return
       }

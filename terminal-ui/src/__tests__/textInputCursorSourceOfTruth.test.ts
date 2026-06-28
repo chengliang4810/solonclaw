@@ -47,4 +47,19 @@ describe('textInput cursor-layout source of truth', () => {
     const appendPattern = /stdout!\.write\(text\)[\s\S]{0,1000}?noteCursorAdvance\(text\.length\)/
     expect(source).toMatch(appendPattern)
   })
+
+  it('does not swallow external parent clears after self-originated updates', () => {
+    expect(source).toMatch(/if \(self\.current && value === vRef\.current\)/)
+    expect(source).not.toMatch(/if \(self\.current\) \{\s*self\.current = false\s*\}/)
+  })
+
+  it('clears local input state before dispatching a submitted line', () => {
+    const submitPattern = /const submitted = vRef\.current[\s\S]{0,160}?discardKeyBurst\(\)[\s\S]{0,160}?commit\('', 0, false\)[\s\S]{0,160}?cbSubmit\.current\?\.\(submitted\)/
+    expect(source).toMatch(submitPattern)
+  })
+
+  it('does not flush stale fast-echo parent changes on submit', () => {
+    expect(source).toMatch(/const discardKeyBurst = \(\) => \{[\s\S]{0,260}?discardParentChange\(\)/)
+    expect(source).not.toMatch(/else \{\s*flushKeyBurst\(\)[\s\S]{0,180}?cbSubmit\.current/)
+  })
 })

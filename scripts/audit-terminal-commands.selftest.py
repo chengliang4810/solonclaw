@@ -170,6 +170,17 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
         self.assertIn("missing_expected_text:Select provider", issues)
 
+    def test_node_tui_transcript_accepts_expected_output_when_command_echo_is_repainted(self) -> None:
+        mod = load_module()
+
+        issues = mod.audit_node_tui_transcript(
+            "r\ne\na\ns\no\nn\ni\nn\ng\n· reasoning: medium · display show\n",
+            [{"type": "command", "value": "/reasoning", "expect": "reasoning:"}],
+            0,
+        )
+
+        self.assertEqual(issues, [])
+
     def test_node_tui_transcript_fails_on_timeout_exit(self) -> None:
         mod = load_module()
 
@@ -221,12 +232,19 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertTrue(mod.contains_node_tui_banner("\x1b[1mSOLONCLAW\x1b[0m"))
         self.assertFalse(mod.contains_node_tui_banner("forging session…"))
 
+    def test_node_tui_audit_model_url_stays_loopback(self) -> None:
+        mod = load_module()
+
+        self.assertTrue(mod.AUDIT_MODEL_BASE_URL.startswith("http://127.0.0.1:"))
+        self.assertNotIn("api.example.com", mod.AUDIT_MODEL_BASE_URL)
+
     def test_wait_for_new_text_ignores_historical_output(self) -> None:
         mod = load_module()
 
         output = bytearray("ready\nSelect provider\n".encode("utf-8"))
 
         self.assertFalse(mod.contains_new_terminal_text(output, "ready", len(output)))
+        self.assertFalse(mod.contains_new_terminal_text(output, "Select provider", len(output)))
 
     def test_wait_child_exit_reading_is_available_for_exit_diagnostics(self) -> None:
         mod = load_module()
@@ -266,7 +284,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
                 "close_expect": "ready",
             },
         )
-        self.assertEqual(actions[1], {"type": "command", "value": "/exit", "exit": True})
+        self.assertEqual(actions[1], {"type": "command", "value": "/exit", "exit": True, "keys": "\r"})
 
     def test_build_node_tui_actions_reuses_known_overlay_close_steps(self) -> None:
         mod = load_module()
@@ -311,17 +329,39 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         mod = load_module()
 
         actions = mod.build_node_tui_actions([
-            "/model set --provider audit-openai --base-url https://api.example.com/v1 "
+            f"/model set --provider audit-openai --base-url {mod.AUDIT_MODEL_BASE_URL} "
             "--api-key Sk-Audit-Node-Tui-Secret123 --model audit-model --dialect openai",
             "/status",
         ])
 
         self.assertEqual(actions[0]["expect"], "模型配置已写入")
-        self.assertEqual(actions[0]["after"], "q")
+        self.assertTrue(actions[0]["after"])
         self.assertEqual(actions[0]["close_expect"], "ready")
         self.assertEqual(actions[1]["expect"], "model=")
-        self.assertEqual(actions[1]["after"], "q")
+        self.assertTrue(actions[1]["after"])
         self.assertEqual(actions[1]["close_expect"], "ready")
+
+    def test_build_node_tui_actions_distinguishes_panels_from_pagers(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/help", "/mem", "/status", "/browser status"])
+
+        self.assertEqual(actions[0]["expect"], "Hotkeys")
+        self.assertNotIn("after", actions[0])
+        self.assertEqual(actions[1]["expect"], "Memory")
+        self.assertNotIn("after", actions[1])
+        self.assertEqual(actions[2]["expect"], "model=")
+        self.assertTrue(actions[2]["after"])
+        self.assertEqual(actions[2]["close_expect"], "ready")
+        self.assertEqual(actions[3]["expect"], "browser not connected")
+
+    def test_build_node_tui_actions_waits_after_plain_history_panels(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions(["/help", "/mem"])
+
+        self.assertGreater(float(actions[0]["wait"]), 0)
+        self.assertGreater(float(actions[1]["wait"]), 0)
 
     def test_build_node_tui_actions_expands_setup_panel_interaction_aliases(self) -> None:
         mod = load_module()

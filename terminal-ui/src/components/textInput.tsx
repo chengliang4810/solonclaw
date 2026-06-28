@@ -545,9 +545,10 @@ export function TextInput({
   }, [cur, display, focus, nativeCursor, placeholder, selected])
 
   useEffect(() => {
-    if (self.current) {
+    if (self.current && value === vRef.current) {
       self.current = false
     } else {
+      self.current = false
       setCur(value.length)
       setSel(null)
       curRef.current = value.length
@@ -618,6 +619,24 @@ export function TextInput({
       self.current = true
       cbChange.current(next)
     }
+  }
+
+  const discardParentChange = () => {
+    if (parentChangeTimer.current) {
+      clearTimeout(parentChangeTimer.current)
+      parentChangeTimer.current = null
+    }
+
+    pendingParentValue.current = null
+  }
+
+  const discardKeyBurst = () => {
+    if (keyBurstTimer.current) {
+      clearTimeout(keyBurstTimer.current)
+      keyBurstTimer.current = null
+    }
+
+    discardParentChange()
   }
 
   const scheduleParentChange = (next: string) => {
@@ -966,15 +985,17 @@ export function TextInput({
       }
 
       if (k.return) {
-        flushKeyBurst()
-
         const sequence = (event.keypress as { sequence?: string }).sequence
         const preserveBareLineFeed = shouldPreserveCtrlJNewline() && sequence === '\n'
 
         if (k.shift || k.ctrl || preserveBareLineFeed || (isMac ? isActionMod(k) : k.meta)) {
+          flushKeyBurst()
           commit(ins(vRef.current, curRef.current, '\n'), curRef.current + 1)
         } else {
-          cbSubmit.current?.(vRef.current)
+          const submitted = vRef.current
+          discardKeyBurst()
+          commit('', 0, false)
+          cbSubmit.current?.(submitted)
         }
 
         return

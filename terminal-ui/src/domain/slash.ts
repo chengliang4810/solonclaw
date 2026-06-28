@@ -29,6 +29,8 @@ export const completionToApplyOnSubmit = (
   }
 
   const next = applyCompletion(value, rowText, compReplace)
+  const normalizedValue = value.trimEnd()
+  const normalizedNext = next.trimEnd()
 
-  return next !== value && next.trimEnd() !== value.trimEnd() ? next : null
+  return next !== value && normalizedNext !== normalizedValue ? next : null
 }
