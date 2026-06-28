@@ -530,8 +530,10 @@ def node_tui_command_expectation(command: str) -> str:
         return "Voice Mode Status"
     if value == "/skin" or value.startswith("/skin "):
         return "skin:"
-    if value == "/indicator" or value.startswith("/indicator "):
+    if value == "/indicator":
         return "indicator:"
+    if value.startswith("/indicator "):
+        return "indicator"
     if value == "/yolo" or value.startswith("/yolo "):
         return "is not available"
     if value == "/reasoning" or value.startswith("/reasoning "):

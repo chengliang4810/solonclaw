@@ -224,6 +224,12 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(action.get("expect"), "Models")
         self.assertEqual(issues, [])
 
+    def test_node_tui_indicator_set_expectation_matches_set_output(self) -> None:
+        mod = load_module()
+
+        self.assertEqual(mod.node_tui_command_expectation("/indicator"), "indicator:")
+        self.assertEqual(mod.node_tui_command_expectation("/indicator emoji"), "indicator")
+
     def test_node_tui_startup_accepts_setup_required_screen(self) -> None:
         mod = load_module()
 
