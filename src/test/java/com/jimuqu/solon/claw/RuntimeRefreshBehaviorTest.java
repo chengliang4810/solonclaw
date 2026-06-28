@@ -646,6 +646,40 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
+    void shouldAllowProviderModelListPublicUrlWithoutInteractiveApproval() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext(
+                    "/v1/models",
+                    exchange -> {
+                        byte[] bytes =
+                                "{\"data\":[{\"id\":\"runtime-model\"}]}"
+                                        .getBytes(StandardCharsets.UTF_8);
+                        exchange.sendResponseHeaders(200, bytes.length);
+                        exchange.getResponseBody().write(bytes);
+                        exchange.close();
+                    });
+            server.start();
+            AppConfig config = new AppConfig();
+            DashboardProviderService providerService =
+                    new DashboardProviderService(
+                            config,
+                            null,
+                            new LlmProviderService(config),
+                            new ProviderPublicUrlApprovalSecurityPolicyService(config));
+            Map<String, Object> body = new LinkedHashMap<String, Object>();
+            body.put("baseUrl", "http://127.0.0.1:" + server.getAddress().getPort());
+            body.put("dialect", "openai");
+
+            Map<String, Object> result = providerService.listRemoteModels(body);
+
+            assertThat(result.get("models")).asList().containsExactly("runtime-model");
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     void shouldRedactProviderModelListErrorBody() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
@@ -931,6 +965,14 @@ public class RuntimeRefreshBehaviorTest {
         }
 
         @Override
+        public UrlVerdict checkUrlSafety(String url, Boolean allowPrivateOverride) {
+            if (url != null && url.contains("127.0.0.1")) {
+                return UrlVerdict.allow();
+            }
+            return super.checkUrlSafety(url, allowPrivateOverride);
+        }
+
+        @Override
         protected InetAddress[] resolveHost(String host) throws Exception {
             if ("127.0.0.1".equals(host)) {
                 return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
@@ -950,6 +992,38 @@ public class RuntimeRefreshBehaviorTest {
         @Override
         protected InetAddress[] resolveHost(String host) throws Exception {
             return new InetAddress[] {InetAddress.getByName(ip)};
+        }
+    }
+
+    private static class ProviderPublicUrlApprovalSecurityPolicyService
+            extends SecurityPolicyService {
+        private ProviderPublicUrlApprovalSecurityPolicyService(AppConfig appConfig) {
+            super(appConfig);
+        }
+
+        @Override
+        public UrlVerdict checkAlwaysBlockedUrl(String url) {
+            if (url != null && url.contains("127.0.0.1")) {
+                return UrlVerdict.allow();
+            }
+            return super.checkAlwaysBlockedUrl(url);
+        }
+
+        @Override
+        public UrlVerdict checkUrlSafety(String url, Boolean allowPrivateOverride) {
+            if (url != null && url.contains("127.0.0.1")) {
+                return UrlVerdict.allow();
+            }
+            return super.checkUrlSafety(url, allowPrivateOverride);
+        }
+
+        @Override
+        public UrlVerdict checkUrl(String url) {
+            if (url != null && url.contains("127.0.0.1")) {
+                return UrlVerdict.approvalRequired(
+                        url, "network_external_operation", "网络外部操作需要审批");
+            }
+            return super.checkUrl(url);
         }
     }
 

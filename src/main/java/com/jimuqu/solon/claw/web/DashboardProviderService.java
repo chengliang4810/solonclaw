@@ -485,7 +485,7 @@ public class DashboardProviderService {
         String apiKey = probe.apiKey;
         String dialect = probe.dialect;
         String url = LlmProviderSupport.buildModelListUrl(providerKey, probe.baseUrl, dialect);
-        assertSafeProviderUrl(url);
+        assertSafeProviderUrl(url, dialect);
         String cacheKey = modelListCacheKey(providerKey, url, dialect, apiKey);
         ModelListCacheEntry cached = cachedModelList(cacheKey);
         if (isFresh(cached)) {
@@ -533,7 +533,7 @@ public class DashboardProviderService {
         String url =
                 LlmProviderSupport.buildModelListUrl(
                         probe.providerKey, probe.baseUrl, probe.dialect);
-        assertSafeProviderUrl(url);
+        assertSafeProviderUrl(url, probe.dialect);
         try {
             HttpResponse response = executeModelListRequest(url, probe.apiKey, probe.dialect, 0);
             try {
@@ -754,7 +754,7 @@ public class DashboardProviderService {
      */
     private HttpResponse executeModelListRequest(
             String initialUrl, String url, String apiKey, String dialect, int redirectCount) {
-        assertSafeProviderUrl(url);
+        assertSafeProviderUrl(url, dialect);
         HttpRequest request = HttpRequest.get(url).timeout(15000).setFollowRedirects(false);
         if (StrUtil.isNotBlank(apiKey) && UrlOriginSupport.sameOrigin(initialUrl, url)) {
             if (LlmConstants.PROVIDER_GEMINI.equals(dialect)) {
@@ -794,9 +794,11 @@ public class DashboardProviderService {
      * 执行assert安全提供方URL相关逻辑。
      *
      * @param url 待校验或访问的 URL。
+     * @param dialect 提供方协议，用于复用正式 LLM 调用的私网例外规则。
      */
-    private void assertSafeProviderUrl(String url) {
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
+    private void assertSafeProviderUrl(String url, String dialect) {
+        SecurityPolicyService.UrlVerdict verdict =
+                securityPolicyService.checkUrlSafety(url, providerPrivateUrlOverride(dialect));
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
                     "Provider model list URL blocked: "
@@ -805,6 +807,19 @@ public class DashboardProviderService {
                             + verdict.getMessage()
                             + ")");
         }
+    }
+
+    /**
+     * 返回模型提供方 URL 硬安全检查的私网覆盖策略；与正式 LLM API 调用保持一致。
+     *
+     * @param dialect 提供方协议。
+     * @return Ollama 允许本地私网模型服务，其他协议沿用全局安全配置。
+     */
+    private Boolean providerPrivateUrlOverride(String dialect) {
+        return LlmConstants.PROVIDER_OLLAMA.equals(
+                        LlmProviderSupport.normalizeDialect(dialect))
+                ? Boolean.TRUE
+                : null;
     }
 
     /**
