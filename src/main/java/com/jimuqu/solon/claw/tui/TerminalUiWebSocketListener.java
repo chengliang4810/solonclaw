@@ -47,7 +47,7 @@ import org.noear.solon.net.websocket.WebSocketListener;
 
 /** 终端 UI WebSocket 协议入口，负责把前端消息转交给本地终端运行时。 */
 public class TerminalUiWebSocketListener implements WebSocketListener {
-    /** 直接 shell 命令触发审批时，在会话快照里记录原始命令，审批后用于恢复执行。 */
+    /** 直接 shell 命令触发审批时，保留最近命令作为旧快照兜底；多审批场景以 pending 队列为准。 */
     private static final String DIRECT_SHELL_APPROVAL_COMMAND =
             "_terminal_ui_direct_shell_approval_command_";
 
@@ -602,7 +602,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return result;
         }
         bindRuntimeSource(sessionId);
-        if (hasDirectShellApproval(sessionId)) {
+        String selector = StrUtil.nullToEmpty(params.get("approval_id").getString()).trim();
+        if (hasDirectShellApproval(sessionId, selector)) {
             return respondDirectShellApproval(socket, sessionId, choice, params);
         }
         String command;
@@ -615,7 +616,6 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         } else {
             command = "approve";
         }
-        String selector = StrUtil.nullToEmpty(params.get("approval_id").getString()).trim();
         if (StrUtil.isNotBlank(selector)) {
             command = appendApprovalSelector(command, selector);
         }
@@ -883,7 +883,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /** 判断当前会话是否存在直接 shell 待审批记录。 */
-    private boolean hasDirectShellApproval(String sessionId) {
+    private boolean hasDirectShellApproval(String sessionId, String selector) {
         if (sessionRepository == null || StrUtil.isBlank(sessionId)) {
             return false;
         }
@@ -892,7 +892,12 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             if (session == null) {
                 return false;
             }
-            return StrUtil.isNotBlank(directShellCommand(session));
+            SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+            if (StrUtil.isNotBlank(selector)) {
+                return directShellPendingApproval(agentSession, selector) != null;
+            }
+            return directShellPendingApproval(agentSession, "") != null
+                    || StrUtil.isNotBlank(directShellCommand(agentSession));
         } catch (Exception e) {
             return false;
         }
@@ -903,8 +908,13 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             throws Exception {
         com.jimuqu.solon.claw.core.model.SessionRecord session = sessionRepository.findById(sessionId);
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
-        String command = directShellCommand(agentSession);
         String selector = StrUtil.nullToEmpty(params.get("approval_id").getString()).trim();
+        DangerousCommandApprovalService.PendingApproval pending = directShellPendingApproval(agentSession, selector);
+        String command = directShellCommand(agentSession, pending);
+        String approvalSelector =
+                StrUtil.isNotBlank(selector) || pending == null
+                        ? selector
+                        : DangerousCommandApprovalService.approvalSelector(pending);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (StrUtil.isBlank(command)) {
             result.put("ok", Boolean.FALSE);
@@ -912,8 +922,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return result;
         }
         if ("deny".equals(choice)) {
-            approvalService.reject(agentSession, selector, "terminal-ui");
-            clearDirectShellApproval(agentSession);
+            approvalService.reject(agentSession, approvalSelector, "terminal-ui");
+            refreshDirectShellApprovalState(agentSession);
             result.put("ok", Boolean.TRUE);
             result.put("denied", Boolean.TRUE);
             return result;
@@ -925,7 +935,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                         : "session".equals(choice)
                                 ? DangerousCommandApprovalService.ApprovalScope.SESSION
                                 : DangerousCommandApprovalService.ApprovalScope.ONCE;
-        if (!approvalService.approve(agentSession, selector, scope, "terminal-ui")) {
+        if (!approvalService.approve(agentSession, approvalSelector, scope, "terminal-ui")) {
             result.put("ok", Boolean.FALSE);
             result.put("warning", "approval_not_found");
             return result;
@@ -933,7 +943,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         grantDirectShellPolicyApproval(command);
         DangerousCommandApprovalService.grantCurrentThreadApproval(ToolNameConstants.TERMINAL, command);
         ONode terminal = runShellTerminal(command);
-        clearDirectShellApproval(agentSession);
+        refreshDirectShellApprovalState(agentSession);
         result.put("ok", Boolean.TRUE);
         result.put("direct_shell", Boolean.TRUE);
         result.put("code", Integer.valueOf(terminal.get("exit_code").getInt()));
@@ -968,16 +978,68 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
     }
 
+    /** 从审批 pending 记录读取对应的直接 shell 命令，避免多条审批共用一个上下文字段时串命令。 */
+    private String directShellCommand(
+            SqliteAgentSession agentSession, DangerousCommandApprovalService.PendingApproval pending) {
+        if (pending != null && StrUtil.isNotBlank(pending.getCommand())) {
+            return pending.getCommand().trim();
+        }
+        return directShellCommand(agentSession);
+    }
+
+    /** 读取当前会话中符合直接 shell 策略的待审批记录。 */
+    private DangerousCommandApprovalService.PendingApproval directShellPendingApproval(
+            SqliteAgentSession agentSession, String selector) {
+        if (approvalService == null || agentSession == null) {
+            return null;
+        }
+        DangerousCommandApprovalService.PendingApproval selected =
+                approvalService.selectPendingApproval(agentSession, selector);
+        if (isDirectShellPendingApproval(selected)) {
+            return selected;
+        }
+        if (StrUtil.isNotBlank(selector)) {
+            return null;
+        }
+        for (DangerousCommandApprovalService.PendingApproval item :
+                approvalService.listPendingApprovals(agentSession)) {
+            if (isDirectShellPendingApproval(item)) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    /** 判断审批记录是否属于 TUI 直接 shell 的文件或网络安全策略。 */
+    private boolean isDirectShellPendingApproval(DangerousCommandApprovalService.PendingApproval pending) {
+        if (pending == null || !ToolNameConstants.TERMINAL.equals(pending.getToolName())) {
+            return false;
+        }
+        for (String patternKey : pending.effectivePatternKeys()) {
+            if ("policy:workspace_outside_write".equals(patternKey)
+                    || "policy:network_external_operation".equals(patternKey)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** 从会话上下文读取直接 shell 待审批命令，兼容上下文值的 Object 存储形态。 */
     private String directShellCommand(SqliteAgentSession agentSession) {
         Object value = agentSession.getContext().get(DIRECT_SHELL_APPROVAL_COMMAND);
         return value == null ? "" : String.valueOf(value).trim();
     }
 
-    /** 清理直接 shell 审批标记并持久化会话快照。 */
-    private void clearDirectShellApproval(SqliteAgentSession agentSession) {
-        agentSession.getContext().remove(DIRECT_SHELL_APPROVAL_COMMAND);
-        agentSession.pending(false, null);
+    /** 审批响应后按剩余 pending 记录刷新直接 shell 状态，避免清掉其它仍待授权的命令。 */
+    private void refreshDirectShellApprovalState(SqliteAgentSession agentSession) {
+        DangerousCommandApprovalService.PendingApproval remaining = directShellPendingApproval(agentSession, "");
+        if (remaining == null) {
+            agentSession.getContext().remove(DIRECT_SHELL_APPROVAL_COMMAND);
+            agentSession.pending(false, null);
+        } else {
+            agentSession.getContext().put(DIRECT_SHELL_APPROVAL_COMMAND, remaining.getCommand());
+            agentSession.pending(true, "dangerous_command_approval");
+        }
         agentSession.updateSnapshot();
     }
 

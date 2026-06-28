@@ -639,6 +639,106 @@ class TerminalUiApprovalRespondTest {
     }
 
     @Test
+    void directShellApprovalSelectorRunsTheSelectedPendingCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        TerminalUiWebSocketListener listener =
+                new TerminalUiWebSocketListener(
+                        runtime,
+                        env.appConfig,
+                        env.sessionRepository,
+                        new com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService(env.appConfig),
+                        null,
+                        env.dangerousCommandApprovalService,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-shell-policy-selector");
+        File outsideDir = new File(env.appConfig.getRuntime().getHome()).getParentFile();
+        File firstFile = new File(outsideDir, "solonclaw-tui-shell-policy-selector-first.txt");
+        File secondFile = new File(outsideDir, "solonclaw-tui-shell-policy-selector-second.txt");
+        firstFile.delete();
+        secondFile.delete();
+        try {
+            String firstPath = firstFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
+            String secondPath = secondFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
+
+            RecordingSocket socket = new RecordingSocket();
+            listener.onOpen(socket);
+            listener.onMessage(
+                    socket,
+                    "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-first\",\"method\":\"shell.exec\","
+                            + "\"params\":{\"session_id\":\""
+                            + session.getSessionId()
+                            + "\",\"command\":\"printf first > "
+                            + firstPath
+                            + "\"}}");
+            SessionRecord firstPendingSession = env.sessionRepository.findById(session.getSessionId());
+            SqliteAgentSession firstPendingAgentSession =
+                    new SqliteAgentSession(firstPendingSession, env.sessionRepository);
+            DangerousCommandApprovalService.PendingApproval firstPending =
+                    env.dangerousCommandApprovalService
+                            .listPendingApprovals(firstPendingAgentSession)
+                            .get(0);
+            String firstSelector = DangerousCommandApprovalService.approvalSelector(firstPending);
+
+            listener.onMessage(
+                    socket,
+                    "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-second\",\"method\":\"shell.exec\","
+                            + "\"params\":{\"session_id\":\""
+                            + session.getSessionId()
+                            + "\",\"command\":\"printf second > "
+                            + secondPath
+                            + "\"}}");
+
+            SessionRecord twoPendingSession = env.sessionRepository.findById(session.getSessionId());
+            SqliteAgentSession twoPendingAgentSession =
+                    new SqliteAgentSession(twoPendingSession, env.sessionRepository);
+            assertThat(env.dangerousCommandApprovalService.listPendingApprovals(twoPendingAgentSession))
+                    .hasSize(2);
+
+            listener.onMessage(
+                    socket,
+                    "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-approve-first\",\"method\":\"approval.respond\","
+                            + "\"params\":{\"session_id\":\""
+                            + session.getSessionId()
+                            + "\",\"approval_id\":\""
+                            + firstSelector
+                            + "\",\"choice\":\"once\"}}");
+
+            assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-shell-policy-approve-first\"")
+                    && text.contains("\"ok\":true")
+                    && text.contains("\"direct_shell\":true")
+                    && text.contains("\"code\":0"));
+            assertThat(firstFile).exists().hasContent("first");
+            assertThat(secondFile).doesNotExist();
+        } finally {
+            firstFile.delete();
+            secondFile.delete();
+        }
+    }
+
+    @Test
     void directShellSessionApprovalAllowsNextOutsideWorkspaceWrite() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CliRuntime runtime =

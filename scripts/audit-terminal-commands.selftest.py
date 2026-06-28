@@ -413,6 +413,35 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
             ],
         )
 
+    def test_build_node_tui_actions_covers_external_network_approval(self) -> None:
+        mod = load_module()
+
+        actions = mod.build_node_tui_actions([
+            "/audit:direct-shell-external-network-allow-once",
+        ])
+
+        self.assertEqual(actions[0]["type"], "approval")
+        self.assertIn("https://example.com", actions[0]["value"])
+        self.assertIn("curl -fsS", actions[0]["value"])
+        self.assertEqual(actions[0]["expect"], "approval required")
+        self.assertEqual(actions[0]["keys"], "1")
+        self.assertEqual(actions[0]["post_expect"], "Example Domain")
+
+    def test_default_node_tui_actions_cover_direct_shell_approval_success(self) -> None:
+        mod = load_module()
+
+        actions = [
+            item
+            for item in mod.NODE_TUI_ACTIONS
+            if item.get("type") == "approval"
+            and str(item.get("value", "")).startswith("!printf audit > /tmp/")
+        ]
+
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0]["expect"], "approval required")
+        self.assertEqual(actions[0]["keys"], "1")
+        self.assertEqual(actions[0]["post_expect"], "exit 0")
+
     def test_build_node_tui_actions_waits_after_plain_history_panels(self) -> None:
         mod = load_module()
 

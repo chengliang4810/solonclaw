@@ -182,6 +182,13 @@ NODE_TUI_ACTIONS = [
     {"type": "command", "value": "/config check", "expect": "has_issues=false", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/skin", "expect": "skin:"},
     {"type": "command", "value": "/doctor", "expect": "model.provider", "after": "q", "close_expect": "ready"},
+    {
+        "type": "approval",
+        "value": "!printf audit > /tmp/solonclaw-node-tui-approval-audit.txt",
+        "expect": "approval required",
+        "keys": "1",
+        "post_expect": "exit 0",
+    },
     {"type": "command", "value": "/exit", "exit": True},
 ]
 
@@ -348,6 +355,13 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
             "expect": "approval required",
             "keys": "1",
             "post_expect": "exit 0",
+        },
+        "/audit:direct-shell-external-network-allow-once": {
+            "type": "approval",
+            "value": "!curl -fsS https://example.com/",
+            "expect": "approval required",
+            "keys": "1",
+            "post_expect": "Example Domain",
         },
         "/audit:direct-shell-outside-write-allow-session-reuse": [
             {
