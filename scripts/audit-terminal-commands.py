@@ -349,6 +349,20 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
             "keys": "1",
             "post_expect": "exit 0",
         },
+        "/audit:direct-shell-outside-write-allow-session-reuse": [
+            {
+                "type": "approval",
+                "value": "!printf first > /tmp/solonclaw-node-tui-session-first.txt",
+                "expect": "approval required",
+                "keys": "2",
+                "post_expect": "exit 0",
+            },
+            {
+                "type": "command",
+                "value": "!printf second > /tmp/solonclaw-node-tui-session-second.txt",
+                "expect": "exit 0",
+            },
+        ],
         "/setup:enter-model": {
             "type": "panel",
             "value": "/setup",
@@ -387,6 +401,9 @@ def build_node_tui_actions(explicit_commands: list[str]) -> list[dict[str, objec
         if not value:
             continue
         alias_action = setup_panel_aliases.get(value.lower())
+        if isinstance(alias_action, list):
+            actions.extend(dict(item) for item in alias_action)
+            continue
         action: dict[str, object] = dict(alias_action or default_actions.get(value.lower(), {}))
         if not action:
             action["type"] = "command"

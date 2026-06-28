@@ -755,6 +755,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return result;
         }
 
+        applyStoredDirectShellPolicyApproval(sessionId, normalized);
         ONode terminal = runShellTerminal(normalized);
         int exitCode = terminal.get("exit_code").getInt();
         String output = StrUtil.nullToEmpty(terminal.get("output").getString());
@@ -770,6 +771,52 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         result.put("stdout", output);
         result.put("stderr", error);
         return result;
+    }
+
+    /** 将会话或永久的 direct shell 策略审批转换为本次底层安全策略放行 token。 */
+    private void applyStoredDirectShellPolicyApproval(String sessionId, String command) throws Exception {
+        if (approvalService == null
+                || securityPolicyService == null
+                || sessionRepository == null
+                || StrUtil.hasBlank(sessionId, command)) {
+            return;
+        }
+        com.jimuqu.solon.claw.core.model.SessionRecord session = sessionRepository.findById(sessionId);
+        if (session == null) {
+            return;
+        }
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+        SecurityPolicyService.FileVerdict fileVerdict = securityPolicyService.checkCommandPaths(command);
+        if (fileVerdict.isApprovalRequired()
+                && isStoredDirectShellPolicyApproved(
+                        agentSession, directShellPolicyPatternFromPolicyKey(fileVerdict.getPolicyKey()), command)) {
+            SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
+        }
+        SecurityPolicyService.UrlVerdict urlVerdict = securityPolicyService.checkCommandUrls(command);
+        if (urlVerdict.isApprovalRequired()
+                && isStoredDirectShellPolicyApproved(
+                        agentSession, directShellPolicyPatternFromPolicyKey(urlVerdict.getPolicyKey()), command)) {
+            SecurityPolicyService.approveUrlPolicyForCurrentThread(urlVerdict.getApprovalToken());
+        }
+    }
+
+    /** 判断当前 direct shell 命令是否已有同类策略的会话或永久审批。 */
+    private boolean isStoredDirectShellPolicyApproved(
+            SqliteAgentSession agentSession, String patternKey, String command) {
+        if (approvalService == null || agentSession == null || StrUtil.isBlank(patternKey)) {
+            return false;
+        }
+        return approvalService.isSessionApproved(agentSession, ToolNameConstants.TERMINAL, patternKey, command)
+                || approvalService.isAlwaysApproved(ToolNameConstants.TERMINAL, patternKey, command);
+    }
+
+    /** 把底层策略键转换为危险命令审批服务使用的策略 pattern。 */
+    private String directShellPolicyPatternFromPolicyKey(String policyKey) {
+        String value = StrUtil.nullToEmpty(policyKey).trim();
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        return value.startsWith("policy:") ? value : "policy:" + value;
     }
 
     /** 直接执行前台 shell 命令，集中保持终端工具参数与原有 shell.exec 行为一致。 */
