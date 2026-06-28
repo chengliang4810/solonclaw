@@ -191,6 +191,14 @@ NODE_TUI_ACTIONS = [
     {"type": "command", "value": "/gateway status", "expect": "Gateway Status", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/config", "expect": "Config", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/tools", "expect": "Tools", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/status", "expect": "model=", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/usage", "expect": "no API calls yet"},
+    {"type": "command", "value": "/title", "expect": "title:"},
+    {"type": "command", "value": "/fast status", "expect": "fast mode:"},
+    {"type": "command", "value": "/busy status", "expect": "busy input mode:"},
+    {"type": "command", "value": "/reasoning", "expect": "reasoning:"},
+    {"type": "command", "value": "/yolo", "expect": "is not available"},
+    {"type": "command", "value": "/history", "expect": "versation"},
     {"type": "command", "value": "/background", "expect": "/background"},
     {"type": "command", "value": "/compress", "expect": "ready"},
     {"type": "command", "value": "/density on", "expect": "compact"},
@@ -213,10 +221,25 @@ NODE_TUI_ACTIONS = [
     {"type": "confirm", "value": "/terminal-setup", "expect": "Configure terminal keybindings?", "after": "esc", "close_expect": "ready"},
     {"type": "command", "value": "/undo", "expect": "nothing to undo"},
     {"type": "command", "value": "/verbose", "expect": "verbose:"},
+    {"type": "command", "value": "/tasks", "expect": "Spawn tree", "after": "q", "close_expect": "ready"},
+    {"type": "command", "value": "/tasks status", "expect": "delegation"},
+    {"type": "command", "value": "/replay list", "expect": "spawn trees"},
     {"type": "command", "value": "/voice status", "expect": "Mode:"},
+    {"type": "command", "value": "/voice on", "expect": "Voice"},
+    {"type": "command", "value": "/voice off", "expect": "Voice mode"},
+    {"type": "command", "value": "/voice tts", "expect": "Voice"},
     {"type": "command", "value": "/browser status", "expect": "browser not connected"},
     {"type": "command", "value": "/replay", "expect": "no completed spawn trees"},
     {"type": "command", "value": "/replay-diff", "expect": "usage: /replay-diff"},
+    {"type": "command", "value": "/approve status", "expect": "pending=none", "after": "\x1b", "after_wait": 1.2, "close_expect": "ready"},
+    {"type": "command", "value": "/deny status", "expect": "pending=none", "after": "\x1b", "after_wait": 1.2, "close_expect": "ready"},
+    {"type": "command", "value": "/confirm", "expect": "当前没有待确认的 slash 命令"},
+    {"type": "command", "value": "/security", "expect": "安全审计摘要", "after": "\x1b", "after_wait": 1.2, "close_expect": "ready"},
+    {"type": "command", "value": "/security status", "expect": "安全策略状态摘要", "after": "\x1b", "after_wait": 1.2, "close_expect": "ready"},
+    {"type": "command", "value": "/security policy", "expect": "Tirith", "after": "\x1b", "after_wait": 1.2, "close_expect": "ready"},
+    {"type": "command", "value": "/security urls", "expect": "URL：privateAllowed", "after": "\x1b", "after_wait": 1.2, "close_expect": "ready"},
+    {"type": "command", "value": "/security approvals", "expect": "云存储规则", "after": "\x1b", "after_wait": 1.2, "close_expect": "ready"},
+    {"type": "command", "value": "/security slash-confirm", "expect": "pendingQueue", "after": "\x1b", "after_wait": 1.2, "close_expect": "ready"},
     {"type": "command", "value": "/clear", "expect": "forging session", "wait": 4.0},
     {
         "type": "approval",
@@ -612,7 +635,7 @@ def node_tui_command_expectation(command: str) -> str:
     if value in {"/voice on", "/voice tts"}:
         return "Voice"
     if value == "/voice off":
-        return "Voice mode disabled"
+        return "Voice mode"
     if value == "/skin" or value.startswith("/skin "):
         return "skin:"
     if value == "/indicator":
