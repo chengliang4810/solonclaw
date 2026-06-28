@@ -3,6 +3,7 @@ import { forceRedraw, useInput } from '@solonclaw/ink'
 import { useEffect, useRef } from 'react'
 
 import { TYPING_IDLE_MS } from '../config/timing.js'
+import { buildApprovalRespondParams } from '../domain/approvalRespond.js'
 import type {
   ApprovalRespondResponse,
   SecretRespondResponse,
@@ -126,11 +127,7 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
 
     if (overlay.approval) {
       return gateway
-        .rpc<ApprovalRespondResponse>('approval.respond', {
-          approval_id: overlay.approval.approvalId,
-          choice: 'deny',
-          session_id: overlay.approval.sessionId ?? getUiState().sid
-        })
+        .rpc<ApprovalRespondResponse>('approval.respond', buildApprovalRespondParams(overlay.approval, 'deny', getUiState().sid))
         .then(r => r && (patchOverlayState({ approval: null }), patchTurnState({ outcome: 'denied' })))
     }
 

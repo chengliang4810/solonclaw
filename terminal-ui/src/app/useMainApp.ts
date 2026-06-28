@@ -8,6 +8,7 @@ import { hasLeadGap, prevRenderedMsg } from '../domain/blockLayout.js'
 import { SECTION_NAMES, sectionMode } from '../domain/details.js'
 import { attachedImageNotice, imageTokenMeta } from '../domain/messages.js'
 import { composeTabTitle, fmtCwdBranch, shortCwd } from '../domain/paths.js'
+import { buildApprovalRespondParams } from '../domain/approvalRespond.js'
 import { type GatewayClient } from '../gatewayClient.js'
 import type {
   ClarifyRespondResponse,
@@ -888,7 +889,7 @@ export function useMainApp(gw: GatewayClient) {
 
   const answerApproval = useCallback(
     (choice: string) =>
-      respondWith('approval.respond', { approval_id: overlay.approval?.approvalId, choice, session_id: overlay.approval?.sessionId ?? ui.sid }, () => {
+      respondWith('approval.respond', buildApprovalRespondParams(overlay.approval, choice, ui.sid), () => {
         patchOverlayState({ approval: null })
         patchTurnState({ outcome: choice === 'deny' ? 'denied' : `approved (${choice})` })
         patchUiState({ status: 'running…' })
