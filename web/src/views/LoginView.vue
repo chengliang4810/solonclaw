@@ -8,7 +8,7 @@ const { t } = useI18n();
 const router = useRouter();
 
 // Read token saved by main.ts (before router strips URL params)
-const urlToken = (window as any).__LOGIN_TOKEN__ || "";
+const urlToken = window.__LOGIN_TOKEN__ || "";
 
 const token = ref(urlToken);
 const loading = ref(false);

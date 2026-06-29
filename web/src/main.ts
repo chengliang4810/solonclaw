@@ -24,7 +24,7 @@ const searchToken = urlParams.get('token')
 const hashToken = hashParams?.get('token') || null
 const urlToken = searchToken || hashToken
 if (urlToken) {
-  ;(window as any).__LOGIN_TOKEN__ = urlToken
+  window.__LOGIN_TOKEN__ = urlToken
 }
 if (searchToken) {
   urlParams.delete('token')

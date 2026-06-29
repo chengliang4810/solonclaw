@@ -25,7 +25,7 @@ assert.equal(getApiKey(), 'url-token', 'URL token should be usable before an aut
 clearApiKey()
 
 assert.equal(getApiKey(), '', 'auth failure should clear both stored and injected tokens')
-assert.equal((globalThis.window as any).__LOGIN_TOKEN__, '', 'injected URL token should not keep the route authenticated')
+assert.equal(window.__LOGIN_TOKEN__, '', 'injected URL token should not keep the route authenticated')
 
 setApiKey('stored-token')
 
