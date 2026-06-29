@@ -18,6 +18,10 @@ const fileContent = ref('')
 const viewingFile = ref<string | null>(null)
 const fileLoading = ref(false)
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 async function loadSkill() {
   loading.value = true
   viewingFile.value = null
@@ -31,8 +35,8 @@ async function loadSkill() {
     ])
     content.value = skillContent
     files.value = skillFiles.filter(f => !f.isDir && f.path !== 'SKILL.md')
-  } catch (err: any) {
-    content.value = t('skills.loadFailed') + `: ${err.message}`
+  } catch (err: unknown) {
+    content.value = t('skills.loadFailed') + `: ${errorMessage(err)}`
   } finally {
     loading.value = false
   }
@@ -43,8 +47,8 @@ async function viewFile(filePath: string) {
   viewingFile.value = filePath
   try {
     fileContent.value = await fetchSkillContent(props.category, props.skill, filePath)
-  } catch (err: any) {
-    fileContent.value = t('skills.fileLoadFailed') + `: ${err.message}`
+  } catch (err: unknown) {
+    fileContent.value = t('skills.fileLoadFailed') + `: ${errorMessage(err)}`
   } finally {
     fileLoading.value = false
   }
