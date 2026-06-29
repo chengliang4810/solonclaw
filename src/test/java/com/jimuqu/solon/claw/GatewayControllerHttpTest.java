@@ -19,6 +19,7 @@ import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
@@ -152,13 +153,16 @@ public class GatewayControllerHttpTest {
 
     @Test
     void shouldAcceptDomesticGatewayPlatformsThroughHttpController() throws Exception {
-        GatewayReply qqbotReply =
-                postMessage(PlatformType.QQBOT, "http-qqbot-chat", "http-qqbot-user", "hello");
-        GatewayReply yuanbaoReply =
-                postMessage(PlatformType.YUANBAO, "http-yuanbao-chat", "http-yuanbao-user", "hello");
+        GatewayHttpResponse qqbotResponse =
+                postMessageResponse(PlatformType.QQBOT, "http-qqbot-chat", "http-qqbot-user", "hello");
+        GatewayHttpResponse yuanbaoResponse =
+                postMessageResponse(
+                        PlatformType.YUANBAO, "http-yuanbao-chat", "http-yuanbao-user", "hello");
 
-        assertThat(qqbotReply.getContent()).contains("/pairing claim-admin");
-        assertThat(yuanbaoReply.getContent()).contains("/pairing claim-admin");
+        assertAcceptedGatewayPlatform(qqbotResponse);
+        assertAcceptedGatewayPlatform(yuanbaoResponse);
+        assertThat(qqbotResponse.reply.getContent()).contains("/pairing claim-admin");
+        assertThat(yuanbaoResponse.reply.getContent()).contains("/pairing claim-admin");
     }
 
     @Test
@@ -251,6 +255,14 @@ public class GatewayControllerHttpTest {
     /** 按指定平台发送已签名网关消息，用于覆盖真实 HTTP 注入入口的平台校验。 */
     private static GatewayReply postMessage(
             PlatformType platform, String chatId, String userId, String text) throws Exception {
+        GatewayHttpResponse response = postMessageResponse(platform, chatId, userId, text);
+        assertThat(response.status).isEqualTo(200);
+        return response.reply;
+    }
+
+    /** 按指定平台发送已签名网关消息并保留 HTTP 状态，用于断言控制器入口没有提前拒绝。 */
+    private static GatewayHttpResponse postMessageResponse(
+            PlatformType platform, String chatId, String userId, String text) throws Exception {
         GatewayMessage message = new GatewayMessage(platform, chatId, userId, text);
         message.setChatType("dm");
         message.setChatName(chatId);
@@ -280,11 +292,15 @@ public class GatewayControllerHttpTest {
             outputStream.close();
         }
 
+        int status = connection.getResponseCode();
+        InputStream responseStream =
+                status >= 400 ? connection.getErrorStream() : connection.getInputStream();
         BufferedReader reader =
-                new BufferedReader(
-                        new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8));
+                new BufferedReader(new InputStreamReader(responseStream, StandardCharsets.UTF_8));
         try {
-            return ONode.deserialize(readAll(reader), GatewayReply.class);
+            String responseBody = readAll(reader);
+            return new GatewayHttpResponse(
+                    status, responseBody, ONode.deserialize(responseBody, GatewayReply.class));
         } finally {
             reader.close();
             connection.disconnect();
@@ -298,6 +314,28 @@ public class GatewayControllerHttpTest {
             buffer.append(line);
         }
         return buffer.toString();
+    }
+
+    /** 断言国内平台已经通过控制器白名单校验，而不是被平台校验提前拦截。 */
+    private static void assertAcceptedGatewayPlatform(GatewayHttpResponse response) {
+        assertThat(response.status).isEqualTo(200);
+        assertThat(response.body)
+                .doesNotContain("不支持的网关平台")
+                .doesNotContain("Unsupported gateway platform");
+        assertThat(response.reply.isError()).isFalse();
+    }
+
+    /** HTTP 网关注入响应，保留状态码、原始响应体和反序列化后的业务回复。 */
+    private static final class GatewayHttpResponse {
+        private final int status;
+        private final String body;
+        private final GatewayReply reply;
+
+        private GatewayHttpResponse(int status, String body, GatewayReply reply) {
+            this.status = status;
+            this.body = body;
+            this.reply = reply;
+        }
     }
 
     private static String hmac(String payload) throws Exception {
