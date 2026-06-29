@@ -1,0 +1,67 @@
+.device-login {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.device-login__state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  min-height: 120px;
+  justify-content: center;
+  width: 100%;
+}
+
+.device-login__hint {
+  font-size: 14px;
+  color: var(--n-text-color, inherit);
+  text-align: center;
+  line-height: 1.6;
+}
+
+.device-login__code {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border: 1px solid var(--n-border-color, #e0e0e6);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  background: var(--n-color, #fafafa);
+
+  &:hover {
+    border-color: var(--n-primary-color, #18a058);
+  }
+}
+
+.device-login__code-text {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: monospace;
+  letter-spacing: 4px;
+  color: var(--n-text-color, inherit);
+}
+
+.device-login__state--success {
+  color: #18a058;
+
+  svg {
+    stroke: #18a058;
+  }
+}
+
+.device-login__error {
+  color: #d03050;
+  text-align: center;
+  font-size: 13px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
