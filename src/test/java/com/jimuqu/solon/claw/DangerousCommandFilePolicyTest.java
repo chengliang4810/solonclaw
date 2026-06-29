@@ -36,62 +36,7 @@ import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 public class DangerousCommandFilePolicyTest {
     @AfterEach
     void clearThreadPolicyApprovals() {
-        SecurityPolicyService.clearCurrentThreadPolicyApprovals();
-    }
-
-    /**
-     * 创建显式开启人工审批护栏的测试环境，用于验证待审批入队、审批恢复和审批卡片语义。
-     *
-     * @return 返回已开启 approval 模式的测试环境。
-     */
-    private static TestEnvironment approvalEnvironment() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setGuardrailMode("approval");
-        return env;
-    }
-
-    /**
-     * 断言工具结果为当前成功状态，避免测试重新依赖已删除的 success 布尔字段。
-     */
-    private static void assertToolSuccess(ONode result) {
-        assertThat(result.get("status").getString()).isNotEqualTo("error");
-    }
-
-    /**
-     * 断言工具结果为当前错误状态，避免测试重新依赖已删除的 success 布尔字段。
-     */
-    private static void assertToolError(ONode result) {
-        assertThat(result.get("status").getString()).isEqualTo("error");
-    }
-
-    /**
-     * 创建位于 target 下的工作区边界测试目录，避免系统临时目录触发敏感路径硬阻断。
-     *
-     * @param label 测试目录标签。
-     * @return 返回已创建的测试目录。
-     */
-    private static File workspaceBoundaryParent(String label) throws Exception {
-        File parent =
-                new File(
-                                "target/workspace-boundary-test/"
-                                        + label
-                                        + "-"
-                                        + System.nanoTime())
-                        .getCanonicalFile();
-        FileUtil.mkdir(parent);
-        return parent;
-    }
-
-    /**
-     * 创建边界测试工作区目录。
-     *
-     * @param label 测试目录标签。
-     * @return 返回已创建的工作区目录。
-     */
-    private static File workspaceBoundaryWorkspace(String label) throws Exception {
-        File workspace = new File(workspaceBoundaryParent(label), "workspace").getCanonicalFile();
-        FileUtil.mkdir(workspace);
-        return workspace;
+        DangerousCommandApprovalTestSupport.clearThreadPolicyApprovals();
     }
 
     @Test
