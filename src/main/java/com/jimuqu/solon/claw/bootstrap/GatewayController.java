@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.bootstrap;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
@@ -89,15 +90,9 @@ public class GatewayController {
             throw new IllegalArgumentException(
                     "网关消息 platform 不能为空 / Gateway message platform is required");
         }
-        switch (message.getPlatform()) {
-            case MEMORY:
-            case FEISHU:
-            case DINGTALK:
-            case WECOM:
-            case WEIXIN:
-                break;
-            default:
-                throw new IllegalArgumentException("不支持的网关平台 / Unsupported gateway platform");
+        PlatformType platform = message.getPlatform();
+        if (platform != PlatformType.MEMORY && !PlatformType.DOMESTIC_PLATFORMS.contains(platform)) {
+            throw new IllegalArgumentException("不支持的网关平台 / Unsupported gateway platform");
         }
         if (isBlank(message.getChatId()) || isBlank(message.getUserId())) {
             throw new IllegalArgumentException(

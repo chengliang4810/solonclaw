@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IORuntimeException;
 import com.jimuqu.solon.claw.bootstrap.GatewayController;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -150,6 +151,17 @@ public class GatewayControllerHttpTest {
     }
 
     @Test
+    void shouldAcceptDomesticGatewayPlatformsThroughHttpController() throws Exception {
+        GatewayReply qqbotReply =
+                postMessage(PlatformType.QQBOT, "http-qqbot-chat", "http-qqbot-user", "hello");
+        GatewayReply yuanbaoReply =
+                postMessage(PlatformType.YUANBAO, "http-yuanbao-chat", "http-yuanbao-user", "hello");
+
+        assertThat(qqbotReply.getContent()).contains("/pairing claim-admin");
+        assertThat(yuanbaoReply.getContent()).contains("/pairing claim-admin");
+    }
+
+    @Test
     void shouldRedactGatewayInjectionAuthErrors() throws Exception {
         String bodyText =
                 ONode.serialize(
@@ -233,9 +245,13 @@ public class GatewayControllerHttpTest {
 
     private static GatewayReply postMessage(String chatId, String userId, String text)
             throws Exception {
-        GatewayMessage message =
-                new GatewayMessage(
-                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY, chatId, userId, text);
+        return postMessage(PlatformType.MEMORY, chatId, userId, text);
+    }
+
+    /** 按指定平台发送已签名网关消息，用于覆盖真实 HTTP 注入入口的平台校验。 */
+    private static GatewayReply postMessage(
+            PlatformType platform, String chatId, String userId, String text) throws Exception {
+        GatewayMessage message = new GatewayMessage(platform, chatId, userId, text);
         message.setChatType("dm");
         message.setChatName(chatId);
         message.setUserName(userId);
