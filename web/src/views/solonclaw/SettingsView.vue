@@ -11,14 +11,15 @@ import DisplaySettings from "@/components/solonclaw/settings/DisplaySettings.vue
 import AgentSettings from "@/components/solonclaw/settings/AgentSettings.vue";
 import SessionSettings from "@/components/solonclaw/settings/SessionSettings.vue";
 import AccountSettings from "@/components/solonclaw/settings/AccountSettings.vue";
-import { fetchConfigDiagnostics, fetchConfigSchema, fetchRawConfig } from "@/api/solonclaw/config";
+import { fetchConfigDefaults, fetchConfigDiagnostics, fetchConfigSchema, fetchRawConfig } from "@/api/solonclaw/config";
 
 const settingsStore = useSettingsStore();
 const { t } = useI18n();
 const activeTab = ref("account");
-const configDiagnostics = ref<Record<string, any> | null>(null);
-const configSchema = ref<Record<string, any> | null>(null);
-const rawConfig = ref<Record<string, any> | null>(null);
+const configDiagnostics = ref<Record<string, unknown> | null>(null);
+const configSchema = ref<Record<string, unknown> | null>(null);
+const configDefaults = ref<Record<string, unknown> | null>(null);
+const rawConfig = ref<Record<string, unknown> | null>(null);
 const configInfoLoading = ref(false);
 
 onMounted(() => {
@@ -32,16 +33,18 @@ watch(activeTab, (tab) => {
 });
 
 async function loadConfigInfo() {
-  if (configDiagnostics.value || configSchema.value || rawConfig.value) return;
+  if (configDiagnostics.value || configSchema.value || configDefaults.value || rawConfig.value) return;
   configInfoLoading.value = true;
   try {
-    const [diagnostics, schema, raw] = await Promise.all([
+    const [diagnostics, schema, defaults, raw] = await Promise.all([
       fetchConfigDiagnostics(),
       fetchConfigSchema(),
+      fetchConfigDefaults(),
       fetchRawConfig(),
     ]);
     configDiagnostics.value = diagnostics;
     configSchema.value = schema;
+    configDefaults.value = defaults;
     rawConfig.value = raw;
   } finally {
     configInfoLoading.value = false;
@@ -91,6 +94,10 @@ function jsonText(value: unknown) {
                 <section>
                   <h3>{{ t("settings.configDiagnostics.schema") }}</h3>
                   <pre>{{ jsonText(configSchema) }}</pre>
+                </section>
+                <section>
+                  <h3>{{ t("settings.configDiagnostics.defaults") }}</h3>
+                  <pre>{{ jsonText(configDefaults) }}</pre>
                 </section>
                 <section>
                   <h3>{{ t("settings.configDiagnostics.raw") }}</h3>

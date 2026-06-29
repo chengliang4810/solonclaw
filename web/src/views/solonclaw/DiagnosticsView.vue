@@ -2,8 +2,10 @@
 import { computed, onMounted, ref } from 'vue'
 import { Button, SpaceCompact, Input, Select, Spin, Switch, Tag, TextArea, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
+import ApprovalEventsPanel from '@/components/solonclaw/diagnostics/ApprovalEventsPanel.vue'
 import {
   auditSecurity,
+  fetchApprovalEvents,
   fetchApprovalStats,
   fetchAlwaysApprovals,
   fetchApprovalHistory,
@@ -18,6 +20,7 @@ import {
   revokeAlwaysApproval,
   type AlwaysApproval,
   type AlwaysApprovalsResult,
+  type ApprovalEventsResult,
   type ApprovalStats,
   type ApprovalAuditEvent,
   type ApprovalHistoryResult,
@@ -48,6 +51,7 @@ const skillInsights = ref<SkillInsights>({})
 const loading = ref(false)
 const auditLoading = ref(false)
 const approvalsLoading = ref(false)
+const approvalEventsLoading = ref(false)
 const historyLoading = ref(false)
 const alwaysLoading = ref(false)
 const confirmsLoading = ref(false)
@@ -57,6 +61,7 @@ const subprocessEnvProbeResult = ref<SubprocessEnvironmentProbeResult | null>(nu
 const subprocessEnvProbeLoading = ref(false)
 const platformToolsets = ref<PlatformToolsetsOverview | null>(null)
 const pendingApprovals = ref<PendingApproval[]>([])
+const approvalEvents = ref<ApprovalEventsResult | null>(null)
 const approvalStats = ref<ApprovalStats | null>(null)
 const pendingApprovalMeta = ref<PendingApprovalsResult | null>(null)
 const approvalHistory = ref<ApprovalAuditEvent[]>([])
@@ -594,6 +599,7 @@ async function load() {
       fetchInsightsOverview(),
       fetchSkillInsights(),
       loadPolicyAudit(),
+      loadApprovalEvents(),
       loadApprovals(),
       loadHistory(),
       loadAlwaysApprovals(),
@@ -611,6 +617,15 @@ async function load() {
 
 async function loadPolicyAudit() {
   policyAuditResult.value = await auditSecurity({ action: 'status' })
+}
+
+async function loadApprovalEvents() {
+  approvalEventsLoading.value = true
+  try {
+    approvalEvents.value = await fetchApprovalEvents(50)
+  } finally {
+    approvalEventsLoading.value = false
+  }
 }
 
 async function loadApprovals() {
@@ -1228,6 +1243,11 @@ onMounted(load)
             </div>
           </div>
         </section>
+        <ApprovalEventsPanel
+          :loading="approvalEventsLoading"
+          :result="approvalEvents"
+          @refresh="loadApprovalEvents"
+        />
         <section class="panel approvals-panel">
           <div class="panel-title-row">
             <h3>{{ t('diagnostics.pendingApprovals') }}</h3>

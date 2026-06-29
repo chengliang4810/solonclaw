@@ -443,6 +443,8 @@ export default {
     approvalRequired: 'Approval required',
     findingBlocked: 'Blocked',
     findingApproval: 'Approval',
+    approvalEvents: 'Runtime approval events',
+    noApprovalEvents: 'No runtime approval events',
     pendingApprovals: 'Pending approvals',
     approvalStats: 'Approval stats',
     approvalStatTotal: 'Total events',
@@ -1388,6 +1390,7 @@ export default {
     configDiagnostics: {
       diagnostics: 'Diagnostics',
       schema: 'Config schema',
+      defaults: 'Config defaults',
       raw: 'Raw config',
     },
     models: {

@@ -738,6 +738,8 @@ export default {
     approvalRequired: '需要审批',
     findingBlocked: '阻断',
     findingApproval: '审批',
+    approvalEvents: '运行时审批事件',
+    noApprovalEvents: '暂无运行时审批事件',
     pendingApprovals: '待审批命令',
     approvalStats: '审批统计',
     approvalStatTotal: '事件总数',
@@ -1420,6 +1422,7 @@ export default {
     configDiagnostics: {
       diagnostics: '诊断',
       schema: '配置结构',
+      defaults: '默认配置',
       raw: '原始配置',
     },
     models: {

@@ -195,6 +195,20 @@ export interface ApprovalStats {
   pending: number
 }
 
+export interface ApprovalRuntimeEvent {
+  readonly timestamp?: number
+  readonly toolName?: string
+  readonly decision?: string
+  readonly sourceKey?: string
+  readonly summary?: string
+  readonly details?: Record<string, unknown>
+}
+
+export interface ApprovalEventsResult {
+  readonly count: number
+  readonly events: readonly ApprovalRuntimeEvent[]
+}
+
 export interface DiagnosticsDoctor {
   generated_at?: string
   workspace_home?: string
@@ -241,6 +255,10 @@ export async function fetchDiagnostics(): Promise<Diagnostics> {
 
 export async function fetchApprovalStats(): Promise<ApprovalStats> {
   return request<ApprovalStats>('/api/approval/stats')
+}
+
+export async function fetchApprovalEvents(limit = 50): Promise<ApprovalEventsResult> {
+  return request<ApprovalEventsResult>(`/api/approval/events?limit=${limit}`)
 }
 
 export async function fetchDiagnosticsDoctor(): Promise<DiagnosticsDoctor> {

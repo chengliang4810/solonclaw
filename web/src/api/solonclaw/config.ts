@@ -106,6 +106,10 @@ export async function fetchConfigSchema(): Promise<Record<string, any>> {
   return request<Record<string, any>>('/api/config/schema')
 }
 
+export async function fetchConfigDefaults(): Promise<Record<string, unknown>> {
+  return request<Record<string, unknown>>('/api/config/defaults')
+}
+
 export async function fetchRawConfig(): Promise<Record<string, any>> {
   return request<Record<string, any>>('/api/config/raw')
 }
