@@ -569,6 +569,7 @@ export default {
     uploadFailed: 'Error al subir',
     saveFailed: 'Error al guardar',
     saved: 'Guardado',
+    loadFailed: 'Error al cargar archivos',
     restored: 'Restaurado',
     unsavedChanges: 'Tiene cambios sin guardar. ?Descartar?',
     pathCopied: 'Ruta copiada',

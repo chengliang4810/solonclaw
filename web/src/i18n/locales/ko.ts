@@ -569,6 +569,7 @@ export default {
     uploadFailed: '업로드 실패',
     saveFailed: '저장 실패',
     saved: '저장됨',
+    loadFailed: '파일을 불러오지 못했습니다',
     restored: '복원됨',
     unsavedChanges: '저장하지 않은 변경 사항이 있습니다. 취소하시겠습니까?',
     pathCopied: '경로가 복사되었습니다',

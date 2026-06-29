@@ -569,6 +569,7 @@ export default {
     uploadFailed: 'アップロードに失敗しました',
     saveFailed: '保存に失敗しました',
     saved: '保存しました',
+    loadFailed: 'ファイルの読み込みに失敗しました',
     restored: '復元しました',
     unsavedChanges: '未保存の変更があります。破棄しますか？',
     pathCopied: 'パスをコピーしました',

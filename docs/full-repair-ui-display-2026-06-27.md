@@ -180,8 +180,7 @@
     - 位置：
       - `web/src/stores/solonclaw/files.ts`
       - `web/src/components/solonclaw/files/FileList.vue`
-      - `web/src/shared/fileListState.ts`
-      - `web/tests/fileListState.test.ts`
+      - `web/tests/filesLoadFailure.test.ts`
     - 改造前：
       - 文件列表刷新或切换目录失败时只抛出错误并弹出短暂 toast。
       - store 仍保留上一轮目录 entries，页面可能继续展示旧目录文件。
@@ -205,7 +204,7 @@
 - `npm run build --prefix web`：2026-06-27 定时任务页加载失败反馈改造后通过。
 - `npm run build --prefix web`：2026-06-27 记忆页加载失败反馈改造后通过。
 - `npm run build --prefix web`：2026-06-27 文件列表加载失败反馈改造后通过。
-- `node --experimental-strip-types web/tests/fileListState.test.ts`：通过。
+- `node --experimental-strip-types web/tests/filesLoadFailure.test.ts`：通过。
 - `git diff --check -- terminal-ui/src/components/markdown.tsx terminal-ui/src/__tests__/markdown.test.ts`：通过。
 - `git diff --check -- web/src/shared/fileDisplay.ts web/tests/fileDisplay.test.ts web/src/components/solonclaw/files/FileContextMenu.vue`：通过。
 - `git diff --check -- web/src/views/solonclaw/UsageView.vue`：通过。
@@ -215,7 +214,7 @@
 - `git diff --check -- web/src/stores/solonclaw/models.ts web/src/views/solonclaw/ModelsView.vue`：通过。
 - `git diff --check -- web/src/stores/solonclaw/jobs.ts web/src/views/solonclaw/JobsView.vue docs/full-repair-ui-display-2026-06-27.md`：通过。
 - `git diff --check -- web/src/views/solonclaw/MemoryView.vue docs/full-repair-ui-display-2026-06-27.md`：通过。
-- `git diff --check -- web/src/stores/solonclaw/files.ts web/src/components/solonclaw/files/FileList.vue web/src/shared/fileListState.ts web/tests/fileListState.test.ts docs/full-repair-ui-display-2026-06-27.md`：通过。
+- `git diff --check -- web/src/stores/solonclaw/files.ts web/src/components/solonclaw/files/FileList.vue web/tests/filesLoadFailure.test.ts docs/full-repair-ui-display-2026-06-27.md`：通过。
 - `node -e "const fs=require('fs'); const p=JSON.parse(fs.readFileSync('terminal-ui/package.json','utf8')); const l=JSON.parse(fs.readFileSync('terminal-ui/package-lock.json','utf8')); console.log(JSON.stringify({package:p.version, lock:l.version, root:l.packages[''].version}, null, 2)); if (p.version!==l.version || p.version!==l.packages[''].version) process.exit(1)"`：通过，三处版本号均为 `0.0.7`。
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`：通过。
 

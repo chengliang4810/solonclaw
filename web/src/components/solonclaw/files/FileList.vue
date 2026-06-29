@@ -62,8 +62,8 @@ function handleContextMenu(e: MouseEvent, entry: FileEntry) {
 async function handleDownload(entry: FileEntry) {
   try {
     await downloadFile(entry.path, entry.name)
-  } catch (err: any) {
-    message.error(err.message || t('files.backendError'))
+  } catch (err: unknown) {
+    message.error(err instanceof Error && err.message ? err.message : t('files.backendError'))
   }
 }
 </script>
@@ -71,7 +71,11 @@ async function handleDownload(entry: FileEntry) {
 <template>
   <div class="file-list">
     <Spin :spinning="filesStore.loading">
-      <Empty v-if="!filesStore.loading && filesStore.sortedEntries.length === 0" :description="t('files.emptyDir')" />
+      <div v-if="filesStore.loadError" class="file-error">
+        <strong>{{ t('files.loadFailed') }}</strong>
+        <span>{{ filesStore.loadError }}</span>
+      </div>
+      <Empty v-else-if="!filesStore.loading && filesStore.sortedEntries.length === 0" :description="t('files.emptyDir')" />
       <div v-else class="file-list-items">
         <div class="file-list-header">
           <div class="file-name sort-header" @click="filesStore.setSort('name')">
@@ -116,6 +120,19 @@ async function handleDownload(entry: FileEntry) {
 
 .file-list {
   padding: 8px 16px;
+}
+
+.file-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: $radius-sm;
+  color: $error;
+  background: rgba(var(--error-rgb), 0.06);
+  font-size: 13px;
 }
 
 .file-list-header {

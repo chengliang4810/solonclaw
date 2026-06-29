@@ -569,6 +569,7 @@ export default {
     uploadFailed: 'Hochladen fehlgeschlagen',
     saveFailed: 'Speichern fehlgeschlagen',
     saved: 'Gespeichert',
+    loadFailed: 'Laden der Dateien fehlgeschlagen',
     restored: 'Wiederhergestellt',
     unsavedChanges: 'Sie haben ungespeicherte Anderungen. Verwerfen?',
     pathCopied: 'Pfad kopiert',

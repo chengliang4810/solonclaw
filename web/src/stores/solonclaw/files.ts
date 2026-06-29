@@ -66,6 +66,7 @@ export const useFilesStore = defineStore('files', () => {
   const currentPath = ref('')
   const entries = ref<FileEntry[]>([])
   const loading = ref(false)
+  const loadError = ref<string | null>(null)
   const sortBy = ref<'name' | 'size' | 'modTime'>('name')
   const sortOrder = ref<'asc' | 'desc'>('asc')
 
@@ -111,11 +112,14 @@ export const useFilesStore = defineStore('files', () => {
     }
     if (path !== undefined) currentPath.value = path
     loading.value = true
+    loadError.value = null
     try {
       const result = await filesApi.listFiles(currentPath.value)
       entries.value = result.entries
     } catch (err) {
       console.error('Failed to fetch files:', err)
+      entries.value = []
+      loadError.value = err instanceof Error ? err.message : String(err || 'Failed to fetch files')
       throw err
     } finally {
       loading.value = false
@@ -185,7 +189,7 @@ export const useFilesStore = defineStore('files', () => {
 
   return {
     currentPath, entries, loading, sortBy, sortOrder,
-    editingFile, previewFile,
+    loadError, editingFile, previewFile,
     pathSegments, sortedEntries, hasUnsavedChanges,
     fetchEntries, navigateTo, navigateUp,
     openEditor, saveEditor, restoreFile, closeEditor,

@@ -1698,6 +1698,7 @@ export default {
     uploadFailed: 'Upload failed',
     saveFailed: 'Save failed',
     saved: 'Saved',
+    loadFailed: 'Failed to load files',
     restored: 'Restored',
     unsavedChanges: 'You have unsaved changes. Discard?',
     pathCopied: 'Path copied',

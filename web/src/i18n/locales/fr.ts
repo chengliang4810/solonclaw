@@ -569,6 +569,7 @@ export default {
     uploadFailed: 'Echec du televersement',
     saveFailed: 'Echec de l\'enregistrement',
     saved: 'Enregistre',
+    loadFailed: 'Echec du chargement des fichiers',
     restored: 'Restaure',
     unsavedChanges: 'Vous avez des modifications non enregistrees. Annuler ?',
     pathCopied: 'Chemin copie',

@@ -569,6 +569,7 @@ export default {
     uploadFailed: 'Falha ao enviar',
     saveFailed: 'Falha ao salvar',
     saved: 'Salvo',
+    loadFailed: 'Falha ao carregar arquivos',
     restored: 'Restaurado',
     unsavedChanges: 'Voce tem alteracoes nao salvas. Descartar?',
     pathCopied: 'Caminho copiado',

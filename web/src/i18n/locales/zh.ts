@@ -1743,6 +1743,7 @@ export default {
     uploadFailed: '上传失败',
     saveFailed: '保存失败',
     saved: '已保存',
+    loadFailed: '文件列表加载失败',
     restored: '已恢复',
     unsavedChanges: '有未保存的更改，是否丢弃？',
     pathCopied: '路径已复制',
