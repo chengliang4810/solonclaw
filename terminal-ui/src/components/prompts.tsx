@@ -21,13 +21,23 @@ type ApprovalKey = {
 
 type ApprovalAction =
   | { kind: 'buffer'; value: string }
-  | { kind: 'choose'; choice: ApprovalChoice }
+  | { approvalId?: string; kind: 'choose'; choice: ApprovalChoice }
   | { kind: 'move'; delta: -1 | 1 }
   | { kind: 'noop' }
 
 const stripBracketedPaste = (text: string) => text.replace(/\x1B\[200~/g, '').replace(/\x1B\[201~/g, '')
 
-export function approvalChoiceFromTextCommand(text: string): null | ApprovalChoice {
+type ParsedApprovalCommand = {
+  readonly approvalId?: string
+  readonly choice: ApprovalChoice
+}
+
+const APPROVAL_SCOPE_WORDS = new Set(['always', 'deny', 'once', 'session'])
+
+const parsedApprovalCommand = (choice: ApprovalChoice, approvalId?: string): ParsedApprovalCommand =>
+  approvalId ? { approvalId, choice } : { choice }
+
+export function approvalChoiceFromTextCommand(text: string): null | ParsedApprovalCommand {
   const cleaned = stripBracketedPaste(text).trim().replace(/\s+/g, ' ')
 
   if (!cleaned) {
@@ -37,9 +47,14 @@ export function approvalChoiceFromTextCommand(text: string): null | ApprovalChoi
   const [head = '', ...rest] = cleaned.startsWith('/') ? cleaned.slice(1).split(' ') : cleaned.split(' ')
   const command = head.toLowerCase()
   const args = rest.map(part => part.toLowerCase())
+  const approvalId = rest.find((_part, index) => {
+    const normalized = args[index]
+
+    return normalized ? !APPROVAL_SCOPE_WORDS.has(normalized) : false
+  })
 
   if (command === 'deny') {
-    return 'deny'
+    return parsedApprovalCommand('deny', approvalId)
   }
 
   if (command !== 'approve') {
@@ -47,14 +62,14 @@ export function approvalChoiceFromTextCommand(text: string): null | ApprovalChoi
   }
 
   if (args.includes('always')) {
-    return 'always'
+    return parsedApprovalCommand('always', approvalId)
   }
 
   if (args.includes('session')) {
-    return 'session'
+    return parsedApprovalCommand('session', approvalId)
   }
 
-  return 'once'
+  return parsedApprovalCommand('once', approvalId)
 }
 
 /**
@@ -77,15 +92,15 @@ export function approvalAction(ch: string, key: ApprovalKey, sel: number, buffer
   const activeBuffer = bufferedText.trim() || input.startsWith('/') ? bufferedText : ''
 
   if (key.return && activeBuffer) {
-    const choice = approvalChoiceFromTextCommand(activeBuffer)
+    const parsed = approvalChoiceFromTextCommand(activeBuffer)
 
-    return choice ? { kind: 'choose', choice } : { kind: 'buffer', value: '' }
+    return parsed ? { ...parsed, kind: 'choose' } : { kind: 'buffer', value: '' }
   }
 
   if (input.length > 1) {
-    const choice = approvalChoiceFromTextCommand(input)
+    const parsed = approvalChoiceFromTextCommand(input)
 
-    return choice ? { kind: 'choose', choice } : { kind: 'noop' }
+    return parsed ? { ...parsed, kind: 'choose' } : { kind: 'noop' }
   }
 
   if (activeBuffer || input === '/') {
@@ -122,7 +137,7 @@ export function ApprovalPrompt({ cols = 80, onChoice, req, t }: ApprovalPromptPr
 
     if (action.kind === 'choose') {
       setTypedApproval('')
-      onChoice(action.choice)
+      onChoice(action.choice, action.approvalId)
     } else if (action.kind === 'move') {
       setSel(s => s + action.delta)
     } else if (action.kind === 'buffer') {
@@ -316,7 +331,7 @@ export function ConfirmPrompt({ onCancel, onConfirm, req, t }: ConfirmPromptProp
 
 interface ApprovalPromptProps {
   cols?: number
-  onChoice: (s: string) => void
+  onChoice: (s: string, approvalId?: string) => void
   req: ApprovalReq
   t: Theme
 }

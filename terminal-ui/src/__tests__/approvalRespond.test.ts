@@ -24,4 +24,18 @@ describe('buildApprovalRespondParams', () => {
       session_id: 'current-session'
     })
   })
+
+  it('uses the explicit text command selector instead of the current overlay approval id', () => {
+    expect(
+      buildApprovalRespondParams(
+        { approvalId: 'overlay-appr', sessionId: 'approval-session' },
+        { approvalId: 'typed-appr', choice: 'session' },
+        'current-session'
+      )
+    ).toEqual({
+      approval_id: 'typed-appr',
+      choice: 'session',
+      session_id: 'approval-session'
+    })
+  })
 })

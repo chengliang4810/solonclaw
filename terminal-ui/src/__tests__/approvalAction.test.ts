@@ -73,9 +73,15 @@ describe('approvalAction — pure key dispatch for ApprovalPrompt', () => {
   })
 
   it('parses approval text commands with optional selectors', () => {
-    expect(approvalChoiceFromTextCommand('/approve appr-123 session')).toBe('session')
-    expect(approvalChoiceFromTextCommand('approve appr-123 always')).toBe('always')
-    expect(approvalChoiceFromTextCommand('/deny appr-123')).toBe('deny')
+    expect(approvalChoiceFromTextCommand('/approve appr-123 session')).toEqual({
+      approvalId: 'appr-123',
+      choice: 'session'
+    })
+    expect(approvalChoiceFromTextCommand('approve appr-123 always')).toEqual({
+      approvalId: 'appr-123',
+      choice: 'always'
+    })
+    expect(approvalChoiceFromTextCommand('/deny appr-123')).toEqual({ approvalId: 'appr-123', choice: 'deny' })
     expect(approvalChoiceFromTextCommand('/unknown 123')).toBeNull()
   })
 })

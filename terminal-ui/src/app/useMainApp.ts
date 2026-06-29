@@ -884,41 +884,45 @@ export function useMainApp(gw: GatewayClient) {
   )
 
   const answerApproval = useCallback(
-    (choice: string) => {
-      const approvalId = overlay.approval?.approvalId
+    (choice: string, explicitApprovalId?: string) => {
+      const displayedApprovalId = overlay.approval?.approvalId
 
-      return respondWith<ApprovalRespondResponse>('approval.respond', buildApprovalRespondParams(overlay.approval, choice, ui.sid), result => {
-        dismissApprovalIfCurrent(approvalId)
-        patchTurnState({ outcome: choice === 'deny' || result.denied ? 'denied' : `approved (${choice})` })
-        if (choice === 'deny' || result.denied) {
-          patchUiState({ busy: false, status: 'ready' })
-          return
-        }
-        if (result.direct_shell && result.approval_required) {
-          const nextApproval = approvalFromShellResponse(result, ui.sid ?? undefined)
-
-          if (nextApproval) {
-            patchOverlayState({ approval: nextApproval })
+      return respondWith<ApprovalRespondResponse>(
+        'approval.respond',
+        buildApprovalRespondParams(overlay.approval, { approvalId: explicitApprovalId, choice }, ui.sid),
+        result => {
+          dismissApprovalIfCurrent(displayedApprovalId)
+          patchTurnState({ outcome: choice === 'deny' || result.denied ? 'denied' : `approved (${choice})` })
+          if (choice === 'deny' || result.denied) {
+            patchUiState({ busy: false, status: 'ready' })
+            return
           }
-          patchUiState({ busy: true, status: 'waiting for approval…' })
-          return
-        }
-        if (result.direct_shell) {
-          const out = directShellOutput(result)
+          if (result.direct_shell && result.approval_required) {
+            const nextApproval = approvalFromShellResponse(result, ui.sid ?? undefined)
 
-          if (out) {
-            sys(out)
+            if (nextApproval) {
+              patchOverlayState({ approval: nextApproval })
+            }
+            patchUiState({ busy: true, status: 'waiting for approval…' })
+            return
           }
+          if (result.direct_shell) {
+            const out = directShellOutput(result)
 
-          if (result.code !== 0 || !out) {
-            sys(`exit ${result.code ?? -1}`)
+            if (out) {
+              sys(out)
+            }
+
+            if (result.code !== 0 || !out) {
+              sys(`exit ${result.code ?? -1}`)
+            }
+
+            patchUiState({ busy: false, status: 'ready' })
+            return
           }
-
-          patchUiState({ busy: false, status: 'ready' })
-          return
+          patchUiState({ status: 'running…' })
         }
-        patchUiState({ status: 'running…' })
-      })
+      )
     },
     [overlay.approval?.approvalId, overlay.approval?.sessionId, respondWith, sys, ui.sid]
   )
