@@ -127,6 +127,8 @@ public final class RuntimeSetupSpec {
                                 "appSecret",
                                 "domain",
                                 "websocketUrl",
+                                "requireMention",
+                                "freeResponseChats",
                                 "botOpenId",
                                 "botUserId",
                                 "botName",
@@ -142,6 +144,8 @@ public final class RuntimeSetupSpec {
                                 "robotCode",
                                 "coolAppCode",
                                 "streamUrl",
+                                "requireMention",
+                                "freeResponseChats",
                                 "progressCardTemplateId",
                                 "aiCardStreaming.enabled")));
         result.put("wecom", mergeKeys(common, Arrays.asList("botId", "secret", "websocketUrl")));
@@ -205,6 +209,8 @@ public final class RuntimeSetupSpec {
         registerFlag(result, "groupPolicy", "group-policy");
         registerFlag(result, "groupAllowedUsers", "group-allowed-users");
         registerFlag(result, "allowedChats", "allowed-chats");
+        registerFlag(result, "requireMention", "require-mention");
+        registerFlag(result, "freeResponseChats", "free-response-chats");
         registerFlag(result, "unauthorizedDmBehavior", "unauthorized-dm-behavior");
         registerFlag(result, "toolProgress", "tool-progress");
         registerFlag(result, "appId", "app-id");

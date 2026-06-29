@@ -561,6 +561,18 @@ public class DashboardConfigService {
                         "飞书群聊 allowlist"));
         addField(
                 new FieldDefinition(
+                        "channels.feishu.requireMention",
+                        "boolean",
+                        "messaging",
+                        "飞书群聊是否必须提及机器人"));
+        addField(
+                new FieldDefinition(
+                        "channels.feishu.freeResponseChats",
+                        "list",
+                        "messaging",
+                        "飞书免提及响应群聊列表"));
+        addField(
+                new FieldDefinition(
                         "channels.feishu.botOpenId", "string", "messaging", "飞书 bot Open ID"));
         addField(
                 new FieldDefinition(
@@ -612,6 +624,18 @@ public class DashboardConfigService {
                         "list",
                         "messaging",
                         "钉钉群聊 allowlist"));
+        addField(
+                new FieldDefinition(
+                        "channels.dingtalk.requireMention",
+                        "boolean",
+                        "messaging",
+                        "钉钉群聊是否必须提及机器人"));
+        addField(
+                new FieldDefinition(
+                        "channels.dingtalk.freeResponseChats",
+                        "list",
+                        "messaging",
+                        "钉钉免提及响应群聊列表"));
         addField(
                 new FieldDefinition(
                         "channels.dingtalk.aiCardStreaming.enabled",

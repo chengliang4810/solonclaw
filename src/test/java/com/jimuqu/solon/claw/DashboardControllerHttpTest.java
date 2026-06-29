@@ -474,6 +474,10 @@ public class DashboardControllerHttpTest {
                 .contains("\"task.toolOutputTurnBudget\"")
                 .contains("\"task.toolOutputMaxLines\"")
                 .contains("\"task.toolOutputMaxLineLength\"")
+                .contains("\"channels.feishu.requireMention\"")
+                .contains("\"channels.feishu.freeResponseChats\"")
+                .contains("\"channels.dingtalk.requireMention\"")
+                .contains("\"channels.dingtalk.freeResponseChats\"")
                 .doesNotContain("\"tool_output.max_bytes\"");
 
         HttpResult saveRuntimeConfig =

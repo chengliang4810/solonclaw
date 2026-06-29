@@ -263,8 +263,12 @@ public class RuntimeSetupService {
             config.setGroupAllowedUsers(splitList(value));
         } else if ("allowedChats".equals(key)) {
             config.setAllowedChats(splitList(value));
+        } else if ("freeResponseChats".equals(key)) {
+            config.setFreeResponseChats(splitList(value));
         } else if ("allowAllUsers".equals(key)) {
             config.setAllowAllUsers(parseBoolean(value));
+        } else if ("requireMention".equals(key)) {
+            config.setRequireMention(parseBoolean(value));
         } else if ("splitMultilineMessages".equals(key)) {
             config.setSplitMultilineMessages(parseBoolean(value));
         } else if ("markdownSupport".equals(key)) {

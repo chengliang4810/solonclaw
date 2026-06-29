@@ -1742,6 +1742,20 @@ final class AppConfigLoader {
                                 overrides,
                                 "solonclaw.channels." + channelName + ".allowedChats",
                                 "")));
+        channelConfig.setRequireMention(
+                resolveBoolean(
+                        readBoolean(
+                                props,
+                                overrides,
+                                "solonclaw.channels." + channelName + ".requireMention",
+                                true)));
+        channelConfig.setFreeResponseChats(
+                resolveList(
+                        readRaw(
+                                props,
+                                overrides,
+                                "solonclaw.channels." + channelName + ".freeResponseChats",
+                                "")));
     }
 
     /** 优先从配置文件解析密钥。 */

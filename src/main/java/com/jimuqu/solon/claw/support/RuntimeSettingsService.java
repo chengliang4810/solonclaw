@@ -144,6 +144,9 @@ public class RuntimeSettingsService {
                     ".dmPolicy",
                     ".groupPolicy",
                     ".groupAllowedUsers",
+                    ".allowedChats",
+                    ".requireMention",
+                    ".freeResponseChats",
                     ".websocketUrl",
                     ".streamUrl",
                     ".coolAppCode",
@@ -538,6 +541,7 @@ public class RuntimeSettingsService {
         String value = rawValue == null ? "" : rawValue.trim();
         if (key.endsWith(".enabled")
                 || key.endsWith(".allowAllUsers")
+                || key.endsWith(".requireMention")
                 || key.endsWith(".splitMultilineMessages")
                 || key.endsWith(".comment.enabled")
                 || key.endsWith(".aiCardStreaming.enabled")
@@ -627,6 +631,8 @@ public class RuntimeSettingsService {
         }
         if (key.endsWith("allowedUsers")
                 || key.endsWith("groupAllowedUsers")
+                || key.endsWith("allowedChats")
+                || key.endsWith("freeResponseChats")
                 || "display.metadataFooter.fields".equals(key)
                 || "gateway.allowedUsers".equals(key)
                 || "security.websiteBlocklist.domains".equals(key)

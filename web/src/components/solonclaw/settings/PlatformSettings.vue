@@ -57,6 +57,18 @@ function getCreds(key: string) {
   return (settingsStore.platforms[key] || {}) as Record<string, any>
 }
 
+function channelListText(value: unknown) {
+  if (Array.isArray(value)) return value.filter(item => !!item).join(',')
+  return typeof value === 'string' ? value : ''
+}
+
+function splitChannelList(value: unknown) {
+  return String(value || '')
+    .split(',')
+    .map(item => item.trim())
+    .filter(item => item.length > 0)
+}
+
 type UiQrStatus = 'idle' | 'loading' | 'waiting' | 'scaned' | 'confirmed' | 'error' | 'expired'
 
 interface QrState {
@@ -247,10 +259,10 @@ const platforms = [
           <Input :default-value="getCreds('feishu').extra?.app_secret || ''" :loading="isSaving('feishu', 'app_secret')" clearable size="small" class="input-lg" placeholder="请输入应用密钥" @change="v => saveCredentials('feishu', 'app_secret', { extra: { ...getCreds('feishu').extra, app_secret: v } })" />
         </SettingRow>
         <SettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')">
-          <Switch :value="settingsStore.feishu.require_mention" :loading="isSaving('feishu', 'require_mention')" @update:value="v => saveChannel('feishu', 'require_mention', { require_mention: v })" />
+          <Switch :value="settingsStore.feishu.requireMention !== false" :loading="isSaving('feishu', 'requireMention')" @update:value="v => saveChannel('feishu', 'requireMention', { requireMention: v })" />
         </SettingRow>
         <SettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')">
-          <Input :default-value="settingsStore.feishu.free_response_chats || ''" :loading="isSaving('feishu', 'free_response_chats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('feishu', 'free_response_chats', { free_response_chats: v })" />
+          <Input :default-value="channelListText(settingsStore.feishu.freeResponseChats)" :loading="isSaving('feishu', 'freeResponseChats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('feishu', 'freeResponseChats', { freeResponseChats: splitChannelList(v) })" />
         </SettingRow>
       </template>
 
@@ -292,10 +304,10 @@ const platforms = [
           <Input :default-value="getCreds('dingtalk').extra?.robot_code || ''" :loading="isSaving('dingtalk', 'robot_code')" clearable size="small" class="input-lg" placeholder="请输入机器人编码" @change="v => saveCredentials('dingtalk', 'robot_code', { extra: { ...getCreds('dingtalk').extra, robot_code: v } })" />
         </SettingRow>
         <SettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')">
-          <Switch :value="settingsStore.dingtalk.require_mention" :loading="isSaving('dingtalk', 'require_mention')" @update:value="v => saveChannel('dingtalk', 'require_mention', { require_mention: v })" />
+          <Switch :value="settingsStore.dingtalk.requireMention !== false" :loading="isSaving('dingtalk', 'requireMention')" @update:value="v => saveChannel('dingtalk', 'requireMention', { requireMention: v })" />
         </SettingRow>
         <SettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')">
-          <Input :default-value="settingsStore.dingtalk.free_response_chats || ''" :loading="isSaving('dingtalk', 'free_response_chats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('dingtalk', 'free_response_chats', { free_response_chats: v })" />
+          <Input :default-value="channelListText(settingsStore.dingtalk.freeResponseChats)" :loading="isSaving('dingtalk', 'freeResponseChats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('dingtalk', 'freeResponseChats', { freeResponseChats: splitChannelList(v) })" />
         </SettingRow>
       </template>
 

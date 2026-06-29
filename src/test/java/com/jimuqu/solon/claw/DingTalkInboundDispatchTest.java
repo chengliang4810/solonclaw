@@ -90,6 +90,51 @@ public class DingTalkInboundDispatchTest {
         assertThat(dispatched.getText()).contains("Card action:").contains("approve");
     }
 
+    /** 验证默认配置下未 @ 的钉钉群消息不会进入统一入站处理链。 */
+    @Test
+    void shouldDropGroupMessageWithoutMentionByDefault() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        fixture.adapter.setInboundMessageHandler(fixture::record);
+        ChatbotMessage message = groupTextMessage();
+        message.setInAtList(Boolean.FALSE);
+
+        fixture.invokeHandleInbound(message);
+
+        assertThat(fixture.messages).isEmpty();
+    }
+
+    /** 验证配置免提及会话后，钉钉群消息即使未 @ 也会进入统一入站处理链。 */
+    @Test
+    void shouldDispatchFreeResponseGroupMessageWithoutMention() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        fixture.config.setFreeResponseChats(List.of("open-cid-1"));
+        fixture.adapter.setInboundMessageHandler(fixture::record);
+        ChatbotMessage message = groupTextMessage();
+        message.setInAtList(Boolean.FALSE);
+
+        fixture.invokeHandleInbound(message);
+
+        assertThat(fixture.messages).hasSize(1);
+        assertThat(fixture.messages.get(0).getChatId()).isEqualTo("open-cid-1");
+        assertThat(fixture.messages.get(0).getText()).isEqualTo("请检查 solonclaw 状态");
+    }
+
+    /** 验证关闭强制提及后，钉钉群消息不需要 @ 也能进入统一入站处理链。 */
+    @Test
+    void shouldDispatchGroupMessageWhenMentionRequirementDisabled() throws Throwable {
+        TestDingTalkFixture fixture = TestDingTalkFixture.create();
+        fixture.config.setRequireMention(false);
+        fixture.adapter.setInboundMessageHandler(fixture::record);
+        ChatbotMessage message = groupTextMessage();
+        message.setInAtList(Boolean.FALSE);
+
+        fixture.invokeHandleInbound(message);
+
+        assertThat(fixture.messages).hasSize(1);
+        assertThat(fixture.messages.get(0).getChatId()).isEqualTo("open-cid-1");
+        assertThat(fixture.messages.get(0).getText()).isEqualTo("请检查 solonclaw 状态");
+    }
+
     /** 构造钉钉群聊文本消息，覆盖入站分发需要读取的平台字段。 */
     private ChatbotMessage groupTextMessage() {
         MessageContent text = new MessageContent();
@@ -124,6 +169,9 @@ public class DingTalkInboundDispatchTest {
         /** 被测钉钉渠道适配器。 */
         private final DingTalkChannelAdapter adapter;
 
+        /** 当前测试夹具中的钉钉渠道配置，便于按用例调整策略开关。 */
+        private final AppConfig.ChannelConfig config;
+
         /** 状态仓储用于断言入站上下文是否被写入。 */
         private final ChannelStateRepository state;
 
@@ -132,8 +180,11 @@ public class DingTalkInboundDispatchTest {
 
         /** 创建测试夹具并安装同步执行器，避免单测等待异步线程。 */
         private TestDingTalkFixture(
-                DingTalkChannelAdapter adapter, ChannelStateRepository state) throws Exception {
+                DingTalkChannelAdapter adapter,
+                AppConfig.ChannelConfig config,
+                ChannelStateRepository state) throws Exception {
             this.adapter = adapter;
+            this.config = config;
             this.state = state;
             setField(adapter, "callbackExecutor", new DirectExecutorService());
         }
@@ -161,7 +212,8 @@ public class DingTalkInboundDispatchTest {
                             config.getChannels().getDingtalk(),
                             stateRepository,
                             new AttachmentCacheService(config));
-            return new TestDingTalkFixture(adapter, stateRepository);
+            return new TestDingTalkFixture(
+                    adapter, config.getChannels().getDingtalk(), stateRepository);
         }
 
         /** 记录入站处理器分发出来的消息。 */

@@ -1154,7 +1154,9 @@ public class RuntimeConfigResolver {
                 base + "dmPolicy",
                 base + "groupPolicy",
                 base + "groupAllowedUsers",
-                base + "allowedChats");
+                base + "allowedChats",
+                base + "requireMention",
+                base + "freeResponseChats");
         for (String field : extraFields) {
             add(mappings, base + field);
         }

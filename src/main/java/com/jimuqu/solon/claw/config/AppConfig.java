@@ -636,6 +636,8 @@ public class AppConfig {
         target.setGroupPolicy(source.getGroupPolicy());
         target.setGroupAllowedUsers(new ArrayList<String>(source.getGroupAllowedUsers()));
         target.setAllowedChats(new ArrayList<String>(source.getAllowedChats()));
+        target.setRequireMention(source.isRequireMention());
+        target.setFreeResponseChats(new ArrayList<String>(source.getFreeResponseChats()));
         target.setGroupMemberAllowedUsers(cloneGroupAllowMap(source.getGroupMemberAllowedUsers()));
         target.setBotOpenId(source.getBotOpenId());
         target.setBotUserId(source.getBotUserId());
@@ -1631,6 +1633,12 @@ public class AppConfig {
 
         /** 群聊会话硬白名单，非空时只响应列表内群聊。 */
         private List<String> allowedChats = new ArrayList<String>();
+
+        /** 群聊消息是否必须提及机器人，默认保持渠道现有安全行为。 */
+        private boolean requireMention = true;
+
+        /** 群聊免提及响应会话列表，命中后可不 @ 机器人直接响应。 */
+        private List<String> freeResponseChats = new ArrayList<String>();
 
         /** 企微按群发送者 allowlist。 */
         private Map<String, List<String>> groupMemberAllowedUsers =

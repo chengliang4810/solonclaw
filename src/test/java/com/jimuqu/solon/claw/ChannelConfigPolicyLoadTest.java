@@ -25,9 +25,14 @@ public class ChannelConfigPolicyLoadTest {
                         + "        - oc_group_a\n"
                         + "      allowedChats:\n"
                         + "        - oc_chat_a\n"
+                        + "      requireMention: false\n"
+                        + "      freeResponseChats:\n"
+                        + "        - oc_free_a\n"
                         + "      botName: solonclaw Bot\n"
                         + "    dingtalk:\n"
+                        + "      requireMention: false\n"
                         + "      allowedChats: cidAlpha,cidBeta\n"
+                        + "      freeResponseChats: cidFreeA,cidFreeB\n"
                         + "    wecom:\n"
                         + "      groups:\n"
                         + "        room-a:\n"
@@ -50,8 +55,14 @@ public class ChannelConfigPolicyLoadTest {
         assertThat(config.getChannels().getFeishu().getGroupAllowedUsers())
                 .containsExactly("oc_group_a");
         assertThat(config.getChannels().getFeishu().getAllowedChats()).containsExactly("oc_chat_a");
+        assertThat(config.getChannels().getFeishu().isRequireMention()).isFalse();
+        assertThat(config.getChannels().getFeishu().getFreeResponseChats())
+                .containsExactly("oc_free_a");
+        assertThat(config.getChannels().getDingtalk().isRequireMention()).isFalse();
         assertThat(config.getChannels().getDingtalk().getAllowedChats())
                 .containsExactly("cidAlpha", "cidBeta");
+        assertThat(config.getChannels().getDingtalk().getFreeResponseChats())
+                .containsExactly("cidFreeA", "cidFreeB");
         assertThat(config.getChannels().getFeishu().getBotName()).isEqualTo("solonclaw Bot");
         assertThat(config.getChannels().getWecom().getGroupMemberAllowedUsers().get("room-a"))
                 .containsExactly("alice", "bob");
@@ -59,4 +70,11 @@ public class ChannelConfigPolicyLoadTest {
                 .isEqualTo(Arrays.asList("admin"));
     }
 
+    @Test
+    void shouldKeepMentionPolicyDefaultsWhenChannelPolicyFieldsAreAbsent() {
+        AppConfig.ChannelConfig channelConfig = AppConfig.load(new Props()).getChannels().getFeishu();
+
+        assertThat(channelConfig.isRequireMention()).isTrue();
+        assertThat(channelConfig.getFreeResponseChats()).isEmpty();
+    }
 }

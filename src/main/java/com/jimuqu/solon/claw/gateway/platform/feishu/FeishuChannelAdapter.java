@@ -939,7 +939,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return false;
             }
             discoverBotName(mentions);
-            return isBotMentioned(mentions, rawContent);
+            return !config.isRequireMention()
+                    || ChannelAllowListSupport.contains(config.getFreeResponseChats(), chatId)
+                    || isBotMentioned(mentions, rawContent);
         }
         String dmPolicy =
                 StrUtil.blankToDefault(

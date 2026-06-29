@@ -115,6 +115,60 @@ public class FeishuWebsocketInboundTest {
         assertThat(captured.get()).isNull();
     }
 
+    @Test
+    void shouldAllowFreeResponseGroupMessageWithoutMention() {
+        AppConfig.ChannelConfig channelConfig = channelConfig();
+        channelConfig.setGroupAllowedUsers(List.of("oc_group"));
+        channelConfig.setBotOpenId("ou_bot");
+        channelConfig.setFreeResponseChats(List.of("oc_group"));
+        FeishuChannelAdapter adapter = adapter(channelConfig);
+        AtomicReference<GatewayMessage> captured = new AtomicReference<GatewayMessage>();
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    /** 捕获免提及群聊消息，验证指定会话可跳过机器人提及检查。 */
+                    @Override
+                    public void handle(GatewayMessage message) {
+                        captured.set(message);
+                    }
+                });
+
+        adapter.handleWebsocketEvent(
+                eventData(
+                        groupMessage("om_group_free", "{\"text\":\"群内免提及问题\"}", null),
+                        sender("ou_sender", "u_sender")));
+
+        assertThat(captured.get()).isNotNull();
+        assertThat(captured.get().getChatId()).isEqualTo("oc_group");
+        assertThat(captured.get().getText()).isEqualTo("群内免提及问题");
+    }
+
+    @Test
+    void shouldAllowGroupMessageWhenMentionRequirementDisabled() {
+        AppConfig.ChannelConfig channelConfig = channelConfig();
+        channelConfig.setGroupAllowedUsers(List.of("oc_group"));
+        channelConfig.setBotOpenId("ou_bot");
+        channelConfig.setRequireMention(false);
+        FeishuChannelAdapter adapter = adapter(channelConfig);
+        AtomicReference<GatewayMessage> captured = new AtomicReference<GatewayMessage>();
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    /** 捕获关闭强制提及后的群聊消息，验证开关确实影响入站过滤。 */
+                    @Override
+                    public void handle(GatewayMessage message) {
+                        captured.set(message);
+                    }
+                });
+
+        adapter.handleWebsocketEvent(
+                eventData(
+                        groupMessage("om_group_open", "{\"text\":\"无需提及也响应\"}", null),
+                        sender("ou_sender", "u_sender")));
+
+        assertThat(captured.get()).isNotNull();
+        assertThat(captured.get().getChatId()).isEqualTo("oc_group");
+        assertThat(captured.get().getText()).isEqualTo("无需提及也响应");
+    }
+
     /** 构造启用状态的飞书渠道基础配置，避免每个用例重复填写凭据字段。 */
     private AppConfig.ChannelConfig channelConfig() {
         AppConfig.ChannelConfig channelConfig = new AppConfig.ChannelConfig();

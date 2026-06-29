@@ -1283,9 +1283,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                             config.getAllowedChats(), conversationId)) {
                 return false;
             }
-            if (!Boolean.TRUE.equals(message.getInAtList())) {
-                return false;
-            }
             String groupPolicy =
                     StrUtil.blankToDefault(
                                     config.getGroupPolicy(),
@@ -1299,7 +1296,10 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                             config.getGroupAllowedUsers(), conversationId)) {
                 return false;
             }
-            return true;
+            return !config.isRequireMention()
+                    || ChannelAllowListSupport.contains(
+                            config.getFreeResponseChats(), conversationId)
+                    || Boolean.TRUE.equals(message.getInAtList());
         }
         String dmPolicy =
                 StrUtil.blankToDefault(

@@ -227,6 +227,20 @@ public class DashboardRuntimeConfigService {
                                 true,
                                 "feishu"),
                         item(
+                                "solonclaw.channels.feishu.requireMention",
+                                "飞书群聊是否必须提及机器人",
+                                "messaging",
+                                false,
+                                false,
+                                "feishu"),
+                        item(
+                                "solonclaw.channels.feishu.freeResponseChats",
+                                "飞书免提及响应群聊列表",
+                                "messaging",
+                                false,
+                                true,
+                                "feishu"),
+                        item(
                                 "solonclaw.channels.feishu.botOpenId",
                                 "飞书 bot Open ID",
                                 "messaging",
@@ -271,6 +285,20 @@ public class DashboardRuntimeConfigService {
                         item(
                                 "solonclaw.channels.dingtalk.groupAllowedUsers",
                                 "钉钉群聊 allowlist",
+                                "messaging",
+                                false,
+                                true,
+                                "dingtalk"),
+                        item(
+                                "solonclaw.channels.dingtalk.requireMention",
+                                "钉钉群聊是否必须提及机器人",
+                                "messaging",
+                                false,
+                                false,
+                                "dingtalk"),
+                        item(
+                                "solonclaw.channels.dingtalk.freeResponseChats",
+                                "钉钉免提及响应群聊列表",
                                 "messaging",
                                 false,
                                 true,
