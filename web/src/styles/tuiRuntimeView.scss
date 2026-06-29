@@ -1,0 +1,181 @@
+@use "@/styles/variables" as *;
+
+.tui-runtime-view {
+  height: calc(100 * var(--vh));
+  display: flex;
+  flex-direction: column;
+}
+
+.tui-runtime-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.summary-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  background: $bg-card;
+}
+
+.card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  color: $text-primary;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metric-item,
+.model-current > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+
+  span {
+    color: $text-muted;
+    font-size: 12px;
+  }
+
+  strong {
+    min-width: 0;
+    color: $text-primary;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+  }
+}
+
+.mono-value {
+  font-family: $font-code;
+  font-size: 12px;
+}
+
+.model-current {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.provider-list,
+.channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.provider-row,
+.channel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-primary;
+
+  > div {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  strong {
+    color: $text-primary;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+  }
+
+  span {
+    color: $text-muted;
+    font-size: 12px;
+  }
+}
+
+.provider-tags {
+  align-items: flex-end;
+}
+
+.model-count {
+  white-space: nowrap;
+}
+
+.channels-card,
+.config-card {
+  grid-column: 1 / -1;
+}
+
+.channel-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: -4px 0 12px;
+  color: $text-muted;
+  font-size: 12px;
+}
+
+.config-card pre {
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  border-radius: $radius-sm;
+  background: $code-bg;
+  color: $text-primary;
+  padding: 12px;
+  font-family: $font-code;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.empty-state {
+  padding: 40px 0;
+  color: $text-muted;
+  text-align: center;
+}
+
+@media (max-width: $breakpoint-mobile) {
+  .tui-runtime-content {
+    padding: 14px;
+  }
+
+  .runtime-grid,
+  .metric-grid,
+  .model-current {
+    grid-template-columns: 1fr;
+  }
+
+  .provider-row,
+  .channel-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .provider-tags {
+    align-items: flex-start;
+  }
+}

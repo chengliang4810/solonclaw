@@ -71,6 +71,11 @@ const router = createRouter({
       component: () => import('@/views/solonclaw/DiagnosticsView.vue'),
     },
     {
+      path: '/solonclaw/tui-runtime',
+      name: 'solonclaw.tuiRuntime',
+      component: () => import('@/views/solonclaw/TuiRuntimeView.vue'),
+    },
+    {
       path: '/solonclaw/curator',
       name: 'solonclaw.curator',
       component: () => import('@/views/solonclaw/CuratorView.vue'),
