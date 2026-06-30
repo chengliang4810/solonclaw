@@ -59,13 +59,32 @@
 - `git diff --check`
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`
 
+### 4. 可选渠道设置字段行复用
+
+- 提交：`1e347df2b refactor: 复用可选渠道设置字段行 / Reuse optional channel setting rows`
+- 新增 `PlatformTextSettingRow.vue`，统一 `SettingRow + Input` 的文本字段壳，并把 `change` 事件规整为字符串值。
+- 新增 `PlatformSwitchSettingRow.vue`，统一 `SettingRow + Switch` 的开关字段壳，并把宽类型开关值规整为布尔值。
+- `PlatformOptionalSettings.vue` 中 `wecom`、`qqbot`、`yuanbao` 的 3 个开关字段和 11 个文本字段改为复用共享字段行，保留原平台分支、字段名、保存入口和文案。
+- 新增 `test:platform-optional-setting-rows-reuse` 静态测试，锁定可选渠道设置页不再保留重复的 `SettingRow/Input/Switch` 字段壳。
+
+验证：
+
+- `npm --prefix web run test:platform-optional-setting-rows-reuse`
+- `npm --prefix web run test:platform-qr-panel-reuse`
+- `npm --prefix web run build`
+- `bun <omo-programming-skill>/scripts/typescript/check-no-excuse-rules.ts web/src/components/solonclaw/settings/PlatformOptionalSettings.vue web/src/components/solonclaw/settings/PlatformTextSettingRow.vue web/src/components/solonclaw/settings/PlatformSwitchSettingRow.vue web/tests/platformOptionalSettingRowsReuseStatic.test.ts`
+- `python3 scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
+- `git diff --check`
+- `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`
+- Vite preview 视觉检查：`#/solonclaw/channels` 桌面与移动宽度下，企业微信、QQBot、腾讯元宝可选字段展开可见，QQBot App ID 输入可编辑；预览环境无后端，保存请求失败属于预期环境限制。
+
 ## 延后候选
 
-- `PlatformOptionalSettings.vue` 字段壳复用：`wecom`、`qqbot`、`yuanbao` 三个平台存在多组设置行相似结构，适合下一轮抽薄组件，需配合 `npm --prefix web run build`。
+- `PlatformSettings.vue` 平台分支配置块复用：`feishu`、`dingtalk`、`weixin` 仍保留多组相似的启用、凭证、QR 面板和保存逻辑，收益较高但字段差异需要逐项核对。
+- `ChannelQrPanel.vue` 状态展示边界增强：适合作为阶段 3.4 低风险小项，收紧加载、等待、扫码、确认、失效、错误等状态的文案与按钮可见规则。
 - `CronjobTools` 内部请求对象化：可能影响工具签名边界，进入前需先做更细的调用图和兼容性检查。
 - `DefaultCommandService` 构造器依赖收敛：属于更大结构调整，不应和当前阶段 3.3 小原子项混合提交。
-- `ChannelQrPanel.vue` 展示规则再提纯：风险最低但收益较小，适合作为前端设置页后续收尾项。
 
 ## 阶段状态
 
-阶段 3.3 已完成三个低风险复用原子项。下一步可继续处理前端设置页字段壳复用，或进入阶段 3.4 对已融合功能做边界增强评估。
+阶段 3.3 已完成四个低风险复用原子项。下一步可继续处理 `PlatformSettings.vue` 平台分支配置块复用，或进入阶段 3.4 对 `ChannelQrPanel.vue` 等已融合功能做边界增强评估。
