@@ -92,7 +92,7 @@ python scripts/check-code-duplication.py --report-only --min-lines 40 src/main/j
 
 ## BUG-011：路径归一化在审批回放中丢失 Windows 分隔符
 
-状态：待修复
+状态：已修复
 
 影响范围：
 
@@ -113,6 +113,12 @@ python scripts/check-code-duplication.py --report-only --min-lines 40 src/main/j
 
 - 审批 token 的路径规范化应统一使用 `Path`/`toRealPath`/标准 URI 表示，不做会吞掉反斜杠的字符串正则处理。
 - 回归测试应同时覆盖 Windows drive path 和普通相对路径。
+
+处理记录：
+
+- 已让 curl `-o` 输出路径分支跳过被 shell token 解析成 `D:folder` 的破损 Windows drive token，交给后续原文路径正则生成正确审批 token。
+- 已修正 TUI 链式审批测试里 raw command 与 JSON 转义 command 混用的问题，避免用双反斜杠字符串和存储后的单反斜杠命令比较。
+- 已验证 `SecurityPolicyServiceTest.shouldConsumeApprovedCommandPathTokenBeforeCheckingCommandUrls` 与 `TerminalUiApprovalRespondTest.directShellApprovalRequeuesNextSecurityPolicyWhenReplayIsBlockedAgain` 通过。
 
 ## BUG-012：TUI lint 门禁当前失败，阻断无人值守提交前质量验证
 

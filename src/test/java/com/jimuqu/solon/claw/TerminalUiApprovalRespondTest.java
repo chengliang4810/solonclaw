@@ -518,8 +518,8 @@ class TerminalUiApprovalRespondTest {
             assertThat(outsideFile.delete()).isTrue();
         }
         try {
-            String escapedPath = outsideFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
-            String command = "curl -fsS https://example.com -o " + escapedPath;
+            String command = "curl -fsS https://example.com -o " + outsideFile.getAbsolutePath();
+            String requestCommand = jsonEscape(command);
 
             RecordingSocket socket = new RecordingSocket();
             listener.onOpen(socket);
@@ -529,7 +529,7 @@ class TerminalUiApprovalRespondTest {
                             + "\"params\":{\"session_id\":\""
                             + session.getSessionId()
                             + "\",\"command\":\""
-                            + command
+                            + requestCommand
                             + "\"}}");
             SessionRecord pendingSession = env.sessionRepository.findById(session.getSessionId());
             SqliteAgentSession pendingAgentSession =
@@ -559,7 +559,7 @@ class TerminalUiApprovalRespondTest {
                     && text.contains("网络外部操作需要审批"));
             assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"approval.request\"")
                     && text.contains("\"session_id\":\"" + session.getSessionId() + "\"")
-                    && text.contains("\"command\":\"" + command + "\""));
+                    && text.contains("\"command\":\"" + requestCommand + "\""));
             List<DangerousCommandApprovalService.PendingApproval> remainingApprovals =
                     env.dangerousCommandApprovalService.listPendingApprovals(refreshedAgentSession);
             assertThat(remainingApprovals)

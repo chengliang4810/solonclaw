@@ -1579,6 +1579,9 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(path)) {
                 continue;
             }
+            if (isEscapedWindowsDriveToken(command, path)) {
+                continue;
+            }
             FileVerdict verdict = checkPath(path, true);
             if (!verdict.allowed) {
                 return verdict;
@@ -1593,6 +1596,19 @@ public class SecurityPolicyService {
     /** 生成当前命令检查内部去重用的文件策略目标。 */
     private String policyApprovalTarget(String path) {
         return SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path)).trim();
+    }
+
+    /** 判断 shell token 解析是否把 Windows 反斜杠路径误还原成 D:folder 形式。 */
+    private boolean isEscapedWindowsDriveToken(String command, String path) {
+        String value = StrUtil.nullToEmpty(path);
+        if (value.length() < 3 || value.charAt(1) != ':' || !Character.isLetter(value.charAt(0))) {
+            return false;
+        }
+        char next = value.charAt(2);
+        if (next == '\\' || next == '/') {
+            return false;
+        }
+        return StrUtil.nullToEmpty(command).contains(value.substring(0, 2) + "\\");
     }
 
     /**
