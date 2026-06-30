@@ -53,9 +53,10 @@ final class AppConfigLoader {
                 asAbsoluteStatic(
                         new File(resolveInitialWorkspace(props, Collections.emptyMap())),
                         workspaceBase);
-        initializeRuntimeConfigIfMissing(workspaceHome);
+        // 只读取启动前已经存在的运行配置；自动生成的模板不能在首次启动时覆盖命令行参数。
         Map<String, Object> overrides = loadFlatOverrides(workspaceHome);
         Map<String, Object> structuredOverrides = loadStructuredOverrides(workspaceHome);
+        initializeRuntimeConfigIfMissing(workspaceHome);
         RuntimeConfigResolver configResolver =
                 RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
 
