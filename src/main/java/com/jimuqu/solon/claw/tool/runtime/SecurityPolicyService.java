@@ -369,7 +369,8 @@ public class SecurityPolicyService {
                 }
                 if (!allowPrivate
                         && SecurityAddressPolicySupport.isPrivateOrInternal(address, ip)
-                        && !(trustedPrivateHost && SecurityAddressPolicySupport.isTrustedPrivateAddress(address))) {
+                        && !(trustedPrivateHost && SecurityAddressPolicySupport.isTrustedPrivateAddress(address))
+                        && !(hostIpv4 == null && SecurityAddressPolicySupport.isProxyFakeIpAddress(address))) {
                     return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
                 }
             }
@@ -2350,7 +2351,8 @@ public class SecurityPolicyService {
                 String ip = address.getHostAddress();
                 if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip)
                         || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)
-                        || SecurityAddressPolicySupport.isPrivateOrInternal(address, ip)) {
+                        || (SecurityAddressPolicySupport.isPrivateOrInternal(address, ip)
+                                && !SecurityAddressPolicySupport.isProxyFakeIpAddress(address))) {
                     return false;
                 }
             }

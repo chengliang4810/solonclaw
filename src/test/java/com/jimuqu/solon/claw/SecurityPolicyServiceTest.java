@@ -154,6 +154,21 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldTreatProxyFakeIpDnsAnswersAsPublicDomainAccess() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "198.18.0.43");
+
+        SecurityPolicyService.UrlVerdict domain =
+                policy.checkUrl("https://public.example/resource");
+        SecurityPolicyService.UrlVerdict literal =
+                policy.checkUrl("https://198.18.0.43/resource");
+
+        assertUrlApprovalRequired(domain, "network_external_operation");
+        assertThat(literal.isAllowed()).isFalse();
+        assertThat(literal.getMessage()).contains("内网");
+    }
+
+    @Test
     void shouldIgnoreJimuquAllowPrivateUrlEnvironmentCompatibility() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);

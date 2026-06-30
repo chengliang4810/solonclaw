@@ -23,7 +23,7 @@ python scripts/check-code-duplication.py --report-only --min-lines 40 src/main/j
 
 ## BUG-009：代理/测试环境下公共域名解析到 198.18.* 后被 URL 安全策略误判为私有地址
 
-状态：待修复
+状态：已修复
 
 影响范围：
 
@@ -50,6 +50,13 @@ python scripts/check-code-duplication.py --report-only --min-lines 40 src/main/j
 - 在 URL 安全策略中明确区分用户显式请求的 literal IP、DNS 解析出的代理 fake-ip、以及最终连接目标。
 - 对 198.18.0.0/15 保持默认谨慎，但允许受信任代理模式下的公共域名通过，或提供当前 `solonclaw` 命名的显式安全配置。
 - 补充测试覆盖 fake-ip 代理解析场景，避免真实内网地址被误放行。
+
+处理记录：
+
+- 已将 DNS 解析得到的 `198.18.0.0/15` 代理 fake-ip 与用户显式请求的 IP 字面量区分处理。
+- 公共域名解析到 fake-ip 时不再触发内网硬阻断，仍会进入 `network_external_operation` 外部网络审批。
+- `https://198.18.0.43/...` 这类 IP 字面量仍按内网/保留地址阻断。
+- `TerminalUiApprovalRespondTest.directShellApprovalRequeuesNextSecurityPolicyWhenReplayIsBlockedAgain` 已能进入网络审批队列，但仍受 BUG-011 的 Windows 路径字符串断言影响，留到 BUG-011 单独修复。
 
 ## BUG-010：TUI 直接 Shell 审批路径使用 `printf` 导致 Windows 用户审批后命令仍失败
 
