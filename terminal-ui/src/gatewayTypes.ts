@@ -130,6 +130,7 @@ export interface ChannelOption {
   fields?: ChannelSetupField[]
   key: string
   label: string
+  qr_supported?: boolean
   status?: string
 }
 
@@ -141,6 +142,21 @@ export interface ChannelSaveResponse {
   channel?: string
   saved?: boolean
   status?: string
+}
+
+export interface ChannelQrResponse {
+  channel?: string
+  error?: string
+  error_code?: string
+  error_message?: string
+  message?: string
+  ok?: boolean
+  qrcode?: string
+  qrcode_url?: string
+  qr_url?: string
+  session_id?: string
+  status?: string
+  ticket?: string
 }
 
 // ── Session lifecycle ────────────────────────────────────────────────

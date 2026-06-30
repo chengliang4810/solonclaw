@@ -41,7 +41,9 @@ import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -133,6 +135,51 @@ public class TerminalUiRpcService {
             AgentRunRepository agentRunRepository,
             RuntimeSettingsService runtimeSettingsService,
             GlobalSettingRepository globalSettingRepository) {
+        this(
+                appConfig,
+                sessionRepository,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                dashboardSkillsService,
+                preferenceStore,
+                browserRuntimeService,
+                contextCompressionService,
+                attachmentResolver,
+                processRegistry,
+                mcpRuntimeService,
+                gatewayRuntimeRefreshService,
+                delegationService,
+                agentRunControlService,
+                agentRunRepository,
+                runtimeSettingsService,
+                globalSettingRepository,
+                null,
+                null);
+    }
+
+    /** 创建完整后端服务注入且带渠道扫码能力的终端 UI RPC 响应构造服务。 */
+    public TerminalUiRpcService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DashboardSkillsService dashboardSkillsService,
+            SqlitePreferenceStore preferenceStore,
+            BrowserRuntimeService browserRuntimeService,
+            ContextCompressionService contextCompressionService,
+            AttachmentPathResolver attachmentResolver,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            DelegationService delegationService,
+            AgentRunControlService agentRunControlService,
+            AgentRunRepository agentRunRepository,
+            RuntimeSettingsService runtimeSettingsService,
+            GlobalSettingRepository globalSettingRepository,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.localSkillService = localSkillService;
@@ -150,7 +197,9 @@ public class TerminalUiRpcService {
         this.agentRunControlService = agentRunControlService;
         this.agentRunRepository = agentRunRepository;
         this.runtimeSettingsService = runtimeSettingsService;
-        this.runtimeProtocolService = new TuiRuntimeProtocolService(appConfig);
+        this.runtimeProtocolService =
+                new TuiRuntimeProtocolService(
+                        appConfig, weixinQrSetupService, domesticQrSetupService);
         this.globalSettingRepository = globalSettingRepository;
     }
 
@@ -588,6 +637,16 @@ public class TerminalUiRpcService {
     /** 保存独立终端 UI 提交的国内渠道配置字段。 */
     public Map<String, Object> channelSave(String channel, Map<String, String> values, String sessionId) {
         return runtimeProtocolService.channelSave(channel, values, sessionId);
+    }
+
+    /** 启动国内渠道二维码绑定流程。 */
+    public Map<String, Object> channelQrStart(String channel, String sessionId) {
+        return runtimeProtocolService.channelQrStart(channel, sessionId);
+    }
+
+    /** 查询国内渠道二维码绑定状态。 */
+    public Map<String, Object> channelQrGet(String channel, String ticket, String sessionId) {
+        return runtimeProtocolService.channelQrGet(channel, ticket, sessionId);
     }
 
     /** 返回会话保存文件路径；当前 Java 后端会话已经实时持久化。 */

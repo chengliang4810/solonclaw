@@ -22,6 +22,8 @@ import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 import org.noear.solon.net.websocket.WebSocketRouter;
@@ -52,6 +54,8 @@ public class TerminalUiConfiguration {
             AgentRunRepository agentRunRepository,
             RuntimeSettingsService runtimeSettingsService,
             GlobalSettingRepository globalSettingRepository,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService,
             DangerousCommandApprovalService approvalService) {
         // 终端 UI 的 prompt.submit 必须使用 terminal-ui 来源键前缀，与会话管理
         // (TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX) 对齐；否则后端会按 cli 前缀
@@ -81,7 +85,9 @@ public class TerminalUiConfiguration {
                         agentRunControlService,
                         agentRunRepository,
                         runtimeSettingsService,
-                        globalSettingRepository);
+                        globalSettingRepository,
+                        weixinQrSetupService,
+                        domesticQrSetupService);
         WebSocketRouter.getInstance().of(TerminalUiHandshakeService.WS_PATH, listener);
         return listener;
     }
