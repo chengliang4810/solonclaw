@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.support.ShutdownForensicsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -224,6 +225,45 @@ final class DashboardDiagnosticTextFormatter {
             redacted = target + " [path=" + REDACTED_PATH + "]";
         }
         return SecretRedactor.redactSensitivePaths(redacted);
+    }
+
+    /**
+     * 对命令诊断 target 中的多个被拒绝路径逐个脱敏，避免仅隐藏首个策略命中点。
+     *
+     * @param command 当前已经格式化或原始命令文本。
+     * @param paths 需要隐藏的路径候选集合。
+     * @return 返回所有命中路径脱敏后的命令 target。
+     */
+    static String redactedCommandPathTargets(String command, Collection<String> paths) {
+        String redacted = StrUtil.nullToEmpty(command);
+        if (paths == null || paths.isEmpty()) {
+            return SecretRedactor.redactSensitivePaths(redacted);
+        }
+        for (String path : paths) {
+            redacted = redactedCommandPathToken(redacted, path);
+        }
+        return SecretRedactor.redactSensitivePaths(redacted);
+    }
+
+    /**
+     * 在批量脱敏时只替换明确的路径值位置，避免把选项名里的同名子串误替换。
+     *
+     * @param command 当前命令展示文本。
+     * @param path 待隐藏的路径值。
+     * @return 返回定点替换后的命令文本。
+     */
+    private static String redactedCommandPathToken(String command, String path) {
+        if (StrUtil.isBlank(path)) {
+            return command;
+        }
+        String target = StrUtil.nullToEmpty(command);
+        String normalizedPath = StrUtil.nullToEmpty(path);
+        String redacted = target.replace(" " + normalizedPath, " " + REDACTED_PATH);
+        redacted = redacted.replace("=" + normalizedPath, "=" + REDACTED_PATH);
+        if (redacted.equals(target) && normalizedPath.startsWith("./")) {
+            redacted = target.replace(" " + normalizedPath.substring(2), " " + REDACTED_PATH);
+        }
+        return redacted;
     }
 
     /**
