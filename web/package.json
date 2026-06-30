@@ -10,6 +10,7 @@
     "test:panel-navigation": "node --experimental-strip-types tests/panelNavigation.test.ts",
     "test:chat-message-merge": "node --experimental-strip-types tests/chatMessageMerge.test.ts",
     "test:session-selection": "node --experimental-strip-types tests/sessionSelection.test.ts",
+    "test:chat-goal-display": "node --experimental-strip-types tests/chatGoalDisplay.test.ts",
     "test:chat-context-usage": "node --experimental-strip-types tests/chatContextUsage.test.ts",
     "test:tui-runtime-ui": "node --experimental-strip-types tests/tuiRuntimeUiStatic.test.ts",
     "test:system-nav-items-metadata": "node --experimental-strip-types tests/systemNavItemsMetadataStatic.test.ts",
