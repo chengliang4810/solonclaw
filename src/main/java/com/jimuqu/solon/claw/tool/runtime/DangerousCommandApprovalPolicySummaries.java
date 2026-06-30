@@ -4,6 +4,7 @@ import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.HAR
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.LONG_LIVED_FOREGROUND_PATTERNS;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.RULES;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.hardlineRuleSamples;
+import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.preferredRuleSamples;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.ruleSamples;
 
 import cn.hutool.core.util.StrUtil;
@@ -78,20 +79,26 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("dangerousRuleSamples", ruleSamples(RULES, 8));
         summary.put(
                 "domesticCloudRuleSamples",
-                Arrays.asList(
+                preferredRuleSamples(
+                        RULES,
+                        3,
                         "domestic_cloud_cli_credential_config_change",
                         "domestic_object_storage_recursive_remove",
                         "object_storage_exposure_change"));
         summary.put(
                 "cloudStorageRuleSamples",
-                Arrays.asList(
+                preferredRuleSamples(
+                        RULES,
+                        4,
                         "aws_s3_recursive_remove",
                         "domestic_object_storage_recursive_remove",
                         "remote_credential_file_transfer",
                         "object_storage_exposure_change"));
         summary.put(
                 "credentialHandlingRuleSamples",
-                Arrays.asList(
+                preferredRuleSamples(
+                        RULES,
+                        5,
                         "sensitive_environment_read",
                         "sensitive_clipboard_export",
                         "sensitive_file_clipboard_export",
@@ -99,7 +106,9 @@ final class DangerousCommandApprovalPolicySummaries {
                         "remote_credential_file_transfer"));
         summary.put(
                 "secretStoreRuleSamples",
-                Arrays.asList(
+                preferredRuleSamples(
+                        RULES,
+                        4,
                         "secret_store_read",
                         "secret_store_write",
                         "secret_store_destroy",

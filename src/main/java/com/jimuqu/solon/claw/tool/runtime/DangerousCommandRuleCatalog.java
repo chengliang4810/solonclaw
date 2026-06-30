@@ -2666,6 +2666,37 @@ final class DangerousCommandRuleCatalog {
     }
 
     /**
+     * 按偏好顺序从当前规则目录采样，避免策略摘要展示已经不存在的规则键。
+     *
+     * @param rules 规则目录。
+     * @param max 最大返回数量。
+     * @param preferredKeys 期望展示的规则键。
+     * @return 返回仍存在于规则目录中的采样键。
+     */
+    static List<String> preferredRuleSamples(
+            List<DangerRule> rules, int max, String... preferredKeys) {
+        List<String> samples = new ArrayList<String>();
+        if (rules == null || preferredKeys == null || max <= 0) {
+            return samples;
+        }
+        Set<String> available = new LinkedHashSet<String>();
+        for (DangerRule rule : rules) {
+            if (rule != null && StrUtil.isNotBlank(rule.getPatternKey())) {
+                available.add(rule.getPatternKey());
+            }
+        }
+        for (String preferredKey : preferredKeys) {
+            if (samples.size() >= max) {
+                break;
+            }
+            if (available.contains(preferredKey) && !samples.contains(preferredKey)) {
+                samples.add(preferredKey);
+            }
+        }
+        return samples;
+    }
+
+    /**
      * 执行hardlineRuleSamples相关逻辑。
      *
      * @param max max 参数。
