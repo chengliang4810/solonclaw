@@ -74,8 +74,8 @@ public class AgentRuntimeService {
     public AgentRuntimeScope defaultScope() {
         AgentRuntimeScope scope = new AgentRuntimeScope();
         scope.setAgentName(AgentRuntimeScope.DEFAULT_AGENT);
-        scope.setDisplayName("默认 Agent");
-        scope.setDescription("映射默认工作区的行为");
+        scope.setDisplayName(AgentDefaultMetadata.displayName());
+        scope.setDescription(AgentDefaultMetadata.description());
         scope.setAgentHomeDir(appConfig.getRuntime().getHome());
         scope.setWorkspaceDir(appConfig.getWorkspace().getDir());
         scope.setSkillsDir(appConfig.getRuntime().getSkillsDir());

@@ -54,6 +54,18 @@ public abstract class UnsupportedAgentRunRepository implements AgentRunRepositor
     }
 
     @Override
+    public List<AgentRunRecord> searchRuns(
+            String sourceKey,
+            String sessionId,
+            String runId,
+            String query,
+            long timeFrom,
+            long timeTo,
+            int limit) {
+        throw unsupported();
+    }
+
+    @Override
     public void appendEvent(AgentRunEventRecord event) {
         throw unsupported();
     }
