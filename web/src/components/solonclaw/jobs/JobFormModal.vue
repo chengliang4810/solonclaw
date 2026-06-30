@@ -4,6 +4,12 @@ import { Modal, Form, FormItem, Input, Button, Select, InputNumber, Switch, Text
 import type { SelectValue } from 'antdv-next'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
 import { useI18n } from 'vue-i18n'
+import {
+  DOMESTIC_PLATFORM_KEYS,
+  DOMESTIC_PLATFORM_LABEL_KEYS,
+  isDomesticPlatformKey,
+  type DomesticPlatformKey,
+} from '@/shared/domesticPlatforms'
 import { hasText, joinTextList, splitTrimmedText, trimText } from '@/shared/text'
 
 const { t } = useI18n()
@@ -53,7 +59,7 @@ const scheduleKind = ref<'cron' | 'interval' | 'once'>('cron')
 const intervalAmount = ref<number | null>(30)
 const intervalUnit = ref<'m' | 'h' | 'd'>('m')
 const deliveryMode = ref<DeliveryMode>('local')
-const deliveryPlatform = ref('feishu')
+const deliveryPlatform = ref<DomesticPlatformKey>('feishu')
 const deliveryMultiText = ref('')
 const skillEditMode = ref<'replace' | 'merge' | 'clear'>('replace')
 const addSkillsText = ref('')
@@ -87,14 +93,10 @@ const deliveryModeOptions = computed(() => [
   { label: t('jobs.deliveryModeMulti'), value: 'multi' },
 ])
 
-const deliveryPlatformOptions = computed(() => [
-  { label: t('jobs.platformFeishu'), value: 'feishu' },
-  { label: t('jobs.platformDingtalk'), value: 'dingtalk' },
-  { label: t('jobs.platformWecom'), value: 'wecom' },
-  { label: t('jobs.platformWeixin'), value: 'weixin' },
-  { label: t('jobs.platformQqbot'), value: 'qqbot' },
-  { label: t('jobs.platformYuanbao'), value: 'yuanbao' },
-])
+const deliveryPlatformOptions = computed(() => DOMESTIC_PLATFORM_KEYS.map(value => ({
+  label: t(DOMESTIC_PLATFORM_LABEL_KEYS[value]),
+  value,
+})))
 
 const skillEditModeOptions = computed(() => [
   { label: t('jobs.skillEditReplace'), value: 'replace' },
@@ -190,10 +192,6 @@ function splitCsv(value: string) {
   return splitTrimmedText(value, ',')
 }
 
-function supportedDeliveryPlatform(value: string) {
-  return deliveryPlatformOptions.value.some(option => option.value === trimText(value).toLowerCase())
-}
-
 function splitDeliveryTarget(value: string) {
   const parts = trimText(value).split(':')
   return {
@@ -227,7 +225,7 @@ function inferDeliveryControls(
   }
   if (target.platform === 'origin' && (chatId || threadId)) {
     const platform = trimText(originPlatform).toLowerCase()
-    if (supportedDeliveryPlatform(platform)) {
+    if (isDomesticPlatformKey(platform)) {
       deliveryPlatform.value = platform
       deliveryMode.value = 'specific'
       deliveryMultiText.value = value
@@ -235,7 +233,7 @@ function inferDeliveryControls(
     }
   }
 
-  if (supportedDeliveryPlatform(target.platform)) {
+  if (isDomesticPlatformKey(target.platform)) {
     deliveryPlatform.value = target.platform
     if (chatId || threadId || target.chatId || target.threadId) {
       deliveryMode.value = 'specific'

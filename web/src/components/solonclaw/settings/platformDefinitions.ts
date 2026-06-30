@@ -1,15 +1,9 @@
 import type { PlatformCatalogItem } from '@/api/solonclaw/config'
+import { DOMESTIC_PLATFORM_KEYS, isDomesticPlatformKey, type DomesticPlatformKey } from '../../../shared/domesticPlatforms.ts'
 
-export const PLATFORM_SETTINGS_KEYS = [
-  'feishu',
-  'dingtalk',
-  'wecom',
-  'weixin',
-  'qqbot',
-  'yuanbao',
-] as const
+export const PLATFORM_SETTINGS_KEYS = DOMESTIC_PLATFORM_KEYS
 
-export type PlatformSettingsKey = (typeof PLATFORM_SETTINGS_KEYS)[number]
+export type PlatformSettingsKey = DomesticPlatformKey
 
 type PlatformSettingsItem = {
   readonly key: PlatformSettingsKey
@@ -63,14 +57,14 @@ export function normalizePlatformSettingsItems(
   const fallbackByKey = new Map(PLATFORM_FALLBACKS.map(item => [item.key, item]))
   const source = catalog.length > 0
     ? catalog
-      .filter(item => isPlatformSettingsKey(item.code))
+      .filter(item => isDomesticPlatformKey(item.code))
       .flatMap(item => mergeCatalogItem(item, fallbackByKey))
     : DEFAULT_PLATFORM_CATALOG_SOURCE
   return source
     .filter(item => item.enabled !== false)
     .map(item => {
       const fallback = fallbackByKey.get(item.key)
-      const iconKey = isPlatformSettingsKey(item.iconKey) ? item.iconKey : fallback?.iconKey
+      const iconKey = isDomesticPlatformKey(item.iconKey) ? item.iconKey : fallback?.iconKey
       return {
         key: item.key,
         name: item.displayName || fallback?.name || item.key,
@@ -82,26 +76,17 @@ export function normalizePlatformSettingsItems(
     .map(({ key, name, icon }) => ({ key, name, icon }))
 }
 
-function isPlatformSettingsKey(value: unknown): value is PlatformSettingsKey {
-  return value === 'feishu'
-    || value === 'dingtalk'
-    || value === 'wecom'
-    || value === 'weixin'
-    || value === 'qqbot'
-    || value === 'yuanbao'
-}
-
 function mergeCatalogItem(
   item: PlatformCatalogItem,
   fallbackByKey: ReadonlyMap<PlatformSettingsKey, PlatformFallback>,
 ): readonly PlatformCatalogSourceItem[] {
-  if (!isPlatformSettingsKey(item.code)) return []
+  if (!isDomesticPlatformKey(item.code)) return []
   const fallback = fallbackByKey.get(item.code)
   if (!fallback) return []
   return [{
     ...fallback,
     displayName: item.displayName,
-    iconKey: isPlatformSettingsKey(item.iconKey) ? item.iconKey : fallback.iconKey,
+    iconKey: isDomesticPlatformKey(item.iconKey) ? item.iconKey : fallback.iconKey,
     order: item.order ?? fallback.order,
     enabled: item.enabled,
   }]
