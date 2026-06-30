@@ -3,18 +3,15 @@ import { Switch, Select, message } from 'antdv-next'
 import type { SelectValue } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
-import { useTheme, type ThemeMode } from '@/composables/useTheme'
+import { useTheme } from '@/composables/useTheme'
+import { isDisplayThemeMode, translateDisplayThemeOptions } from '@/shared/displayThemeOptions'
 import SettingRow from './SettingRow.vue'
 
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
 const { mode, setMode } = useTheme()
 
-const themeOptions = [
-  { label: t('settings.display.themeLight'), value: 'light' },
-  { label: t('settings.display.themeDark'), value: 'dark' },
-  { label: t('settings.display.themeSystem'), value: 'system' },
-]
+const themeOptions = translateDisplayThemeOptions(t)
 
 async function save(values: Record<string, any>) {
   try {
@@ -26,8 +23,8 @@ async function save(values: Record<string, any>) {
 }
 
 function handleThemeChange(val: SelectValue) {
-  if (val !== 'light' && val !== 'dark' && val !== 'system') return
-  setMode(val as ThemeMode)
+  if (typeof val !== 'string' || !isDisplayThemeMode(val)) return
+  setMode(val)
 }
 </script>
 
