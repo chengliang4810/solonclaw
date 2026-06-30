@@ -2,7 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { Button, message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
-import MarkdownRenderer from '@/components/solonclaw/chat/MarkdownRenderer.vue'
+import MarkdownDocumentPanel from '@/components/solonclaw/markdown/MarkdownDocumentPanel.vue'
 import { fetchMemory, saveMemory, type MemoryData } from '@/api/solonclaw/skills'
 
 const { t } = useI18n()
@@ -96,9 +96,23 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
     </header>
 
     <div class="memory-content">
-      <div v-if="loading && !data" class="memory-loading">{{ t('common.loading') }}</div>
-      <div v-else class="memory-sections single">
-        <div class="memory-section">
+      <MarkdownDocumentPanel
+        v-model="editContent"
+        :display-content="displayMemory"
+        :editing="editingSection === 'memory'"
+        :loading="loading && !data"
+        :empty="memoryEmpty"
+        :empty-text="t('memory.noNotes')"
+        :placeholder="t('memory.notesPlaceholder')"
+        :saving="saving"
+        :loading-text="t('common.loading')"
+        :cancel-text="t('common.cancel')"
+        :save-text="t('common.save')"
+        density="compact"
+        @cancel="cancelEdit"
+        @save="handleSave"
+      >
+        <template #intro>
           <div class="memory-intro">
             <div class="memory-intro-title">{{ t('memory.myNotes') }}</div>
             <div class="memory-intro-desc">{{ t('memory.notesDescription') }}</div>
@@ -106,26 +120,8 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
               {{ t('memory.updatedAt', { time: formatTime(data.memory_mtime) }) }}
             </div>
           </div>
-
-          <div v-if="editingSection !== 'memory'" class="section-body">
-            <MarkdownRenderer v-if="!memoryEmpty" :content="displayMemory" />
-            <p v-else class="empty-text">{{ t('memory.noNotes') }}</p>
-          </div>
-
-          <div v-else class="section-edit">
-            <textarea
-              v-model="editContent"
-              class="edit-textarea"
-              :placeholder="t('memory.notesPlaceholder')"
-              spellcheck="false"
-            ></textarea>
-            <div class="edit-actions">
-              <Button size="small" @click="cancelEdit">{{ t('common.cancel') }}</Button>
-              <Button size="small" type="primary" :loading="saving" @click="handleSave">{{ t('common.save') }}</Button>
-            </div>
-          </div>
-        </div>
-      </div>
+        </template>
+      </MarkdownDocumentPanel>
     </div>
   </div>
 </template>
@@ -143,38 +139,6 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
   flex: 1;
   overflow: hidden;
   padding: 20px;
-  display: flex;
-  flex-direction: column;
-}
-
-.memory-loading {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  color: $text-muted;
-}
-
-.memory-sections {
-  flex: 1;
-  min-height: 0;
-
-  &.single {
-    width: 100%;
-  }
-
-  @media (max-width: $breakpoint-mobile) {
-    flex-direction: column;
-  }
-}
-
-.memory-section {
-  flex: 1;
-  min-height: 0;
-  border: 1px solid $border-color;
-  border-radius: $radius-md;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -205,53 +169,5 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
   margin-top: 6px;
   font-size: 11px;
   color: $text-muted;
-}
-
-.section-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  min-height: 0;
-}
-
-.empty-text {
-  color: $text-muted;
-  font-style: italic;
-  font-size: 13px;
-}
-
-.section-edit {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 12px 16px;
-  min-height: 0;
-}
-
-.edit-textarea {
-  flex: 1;
-  width: 100%;
-  min-height: 0;
-  padding: 12px;
-  border: 1px solid $border-color;
-  border-radius: $radius-sm;
-  background: $bg-input;
-  color: $text-primary;
-  font-family: $font-code;
-  font-size: 13px;
-  line-height: 1.6;
-  resize: none;
-  outline: none;
-
-  &:focus {
-    border-color: $accent-primary;
-  }
-}
-
-.edit-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 10px;
 }
 </style>
