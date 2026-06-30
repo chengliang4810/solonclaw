@@ -1152,10 +1152,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      */
     private String displayPathForCandidate(Path candidate) {
         Path normalized = candidate.toAbsolutePath().normalize();
+        String displayPath;
         if (normalized.startsWith(rootPath)) {
-            return rootPath.relativize(normalized).toString();
+            displayPath = rootPath.relativize(normalized).toString();
+        } else {
+            displayPath = normalized.toString();
         }
-        return normalized.toString();
+        return displayPath.replace(File.separatorChar, '/');
     }
 
     /**
