@@ -243,15 +243,9 @@ public class DashboardSessionController {
         try {
             return DashboardResponse.ok(action.run());
         } catch (IllegalArgumentException e) {
-            if (context != null) {
-                context.status(400);
-            }
-            return DashboardResponse.error("SESSION_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "SESSION_BAD_REQUEST", e);
         } catch (IllegalStateException e) {
-            if (context != null) {
-                context.status(400);
-            }
-            return DashboardResponse.error("SESSION_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "SESSION_BAD_REQUEST", e);
         }
     }
 

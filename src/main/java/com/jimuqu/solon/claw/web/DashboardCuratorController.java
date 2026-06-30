@@ -139,11 +139,9 @@ public class DashboardCuratorController {
         try {
             return DashboardResponse.ok(action.run());
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("CURATOR_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "CURATOR_BAD_REQUEST", e);
         } catch (IllegalStateException e) {
-            context.status(400);
-            return DashboardResponse.error("CURATOR_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "CURATOR_BAD_REQUEST", e);
         }
     }
 

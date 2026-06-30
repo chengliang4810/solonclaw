@@ -175,11 +175,9 @@ public class DashboardAgentController {
         try {
             return DashboardResponse.ok(action.run());
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("AGENT_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "AGENT_BAD_REQUEST", e);
         } catch (IllegalStateException e) {
-            context.status(400);
-            return DashboardResponse.error("AGENT_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "AGENT_BAD_REQUEST", e);
         }
     }
 
