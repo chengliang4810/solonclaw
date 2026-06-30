@@ -53,7 +53,7 @@ python scripts/check-code-duplication.py --report-only --min-lines 40 src/main/j
 
 ## BUG-010：TUI 直接 Shell 审批路径使用 `printf` 导致 Windows 用户审批后命令仍失败
 
-状态：待修复
+状态：已修复
 
 影响范围：
 
@@ -134,6 +134,12 @@ terminal-ui/src/components/prompts.tsx:28 no-control-regex
 - 先用 ESLint 自动修复排序类 error。
 - 对 ANSI 正则使用具名常量和局部 ESLint 说明，或改成字符码拼接方式，避免规则误报并保持语义清晰。
 - 修复后运行 `npm --prefix terminal-ui run lint -- --quiet`、`npm --prefix terminal-ui run type-check`。
+
+处理记录：
+
+- 已用 ESLint 自动修复 import/export 排序问题。
+- 已把 ANSI ESC 控制字符从正则字面量调整为 `String.fromCharCode(27)` 生成的 `RegExp` 常量，避免关闭 `no-control-regex`。
+- 已验证 `npm --prefix terminal-ui run lint -- --quiet`、`npm --prefix terminal-ui run type-check`、`npm --prefix terminal-ui run build` 和相关 Vitest 测试通过。
 
 ## BUG-013：Windows 非管理员环境下符号链接和日志文件锁测试不稳定
 

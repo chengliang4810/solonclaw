@@ -7,8 +7,8 @@ import { rpcErrorMessage } from '../lib/rpc.js'
 import type { Theme } from '../theme.js'
 
 import { channelQrMessage, channelQrStatusActive, channelSupportsQr } from './channelQr.js'
-import { type ChannelSetupStage } from './channelSetupKeys.js'
 import { useChannelSetupInput } from './channelSetupInput.js'
+import { type ChannelSetupStage } from './channelSetupKeys.js'
 import { loadChannelOptions, refreshChannelQr, saveChannelConfig, startChannelQr } from './channelSetupRpc.js'
 import {
   ChannelFieldsView,

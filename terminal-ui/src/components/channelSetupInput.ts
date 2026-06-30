@@ -7,9 +7,9 @@ import { channelSupportsQr } from './channelQr.js'
 import {
   canMoveChannelDown,
   canMoveChannelUp,
+  type ChannelSetupStage,
   INITIAL_CHANNEL_VALUES,
-  nextFieldIndex,
-  type ChannelSetupStage
+  nextFieldIndex
 } from './channelSetupKeys.js'
 
 export function useChannelSetupInput(controller: ChannelSetupInputController): void {
