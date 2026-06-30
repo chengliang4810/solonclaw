@@ -117,7 +117,7 @@ export async function listFiles(): Promise<ListResult> {
           openEditor: () => {},
         },
         t: (key: string) => key === 'files.loadFailed' ? 'Failed to load files' : 'Empty directory',
-        getFileIcon: () => 'file',
+        fileTypeIcon: () => 'file',
         formatSize: () => '5 B',
         formatDate: () => '2026-06-27',
         handleDoubleClick: () => {},

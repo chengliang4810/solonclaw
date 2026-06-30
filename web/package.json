@@ -25,6 +25,7 @@
     "test:usage-format": "node --experimental-strip-types tests/usageFormat.test.ts",
     "test:markdown-document-panel-reuse": "node --experimental-strip-types tests/markdownDocumentPanelReuseStatic.test.ts",
     "test:file-context-menu-actions": "node --experimental-strip-types tests/fileContextMenuActions.test.ts",
+    "test:file-type-icon": "node --experimental-strip-types tests/fileTypeIcon.test.ts",
     "test:app-sidebar-nav-metadata": "node --experimental-strip-types tests/appSidebarNavMetadataStatic.test.ts",
     "test:delivery-platform-catalog": "node --experimental-strip-types tests/deliveryPlatformCatalog.test.ts",
     "test:job-form-options": "node --experimental-strip-types tests/jobFormOptions.test.ts",

@@ -37,7 +37,7 @@ const BINARY_EXTS = new Set([
   '.exe', '.dll', '.so', '.dylib', '.bin', '.dat', '.db', '.sqlite',
 ])
 
-function getFileExt(name: string): string {
+export function getFileExt(name: string): string {
   const idx = name.lastIndexOf('.')
   return idx >= 0 ? name.slice(idx).toLowerCase() : ''
 }
