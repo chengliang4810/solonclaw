@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 import { Button, message, Modal } from 'antdv-next'
 import type { AvailableModelGroup, ProviderValidationResponse } from '@/api/solonclaw/system'
 import { useModelsStore } from '@/stores/solonclaw/models'
+import { healthLabelKey, translateDialectLabel } from '@/shared/providerDisplay'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ provider: AvailableModelGroup }>()
@@ -19,34 +20,9 @@ const deleting = ref(false)
 const validating = ref(false)
 const validationResult = ref<ProviderValidationResponse | null>(null)
 
-function dialectLabel(value: string): string {
-  switch (value) {
-    case 'openai':
-      return t('models.dialectOpenai')
-    case 'openai-responses':
-      return t('models.dialectOpenaiResponses')
-    case 'ollama':
-      return t('models.dialectOllama')
-    case 'gemini':
-      return t('models.dialectGemini')
-    case 'anthropic':
-      return t('models.dialectAnthropic')
-    default:
-      return value
-  }
-}
-
-function healthLabel(value: string): string {
-  switch (value) {
-    case 'configured':
-      return t('models.health.configured')
-    case 'missing_key':
-      return t('models.health.missing_key')
-    case 'unreachable':
-      return t('models.health.unreachable')
-    default:
-      return t('models.health.unchecked')
-  }
+function errorMessage(error: unknown, fallback?: string): string {
+  if (error instanceof Error) return error.message
+  return fallback ?? String(error)
 }
 
 async function handleDelete() {
@@ -60,8 +36,8 @@ async function handleDelete() {
       try {
         await modelsStore.removeProvider(props.provider.provider)
         message.success(t('models.providerDeleted'))
-      } catch (e: any) {
-        message.error(e.message)
+      } catch (error: unknown) {
+        message.error(errorMessage(error))
       } finally {
         deleting.value = false
       }
@@ -85,8 +61,8 @@ async function handleValidate() {
     } else {
       message.warning(validationResult.value.message || t('models.providerInvalid'))
     }
-  } catch (e: any) {
-    message.error(e.message || t('models.providerValidationFailed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('models.providerValidationFailed')))
   } finally {
     validating.value = false
   }
@@ -98,7 +74,7 @@ async function handleValidate() {
     <div class="card-header">
       <h3 class="provider-name">{{ displayName }}</h3>
       <span class="type-badge" :class="provider.isDefault ? 'default' : 'normal'">
-        {{ provider.isDefault ? t('models.defaultBadge') : dialectLabel(provider.dialect) }}
+        {{ provider.isDefault ? t('models.defaultBadge') : translateDialectLabel(provider.dialect, t) }}
       </span>
     </div>
 
@@ -121,7 +97,7 @@ async function handleValidate() {
       </div>
       <div class="info-row">
         <span class="info-label">{{ t('models.healthStatus') }}</span>
-        <span class="info-value">{{ healthLabel(healthStatus) }}</span>
+        <span class="info-value">{{ t(healthLabelKey(healthStatus)) }}</span>
       </div>
     </div>
 
