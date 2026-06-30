@@ -26,4 +26,6 @@ assert.ok(sharedPanel.includes('canStartQrLogin(state.status)'), 'Shared QR pane
 assert.ok(sharedPanel.includes('target="_blank"'), 'Shared QR panel should keep external QR link target')
 assert.ok(sharedPanel.includes('rel="noopener noreferrer"'), 'Shared QR panel should keep external QR link safety attributes')
 assert.ok(sharedPanel.includes('state.status === \'confirmed\' && domain'), 'Shared QR panel should keep the confirmed domain branch')
-assert.ok(sharedPanel.includes('showEmptyStatus && !state.imageUrl'), 'Shared QR panel should keep Weixin empty-image status branch')
+assert.ok(sharedPanel.includes("return showEmptyStatus && (state.status === 'waiting' || state.status === 'scaned')"), 'Shared QR panel should keep Weixin empty-image status branch')
+assert.ok(sharedPanel.includes('shouldShowStandaloneStatus(state, showEmptyStatus)'), 'Shared QR panel should show image-less error and expired states across platforms')
+assert.ok(sharedPanel.includes('statusFallbackMessage(state.status)'), 'Shared QR panel should provide fallback text for image-less terminal states')
