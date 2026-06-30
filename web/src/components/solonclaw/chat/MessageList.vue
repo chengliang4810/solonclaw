@@ -12,10 +12,6 @@ const { t } = useI18n();
 const { isDark } = useTheme();
 const listRef = ref<HTMLElement>();
 
-const displayMessages = computed(() =>
-  chatStore.messages.filter((m) => m.role !== "tool"),
-);
-
 const currentToolCalls = computed(() => {
   const msgs = chatStore.messages;
   // Find the last user message index
@@ -30,6 +26,21 @@ const currentToolCalls = computed(() => {
   const tools = msgs.filter((m, i) => m.role === "tool" && i > lastUserIdx);
   return [...tools].reverse();
 });
+
+const currentToolCallIds = computed(
+  () => new Set(currentToolCalls.value.map((m) => m.id)),
+);
+
+const displayMessages = computed(() =>
+  chatStore.messages.filter(
+    (m) =>
+      !(
+        chatStore.isRunActive &&
+        m.role === "tool" &&
+        currentToolCallIds.value.has(m.id)
+      ),
+  ),
+);
 
 function isNearBottom(threshold = 200): boolean {
   const el = listRef.value;
