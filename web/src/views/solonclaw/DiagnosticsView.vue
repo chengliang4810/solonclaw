@@ -17,6 +17,7 @@ import {
   probeSubprocessEnvironment,
   resolveApproval,
   resolveSlashConfirm,
+  updatePlatformToolsets,
   revokeAlwaysApproval,
   type AlwaysApproval,
   type AlwaysApprovalsResult,
@@ -30,6 +31,7 @@ import {
   type PendingApprovalsResult,
   type PendingSlashConfirm,
   type PendingSlashConfirmsResult,
+  type PlatformToolsetConfig,
   type PlatformToolsetsOverview,
   type SecurityPolicyProbe,
   type SecurityAuditFinding,
@@ -60,6 +62,12 @@ const policyAuditResult = ref<SecurityAuditResult | null>(null)
 const subprocessEnvProbeResult = ref<SubprocessEnvironmentProbeResult | null>(null)
 const subprocessEnvProbeLoading = ref(false)
 const platformToolsets = ref<PlatformToolsetsOverview | null>(null)
+const platformToolsetForms = ref<Record<string, {
+  enabledToolsetsText: string
+  disabledToolsetsText: string
+  approvalRequired: boolean
+}>>({})
+const savingPlatformToolsets = ref('')
 const pendingApprovals = ref<PendingApproval[]>([])
 const approvalEvents = ref<ApprovalEventsResult | null>(null)
 const approvalStats = ref<ApprovalStats | null>(null)
@@ -587,8 +595,65 @@ function surfaceLabel(surface: string) {
   return translated === key ? surface : translated
 }
 
-function listText(values?: string[]) {
-  return values?.length ? values.join(', ') : '-'
+function toolsetsText(values?: readonly string[]) {
+  return values?.length ? values.join(', ') : ''
+}
+
+function splitToolsetsText(value: string) {
+  const result: string[] = []
+  for (const item of value.split(/[\s,]+/)) {
+    const normalized = item.trim()
+    if (normalized && !result.includes(normalized)) {
+      result.push(normalized)
+    }
+  }
+  return result
+}
+
+function resetPlatformToolsetForms(overview: PlatformToolsetsOverview | null) {
+  const forms: Record<string, {
+    enabledToolsetsText: string
+    disabledToolsetsText: string
+    approvalRequired: boolean
+  }> = {}
+  for (const row of Object.values(overview?.platforms || {})) {
+    forms[row.platform] = {
+      enabledToolsetsText: toolsetsText(row.enabledToolsets),
+      disabledToolsetsText: toolsetsText(row.disabledToolsets),
+      approvalRequired: row.approvalRequired,
+    }
+  }
+  platformToolsetForms.value = forms
+}
+
+async function loadPlatformToolsets() {
+  platformToolsets.value = await fetchPlatformToolsets()
+  resetPlatformToolsetForms(platformToolsets.value)
+}
+
+async function savePlatformToolsets(row: PlatformToolsetConfig) {
+  const form = platformToolsetForms.value[row.platform]
+  if (!form) return
+  savingPlatformToolsets.value = row.platform
+  try {
+    const updated = await updatePlatformToolsets(row.platform, {
+      enabledToolsets: splitToolsetsText(form.enabledToolsetsText),
+      disabledToolsets: splitToolsetsText(form.disabledToolsetsText),
+      approvalRequired: form.approvalRequired,
+    })
+    platformToolsets.value = {
+      platforms: {
+        ...(platformToolsets.value?.platforms || {}),
+        [updated.platform]: updated,
+      },
+    }
+    resetPlatformToolsetForms(platformToolsets.value)
+    message.success(t('diagnostics.platformToolsetsSaved'))
+  } catch (error: unknown) {
+    message.error(error instanceof Error ? error.message : t('diagnostics.platformToolsetsSaveFailed'))
+  } finally {
+    savingPlatformToolsets.value = ''
+  }
 }
 
 async function load() {
@@ -607,7 +672,7 @@ async function load() {
     ])
     diagnostics.value = diagnosticsData
     doctor.value = await fetchDiagnosticsDoctor()
-    platformToolsets.value = await fetchPlatformToolsets()
+    await loadPlatformToolsets()
     insightsOverview.value = insightsData
     skillInsights.value = skillInsightData
   } finally {
@@ -903,12 +968,40 @@ onMounted(load)
           <h3>{{ t('diagnostics.platformToolsets') }}</h3>
           <div v-if="platformToolsetRows.length" class="toolset-list">
             <div v-for="row in platformToolsetRows" :key="row.platform" class="toolset-row">
-              <strong>{{ row.platform }}</strong>
-              <span>{{ t('diagnostics.enabledToolsets') }}: {{ listText(row.enabledToolsets) }}</span>
-              <span>{{ t('diagnostics.disabledToolsets') }}: {{ listText(row.disabledToolsets) }}</span>
-              <Tag size="small" :color="row.approvalRequired ? 'warning' : 'default'" :bordered="false">
-                {{ row.approvalRequired ? t('diagnostics.approvalRequired') : t('diagnostics.approvalNotRequired') }}
-              </Tag>
+              <div class="toolset-platform">
+                <strong>{{ row.platform }}</strong>
+                <Tag size="small" :color="row.approvalRequired ? 'warning' : 'default'" :bordered="false">
+                  {{ row.approvalRequired ? t('diagnostics.approvalRequired') : t('diagnostics.approvalNotRequired') }}
+                </Tag>
+              </div>
+              <label>
+                <span>{{ t('diagnostics.enabledToolsets') }}</span>
+                <Input
+                  v-model:value="platformToolsetForms[row.platform].enabledToolsetsText"
+                  size="small"
+                  :placeholder="t('diagnostics.enabledToolsetsPlaceholder')"
+                />
+              </label>
+              <label>
+                <span>{{ t('diagnostics.disabledToolsets') }}</span>
+                <Input
+                  v-model:value="platformToolsetForms[row.platform].disabledToolsetsText"
+                  size="small"
+                  :placeholder="t('diagnostics.disabledToolsetsPlaceholder')"
+                />
+              </label>
+              <label class="toolset-approval">
+                <span>{{ t('diagnostics.approvalRequired') }}</span>
+                <Switch v-model:value="platformToolsetForms[row.platform].approvalRequired" size="small" />
+              </label>
+              <Button
+                size="small"
+                type="primary"
+                :loading="savingPlatformToolsets === row.platform"
+                @click="savePlatformToolsets(row)"
+              >
+                {{ t('diagnostics.savePlatformToolsets') }}
+              </Button>
             </div>
           </div>
           <div v-else class="empty-state">{{ t('diagnostics.noPlatformToolsets') }}</div>
@@ -1735,9 +1828,9 @@ onMounted(load)
 
 .toolset-row {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
+  grid-template-columns: 120px minmax(180px, 1fr) minmax(180px, 1fr) 120px auto;
+  gap: 10px;
+  align-items: end;
   border: 1px solid $border-light;
   border-radius: $radius-sm;
   background: $bg-secondary;
@@ -1746,13 +1839,30 @@ onMounted(load)
   color: $text-secondary;
 }
 
-.toolset-row span {
-  overflow-wrap: anywhere;
+.toolset-platform {
+  display: grid;
+  gap: 6px;
+  align-self: center;
+}
+
+.toolset-row label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.toolset-row label span {
+  color: $text-muted;
+}
+
+.toolset-approval {
+  align-items: start;
 }
 
 @media (max-width: $breakpoint-mobile) {
   .toolset-row {
     grid-template-columns: 1fr;
+    align-items: stretch;
   }
 }
 

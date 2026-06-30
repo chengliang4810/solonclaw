@@ -88,6 +88,12 @@ export interface PlatformToolsetsOverview {
   platforms: Record<string, PlatformToolsetConfig>
 }
 
+export interface PlatformToolsetsUpdatePayload {
+  readonly enabledToolsets: readonly string[]
+  readonly disabledToolsets: readonly string[]
+  readonly approvalRequired: boolean
+}
+
 export interface PendingApproval {
   session_id: string
   source_ref?: string
@@ -281,6 +287,13 @@ export async function probeSubprocessEnvironment(names: string[]): Promise<Subpr
 
 export async function fetchPlatformToolsets(): Promise<PlatformToolsetsOverview> {
   return request<PlatformToolsetsOverview>('/api/tools/platform-toolsets')
+}
+
+export async function updatePlatformToolsets(platform: string, payload: PlatformToolsetsUpdatePayload): Promise<PlatformToolsetConfig> {
+  return request<PlatformToolsetConfig>(`/api/tools/platform-toolsets/${encodeURIComponent(platform)}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
 }
 
 export async function fetchPendingApprovals(limit = 100): Promise<PendingApprovalsResult> {
