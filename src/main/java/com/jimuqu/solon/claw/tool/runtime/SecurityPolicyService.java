@@ -2481,7 +2481,7 @@ public class SecurityPolicyService {
      */
     private File resolveWorkspaceRelativePath(String rawPath) throws java.io.IOException {
         File file = new File(StrUtil.nullToEmpty(rawPath).trim());
-        if (!file.isAbsolute()) {
+        if (!file.isAbsolute() && !isAbsolutePathText(rawPath)) {
             file = new File(workspaceRoot(), file.getPath());
         }
         return file.getCanonicalFile();
