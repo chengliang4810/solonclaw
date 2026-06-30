@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, onUnmounted } from 'vue'
+import { computed, reactive, onUnmounted } from 'vue'
 import * as QRCode from 'qrcode'
 import { message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
@@ -15,13 +15,17 @@ import PlatformOptionalSettings from './PlatformOptionalSettings.vue'
 import PlatformCard from './PlatformCard.vue'
 import PlatformSwitchSettingRow from './PlatformSwitchSettingRow.vue'
 import PlatformTextSettingRow from './PlatformTextSettingRow.vue'
-import { PLATFORM_SETTINGS_ITEMS } from './platformDefinitions'
+import { normalizePlatformSettingsItems } from './platformDefinitions'
 
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
 
 // Track saving state per platform.field
 const saving = reactive<Record<string, boolean>>({})
+
+const platformSettingsItems = computed(() =>
+  normalizePlatformSettingsItems(settingsStore.platformCatalog),
+)
 
 function savingKey(platform: string, field: string) {
   return `${platform}.${field}`
@@ -182,7 +186,7 @@ onUnmounted(() => {
 <template>
   <section class="settings-section">
     <PlatformCard
-      v-for="p in PLATFORM_SETTINGS_ITEMS"
+      v-for="p in platformSettingsItems"
       :key="p.key"
       :name="p.name"
       :icon="p.icon"

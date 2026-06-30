@@ -14,6 +14,14 @@ export interface AgentConfig {
   service_tier?: string
 }
 
+export type PlatformCatalogItem = {
+  readonly code: string
+  readonly displayName?: string
+  readonly iconKey?: string
+  readonly order?: number
+  readonly enabled?: boolean
+}
+
 export interface AppConfig {
   display?: DisplayConfig
   agent?: AgentConfig
@@ -24,6 +32,7 @@ export interface AppConfig {
   qqbot?: Record<string, any>
   yuanbao?: Record<string, any>
   platforms?: Record<string, any>
+  platformCatalog?: readonly PlatformCatalogItem[]
   [key: string]: any
 }
 
@@ -93,6 +102,20 @@ function credentialValue(values: Record<string, any>, source: CredentialFieldSou
   return values.extra?.[source.slice('extra.'.length)]
 }
 
+function normalizePlatformCatalog(value: unknown): readonly PlatformCatalogItem[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is Record<string, unknown> => item !== null && typeof item === 'object')
+    .map(item => ({
+      code: typeof item.code === 'string' ? item.code : '',
+      displayName: typeof item.displayName === 'string' ? item.displayName : undefined,
+      iconKey: typeof item.iconKey === 'string' ? item.iconKey : undefined,
+      order: typeof item.order === 'number' ? item.order : undefined,
+      enabled: typeof item.enabled === 'boolean' ? item.enabled : undefined,
+    }))
+    .filter(item => item.code.length > 0)
+}
+
 
 export async function fetchWorkspaceConfigItems(): Promise<Record<string, WorkspaceConfigInfo>> {
   return request<Record<string, WorkspaceConfigInfo>>('/api/workspace-config')
@@ -153,6 +176,7 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
     weixin: data.channels?.weixin || {},
     qqbot: data.channels?.qqbot || {},
     yuanbao: data.channels?.yuanbao || {},
+    platformCatalog: normalizePlatformCatalog(data.platform_catalog),
     platforms: {
       feishu: {
         enabled: configBoolean(data.channels?.feishu?.enabled),
