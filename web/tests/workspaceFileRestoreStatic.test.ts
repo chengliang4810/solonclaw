@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs'
 const filesApi = readFileSync(new URL('../src/api/solonclaw/files.ts', import.meta.url), 'utf8')
 const filesStore = readFileSync(new URL('../src/stores/solonclaw/files.ts', import.meta.url), 'utf8')
 const contextMenu = readFileSync(new URL('../src/components/solonclaw/files/FileContextMenu.vue', import.meta.url), 'utf8')
+const contextMenuActions = readFileSync(new URL('../src/shared/fileContextMenu.ts', import.meta.url), 'utf8')
 
 assert.ok(filesApi.includes('restoreWorkspaceFile'), 'files API should expose workspace template restore')
 assert.ok(
@@ -15,7 +16,7 @@ assert.ok(filesStore.includes('async function restoreFile'), 'files store should
 assert.ok(filesStore.includes('filesApi.restoreFile(filePath)'), 'files store should delegate restore to API')
 assert.ok(filesStore.includes('editingFile.value.originalContent'), 'restore should keep an open editor in sync')
 
-assert.ok(contextMenu.includes("key: 'restoreDefault'"), 'file context menu should expose restore default action')
+assert.ok(contextMenuActions.includes("key: 'restoreDefault'"), 'file context menu should expose restore default action')
 assert.ok(contextMenu.includes('Modal.confirm'), 'restore default should ask for confirmation')
 assert.ok(contextMenu.includes("filesStore.restoreFile(entry.path)"), 'restore default should call the store action')
 

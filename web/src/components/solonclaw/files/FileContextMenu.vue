@@ -3,9 +3,10 @@ import { ref, nextTick } from 'vue'
 import { Dropdown, message, Modal } from 'antdv-next'
 import type { MenuProps } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
-import { useFilesStore, isTextFile, isImageFile, isMarkdownFile } from '@/stores/solonclaw/files'
+import { useFilesStore } from '@/stores/solonclaw/files'
 import { downloadFile } from '@/api/solonclaw/download'
 import type { FileEntry } from '@/api/solonclaw/files'
+import { buildFileContextMenuItems } from '@/shared/fileContextMenu'
 import { copyToClipboard } from '@/utils/clipboard'
 
 const { t } = useI18n()
@@ -26,30 +27,8 @@ function show(e: MouseEvent, entry: FileEntry) {
   })
 }
 
-function getOptions() {
-  const entry = targetEntry.value
-  if (!entry) return []
-  const options: any[] = []
-
-  if (entry.isDir) {
-    options.push({ label: t('files.open'), key: 'open' })
-  } else {
-    if (isTextFile(entry.name)) {
-      options.push({ label: t('files.edit'), key: 'edit' })
-    }
-    if (isImageFile(entry.name) || isMarkdownFile(entry.name)) {
-      options.push({ label: t('files.preview'), key: 'preview' })
-    }
-    options.push({ label: t('files.download'), key: 'download' })
-    options.push({ label: t('files.restoreDefault'), key: 'restoreDefault' })
-  }
-  options.push({ type: 'divider', key: 'd1' })
-  options.push({ label: t('files.copyPath'), key: 'copyPath' })
-  return options
-}
-
 function getMenuItems(): MenuProps['items'] {
-  return getOptions()
+  return buildFileContextMenuItems(targetEntry.value, t)
 }
 
 async function handleSelect(key: string) {
@@ -68,7 +47,7 @@ async function handleSelect(key: string) {
       try { await filesStore.openPreview(entry) } catch { message.error(t('files.backendError')) }
       break
     case 'download':
-      try { await downloadFile(entry.path, entry.name) } catch (err: any) { message.error(err.message) }
+      try { await downloadFile(entry.path, entry.name) } catch (err) { message.error(err instanceof Error ? err.message : t('files.backendError')) }
       break
     case 'restoreDefault':
       Modal.confirm({
