@@ -14,6 +14,8 @@ import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.AllowLocalButBlockMetadataSecurityPolicyService;
+import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.FixedDnsSecurityPolicyService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -21,7 +23,6 @@ import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.sun.net.httpserver.HttpServer;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -1006,51 +1007,6 @@ public class RuntimeRefreshBehaviorTest {
         body.put("baseUrl", baseUrl);
         body.put("dialect", dialect);
         return body;
-    }
-
-    private static class AllowLocalButBlockMetadataSecurityPolicyService
-            extends SecurityPolicyService {
-        private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
-            super(appConfig);
-        }
-
-        @Override
-        public UrlVerdict checkUrl(String url) {
-            if (url != null && url.contains("127.0.0.1")) {
-                return UrlVerdict.allow();
-            }
-            return super.checkUrl(url);
-        }
-
-        @Override
-        public UrlVerdict checkUrlSafety(String url, Boolean allowPrivateOverride) {
-            if (url != null && url.contains("127.0.0.1")) {
-                return UrlVerdict.allow();
-            }
-            return super.checkUrlSafety(url, allowPrivateOverride);
-        }
-
-        @Override
-        protected InetAddress[] resolveHost(String host) throws Exception {
-            if ("127.0.0.1".equals(host)) {
-                return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
-            }
-            return new InetAddress[] {InetAddress.getByName(host)};
-        }
-    }
-
-    private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
-        private final String ip;
-
-        private FixedDnsSecurityPolicyService(AppConfig appConfig, String ip) {
-            super(appConfig);
-            this.ip = ip;
-        }
-
-        @Override
-        protected InetAddress[] resolveHost(String host) throws Exception {
-            return new InetAddress[] {InetAddress.getByName(ip)};
-        }
     }
 
     private static class ProviderPublicUrlApprovalSecurityPolicyService

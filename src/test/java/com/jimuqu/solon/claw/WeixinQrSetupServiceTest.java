@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.AllowLocalButBlockMetadataSecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
@@ -12,7 +13,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.File;
 import java.io.OutputStream;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -290,29 +290,6 @@ public class WeixinQrSetupServiceTest {
         ticketField.setAccessible(true);
         ticketField.set(state, ticket);
         return state;
-    }
-
-    private static class AllowLocalButBlockMetadataSecurityPolicyService
-            extends SecurityPolicyService {
-        private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
-            super(appConfig);
-        }
-
-        @Override
-        public UrlVerdict checkUrl(String url) {
-            if (url != null && url.contains("127.0.0.1")) {
-                return UrlVerdict.allow();
-            }
-            return super.checkUrl(url);
-        }
-
-        @Override
-        protected InetAddress[] resolveHost(String host) throws Exception {
-            if ("127.0.0.1".equals(host)) {
-                return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
-            }
-            return new InetAddress[] {InetAddress.getByName(host)};
-        }
     }
 
     private static class TokenMessageSecurityPolicyService extends SecurityPolicyService {

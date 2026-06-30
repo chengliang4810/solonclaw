@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
-import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.AllowLocalButBlockMetadataSecurityPolicyService;
+import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.FixedDnsSecurityPolicyService;
 import com.sun.net.httpserver.HttpServer;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.Map;
@@ -231,48 +231,4 @@ public class DefaultSkillHubHttpClientTest {
         }
     }
 
-    private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {
-        private final String ip;
-
-        private FixedDnsSecurityPolicyService(AppConfig appConfig, String ip) {
-            super(appConfig);
-            this.ip = ip;
-        }
-
-        @Override
-        protected InetAddress[] resolveHost(String host) throws Exception {
-            return new InetAddress[] {InetAddress.getByName(ip)};
-        }
-    }
-
-    private static class AllowLocalButBlockMetadataSecurityPolicyService
-            extends SecurityPolicyService {
-        private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
-            super(appConfig);
-        }
-
-        @Override
-        public UrlVerdict checkUrl(String url) {
-            if (url != null && url.contains("127.0.0.1")) {
-                return UrlVerdict.allow();
-            }
-            return super.checkUrl(url);
-        }
-
-        @Override
-        public UrlVerdict checkUrlBlockingPrivate(String url) {
-            if (url != null && url.contains("127.0.0.1")) {
-                return UrlVerdict.allow();
-            }
-            return super.checkUrlBlockingPrivate(url);
-        }
-
-        @Override
-        protected InetAddress[] resolveHost(String host) throws Exception {
-            if ("127.0.0.1".equals(host)) {
-                return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
-            }
-            return new InetAddress[] {InetAddress.getByName(host)};
-        }
-    }
 }

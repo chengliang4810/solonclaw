@@ -5,12 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.AllowLocalButBlockMetadataSecurityPolicyService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.sun.net.httpserver.HttpServer;
 import java.io.File;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import org.junit.jupiter.api.Test;
 
@@ -358,29 +358,6 @@ public class AppUpdateServiceTest {
 
         private void exposeDownloadAsset(String assetUrl, File target) {
             downloadAsset(assetUrl, target);
-        }
-    }
-
-    private static class AllowLocalButBlockMetadataSecurityPolicyService
-            extends SecurityPolicyService {
-        private AllowLocalButBlockMetadataSecurityPolicyService(AppConfig appConfig) {
-            super(appConfig);
-        }
-
-        @Override
-        public UrlVerdict checkUrl(String url) {
-            if (url != null && url.contains("127.0.0.1")) {
-                return UrlVerdict.allow();
-            }
-            return super.checkUrl(url);
-        }
-
-        @Override
-        protected InetAddress[] resolveHost(String host) throws Exception {
-            if ("127.0.0.1".equals(host)) {
-                return new InetAddress[] {InetAddress.getByName("8.8.8.8")};
-            }
-            return new InetAddress[] {InetAddress.getByName(host)};
         }
     }
 
