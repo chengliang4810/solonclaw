@@ -4,6 +4,8 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -69,13 +71,9 @@ public final class SkillBundlePathSupport {
             throw unsafe(fieldName, null);
         }
         try {
-            File canonicalRoot = rootDir.getCanonicalFile();
-            File canonicalTarget = target.getCanonicalFile();
-            String rootPath = canonicalRoot.getAbsolutePath();
-            String targetPath = canonicalTarget.getAbsolutePath();
-            String rootPrefix =
-                    rootPath.endsWith(File.separator) ? rootPath : rootPath + File.separator;
-            if (targetPath.equals(rootPath) || targetPath.startsWith(rootPrefix)) {
+            Path rootPath = resolveRealPath(rootDir);
+            Path targetPath = resolveRealPath(target);
+            if (targetPath.equals(rootPath) || targetPath.startsWith(rootPath)) {
                 return target;
             }
         } catch (IOException e) {
@@ -83,6 +81,34 @@ public final class SkillBundlePathSupport {
                     "Unsafe " + fieldName + ": cannot resolve canonical path", e);
         }
         throw unsafe(fieldName, target.getPath());
+    }
+
+    /**
+     * 解析真实文件系统路径，已存在的路径段会跟随链接，未创建的尾部路径保留原始名称。
+     *
+     * @param file 文件或目录路径参数。
+     * @return 返回可用于根目录边界比较的真实路径。
+     * @throws IOException 路径无法解析时抛出。
+     */
+    private static Path resolveRealPath(File file) throws IOException {
+        Path path = file.toPath().toAbsolutePath().normalize();
+        if (Files.exists(path)) {
+            return path.toRealPath();
+        }
+        List<Path> missingParts = new ArrayList<Path>();
+        Path existing = path;
+        while (existing != null && !Files.exists(existing)) {
+            missingParts.add(existing.getFileName());
+            existing = existing.getParent();
+        }
+        if (existing == null) {
+            return path;
+        }
+        Path resolved = existing.toRealPath();
+        for (int i = missingParts.size() - 1; i >= 0; i--) {
+            resolved = resolved.resolve(missingParts.get(i).toString());
+        }
+        return resolved.normalize();
     }
 
     /**

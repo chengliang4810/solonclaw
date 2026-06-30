@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.LoggerContext;
@@ -14,7 +15,9 @@ import ch.qos.logback.core.status.Status;
 import ch.qos.logback.core.util.Duration;
 import ch.qos.logback.core.util.FileSize;
 import com.jimuqu.solon.claw.support.logging.WatchedRollingFileAppender;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -45,7 +48,7 @@ public class WatchedRollingFileAppenderTest {
             assertThat(Files.readAllLines(logPath, StandardCharsets.UTF_8))
                     .containsExactly("before rotation");
 
-            Files.move(logPath, rotatedPath);
+            assumeMoveOpenFile(logPath, rotatedPath);
             assertThat(logPath).doesNotExist();
 
             append(appender, "after rotation");
@@ -71,7 +74,7 @@ public class WatchedRollingFileAppenderTest {
             assertThat(Files.readAllLines(logPath, StandardCharsets.UTF_8))
                     .containsExactly("before delete");
 
-            Files.delete(logPath);
+            assumeDeleteOpenFile(logPath);
             assertThat(logPath).doesNotExist();
 
             append(appender, "after delete");
@@ -126,5 +129,23 @@ public class WatchedRollingFileAppenderTest {
         event.setMessage(message);
         event.setTimeStamp(System.currentTimeMillis());
         appender.doAppend(event);
+    }
+
+    /** 移动仍由 appender 打开的日志文件，平台不支持时跳过外部轮转场景。 */
+    private void assumeMoveOpenFile(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target);
+        } catch (FileSystemException e) {
+            assumeTrue(false, "当前平台不允许移动已打开的日志文件：" + e.getMessage());
+        }
+    }
+
+    /** 删除仍由 appender 打开的日志文件，平台不支持时跳过外部删除场景。 */
+    private void assumeDeleteOpenFile(Path path) throws IOException {
+        try {
+            Files.delete(path);
+        } catch (FileSystemException e) {
+            assumeTrue(false, "当前平台不允许删除已打开的日志文件：" + e.getMessage());
+        }
     }
 }

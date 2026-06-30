@@ -162,7 +162,7 @@ terminal-ui/src/components/prompts.tsx:28 no-control-regex
 
 ## BUG-013：Windows 非管理员环境下符号链接和日志文件锁测试不稳定
 
-状态：待修复
+状态：已修复
 
 影响范围：
 
@@ -181,10 +181,11 @@ terminal-ui/src/components/prompts.tsx:28 no-control-regex
 - `target/surefire-reports/com.jimuqu.solon.claw.skillhub.support.SkillBundlePathSupportTest.txt`
 - `target/surefire-reports/com.jimuqu.solon.claw.WatchedRollingFileAppenderTest.txt`
 
-建议修复方向：
+处理记录：
 
-- 符号链接测试在 Windows 权限不足时显式跳过或使用 JUnit assumption，同时保留具备权限环境下的逃逸防护断言。
-- 日志文件测试应关闭 appender/释放句柄后再执行 rename/delete，或使用 Windows 兼容的轮询等待文件释放。
+- 已让 Skill bundle 符号链接逃逸测试优先创建真实符号链接，Windows 普通用户环境下退到 `mklink /J` 目录 junction；两种链接能力都不可用时通过 JUnit assumption 跳过，保留具备链接能力环境下的逃逸防护断言。
+- 已让滚动日志外部 rename/delete 测试先探测当前平台是否允许移动或删除已打开日志文件；Windows 文件锁阻止该场景时跳过，支持该场景的平台继续验证 appender 自动重新打开当前日志文件。
+- 已验证 BUG-013 相关 3 个目标方法在当前 Windows 环境下不再报错，结果为 1 个通过、2 个因平台文件锁语义跳过。
 
 ## BUG-014：配置模板/诊断输出在当前测试环境出现中文乱码，影响断言和用户可读性
 
