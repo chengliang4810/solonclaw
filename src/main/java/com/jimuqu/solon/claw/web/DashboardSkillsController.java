@@ -69,11 +69,9 @@ public class DashboardSkillsController {
             return skillsService.toggleSkill(
                     body.get("name").getString(), body.get("enabled").getBoolean());
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("SKILLS_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "SKILLS_BAD_REQUEST", e);
         } catch (Exception e) {
-            context.status(500);
-            return DashboardResponse.error("SKILLS_FAILED", e.getMessage());
+            return DashboardResponse.error(context, 500, "SKILLS_FAILED", e);
         }
     }
 

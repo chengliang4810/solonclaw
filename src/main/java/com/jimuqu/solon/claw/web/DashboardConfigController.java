@@ -139,14 +139,11 @@ public class DashboardConfigController {
         try {
             return DashboardResponse.ok(action.run());
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("CONFIG_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "CONFIG_BAD_REQUEST", e);
         } catch (IllegalStateException e) {
-            context.status(400);
-            return DashboardResponse.error("CONFIG_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "CONFIG_BAD_REQUEST", e);
         } catch (Exception e) {
-            context.status(400);
-            return DashboardResponse.error("CONFIG_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "CONFIG_BAD_REQUEST", e);
         }
     }
 

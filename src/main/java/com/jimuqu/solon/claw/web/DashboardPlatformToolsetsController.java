@@ -47,11 +47,9 @@ public class DashboardPlatformToolsetsController {
                     platformToolsetsService.update(
                             platform, DashboardRequestBodies.jsonObjectMap(context)));
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("PLATFORM_TOOLSETS_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "PLATFORM_TOOLSETS_BAD_REQUEST", e);
         } catch (IllegalStateException e) {
-            context.status(400);
-            return DashboardResponse.error("PLATFORM_TOOLSETS_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "PLATFORM_TOOLSETS_BAD_REQUEST", e);
         }
     }
 }
