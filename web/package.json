@@ -12,6 +12,7 @@
     "test:session-selection": "node --experimental-strip-types tests/sessionSelection.test.ts",
     "test:chat-context-usage": "node --experimental-strip-types tests/chatContextUsage.test.ts",
     "test:tui-runtime-ui": "node --experimental-strip-types tests/tuiRuntimeUiStatic.test.ts",
+    "test:system-nav-items-metadata": "node --experimental-strip-types tests/systemNavItemsMetadataStatic.test.ts",
     "test:backend-ui-coverage": "node --experimental-strip-types tests/backendUiCoverageStatic.test.ts",
     "test:device-login-modal-reuse": "node --experimental-strip-types tests/deviceLoginModalReuseStatic.test.ts",
     "test:platform-qr-panel-reuse": "node --experimental-strip-types tests/platformQrPanelReuseStatic.test.ts",

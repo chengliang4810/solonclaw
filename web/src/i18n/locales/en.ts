@@ -104,6 +104,7 @@ export default {
     gateways: 'Gateways',
     files: 'Files',
     diagnostics: 'Diagnostics',
+    tuiRuntime: 'TUI Runtime',
     curator: 'Curator',
     mcp: 'MCP Tools',
     groupConversation: 'Conversation',
