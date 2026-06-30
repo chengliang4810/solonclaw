@@ -111,7 +111,7 @@ public class AppConfigPathNormalizationTest {
 
         AppConfig.load(props);
 
-        String content = FileUtil.readUtf8String(runtimeExample);
+        String content = FileUtil.readUtf8String(runtimeExample).replace("\r\n", "\n");
         assertThat(content)
                 .contains("\nsecurity:\n")
                 .contains("  allowPrivateUrls: false")

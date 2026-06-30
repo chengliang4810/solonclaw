@@ -189,7 +189,7 @@ terminal-ui/src/components/prompts.tsx:28 no-control-regex
 
 ## BUG-014：配置模板/诊断输出在当前测试环境出现中文乱码，影响断言和用户可读性
 
-状态：待修复
+状态：已修复
 
 影响范围：
 
@@ -218,7 +218,9 @@ terminal-ui/src/components/prompts.tsx:28 no-control-regex
 处理记录：
 
 - 已将 Dashboard 管理进程诊断输出测试的大输出命令改为跨平台实现，Windows 下不再依赖 POSIX `printf`。
-- 中文乱码和全局测试编码问题仍待单独修复，本项保持待修复。
+- 已确认当前测试 JVM 已通过 Surefire `-Dfile.encoding=UTF-8` 固定为 UTF-8，配置模板文件按 UTF-8 读写正常；失败根因是 Windows 下模板换行符为 CRLF，而测试断言写死 LF。
+- 已将配置模板 scope 暴露测试的内容断言改为先归一化换行，避免 Windows 行尾导致 `security:` 根级配置误判。
+- 已验证 `AppConfigPathNormalizationTest` 与 Dashboard 诊断输出目标用例通过。
 
 ## 当前完整测试摘要
 
