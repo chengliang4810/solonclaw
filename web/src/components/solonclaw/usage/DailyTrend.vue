@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
-import { formatUsageCost, formatUsageTokens } from '@/shared/usageFormat'
+import { formatUsageCost, formatUsageDateLabel, formatUsageTokens, latestUsageRows } from '@/shared/usageFormat'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
@@ -10,6 +10,7 @@ const usageStore = useUsageStore()
 const maxTokens = computed(() =>
   Math.max(...usageStore.dailyUsage.map(d => d.tokens), 1),
 )
+const tableRows = computed(() => latestUsageRows(usageStore.dailyUsage))
 </script>
 
 <template>
@@ -39,8 +40,8 @@ const maxTokens = computed(() =>
       </div>
     </div>
     <div class="bar-dates">
-      <span>{{ usageStore.dailyUsage[0]?.date.slice(5) }}</span>
-      <span>{{ usageStore.dailyUsage[usageStore.dailyUsage.length - 1]?.date.slice(5) }}</span>
+      <span>{{ formatUsageDateLabel(usageStore.dailyUsage[0]?.date || '') }}</span>
+      <span>{{ formatUsageDateLabel(usageStore.dailyUsage[usageStore.dailyUsage.length - 1]?.date || '') }}</span>
     </div>
 
     <div class="trend-table">
@@ -56,7 +57,7 @@ const maxTokens = computed(() =>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="d in [...usageStore.dailyUsage].reverse().slice(0, 30)" :key="d.date">
+          <tr v-for="d in tableRows" :key="d.date">
             <td>{{ d.date }}</td>
             <td>{{ formatUsageTokens(d.tokens) }}</td>
             <td>{{ formatUsageTokens(d.cacheRead) }}</td>
