@@ -7,10 +7,56 @@ import { formatUsageCost, formatUsageDateLabel, formatUsageTokens, latestUsageRo
 const { t } = useI18n()
 const usageStore = useUsageStore()
 
+interface DailyUsageRow {
+  readonly date: string
+  readonly tokens: number
+  readonly cacheRead: number
+  readonly cacheWrite: number
+  readonly sessions: number
+  readonly costMicros: number
+  readonly currency: string
+  readonly pricingAvailable: boolean
+}
+
+interface UsageTrendColumn {
+  readonly key: string
+  readonly label: string
+  readonly format: (row: DailyUsageRow) => string
+}
+
 const maxTokens = computed(() =>
   Math.max(...usageStore.dailyUsage.map(d => d.tokens), 1),
 )
 const tableRows = computed(() => latestUsageRows(usageStore.dailyUsage))
+const usageTrendColumns = computed<readonly UsageTrendColumn[]>(() => [
+  {
+    key: 'tokens',
+    label: t('usage.tokens'),
+    format: row => formatUsageTokens(row.tokens),
+  },
+  {
+    key: 'cacheRead',
+    label: t('usage.cacheRead'),
+    format: row => formatUsageTokens(row.cacheRead),
+  },
+  {
+    key: 'cacheWrite',
+    label: t('usage.cacheWrite'),
+    format: row => formatUsageTokens(row.cacheWrite),
+  },
+  {
+    key: 'cost',
+    label: t('usage.cost'),
+    format: row => row.pricingAvailable
+      ? formatUsageCost(row.costMicros, row.currency)
+      : t('usage.unpriced'),
+  },
+  {
+    key: 'sessions',
+    label: t('usage.sessions'),
+    format: row => String(row.sessions),
+  },
+])
 </script>
 
 <template>
@@ -31,11 +77,13 @@ const tableRows = computed(() => latestUsageRows(usageStore.dailyUsage))
         </div>
         <div class="bar-tooltip">
           <div class="tooltip-date">{{ d.date }}</div>
-          <div class="tooltip-row">{{ t('usage.tokens') }}: {{ formatUsageTokens(d.tokens) }}</div>
-          <div class="tooltip-row">{{ t('usage.cacheRead') }}: {{ formatUsageTokens(d.cacheRead) }}</div>
-          <div class="tooltip-row">{{ t('usage.cacheWrite') }}: {{ formatUsageTokens(d.cacheWrite) }}</div>
-          <div class="tooltip-row">{{ t('usage.cost') }}: {{ d.pricingAvailable ? formatUsageCost(d.costMicros, d.currency) : t('usage.unpriced') }}</div>
-          <div class="tooltip-row">{{ t('usage.sessions') }}: {{ d.sessions }}</div>
+          <div
+            v-for="column in usageTrendColumns"
+            :key="column.key"
+            class="tooltip-row"
+          >
+            {{ column.label }}: {{ column.format(d) }}
+          </div>
         </div>
       </div>
     </div>
@@ -49,21 +97,15 @@ const tableRows = computed(() => latestUsageRows(usageStore.dailyUsage))
         <thead>
           <tr>
             <th>{{ t('usage.date') }}</th>
-            <th>{{ t('usage.tokens') }}</th>
-            <th>{{ t('usage.cacheRead') }}</th>
-            <th>{{ t('usage.cacheWrite') }}</th>
-            <th>{{ t('usage.cost') }}</th>
-            <th>{{ t('usage.sessions') }}</th>
+            <th v-for="column in usageTrendColumns" :key="column.key">{{ column.label }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="d in tableRows" :key="d.date">
             <td>{{ d.date }}</td>
-            <td>{{ formatUsageTokens(d.tokens) }}</td>
-            <td>{{ formatUsageTokens(d.cacheRead) }}</td>
-            <td>{{ formatUsageTokens(d.cacheWrite) }}</td>
-            <td>{{ d.pricingAvailable ? formatUsageCost(d.costMicros, d.currency) : t('usage.unpriced') }}</td>
-            <td>{{ d.sessions }}</td>
+            <td v-for="column in usageTrendColumns" :key="column.key">
+              {{ column.format(d) }}
+            </td>
           </tr>
         </tbody>
       </table>
