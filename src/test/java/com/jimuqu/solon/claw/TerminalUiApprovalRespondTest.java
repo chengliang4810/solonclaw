@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
 import com.jimuqu.solon.claw.tui.TerminalUiWebSocketListener;
 import java.io.File;
@@ -26,35 +27,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void sessionUndoReportsZeroRemovedForFreshTuiSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        null,
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListener(env);
 
         RecordingSocket socket = new RecordingSocket();
         listener.onMessage(
@@ -75,35 +48,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void approvalRespondRemembersSecurityPolicyForSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        null,
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListener(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -149,35 +94,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void approvalRespondStreamsResumedRunToSocket() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        null,
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListener(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -206,35 +123,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void approvalRespondUsesSelectorFromTuiCard() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        null,
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListener(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -280,35 +169,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void sessionResumeBindsApprovalObserverForResumedRunRequests() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        null,
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListener(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -338,35 +199,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void approvalRespondRejectsMissingSessionId() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        null,
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListener(env);
 
         RecordingSocket socket = new RecordingSocket();
         listener.onMessage(
@@ -382,35 +215,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void slashExecApprovalCommandStreamsResumedRunToSocket() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        null,
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListener(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -439,35 +244,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void promptSubmitUsesProvidedTuiSessionBeforeCheckingPendingApprovals() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        null,
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListener(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -500,35 +277,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void shellExecPushesApprovalRequestForDirectSecurityPolicyBlock() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        new com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService(env.appConfig),
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListenerWithSecurityPolicy(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -559,35 +308,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void approvalRespondRunsDirectShellCommandAfterSecurityPolicyApproval() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        new com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService(env.appConfig),
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListenerWithSecurityPolicy(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -641,35 +362,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void directShellApprovalSelectorRunsTheSelectedPendingCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        new com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService(env.appConfig),
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListenerWithSecurityPolicy(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -741,35 +434,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void directShellSessionApprovalAllowsNextOutsideWorkspaceWrite() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        new com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService(env.appConfig),
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListenerWithSecurityPolicy(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -836,35 +501,7 @@ class TerminalUiApprovalRespondTest {
     @Test
     void directShellApprovalRequeuesNextSecurityPolicyWhenReplayIsBlockedAgain() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        env.conversationOrchestrator,
-                        env.agentRunControlService,
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
-        TerminalUiWebSocketListener listener =
-                new TerminalUiWebSocketListener(
-                        runtime,
-                        env.appConfig,
-                        env.sessionRepository,
-                        new com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService(env.appConfig),
-                        null,
-                        env.dangerousCommandApprovalService,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        env.runtimeSettingsService,
-                        env.globalSettingRepository);
+        TerminalUiWebSocketListener listener = newTuiListenerWithSecurityPolicy(env);
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -955,6 +592,50 @@ class TerminalUiApprovalRespondTest {
         } finally {
             outsideFile.delete();
         }
+    }
+
+    /** 构造默认 TUI WebSocket 监听器，集中维护测试环境到监听器的长参数装配。 */
+    private static TerminalUiWebSocketListener newTuiListener(TestEnvironment env) {
+        return newTuiListener(env, null);
+    }
+
+    /** 构造带安全策略拦截的 TUI WebSocket 监听器，用于直连 shell 审批链测试。 */
+    private static TerminalUiWebSocketListener newTuiListenerWithSecurityPolicy(
+            TestEnvironment env) {
+        return newTuiListener(env, new SecurityPolicyService(env.appConfig));
+    }
+
+    /** 构造 TUI WebSocket 监听器，允许单个测试按需注入安全策略服务。 */
+    private static TerminalUiWebSocketListener newTuiListener(
+            TestEnvironment env, SecurityPolicyService securityPolicyService) {
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        env.conversationOrchestrator,
+                        env.agentRunControlService,
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX);
+        return new TerminalUiWebSocketListener(
+                runtime,
+                env.appConfig,
+                env.sessionRepository,
+                securityPolicyService,
+                null,
+                env.dangerousCommandApprovalService,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                env.runtimeSettingsService,
+                env.globalSettingRepository);
     }
 
     /** 等待后台 prompt.submit 线程把预期帧写入测试 socket。 */
