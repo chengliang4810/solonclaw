@@ -13,6 +13,15 @@ import org.noear.solon.core.handle.DownloadedFile;
 /** Dashboard 静态资源兜底输出，绕过当前打包后静态文件处理器返回空内容的问题。 */
 @Controller
 public class DashboardStaticController {
+    /** Vite 带 hash 的 chunk 可长期缓存；入口页由 DashboardPageController 禁用缓存。 */
+    private static final String HASHED_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable";
+
+    /** 非 hash 静态资源保守重验，避免 favicon/logo 这类固定文件名长期陈旧。 */
+    private static final String STATIC_RESOURCE_CACHE_CONTROL = "no-cache";
+
+    /** 缺失资源不缓存，避免部署切换时浏览器记住旧 chunk 的 404。 */
+    private static final String MISSING_RESOURCE_CACHE_CONTROL = "no-store, max-age=0";
+
     /** 记录控制台静态资源中的路径保护。 */
     private final RuntimePathGuard pathGuard;
 
@@ -90,6 +99,7 @@ public class DashboardStaticController {
     private Object renderResource(Context context, String resourcePath) {
         File devFile = loadDevFile(resourcePath);
         if (devFile != null) {
+            applyFoundResourceCacheHeaders(context, resourcePath);
             return new DownloadedFile(
                             contentType(resourcePath),
                             FileUtil.readBytes(devFile),
@@ -100,12 +110,28 @@ public class DashboardStaticController {
         byte[] bytes = loadClasspathBytes(resourcePath);
         if (bytes == null) {
             context.status(404);
-            return new DownloadedFile("text/plain;charset=UTF-8", new byte[0], "404.txt")
-                    .asAttachment(false);
+            context.contentType("text/plain;charset=UTF-8");
+            context.headerSet("Cache-Control", MISSING_RESOURCE_CACHE_CONTROL);
+            return "Not found";
         }
 
+        applyFoundResourceCacheHeaders(context, resourcePath);
         return new DownloadedFile(contentType(resourcePath), bytes, fileName(resourcePath))
                 .asAttachment(false);
+    }
+
+    /**
+     * 写入已命中静态资源的缓存策略。
+     *
+     * @param context 当前请求上下文。
+     * @param resourcePath 静态资源路径。
+     */
+    private void applyFoundResourceCacheHeaders(Context context, String resourcePath) {
+        context.headerSet(
+                "Cache-Control",
+                resourcePath.startsWith("static/assets/")
+                        ? HASHED_ASSET_CACHE_CONTROL
+                        : STATIC_RESOURCE_CACHE_CONTROL);
     }
 
     /**

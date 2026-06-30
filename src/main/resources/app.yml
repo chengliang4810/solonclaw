@@ -1,5 +1,7 @@
 server.port: 8080
 solon.app.name: solonclaw
+# Dashboard 静态资源由专用控制器输出缓存头，避免 Solon 默认静态处理器优先返回旧 index.html。
+solon.staticfiles.enable: false
 
 solon.logging.appender.console.level: INFO
 solon.logging.appender.console.pattern: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{48} - %msg%n%ex"
