@@ -78,13 +78,31 @@
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`
 - Vite preview 视觉检查：`#/solonclaw/channels` 桌面与移动宽度下，企业微信、QQBot、腾讯元宝可选字段展开可见，QQBot App ID 输入可编辑；预览环境无后端，保存请求失败属于预期环境限制。
 
+### 5. 主渠道设置字段行复用
+
+- 提交：`1daaabea1 refactor: 复用主渠道设置字段行 / Reuse primary channel setting rows`
+- `PlatformSettings.vue` 中飞书、钉钉、微信的 5 个开关字段和 9 个文本字段改为复用 `PlatformSwitchSettingRow.vue` 与 `PlatformTextSettingRow.vue`。
+- 保留三类主渠道原有平台分支、QR 登录面板、保存入口、字段名和文案，不把平台特有配置强行抽进配置表。
+- 新增 `test:platform-primary-setting-rows-reuse` 静态测试，锁定主渠道设置页不再保留重复的 `SettingRow/Input/Switch` 字段壳。
+
+验证：
+
+- `npm --prefix web run test:platform-primary-setting-rows-reuse`
+- `npm --prefix web run test:platform-optional-setting-rows-reuse`
+- `npm --prefix web run test:platform-qr-panel-reuse`
+- `npm --prefix web run build`
+- `bun <omo-programming-skill>/scripts/typescript/check-no-excuse-rules.ts web/src/components/solonclaw/settings/PlatformSettings.vue web/tests/platformPrimarySettingRowsReuseStatic.test.ts`
+- `python3 scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
+- `git diff --check`
+- `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`
+- Vite preview 视觉检查：`#/solonclaw/channels` 桌面与移动宽度下，飞书、钉钉、微信字段和扫码登录入口展开可见；预览环境无后端，`/api/*` 与 `/health` 连接失败属于预期环境限制。
+
 ## 延后候选
 
-- `PlatformSettings.vue` 平台分支配置块复用：`feishu`、`dingtalk`、`weixin` 仍保留多组相似的启用、凭证、QR 面板和保存逻辑，收益较高但字段差异需要逐项核对。
 - `ChannelQrPanel.vue` 状态展示边界增强：适合作为阶段 3.4 低风险小项，收紧加载、等待、扫码、确认、失效、错误等状态的文案与按钮可见规则。
 - `CronjobTools` 内部请求对象化：可能影响工具签名边界，进入前需先做更细的调用图和兼容性检查。
 - `DefaultCommandService` 构造器依赖收敛：属于更大结构调整，不应和当前阶段 3.3 小原子项混合提交。
 
 ## 阶段状态
 
-阶段 3.3 已完成四个低风险复用原子项。下一步可继续处理 `PlatformSettings.vue` 平台分支配置块复用，或进入阶段 3.4 对 `ChannelQrPanel.vue` 等已融合功能做边界增强评估。
+阶段 3.3 已完成五个低风险复用原子项。下一步可继续收尾更小的前端设置页复用点，或进入阶段 3.4 对 `ChannelQrPanel.vue` 等已融合功能做边界增强评估。
