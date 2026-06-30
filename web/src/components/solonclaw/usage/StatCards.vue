@@ -1,57 +1,82 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
+import { formatUsageCost, formatUsageTokens, usageCostFormatPresets } from '@/shared/usageFormat'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
 
-function formatTokens(n: number): string {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
-  return String(n)
+interface UsageStatCardItem {
+  readonly key: string
+  readonly label: string
+  readonly value: string
+  readonly subtext: string
 }
 
-function formatCost(micros: number, currency: string): string {
-  const amount = micros / 1000000
-  const code = currency || 'USD'
-  return `${code} ${amount.toFixed(amount >= 10 ? 2 : 4)}`
-}
+const EMPTY_METRIC = '--'
+
+const statCardItems = computed<readonly UsageStatCardItem[]>(() => {
+  const inputOutputSubtext = [
+    `${formatUsageTokens(usageStore.totalInputTokens)} ${t('usage.inputTokens')}`,
+    `${formatUsageTokens(usageStore.totalOutputTokens)} ${t('usage.outputTokens')}`,
+  ].join(' / ')
+  const cacheSubtext = usageStore.cacheHitRate === null
+    ? ''
+    : [
+        `${formatUsageTokens(usageStore.totalCacheReadTokens)} ${t('usage.cacheRead')}`,
+        `${formatUsageTokens(usageStore.totalCacheWriteTokens)} ${t('usage.cacheWrite')}`,
+      ].join(' / ')
+  const costValue = usageStore.pricingAvailable
+    ? formatUsageCost(
+        usageStore.totalCostMicros,
+        usageStore.currency,
+        usageCostFormatPresets.summary,
+      )
+    : EMPTY_METRIC
+  const unpricedSubtext = usageStore.unpricedTokens > 0
+    ? ` / ${formatUsageTokens(usageStore.unpricedTokens)} ${t('usage.unpricedTokens')}`
+    : ''
+
+  return [
+    {
+      key: 'totalTokens',
+      label: t('usage.totalTokens'),
+      value: formatUsageTokens(usageStore.totalTokens),
+      subtext: inputOutputSubtext,
+    },
+    {
+      key: 'totalSessions',
+      label: t('usage.totalSessions'),
+      value: String(usageStore.totalSessions),
+      subtext: t('usage.avgPerDay', { n: usageStore.avgSessionsPerDay.toFixed(1) }),
+    },
+    {
+      key: 'cacheHitRate',
+      label: t('usage.cacheHitRate'),
+      value: usageStore.cacheHitRate !== null
+        ? `${usageStore.cacheHitRate.toFixed(1)}%`
+        : EMPTY_METRIC,
+      subtext: cacheSubtext,
+    },
+    {
+      key: 'estimatedCost',
+      label: t('usage.estimatedCost'),
+      value: costValue,
+      subtext: `${
+        usageStore.pricingAvailable ? t('usage.priced') : t('usage.unpriced')
+      }${unpricedSubtext}`,
+    },
+  ]
+})
 </script>
 
 <template>
   <div class="stat-cards">
-    <div class="stat-card">
-      <div class="stat-label">{{ t('usage.totalTokens') }}</div>
-      <div class="stat-value">{{ formatTokens(usageStore.totalTokens) }}</div>
-      <div class="stat-sub">
-        {{ formatTokens(usageStore.totalInputTokens) }} {{ t('usage.inputTokens') }} /
-        {{ formatTokens(usageStore.totalOutputTokens) }} {{ t('usage.outputTokens') }}
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">{{ t('usage.totalSessions') }}</div>
-      <div class="stat-value">{{ usageStore.totalSessions }}</div>
-      <div class="stat-sub">{{ t('usage.avgPerDay', { n: usageStore.avgSessionsPerDay.toFixed(1) }) }}</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">{{ t('usage.cacheHitRate') }}</div>
-      <div class="stat-value">{{ usageStore.cacheHitRate !== null ? usageStore.cacheHitRate.toFixed(1) + '%' : '--' }}</div>
-      <div class="stat-sub" v-if="usageStore.cacheHitRate !== null">
-        {{ formatTokens(usageStore.totalCacheReadTokens) }} {{ t('usage.cacheRead') }} /
-        {{ formatTokens(usageStore.totalCacheWriteTokens) }} {{ t('usage.cacheWrite') }}
-      </div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">{{ t('usage.estimatedCost') }}</div>
-      <div class="stat-value">
-        {{ usageStore.pricingAvailable ? formatCost(usageStore.totalCostMicros, usageStore.currency) : '--' }}
-      </div>
-      <div class="stat-sub">
-        {{ usageStore.pricingAvailable ? t('usage.priced') : t('usage.unpriced') }}
-        <span v-if="usageStore.unpricedTokens > 0">
-          / {{ formatTokens(usageStore.unpricedTokens) }} {{ t('usage.unpricedTokens') }}
-        </span>
-      </div>
+    <div class="stat-card" v-for="item in statCardItems" :key="item.key">
+      <div class="stat-label">{{ item.label }}</div>
+      <div class="stat-value">{{ item.value }}</div>
+      <div v-if="item.subtext" class="stat-sub">{{ item.subtext }}</div>
     </div>
   </div>
 </template>

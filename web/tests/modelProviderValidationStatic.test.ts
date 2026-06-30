@@ -5,6 +5,7 @@ const systemApi = readFileSync(new URL('../src/api/solonclaw/system.ts', import.
 const store = readFileSync(new URL('../src/stores/solonclaw/models.ts', import.meta.url), 'utf8')
 const view = readFileSync(new URL('../src/views/solonclaw/ModelsView.vue', import.meta.url), 'utf8')
 const card = readFileSync(new URL('../src/components/solonclaw/models/ProviderCard.vue', import.meta.url), 'utf8')
+const providerDisplay = readFileSync(new URL('../src/shared/providerDisplay.ts', import.meta.url), 'utf8')
 const zh = readFileSync(new URL('../src/i18n/locales/zh.ts', import.meta.url), 'utf8')
 const en = readFileSync(new URL('../src/i18n/locales/en.ts', import.meta.url), 'utf8')
 
@@ -19,7 +20,8 @@ assert.ok(card.includes("providerKey: props.provider.providerKey || props.provid
 assert.ok(card.includes("model: props.provider.models?.[0] || ''"), 'validation should send current provider model for protocol probes')
 assert.ok(store.includes('model?: string'), 'models store should accept transient provider probe model')
 assert.ok(systemApi.includes('defaultModel?: string'), 'system API should allow default model in provider probes')
-assert.ok(card.includes("t('models.health.configured')"), 'provider card should render health labels')
+assert.ok(card.includes('t(healthLabelKey(healthStatus))'), 'provider card should render health labels through shared display metadata')
+assert.ok(providerDisplay.includes("configured: 'models.health.configured'"), 'provider display metadata should map configured health')
 assert.ok(card.includes("t('models.validateProvider')"), 'provider card should render validation action')
 assert.ok(card.includes('validationResult'), 'provider card should render last validation result')
 assert.ok(zh.includes("validateProvider: '校验'"), 'Chinese locale should include validation action')

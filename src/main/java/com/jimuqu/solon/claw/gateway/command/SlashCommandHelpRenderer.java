@@ -1,11 +1,18 @@
 package com.jimuqu.solon.claw.gateway.command;
 
-import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
+import com.jimuqu.solon.claw.command.CommandDescriptor;
+import com.jimuqu.solon.claw.command.CommandRegistry;
+import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** 集中渲染消息网关 slash command 帮助文本，避免默认命令服务承担长文本维护职责。 */
 final class SlashCommandHelpRenderer {
+    /** 对需要展示参数格式的命令保留用法补充；命令存在性和描述仍以 CommandRegistry 为准。 */
+    private static final Map<String, List<String>> USAGE_OVERRIDES = buildUsageOverrides();
+
     /** 阻止工具类被实例化。 */
     private SlashCommandHelpRenderer() {}
 
@@ -16,138 +23,87 @@ final class SlashCommandHelpRenderer {
      */
     static String render() {
         List<String> lines = new ArrayList<String>();
-        appendCoreHelpLines(lines);
+        appendRegistryHelpLines(lines);
         return String.join("\n", lines);
     }
 
     /**
-     * 追加网关已实现命令的固定帮助行。
+     * 追加网关已注册命令的帮助行。
      *
      * @param lines 待写入的帮助行列表。
      */
-    private static void appendCoreHelpLines(List<String> lines) {
-        lines.add(helpLine(GatewayCommandConstants.SLASH_NEW, "创建并切换到新会话"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_RESET, "重置当前会话并重新开始"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_RETRY, "重新执行上一条用户消息"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_UNDO, "撤销上一轮对话"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_BRANCH + " [name]", "从当前会话创建分支"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_RESUME + " <session-or-branch>",
-                        "恢复指定会话或分支"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_SESSIONS + " [query]", "浏览并搜索历史会话"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_WHOAMI, "查看当前 slash 命令访问身份"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_COMMANDS + " [page]", "浏览全部 slash 命令"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_INSIGHTS, "查看使用洞察与运行摘要"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_DEBUG + " [status]", "查看脱敏调试诊断摘要"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_TITLE + " [clear|新标题]",
-                        "查看、设置或清空当前会话标题"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_STATUS, "查看当前会话状态"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_USAGE, "查看当前会话运行信息"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_GOAL
-                                + " [status|pause|resume|clear|<目标> --max-turns N|--max N]",
-                        "设置跨轮长目标并由 judge 驱动自动继续"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_BUSY
-                                + " [status|queue|steer|interrupt|reject]",
-                        "查看或切换运行中输入策略"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_QUEUE + " <prompt>", "将提示排到当前任务之后执行"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_STEER + " <prompt>",
-                        "向运行中任务注入修正；空闲时按普通提示执行"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_RESTART, "等待运行中任务 drain 后重启网关"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_STOP, "停止当前任务和后台进程"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_APPROVE + " auto [status|on|off]",
-                        "查询或设置当前会话的危险命令自动批准模式"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_PERSONALITY + " [name|none]", "查看或切换人格"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_VERSION + " [check|update]", "查看版本或执行更新"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_UPDATE, "执行应用更新"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_MODEL + " [--global] [provider:]<model>|clear",
-                        "查看或切换模型"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_FAST + " [fast|normal|status]", "查看或切换当前会话快速模式"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_REASONING + " [level|reset|show|hide]",
-                        "查看或切换 reasoning 强度和展示"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_TOOLS + " [list|enable|disable] [name...]",
-                        "查看或管理工具开关"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_TOOLSETS, "列出可用工具集"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_BROWSER
-                                + " [status|connect|disconnect <session-id>]",
-                        "管理浏览器自动化运行时"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_SKILLS
-                                + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]",
-                        "管理本地技能与 Skills Hub"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_CURATOR
-                                + " [status|list|improvements|run|pause|resume]",
-                        "管理技能后台维护状态与运行"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_PLUGINS, "查看插件加载状态"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_RELOAD_SKILLS, "重新扫描本地技能目录"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_RELOAD_MCP
-                                + " [now|always]；确认：/approve [确认编号]|/approve always [确认编号]|/cancel",
-                        "重新加载 MCP 工具并刷新工具变更基线"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_CONFIRM, "查看当前待确认 slash 命令"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_AGENT
-                                + " [name|list|create|show|model|tools|skills|memory]",
-                        "切换或管理当前会话 Agent"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_CRON
-                                + " [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]",
-                        "管理定时任务"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_RECAP + " [limit]", "显示恢复会话用的紧凑历史摘要"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_TRAJECTORY + " [user-query]", "导出会话 trajectory JSON"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_TRAJECTORY + " save [--failed] [user-query]",
-                        "追加保存 trajectory JSONL 到 workspace/artifacts"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_COMPACT + " [focus]", "压缩当前会话上下文"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_ROLLBACK + " [latest|checkpoint-id|number]",
-                        "回滚到指定 checkpoint"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_SETHOME, "将当前聊天设为 home channel"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_PAIRING
-                                + " [claim-admin|pending|approve|revoke|approved]",
-                        "管理渠道配对与管理员授权"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_APPROVE + " [#序号|审批ID|all] [session|always]",
-                        "批准待审批危险命令"));
-        lines.add(
-                helpLine(
-                        GatewayCommandConstants.SLASH_APPROVE
-                                + " list|status|clear session|clear always|clear all",
-                        "查看或清理审批授权"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_DENY + " [#序号|审批ID|all]", "拒绝待审批危险命令"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_DENY + " list|status|all", "查看或批量拒绝待审批命令"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_PLATFORMS, "查看平台连接与授权状态"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_PLATFORM, "查看平台连接与授权状态"));
-        lines.add(helpLine(GatewayCommandConstants.SLASH_HELP, "显示帮助信息"));
+    private static void appendRegistryHelpLines(List<String> lines) {
+        for (CommandDescriptor descriptor : CommandRegistry.all()) {
+            if (!descriptor.supportsScope(CommandRegistry.SCOPE_GATEWAY)) {
+                continue;
+            }
+            List<String> usages = USAGE_OVERRIDES.get(descriptor.getName());
+            if (usages == null || usages.isEmpty()) {
+                lines.add(helpLine(descriptor.slashName(), descriptor.getDescription()));
+            } else {
+                for (String usage : usages) {
+                    lines.add(helpLine(usage, descriptor.getDescription()));
+                }
+            }
+        }
+    }
+
+    /**
+     * 构建参数化命令的展示用法表。
+     *
+     * @return 以注册表规范名索引的展示用法。
+     */
+    private static Map<String, List<String>> buildUsageOverrides() {
+        Map<String, List<String>> usages = new LinkedHashMap<String, List<String>>();
+        put(usages, "branch", "/branch [name]");
+        put(usages, "resume", "/resume <session-or-branch>");
+        put(usages, "sessions", "/sessions [query]");
+        put(usages, "commands", "/commands [page]");
+        put(usages, "debug", "/debug [status]");
+        put(usages, "title", "/title [clear|新标题]");
+        put(usages, "goal", "/goal [status|pause|resume|clear|<目标> --max-turns N|--max N]");
+        put(usages, "busy", "/busy [status|queue|steer|interrupt|reject]");
+        put(usages, "queue", "/queue <prompt>");
+        put(usages, "steer", "/steer <prompt>");
+        put(usages, "security", "/security [status|audit|policy]");
+        put(usages, "personality", "/personality [name|none]");
+        put(usages, "version", "/version [check|update]");
+        put(usages, "setup", "/setup [status|model|gateway]");
+        put(usages, "config", "/config [get|set|set-secret|refresh]");
+        put(usages, "model", "/model [--global] [provider:]<model>|clear");
+        put(usages, "fast", "/fast [fast|normal|status]");
+        put(usages, "reasoning", "/reasoning [level|reset|show|hide]");
+        put(usages, "tools", "/tools [list|enable|disable] [name...]");
+        put(usages, "browser", "/browser [status|connect|disconnect <session-id>]");
+        put(usages, "voice", "/voice [status]");
+        put(
+                usages,
+                "skills",
+                "/skills [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]");
+        put(usages, "curator", "/curator [status|list|improvements|run|pause|resume]");
+        put(
+                usages,
+                "reload-mcp",
+                "/reload-mcp [now|always]；确认：/approve [确认编号]|/approve always [确认编号]|/cancel");
+        put(usages, "agent", "/agent [name|list|create|show|model|tools|skills|memory]");
+        put(
+                usages,
+                "cron",
+                "/cron [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
+        put(usages, "proactive", "/proactive [status|pause|resume|tick|config]");
+        put(usages, "recap", "/recap [limit]");
+        put(usages, "trajectory", "/trajectory [user-query]", "/trajectory save [--failed] [user-query]");
+        put(usages, "compact", "/compact [focus]");
+        put(usages, "rollback", "/rollback [latest|checkpoint-id|number]");
+        put(usages, "pairing", "/pairing [claim-admin|pending|approve|revoke|approved]");
+        put(
+                usages,
+                "approve",
+                "/approve auto [status|on|off]",
+                "/approve [#序号|审批ID|all] [session|always]",
+                "/approve list|status|clear session|clear always|clear all");
+        put(usages, "deny", "/deny [#序号|审批ID|all]", "/deny list|status|all");
+        return usages;
     }
 
     /**
@@ -159,5 +115,16 @@ final class SlashCommandHelpRenderer {
      */
     private static String helpLine(String usage, String description) {
         return usage + " - " + description;
+    }
+
+    /**
+     * 写入单个命令的一个或多个用法。
+     *
+     * @param usages 用法表。
+     * @param command 注册表规范名。
+     * @param values 展示用法列表。
+     */
+    private static void put(Map<String, List<String>> usages, String command, String... values) {
+        usages.put(command, Arrays.asList(values));
     }
 }

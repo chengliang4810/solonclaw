@@ -14,6 +14,10 @@ public final class RuntimeSetupSpec {
             Collections.unmodifiableList(
                     Arrays.asList("feishu", "dingtalk", "wecom", "weixin", "qqbot", "yuanbao"));
 
+    /** Dashboard 设置页展示用的国内渠道元数据，后端统一提供展示名、图标键和排序。 */
+    private static final List<Map<String, Object>> DOMESTIC_CHANNEL_CATALOG =
+            domesticChannelCatalogEntries();
+
     /** 需要在 setup gateway 中展示的关键渠道配置项。 */
     private static final Map<String, List<String>> CHANNEL_REQUIRED_KEYS = channelRequiredKeys();
 
@@ -29,6 +33,11 @@ public final class RuntimeSetupSpec {
     /** 返回已确认保留的国内渠道列表。 */
     public static List<String> domesticChannels() {
         return DOMESTIC_CHANNELS;
+    }
+
+    /** 返回国内渠道展示元数据，用于 Dashboard 设置页数据化渲染平台清单。 */
+    public static List<Map<String, Object>> domesticChannelCatalog() {
+        return DOMESTIC_CHANNEL_CATALOG;
     }
 
     /**
@@ -102,6 +111,30 @@ public final class RuntimeSetupSpec {
                 "yuanbao",
                 Collections.unmodifiableList(Arrays.asList("appId", "appSecret", "botId")));
         return Collections.unmodifiableMap(result);
+    }
+
+    /** 构建国内渠道展示元数据列表。 */
+    private static List<Map<String, Object>> domesticChannelCatalogEntries() {
+        java.util.ArrayList<Map<String, Object>> result = new java.util.ArrayList<Map<String, Object>>();
+        result.add(channelCatalogEntry("feishu", "飞书", "feishu", 10));
+        result.add(channelCatalogEntry("dingtalk", "钉钉", "dingtalk", 20));
+        result.add(channelCatalogEntry("wecom", "企业微信", "wecom", 30));
+        result.add(channelCatalogEntry("weixin", "微信", "weixin", 40));
+        result.add(channelCatalogEntry("qqbot", "QQBot", "qqbot", 50));
+        result.add(channelCatalogEntry("yuanbao", "腾讯元宝", "yuanbao", 60));
+        return Collections.unmodifiableList(result);
+    }
+
+    /** 构建单个国内渠道展示元数据项。 */
+    private static Map<String, Object> channelCatalogEntry(
+            String code, String displayName, String iconKey, int order) {
+        Map<String, Object> entry = new LinkedHashMap<String, Object>();
+        entry.put("code", code);
+        entry.put("displayName", displayName);
+        entry.put("iconKey", iconKey);
+        entry.put("order", order);
+        entry.put("enabled", true);
+        return Collections.unmodifiableMap(entry);
     }
 
     /** 构建各国内渠道允许通过 setup gateway 写入的配置项。 */

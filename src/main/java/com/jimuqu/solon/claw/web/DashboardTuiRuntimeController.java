@@ -26,9 +26,16 @@ public class DashboardTuiRuntimeController {
      * 创建终端运行时控制器。
      *
      * @param appConfig 应用配置，用于定位运行时目录与当前 provider。
+     * @param weixinQrSetupService 微信二维码 setup 服务。
+     * @param domesticQrSetupService 飞书、钉钉二维码 setup 服务。
      */
-    public DashboardTuiRuntimeController(AppConfig appConfig) {
-        this.protocolService = new TuiRuntimeProtocolService(appConfig);
+    public DashboardTuiRuntimeController(
+            AppConfig appConfig,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService) {
+        this.protocolService =
+                new TuiRuntimeProtocolService(
+                        appConfig, weixinQrSetupService, domesticQrSetupService);
     }
 
     /**
@@ -85,6 +92,16 @@ public class DashboardTuiRuntimeController {
             return protocolService.channelSave(
                     stringParam(params, "channel"),
                     stringMapParam(params, "values"),
+                    stringParam(params, "session_id"));
+        }
+        if ("channel.qr.start".equals(method)) {
+            return protocolService.channelQrStart(
+                    stringParam(params, "channel"), stringParam(params, "session_id"));
+        }
+        if ("channel.qr.get".equals(method)) {
+            return protocolService.channelQrGet(
+                    stringParam(params, "channel"),
+                    stringParam(params, "ticket"),
                     stringParam(params, "session_id"));
         }
         if ("config.get".equals(method)) {

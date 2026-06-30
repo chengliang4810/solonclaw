@@ -1,4 +1,4 @@
-import { asArray, isRecord, splitTrimmedText, trimText } from './text.ts'
+import { asArray, isRecord, listCount, splitTrimmedText, trimText } from './text.ts'
 
 export type DashboardTranslator = (key: string, params?: Record<string, unknown>) => string
 
@@ -9,6 +9,38 @@ export interface JobScheduleSource {
   schedule?: unknown
   schedule_display?: string | null
 }
+
+export interface JobStatusSource {
+  enabled?: boolean | null
+  state?: string | null
+}
+
+export interface JobActionFlagsSource {
+  can_edit?: boolean
+  can_history?: boolean
+  can_pause?: boolean
+  can_remove?: boolean
+  can_resume?: boolean
+  can_retry?: boolean
+  can_run?: boolean
+  supports_disable_alias?: boolean
+  supports_enable_alias?: boolean
+  supports_rerun_alias?: boolean
+}
+
+export interface JobBadgeSource {
+  pending_trigger?: string | null
+  no_agent?: boolean | null
+  script?: string | null
+  wrap_response?: boolean | null
+  skills?: readonly unknown[] | null
+  context_from?: readonly unknown[] | null
+  enabled_toolsets?: readonly unknown[] | null
+  model?: string | null
+  provider?: string | null
+}
+
+export type JobStatusTone = 'success' | 'info' | 'warning' | 'error'
 
 export interface HumanizeJobTokenOptions {
   paths?: readonly string[]
@@ -109,6 +141,56 @@ export function jobScheduleLabel(job: JobScheduleSource, fallback = '—'): stri
     if (display) return String(display)
   }
   return job.schedule_display || fallback
+}
+
+export function jobStatusLabel(t: DashboardTranslator, job: JobStatusSource): string {
+  if (job.state === 'running') return t('jobs.status.running')
+  if (job.state === 'paused') return t('jobs.status.paused')
+  if (!job.enabled) return t('jobs.status.disabled')
+  return t('jobs.status.scheduled')
+}
+
+export function jobStatusTone(job: JobStatusSource): JobStatusTone {
+  if (job.state === 'running') return 'info'
+  if (job.state === 'paused') return 'warning'
+  if (!job.enabled) return 'error'
+  return 'success'
+}
+
+export function jobActionSummary(t: DashboardTranslator, actions: JobActionFlagsSource): string {
+  const labels: string[] = []
+  if (actions.can_pause) labels.push(t('jobs.action.pause'))
+  if (actions.can_resume) labels.push(t('jobs.action.resume'))
+  if (actions.can_run !== false) labels.push(t('jobs.action.runNow'))
+  if (actions.can_retry) labels.push(t('jobs.action.retry'))
+  if (actions.can_history !== false) labels.push(t('jobs.action.history'))
+  if (actions.can_edit !== false) labels.push(t('common.edit'))
+  if (actions.can_remove !== false) labels.push(t('common.delete'))
+  return labels.length ? labels.join('、') : '—'
+}
+
+export function jobAliasSummary(t: DashboardTranslator, actions: JobActionFlagsSource): string {
+  const labels: string[] = []
+  if (actions.supports_enable_alias) labels.push(t('jobs.alias.enableStart'))
+  if (actions.supports_disable_alias) labels.push(t('jobs.alias.disableStop'))
+  if (actions.supports_rerun_alias) labels.push(t('jobs.alias.retryRerun'))
+  return labels.length ? labels.join('、') : '—'
+}
+
+export function jobBadges(t: DashboardTranslator, job: JobBadgeSource): string[] {
+  const badges: string[] = []
+  const skillsCount = listCount(job.skills)
+  const contextCount = listCount(job.context_from)
+  const toolsetsCount = listCount(job.enabled_toolsets)
+  if (job.pending_trigger) badges.push(t('jobs.badge.pendingTrigger', { trigger: job.pending_trigger }))
+  if (job.no_agent) badges.push(t('jobs.badge.noAgent'))
+  if (job.script) badges.push(t('jobs.badge.script'))
+  if (job.wrap_response) badges.push(t('jobs.badge.wrapResponse'))
+  if (skillsCount > 0) badges.push(t('jobs.badge.skills', { count: skillsCount }))
+  if (contextCount > 0) badges.push(t('jobs.badge.context', { count: contextCount }))
+  if (toolsetsCount > 0) badges.push(t('jobs.badge.toolsets', { count: toolsetsCount }))
+  if (job.model) badges.push(job.provider ? `${job.provider}:${job.model}` : job.model)
+  return badges
 }
 
 /**

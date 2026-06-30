@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as configApi from '@/api/solonclaw/config'
-import type { DisplayConfig, AgentConfig } from '@/api/solonclaw/config'
+import type { DisplayConfig, AgentConfig, PlatformCatalogItem } from '@/api/solonclaw/config'
 
 export const useSettingsStore = defineStore('settings', () => {
   const loading = ref(false)
@@ -21,6 +21,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const qqbot = ref<Record<string, any>>({})
   const yuanbao = ref<Record<string, any>>({})
   const platforms = ref<Record<string, any>>({})
+  const platformCatalog = ref<readonly PlatformCatalogItem[]>([])
 
   async function fetchSettings() {
     loading.value = true
@@ -40,6 +41,7 @@ export const useSettingsStore = defineStore('settings', () => {
       qqbot.value = data.qqbot || {}
       yuanbao.value = data.yuanbao || {}
       platforms.value = data.platforms || {}
+      platformCatalog.value = data.platformCatalog || []
     } catch (err) {
       console.error('Failed to fetch settings:', err)
     } finally {
@@ -85,6 +87,7 @@ export const useSettingsStore = defineStore('settings', () => {
     loading, saving,
     display, agent,
     telegram, discord, slack, whatsapp, matrix, wecom, feishu, dingtalk, weixin, qqbot, yuanbao, platforms,
+    platformCatalog,
     fetchSettings, saveSection,
   }
 })

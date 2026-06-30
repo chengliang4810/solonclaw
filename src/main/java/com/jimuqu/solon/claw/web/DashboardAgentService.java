@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.agent.AgentDefaultMetadata;
 import com.jimuqu.solon.claw.agent.AgentProfile;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
@@ -199,8 +200,11 @@ public class DashboardAgentService {
         AgentRuntimeScope scope = agentRuntimeService.defaultScope();
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("name", AgentRuntimeScope.DEFAULT_AGENT);
-        item.put("display_name", "默认 Agent");
-        item.put("description", "映射默认工作区的默认行为");
+        item.put("display_name", scope.getDisplayName());
+        item.put(
+                "description",
+                StrUtil.blankToDefault(
+                        scope.getDescription(), AgentDefaultMetadata.description()));
         item.put("default_agent", true);
         item.put("readonly", true);
         item.put("enabled", true);

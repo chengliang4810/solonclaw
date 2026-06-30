@@ -1,0 +1,146 @@
+@use '@/styles/variables' as *;
+
+.logs-view {
+  height: calc(100 * var(--vh));
+  display: flex;
+  flex-direction: column;
+}
+
+.page-header {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.search-input,
+.component-input {
+  padding: 4px 10px;
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  background: $bg-input;
+  color: $text-primary;
+  font-size: 13px;
+  outline: none;
+  width: 160px;
+  transition: border-color $transition-fast;
+
+  &:focus { border-color: $accent-primary; }
+  &::placeholder { color: $text-muted; }
+}
+
+.component-input {
+  width: 132px;
+}
+
+.logs-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.logs-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: $text-muted;
+  font-size: 13px;
+}
+
+.log-list {
+  padding: 4px 0;
+}
+
+.log-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 20px;
+  font-family: $font-code;
+  font-size: 12px;
+  line-height: 1.6;
+  border-left: 2px solid transparent;
+
+  &:hover {
+    background-color: rgba(var(--accent-primary-rgb), 0.03);
+  }
+
+  &.level-error {
+    border-left-color: $error;
+    .log-message { color: $error; }
+  }
+
+  &.level-warning {
+    border-left-color: $warning;
+    .log-message { color: $warning; }
+  }
+}
+
+.log-time {
+  color: $text-muted;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.log-level {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 2px;
+  min-width: 42px;
+  text-align: center;
+
+  &.level-error { background: rgba(var(--error-rgb), 0.12); color: $error; }
+  &.level-warning { background: rgba(var(--warning-rgb), 0.12); color: $warning; }
+  &.level-debug { background: rgba(var(--accent-primary-rgb), 0.06); color: $text-muted; }
+  &.level-info { background: rgba(var(--accent-primary-rgb), 0.06); color: $text-muted; }
+}
+
+.log-logger {
+  color: $text-muted;
+  flex-shrink: 0;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-message {
+  color: $text-secondary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.access-method {
+  font-weight: 600;
+  color: $text-primary;
+  flex-shrink: 0;
+}
+
+.access-path {
+  color: $accent-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.access-status {
+  font-weight: 600;
+  flex-shrink: 0;
+  font-size: 11px;
+
+  &.status-2 { color: $success; }
+  &.status-3 { color: $warning; }
+  &.status-4 { color: $error; }
+  &.status-5 { color: $error; }
+}

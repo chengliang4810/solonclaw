@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.agent.AgentDefaultMetadata;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
@@ -336,7 +337,7 @@ public class RuntimeSettingsService {
         buffer.append("agent_display_name=")
                 .append(
                         agentScope == null
-                                ? "默认 Agent"
+                                ? AgentDefaultMetadata.displayName()
                                 : StrUtil.nullToEmpty(agentScope.getDisplayName()))
                 .append('\n');
         buffer.append("agent_workspace=")

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Modal, Form, FormItem, Input, Button, Select, AutoComplete, message } from 'antdv-next'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import type { AvailableModelGroup } from '@/api/solonclaw/system'
+import { baseUrlPlaceholderForDialect, translateDialectOptions } from '@/shared/providerDisplay'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -33,42 +34,15 @@ const formData = ref({
 })
 
 function baseUrlPlaceholder(): string {
-  switch (formData.value.dialect) {
-    case 'ollama':
-      return 'http://127.0.0.1:11434'
-    case 'gemini':
-      return 'https://generativelanguage.googleapis.com'
-    case 'anthropic':
-      return 'https://api.anthropic.com'
-    default:
-      return 'https://api.example.com'
-  }
+  return baseUrlPlaceholderForDialect(formData.value.dialect)
 }
 
-function dialectLabel(value: string): string {
-  switch (value) {
-    case 'openai':
-      return t('models.dialectOpenai')
-    case 'openai-responses':
-      return t('models.dialectOpenaiResponses')
-    case 'ollama':
-      return t('models.dialectOllama')
-    case 'gemini':
-      return t('models.dialectGemini')
-    case 'anthropic':
-      return t('models.dialectAnthropic')
-    default:
-      return value
-  }
+function errorMessage(error: unknown, fallback?: string): string {
+  if (error instanceof Error) return error.message
+  return fallback ?? String(error)
 }
 
-const dialectOptions = [
-  { label: dialectLabel('openai'), value: 'openai' },
-  { label: dialectLabel('openai-responses'), value: 'openai-responses' },
-  { label: dialectLabel('ollama'), value: 'ollama' },
-  { label: dialectLabel('gemini'), value: 'gemini' },
-  { label: dialectLabel('anthropic'), value: 'anthropic' },
-]
+const dialectOptions = computed(() => translateDialectOptions(t))
 
 async function handleSave() {
   if (!formData.value.providerKey.trim()) {
@@ -114,8 +88,8 @@ async function handleSave() {
       message.success(t('models.providerAdded'))
     }
     emit('saved')
-  } catch (e: any) {
-    message.error(e.message)
+  } catch (error: unknown) {
+    message.error(errorMessage(error))
   } finally {
     loading.value = false
   }
@@ -145,8 +119,8 @@ async function fetchModelList() {
       formData.value.defaultModel = modelOptions.value[0].value
     }
     message.success(t('models.modelsFetched'))
-  } catch (e: any) {
-    message.error(e.message || t('models.fetchModelsFailed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('models.fetchModelsFailed')))
   } finally {
     modelsLoading.value = false
   }

@@ -7,6 +7,7 @@ import type { InputRef, MenuProps } from 'antdv-next'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { getSourceLabel } from '@/shared/session-display'
+import { goalCommandText, goalStatusLabel, sessionContextMenuItems, type GoalCommandAction } from '@/shared/chatGoalDisplay'
 import { copyToClipboard } from '@/utils/clipboard'
 import AgentSelector from '@/components/layout/AgentSelector.vue'
 import ChatInput from './ChatInput.vue'
@@ -210,12 +211,7 @@ const activeGoalState = computed(() =>
 const activeGoalLabel = computed(() => {
   const goal = activeGoalState.value
   if (!goal) return ''
-  const statusMap: Record<string, string> = {
-    active: t('chat.goalStatusActive'),
-    paused: t('chat.goalStatusPaused'),
-    done: t('chat.goalStatusDone'),
-  }
-  const status = statusMap[goal.status] || t('chat.goalStatusUnknown', { status: goal.status })
+  const status = goalStatusLabel(goal.status, t)
   return t('chat.goalProgress', {
     status,
     used: goal.turns_used,
@@ -247,8 +243,8 @@ const canClearGoal = computed(() =>
     && !chatStore.isStreaming,
 )
 
-async function runGoalCommand(action: 'pause' | 'resume' | 'clear') {
-  const ok = await chatStore.sendSlashCommand(`/goal ${action}`)
+async function runGoalCommand(action: GoalCommandAction) {
+  const ok = await chatStore.sendSlashCommand(goalCommandText(action))
   if (!ok) return
   await chatStore.refreshActiveSession()
 }
@@ -277,13 +273,12 @@ const contextSessionPinned = computed(() =>
   contextSessionId.value ? sessionBrowserPrefsStore.isPinned(contextSessionId.value) : false,
 )
 
-const contextMenuOptions = computed(() => [
-  { label: t(contextSessionPinned.value ? 'chat.unpin' : 'chat.pin'), key: 'pin' },
-  { label: t('chat.rename'), key: 'rename' },
-  { label: t('chat.copySessionId'), key: 'copy-id' },
-])
-
-const contextMenuItems = computed<MenuProps['items']>(() => contextMenuOptions.value)
+const contextMenuItems = computed<MenuProps['items']>(() =>
+  sessionContextMenuItems(contextSessionPinned.value, t).map(item => ({
+    label: item.label,
+    key: item.key,
+  })),
+)
 
 const contextMenuStyle = computed(() => ({
   left: `${contextMenuX.value}px`,

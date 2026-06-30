@@ -13,6 +13,7 @@ const originalConsoleError = console.error
 
 try {
   const mockApiPath = join(tempDir, 'mock-files-api.ts')
+  const fileTypesPath = join(tempDir, 'file-types.ts')
   const storePath = join(tempDir, 'files-store-under-test.ts')
 
   writeFileSync(mockApiPath, `
@@ -46,9 +47,11 @@ export async function listFiles(): Promise<ListResult> {
 }
 `)
 
+  writeFileSync(fileTypesPath, readFileSync(new URL('../src/shared/fileTypes.ts', import.meta.url), 'utf8'))
   const storeSource = readFileSync(new URL('../src/stores/solonclaw/files.ts', import.meta.url), 'utf8')
     .replace("import * as filesApi from '@/api/solonclaw/files'", "import * as filesApi from './mock-files-api.ts'")
     .replace("import type { FileEntry } from '@/api/solonclaw/files'", "import type { FileEntry } from './mock-files-api.ts'")
+    .replace("} from '../../shared/fileTypes.ts'", "} from './file-types.ts'")
   writeFileSync(storePath, storeSource)
 
   const mockApi = await import(pathToFileURL(mockApiPath).href)
@@ -114,7 +117,7 @@ export async function listFiles(): Promise<ListResult> {
           openEditor: () => {},
         },
         t: (key: string) => key === 'files.loadFailed' ? 'Failed to load files' : 'Empty directory',
-        getFileIcon: () => 'file',
+        fileTypeIcon: () => 'file',
         formatSize: () => '5 B',
         formatDate: () => '2026-06-27',
         handleDoubleClick: () => {},

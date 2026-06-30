@@ -25,6 +25,12 @@ import {
   type SubagentRun,
   type ToolCall,
 } from '@/api/solonclaw/runs'
+import {
+  runArtifactText,
+  runBooleanLabel,
+  runStatusLabel,
+  runTimestampText,
+} from '@/shared/runsDisplay'
 
 const sessions = ref<any[]>([])
 const runs = ref<AgentRun[]>([])
@@ -216,37 +222,6 @@ async function handleSubagentSpawnToggle() {
   }
 }
 
-function time(ms?: number) {
-  if (!ms) return '-'
-  return new Date(ms).toLocaleString()
-}
-
-function statusLabel(value?: string | null) {
-  const normalized = (value || '').trim().toLowerCase()
-  switch (normalized) {
-    case 'ok':
-      return t('runs.status.success')
-    case 'error':
-    case 'failed':
-      return t('runs.status.failed')
-    case 'running':
-      return t('runs.status.running')
-    default:
-      return value || '-'
-  }
-}
-
-function booleanLabel(value?: boolean) {
-  if (value === true) return t('common.yes')
-  if (value === false) return t('common.no')
-  return '-'
-}
-
-function artifactText(value: any) {
-  if (!value) return t('runs.noSessionArtifact')
-  return typeof value === 'string' ? value : JSON.stringify(value, null, 2)
-}
-
 onMounted(async () => {
   await loadSessions()
   await loadSessionDetail()
@@ -271,10 +246,10 @@ onMounted(async () => {
         <section class="panel">
           <h3>{{ t('runs.runList') }}</h3>
           <button v-for="run in runs" :key="run.run_id" class="run-row" :class="{ active: run.run_id === selectedRunId }" @click="loadRunDetail(run.run_id)">
-            <span class="run-status" :class="run.status">{{ statusLabel(run.status) }}</span>
+            <span class="run-status" :class="run.status">{{ runStatusLabel(run.status, t) }}</span>
             <span>{{ run.provider || '-' }}/{{ run.model || '-' }}</span>
             <span>{{ t('runs.attempts', { count: run.attempts }) }}</span>
-            <small>{{ time(run.started_at) }}</small>
+            <small>{{ runTimestampText(run.started_at) }}</small>
             <p>{{ run.final_reply_preview || run.input_preview || run.error }}</p>
           </button>
           <div v-if="runs.length === 0" class="empty">{{ t('runs.noRuns') }}</div>
@@ -312,7 +287,7 @@ onMounted(async () => {
           <div v-for="event in events" :key="event.event_id" class="event-row">
             <span class="event-type">{{ event.event_type }}</span>
             <span>{{ event.summary }}</span>
-            <small>#{{ event.attempt_no }} · {{ time(event.created_at) }}</small>
+            <small>#{{ event.attempt_no }} · {{ runTimestampText(event.created_at) }}</small>
           </div>
           <div v-if="events.length === 0" class="empty">{{ t('runs.noEvents') }}</div>
 
@@ -320,7 +295,7 @@ onMounted(async () => {
           <div v-for="tool in tools" :key="tool.tool_call_id" class="tool-row">
             <div class="tool-header">
               <span class="event-type">{{ tool.tool_name }}</span>
-              <span class="run-status" :class="tool.status">{{ statusLabel(tool.status) }}</span>
+              <span class="run-status" :class="tool.status">{{ runStatusLabel(tool.status, t) }}</span>
               <small>{{ tool.duration_ms }}ms</small>
             </div>
             <div class="detail-line">
@@ -328,10 +303,10 @@ onMounted(async () => {
               <code>{{ tool.tool_call_id }}</code>
             </div>
             <div class="audit-grid">
-              <span>{{ t('runs.readOnly') }}: {{ booleanLabel(tool.read_only) }}</span>
-              <span>{{ t('runs.sideEffecting') }}: {{ booleanLabel(tool.side_effecting) }}</span>
-              <span>{{ t('runs.interruptible') }}: {{ booleanLabel(tool.interruptible) }}</span>
-              <span>{{ t('runs.resultIndexable') }}: {{ booleanLabel(tool.result_indexable) }}</span>
+              <span>{{ t('runs.readOnly') }}: {{ runBooleanLabel(tool.read_only, t) }}</span>
+              <span>{{ t('runs.sideEffecting') }}: {{ runBooleanLabel(tool.side_effecting, t) }}</span>
+              <span>{{ t('runs.interruptible') }}: {{ runBooleanLabel(tool.interruptible, t) }}</span>
+              <span>{{ t('runs.resultIndexable') }}: {{ runBooleanLabel(tool.result_indexable, t) }}</span>
               <span>{{ t('runs.executionPolicy') }}: {{ tool.execution_policy || '-' }}</span>
               <span>{{ t('runs.resultSizeBytes') }}: {{ tool.result_size_bytes ?? 0 }}</span>
             </div>
@@ -350,11 +325,11 @@ onMounted(async () => {
           <div v-for="subagent in subagents" :key="subagent.subagent_id" class="event-row">
             <div class="tool-header">
               <span class="event-type">{{ subagent.name || subagent.subagent_id }}</span>
-              <span class="run-status" :class="subagent.status">{{ statusLabel(subagent.status) }}</span>
+              <span class="run-status" :class="subagent.status">{{ runStatusLabel(subagent.status, t) }}</span>
               <small>{{ t('runs.subagentDepth', { depth: subagent.depth }) }}</small>
             </div>
             <p>{{ subagent.goal_preview || subagent.goal || subagent.error || '-' }}</p>
-            <small>{{ time(subagent.started_at) }}</small>
+            <small>{{ runTimestampText(subagent.started_at) }}</small>
           </div>
           <div v-if="selectedRunId && subagents.length === 0" class="empty">{{ t('runs.noSubagents') }}</div>
 
@@ -362,15 +337,15 @@ onMounted(async () => {
           <div v-for="recovery in recoveries" :key="recovery.recovery_id" class="event-row">
             <span class="event-type">{{ recovery.recovery_type }}</span>
             <span>{{ recovery.summary || recovery.status }}</span>
-            <small>{{ time(recovery.created_at) }}</small>
+            <small>{{ runTimestampText(recovery.created_at) }}</small>
           </div>
           <div v-if="selectedRunId && recoveries.length === 0" class="empty">{{ t('runs.noRecoveries') }}</div>
 
           <h3 class="section-title">{{ t('runs.commands') }}</h3>
           <div v-for="command in commands" :key="command.command_id" class="event-row">
             <span class="event-type">{{ command.command }}</span>
-            <span>{{ statusLabel(command.status) }}</span>
-            <small>{{ time(command.created_at) }}</small>
+            <span>{{ runStatusLabel(command.status, t) }}</span>
+            <small>{{ runTimestampText(command.created_at) }}</small>
           </div>
           <div v-if="selectedRunId && commands.length === 0" class="empty">{{ t('runs.noCommands') }}</div>
         </section>
@@ -385,19 +360,19 @@ onMounted(async () => {
           <div v-if="subagentSpawnPaused" class="empty compact">{{ t('runs.subagentSpawnPausedHint') }}</div>
           <div v-for="subagent in activeSubagents" :key="subagent.subagent_id" class="mini-row">
             <span>{{ subagent.name || subagent.subagent_id }}</span>
-            <small>{{ statusLabel(subagent.status) }} · {{ subagent.goal_preview || subagent.goal || '-' }}</small>
+            <small>{{ runStatusLabel(subagent.status, t) }} · {{ subagent.goal_preview || subagent.goal || '-' }}</small>
             <Button size="small" danger :loading="subagentControlLoading === subagent.subagent_id" @click="handleSubagentInterrupt(subagent.subagent_id)">
               {{ t('runs.interruptSubagent') }}
             </Button>
           </div>
           <div v-if="activeSubagents.length === 0" class="empty compact">{{ t('runs.noActiveSubagents') }}</div>
           <h3>{{ t('runs.sessionRecap') }}</h3>
-          <pre class="artifact-block">{{ artifactText(recap) }}</pre>
+          <pre class="artifact-block">{{ runArtifactText(recap, t) }}</pre>
           <div class="section-heading">
             <h3>{{ t('runs.sessionTrajectory') }}</h3>
             <Button size="small" :loading="savingTrajectory" @click="handleSaveTrajectory">{{ t('runs.saveTrajectory') }}</Button>
           </div>
-          <pre class="artifact-block">{{ artifactText(trajectory) }}</pre>
+          <pre class="artifact-block">{{ runArtifactText(trajectory, t) }}</pre>
           <h3>{{ t('runs.sessionTree') }}</h3>
           <div v-for="node in tree?.nodes || []" :key="node.id" class="mini-row">
             <span>{{ node.branch_name || t('runs.mainBranch') }}</span>
@@ -405,7 +380,7 @@ onMounted(async () => {
           </div>
           <h3>{{ t('runs.checkpoints') }}</h3>
           <div v-for="checkpoint in checkpoints" :key="checkpoint.checkpoint_id" class="mini-row">
-            <span>{{ time(checkpoint.created_at) }}</span>
+            <span>{{ runTimestampText(checkpoint.created_at) }}</span>
             <Button size="small" type="default" :loading="previewingCheckpoint === checkpoint.checkpoint_id" @click="handleCheckpointPreview(checkpoint.checkpoint_id)">{{ t('runs.previewCheckpoint') }}</Button>
             <Button size="small" type="default" :loading="rollingBack === checkpoint.checkpoint_id" @click="handleRollback(checkpoint.checkpoint_id)">{{ t('runs.rollback') }}</Button>
           </div>
@@ -414,7 +389,7 @@ onMounted(async () => {
     </Spin>
 
     <Drawer v-model:open="previewOpen" placement="right" :width="560" :title="t('runs.checkpointPreview')">
-      <pre class="artifact-block">{{ artifactText(checkpointPreview) }}</pre>
+      <pre class="artifact-block">{{ runArtifactText(checkpointPreview, t) }}</pre>
     </Drawer>
   </div>
 </template>

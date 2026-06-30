@@ -5,7 +5,7 @@ import unicodeSpinners from 'unicode-animations'
 import { artWidth, caduceus, CADUCEUS_WIDTH, logo, LOGO_WIDTH } from '../banner.js'
 import { flat } from '../lib/text.js'
 import type { Theme } from '../theme.js'
-import type { PanelSection, SessionInfo } from '../types.js'
+import type { McpServerStatus, PanelSection, SessionInfo } from '../types.js'
 
 const LOADER_TICK_MS = 120
 
@@ -67,6 +67,19 @@ const ruleIn = (label: string, w: number) => {
   const left = extra >> 1
 
   return `${'─'.repeat(left)} ${f} ${'─'.repeat(extra - left)}`
+}
+
+/** 标题摘要只统计已连接的 MCP 服务，避免把已配置但未启用的服务算成可用能力。 */
+export const connectedMcpServerCount = (servers: readonly McpServerStatus[] = []) =>
+  servers.filter(s => s.connected).length
+
+export const mcpHeadlineSuffix = (connected: number) => (connected ? ` · ${connected} MCP` : '')
+
+export const collapseToggleMeta = (count?: number, suffix?: string) => {
+  const countLabel = typeof count === 'number' ? ` (${count})` : ''
+  const suffixLabel = suffix ? ` ${suffix}` : ''
+
+  return `${countLabel}${suffixLabel}`
 }
 
 function CompactBanner({ cols, t }: { cols: number; t: Theme }) {
@@ -136,18 +149,15 @@ function CollapseToggle({
   title: string
   onToggle: () => void
 }) {
+  const meta = collapseToggleMeta(count, suffix)
+
   return (
     <Box onClick={onToggle}>
       <Text color={t.color.accent}>{open ? '▾ ' : '▸ '}</Text>
       <Text bold color={t.color.accent}>
         {title}
       </Text>
-      {typeof count === 'number' ? (
-        <Text color={t.color.muted}> ({count})</Text>
-      ) : null}
-      {suffix ? (
-        <Text color={t.color.muted}> {suffix}</Text>
-      ) : null}
+      {meta ? <Text color={t.color.muted}>{meta}</Text> : null}
     </Box>
   )
 }
@@ -223,8 +233,7 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
   const toolEntries = Object.entries(info.tools).sort()
   const toolsTotal = flat(info.tools).length
   const mcpServers = info.mcp_servers ?? []
-  // 标题摘要只统计已连接的 MCP 服务，避免把已配置但未启用的服务算成可用能力。
-  const mcpConnected = mcpServers.filter(s => s.connected).length
+  const mcpConnected = connectedMcpServerCount(mcpServers)
 
   const toolsBody = () => {
     const shown = toolEntries.slice(0, TOOLSETS_MAX)
@@ -392,7 +401,7 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
         <Text color={t.color.text}>
           {toolsTotal} tools{' · '}
           {skillsTotal} skills
-          {mcpConnected ? ` · ${mcpConnected} MCP` : ''}
+          {mcpHeadlineSuffix(mcpConnected)}
           {' · '}
           <Text color={t.color.muted}>/help for commands</Text>
         </Text>

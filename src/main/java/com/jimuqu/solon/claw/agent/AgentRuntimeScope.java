@@ -11,7 +11,7 @@ public class AgentRuntimeScope {
     private String agentName = DEFAULT_AGENT;
 
     /** 记录Agent运行时范围中的展示名称。 */
-    private String displayName = "默认 Agent";
+    private String displayName = AgentDefaultMetadata.displayName();
 
     /** 记录Agent运行时范围中的描述。 */
     private String description;

@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.ConfigFlattenSupport;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
+import com.jimuqu.solon.claw.support.RuntimeSetupSpec;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.io.File;
 import java.io.InputStream;
@@ -76,7 +77,9 @@ public class DashboardConfigService {
      * @return 返回读取到的配置。
      */
     public Map<String, Object> getConfig() {
-        return toNestedFieldMap(resolveCurrentValues());
+        Map<String, Object> response = toNestedFieldMap(resolveCurrentValues());
+        response.put("platform_catalog", RuntimeSetupSpec.domesticChannelCatalog());
+        return response;
     }
 
     /**

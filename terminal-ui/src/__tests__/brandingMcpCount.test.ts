@@ -4,7 +4,7 @@ import { renderSync } from '@solonclaw/ink'
 import React from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { SessionPanel } from '../components/branding.js'
+import { SessionPanel, collapseToggleMeta, connectedMcpServerCount, mcpHeadlineSuffix } from '../components/branding.js'
 import { stripAnsi } from '../lib/text.js'
 import { DEFAULT_THEME } from '../theme.js'
 import type { McpServerStatus, SessionInfo } from '../types.js'
@@ -50,6 +50,24 @@ const renderPlain = (sessionInfo: SessionInfo) => {
 }
 
 describe('SessionPanel MCP headline count', () => {
+  it('formats collapsible heading metadata without changing layout state', () => {
+    expect(collapseToggleMeta()).toBe('')
+    expect(collapseToggleMeta(0)).toBe(' (0)')
+    expect(collapseToggleMeta(12, 'connected')).toBe(' (12) connected')
+    expect(collapseToggleMeta(undefined, '— 42 chars')).toBe(' — 42 chars')
+  })
+
+  it('formats connected MCP headline suffix from connected server count only', () => {
+    const servers = [
+      mcp({ connected: true, name: 'connected', status: 'connected', tools: 2 }),
+      mcp({ connected: false, disabled: true, name: 'disabled', status: 'disabled' })
+    ]
+
+    expect(connectedMcpServerCount(servers)).toBe(1)
+    expect(mcpHeadlineSuffix(1)).toBe(' · 1 MCP')
+    expect(mcpHeadlineSuffix(0)).toBe('')
+  })
+
   it('counts connected MCP servers rather than every configured server', () => {
     const output = renderPlain(
       info([

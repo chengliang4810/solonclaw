@@ -31,6 +31,8 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.web.DashboardAuthService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -122,6 +124,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                 null,
                 null,
                 null,
+                null,
+                null,
                 null);
     }
 
@@ -148,6 +152,57 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             AgentRunRepository agentRunRepository,
             RuntimeSettingsService runtimeSettingsService,
             GlobalSettingRepository globalSettingRepository) {
+        this(
+                runtime,
+                appConfig,
+                sessionRepository,
+                securityPolicyService,
+                processRegistry,
+                approvalService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                dashboardSkillsService,
+                preferenceStore,
+                browserRuntimeService,
+                contextCompressionService,
+                attachmentResolver,
+                mcpRuntimeService,
+                gatewayRuntimeRefreshService,
+                delegationService,
+                agentRunControlService,
+                agentRunRepository,
+                runtimeSettingsService,
+                globalSettingRepository,
+                null,
+                null);
+    }
+
+    /** 创建带完整后端服务适配和渠道扫码能力的终端 UI WebSocket 协议监听器。 */
+    public TerminalUiWebSocketListener(
+            CliRuntime runtime,
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            DangerousCommandApprovalService approvalService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DashboardSkillsService dashboardSkillsService,
+            SqlitePreferenceStore preferenceStore,
+            BrowserRuntimeService browserRuntimeService,
+            ContextCompressionService contextCompressionService,
+            AttachmentPathResolver attachmentResolver,
+            McpRuntimeService mcpRuntimeService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            DelegationService delegationService,
+            AgentRunControlService agentRunControlService,
+            AgentRunRepository agentRunRepository,
+            RuntimeSettingsService runtimeSettingsService,
+            GlobalSettingRepository globalSettingRepository,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService) {
         this.runtime = runtime;
         this.promptExecutor = Executors.newCachedThreadPool(new TerminalUiThreadFactory());
         this.sessionRepository = sessionRepository;
@@ -173,7 +228,9 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                         agentRunControlService,
                         agentRunRepository,
                         runtimeSettingsService,
-                        globalSettingRepository);
+                        globalSettingRepository,
+                        weixinQrSetupService,
+                        domesticQrSetupService);
         this.setupCommands =
                 appConfig == null
                         ? null
@@ -465,6 +522,16 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return rpcService.channelSave(
                     params.get("channel").getString(),
                     stringMap(params.get("values")),
+                    params.get("session_id").getString());
+        }
+        if ("channel.qr.start".equals(method)) {
+            return rpcService.channelQrStart(
+                    params.get("channel").getString(), params.get("session_id").getString());
+        }
+        if ("channel.qr.get".equals(method)) {
+            return rpcService.channelQrGet(
+                    params.get("channel").getString(),
+                    params.get("ticket").getString(),
                     params.get("session_id").getString());
         }
         if ("prompt.background".equals(method)) {

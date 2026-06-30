@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { useFilesStore, isImageFile, isMarkdownFile, isTextFile } from '@/stores/solonclaw/files'
 import { downloadFile } from '@/api/solonclaw/download'
 import type { FileEntry } from '@/api/solonclaw/files'
+import { fileTypeIcon } from '@/shared/fileTypeIcon'
 
 const { t } = useI18n()
 const filesStore = useFilesStore()
@@ -28,20 +29,6 @@ function formatDate(iso: string): string {
   if (!iso) return '—'
   const d = new Date(iso)
   return d.toLocaleString()
-}
-
-function getFileIcon(entry: FileEntry): string {
-  if (entry.isDir) return '📁'
-  const ext = entry.name.split('.').pop()?.toLowerCase() || ''
-  const iconMap: Record<string, string> = {
-    yaml: '⚙️', yml: '⚙️', json: '📋', toml: '⚙️',
-    md: '📝', txt: '📄', log: '📄',
-    py: '🐍', js: '📜', ts: '📜', vue: '💚',
-    png: '🖼️', jpg: '🖼️', jpeg: '🖼️', gif: '🖼️', svg: '🖼️', webp: '🖼️',
-    zip: '📦', gz: '📦', tar: '📦',
-    sh: '⚡', bash: '⚡',
-  }
-  return iconMap[ext] || '📄'
 }
 
 function handleDoubleClick(entry: FileEntry) {
@@ -100,7 +87,7 @@ async function handleDownload(entry: FileEntry) {
           @contextmenu="handleContextMenu($event, entry)"
         >
           <div class="file-name">
-            <span class="file-icon">{{ getFileIcon(entry) }}</span>
+            <span class="file-icon">{{ fileTypeIcon(entry) }}</span>
             <span>{{ entry.name }}</span>
           </div>
           <div class="file-size">{{ entry.isDir ? '—' : formatSize(entry.size) }}</div>

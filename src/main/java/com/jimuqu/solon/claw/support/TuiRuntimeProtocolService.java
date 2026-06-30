@@ -4,6 +4,8 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
+import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -18,14 +20,36 @@ public class TuiRuntimeProtocolService {
     /** 共享初始化写入服务，确保 TUI 保存行为与 CLI/setup 命令一致。 */
     private final RuntimeSetupService setupService;
 
+    /** 微信二维码 setup 服务；为空时 TUI 只暴露手动配置。 */
+    private final WeixinQrSetupService weixinQrSetupService;
+
+    /** 飞书、钉钉二维码 setup 服务；为空时 TUI 只暴露手动配置。 */
+    private final DomesticQrSetupService domesticQrSetupService;
+
     /**
      * 创建 TUI 运行时协议服务。
      *
      * @param appConfig 当前应用配置。
      */
     public TuiRuntimeProtocolService(AppConfig appConfig) {
+        this(appConfig, null, null);
+    }
+
+    /**
+     * 创建带二维码绑定能力的 TUI 运行时协议服务。
+     *
+     * @param appConfig 当前应用配置。
+     * @param weixinQrSetupService 微信二维码 setup 服务。
+     * @param domesticQrSetupService 飞书、钉钉二维码 setup 服务。
+     */
+    public TuiRuntimeProtocolService(
+            AppConfig appConfig,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService) {
         this.appConfig = appConfig == null ? new AppConfig() : appConfig;
         this.setupService = new RuntimeSetupService(this.appConfig);
+        this.weixinQrSetupService = weixinQrSetupService;
+        this.domesticQrSetupService = domesticQrSetupService;
     }
 
     /**
@@ -163,6 +187,62 @@ public class TuiRuntimeProtocolService {
             result.put("session_id", sessionId);
         }
         return result;
+    }
+
+    /**
+     * 启动国内渠道二维码绑定流程。
+     *
+     * @param channel 渠道标识；当前支持 weixin、feishu、dingtalk。
+     * @param sessionId 可选会话标识，回传给 TUI 便于关联请求。
+     * @return 二维码绑定启动状态；服务未注入或渠道不支持时返回安全错误对象。
+     */
+    public Map<String, Object> channelQrStart(String channel, String sessionId) {
+        String normalized = normalizeChannel(channel);
+        if (!qrSupported(normalized)) {
+            return qrError(normalized, sessionId, "unsupported_qr_channel", "该渠道暂不支持扫码绑定。");
+        }
+        if (!qrServicesAvailable(normalized)) {
+            return qrError(normalized, sessionId, "qr_setup_unavailable", "二维码绑定服务未接入当前 TUI 运行时。");
+        }
+        try {
+            Map<String, Object> payload =
+                    "weixin".equals(normalized)
+                            ? weixinQrSetupService.start()
+                            : domesticQrSetupService.start(normalized);
+            return qrOk(normalized, sessionId, payload);
+        } catch (Exception e) {
+            return qrError(normalized, sessionId, "qr_setup_failed", ErrorTextSupport.safeError(e));
+        }
+    }
+
+    /**
+     * 查询国内渠道二维码绑定状态。
+     *
+     * @param channel 渠道标识；当前支持 weixin、feishu、dingtalk。
+     * @param ticket 二维码绑定票据。
+     * @param sessionId 可选会话标识，回传给 TUI 便于关联请求。
+     * @return 当前二维码绑定状态；票据无效或服务不可用时返回安全错误对象。
+     */
+    public Map<String, Object> channelQrGet(String channel, String ticket, String sessionId) {
+        String normalized = normalizeChannel(channel);
+        if (!qrSupported(normalized)) {
+            return qrError(normalized, sessionId, "unsupported_qr_channel", "该渠道暂不支持扫码绑定。");
+        }
+        if (StrUtil.isBlank(ticket)) {
+            return qrError(normalized, sessionId, "missing_qr_ticket", "二维码绑定票据不能为空。");
+        }
+        if (!qrServicesAvailable(normalized)) {
+            return qrError(normalized, sessionId, "qr_setup_unavailable", "二维码绑定服务未接入当前 TUI 运行时。");
+        }
+        try {
+            Map<String, Object> payload =
+                    "weixin".equals(normalized)
+                            ? weixinQrSetupService.get(ticket)
+                            : domesticQrSetupService.get(ticket);
+            return qrOk(normalized, sessionId, payload);
+        } catch (Exception e) {
+            return qrError(normalized, sessionId, "qr_setup_failed", ErrorTextSupport.safeError(e));
+        }
     }
 
     /**
@@ -334,6 +414,7 @@ public class TuiRuntimeProtocolService {
         item.put("enabled", Boolean.valueOf(channelEnabled(channel, config)));
         item.put("configured", Boolean.valueOf("configured".equals(status)));
         item.put("status", status);
+        item.put("qr_supported", Boolean.valueOf(qrSupported(channel)));
         item.put("fields", channelFields(channel, requiredKeys));
         item.put("required_keys", requiredKeys);
         item.put("allowed_keys", RuntimeSetupSpec.allowedChannelKeys(channel));
@@ -343,6 +424,51 @@ public class TuiRuntimeProtocolService {
         }
         item.put("required_configured", required);
         return item;
+    }
+
+    /** 判断渠道是否有当前版本可用的扫码绑定实现。 */
+    private boolean qrSupported(String channel) {
+        return "weixin".equals(channel) || "feishu".equals(channel) || "dingtalk".equals(channel);
+    }
+
+    /** 判断渠道对应的二维码 setup 服务是否已注入。 */
+    private boolean qrServicesAvailable(String channel) {
+        if ("weixin".equals(channel)) {
+            return weixinQrSetupService != null;
+        }
+        return domesticQrSetupService != null;
+    }
+
+    /** 包装二维码 setup 成功结果，补齐 TUI RPC 统一字段。 */
+    private Map<String, Object> qrOk(
+            String channel, String sessionId, Map<String, Object> payload) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        if (payload != null) {
+            result.putAll(payload);
+        }
+        result.put("ok", Boolean.TRUE);
+        result.put("channel", channel);
+        if (StrUtil.isNotBlank(sessionId)) {
+            result.put("session_id", sessionId);
+        }
+        return result;
+    }
+
+    /** 包装二维码 setup 错误结果，避免异常穿透到 TUI 交互层。 */
+    private Map<String, Object> qrError(
+            String channel, String sessionId, String code, String message) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", Boolean.FALSE);
+        result.put("channel", channel);
+        result.put("status", "failed");
+        result.put("error", code);
+        result.put("error_code", code);
+        result.put("error_message", message);
+        result.put("message", message);
+        if (StrUtil.isNotBlank(sessionId)) {
+            result.put("session_id", sessionId);
+        }
+        return result;
     }
 
     /**

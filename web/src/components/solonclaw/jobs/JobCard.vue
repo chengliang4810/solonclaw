@@ -8,11 +8,15 @@ import {
   formatJobTime,
   humanizeJobToken,
   inferJobScheduleKind,
+  jobActionSummary,
+  jobAliasSummary,
+  jobBadges,
   jobListDetail,
   jobScheduleLabel,
+  jobStatusLabel,
+  jobStatusTone,
   joinJobDetailParts,
 } from '@/shared/jobsDisplay'
-import { hasItems } from '@/shared/text'
 
 const props = defineProps<{ job: Job }>()
 const emit = defineEmits<{
@@ -33,19 +37,8 @@ const jobId = computed(() => props.job.job_id || props.job.id)
 const activeJob = computed(() => detailJob.value || props.job)
 const actionFlags = computed(() => activeJob.value.actions || props.job.actions || {})
 
-const statusLabel = computed(() => {
-  if (props.job.state === 'running') return t('jobs.status.running')
-  if (props.job.state === 'paused') return t('jobs.status.paused')
-  if (!props.job.enabled) return t('jobs.status.disabled')
-  return t('jobs.status.scheduled')
-})
-
-const statusType = computed(() => {
-  if (props.job.state === 'running') return 'info' as const
-  if (props.job.state === 'paused') return 'warning' as const
-  if (!props.job.enabled) return 'error' as const
-  return 'success' as const
-})
+const statusLabel = computed(() => jobStatusLabel(t, props.job))
+const statusType = computed(() => jobStatusTone(props.job))
 
 const canPause = computed(() => actionFlags.value.can_pause ?? (props.job.state !== 'paused' && props.job.enabled))
 const canResume = computed(() => actionFlags.value.can_resume ?? props.job.state === 'paused')
@@ -55,25 +48,8 @@ const canInspect = computed(() => actionFlags.value.can_inspect !== false)
 const canEdit = computed(() => actionFlags.value.can_edit !== false)
 const canRemove = computed(() => actionFlags.value.can_remove !== false)
 
-const actionSummary = computed(() => {
-  const actions: string[] = []
-  if (actionFlags.value.can_pause) actions.push(t('jobs.action.pause'))
-  if (actionFlags.value.can_resume) actions.push(t('jobs.action.resume'))
-  if (actionFlags.value.can_run !== false) actions.push(t('jobs.action.runNow'))
-  if (actionFlags.value.can_retry) actions.push(t('jobs.action.retry'))
-  if (actionFlags.value.can_history !== false) actions.push(t('jobs.action.history'))
-  if (actionFlags.value.can_edit !== false) actions.push(t('common.edit'))
-  if (actionFlags.value.can_remove !== false) actions.push(t('common.delete'))
-  return actions.length ? actions.join('、') : '—'
-})
-
-const aliasSummary = computed(() => {
-  const aliases: string[] = []
-  if (actionFlags.value.supports_enable_alias) aliases.push(t('jobs.alias.enableStart'))
-  if (actionFlags.value.supports_disable_alias) aliases.push(t('jobs.alias.disableStop'))
-  if (actionFlags.value.supports_rerun_alias) aliases.push(t('jobs.alias.retryRerun'))
-  return aliases.length ? aliases.join('、') : '—'
-})
+const actionSummary = computed(() => jobActionSummary(t, actionFlags.value))
+const aliasSummary = computed(() => jobAliasSummary(t, actionFlags.value))
 
 const scheduleExpr = computed(() => jobScheduleLabel(props.job))
 const scheduleKind = computed(() => inferJobScheduleKind(props.job))
@@ -98,18 +74,7 @@ function formatDuration(durationMs?: number | null) {
   return remainMinutes > 0 ? `${hours}h ${remainMinutes}m` : `${hours}h`
 }
 
-const jobBadges = computed(() => {
-  const badges: string[] = []
-  if (props.job.pending_trigger) badges.push(t('jobs.badge.pendingTrigger', { trigger: props.job.pending_trigger }))
-  if (props.job.no_agent) badges.push(t('jobs.badge.noAgent'))
-  if (props.job.script) badges.push(t('jobs.badge.script'))
-  if (props.job.wrap_response) badges.push(t('jobs.badge.wrapResponse'))
-  if (hasItems(props.job.skills)) badges.push(t('jobs.badge.skills', { count: props.job.skills.length }))
-  if (hasItems(props.job.context_from)) badges.push(t('jobs.badge.context', { count: props.job.context_from.length }))
-  if (hasItems(props.job.enabled_toolsets)) badges.push(t('jobs.badge.toolsets', { count: props.job.enabled_toolsets.length }))
-  if (props.job.model) badges.push(props.job.provider ? `${props.job.provider}:${props.job.model}` : props.job.model)
-  return badges
-})
+const badges = computed(() => jobBadges(t, props.job))
 
 const deliverDetail = computed(() => {
   const job = activeJob.value
@@ -255,8 +220,8 @@ async function handleDelete() {
           <template v-else>{{ job.repeat.completed }} / {{ job.repeat.times ?? '∞' }}</template>
         </span>
       </div>
-      <div v-if="jobBadges.length" class="job-badges">
-        <span v-for="badge in jobBadges" :key="badge" class="job-badge">{{ badge }}</span>
+      <div v-if="badges.length" class="job-badges">
+        <span v-for="badge in badges" :key="badge" class="job-badge">{{ badge }}</span>
       </div>
       <div v-if="job.last_error || job.last_delivery_error" class="error-line">
         {{ job.last_error || job.last_delivery_error }}

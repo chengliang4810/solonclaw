@@ -107,6 +107,7 @@ export default {
     gateways: '网关',
     files: '文件',
     diagnostics: '系统诊断',
+    tuiRuntime: '终端运行时',
     curator: '技能维护',
     mcp: '工具接入（MCP）',
     groupConversation: '对话',

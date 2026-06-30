@@ -8,6 +8,7 @@ import SystemNavItems from "./SystemNavItems.vue";
 
 import { clearApiKey } from "@/api/client";
 import { getPersonaMeta } from "@/shared/personaMeta";
+import { MONITORING_NAV_ITEMS, PERSONA_NAV_ITEMS, PRIMARY_NAV_ITEMS } from "@/shared/sidebarNav";
 
 const { t } = useI18n();
 const route = useRoute();
@@ -15,48 +16,10 @@ const router = useRouter();
 const appStore = useAppStore();
 const selectedKey = computed(() => route.name as string);
 const logoPath = '/logo.png';
-const personaItems = [
-  {
-    key: 'agents',
-    title: getPersonaMeta('agents').title,
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3 6h.01"/><path d="M3 12h.01"/><path d="M3 18h.01"/></svg>',
-  },
-  {
-    key: 'memory',
-    title: getPersonaMeta('memory').title,
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3.5a3 3 0 0 0-3 3v1.1a2.4 2.4 0 0 1-.7 1.7l-.1.1a3.7 3.7 0 0 0 0 5.2l.1.1a2.4 2.4 0 0 1 .7 1.7v1.1a3 3 0 0 0 5.1 2.1l.4-.4.4.4a3 3 0 0 0 5.1-2.1v-1.1a2.4 2.4 0 0 1 .7-1.7l.1-.1a3.7 3.7 0 0 0 0-5.2l-.1-.1a2.4 2.4 0 0 1-.7-1.7V6.5a3 3 0 0 0-5.1-2.1l-.4.4-.4-.4a3 3 0 0 0-2.1-.9z"/><path d="M9.5 10.25c.7-.85 1.6-1.25 2.5-1.25s1.8.4 2.5 1.25"/><path d="M9.5 13.75c.7.85 1.6 1.25 2.5 1.25s1.8-.4 2.5-1.25"/><path d="M12 9v6"/></svg>',
-  },
-  {
-    key: 'journal',
-    title: getPersonaMeta('memory_today').title,
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h8"/><path d="M8 18h5"/></svg>',
-  },
-  {
-    key: 'soul',
-    title: getPersonaMeta('soul').title,
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.716-4.184-9.193-7.252C.182 10.61 1.518 5.873 5.66 4.677A5.38 5.38 0 0 1 12 6.09a5.38 5.38 0 0 1 6.34-1.413c4.142 1.196 5.478 5.933 2.853 9.071C18.716 16.816 12 21 12 21z"/></svg>',
-  },
-  {
-    key: 'identity',
-    title: getPersonaMeta('identity').title,
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><circle cx="12" cy="10" r="3"/><path d="M8 17c1.2-1.333 2.533-2 4-2s2.8.667 4 2"/></svg>',
-  },
-  {
-    key: 'user',
-    title: getPersonaMeta('user').title,
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
-  },
-  {
-    key: 'tools',
-    title: getPersonaMeta('tools').title,
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.2 2.2-3.2-3.2 2.4-2z"/></svg>',
-  },
-  {
-    key: 'heartbeat',
-    title: getPersonaMeta('heartbeat').title,
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19.5 13.5A7.5 7.5 0 1 1 10.5 4"/><path d="M12 2v4h4"/><path d="M8 13h2l1.5-3 3 6 1.5-3h2"/></svg>',
-  },
-];
+const personaItems = computed(() => PERSONA_NAV_ITEMS.map(item => ({
+  ...item,
+  title: getPersonaMeta(item.metaKey).title,
+})));
 
 const collapsedGroups = reactive<Record<string, boolean>>({});
 
@@ -70,6 +33,14 @@ function isGroupCollapsed(key: string) {
 
 function handleNav(key: string) {
   router.push({ name: key });
+}
+
+function handlePersonaNav(key: string) {
+  if (key === 'journal') {
+    router.push({ name: 'solonclaw.persona.journal' });
+    return;
+  }
+  router.push({ name: 'solonclaw.persona.file', params: { key } });
 }
 
 function handleLogout() {
@@ -86,62 +57,15 @@ function handleLogout() {
     </div>
 
     <nav class="sidebar-nav">
-      <!-- Chat (standalone) -->
-      <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.chat' }" @click="handleNav('solonclaw.chat')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-        <span>{{ t("sidebar.chat") }}</span>
-      </button>
-
-      <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.agents' }" @click="handleNav('solonclaw.agents')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="7" r="4" />
-          <path d="M5.5 21a6.5 6.5 0 0 1 13 0" />
-          <path d="M17 11.5l2 2 3-4" />
-        </svg>
-        <span>{{ t("sidebar.agents") }}</span>
-      </button>
-
-      <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.skills' }" @click="handleNav('solonclaw.skills')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <polygon points="12 2 2 7 12 12 22 7 12 2" />
-          <polyline points="2 17 12 22 22 17" />
-          <polyline points="2 12 12 17 22 12" />
-        </svg>
-        <span>{{ t("sidebar.skills") }}</span>
-      </button>
-
-      <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.jobs' }" @click="handleNav('solonclaw.jobs')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-          <line x1="16" y1="2" x2="16" y2="6" />
-          <line x1="8" y1="2" x2="8" y2="6" />
-          <line x1="3" y1="10" x2="21" y2="10" />
-        </svg>
-        <span>{{ t("sidebar.jobs") }}</span>
-      </button>
-
-      <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.channels' }" @click="handleNav('solonclaw.channels')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-        </svg>
-        <span>{{ t("sidebar.channels") }}</span>
-      </button>
-
-      <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.models' }" @click="handleNav('solonclaw.models')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 1v4" />
-          <path d="M12 19v4" />
-          <path d="M1 12h4" />
-          <path d="M19 12h4" />
-          <path d="M4.22 4.22l2.83 2.83" />
-          <path d="M16.95 16.95l2.83 2.83" />
-          <path d="M4.22 19.78l2.83-2.83" />
-          <path d="M16.95 7.05l2.83-2.83" />
-        </svg>
-        <span>{{ t("sidebar.models") }}</span>
+      <button
+        v-for="item in PRIMARY_NAV_ITEMS"
+        :key="item.key"
+        class="nav-item"
+        :class="{ active: selectedKey === item.key }"
+        @click="handleNav(item.key)"
+      >
+        <span class="nav-item-icon" v-html="item.icon"></span>
+        <span>{{ t(item.labelKey) }}</span>
       </button>
 
       <!-- Persona -->
@@ -158,7 +82,7 @@ function handleLogout() {
             :key="item.key"
             class="nav-item"
             :class="{ active: (item.key === 'journal' && selectedKey === 'solonclaw.persona.journal') || (selectedKey === 'solonclaw.persona.file' && route.params.key === item.key) }"
-            @click="item.key === 'journal' ? router.push({ name: 'solonclaw.persona.journal' }) : router.push({ name: 'solonclaw.persona.file', params: { key: item.key } })"
+            @click="handlePersonaNav(item.key)"
           >
             <span class="nav-item-icon" v-html="item.icon"></span>
             <span>{{ item.title }}</span>
@@ -175,40 +99,15 @@ function handleLogout() {
           </svg>
         </div>
         <div v-show="!isGroupCollapsed('monitoring')">
-          <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.logs' }" @click="handleNav('solonclaw.logs')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
-            <span>{{ t("sidebar.logs") }}</span>
-          </button>
-          <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.usage' }" @click="handleNav('solonclaw.usage')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="12" width="4" height="9" rx="1" />
-              <rect x="10" y="7" width="4" height="14" rx="1" />
-              <rect x="17" y="3" width="4" height="18" rx="1" />
-            </svg>
-            <span>{{ t("sidebar.usage") }}</span>
-          </button>
-          <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.runs' }" @click="handleNav('solonclaw.runs')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 19V5" />
-              <path d="M4 19h16" />
-              <path d="M8 16l3-4 3 2 4-7" />
-            </svg>
-            <span>{{ t("sidebar.runs") }}</span>
-          </button>
-          <button class="nav-item" :class="{ active: selectedKey === 'solonclaw.gateways' }" @click="handleNav('solonclaw.gateways')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 7h16" />
-              <path d="M4 17h16" />
-              <circle cx="8" cy="7" r="2" />
-              <circle cx="16" cy="17" r="2" />
-            </svg>
-            <span>{{ t("sidebar.gateways") }}</span>
+          <button
+            v-for="item in MONITORING_NAV_ITEMS"
+            :key="item.key"
+            class="nav-item"
+            :class="{ active: selectedKey === item.key }"
+            @click="handleNav(item.key)"
+          >
+            <span class="nav-item-icon" v-html="item.icon"></span>
+            <span>{{ t(item.labelKey) }}</span>
           </button>
         </div>
       </div>
@@ -257,235 +156,4 @@ function handleLogout() {
   </aside>
 </template>
 
-<style scoped lang="scss">
-@use "@/styles/variables" as *;
-
-.sidebar {
-  width: $sidebar-width;
-  height: calc(100 * var(--vh));
-  background-color: $bg-sidebar;
-  border-right: 1px solid $border-color;
-  display: flex;
-  flex-direction: column;
-  padding: 14px 12px 16px;
-  flex-shrink: 0;
-  transition: width $transition-normal;
-}
-
-.logo-img {
-  width: 34px;
-  height: 34px;
-  border-radius: 0;
-  flex-shrink: 0;
-  object-fit: contain;
-}
-
-.sidebar-logo {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
-  min-height: 48px;
-  padding: 6px 8px 14px;
-  margin: 0 0 8px;
-  color: $text-primary;
-  cursor: pointer;
-  background-color: transparent;
-  border-bottom: 1px solid $border-color;
-  box-shadow: none;
-
-  .logo-text {
-    font-size: 15px;
-    font-weight: 650;
-    line-height: 1;
-    letter-spacing: 0;
-  }
-
-}
-
-.sidebar-nav {
-  flex: 1;
-  display: flex;
-  padding-top: 4px;
-  flex-direction: column;
-  gap: 3px;
-  overflow-y: auto;
-  min-height: 0;
-  scrollbar-width: none;
-
-  &::-webkit-scrollbar {
-    display: none;
-  }
-}
-
-.nav-group {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  margin-top: 6px;
-
-  &.nav-group-bottom {
-    margin-top: auto;
-    padding-top: 8px;
-    border-top: 1px solid $border-color;
-  }
-}
-
-.nav-group-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: $text-muted;
-  text-transform: none;
-  letter-spacing: 0;
-  padding: 10px 8px 5px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  user-select: none;
-  border-radius: $radius-sm;
-  transition: color $transition-fast;
-
-  &:hover {
-    color: $text-secondary;
-  }
-
-  .nav-group:first-child & {
-    padding-top: 0;
-  }
-}
-
-.nav-group-arrow {
-  transition: transform $transition-fast;
-  flex-shrink: 0;
-
-  &.collapsed {
-    transform: rotate(-90deg);
-  }
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 36px;
-  padding: 8px 10px;
-  border: none;
-  background: none;
-  color: $text-secondary;
-  font-size: 13px;
-  font-weight: 500;
-  border-radius: $radius-sm;
-  cursor: pointer;
-  transition: all $transition-fast;
-  width: 100%;
-  text-align: left;
-
-  &:hover {
-    background-color: $bg-card-hover;
-    color: $text-primary;
-  }
-
-  &.active {
-    background-color: $accent-primary;
-    color: $text-on-accent;
-  }
-}
-
-.nav-item-icon {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  :deep(svg) {
-    width: 16px;
-    height: 16px;
-  }
-}
-
-.sidebar-footer {
-  padding-top: 10px;
-  border-top: 1px solid $border-color;
-}
-
-.logout-item {
-  margin: 0 0 6px;
-  padding: 8px 10px;
-  border-radius: $radius-sm;
-  font-size: 13px;
-  color: $text-muted;
-
-  &:hover {
-    color: $error;
-    background: rgba(var(--error-rgb, 239, 68, 68), 0.06);
-  }
-}
-
-.status-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 4px 0;
-}
-
-.status-indicator {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
-  &.connected .status-dot {
-    background-color: $success;
-    box-shadow: 0 0 6px rgba(var(--success-rgb), 0.5);
-  }
-
-  &.disconnected .status-dot {
-    background-color: $error;
-  }
-
-  .status-text {
-    color: $text-secondary;
-  }
-}
-
-.update-btn {
-  margin: 4px 0 0;
-  border-radius: 4px;
-}
-
-@media (max-width: $breakpoint-mobile) {
-  .status-row {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .sidebar {
-    position: fixed;
-    left: 0;
-    top: 0;
-    z-index: 1000;
-    transform: translateX(-100%);
-    transition: transform $transition-normal;
-
-    &.open {
-      transform: translateX(0);
-    }
-
-    // Override global utility — sidebar is always 240px wide
-    .input-sm {
-      width: 90px;
-    }
-  }
-}
-</style>
+<style scoped lang="scss" src="./AppSidebar.scss"></style>

@@ -36,6 +36,7 @@ import {
   type McpReloadAllResult,
   type McpServer,
 } from '@/api/solonclaw/mcp'
+import { mcpStatusTone, mcpTimestampText, mcpTransportOptions } from '@/shared/mcpDisplay'
 import { asArray, displayJson, hasItems, listCount, trimText } from '@/shared/text'
 
 const { t } = useI18n()
@@ -51,13 +52,7 @@ const oauthLoading = ref(false)
 const lastAction = ref<McpActionResult | null>(null)
 const lastReloadAll = ref<McpReloadAllResult | null>(null)
 const oauthBeginUrl = ref('')
-
-const transportOptions = [
-  { label: 'stdio', value: 'stdio' },
-  { label: 'streamable', value: 'streamable' },
-  { label: 'streamable_stateless', value: 'streamable_stateless' },
-  { label: 'sse', value: 'sse' },
-]
+const transportOptions = mcpTransportOptions()
 
 const form = reactive({
   serverId: '',
@@ -225,26 +220,6 @@ function toolDescription(tool: unknown) {
   }
   const item = tool as Record<string, unknown>
   return String(item.description || item.title || '')
-}
-
-function statusType(status?: string) {
-  if (status === 'ready' || status === 'connected' || status === 'authenticated') {
-    return 'success'
-  }
-  if (status === 'error' || status === 'blocked' || status === 'expired') {
-    return 'error'
-  }
-  if (status === 'pending' || status === 'configured') {
-    return 'warning'
-  }
-  return 'default'
-}
-
-function formatTime(value?: number) {
-  if (!value) {
-    return '-'
-  }
-  return new Date(value).toLocaleString()
 }
 
 async function runAction(name: string, fn: () => Promise<McpActionResult>) {
@@ -452,7 +427,7 @@ async function copy(text: string) {
           >
             <div class="server-card-head">
               <span class="server-name">{{ server.name || server.server_id }}</span>
-              <Tag size="small" :color="statusType(server.status)" :bordered="false">{{ server.status || t('common.unknown') }}</Tag>
+              <Tag size="small" :color="mcpStatusTone(server.status)" :bordered="false">{{ server.status || t('common.unknown') }}</Tag>
             </div>
             <div class="server-meta">
               <span>{{ server.transport }}</span>
@@ -490,11 +465,11 @@ async function copy(text: string) {
             </div>
             <div class="summary-item">
               <span>{{ t('mcp.fields.lastChecked') }}</span>
-              <strong>{{ formatTime(selectedServer.last_checked_at) }}</strong>
+              <strong>{{ mcpTimestampText(selectedServer.last_checked_at) }}</strong>
             </div>
             <div class="summary-item">
               <span>{{ t('mcp.fields.toolsChangedAt') }}</span>
-              <strong>{{ selectedServer.last_tools_changed_at ? formatTime(selectedServer.last_tools_changed_at) : t('common.notRecorded') }}</strong>
+              <strong>{{ selectedServer.last_tools_changed_at ? mcpTimestampText(selectedServer.last_tools_changed_at) : t('common.notRecorded') }}</strong>
             </div>
           </div>
 
@@ -534,9 +509,9 @@ async function copy(text: string) {
               <h4>{{ t('mcp.oauth.title') }}</h4>
               <Spin :spinning="oauthLoading">
                 <div class="oauth-status">
-                  <Tag :color="statusType(oauthStatus?.status)" :bordered="false">{{ oauthStatus?.status || t('common.notConfigured') }}</Tag>
+                  <Tag :color="mcpStatusTone(oauthStatus?.status)" :bordered="false">{{ oauthStatus?.status || t('common.notConfigured') }}</Tag>
                   <span>{{ t(oauthStatus?.authenticated ? 'mcp.oauth.authenticated' : 'mcp.oauth.unauthenticated') }}</span>
-                  <span v-if="oauthStatus?.expires_at">{{ t('mcp.oauth.expiresAt', { time: formatTime(oauthStatus.expires_at) }) }}</span>
+                  <span v-if="oauthStatus?.expires_at">{{ t('mcp.oauth.expiresAt', { time: mcpTimestampText(oauthStatus.expires_at) }) }}</span>
                 </div>
                 <div class="oauth-actions">
                   <Button size="small" :loading="actionLoading === 'oauth-refresh'" @click="runOAuthAction('oauth-refresh', () => refreshMcpOAuth(selectedServer!.server_id))">{{ t('mcp.oauth.refreshToken') }}</Button>
