@@ -10,13 +10,13 @@ import {
   inferJobScheduleKind,
   jobActionSummary,
   jobAliasSummary,
+  jobBadges,
   jobListDetail,
   jobScheduleLabel,
   jobStatusLabel,
   jobStatusTone,
   joinJobDetailParts,
 } from '@/shared/jobsDisplay'
-import { hasItems } from '@/shared/text'
 
 const props = defineProps<{ job: Job }>()
 const emit = defineEmits<{
@@ -74,18 +74,7 @@ function formatDuration(durationMs?: number | null) {
   return remainMinutes > 0 ? `${hours}h ${remainMinutes}m` : `${hours}h`
 }
 
-const jobBadges = computed(() => {
-  const badges: string[] = []
-  if (props.job.pending_trigger) badges.push(t('jobs.badge.pendingTrigger', { trigger: props.job.pending_trigger }))
-  if (props.job.no_agent) badges.push(t('jobs.badge.noAgent'))
-  if (props.job.script) badges.push(t('jobs.badge.script'))
-  if (props.job.wrap_response) badges.push(t('jobs.badge.wrapResponse'))
-  if (hasItems(props.job.skills)) badges.push(t('jobs.badge.skills', { count: props.job.skills.length }))
-  if (hasItems(props.job.context_from)) badges.push(t('jobs.badge.context', { count: props.job.context_from.length }))
-  if (hasItems(props.job.enabled_toolsets)) badges.push(t('jobs.badge.toolsets', { count: props.job.enabled_toolsets.length }))
-  if (props.job.model) badges.push(props.job.provider ? `${props.job.provider}:${props.job.model}` : props.job.model)
-  return badges
-})
+const badges = computed(() => jobBadges(t, props.job))
 
 const deliverDetail = computed(() => {
   const job = activeJob.value
@@ -231,8 +220,8 @@ async function handleDelete() {
           <template v-else>{{ job.repeat.completed }} / {{ job.repeat.times ?? '∞' }}</template>
         </span>
       </div>
-      <div v-if="jobBadges.length" class="job-badges">
-        <span v-for="badge in jobBadges" :key="badge" class="job-badge">{{ badge }}</span>
+      <div v-if="badges.length" class="job-badges">
+        <span v-for="badge in badges" :key="badge" class="job-badge">{{ badge }}</span>
       </div>
       <div v-if="job.last_error || job.last_delivery_error" class="error-line">
         {{ job.last_error || job.last_delivery_error }}

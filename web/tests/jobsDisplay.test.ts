@@ -7,6 +7,7 @@ import {
   inferJobScheduleKind,
   jobActionSummary,
   jobAliasSummary,
+  jobBadges,
   jobListDetail,
   jobMapKeysText,
   jobScheduleLabel,
@@ -30,6 +31,13 @@ const labels: Record<string, string> = {
   'jobs.alias.disableStop': '停用/停止',
   'jobs.alias.enableStart': '启用/启动',
   'jobs.alias.retryRerun': '重试/重跑',
+  'jobs.badge.context': '{count} 个上游',
+  'jobs.badge.noAgent': '脚本直投',
+  'jobs.badge.pendingTrigger': '待执行：{trigger}',
+  'jobs.badge.script': '脚本',
+  'jobs.badge.skills': '{count} 个技能',
+  'jobs.badge.toolsets': '{count} 个工具集',
+  'jobs.badge.wrapResponse': '包装投递',
   'jobs.humanize.cron': 'Cron 表达式',
   'jobs.humanize.interval': '间隔执行',
   'jobs.humanize.local': '本地会话',
@@ -45,7 +53,13 @@ const labels: Record<string, string> = {
   'jobs.detail.no': '否',
 }
 
-const t: DashboardTranslator = (key) => labels[key] || key
+const t: DashboardTranslator = (key, params) => {
+  const template = labels[key] || key
+  return Object.entries(params || {}).reduce(
+    (text, [name, value]) => text.replace(`{${name}}`, String(value)),
+    template,
+  )
+}
 const jobCard = readFileSync(
   new URL('../src/components/solonclaw/jobs/JobCard.vue', import.meta.url),
   'utf8',
@@ -86,6 +100,22 @@ assert.equal(
   '启用/启动、停用/停止、重试/重跑',
 )
 assert.equal(jobAliasSummary(t, {}), '—')
+assert.deepEqual(jobBadges(t, {}), [])
+assert.deepEqual(
+  jobBadges(t, {
+    pending_trigger: 'manual',
+    no_agent: true,
+    script: 'echo ok',
+    wrap_response: true,
+    skills: ['a', 'b'],
+    context_from: ['upstream'],
+    enabled_toolsets: ['shell', 'files'],
+    provider: 'openai',
+    model: 'gpt-4o',
+  }),
+  ['待执行：manual', '脚本直投', '脚本', '包装投递', '2 个技能', '1 个上游', '2 个工具集', 'openai:gpt-4o'],
+)
+assert.deepEqual(jobBadges(t, { model: 'local-model', provider: null }), ['local-model'])
 assert.equal(formatJobTime(null), '—')
 assert.equal(jobListDetail(['a', 'b']), 'a, b')
 assert.equal(jobListDetail([]), '—')
@@ -93,7 +123,9 @@ assert.equal(joinJobDetailParts(['local', '', undefined, '#thread']), 'local · 
 assert.ok(!jobCard.includes("props.job.state === 'running'"), 'JobCard should not inline job status state branches')
 assert.ok(!jobCard.includes("actions.push(t('jobs.action.pause'))"), 'JobCard should not inline action summary labels')
 assert.ok(!jobCard.includes("aliases.push(t('jobs.alias.enableStart'))"), 'JobCard should not inline alias summary labels')
+assert.ok(!jobCard.includes("badges.push(t('jobs.badge.noAgent'))"), 'JobCard should not inline badge labels')
 assert.ok(jobCard.includes('jobStatusLabel(t, props.job)'), 'JobCard should reuse shared job status labels')
 assert.ok(jobCard.includes('jobStatusTone(props.job)'), 'JobCard should reuse shared job status tones')
 assert.ok(jobCard.includes('jobActionSummary(t, actionFlags.value)'), 'JobCard should reuse shared action summaries')
 assert.ok(jobCard.includes('jobAliasSummary(t, actionFlags.value)'), 'JobCard should reuse shared alias summaries')
+assert.ok(jobCard.includes('jobBadges(t, props.job)'), 'JobCard should reuse shared badge summaries')

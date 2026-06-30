@@ -1,4 +1,4 @@
-import { asArray, isRecord, splitTrimmedText, trimText } from './text.ts'
+import { asArray, isRecord, listCount, splitTrimmedText, trimText } from './text.ts'
 
 export type DashboardTranslator = (key: string, params?: Record<string, unknown>) => string
 
@@ -26,6 +26,18 @@ export interface JobActionFlagsSource {
   supports_disable_alias?: boolean
   supports_enable_alias?: boolean
   supports_rerun_alias?: boolean
+}
+
+export interface JobBadgeSource {
+  pending_trigger?: string | null
+  no_agent?: boolean | null
+  script?: string | null
+  wrap_response?: boolean | null
+  skills?: readonly unknown[] | null
+  context_from?: readonly unknown[] | null
+  enabled_toolsets?: readonly unknown[] | null
+  model?: string | null
+  provider?: string | null
 }
 
 export type JobStatusTone = 'success' | 'info' | 'warning' | 'error'
@@ -163,6 +175,22 @@ export function jobAliasSummary(t: DashboardTranslator, actions: JobActionFlagsS
   if (actions.supports_disable_alias) labels.push(t('jobs.alias.disableStop'))
   if (actions.supports_rerun_alias) labels.push(t('jobs.alias.retryRerun'))
   return labels.length ? labels.join('、') : '—'
+}
+
+export function jobBadges(t: DashboardTranslator, job: JobBadgeSource): string[] {
+  const badges: string[] = []
+  const skillsCount = listCount(job.skills)
+  const contextCount = listCount(job.context_from)
+  const toolsetsCount = listCount(job.enabled_toolsets)
+  if (job.pending_trigger) badges.push(t('jobs.badge.pendingTrigger', { trigger: job.pending_trigger }))
+  if (job.no_agent) badges.push(t('jobs.badge.noAgent'))
+  if (job.script) badges.push(t('jobs.badge.script'))
+  if (job.wrap_response) badges.push(t('jobs.badge.wrapResponse'))
+  if (skillsCount > 0) badges.push(t('jobs.badge.skills', { count: skillsCount }))
+  if (contextCount > 0) badges.push(t('jobs.badge.context', { count: contextCount }))
+  if (toolsetsCount > 0) badges.push(t('jobs.badge.toolsets', { count: toolsetsCount }))
+  if (job.model) badges.push(job.provider ? `${job.provider}:${job.model}` : job.model)
+  return badges
 }
 
 /**
