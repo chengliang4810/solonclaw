@@ -5,7 +5,11 @@ import React from 'react'
 import { describe, expect, it } from 'vitest'
 
 import { channelQrStatusActive, channelQrUrl, channelSupportsQr } from '../components/channelQr.js'
-import { ChannelQrSetupView } from '../components/channelSetupViews.js'
+import {
+  ChannelQrSetupView,
+  channelSetupFieldValueLabel,
+  channelSetupListRowLabel
+} from '../components/channelSetupViews.js'
 import { stripAnsi } from '../lib/text.js'
 import { DEFAULT_THEME } from '../theme.js'
 
@@ -21,6 +25,20 @@ describe('channel QR setup helpers', () => {
     expect(channelQrUrl({ qrcode_url: 'https://weixin.example.test/qr.png' })).toBe('https://weixin.example.test/qr.png')
     expect(channelQrUrl({ qr_url: 'https://login.example.test/qr?code=1' })).toBe('https://login.example.test/qr?code=1')
     expect(channelQrUrl({ qrcode: 'raw-code' })).toBe('raw-code')
+  })
+
+  it('labels channel setup rows with configured and QR capability state', () => {
+    expect(channelSetupListRowLabel({ configured: true, key: 'feishu', label: 'Feishu', qr_supported: true })).toBe(
+      'Feishu · configured · QR'
+    )
+    expect(channelSetupListRowLabel({ key: 'wecom', label: 'WeCom' })).toBe('WeCom · not configured')
+  })
+
+  it('masks secret setup field values without hiding empty values', () => {
+    expect(channelSetupFieldValueLabel({ key: 'secret', secret: true }, 'abc123')).toBe('••••••')
+    expect(channelSetupFieldValueLabel({ key: 'secret', secret: true }, '')).toBe('')
+    expect(channelSetupFieldValueLabel({ key: 'name' }, 'plain')).toBe('plain')
+    expect(channelSetupFieldValueLabel({ key: 'secret', secret: true }, 'x'.repeat(50))).toHaveLength(40)
   })
 
   it('keeps polling only while QR setup can still change', () => {

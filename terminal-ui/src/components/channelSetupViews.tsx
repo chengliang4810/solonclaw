@@ -6,6 +6,22 @@ import type { Theme } from '../theme.js'
 import { channelQrMessage, channelQrStatusActive, channelQrUrl, channelSupportsQr } from './channelQr.js'
 import { OverlayHint, windowItems } from './overlayControls.js'
 
+/** 通道设置视图只展示后端返回的通道状态，协议字段解释保持在 channelQr/RPC 层。 */
+export const channelSetupListRowLabel = (channel: ChannelOption): string => {
+  const status = channel.configured ? 'configured' : 'not configured'
+  const qrLabel = channelSupportsQr(channel) ? ' · QR' : ''
+
+  return `${channel.label} · ${status}${qrLabel}`
+}
+
+export const channelSetupFieldValueLabel = (field: ChannelSetupField, value: string): string => {
+  if (field.secret && value) {
+    return '•'.repeat(Math.min(value.length, 40))
+  }
+
+  return value
+}
+
 export function ChannelSetupLoading({ t }: ChannelViewThemeProps) {
   return <Text color={t.color.muted}>loading channels…</Text>
 }
@@ -64,7 +80,7 @@ export function ChannelQrSetupView({ channel, err, qr, qrLoading, t, width }: Ch
 }
 
 export function ChannelFieldsView({ channel, err, field, fieldIdx, fieldCount, saving, t, value, width }: ChannelFieldsViewProps) {
-  const shown = field.secret && value ? '•'.repeat(Math.min(value.length, 40)) : value
+  const shown = channelSetupFieldValueLabel(field, value)
 
   return (
     <Box flexDirection="column" width={width}>
@@ -104,13 +120,7 @@ export function ChannelSavedView({ channel, t, width }: ChannelSavedViewProps) {
 }
 
 export function ChannelListView({ channelIdx, channels, t, visible, width }: ChannelListViewProps) {
-  const rows = channels.map(c => {
-    const status = c.configured ? 'configured' : 'not configured'
-    const qrLabel = channelSupportsQr(c) ? ' · QR' : ''
-
-    return `${c.label} · ${status}${qrLabel}`
-  })
-
+  const rows = channels.map(channelSetupListRowLabel)
   const { items, offset } = windowItems(rows, channelIdx, visible)
 
   return (
