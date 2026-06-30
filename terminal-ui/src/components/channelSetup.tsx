@@ -1,18 +1,29 @@
-import { Box, Text, useInput, useStdout } from '@solonclaw/ink'
+import { useStdout } from '@solonclaw/ink'
 import { useEffect, useMemo, useState } from 'react'
 
 import type { GatewayClient } from '../gatewayClient.js'
-import type { ChannelOption, ChannelOptionsResponse, ChannelSaveResponse } from '../gatewayTypes.js'
-import { asRpcResult, rpcErrorMessage } from '../lib/rpc.js'
+import type { ChannelOption, ChannelQrResponse } from '../gatewayTypes.js'
+import { rpcErrorMessage } from '../lib/rpc.js'
 import type { Theme } from '../theme.js'
 
-import { OverlayHint, useOverlayKeys, windowItems } from './overlayControls.js'
+import { channelQrMessage, channelQrStatusActive, channelSupportsQr } from './channelQr.js'
+import { type ChannelSetupStage } from './channelSetupKeys.js'
+import { useChannelSetupInput } from './channelSetupInput.js'
+import { loadChannelOptions, refreshChannelQr, saveChannelConfig, startChannelQr } from './channelSetupRpc.js'
+import {
+  ChannelFieldsView,
+  ChannelListView,
+  ChannelQrSetupView,
+  ChannelSavedView,
+  ChannelSetupEmpty,
+  ChannelSetupError,
+  ChannelSetupLoading
+} from './channelSetupViews.js'
+import { useOverlayKeys } from './overlayControls.js'
 
 const VISIBLE = 10
 const MIN_WIDTH = 44
 const MAX_WIDTH = 90
-
-type Stage = 'channel' | 'fields' | 'saved'
 
 export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
   const [channels, setChannels] = useState<ChannelOption[]>([])
@@ -20,25 +31,18 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
   const [err, setErr] = useState('')
   const [fieldIdx, setFieldIdx] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [qr, setQr] = useState<ChannelQrResponse | null>(null)
+  const [qrLoading, setQrLoading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [stage, setStage] = useState<Stage>('channel')
+  const [stage, setStage] = useState<ChannelSetupStage>('channel')
   const [values, setValues] = useState<Record<string, string>>({})
 
   const { stdout } = useStdout()
   const width = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, (stdout?.columns ?? 80) - 6))
 
   useEffect(() => {
-    gw.request<ChannelOptionsResponse>('channel.options', sessionId ? { session_id: sessionId } : {})
-      .then(raw => {
-        const r = asRpcResult<ChannelOptionsResponse>(raw)
-
-        if (!r) {
-          setErr('invalid response: channel.options')
-          setLoading(false)
-
-          return
-        }
-
+    loadChannelOptions(gw, sessionId)
+      .then(r => {
         setChannels(r.channels ?? [])
         setErr('')
         setLoading(false)
@@ -53,11 +57,15 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
   const fields = useMemo(() => channel?.fields ?? [], [channel])
   const field = fields[fieldIdx]
 
+  const resetToChannelList = () => {
+    setStage('channel')
+    setValues({})
+    setFieldIdx(0)
+  }
+
   const back = () => {
     if (stage === 'saved') {
-      setStage('channel')
-      setValues({})
-      setFieldIdx(0)
+      resetToChannelList()
 
       return
     }
@@ -69,8 +77,14 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
         return
       }
 
+      resetToChannelList()
+
+      return
+    }
+
+    if (stage === 'qr') {
       setStage('channel')
-      setValues({})
+      setQr(null)
 
       return
     }
@@ -78,7 +92,7 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
     onClose()
   }
 
-  useOverlayKeys({ disabled: stage === 'channel' || stage === 'fields', onBack: back, onClose })
+  useOverlayKeys({ disabled: stage === 'channel' || stage === 'fields' || stage === 'qr', onBack: back, onClose })
 
   const save = (overrideValues?: Record<string, string>) => {
     if (!channel || saving) {
@@ -88,14 +102,8 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
     const nextValues = overrideValues ?? values
     setSaving(true)
     setErr('')
-    gw.request<ChannelSaveResponse>('channel.save', {
-      channel: channel.key,
-      values: nextValues,
-      ...(sessionId ? { session_id: sessionId } : {})
-    })
-      .then(raw => {
-        const r = asRpcResult<ChannelSaveResponse>(raw)
-
+    saveChannelConfig(gw, channel.key, nextValues, sessionId)
+      .then(r => {
         if (!r?.saved) {
           setErr('failed to save channel')
           setSaving(false)
@@ -112,206 +120,107 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
       })
   }
 
-  useInput((ch, key) => {
-    if (loading || saving) {
+  const startQr = () => {
+    if (!channel || qrLoading || !channelSupportsQr(channel)) {
       return
     }
 
-    if (stage === 'channel') {
-      if (key.escape) {
-        onClose()
+    setQrLoading(true)
+    setErr('')
+    setQr(null)
+    setStage('qr')
+    startChannelQr(gw, channel.key, sessionId)
+      .then(r => {
+        setQr(r)
+        setErr(r.ok === false ? channelQrMessage(r) || 'failed to start QR setup' : '')
+        setQrLoading(false)
+      })
+      .catch((e: unknown) => {
+        setErr(rpcErrorMessage(e))
+        setQrLoading(false)
+      })
+  }
 
-        return
-      }
-
-      if (ch === 'q') {
-        onClose()
-
-        return
-      }
-
-      if (key.upArrow && channelIdx > 0) {
-        setChannelIdx(v => v - 1)
-
-        return
-      }
-
-      if (key.downArrow && channelIdx < channels.length - 1) {
-        setChannelIdx(v => v + 1)
-
-        return
-      }
-
-      if (key.return && channel) {
-        const initialValues = { enabled: 'true' }
-        setValues(initialValues)
-        setFieldIdx(0)
-        fields.length ? setStage('fields') : save(initialValues)
-
-        return
-      }
-
+  useEffect(() => {
+    if (stage !== 'qr' || !channel || !qr?.ticket || !channelQrStatusActive(qr.status)) {
       return
     }
 
-    if (stage === 'saved') {
-      if (key.escape || key.return || ch === 'q') {
-        setStage('channel')
-        setValues({})
-        setFieldIdx(0)
-      }
+    const ticket = qr.ticket
+    const timer = setTimeout(() => {
+      refreshChannelQr(gw, channel.key, ticket, sessionId)
+        .then(r => {
+          setQr(r)
+          setErr(r.ok === false ? channelQrMessage(r) || 'failed to refresh QR setup' : '')
+        })
+        .catch((e: unknown) => {
+          setErr(rpcErrorMessage(e))
+        })
+    }, 1500)
 
-      return
-    }
+    return () => clearTimeout(timer)
+  }, [channel, gw, qr, sessionId, stage])
 
-    if (!field) {
-      return
-    }
-
-    if (key.escape) {
-      back()
-
-      return
-    }
-
-    if (key.return) {
-      if (fieldIdx < fields.length - 1) {
-        setFieldIdx(v => v + 1)
-
-        return
-      }
-
-      save()
-
-      return
-    }
-
-    if (key.backspace || key.delete) {
-      setValues(prev => ({ ...prev, [field.key]: (prev[field.key] ?? '').slice(0, -1) }))
-
-      return
-    }
-
-    if (key.ctrl && ch === 'u') {
-      setValues(prev => ({ ...prev, [field.key]: '' }))
-
-      return
-    }
-
-    if (ch && !key.ctrl && !key.meta && ch.length === 1 && ch >= ' ') {
-      setValues(prev => ({ ...prev, [field.key]: (prev[field.key] ?? '') + ch }))
-    }
+  useChannelSetupInput({
+    back,
+    channel,
+    channelIdx,
+    channels,
+    field,
+    fieldIdx,
+    fields,
+    loading,
+    onClose,
+    resetToChannelList,
+    save,
+    saving,
+    setChannelIdx,
+    setFieldIdx,
+    setStage,
+    setValues,
+    stage,
+    startQr
   })
 
   if (loading) {
-    return <Text color={t.color.muted}>loading channels…</Text>
+    return <ChannelSetupLoading t={t} />
   }
 
   if (err && stage === 'channel') {
-    return (
-      <Box flexDirection="column" width={width}>
-        <Text color={t.color.label}>error: {err}</Text>
-        <OverlayHint t={t}>Esc/q cancel</OverlayHint>
-      </Box>
-    )
+    return <ChannelSetupError err={err} t={t} width={width} />
   }
 
   if (!channels.length) {
-    return (
-      <Box flexDirection="column" width={width}>
-        <Text color={t.color.muted}>no channels available</Text>
-        <OverlayHint t={t}>Esc/q cancel</OverlayHint>
-      </Box>
-    )
+    return <ChannelSetupEmpty t={t} width={width} />
+  }
+
+  if (stage === 'qr' && channel) {
+    return <ChannelQrSetupView channel={channel} err={err} qr={qr} qrLoading={qrLoading} t={t} width={width} />
   }
 
   if (stage === 'fields' && channel && field) {
     const value = values[field.key] ?? ''
-    const shown = field.secret && value ? '•'.repeat(Math.min(value.length, 40)) : value
 
     return (
-      <Box flexDirection="column" width={width}>
-        <Text bold color={t.color.accent} wrap="truncate-end">
-          Configure {channel.label}
-        </Text>
-        <Text color={t.color.muted} wrap="truncate-end">
-          {fieldIdx + 1}/{fields.length} · {field.label || field.key}
-        </Text>
-        <Text color={t.color.muted} wrap="truncate-end">
-          {field.description || ' '}
-        </Text>
-        <Text color={t.color.accent} wrap="truncate-end">
-          {shown || '(empty)'}
-          {saving ? '' : '▎'}
-        </Text>
-        <Text color={err ? t.color.label : t.color.muted} wrap="truncate-end">
-          {err ? `error: ${err}` : saving ? 'saving…' : ' '}
-        </Text>
-        <OverlayHint t={t}>Enter next/save · Ctrl+U clear · Esc back</OverlayHint>
-      </Box>
+      <ChannelFieldsView
+        channel={channel}
+        err={err}
+        field={field}
+        fieldCount={fields.length}
+        fieldIdx={fieldIdx}
+        saving={saving}
+        t={t}
+        value={value}
+        width={width}
+      />
     )
   }
 
   if (stage === 'saved' && channel) {
-    return (
-      <Box flexDirection="column" width={width}>
-        <Text bold color={t.color.accent} wrap="truncate-end">
-          {channel.label} saved
-        </Text>
-        <Text color={t.color.muted} wrap="truncate-end">
-          You can start or refresh the backend gateway after updating channel credentials.
-        </Text>
-        <OverlayHint t={t}>Enter/Esc back · q close</OverlayHint>
-      </Box>
-    )
+    return <ChannelSavedView channel={channel} t={t} width={width} />
   }
 
-  const rows = channels.map(c => {
-    const status = c.configured ? 'configured' : 'not configured'
-
-    return `${c.label} · ${status}`
-  })
-
-  const { items, offset } = windowItems(rows, channelIdx, VISIBLE)
-
-  return (
-    <Box flexDirection="column" width={width}>
-      <Text bold color={t.color.accent} wrap="truncate-end">
-        Channel setup
-      </Text>
-      <Text color={t.color.muted} wrap="truncate-end">
-        Domestic channels only · Enter configure
-      </Text>
-      <Text color={t.color.muted} wrap="truncate-end">
-        {offset > 0 ? ` ↑ ${offset} more` : ' '}
-      </Text>
-      {Array.from({ length: VISIBLE }, (_, i) => {
-        const row = items[i]
-        const idx = offset + i
-
-        return row ? (
-          <Text
-            bold={channelIdx === idx}
-            color={channelIdx === idx ? t.color.accent : t.color.muted}
-            inverse={channelIdx === idx}
-            key={channels[idx]?.key ?? `row-${idx}`}
-            wrap="truncate-end"
-          >
-            {channelIdx === idx ? '▸ ' : '  '}
-            {idx + 1}. {row}
-          </Text>
-        ) : (
-          <Text color={t.color.muted} key={`pad-${i}`} wrap="truncate-end">
-            {' '}
-          </Text>
-        )
-      })}
-      <Text color={t.color.muted} wrap="truncate-end">
-        {offset + VISIBLE < rows.length ? ` ↓ ${rows.length - offset - VISIBLE} more` : ' '}
-      </Text>
-      <OverlayHint t={t}>↑/↓ select · Enter configure · Esc/q close</OverlayHint>
-    </Box>
-  )
+  return <ChannelListView channelIdx={channelIdx} channels={channels} t={t} visible={VISIBLE} width={width} />
 }
 
 interface ChannelSetupProps {
