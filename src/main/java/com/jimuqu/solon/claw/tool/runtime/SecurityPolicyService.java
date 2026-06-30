@@ -1126,6 +1126,9 @@ public class SecurityPolicyService {
             if (isUrlLikePathToken(path)) {
                 continue;
             }
+            if (isSlashStyleCommandOption(path)) {
+                continue;
+            }
             if (approvedOutputPaths.contains(policyApprovalTarget(path))) {
                 continue;
             }
@@ -1188,6 +1191,17 @@ public class SecurityPolicyService {
                 || "sftp".equals(prefix)
                 || "scp".equals(prefix)
                 || "file".equals(prefix);
+    }
+
+    /**
+     * 判断候选是否为 Windows 命令常见的 slash 短选项，而不是文件路径。
+     *
+     * @param path 路径候选。
+     * @return 如果是单字母 slash 开关返回 true。
+     */
+    private boolean isSlashStyleCommandOption(String path) {
+        String value = StrUtil.nullToEmpty(path).trim();
+        return value.matches("^/[A-Za-z](?::[^/\\\\\\s]*)?$");
     }
 
     /**

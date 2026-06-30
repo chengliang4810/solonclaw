@@ -1764,6 +1764,7 @@ public class SecurityPolicyServiceTest {
 
         assertThat(policy.checkCommandPaths("curl --retry 2 https://example.invalid").isAllowed())
                 .isTrue();
+        assertThat(policy.checkCommandPaths("findstr /n .*").isAllowed()).isTrue();
     }
 
     @Test
