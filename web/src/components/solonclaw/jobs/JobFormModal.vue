@@ -10,11 +10,22 @@ import {
   isDomesticPlatformKey,
   type DomesticPlatformKey,
 } from '@/shared/domesticPlatforms'
+import {
+  JOB_DELIVERY_MODE_OPTIONS,
+  JOB_INTERVAL_UNIT_OPTIONS,
+  JOB_SCHEDULE_KIND_OPTIONS,
+  JOB_SCHEDULE_PRESET_OPTIONS,
+  JOB_SKILL_EDIT_MODE_OPTIONS,
+  JOB_STATE_OPTIONS,
+  translateJobFormOptions,
+  type JobDeliveryMode,
+  type JobIntervalUnit,
+  type JobScheduleKind,
+  type JobSkillEditMode,
+} from '@/shared/jobFormOptions'
 import { hasText, joinTextList, splitTrimmedText, trimText } from '@/shared/text'
 
 const { t } = useI18n()
-
-type DeliveryMode = 'origin' | 'local' | 'platform' | 'specific' | 'multi'
 
 const props = defineProps<{
   jobId: string | null
@@ -55,64 +66,30 @@ const formData = ref({
 })
 
 const presetValue = ref<string | null>(null)
-const scheduleKind = ref<'cron' | 'interval' | 'once'>('cron')
+const scheduleKind = ref<JobScheduleKind>('cron')
 const intervalAmount = ref<number | null>(30)
-const intervalUnit = ref<'m' | 'h' | 'd'>('m')
-const deliveryMode = ref<DeliveryMode>('local')
+const intervalUnit = ref<JobIntervalUnit>('m')
+const deliveryMode = ref<JobDeliveryMode>('local')
 const deliveryPlatform = ref<DomesticPlatformKey>('feishu')
 const deliveryMultiText = ref('')
-const skillEditMode = ref<'replace' | 'merge' | 'clear'>('replace')
+const skillEditMode = ref<JobSkillEditMode>('replace')
 const addSkillsText = ref('')
 const removeSkillsText = ref('')
 
 const isEdit = computed(() => !!props.jobId)
 
-const scheduleKindOptions = computed(() => [
-  { label: t('jobs.scheduleKindCron'), value: 'cron' },
-  { label: t('jobs.scheduleKindInterval'), value: 'interval' },
-  { label: t('jobs.scheduleKindOnce'), value: 'once' },
-])
-
-const intervalUnitOptions = computed(() => [
-  { label: t('jobs.intervalMinutes'), value: 'm' },
-  { label: t('jobs.intervalHours'), value: 'h' },
-  { label: t('jobs.intervalDays'), value: 'd' },
-])
-
-const stateOptions = computed(() => [
-  { label: t('jobs.stateScheduled'), value: 'scheduled' },
-  { label: t('jobs.statePaused'), value: 'paused' },
-  { label: t('jobs.stateCompleted'), value: 'completed' },
-])
-
-const deliveryModeOptions = computed(() => [
-  { label: t('jobs.deliveryModeOrigin'), value: 'origin' },
-  { label: t('jobs.deliveryModeLocal'), value: 'local' },
-  { label: t('jobs.deliveryModePlatform'), value: 'platform' },
-  { label: t('jobs.deliveryModeSpecific'), value: 'specific' },
-  { label: t('jobs.deliveryModeMulti'), value: 'multi' },
-])
+const scheduleKindOptions = computed(() => translateJobFormOptions(t, JOB_SCHEDULE_KIND_OPTIONS))
+const intervalUnitOptions = computed(() => translateJobFormOptions(t, JOB_INTERVAL_UNIT_OPTIONS))
+const stateOptions = computed(() => translateJobFormOptions(t, JOB_STATE_OPTIONS))
+const deliveryModeOptions = computed(() => translateJobFormOptions(t, JOB_DELIVERY_MODE_OPTIONS))
 
 const deliveryPlatformOptions = computed(() => DOMESTIC_PLATFORM_KEYS.map(value => ({
   label: t(DOMESTIC_PLATFORM_LABEL_KEYS[value]),
   value,
 })))
 
-const skillEditModeOptions = computed(() => [
-  { label: t('jobs.skillEditReplace'), value: 'replace' },
-  { label: t('jobs.skillEditMerge'), value: 'merge' },
-  { label: t('jobs.skillEditClear'), value: 'clear' },
-])
-
-const schedulePresets = computed(() => [
-  { label: t('jobs.presetEveryMinute'), value: '* * * * *' },
-  { label: t('jobs.presetEvery5Min'), value: '*/5 * * * *' },
-  { label: t('jobs.presetEveryHour'), value: '0 * * * *' },
-  { label: t('jobs.presetEveryDay'), value: '0 0 * * *' },
-  { label: t('jobs.presetEveryDay9'), value: '0 9 * * *' },
-  { label: t('jobs.presetEveryMonday'), value: '0 9 * * 1' },
-  { label: t('jobs.presetEveryMonth'), value: '0 9 1 * *' },
-])
+const skillEditModeOptions = computed(() => translateJobFormOptions(t, JOB_SKILL_EDIT_MODE_OPTIONS))
+const schedulePresets = computed(() => translateJobFormOptions(t, JOB_SCHEDULE_PRESET_OPTIONS))
 
 function editableScheduleValue(schedule: any, fallback: string) {
   if (!schedule || typeof schedule === 'string') return schedule || fallback
@@ -219,7 +196,7 @@ function inferDeliveryControls(
 
   const target = splitDeliveryTarget(value)
   if ((target.platform === 'origin' || target.platform === 'local') && !chatId && !threadId && !target.chatId) {
-    deliveryMode.value = target.platform as DeliveryMode
+    deliveryMode.value = target.platform
     deliveryMultiText.value = ''
     return
   }
