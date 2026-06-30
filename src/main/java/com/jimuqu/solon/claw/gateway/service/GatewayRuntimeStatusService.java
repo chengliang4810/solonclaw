@@ -215,10 +215,6 @@ public class GatewayRuntimeStatusService {
         if (pid == null || pid.longValue() <= 0L) {
             return false;
         }
-        if (!isProcessAlive(pid.longValue())) {
-            return false;
-        }
-
         String kind = safeText(record.get("kind"));
         if (!GATEWAY_KIND.equals(kind)) {
             return false;
@@ -227,6 +223,9 @@ public class GatewayRuntimeStatusService {
         long currentPid = RuntimeProcessSupport.currentPidOrUnknown();
         if (pid.longValue() == currentPid) {
             return matchesCurrentProcess(record);
+        }
+        if (!isProcessAlive(pid.longValue())) {
+            return false;
         }
 
         return matchesOtherProcess(record, pid.longValue());
