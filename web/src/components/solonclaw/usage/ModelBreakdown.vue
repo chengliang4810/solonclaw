@@ -1,9 +1,13 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
+const maxTokens = computed(() =>
+  Math.max(...usageStore.modelUsage.map(m => m.totalTokens), 1),
+)
 
 function formatTokens(n: number): string {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
@@ -26,7 +30,7 @@ function formatCost(micros: number, currency: string): string {
         <div class="model-bar-wrap">
           <div
             class="model-bar"
-            :style="{ width: (m.totalTokens / usageStore.modelUsage[0].totalTokens * 100) + '%' }"
+            :style="{ width: (m.totalTokens / maxTokens * 100) + '%' }"
           />
         </div>
         <span class="model-cache">
