@@ -75,6 +75,13 @@ export const connectedMcpServerCount = (servers: readonly McpServerStatus[] = []
 
 export const mcpHeadlineSuffix = (connected: number) => (connected ? ` · ${connected} MCP` : '')
 
+export const collapseToggleMeta = (count?: number, suffix?: string) => {
+  const countLabel = typeof count === 'number' ? ` (${count})` : ''
+  const suffixLabel = suffix ? ` ${suffix}` : ''
+
+  return `${countLabel}${suffixLabel}`
+}
+
 function CompactBanner({ cols, t }: { cols: number; t: Theme }) {
   // -4 keeps a margin so exact-edge rows don't trip terminal pending-wrap.
   const w = Math.max(28, cols - 4)
@@ -142,18 +149,15 @@ function CollapseToggle({
   title: string
   onToggle: () => void
 }) {
+  const meta = collapseToggleMeta(count, suffix)
+
   return (
     <Box onClick={onToggle}>
       <Text color={t.color.accent}>{open ? '▾ ' : '▸ '}</Text>
       <Text bold color={t.color.accent}>
         {title}
       </Text>
-      {typeof count === 'number' ? (
-        <Text color={t.color.muted}> ({count})</Text>
-      ) : null}
-      {suffix ? (
-        <Text color={t.color.muted}> {suffix}</Text>
-      ) : null}
+      {meta ? <Text color={t.color.muted}>{meta}</Text> : null}
     </Box>
   )
 }
