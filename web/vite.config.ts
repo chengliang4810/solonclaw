@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
+const backendTarget = process.env.SOLONCLAW_SERVER_URL || 'http://127.0.0.1:8080'
+
 export default defineConfig({
   plugins: [vue()],
   define: {
@@ -28,9 +30,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:8080',
-      '/health': 'http://127.0.0.1:8080',
-      '/upload': 'http://127.0.0.1:8080',
+      '/api': backendTarget,
+      '/health': backendTarget,
+      '/upload': backendTarget,
     },
   },
 })
