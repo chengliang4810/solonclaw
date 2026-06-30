@@ -12,15 +12,17 @@ const sharedPanel = readFileSync(sharedPanelFile, 'utf8')
 assert.ok(settings.includes('ChannelQrPanel'), 'PlatformSettings should render QR login through the shared panel')
 assert.equal(
   (settings.match(/<ChannelQrPanel/g) || []).length,
-  3,
-  'Feishu, DingTalk, and Weixin should each use the shared QR panel once',
+  1,
+  'Feishu, DingTalk, and Weixin should share one configured QR panel call site',
 )
 assert.ok(
   !settings.includes('class="channel-qr-section"'),
   'PlatformSettings should not keep duplicated channel QR section markup',
 )
-assert.ok(settings.includes(':domain="getCreds(\'feishu\').domain"'), 'Feishu QR should keep the confirmed domain display')
-assert.ok(settings.includes('show-empty-status'), 'Weixin QR should keep empty-image hint and error states')
+assert.ok(settings.includes('isQrPanelPlatform(p.key)'), 'PlatformSettings should gate QR panels through a platform predicate')
+assert.ok(settings.includes(':domain="qrPanelDomain(p.key)"'), 'Feishu QR should keep the confirmed domain display through config')
+assert.ok(settings.includes(':show-empty-status="shouldShowQrEmptyStatus(p.key)"'), 'Weixin QR should keep empty-image hint and error states through config')
+assert.ok(settings.includes('@start="startQrLogin(p.key)"'), 'Configured QR panel should start the selected platform login')
 assert.ok(sharedPanel.includes('state.status === \'loading\''), 'Shared QR panel should keep the loading state')
 assert.ok(sharedPanel.includes('canStartQrLogin(state.status)'), 'Shared QR panel should keep the restart button state guard')
 assert.ok(sharedPanel.includes('target="_blank"'), 'Shared QR panel should keep external QR link target')

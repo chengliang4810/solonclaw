@@ -9,8 +9,8 @@ assert.ok(settings.includes('PlatformTextSettingRow'), 'Primary platform setting
 assert.ok(settings.includes('PlatformSwitchSettingRow'), 'Primary platform settings should import the shared switch row')
 assert.equal(
   (settings.match(/<PlatformSwitchSettingRow/g) || []).length,
-  5,
-  'Feishu, DingTalk, and Weixin should render switch fields through the shared switch row',
+  3,
+  'Primary platform settings should render repeated channel switches through one configured row and mention switches through shared rows',
 )
 assert.equal(
   (settings.match(/<PlatformTextSettingRow/g) || []).length,
