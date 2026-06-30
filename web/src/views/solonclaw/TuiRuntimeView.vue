@@ -4,11 +4,15 @@ import { Button, Spin, Tag, message } from 'antdv-next'
 import {
   fetchTuiRuntimeOverview,
   TuiRuntimeRpcError,
-  type TuiChannelStatus,
   type TuiRuntimeOverview,
 } from '@/api/solonclaw/tuiRuntime'
-
-type StatusTone = 'success' | 'warning' | 'default'
+import {
+  providerAuthColor,
+  providerAuthLabel,
+  requiredSummary,
+  statusLabel,
+  statusTone,
+} from '@/shared/tuiRuntimeDisplay'
 
 const text = {
   apiKey: 'API Key',
@@ -71,34 +75,6 @@ async function loadOverview(): Promise<void> {
   }
 }
 
-function statusTone(status: string | undefined): StatusTone {
-  if (status === 'configured') return 'success'
-  if (status === 'missing_config') return 'warning'
-  return 'default'
-}
-
-function statusLabel(status: string | undefined): string {
-  if (status === 'configured') return text.configured
-  if (status === 'missing_config') return text.missingConfig
-  if (status === 'disabled') return text.disabled
-  return status || text.noData
-}
-
-function providerAuthLabel(authenticated: boolean | undefined): string {
-  return authenticated ? text.authenticated : text.unauthenticated
-}
-
-function providerAuthColor(authenticated: boolean | undefined): StatusTone {
-  return authenticated ? 'success' : 'default'
-}
-
-function requiredSummary(channel: TuiChannelStatus): string {
-  const requiredKeys = channel.required_keys ?? []
-  const configured = channel.required_configured ?? {}
-  const ready = requiredKeys.filter((key) => configured[key] === true).length
-  return `${ready}/${requiredKeys.length}`
-}
-
 function timestampText(value: number | undefined): string {
   if (!value) return text.noData
   return new Date(value).toLocaleString()
@@ -155,7 +131,7 @@ function jsonText(value: unknown): string {
             <div class="card-heading">
               <span>{{ text.modelRuntime }}</span>
               <Tag :color="providerAuthColor(currentProvider?.authenticated)" size="small">
-                {{ providerAuthLabel(currentProvider?.authenticated) }}
+                {{ providerAuthLabel(currentProvider?.authenticated, text) }}
               </Tag>
             </div>
             <div class="model-current">
@@ -177,7 +153,7 @@ function jsonText(value: unknown): string {
                 <div class="provider-tags">
                   <Tag v-if="provider.is_current" color="success" size="small">{{ text.current }}</Tag>
                   <Tag :color="providerAuthColor(provider.authenticated)" size="small">
-                    {{ providerAuthLabel(provider.authenticated) }}
+                    {{ providerAuthLabel(provider.authenticated, text) }}
                   </Tag>
                   <span class="model-count">{{ provider.total_models ?? 0 }} {{ text.models }}</span>
                 </div>
@@ -201,7 +177,7 @@ function jsonText(value: unknown): string {
                   <span>{{ text.requiredFields }} {{ requiredSummary(channel) }}</span>
                 </div>
                 <Tag :color="statusTone(channel.status)" size="small">
-                  {{ statusLabel(channel.status) }}
+                  {{ statusLabel(channel.status, text) }}
                 </Tag>
               </div>
             </div>
