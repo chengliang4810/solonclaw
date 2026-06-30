@@ -5,6 +5,8 @@ import {
   humanizeGuideToken,
   humanizeJobToken,
   inferJobScheduleKind,
+  jobActionSummary,
+  jobAliasSummary,
   jobListDetail,
   jobMapKeysText,
   jobScheduleLabel,
@@ -18,6 +20,16 @@ import {
 } from '../src/shared/jobsDisplay.ts'
 
 const labels: Record<string, string> = {
+  'common.delete': '删除',
+  'common.edit': '编辑',
+  'jobs.action.history': '历史',
+  'jobs.action.pause': '暂停',
+  'jobs.action.resume': '恢复',
+  'jobs.action.retry': '重试',
+  'jobs.action.runNow': '立即运行',
+  'jobs.alias.disableStop': '停用/停止',
+  'jobs.alias.enableStart': '启用/启动',
+  'jobs.alias.retryRerun': '重试/重跑',
   'jobs.humanize.cron': 'Cron 表达式',
   'jobs.humanize.interval': '间隔执行',
   'jobs.humanize.local': '本地会话',
@@ -64,10 +76,24 @@ assert.equal(jobStatusTone({ state: 'running', enabled: true }), 'info')
 assert.equal(jobStatusTone({ state: 'paused', enabled: true }), 'warning')
 assert.equal(jobStatusTone({ state: 'idle', enabled: false }), 'error')
 assert.equal(jobStatusTone({ state: 'idle', enabled: true }), 'success')
+assert.equal(
+  jobActionSummary(t, { can_pause: true, can_run: true, can_history: true, can_edit: true, can_remove: true }),
+  '暂停、立即运行、历史、编辑、删除',
+)
+assert.equal(jobActionSummary(t, { can_run: false, can_history: false, can_edit: false, can_remove: false }), '—')
+assert.equal(
+  jobAliasSummary(t, { supports_enable_alias: true, supports_disable_alias: true, supports_rerun_alias: true }),
+  '启用/启动、停用/停止、重试/重跑',
+)
+assert.equal(jobAliasSummary(t, {}), '—')
 assert.equal(formatJobTime(null), '—')
 assert.equal(jobListDetail(['a', 'b']), 'a, b')
 assert.equal(jobListDetail([]), '—')
 assert.equal(joinJobDetailParts(['local', '', undefined, '#thread']), 'local · #thread')
 assert.ok(!jobCard.includes("props.job.state === 'running'"), 'JobCard should not inline job status state branches')
+assert.ok(!jobCard.includes("actions.push(t('jobs.action.pause'))"), 'JobCard should not inline action summary labels')
+assert.ok(!jobCard.includes("aliases.push(t('jobs.alias.enableStart'))"), 'JobCard should not inline alias summary labels')
 assert.ok(jobCard.includes('jobStatusLabel(t, props.job)'), 'JobCard should reuse shared job status labels')
 assert.ok(jobCard.includes('jobStatusTone(props.job)'), 'JobCard should reuse shared job status tones')
+assert.ok(jobCard.includes('jobActionSummary(t, actionFlags.value)'), 'JobCard should reuse shared action summaries')
+assert.ok(jobCard.includes('jobAliasSummary(t, actionFlags.value)'), 'JobCard should reuse shared alias summaries')

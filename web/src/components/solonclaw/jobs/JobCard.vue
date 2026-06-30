@@ -8,6 +8,8 @@ import {
   formatJobTime,
   humanizeJobToken,
   inferJobScheduleKind,
+  jobActionSummary,
+  jobAliasSummary,
   jobListDetail,
   jobScheduleLabel,
   jobStatusLabel,
@@ -46,25 +48,8 @@ const canInspect = computed(() => actionFlags.value.can_inspect !== false)
 const canEdit = computed(() => actionFlags.value.can_edit !== false)
 const canRemove = computed(() => actionFlags.value.can_remove !== false)
 
-const actionSummary = computed(() => {
-  const actions: string[] = []
-  if (actionFlags.value.can_pause) actions.push(t('jobs.action.pause'))
-  if (actionFlags.value.can_resume) actions.push(t('jobs.action.resume'))
-  if (actionFlags.value.can_run !== false) actions.push(t('jobs.action.runNow'))
-  if (actionFlags.value.can_retry) actions.push(t('jobs.action.retry'))
-  if (actionFlags.value.can_history !== false) actions.push(t('jobs.action.history'))
-  if (actionFlags.value.can_edit !== false) actions.push(t('common.edit'))
-  if (actionFlags.value.can_remove !== false) actions.push(t('common.delete'))
-  return actions.length ? actions.join('、') : '—'
-})
-
-const aliasSummary = computed(() => {
-  const aliases: string[] = []
-  if (actionFlags.value.supports_enable_alias) aliases.push(t('jobs.alias.enableStart'))
-  if (actionFlags.value.supports_disable_alias) aliases.push(t('jobs.alias.disableStop'))
-  if (actionFlags.value.supports_rerun_alias) aliases.push(t('jobs.alias.retryRerun'))
-  return aliases.length ? aliases.join('、') : '—'
-})
+const actionSummary = computed(() => jobActionSummary(t, actionFlags.value))
+const aliasSummary = computed(() => jobAliasSummary(t, actionFlags.value))
 
 const scheduleExpr = computed(() => jobScheduleLabel(props.job))
 const scheduleKind = computed(() => inferJobScheduleKind(props.job))

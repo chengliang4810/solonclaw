@@ -15,6 +15,19 @@ export interface JobStatusSource {
   state?: string | null
 }
 
+export interface JobActionFlagsSource {
+  can_edit?: boolean
+  can_history?: boolean
+  can_pause?: boolean
+  can_remove?: boolean
+  can_resume?: boolean
+  can_retry?: boolean
+  can_run?: boolean
+  supports_disable_alias?: boolean
+  supports_enable_alias?: boolean
+  supports_rerun_alias?: boolean
+}
+
 export type JobStatusTone = 'success' | 'info' | 'warning' | 'error'
 
 export interface HumanizeJobTokenOptions {
@@ -130,6 +143,26 @@ export function jobStatusTone(job: JobStatusSource): JobStatusTone {
   if (job.state === 'paused') return 'warning'
   if (!job.enabled) return 'error'
   return 'success'
+}
+
+export function jobActionSummary(t: DashboardTranslator, actions: JobActionFlagsSource): string {
+  const labels: string[] = []
+  if (actions.can_pause) labels.push(t('jobs.action.pause'))
+  if (actions.can_resume) labels.push(t('jobs.action.resume'))
+  if (actions.can_run !== false) labels.push(t('jobs.action.runNow'))
+  if (actions.can_retry) labels.push(t('jobs.action.retry'))
+  if (actions.can_history !== false) labels.push(t('jobs.action.history'))
+  if (actions.can_edit !== false) labels.push(t('common.edit'))
+  if (actions.can_remove !== false) labels.push(t('common.delete'))
+  return labels.length ? labels.join('、') : '—'
+}
+
+export function jobAliasSummary(t: DashboardTranslator, actions: JobActionFlagsSource): string {
+  const labels: string[] = []
+  if (actions.supports_enable_alias) labels.push(t('jobs.alias.enableStart'))
+  if (actions.supports_disable_alias) labels.push(t('jobs.alias.disableStop'))
+  if (actions.supports_rerun_alias) labels.push(t('jobs.alias.retryRerun'))
+  return labels.length ? labels.join('、') : '—'
 }
 
 /**
