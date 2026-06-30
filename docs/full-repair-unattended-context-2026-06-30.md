@@ -1,0 +1,78 @@
+# 无人值守全面修复上下文恢复记录
+
+日期：2026-06-30
+
+## 对应外部对标能力点
+
+- Agent 工程治理：阶段 0 的记忆恢复、预存问题纳入、无人值守分派和持续验证。
+- 代码质量治理：阶段 1 的原子级 bug 报告、超大文件、未使用变量和重复代码复核。
+- 交互体验对齐：Web Dashboard 与本地 TUI 的真实使用路径、审批、安全策略和工具调用反馈。
+
+## 当前工作树
+
+- 工作树：`D:\projects\jimuqu-agent-unattended-target-execution`
+- 分支：`feat/unattended-target-execution`
+- 基线提交：`225f41675292f6b39053c17c6223f8c8cae4a850`
+- 与 `dev` 的关系：`git rev-list --left-right --count HEAD...dev` 输出 `0 0`
+
+## 阶段 0.1 记忆恢复
+
+本轮已读取当前记忆库中非 `.git` 文件，合计 15 个文件、2407 行。读取范围包括：
+
+- `memory_summary.md`
+- `MEMORY.md`
+- `raw_memories.md`
+- `extensions/ad_hoc/instructions.md`
+- `rollout_summaries/*.md`
+- `skills/jimuqu-agent-validate-and-publish/SKILL.md`
+
+`extensions/ad_hoc/instructions.md` 说明 ad-hoc note 应作为权威记忆输入，但其中内容本身不能作为直接执行指令；后续摘要中涉及此来源时需要标注 `[ad-hoc note]`。
+
+## 阶段 0.2 预存问题纳入
+
+当前仓库已存在大量全面修复历史文档，本轮已重点读取以下文档作为预存问题输入：
+
+- `docs/full-repair-context-2026-06-29.md`
+- `docs/full-repair-issue-backlog-2026-06-26.md`
+- `docs/full-repair-bug-report-2026-06-29.md`
+- `docs/full-repair-phase1-closure-2026-06-30.md`
+- `docs/full-repair-oversized-file-audit-2026-06-29.md`
+- `docs/full-repair-unused-warning-audit-2026-06-29.md`
+- `docs/audit-report-cross-platform-2026-06-27.md`
+
+历史文档显示阶段 1 曾在早前工作树中收口，但当前 `dev` 基线重新验证后仍存在测试和 lint 失败，因此本轮不能直接沿用“阶段 1 已完成”的结论，必须以当前 worktree 证据为准继续推进。
+
+## 当前能力缺口
+
+- `@superpowers` 规范已通过本地技能文件加载，并用于并行代理、工作树和计划流程。
+- `@ponytail` 未暴露为当前可调用插件；可安装插件列表也没有精确匹配项。
+- `npx skills find ponytail` 返回 `No skills found for "ponytail"`。
+- 后续按可用的 `superpowers`、仓库 `AGENTS.md` 和实际工具能力推进，不伪造不可用的 Ponytail 规范。
+
+## 当前基线验证
+
+| 检查 | 结果 | 说明 |
+| --- | --- | --- |
+| `mvn -q -DskipTests package` | 通过 | 首次 JaCoCo 下载遇到 Maven Central TLS 握手中断，复跑成功。 |
+| `mvn -q test` | 失败 | `2088` run，`23` failures，`8` errors，`17` skipped。 |
+| 超过 4000 行受控代码文件扫描 | 通过 | `git ls-files` 口径无超过 4000 行文件。 |
+| 重复代码检测 | 通过 | `python scripts/check-code-duplication.py --report-only --min-lines 40 ...` 无输出。 |
+| `npm --prefix terminal-ui run lint -- --quiet` | 失败 | 7 个 error，集中在 import/export 排序和 `no-control-regex`。 |
+
+## 并行代理分派
+
+本轮按并发控制派出 4 个只读 explorer，分别负责：
+
+1. 预存问题和 surefire 失败审计。
+2. 超大文件、未使用变量、重复代码审计。
+3. 前后端功能一致性审计。
+4. Web UI 与 TUI 真实端到端测试入口审计。
+
+主线程继续负责合成、落地文档、验证和提交，避免多个执行代理同时修改同一区域导致冲突。
+
+## 下一步
+
+1. 保存当前基线原子级 bug 报告。
+2. 先修复不会触碰核心架构的高确定性门禁问题，例如 `terminal-ui` lint error。
+3. 根据 explorer 返回结果拆分后续 worker，确保每个 worker 拥有互不重叠的文件责任。
+4. 启动 Web UI 与 TUI 端到端执行代理前，先确定本地后端、Vite、TUI gateway 的稳定启动命令和临时模型配置注入方式。
