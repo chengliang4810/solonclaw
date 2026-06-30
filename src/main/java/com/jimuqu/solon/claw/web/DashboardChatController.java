@@ -35,11 +35,9 @@ public class DashboardChatController {
         try {
             return chatService.uploads(file);
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("CHAT_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "CHAT_BAD_REQUEST", e);
         } catch (Exception e) {
-            context.status(500);
-            return DashboardResponse.error("CHAT_FAILED", e.getMessage());
+            return DashboardResponse.error(context, 500, "CHAT_FAILED", e);
         }
     }
 
@@ -54,11 +52,9 @@ public class DashboardChatController {
         try {
             return chatService.startRun(DashboardRequestBodies.jsonObject(context));
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("CHAT_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "CHAT_BAD_REQUEST", e);
         } catch (Exception e) {
-            context.status(500);
-            return DashboardResponse.error("CHAT_FAILED", e.getMessage());
+            return DashboardResponse.error(context, 500, "CHAT_FAILED", e);
         }
     }
 
@@ -85,8 +81,7 @@ public class DashboardChatController {
         try {
             return chatService.cancelRun(runId);
         } catch (IllegalArgumentException e) {
-            context.status(404);
-            return DashboardResponse.error("CHAT_NOT_FOUND", e.getMessage());
+            return DashboardResponse.error(context, 404, "CHAT_NOT_FOUND", e);
         }
     }
 }

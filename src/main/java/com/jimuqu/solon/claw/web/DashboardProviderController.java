@@ -64,8 +64,7 @@ public class DashboardProviderController {
         try {
             return providerService.createProvider(DashboardRequestBodies.jsonObjectMap(context));
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }
     }
 
@@ -81,11 +80,9 @@ public class DashboardProviderController {
             return DashboardResponse.ok(
                     providerService.listRemoteModels(DashboardRequestBodies.jsonObjectMap(context)));
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("PROVIDER_MODELS_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "PROVIDER_MODELS_BAD_REQUEST", e);
         } catch (IllegalStateException e) {
-            context.status(502);
-            return DashboardResponse.error("PROVIDER_MODELS_FETCH_FAILED", e.getMessage());
+            return DashboardResponse.error(context, 502, "PROVIDER_MODELS_FETCH_FAILED", e);
         }
     }
 
@@ -101,8 +98,7 @@ public class DashboardProviderController {
             return DashboardResponse.ok(
                     providerService.validateProvider(DashboardRequestBodies.jsonObjectMap(context)));
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("PROVIDER_VALIDATE_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "PROVIDER_VALIDATE_BAD_REQUEST", e);
         }
     }
 
@@ -119,8 +115,7 @@ public class DashboardProviderController {
             return providerService.updateProvider(
                     providerKey, DashboardRequestBodies.jsonObjectMap(context));
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }
     }
 
@@ -136,8 +131,7 @@ public class DashboardProviderController {
         try {
             return providerService.deleteProvider(providerKey);
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }
     }
 
@@ -155,8 +149,7 @@ public class DashboardProviderController {
                     body.get("providerKey") == null ? "" : String.valueOf(body.get("providerKey")),
                     body.get("model") == null ? "" : String.valueOf(body.get("model")));
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }
     }
 
@@ -174,8 +167,7 @@ public class DashboardProviderController {
             return providerService.updateFallbackProviders(
                     items instanceof List ? (List<Map<String, Object>>) items : null);
         } catch (IllegalArgumentException e) {
-            context.status(400);
-            return DashboardResponse.error("PROVIDER_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }
     }
 }
