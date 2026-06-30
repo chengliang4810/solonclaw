@@ -95,6 +95,18 @@ const qrStates = reactive<Record<ChannelQrPlatform, QrState>>({
   weixin: { url: '', imageUrl: '', message: '', id: '', status: 'idle', failures: 0, timer: null },
 })
 
+function isQrPanelPlatform(platform: string): platform is ChannelQrPlatform {
+  return platform === 'feishu' || platform === 'dingtalk' || platform === 'weixin'
+}
+
+function qrPanelDomain(platform: string) {
+  return platform === 'feishu' ? getCreds('feishu').domain : ''
+}
+
+function shouldShowQrEmptyStatus(platform: string) {
+  return platform === 'weixin'
+}
+
 async function updateQrSource(state: QrState, raw: string) {
   const value = (raw || '').trim()
   if (!value || value === state.url) return
@@ -193,13 +205,17 @@ onUnmounted(() => {
       :config="settingsStore[p.key as keyof typeof settingsStore] as Record<string, any>"
       :credentials="getCreds(p.key)"
     >
-      <template v-if="p.key === 'feishu'">
-        <PlatformSwitchSettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')" :value="Boolean(getCreds('feishu').enabled)" :loading="isSaving('feishu', 'enabled')" @change="v => saveCredentials('feishu', 'enabled', { enabled: v })" />
+      <template v-if="isQrPanelPlatform(p.key)">
+        <PlatformSwitchSettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')" :value="Boolean(getCreds(p.key).enabled)" :loading="isSaving(p.key, 'enabled')" @change="v => saveCredentials(p.key, 'enabled', { enabled: v })" />
         <ChannelQrPanel
-          :state="qrStates.feishu"
-          :domain="getCreds('feishu').domain"
-          @start="startQrLogin('feishu')"
+          :state="qrStates[p.key]"
+          :domain="qrPanelDomain(p.key)"
+          :show-empty-status="shouldShowQrEmptyStatus(p.key)"
+          @start="startQrLogin(p.key)"
         />
+      </template>
+
+      <template v-if="p.key === 'feishu'">
         <PlatformTextSettingRow :label="t('platform.appId')" :hint="t('platform.appIdHint')" :value="String(getCreds('feishu').extra?.app_id || '')" :loading="isSaving('feishu', 'app_id')" placeholder="请输入飞书应用 ID" @change="v => saveCredentials('feishu', 'app_id', { extra: { ...getCreds('feishu').extra, app_id: v } })" />
         <PlatformTextSettingRow :label="t('platform.appSecret')" :hint="t('platform.appSecretHint')" :value="String(getCreds('feishu').extra?.app_secret || '')" :loading="isSaving('feishu', 'app_secret')" placeholder="请输入应用密钥" @change="v => saveCredentials('feishu', 'app_secret', { extra: { ...getCreds('feishu').extra, app_secret: v } })" />
         <PlatformSwitchSettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')" :value="settingsStore.feishu.requireMention !== false" :loading="isSaving('feishu', 'requireMention')" @change="v => saveChannel('feishu', 'requireMention', { requireMention: v })" />
@@ -207,11 +223,6 @@ onUnmounted(() => {
       </template>
 
       <template v-if="p.key === 'dingtalk'">
-        <PlatformSwitchSettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')" :value="Boolean(getCreds('dingtalk').enabled)" :loading="isSaving('dingtalk', 'enabled')" @change="v => saveCredentials('dingtalk', 'enabled', { enabled: v })" />
-        <ChannelQrPanel
-          :state="qrStates.dingtalk"
-          @start="startQrLogin('dingtalk')"
-        />
         <PlatformTextSettingRow :label="t('platform.clientId')" :hint="t('platform.clientIdHint')" :value="String(getCreds('dingtalk').extra?.client_id || '')" :loading="isSaving('dingtalk', 'client_id')" placeholder="请输入客户端 ID" @change="v => saveCredentials('dingtalk', 'client_id', { extra: { ...getCreds('dingtalk').extra, client_id: v } })" />
         <PlatformTextSettingRow :label="t('platform.clientSecret')" :hint="t('platform.clientSecretHint')" :value="String(getCreds('dingtalk').extra?.client_secret || '')" :loading="isSaving('dingtalk', 'client_secret')" placeholder="请输入客户端密钥" @change="v => saveCredentials('dingtalk', 'client_secret', { extra: { ...getCreds('dingtalk').extra, client_secret: v } })" />
         <PlatformTextSettingRow label="机器人编码" hint="钉钉机器人编码" :value="String(getCreds('dingtalk').extra?.robot_code || '')" :loading="isSaving('dingtalk', 'robot_code')" placeholder="请输入机器人编码" @change="v => saveCredentials('dingtalk', 'robot_code', { extra: { ...getCreds('dingtalk').extra, robot_code: v } })" />
@@ -220,12 +231,6 @@ onUnmounted(() => {
       </template>
 
       <template v-if="p.key === 'weixin'">
-        <PlatformSwitchSettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')" :value="Boolean(getCreds('weixin').enabled)" :loading="isSaving('weixin', 'enabled')" @change="v => saveCredentials('weixin', 'enabled', { enabled: v })" />
-        <ChannelQrPanel
-          :state="qrStates.weixin"
-          show-empty-status
-          @start="startQrLogin('weixin')"
-        />
         <PlatformTextSettingRow :label="t('platform.weixinToken')" :hint="t('platform.weixinTokenHint')" :value="String(getCreds('weixin').token || '')" :loading="isSaving('weixin', 'token')" placeholder="请输入令牌" @change="v => saveCredentials('weixin', 'token', { token: v })" />
         <PlatformTextSettingRow :label="t('platform.accountId')" :hint="t('platform.accountIdHint')" :value="String(getCreds('weixin').extra?.account_id || '')" :loading="isSaving('weixin', 'account_id')" placeholder="请输入账号 ID" @change="v => saveCredentials('weixin', 'account_id', { extra: { ...getCreds('weixin').extra, account_id: v } })" />
       </template>

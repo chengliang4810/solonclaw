@@ -3,13 +3,19 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
 import { formatUsageCost, formatUsageTokens, usageCostFormatPresets } from '@/shared/usageFormat'
+import { usageStatCardMetrics, type UsageStatCardMetricKey } from '@/shared/usageMetrics'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
 
 interface UsageStatCardItem {
-  readonly key: string
+  readonly key: UsageStatCardMetricKey
   readonly label: string
+  readonly value: string
+  readonly subtext: string
+}
+
+interface UsageStatCardDisplay {
   readonly value: string
   readonly subtext: string
 }
@@ -38,36 +44,34 @@ const statCardItems = computed<readonly UsageStatCardItem[]>(() => {
     ? ` / ${formatUsageTokens(usageStore.unpricedTokens)} ${t('usage.unpricedTokens')}`
     : ''
 
-  return [
-    {
-      key: 'totalTokens',
-      label: t('usage.totalTokens'),
+  const displayByMetric = {
+    totalTokens: {
       value: formatUsageTokens(usageStore.totalTokens),
       subtext: inputOutputSubtext,
     },
-    {
-      key: 'totalSessions',
-      label: t('usage.totalSessions'),
+    totalSessions: {
       value: String(usageStore.totalSessions),
       subtext: t('usage.avgPerDay', { n: usageStore.avgSessionsPerDay.toFixed(1) }),
     },
-    {
-      key: 'cacheHitRate',
-      label: t('usage.cacheHitRate'),
+    cacheHitRate: {
       value: usageStore.cacheHitRate !== null
         ? `${usageStore.cacheHitRate.toFixed(1)}%`
         : EMPTY_METRIC,
       subtext: cacheSubtext,
     },
-    {
-      key: 'estimatedCost',
-      label: t('usage.estimatedCost'),
+    estimatedCost: {
       value: costValue,
       subtext: `${
         usageStore.pricingAvailable ? t('usage.priced') : t('usage.unpriced')
       }${unpricedSubtext}`,
     },
-  ]
+  } satisfies Record<UsageStatCardMetricKey, UsageStatCardDisplay>
+
+  return usageStatCardMetrics.map(metric => ({
+    key: metric.key,
+    label: t(metric.labelKey),
+    ...displayByMetric[metric.key],
+  }))
 })
 </script>
 

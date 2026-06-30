@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
 import { formatUsageCost, formatUsageDateLabel, formatUsageTokens, latestUsageRows } from '@/shared/usageFormat'
+import { dailyUsageTrendMetrics, type DailyUsageTrendMetricKey } from '@/shared/usageMetrics'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
@@ -19,44 +20,33 @@ interface DailyUsageRow {
 }
 
 interface UsageTrendColumn {
-  readonly key: string
+  readonly key: DailyUsageTrendMetricKey
   readonly label: string
   readonly format: (row: DailyUsageRow) => string
 }
+
+type DailyUsageTrendFormatter = (row: DailyUsageRow) => string
 
 const maxTokens = computed(() =>
   Math.max(...usageStore.dailyUsage.map(d => d.tokens), 1),
 )
 const tableRows = computed(() => latestUsageRows(usageStore.dailyUsage))
-const usageTrendColumns = computed<readonly UsageTrendColumn[]>(() => [
-  {
-    key: 'tokens',
-    label: t('usage.tokens'),
-    format: row => formatUsageTokens(row.tokens),
-  },
-  {
-    key: 'cacheRead',
-    label: t('usage.cacheRead'),
-    format: row => formatUsageTokens(row.cacheRead),
-  },
-  {
-    key: 'cacheWrite',
-    label: t('usage.cacheWrite'),
-    format: row => formatUsageTokens(row.cacheWrite),
-  },
-  {
-    key: 'cost',
-    label: t('usage.cost'),
-    format: row => row.pricingAvailable
-      ? formatUsageCost(row.costMicros, row.currency)
-      : t('usage.unpriced'),
-  },
-  {
-    key: 'sessions',
-    label: t('usage.sessions'),
-    format: row => String(row.sessions),
-  },
-])
+const dailyUsageTrendFormatters = {
+  tokens: row => formatUsageTokens(row.tokens),
+  cacheRead: row => formatUsageTokens(row.cacheRead),
+  cacheWrite: row => formatUsageTokens(row.cacheWrite),
+  cost: row => row.pricingAvailable
+    ? formatUsageCost(row.costMicros, row.currency)
+    : t('usage.unpriced'),
+  sessions: row => String(row.sessions),
+} satisfies Record<DailyUsageTrendMetricKey, DailyUsageTrendFormatter>
+const usageTrendColumns = computed<readonly UsageTrendColumn[]>(() =>
+  dailyUsageTrendMetrics.map(metric => ({
+    key: metric.key,
+    label: t(metric.labelKey),
+    format: dailyUsageTrendFormatters[metric.key],
+  })),
+)
 </script>
 
 <template>

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { Modal, Form, FormItem, Input, Button, Select, AutoComplete, message } from 'antdv-next'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import type { AvailableModelGroup } from '@/api/solonclaw/system'
-import { baseUrlPlaceholderForDialect, translateDialectOptions } from '@/shared/providerDisplay'
+import { PROVIDER_FORM_FIELD_LABEL_KEYS, baseUrlPlaceholderForDialect, translateDialectOptions } from '@/shared/providerDisplay'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -142,7 +142,7 @@ function handleClose() {
     @after-leave="emit('close')"
   >
     <Form layout="vertical">
-      <FormItem :label="t('models.providerKey')" required>
+      <FormItem :label="t(PROVIDER_FORM_FIELD_LABEL_KEYS.providerKey)" required>
         <Input
           v-model:value="formData.providerKey"
           :placeholder="t('models.providerKeyPlaceholder')"
@@ -150,21 +150,21 @@ function handleClose() {
         />
       </FormItem>
 
-      <FormItem :label="t('models.name')" required>
+      <FormItem :label="t(PROVIDER_FORM_FIELD_LABEL_KEYS.name)" required>
         <Input
           v-model:value="formData.name"
           :placeholder="t('models.namePlaceholder')"
         />
       </FormItem>
 
-      <FormItem :label="t('models.baseUrl')" required>
+      <FormItem :label="t(PROVIDER_FORM_FIELD_LABEL_KEYS.baseUrl)" required>
         <Input
           v-model:value="formData.baseUrl"
           :placeholder="baseUrlPlaceholder()"
         />
       </FormItem>
 
-      <FormItem :label="t('models.apiKey')">
+      <FormItem :label="t(PROVIDER_FORM_FIELD_LABEL_KEYS.apiKey)">
         <Input
           v-model:value="formData.apiKey"
           type="password"
@@ -174,7 +174,7 @@ function handleClose() {
         />
       </FormItem>
 
-      <FormItem :label="t('models.defaultModel')" required>
+      <FormItem :label="t(PROVIDER_FORM_FIELD_LABEL_KEYS.defaultModel)" required>
         <div class="model-select-row">
           <AutoComplete
             v-model:value="formData.defaultModel"
@@ -187,7 +187,7 @@ function handleClose() {
         </div>
       </FormItem>
 
-      <FormItem :label="t('models.dialect')" required>
+      <FormItem :label="t(PROVIDER_FORM_FIELD_LABEL_KEYS.dialect)" required>
         <div class="dialect-field">
           <Select
             v-model:value="formData.dialect"

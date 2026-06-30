@@ -11,6 +11,23 @@ export interface TranslatedProviderDisplayOption {
   readonly value: LlmDialect
 }
 
+export type ProviderCardFieldKey = 'providerKey' | 'baseUrl' | 'defaultModel' | 'apiKey' | 'healthStatus'
+
+export interface ProviderCardFieldRow {
+  readonly key: ProviderCardFieldKey
+  readonly labelKey: string
+  readonly monospaced: boolean
+}
+
+export interface ProviderFormFieldLabelKeys {
+  readonly providerKey: string
+  readonly name: string
+  readonly baseUrl: string
+  readonly apiKey: string
+  readonly defaultModel: string
+  readonly dialect: string
+}
+
 export type ProviderDisplayTranslator = (key: string) => string
 
 export const LLM_DIALECT_OPTIONS: readonly ProviderDisplayOption[] = [
@@ -20,6 +37,23 @@ export const LLM_DIALECT_OPTIONS: readonly ProviderDisplayOption[] = [
   { labelKey: 'models.dialectGemini', value: 'gemini' },
   { labelKey: 'models.dialectAnthropic', value: 'anthropic' },
 ] as const
+
+export const PROVIDER_CARD_FIELD_ROWS: readonly ProviderCardFieldRow[] = [
+  { key: 'providerKey', labelKey: 'models.providerKey', monospaced: true },
+  { key: 'baseUrl', labelKey: 'models.baseUrl', monospaced: true },
+  { key: 'defaultModel', labelKey: 'models.providerDefaultModel', monospaced: true },
+  { key: 'apiKey', labelKey: 'models.apiKey', monospaced: false },
+  { key: 'healthStatus', labelKey: 'models.healthStatus', monospaced: false },
+] as const
+
+export const PROVIDER_FORM_FIELD_LABEL_KEYS: ProviderFormFieldLabelKeys = {
+  providerKey: 'models.providerKey',
+  name: 'models.name',
+  baseUrl: 'models.baseUrl',
+  apiKey: 'models.apiKey',
+  defaultModel: 'models.defaultModel',
+  dialect: 'models.dialect',
+} as const
 
 const LLM_DIALECT_LABEL_KEYS: Readonly<Record<LlmDialect, string>> = {
   openai: 'models.dialectOpenai',
@@ -42,6 +76,11 @@ const HEALTH_LABEL_KEYS: Readonly<Record<ProviderHealthStatus, string>> = {
   missing_key: 'models.health.missing_key',
   unreachable: 'models.health.unreachable',
   unchecked: 'models.health.unchecked',
+} as const
+
+const API_KEY_STATUS_LABEL_KEYS = {
+  configured: 'models.apiKeyConfigured',
+  missing: 'models.apiKeyMissing',
 } as const
 
 const HEALTH_STATUS_SET: ReadonlySet<string> = new Set([
@@ -68,6 +107,10 @@ export function baseUrlPlaceholderForDialect(value: string): string {
 
 export function healthLabelKey(value: string | undefined): string {
   return value && isProviderHealthStatus(value) ? HEALTH_LABEL_KEYS[value] : HEALTH_LABEL_KEYS.unchecked
+}
+
+export function apiKeyStatusLabelKey(hasApiKey: boolean): string {
+  return hasApiKey ? API_KEY_STATUS_LABEL_KEYS.configured : API_KEY_STATUS_LABEL_KEYS.missing
 }
 
 function isLlmDialect(value: string): value is LlmDialect {

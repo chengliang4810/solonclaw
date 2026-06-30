@@ -3,7 +3,8 @@ import { computed, ref } from 'vue'
 import { Button, message, Modal } from 'antdv-next'
 import type { AvailableModelGroup, ProviderValidationResponse } from '@/api/solonclaw/system'
 import { useModelsStore } from '@/stores/solonclaw/models'
-import { healthLabelKey, translateDialectLabel } from '@/shared/providerDisplay'
+import type { ProviderCardFieldKey } from '@/shared/providerDisplay'
+import { PROVIDER_CARD_FIELD_ROWS, apiKeyStatusLabelKey, healthLabelKey, translateDialectLabel } from '@/shared/providerDisplay'
 import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ provider: AvailableModelGroup }>()
@@ -23,6 +24,21 @@ const validationResult = ref<ProviderValidationResponse | null>(null)
 function errorMessage(error: unknown, fallback?: string): string {
   if (error instanceof Error) return error.message
   return fallback ?? String(error)
+}
+
+function providerFieldValue(key: ProviderCardFieldKey): string {
+  switch (key) {
+    case 'providerKey':
+      return props.provider.provider
+    case 'baseUrl':
+      return props.provider.base_url
+    case 'defaultModel':
+      return props.provider.models[0] || '—'
+    case 'apiKey':
+      return t(apiKeyStatusLabelKey(props.provider.has_api_key))
+    case 'healthStatus':
+      return t(healthLabelKey(healthStatus.value))
+  }
 }
 
 async function handleDelete() {
@@ -79,25 +95,10 @@ async function handleValidate() {
     </div>
 
     <div class="card-body">
-      <div class="info-row">
-        <span class="info-label">{{ t('models.providerKey') }}</span>
-        <code class="info-value mono">{{ provider.provider }}</code>
-      </div>
-      <div class="info-row">
-        <span class="info-label">{{ t('models.baseUrl') }}</span>
-        <code class="info-value mono">{{ provider.base_url }}</code>
-      </div>
-      <div class="info-row">
-        <span class="info-label">{{ t('models.providerDefaultModel') }}</span>
-        <code class="info-value mono">{{ provider.models[0] || '—' }}</code>
-      </div>
-      <div class="info-row">
-        <span class="info-label">{{ t('models.apiKey') }}</span>
-        <span class="info-value">{{ provider.has_api_key ? t('models.apiKeyConfigured') : t('models.apiKeyMissing') }}</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">{{ t('models.healthStatus') }}</span>
-        <span class="info-value">{{ t(healthLabelKey(healthStatus)) }}</span>
+      <div v-for="row in PROVIDER_CARD_FIELD_ROWS" :key="row.key" class="info-row">
+        <span class="info-label">{{ t(row.labelKey) }}</span>
+        <code v-if="row.monospaced" class="info-value mono">{{ providerFieldValue(row.key) }}</code>
+        <span v-else class="info-value">{{ providerFieldValue(row.key) }}</span>
       </div>
     </div>
 

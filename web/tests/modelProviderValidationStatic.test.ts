@@ -20,7 +20,7 @@ assert.ok(card.includes("providerKey: props.provider.providerKey || props.provid
 assert.ok(card.includes("model: props.provider.models?.[0] || ''"), 'validation should send current provider model for protocol probes')
 assert.ok(store.includes('model?: string'), 'models store should accept transient provider probe model')
 assert.ok(systemApi.includes('defaultModel?: string'), 'system API should allow default model in provider probes')
-assert.ok(card.includes('t(healthLabelKey(healthStatus))'), 'provider card should render health labels through shared display metadata')
+assert.ok(card.includes('t(healthLabelKey(healthStatus.value))'), 'provider card should render health labels through shared display metadata')
 assert.ok(providerDisplay.includes("configured: 'models.health.configured'"), 'provider display metadata should map configured health')
 assert.ok(card.includes("t('models.validateProvider')"), 'provider card should render validation action')
 assert.ok(card.includes('validationResult'), 'provider card should render last validation result')
