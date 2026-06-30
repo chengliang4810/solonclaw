@@ -77,6 +77,12 @@ python scripts/check-code-duplication.py --report-only --min-lines 40 src/main/j
 - 若生产路径会生成 shell 片段，应在 Windows 下使用兼容命令或拒绝生成不可用命令。
 - 添加 Windows 与类 Unix 命令兼容性断言，保证 TUI 审批回放真正可执行。
 
+处理记录：
+
+- 已将 TUI direct shell 审批测试中的 `printf ... > file` 写入夹具改为跨平台写入命令，Windows 下使用 `echo value>file` 避免依赖 POSIX shell。
+- 已将文件内容断言调整为校验目标文本前缀，兼容不同 shell 的换行行为，同时保留审批回放执行成功断言。
+- 已验证 TUI direct shell 审批相关 4 个方法和 Dashboard 诊断输出方法通过。
+
 ## BUG-011：路径归一化在审批回放中丢失 Windows 分隔符
 
 状态：待修复
@@ -103,7 +109,7 @@ python scripts/check-code-duplication.py --report-only --min-lines 40 src/main/j
 
 ## BUG-012：TUI lint 门禁当前失败，阻断无人值守提交前质量验证
 
-状态：待修复
+状态：已修复
 
 影响范围：
 
@@ -194,6 +200,11 @@ terminal-ui/src/components/prompts.tsx:28 no-control-regex
 - 测试进程和外部命令输出统一按 UTF-8 解码，必要时在 surefire 或执行器中显式设置。
 - 避免诊断测试依赖 Windows 不支持的 `printf`。
 - Dashboard 诊断输出应对命令失败和编码异常给出稳定、可读、脱敏的错误文本。
+
+处理记录：
+
+- 已将 Dashboard 管理进程诊断输出测试的大输出命令改为跨平台实现，Windows 下不再依赖 POSIX `printf`。
+- 中文乱码和全局测试编码问题仍待单独修复，本项保持待修复。
 
 ## 当前完整测试摘要
 
