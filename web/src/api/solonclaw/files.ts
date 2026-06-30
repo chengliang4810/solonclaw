@@ -1,4 +1,5 @@
 import { getApiKey, getBaseUrlValue, request } from '../client'
+import { normalizeWorkspaceBrowserPath, workspaceFileEntries } from '@/shared/workspaceFileEntries'
 
 export interface FileEntry {
   name: string
@@ -34,15 +35,11 @@ const PATH_TO_KEY: Record<string, string> = {
   'MEMORY.md': 'memory',
 }
 
-function normalizePath(path: string): string {
-  return path.replace(/\\/g, '/').split('/').pop() || path
-}
-
 function keyForPath(path: string): string {
-  const normalized = normalizePath(path)
+  const normalized = normalizeWorkspaceBrowserPath(path)
   if (PATH_TO_KEY[normalized]) return PATH_TO_KEY[normalized]
   if (normalized.startsWith('memory/')) return 'memory_today'
-  return Object.entries(PATH_TO_KEY).find(([, key]) => key === path)?.[1] || path
+  return Object.entries(PATH_TO_KEY).find(([, key]) => key === normalized)?.[1] || normalized
 }
 
 async function workspaceFiles(): Promise<WorkspaceFile[]> {
@@ -69,21 +66,8 @@ export async function restoreWorkspaceFile(key: string): Promise<WorkspaceFile> 
 }
 
 export async function listFiles(path: string = ''): Promise<{ entries: FileEntry[]; path: string }> {
-  if (path) {
-    return { entries: [], path }
-  }
-
   const files = await workspaceFiles()
-  return {
-    path: '',
-    entries: files.map((file) => ({
-      name: file.name,
-      path: file.name,
-      isDir: false,
-      size: file.content.length,
-      modTime: '',
-    })),
-  }
+  return workspaceFileEntries(files, path)
 }
 
 export async function statFile(path: string): Promise<FileStat> {
