@@ -15,6 +15,7 @@
     "test:tui-runtime-ui": "node --experimental-strip-types tests/tuiRuntimeUiStatic.test.ts",
     "test:tui-runtime-display": "node --experimental-strip-types tests/tuiRuntimeDisplay.test.ts",
     "test:runs-display": "node --experimental-strip-types tests/runsDisplay.test.ts",
+    "test:mcp-display": "node --experimental-strip-types tests/mcpDisplay.test.ts",
     "test:system-nav-items-metadata": "node --experimental-strip-types tests/systemNavItemsMetadataStatic.test.ts",
     "test:backend-ui-coverage": "node --experimental-strip-types tests/backendUiCoverageStatic.test.ts",
     "test:device-login-modal-reuse": "node --experimental-strip-types tests/deviceLoginModalReuseStatic.test.ts",
