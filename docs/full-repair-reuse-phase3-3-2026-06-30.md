@@ -45,12 +45,27 @@
 
 说明：预览检查时没有后端代理，页面控制台出现 `/api/*` 与 `/health` 的 502 或连接拒绝，属于预览环境限制，不影响本次组件复用的静态渲染、编辑态和构建验证。
 
+### 3. TUI 审批测试监听器构造复用
+
+- 提交：`c11a8dbac refactor: 复用 TUI 审批测试监听器构造 / Reuse TUI approval test listener setup`
+- `TerminalUiApprovalRespondTest` 新增 `newTuiListener(...)` 与 `newTuiListenerWithSecurityPolicy(...)`，统一维护 `CliRuntime` 与 `TerminalUiWebSocketListener` 的长参数测试装配。
+- 保留各测试里的会话绑定、待审批数据、JSON-RPC 请求和断言叙事，不把审批行为差异抽成测试 DSL，避免隐藏测试意图。
+- 重复扫描中 `TerminalUiApprovalRespondTest` 相关的两组 25 行以上重复块已消除，整体重复组数从 23 组降为 21 组。
+
+验证：
+
+- `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=TerminalUiApprovalRespondTest test`
+- `python3 scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
+- `git diff --check`
+- `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`
+
 ## 延后候选
 
-- `TerminalUiApprovalRespondTest` 初始化 fixture 复用：仍是高收益候选，但文件较大，应单独做红灯测试和定向验证。
+- `PlatformOptionalSettings.vue` 字段壳复用：`wecom`、`qqbot`、`yuanbao` 三个平台存在多组设置行相似结构，适合下一轮抽薄组件，需配合 `npm --prefix web run build`。
 - `CronjobTools` 内部请求对象化：可能影响工具签名边界，进入前需先做更细的调用图和兼容性检查。
 - `DefaultCommandService` 构造器依赖收敛：属于更大结构调整，不应和当前阶段 3.3 小原子项混合提交。
+- `ChannelQrPanel.vue` 展示规则再提纯：风险最低但收益较小，适合作为前端设置页后续收尾项。
 
 ## 阶段状态
 
-阶段 3.3 已完成两个低风险复用原子项。下一步可继续处理 TUI 审批响应测试 fixture，或进入阶段 3.4 对已融合功能做边界增强评估。
+阶段 3.3 已完成三个低风险复用原子项。下一步可继续处理前端设置页字段壳复用，或进入阶段 3.4 对已融合功能做边界增强评估。
