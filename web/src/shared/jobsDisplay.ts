@@ -10,6 +10,13 @@ export interface JobScheduleSource {
   schedule_display?: string | null
 }
 
+export interface JobStatusSource {
+  enabled?: boolean | null
+  state?: string | null
+}
+
+export type JobStatusTone = 'success' | 'info' | 'warning' | 'error'
+
 export interface HumanizeJobTokenOptions {
   paths?: readonly string[]
   fallback?: string
@@ -109,6 +116,20 @@ export function jobScheduleLabel(job: JobScheduleSource, fallback = '—'): stri
     if (display) return String(display)
   }
   return job.schedule_display || fallback
+}
+
+export function jobStatusLabel(t: DashboardTranslator, job: JobStatusSource): string {
+  if (job.state === 'running') return t('jobs.status.running')
+  if (job.state === 'paused') return t('jobs.status.paused')
+  if (!job.enabled) return t('jobs.status.disabled')
+  return t('jobs.status.scheduled')
+}
+
+export function jobStatusTone(job: JobStatusSource): JobStatusTone {
+  if (job.state === 'running') return 'info'
+  if (job.state === 'paused') return 'warning'
+  if (!job.enabled) return 'error'
+  return 'success'
 }
 
 /**

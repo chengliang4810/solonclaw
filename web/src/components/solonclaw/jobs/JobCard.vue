@@ -10,6 +10,8 @@ import {
   inferJobScheduleKind,
   jobListDetail,
   jobScheduleLabel,
+  jobStatusLabel,
+  jobStatusTone,
   joinJobDetailParts,
 } from '@/shared/jobsDisplay'
 import { hasItems } from '@/shared/text'
@@ -33,19 +35,8 @@ const jobId = computed(() => props.job.job_id || props.job.id)
 const activeJob = computed(() => detailJob.value || props.job)
 const actionFlags = computed(() => activeJob.value.actions || props.job.actions || {})
 
-const statusLabel = computed(() => {
-  if (props.job.state === 'running') return t('jobs.status.running')
-  if (props.job.state === 'paused') return t('jobs.status.paused')
-  if (!props.job.enabled) return t('jobs.status.disabled')
-  return t('jobs.status.scheduled')
-})
-
-const statusType = computed(() => {
-  if (props.job.state === 'running') return 'info' as const
-  if (props.job.state === 'paused') return 'warning' as const
-  if (!props.job.enabled) return 'error' as const
-  return 'success' as const
-})
+const statusLabel = computed(() => jobStatusLabel(t, props.job))
+const statusType = computed(() => jobStatusTone(props.job))
 
 const canPause = computed(() => actionFlags.value.can_pause ?? (props.job.state !== 'paused' && props.job.enabled))
 const canResume = computed(() => actionFlags.value.can_resume ?? props.job.state === 'paused')
