@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive, onUnmounted } from 'vue'
 import * as QRCode from 'qrcode'
-import { Switch, Input, message } from 'antdv-next'
+import { message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import {
@@ -13,7 +13,8 @@ import type { ChannelQrPlatform } from '@/shared/channelQr'
 import ChannelQrPanel from './ChannelQrPanel.vue'
 import PlatformOptionalSettings from './PlatformOptionalSettings.vue'
 import PlatformCard from './PlatformCard.vue'
-import SettingRow from './SettingRow.vue'
+import PlatformSwitchSettingRow from './PlatformSwitchSettingRow.vue'
+import PlatformTextSettingRow from './PlatformTextSettingRow.vue'
 import { PLATFORM_SETTINGS_ITEMS } from './platformDefinitions'
 
 const settingsStore = useSettingsStore()
@@ -189,68 +190,40 @@ onUnmounted(() => {
       :credentials="getCreds(p.key)"
     >
       <template v-if="p.key === 'feishu'">
-        <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
-          <Switch :value="getCreds('feishu').enabled" :loading="isSaving('feishu', 'enabled')" @update:value="v => saveCredentials('feishu', 'enabled', { enabled: v })" />
-        </SettingRow>
+        <PlatformSwitchSettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')" :value="Boolean(getCreds('feishu').enabled)" :loading="isSaving('feishu', 'enabled')" @change="v => saveCredentials('feishu', 'enabled', { enabled: v })" />
         <ChannelQrPanel
           :state="qrStates.feishu"
           :domain="getCreds('feishu').domain"
           @start="startQrLogin('feishu')"
         />
-        <SettingRow :label="t('platform.appId')" :hint="t('platform.appIdHint')">
-          <Input :default-value="getCreds('feishu').extra?.app_id || ''" :loading="isSaving('feishu', 'app_id')" clearable size="small" class="input-lg" placeholder="请输入飞书应用 ID" @change="v => saveCredentials('feishu', 'app_id', { extra: { ...getCreds('feishu').extra, app_id: v } })" />
-        </SettingRow>
-        <SettingRow :label="t('platform.appSecret')" :hint="t('platform.appSecretHint')">
-          <Input :default-value="getCreds('feishu').extra?.app_secret || ''" :loading="isSaving('feishu', 'app_secret')" clearable size="small" class="input-lg" placeholder="请输入应用密钥" @change="v => saveCredentials('feishu', 'app_secret', { extra: { ...getCreds('feishu').extra, app_secret: v } })" />
-        </SettingRow>
-        <SettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')">
-          <Switch :value="settingsStore.feishu.requireMention !== false" :loading="isSaving('feishu', 'requireMention')" @update:value="v => saveChannel('feishu', 'requireMention', { requireMention: v })" />
-        </SettingRow>
-        <SettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')">
-          <Input :default-value="channelListText(settingsStore.feishu.freeResponseChats)" :loading="isSaving('feishu', 'freeResponseChats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('feishu', 'freeResponseChats', { freeResponseChats: splitChannelList(v) })" />
-        </SettingRow>
+        <PlatformTextSettingRow :label="t('platform.appId')" :hint="t('platform.appIdHint')" :value="String(getCreds('feishu').extra?.app_id || '')" :loading="isSaving('feishu', 'app_id')" placeholder="请输入飞书应用 ID" @change="v => saveCredentials('feishu', 'app_id', { extra: { ...getCreds('feishu').extra, app_id: v } })" />
+        <PlatformTextSettingRow :label="t('platform.appSecret')" :hint="t('platform.appSecretHint')" :value="String(getCreds('feishu').extra?.app_secret || '')" :loading="isSaving('feishu', 'app_secret')" placeholder="请输入应用密钥" @change="v => saveCredentials('feishu', 'app_secret', { extra: { ...getCreds('feishu').extra, app_secret: v } })" />
+        <PlatformSwitchSettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')" :value="settingsStore.feishu.requireMention !== false" :loading="isSaving('feishu', 'requireMention')" @change="v => saveChannel('feishu', 'requireMention', { requireMention: v })" />
+        <PlatformTextSettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')" :value="channelListText(settingsStore.feishu.freeResponseChats)" :loading="isSaving('feishu', 'freeResponseChats')" placeholder="chat_id1,chat_id2" @change="v => saveChannel('feishu', 'freeResponseChats', { freeResponseChats: splitChannelList(v) })" />
       </template>
 
       <template v-if="p.key === 'dingtalk'">
-        <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
-          <Switch :value="getCreds('dingtalk').enabled" :loading="isSaving('dingtalk', 'enabled')" @update:value="v => saveCredentials('dingtalk', 'enabled', { enabled: v })" />
-        </SettingRow>
+        <PlatformSwitchSettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')" :value="Boolean(getCreds('dingtalk').enabled)" :loading="isSaving('dingtalk', 'enabled')" @change="v => saveCredentials('dingtalk', 'enabled', { enabled: v })" />
         <ChannelQrPanel
           :state="qrStates.dingtalk"
           @start="startQrLogin('dingtalk')"
         />
-        <SettingRow :label="t('platform.clientId')" :hint="t('platform.clientIdHint')">
-          <Input :default-value="getCreds('dingtalk').extra?.client_id || ''" :loading="isSaving('dingtalk', 'client_id')" clearable size="small" class="input-lg" placeholder="请输入客户端 ID" @change="v => saveCredentials('dingtalk', 'client_id', { extra: { ...getCreds('dingtalk').extra, client_id: v } })" />
-        </SettingRow>
-        <SettingRow :label="t('platform.clientSecret')" :hint="t('platform.clientSecretHint')">
-          <Input :default-value="getCreds('dingtalk').extra?.client_secret || ''" :loading="isSaving('dingtalk', 'client_secret')" clearable size="small" class="input-lg" placeholder="请输入客户端密钥" @change="v => saveCredentials('dingtalk', 'client_secret', { extra: { ...getCreds('dingtalk').extra, client_secret: v } })" />
-        </SettingRow>
-        <SettingRow label="机器人编码" hint="钉钉机器人编码">
-          <Input :default-value="getCreds('dingtalk').extra?.robot_code || ''" :loading="isSaving('dingtalk', 'robot_code')" clearable size="small" class="input-lg" placeholder="请输入机器人编码" @change="v => saveCredentials('dingtalk', 'robot_code', { extra: { ...getCreds('dingtalk').extra, robot_code: v } })" />
-        </SettingRow>
-        <SettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')">
-          <Switch :value="settingsStore.dingtalk.requireMention !== false" :loading="isSaving('dingtalk', 'requireMention')" @update:value="v => saveChannel('dingtalk', 'requireMention', { requireMention: v })" />
-        </SettingRow>
-        <SettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')">
-          <Input :default-value="channelListText(settingsStore.dingtalk.freeResponseChats)" :loading="isSaving('dingtalk', 'freeResponseChats')" size="small" placeholder="chat_id1,chat_id2" @change="v => saveChannel('dingtalk', 'freeResponseChats', { freeResponseChats: splitChannelList(v) })" />
-        </SettingRow>
+        <PlatformTextSettingRow :label="t('platform.clientId')" :hint="t('platform.clientIdHint')" :value="String(getCreds('dingtalk').extra?.client_id || '')" :loading="isSaving('dingtalk', 'client_id')" placeholder="请输入客户端 ID" @change="v => saveCredentials('dingtalk', 'client_id', { extra: { ...getCreds('dingtalk').extra, client_id: v } })" />
+        <PlatformTextSettingRow :label="t('platform.clientSecret')" :hint="t('platform.clientSecretHint')" :value="String(getCreds('dingtalk').extra?.client_secret || '')" :loading="isSaving('dingtalk', 'client_secret')" placeholder="请输入客户端密钥" @change="v => saveCredentials('dingtalk', 'client_secret', { extra: { ...getCreds('dingtalk').extra, client_secret: v } })" />
+        <PlatformTextSettingRow label="机器人编码" hint="钉钉机器人编码" :value="String(getCreds('dingtalk').extra?.robot_code || '')" :loading="isSaving('dingtalk', 'robot_code')" placeholder="请输入机器人编码" @change="v => saveCredentials('dingtalk', 'robot_code', { extra: { ...getCreds('dingtalk').extra, robot_code: v } })" />
+        <PlatformSwitchSettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')" :value="settingsStore.dingtalk.requireMention !== false" :loading="isSaving('dingtalk', 'requireMention')" @change="v => saveChannel('dingtalk', 'requireMention', { requireMention: v })" />
+        <PlatformTextSettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')" :value="channelListText(settingsStore.dingtalk.freeResponseChats)" :loading="isSaving('dingtalk', 'freeResponseChats')" placeholder="chat_id1,chat_id2" @change="v => saveChannel('dingtalk', 'freeResponseChats', { freeResponseChats: splitChannelList(v) })" />
       </template>
 
       <template v-if="p.key === 'weixin'">
-        <SettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')">
-          <Switch :value="getCreds('weixin').enabled" :loading="isSaving('weixin', 'enabled')" @update:value="v => saveCredentials('weixin', 'enabled', { enabled: v })" />
-        </SettingRow>
+        <PlatformSwitchSettingRow :label="t('platform.channelEnabled')" :hint="t('platform.channelEnabledHint')" :value="Boolean(getCreds('weixin').enabled)" :loading="isSaving('weixin', 'enabled')" @change="v => saveCredentials('weixin', 'enabled', { enabled: v })" />
         <ChannelQrPanel
           :state="qrStates.weixin"
           show-empty-status
           @start="startQrLogin('weixin')"
         />
-        <SettingRow :label="t('platform.weixinToken')" :hint="t('platform.weixinTokenHint')">
-          <Input :default-value="getCreds('weixin').token || ''" :loading="isSaving('weixin', 'token')" clearable size="small" class="input-lg" placeholder="请输入令牌" @change="v => saveCredentials('weixin', 'token', { token: v })" />
-        </SettingRow>
-        <SettingRow :label="t('platform.accountId')" :hint="t('platform.accountIdHint')">
-          <Input :default-value="getCreds('weixin').extra?.account_id || ''" :loading="isSaving('weixin', 'account_id')" clearable size="small" class="input-lg" placeholder="请输入账号 ID" @change="v => saveCredentials('weixin', 'account_id', { extra: { ...getCreds('weixin').extra, account_id: v } })" />
-        </SettingRow>
+        <PlatformTextSettingRow :label="t('platform.weixinToken')" :hint="t('platform.weixinTokenHint')" :value="String(getCreds('weixin').token || '')" :loading="isSaving('weixin', 'token')" placeholder="请输入令牌" @change="v => saveCredentials('weixin', 'token', { token: v })" />
+        <PlatformTextSettingRow :label="t('platform.accountId')" :hint="t('platform.accountIdHint')" :value="String(getCreds('weixin').extra?.account_id || '')" :loading="isSaving('weixin', 'account_id')" placeholder="请输入账号 ID" @change="v => saveCredentials('weixin', 'account_id', { extra: { ...getCreds('weixin').extra, account_id: v } })" />
       </template>
 
       <PlatformOptionalSettings
