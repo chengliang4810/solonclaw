@@ -117,7 +117,7 @@ function formatTime(value?: number) {
     </header>
 
     <div class="channels-content">
-      <Spin :spinning="settingsStore.loading || settingsStore.saving" size="large" :tip="t('common.loading')">
+      <Spin :spinning="settingsStore.loading || settingsStore.saving" size="large" :description="t('common.loading')">
         <PlatformSettings v-if="!settingsStore.loading" />
       </Spin>
 
@@ -153,7 +153,7 @@ function formatTime(value?: number) {
       </section>
     </div>
 
-    <Drawer v-model:open="mediaDetailOpen" placement="right" :width="520" :title="t('channels.mediaDetail')">
+    <Drawer v-model:open="mediaDetailOpen" placement="right" :style="{ width: '520px' }" :title="t('channels.mediaDetail')">
       <div v-if="selectedMediaDetail" class="media-detail">
         <div class="media-actions">
           <Button size="small" :loading="mediaRefreshLoading" @click="refreshSelectedMedia">

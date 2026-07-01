@@ -388,7 +388,7 @@ onMounted(async () => {
       </main>
     </Spin>
 
-    <Drawer v-model:open="previewOpen" placement="right" :width="560" :title="t('runs.checkpointPreview')">
+    <Drawer v-model:open="previewOpen" placement="right" :style="{ width: '560px' }" :title="t('runs.checkpointPreview')">
       <pre class="artifact-block">{{ runArtifactText(checkpointPreview, t) }}</pre>
     </Drawer>
   </div>

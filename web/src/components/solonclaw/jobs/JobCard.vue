@@ -263,7 +263,7 @@ async function handleDelete() {
       />
     </Modal>
 
-    <Drawer v-model:open="showRuns" placement="right" :width="520" :title="t('jobs.historyTitle', { name: job.name })">
+    <Drawer v-model:open="showRuns" placement="right" :style="{ width: '520px' }" :title="t('jobs.historyTitle', { name: job.name })">
         <section class="detail-section">
           <h4>{{ t('jobs.detail.config') }}</h4>
           <div class="detail-grid">
