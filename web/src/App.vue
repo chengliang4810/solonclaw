@@ -37,12 +37,18 @@ router.isReady().then(() => {
   ready.value = true
 })
 
-onMounted(() => {
-  if (!isLoginPage.value) {
-    appStore.loadModels()
-    appStore.startHealthPolling()
+function syncAppRuntime() {
+  if (isLoginPage.value) {
+    appStore.stopHealthPolling()
+    return
   }
-})
+  appStore.loadModels()
+  appStore.startHealthPolling()
+}
+
+watch(isLoginPage, syncAppRuntime)
+
+onMounted(syncAppRuntime)
 
 onUnmounted(() => {
   appStore.stopHealthPolling()
