@@ -789,6 +789,7 @@ export default {
       approval: 'Approval',
       approvalLifecycle: 'Approval lifecycle',
       approvalAuditLog: 'Approval audit log',
+      configuredCredentialCommandPathApproval: 'Credential command path approval',
       slashConfirm: 'Slash confirmation',
       smartApproval: 'Smart approval',
       tirithSmartApproval: 'Content-scan approval',

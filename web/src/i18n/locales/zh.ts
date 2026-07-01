@@ -1077,6 +1077,7 @@ export default {
       approval: '审批',
       approvalLifecycle: '审批生命周期',
       approvalAuditLog: '审批审计日志',
+      configuredCredentialCommandPathApproval: '凭据命令路径审批',
       slashConfirm: 'Slash 确认',
       smartApproval: '智能审批',
       tirithSmartApproval: '内容扫描审批',
