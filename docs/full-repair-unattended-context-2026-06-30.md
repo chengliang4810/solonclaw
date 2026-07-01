@@ -96,3 +96,32 @@
 1. 不再把 `terminal-ui` lint 作为当前阻塞项。
 2. 继续等待 Web UI 与 TUI 只读 E2E 侧车代理返回，主线程先处理不与其写集冲突的可复现小问题。
 3. 若侧车代理未发现更高优先级问题，下一步优先复核 Windows/TUI 审计脚本剩余兼容性、fake-ip URL 策略是否仍可复现、以及 `mvn test` 当前失败是否还有可原子修复项。
+
+## 2026-07-01 Web/TUI 继续执行记录
+
+本轮已完成并推送的原子提交：
+
+| 提交 | 类型 | 说明 |
+| --- | --- | --- |
+| `ae0853174` | docs | 更新无人值守复核上下文。 |
+| `a9258f0fc` | fix | Windows 不支持 PTY 时，`--node-tui-pty` 在 model bootstrap 和 server 启动前快速报告 `pty_not_supported_on_this_platform`。 |
+| `b5d7e1f13` | docs | 将 BUG-008 标记为当前 HEAD 已修复并复核，补充飞书/钉钉响应策略链路证据。 |
+
+已复核命令：
+
+| 检查 | 结果 | 说明 |
+| --- | --- | --- |
+| `python scripts\audit-terminal-commands.selftest.py` | 通过 | 54 个自检通过。 |
+| `python scripts\audit-terminal-commands.py --no-defaults --node-tui-pty --timeout-seconds 5` | 预期退出 1 | Windows 上快速报告 `pty_not_supported_on_this_platform`，不再先写模型配置或启动后端。 |
+| `mvn '-Dskip.web.build=true' '-Dtest=ChannelConfigPolicyLoadTest,DomesticChannelEnhancementTest,FeishuWebsocketInboundTest,DingTalkInboundDispatchTest' test` | 通过 | 51 个 focused 测试通过，覆盖 BUG-008 配置加载、Dashboard schema 与飞书/钉钉入站策略。 |
+| Chrome 真实后端 smoke | 通过 | 临时 workspace + `smoke-token` 启动 `http://127.0.0.1:18081`，登录后进入 `#/solonclaw/channels`，飞书、钉钉、企业微信、微信、QQBot、腾讯元宝和媒体缓存区域可见，控制台无 error/warn。 |
+
+Web 侧补充结论：
+
+1. 静态 `npm --prefix web run preview -- --host 127.0.0.1 --port 4178` 只能验证登录页；无后端时 `/api/*` 与 `/health` proxy 报 `ECONNREFUSED 127.0.0.1:8080` 属于预览环境限制。
+2. 真实后端 smoke 中，手动输入 `smoke-token` 登录成功；退出登录后再次打开 `http://127.0.0.1:18081/?token=smoke-token#/solonclaw/channels` 可直接进入渠道页，URL token 直达路径未稳定复现缺陷。
+3. 当前 Web UI E2E 最大缺口仍是缺少仓库内正式浏览器烟测入口；本轮未引入 Playwright/Puppeteer 依赖，后续若要自动化，应优先复用现有 Chrome/Browser 插件工作流或脚本化现有后端 smoke，而不是新增重框架。
+
+当前工作区注意：
+
+- `src/main/java/com/jimuqu/solon/claw/web/DashboardAuthFilter.java` 仍只有换行符状态提示，`git diff --` 无内容差异；后续提交不得误带入。
