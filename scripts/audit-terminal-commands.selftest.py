@@ -785,11 +785,22 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
     def test_node_tui_env_uses_workspace_home_for_frontend_state(self) -> None:
         mod = load_module()
+        workspace_home = Path("/tmp/solonclaw-audit-home")
 
-        env = mod.build_node_tui_env(Path("/tmp/solonclaw-audit-home"), 18123)
+        env = mod.build_node_tui_env(workspace_home, 18123)
 
-        self.assertEqual(env["SOLONCLAW_HOME"], "/tmp/solonclaw-audit-home")
+        self.assertEqual(env["SOLONCLAW_HOME"], str(workspace_home))
         self.assertEqual(env["SOLONCLAW_SERVER_URL"], "http://127.0.0.1:18123")
+
+    def test_pty_support_detection_reports_missing_unix_modules(self) -> None:
+        mod = load_module()
+        original = (mod.fcntl, mod.pty, mod.select, mod.termios)
+        try:
+            mod.fcntl = None
+
+            self.assertFalse(mod.pty_support_available())
+        finally:
+            mod.fcntl, mod.pty, mod.select, mod.termios = original
 
 
 if __name__ == "__main__":

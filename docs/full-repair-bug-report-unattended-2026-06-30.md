@@ -249,6 +249,6 @@ Tests run: 2088, Failures: 23, Errors: 8, Skipped: 17
 ## 后续处理顺序建议
 
 1. 先修复 `terminal-ui` lint error，恢复 TUI 质量门禁。
-2. 再修复 Windows shell 与路径归一化问题，恢复 TUI 审批相关测试。
+2. 再修复 Windows shell 与路径归一化问题，恢复 TUI 审批相关测试。（已修复 `audit-terminal-commands.py` 在 Windows 上因顶层导入 Unix-only PTY 模块导致 selftest 无法加载的问题。）
 3. 单独设计 fake-ip 代理环境下的 URL 安全策略，避免误放行真实内网。
 4. 最后处理 Windows 测试兼容性和编码问题，逐步恢复完整 `mvn test`。
