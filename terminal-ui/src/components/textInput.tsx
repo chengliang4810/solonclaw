@@ -3,6 +3,7 @@ import * as Ink from '@solonclaw/ink'
 import { type MutableRefObject, useEffect, useMemo, useRef, useState } from 'react'
 
 import { setInputSelection } from '../app/inputSelectionStore.js'
+import { consumePagerCloseInputSuppression } from '../app/overlayStore.js'
 import { readClipboardText, writeClipboardText } from '../lib/clipboard.js'
 import { cursorLayout, offsetFromPosition } from '../lib/inputMetrics.js'
 import {
@@ -930,6 +931,10 @@ export function TextInput({
   useInput(
     (inp: string, k: Key, event: InputEvent) => {
       const eventRaw = event.keypress.raw
+
+      if (!vRef.current && consumePagerCloseInputSuppression(inp)) {
+        return
+      }
 
       // Configured voice shortcut wins over composer-level defaults like
       // paste/copy so users who bind voice to ctrl+v / alt+v / cmd+v

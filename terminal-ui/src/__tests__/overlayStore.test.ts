@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { dismissApprovalIfCurrent, getOverlayState, patchOverlayState, resetOverlayState } from '../app/overlayStore.js'
+import {
+  consumePagerCloseInputSuppression,
+  dismissApprovalIfCurrent,
+  getOverlayState,
+  notePagerClosedByKeyboard,
+  patchOverlayState,
+  resetOverlayState
+} from '../app/overlayStore.js'
 
 describe('dismissApprovalIfCurrent', () => {
   it('dismisses the approval only when the current approval id still matches', () => {
@@ -36,5 +43,21 @@ describe('dismissApprovalIfCurrent', () => {
       approvalId: 'approval-2',
       description: 'second approval'
     })
+  })
+})
+
+describe('pager close input suppression', () => {
+  it('swallows one immediate q after keyboard-closing the pager', () => {
+    notePagerClosedByKeyboard(1000)
+
+    expect(consumePagerCloseInputSuppression('q', 1100)).toBe(true)
+    expect(consumePagerCloseInputSuppression('q', 1101)).toBe(false)
+  })
+
+  it('does not swallow commands or late q input', () => {
+    notePagerClosedByKeyboard(2000)
+
+    expect(consumePagerCloseInputSuppression('/', 2050)).toBe(false)
+    expect(consumePagerCloseInputSuppression('q', 3000)).toBe(false)
   })
 })
