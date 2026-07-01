@@ -98,7 +98,7 @@ public class DashboardAuthService {
     public boolean isAuthorized(Context context) {
         String auth = context.header("Authorization");
         String token = accessToken();
-        return StrUtil.isNotBlank(token) && ("Bearer " + token).equals(auth);
+        return matchesBearerToken(auth, token);
     }
 
     /**
@@ -116,7 +116,7 @@ public class DashboardAuthService {
             return false;
         }
         String auth = webSocketParam(socket, "Authorization");
-        if (("Bearer " + token).equals(auth)) {
+        if (matchesBearerToken(auth, token)) {
             return true;
         }
         String queryToken = webSocketParam(socket, "token");
@@ -464,6 +464,20 @@ public class DashboardAuthService {
                         ? ""
                         : StrUtil.nullToEmpty(appConfig.getDashboard().getAccessToken());
         return configured.trim();
+    }
+
+    /** 匹配 Dashboard Bearer 认证头，协议名按 HTTP 规范忽略大小写，令牌值保持精确匹配。 */
+    private boolean matchesBearerToken(String auth, String token) {
+        if (StrUtil.isBlank(auth) || StrUtil.isBlank(token)) {
+            return false;
+        }
+        int splitIndex = auth.indexOf(' ');
+        if (splitIndex < 0) {
+            return false;
+        }
+        String scheme = auth.substring(0, splitIndex).trim();
+        String actualToken = auth.substring(splitIndex + 1).trim();
+        return "Bearer".equalsIgnoreCase(scheme) && token.equals(actualToken);
     }
 
     /** 按大小写不敏感方式读取 WebSocket 握手参数或请求头。 */

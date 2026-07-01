@@ -14,7 +14,7 @@
 
 ## BUG-008：飞书/钉钉群聊响应策略在 Dashboard 保存后不生效
 
-状态：待修复
+状态：已修复并复核（2026-07-01）
 
 影响范围：
 
@@ -22,41 +22,45 @@
 - 飞书、钉钉群聊入站消息准入逻辑。
 - 用户通过 UI 调整渠道响应范围后的实际运行效果。
 
-当前事实：
+2026-07-01 复核事实：
 
-- `web/src/components/solonclaw/settings/PlatformSettings.vue` 在飞书和钉钉设置中保存 `require_mention` 与 `free_response_chats`。
-- `web/src/api/solonclaw/config.ts` 的 `updateConfigSection('feishu' | 'dingtalk', values)` 会把这些字段直接合并到 `channels.feishu` 或 `channels.dingtalk`。
-- 后端 `AppConfig.ChannelConfig` 建模的是 `dmPolicy`、`groupPolicy`、`allowedUsers`、`groupAllowedUsers`、`allowedChats` 等字段，没有 `require_mention` 或 `free_response_chats`。
-- `AppConfigLoader.applyChannelConfig` 只读取 `solonclaw.channels.<channel>.dmPolicy`、`groupPolicy`、`groupAllowedUsers`、`allowedChats` 等当前命名字段，不会读取 `require_mention` 或 `free_response_chats`。
-- 钉钉运行时 `DingTalkChannelAdapter.allowInbound` 固定要求群聊消息 `inAtList=true`，并读取 `groupPolicy`、`groupAllowedUsers`、`allowedChats` 控制准入，不读取 Dashboard 保存的 `require_mention` 或 `free_response_chats`。
+- Dashboard 飞书、钉钉设置页现在保存当前命名字段 `requireMention` 与 `freeResponseChats`。
+- 后端 `AppConfig.ChannelConfig` 已建模 `requireMention` 与 `freeResponseChats`，默认仍保持群聊需提及、自由响应会话为空。
+- `AppConfigLoader.applyChannelConfig` 已读取 `solonclaw.channels.<channel>.requireMention` 与 `solonclaw.channels.<channel>.freeResponseChats`。
+- `DashboardConfigService` 与 `DashboardRuntimeConfigService` 已暴露飞书、钉钉的 `requireMention` / `freeResponseChats` schema 与运行时配置键。
+- 飞书与钉钉入站判断已使用 `config.isRequireMention()` 和 `config.getFreeResponseChats()`，不再固定忽略 Dashboard 保存值。
 
-可复现现象：
+原可复现现象：
 
 1. 打开 Dashboard 的飞书或钉钉渠道设置。
 2. 修改“需要提及”开关或“可自由响应会话”输入框。
 3. UI 调用保存接口并提示保存成功。
 4. 重启或刷新运行时配置后，群聊入站逻辑仍按 `groupPolicy`、`allowedChats` 和适配器固定逻辑执行，刚才保存的 `require_mention` / `free_response_chats` 不参与判断。
 
-源码证据：
+当前源码证据：
 
-- `web/src/components/solonclaw/settings/PlatformSettings.vue:249`：飞书保存 `require_mention`。
-- `web/src/components/solonclaw/settings/PlatformSettings.vue:253`：飞书保存 `free_response_chats`。
-- `web/src/components/solonclaw/settings/PlatformSettings.vue:294`：钉钉保存 `require_mention`。
-- `web/src/components/solonclaw/settings/PlatformSettings.vue:298`：钉钉保存 `free_response_chats`。
-- `src/main/java/com/jimuqu/solon/claw/config/AppConfig.java:1623`：后端渠道策略从 `dmPolicy` 开始建模，没有上述 UI 字段。
-- `src/main/java/com/jimuqu/solon/claw/config/AppConfigLoader.java:1715`：加载 `dmPolicy`。
-- `src/main/java/com/jimuqu/solon/claw/config/AppConfigLoader.java:1723`：加载 `groupPolicy`。
-- `src/main/java/com/jimuqu/solon/claw/config/AppConfigLoader.java:1738`：加载 `allowedChats`。
-- `src/main/java/com/jimuqu/solon/claw/gateway/platform/dingtalk/DingTalkChannelAdapter.java:1286`：钉钉群聊固定检查是否提及机器人。
-- `src/main/java/com/jimuqu/solon/claw/gateway/platform/dingtalk/DingTalkChannelAdapter.java:1289`：钉钉群聊准入读取 `groupPolicy`。
+- `web/src/components/solonclaw/settings/PlatformSettings.vue:221`：飞书保存 `requireMention`。
+- `web/src/components/solonclaw/settings/PlatformSettings.vue:222`：飞书保存 `freeResponseChats`。
+- `web/src/components/solonclaw/settings/PlatformSettings.vue:229`：钉钉保存 `requireMention`。
+- `web/src/components/solonclaw/settings/PlatformSettings.vue:230`：钉钉保存 `freeResponseChats`。
+- `src/main/java/com/jimuqu/solon/claw/config/AppConfig.java:1638`：后端渠道配置建模 `requireMention`。
+- `src/main/java/com/jimuqu/solon/claw/config/AppConfig.java:1641`：后端渠道配置建模 `freeResponseChats`。
+- `src/main/java/com/jimuqu/solon/claw/config/AppConfigLoader.java:1751`：加载 `requireMention`。
+- `src/main/java/com/jimuqu/solon/claw/config/AppConfigLoader.java:1758`：加载 `freeResponseChats`。
+- `src/main/java/com/jimuqu/solon/claw/gateway/platform/feishu/FeishuChannelAdapter.java:942`：飞书群聊入站读取 `requireMention` 与 `freeResponseChats`。
+- `src/main/java/com/jimuqu/solon/claw/gateway/platform/dingtalk/DingTalkChannelAdapter.java:1299`：钉钉群聊入站读取 `requireMention` 与 `freeResponseChats`。
+- `src/test/java/com/jimuqu/solon/claw/ChannelConfigPolicyLoadTest.java:28`：覆盖飞书、钉钉策略字段加载。
+- `src/test/java/com/jimuqu/solon/claw/DashboardControllerHttpTest.java:497`：覆盖 Dashboard schema 暴露飞书、钉钉策略字段。
+- `src/test/java/com/jimuqu/solon/claw/FeishuWebsocketInboundTest.java:120`：覆盖飞书自由响应会话免提及入站。
+- `src/test/java/com/jimuqu/solon/claw/FeishuWebsocketInboundTest.java:145`：覆盖飞书关闭强制提及后的群聊入站。
+- `src/test/java/com/jimuqu/solon/claw/DingTalkInboundDispatchTest.java:106`：覆盖钉钉自由响应会话免提及入站。
+- `src/test/java/com/jimuqu/solon/claw/DingTalkInboundDispatchTest.java:122`：覆盖钉钉关闭强制提及后的群聊入站。
 
-建议修复阶段：阶段 2.1、阶段 2.3 和阶段 5.2。
+复核命令：
 
-最小修复方向：
+- `mvn '-Dskip.web.build=true' '-Dtest=ChannelConfigPolicyLoadTest,DomesticChannelEnhancementTest,FeishuWebsocketInboundTest,DingTalkInboundDispatchTest' test`
 
-- 不新增历史兼容字段读取；按当前项目命名把 UI 字段改为后端真实字段，例如 `groupPolicy` 和 `allowedChats`。
-- 如果“需要提及”要成为可配置能力，应先在当前 `solonclaw` 配置模型中新增明确字段，并同步后端加载、适配器判断和 Dashboard schema。
-- 对飞书和钉钉分别增加保存后读取配置、入站准入行为的回归测试，防止 UI 字段再次脱离运行时字段。
+结果：51 个 focused 测试通过，当前报告不再作为待修复 bug 跟踪。
 
 ## 不写入本轮 bug 的候选
 
@@ -66,6 +70,6 @@
 
 ## 后续处理顺序建议
 
-1. 阶段 2.1 / 2.3 修 BUG-008，把 Dashboard 保存字段与后端真实策略字段统一，避免继续生成无效配置。
+1. BUG-008 已复核闭环；后续只在新增渠道策略字段时继续保持 UI 保存、运行时配置、AppConfig 加载和适配器判断四处同步。
 2. 阶段 2.3 继续复核钉钉 QR setup 的 `robotCode` 来源，确认协议字段后再决定是否修复。
-3. 修复后必须分别覆盖“UI 保存后的配置文件内容”和“适配器入站判断读取的字段”，不能只验证接口返回成功。
+3. 新增修复仍必须分别覆盖“UI 保存后的配置文件内容”和“适配器入站判断读取的字段”，不能只验证接口返回成功。

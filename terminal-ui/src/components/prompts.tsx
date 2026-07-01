@@ -25,7 +25,12 @@ type ApprovalAction =
   | { kind: 'move'; delta: -1 | 1 }
   | { kind: 'noop' }
 
-const stripBracketedPaste = (text: string) => text.replace(/\x1B\[200~/g, '').replace(/\x1B\[201~/g, '')
+const ESC = String.fromCharCode(27)
+const BRACKETED_PASTE_END = new RegExp(`${ESC}\\[201~`, 'g')
+const BRACKETED_PASTE_START = new RegExp(`${ESC}\\[200~`, 'g')
+
+const stripBracketedPaste = (text: string) =>
+  text.replace(BRACKETED_PASTE_START, '').replace(BRACKETED_PASTE_END, '')
 
 type ParsedApprovalCommand = {
   readonly approvalId?: string

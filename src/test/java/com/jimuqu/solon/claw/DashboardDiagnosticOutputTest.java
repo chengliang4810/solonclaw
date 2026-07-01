@@ -73,10 +73,7 @@ public class DashboardDiagnosticOutputTest {
                 new ArrayList<ProcessRegistry.ManagedProcess>();
         try {
             String longOutputMarker = "diagnostic-output-unbounded-marker";
-            String longOutputCommand =
-                    "printf '\\144\\151\\141\\147\\156\\157\\163\\164\\151\\143\\055\\157\\165\\164\\160\\165\\164\\055\\165\\156\\142\\157\\165\\156\\144\\145\\144\\055\\155\\141\\162\\153\\145\\162'; "
-                            + "printf '%04096d' 0; "
-                            + "printf 'tail-preview token=ghp_diagnosticlongsecret12345\\n'";
+            String longOutputCommand = longDiagnosticOutputCommand();
             ProcessRegistry.ManagedProcess completed =
                     processRegistry.start(
                             longOutputCommand, workspaceHome, true, Collections.<String>emptyList());
@@ -2111,6 +2108,25 @@ public class DashboardDiagnosticOutputTest {
                 .contains("token_ghp_***")
                 .doesNotContain("\u202E")
                 .doesNotContain("alwayspattern123");
+    }
+
+    /** 构建跨平台长输出命令，避免 Windows 测试依赖 POSIX printf。 */
+    private static String longDiagnosticOutputCommand() {
+        if (isWindows()) {
+            return "powershell -NoProfile -Command \"[Console]::Write(('diagnostic-output-' + 'unbounded-marker')); "
+                    + "[Console]::Write(('0' * 4096)); "
+                    + "[Console]::Write('tail-preview token=ghp_diagnosticlongsecret12345')\"";
+        }
+        return "printf '\\144\\151\\141\\147\\156\\157\\163\\164\\151\\143\\055\\157\\165\\164\\160\\165\\164\\055\\165\\156\\142\\157\\165\\156\\144\\145\\144\\055\\155\\141\\162\\153\\145\\162'; "
+                + "printf '%04096d' 0; "
+                + "printf 'tail-preview token=ghp_diagnosticlongsecret12345\\n'";
+    }
+
+    /** 判断当前测试运行环境是否为 Windows。 */
+    private static boolean isWindows() {
+        return System.getProperty("os.name", "")
+                .toLowerCase(java.util.Locale.ROOT)
+                .contains("win");
     }
 
 }

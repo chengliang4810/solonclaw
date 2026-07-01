@@ -19,6 +19,7 @@ export const useModelsStore = defineStore('models', () => {
   const defaultModel = ref('')
   const defaultProvider = ref('')
   const loading = ref(false)
+  const loadError = ref<string | null>(null)
   const providerHealth = ref<Record<string, ModelsHealthProvider>>({})
   const runtimeModels = ref<RuntimeModelStatus[]>([])
 
@@ -37,6 +38,7 @@ export const useModelsStore = defineStore('models', () => {
 
   async function fetchProviders() {
     loading.value = true
+    loadError.value = null
     try {
       const res = await systemApi.fetchAvailableModels()
       providers.value = res.groups
@@ -46,6 +48,12 @@ export const useModelsStore = defineStore('models', () => {
       fallbackProviders.value = res.fallbackProviders
     } catch (err) {
       console.error('Failed to fetch providers:', err)
+      providers.value = []
+      allProviders.value = []
+      fallbackProviders.value = []
+      defaultModel.value = ''
+      defaultProvider.value = ''
+      loadError.value = err instanceof Error ? err.message : String(err || 'Failed to fetch providers')
     } finally {
       loading.value = false
     }
@@ -123,6 +131,7 @@ export const useModelsStore = defineStore('models', () => {
     defaultModel,
     defaultProvider,
     loading,
+    loadError,
     providerHealth,
     runtimeModels,
     allModels,

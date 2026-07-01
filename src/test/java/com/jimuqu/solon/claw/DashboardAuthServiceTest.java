@@ -36,6 +36,18 @@ public class DashboardAuthServiceTest {
     }
 
     @Test
+    void shouldAcceptBearerSchemeCaseInsensitively() {
+        AppConfig config = new AppConfig();
+        config.getDashboard().setAccessToken("test-token");
+
+        DashboardAuthService authService = new DashboardAuthService(config);
+
+        assertThat(authService.isAuthorized(new HeaderContext("bearer test-token"))).isTrue();
+        assertThat(authService.isAuthorized(new HeaderContext("BEARER test-token"))).isTrue();
+        assertThat(authService.isAuthorized(new HeaderContext("Bearer wrong-token"))).isFalse();
+    }
+
+    @Test
     void shouldAllowCorsOriginMatchingExplicitNonLoopbackBindHost() throws Exception {
         Props props = new Props();
         props.put(

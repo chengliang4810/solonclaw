@@ -10,6 +10,7 @@ export interface CuratorReportSummary {
 }
 
 export interface CuratorReportDetail extends CuratorReportSummary {
+  report?: unknown
   report_json?: unknown
 }
 

@@ -1,6 +1,9 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { hasApiKey } from '@/api/client'
 
+const STALE_CHUNK_RELOAD_KEY = 'solonclaw_stale_chunk_reload_at'
+let staleChunkReloaded = false
+
 const router = createRouter({
   history: createWebHashHistory(),
   routes: [
@@ -100,6 +103,10 @@ const router = createRouter({
       name: 'solonclaw.files',
       component: () => import('@/views/solonclaw/FilesView.vue'),
     },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: { name: 'solonclaw.chat' },
+    },
   ],
 })
 
@@ -118,5 +125,35 @@ router.beforeEach((to, _from, next) => {
 
   next()
 })
+
+router.onError((error) => {
+  if (!isStaleChunkError(error) || !shouldReloadForStaleChunk()) {
+    return
+  }
+  window.location.reload()
+})
+
+function isStaleChunkError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '')
+  return /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk \d+ failed|error loading dynamically imported module/i.test(message)
+}
+
+function shouldReloadForStaleChunk(): boolean {
+  if (staleChunkReloaded) {
+    return false
+  }
+  staleChunkReloaded = true
+  try {
+    const lastReloadAt = Number(sessionStorage.getItem(STALE_CHUNK_RELOAD_KEY) || '0')
+    const now = Date.now()
+    if (now - lastReloadAt < 10_000) {
+      return false
+    }
+    sessionStorage.setItem(STALE_CHUNK_RELOAD_KEY, String(now))
+  } catch {
+    // Browsers can disable sessionStorage; a single in-memory reload guard still prevents loops.
+  }
+  return true
+}
 
 export default router

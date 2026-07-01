@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Button, Drawer, Modal, Spin, TextArea, Tooltip, message } from 'antdv-next'
-import type { Job, JobRun, JobRunDeliveryResultTarget } from '@/api/solonclaw/jobs'
+import type { Job, JobRun } from '@/api/solonclaw/jobs'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
 import { useI18n } from 'vue-i18n'
 import {
@@ -11,6 +11,7 @@ import {
   jobActionSummary,
   jobAliasSummary,
   jobBadges,
+  jobDeliveryTargetLabel,
   jobListDetail,
   jobScheduleLabel,
   jobStatusLabel,
@@ -100,12 +101,6 @@ function boolDetail(value: boolean) {
 
 function tokenLabel(value?: string | null) {
   return humanizeJobToken(t, value, { fallback: '—' })
-}
-
-function deliveryTargetLabel(target: JobRunDeliveryResultTarget) {
-  const parts = [tokenLabel(target.platform), target.chat_id || '—']
-  if (target.thread_id) parts.push(`#${target.thread_id}`)
-  return parts.join(' · ')
 }
 
 async function handlePause() {
@@ -350,7 +345,7 @@ async function handleDelete() {
                     class="delivery-target"
                     :class="{ err: target.status === 'error' }"
                   >
-                    <span>{{ deliveryTargetLabel(target) }}</span>
+                    <span>{{ jobDeliveryTargetLabel(t, target) }}</span>
                     <span>{{ tokenLabel(target.status) }}</span>
                     <span v-if="target.attachments">{{ t('jobs.historyDeliveryAttachments') }} {{ target.attachments }}</span>
                     <span v-if="target.error" class="delivery-target-error">{{ target.error }}</span>

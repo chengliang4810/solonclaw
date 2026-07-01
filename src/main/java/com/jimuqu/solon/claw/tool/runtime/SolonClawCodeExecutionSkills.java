@@ -67,6 +67,16 @@ public class SolonClawCodeExecutionSkills {
                     "(?:\\bsolonclaw_tools\\s*\\.\\s*)?(?:\\bread_file|\\bwrite_file)\\s*\\(\\s*(['\"])(.*?)\\1",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
+    /** MANAGED webfetch 工具 CALL 的统一常量值。 */
+    private static final Pattern MANAGED_WEBFETCH_TOOL_CALL =
+            Pattern.compile(
+                    "(?:\\bsolonclaw_tools\\s*\\.\\s*)?\\bwebfetch\\s*\\(\\s*(['\"])(.*?)\\1",
+                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+
+    /** Python 字符串内转义控制序列的统一匹配常量。 */
+    private static final Pattern PYTHON_ESCAPED_CONTROL_SEQUENCE =
+            Pattern.compile("\\\\(?:u001[bB]|x1[bB]|033)");
+
     /** 创建Solon项目Code Execution技能实例。 */
     private SolonClawCodeExecutionSkills() {}
 
@@ -92,6 +102,8 @@ public class SolonClawCodeExecutionSkills {
         summary.put("hardlineRulesApplied", Boolean.TRUE);
         summary.put("foregroundBackgroundGuardrail", Boolean.TRUE);
         summary.put("managedFileToolPathLiteralsIgnoredForPreflight", Boolean.TRUE);
+        summary.put("managedWebfetchUrlLiteralsIgnoredForPreflight", Boolean.TRUE);
+        summary.put("escapedControlSequencesIgnoredForPathPreflight", Boolean.TRUE);
         summary.put("stagingDirectoryPerRun", Boolean.TRUE);
         summary.put("stagingPrefix", "execute_code_");
         summary.put("stagingCleanup", Boolean.TRUE);
@@ -308,6 +320,7 @@ public class SolonClawCodeExecutionSkills {
                                         : stdoutText + "\n\n" + timeoutMessage);
                     } else if (exitCode != 0) {
                         result.put("status", "error");
+                        result.put("process_status", "error");
                         result.put(
                                 "error",
                                 StrUtil.blankToDefault(
@@ -341,6 +354,7 @@ public class SolonClawCodeExecutionSkills {
                 String status, String output, int toolCallsMade, long started) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("status", status);
+            result.put("process_status", status);
             result.put("output", output);
             result.put("tool_calls_made", Integer.valueOf(toolCallsMade));
             result.put("duration_seconds", Double.valueOf(durationSeconds(started)));
@@ -850,6 +864,7 @@ public class SolonClawCodeExecutionSkills {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("url", url);
             try {
+                approveManagedWebfetchUrl(url);
                 Document doc =
                         webfetchTool.webfetch(
                                 url,
@@ -866,6 +881,23 @@ public class SolonClawCodeExecutionSkills {
                 result.put("status", "error");
             }
             return result;
+        }
+
+        /**
+         * 为 execute_code 托管 webfetch 的单次 URL 调用预置外部网络审批。
+         *
+         * @param url 待获取的 URL。
+         */
+        private void approveManagedWebfetchUrl(String url) {
+            if (securityPolicyService == null) {
+                return;
+            }
+            SecurityPolicyService.UrlVerdict hardBoundary =
+                    securityPolicyService.checkReturnedUrl(url);
+            if (hardBoundary.isAllowed()) {
+                SecurityPolicyService.approveUrlPolicyForCurrentThread(
+                        "network_external_operation", url);
+            }
         }
 
         /**
@@ -1570,7 +1602,9 @@ public class SolonClawCodeExecutionSkills {
      */
     static void assertSafeExecuteCodeScript(
             String code, SecurityPolicyService securityPolicyService) {
-        String scriptForPreflight = stripManagedFileToolPathLiterals(code);
+        String scriptForPreflight =
+                stripEscapedControlSequences(stripManagedFileToolPathLiterals(code));
+        String scriptForUrlPreflight = stripManagedWebfetchUrlLiterals(code);
         if (securityPolicyService != null) {
             AppConfig appConfig = appConfigFrom(securityPolicyService);
             if (isFileGuardrailEnabled(appConfig)) {
@@ -1583,7 +1617,7 @@ public class SolonClawCodeExecutionSkills {
             }
             if (isUrlGuardrailEnabled(appConfig)) {
                 SecurityPolicyService.UrlVerdict urlVerdict =
-                        securityPolicyService.checkCommandUrls(code);
+                        securityPolicyService.checkCommandUrls(scriptForUrlPreflight);
                 if (!urlVerdict.isAllowed()) {
                     throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
                 }
@@ -1637,6 +1671,37 @@ public class SolonClawCodeExecutionSkills {
         }
         matcher.appendTail(buffer);
         return buffer.toString();
+    }
+
+    /**
+     * 剥离Managed webfetch工具URL Literals。
+     *
+     * @param code code 参数。
+     * @return 返回剥离托管 webfetch URL 后的脚本文本。
+     */
+    private static String stripManagedWebfetchUrlLiterals(String code) {
+        String value = StrUtil.nullToEmpty(code);
+        Matcher matcher = MANAGED_WEBFETCH_TOOL_CALL.matcher(value);
+        StringBuffer buffer = new StringBuffer(value.length());
+        while (matcher.find()) {
+            String replacement =
+                    matcher.group().replace(matcher.group(2), "__managed_webfetch_url__");
+            matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(buffer);
+        return buffer.toString();
+    }
+
+    /**
+     * 剥离 Python 字符串内的转义控制序列，避免路径预检把 ANSI 字面量误判成 Windows 绝对路径。
+     *
+     * @param code code 参数。
+     * @return 返回剥离转义控制序列后的脚本文本。
+     */
+    private static String stripEscapedControlSequences(String code) {
+        return PYTHON_ESCAPED_CONTROL_SEQUENCE
+                .matcher(StrUtil.nullToEmpty(code))
+                .replaceAll("__control__");
     }
 
     /**

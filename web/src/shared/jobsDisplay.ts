@@ -40,6 +40,12 @@ export interface JobBadgeSource {
   provider?: string | null
 }
 
+export interface JobDeliveryTargetSource {
+  platform?: string | null
+  chat_id?: string | null
+  thread_id?: string | null
+}
+
 export type JobStatusTone = 'success' | 'info' | 'warning' | 'error'
 
 export interface HumanizeJobTokenOptions {
@@ -191,6 +197,12 @@ export function jobBadges(t: DashboardTranslator, job: JobBadgeSource): string[]
   if (toolsetsCount > 0) badges.push(t('jobs.badge.toolsets', { count: toolsetsCount }))
   if (job.model) badges.push(job.provider ? `${job.provider}:${job.model}` : job.model)
   return badges
+}
+
+export function jobDeliveryTargetLabel(t: DashboardTranslator, target: JobDeliveryTargetSource): string {
+  const parts = [humanizeJobToken(t, target.platform, { fallback: '—' }), target.chat_id || '—']
+  if (target.thread_id) parts.push(`#${target.thread_id}`)
+  return joinJobDetailParts(parts)
 }
 
 /**

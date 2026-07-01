@@ -21,7 +21,8 @@ describe('terminalParityHints', () => {
 
     const hints = await terminalParityHints({ TERM_PROGRAM: 'vscode' } as NodeJS.ProcessEnv, {
       fileOps: { readFile },
-      homeDir: '/tmp/fake-home'
+      homeDir: '/tmp/fake-home',
+      platform: 'linux'
     })
 
     expect(hints.some(h => h.key === 'ide-setup')).toBe(true)
@@ -32,7 +33,8 @@ describe('terminalParityHints', () => {
 
     const hints = await terminalParityHints({ TERM_PROGRAM: 'vscode' } as NodeJS.ProcessEnv, {
       fileOps: { readFile },
-      homeDir: '/tmp/fake-home'
+      homeDir: '/tmp/fake-home',
+      platform: 'linux'
     })
 
     expect(hints.some(h => h.key === 'ide-setup')).toBe(false)

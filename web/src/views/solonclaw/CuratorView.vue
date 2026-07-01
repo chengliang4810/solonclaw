@@ -23,7 +23,7 @@ const markingId = ref('')
 
 const selectedJson = computed(() => {
   if (!selected.value) return ''
-  return JSON.stringify(selected.value.report_json ?? selected.value, null, 2)
+  return JSON.stringify(selected.value.report ?? selected.value.report_json ?? selected.value, null, 2)
 })
 
 function formatTime(value?: number) {

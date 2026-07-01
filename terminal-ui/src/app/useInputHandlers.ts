@@ -17,7 +17,7 @@ import { computeWheelStep, initWheelAccelForHost } from '../lib/wheelAccel.js'
 
 import { getInputSelection } from './inputSelectionStore.js'
 import type { InputHandlerContext, InputHandlerResult } from './interfaces.js'
-import { $isBlocked, $overlayState, patchOverlayState } from './overlayStore.js'
+import { $isBlocked, $overlayState, notePagerClosedByKeyboard, patchOverlayState } from './overlayStore.js'
 import { shouldDismissOverlayAfterRpcAck } from './rpcAck.js'
 import { turnController } from './turnController.js'
 import { patchTurnState } from './turnStore.js'
@@ -299,6 +299,8 @@ export function useInputHandlers(ctx: InputHandlerContext): InputHandlerResult {
 
       if (overlay.pager) {
         if (key.escape || isCtrl(key, ch, 'c') || ch === 'q') {
+          notePagerClosedByKeyboard()
+
           return patchOverlayState({ pager: null })
         }
 

@@ -180,7 +180,3 @@ export function streamRunEvents(
 
   return controller
 }
-
-export async function fetchModels(): Promise<{ data: Array<{ id: string }> }> {
-  return { data: [] }
-}

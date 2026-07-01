@@ -156,7 +156,7 @@ public class DashboardSessionService {
             messages.add(item);
         }
 
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        Map<String, Object> result = toSessionInfo(record);
         result.put("session_id", safe(sessionId, 400));
         result.put(
                 "model",

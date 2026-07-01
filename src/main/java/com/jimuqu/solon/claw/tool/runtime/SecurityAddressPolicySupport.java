@@ -305,6 +305,16 @@ final class SecurityAddressPolicySupport {
     }
 
     /**
+     * 判断地址是否属于代理 fake-ip 常用的 198.18.0.0/15 范围；DNS 解析命中时不应把公共域名误判为内网字面量。
+     *
+     * @param address DNS 解析得到的地址。
+     * @return 位于代理 fake-ip 范围时返回 true。
+     */
+    static boolean isProxyFakeIpAddress(InetAddress address) {
+        return isTrustedPrivateAddress(address);
+    }
+
+    /**
      * 判断 IPv4 四段是否同时覆盖内网和云元数据阻断范围。
      *
      * @param octets IPv4 四段数组。

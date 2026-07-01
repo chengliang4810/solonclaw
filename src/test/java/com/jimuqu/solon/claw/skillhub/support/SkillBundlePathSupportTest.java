@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.skillhub.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -71,11 +72,7 @@ class SkillBundlePathSupportTest {
     void shouldRejectSymlinkEscapedHubTargets(@TempDir Path tempDir) throws Exception {
         Path outside = Files.createTempDirectory("skillhub-outside");
         Path link = tempDir.resolve("linked-outside");
-        try {
-            Files.createSymbolicLink(link, outside);
-        } catch (UnsupportedOperationException e) {
-            return;
-        }
+        assumeTrue(createDirectoryLink(link, outside));
         Files.write(
                 outside.resolve("payload.txt"),
                 java.util.Arrays.asList("x"),
@@ -87,5 +84,34 @@ class SkillBundlePathSupportTest {
                                         tempDir.toFile(), "linked-outside/payload.txt"))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Unsafe bundle path");
+    }
+
+    /** 创建目录链接，用于在支持链接能力的平台上验证 hub 目录逃逸防护。 */
+    private boolean createDirectoryLink(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+            return true;
+        } catch (Exception ignored) {
+            if (!System.getProperty("os.name", "")
+                    .toLowerCase(java.util.Locale.ROOT)
+                    .contains("win")) {
+                return false;
+            }
+            try {
+                Process process =
+                        new ProcessBuilder(
+                                        "cmd",
+                                        "/c",
+                                        "mklink",
+                                        "/J",
+                                        link.toString(),
+                                        target.toString())
+                                .redirectErrorStream(true)
+                                .start();
+                return process.waitFor() == 0 && Files.exists(link);
+            } catch (Exception ignoredAgain) {
+                return false;
+            }
+        }
     }
 }

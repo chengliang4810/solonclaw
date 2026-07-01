@@ -282,10 +282,10 @@ class TerminalUiApprovalRespondTest {
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
                         TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "tui-shell-policy");
-        String outsidePath =
-                new File(env.appConfig.getRuntime().getHome()).getParentFile().getAbsolutePath()
-                        + File.separator
-                        + "solonclaw-tui-shell-policy.txt";
+        File outsideFile =
+                new File(
+                        new File(env.appConfig.getRuntime().getHome()).getParentFile(),
+                        "solonclaw-tui-shell-policy.txt");
 
         RecordingSocket socket = new RecordingSocket();
         listener.onOpen(socket);
@@ -294,8 +294,8 @@ class TerminalUiApprovalRespondTest {
                 "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy\",\"method\":\"shell.exec\","
                         + "\"params\":{\"session_id\":\""
                         + session.getSessionId()
-                        + "\",\"command\":\"printf audit > "
-                        + outsidePath.replace("\\", "\\\\").replace("\"", "\\\"")
+                        + "\",\"command\":\""
+                        + jsonEscape(writeTextCommand("audit", outsideFile))
                         + "\"}}");
 
         assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-shell-policy\"")
@@ -320,7 +320,7 @@ class TerminalUiApprovalRespondTest {
         if (outsideFile.exists()) {
             assertThat(outsideFile.delete()).isTrue();
         }
-        String escapedPath = outsideFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
+        String command = jsonEscape(writeTextCommand("audit", outsideFile));
 
         RecordingSocket socket = new RecordingSocket();
         listener.onOpen(socket);
@@ -329,8 +329,8 @@ class TerminalUiApprovalRespondTest {
                 "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-run\",\"method\":\"shell.exec\","
                         + "\"params\":{\"session_id\":\""
                         + session.getSessionId()
-                        + "\",\"command\":\"printf audit > "
-                        + escapedPath
+                        + "\",\"command\":\""
+                        + command
                         + "\"}}");
         SessionRecord pendingSession = env.sessionRepository.findById(session.getSessionId());
         SqliteAgentSession pendingAgentSession =
@@ -355,7 +355,8 @@ class TerminalUiApprovalRespondTest {
                 && text.contains("\"ok\":true")
                 && text.contains("\"direct_shell\":true")
                 && text.contains("\"code\":0"));
-        assertThat(outsideFile).exists().hasContent("audit");
+        assertThat(outsideFile).exists();
+        assertThat(fileText(outsideFile)).startsWith("audit");
         assertThat(env.dangerousCommandApprovalService.listPendingApprovals(refreshedAgentSession)).isEmpty();
     }
 
@@ -373,8 +374,8 @@ class TerminalUiApprovalRespondTest {
         firstFile.delete();
         secondFile.delete();
         try {
-            String firstPath = firstFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
-            String secondPath = secondFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
+            String firstCommand = jsonEscape(writeTextCommand("first", firstFile));
+            String secondCommand = jsonEscape(writeTextCommand("second", secondFile));
 
             RecordingSocket socket = new RecordingSocket();
             listener.onOpen(socket);
@@ -383,8 +384,8 @@ class TerminalUiApprovalRespondTest {
                     "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-first\",\"method\":\"shell.exec\","
                             + "\"params\":{\"session_id\":\""
                             + session.getSessionId()
-                            + "\",\"command\":\"printf first > "
-                            + firstPath
+                            + "\",\"command\":\""
+                            + firstCommand
                             + "\"}}");
             SessionRecord firstPendingSession = env.sessionRepository.findById(session.getSessionId());
             SqliteAgentSession firstPendingAgentSession =
@@ -400,8 +401,8 @@ class TerminalUiApprovalRespondTest {
                     "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-second\",\"method\":\"shell.exec\","
                             + "\"params\":{\"session_id\":\""
                             + session.getSessionId()
-                            + "\",\"command\":\"printf second > "
-                            + secondPath
+                            + "\",\"command\":\""
+                            + secondCommand
                             + "\"}}");
 
             SessionRecord twoPendingSession = env.sessionRepository.findById(session.getSessionId());
@@ -423,7 +424,8 @@ class TerminalUiApprovalRespondTest {
                     && text.contains("\"ok\":true")
                     && text.contains("\"direct_shell\":true")
                     && text.contains("\"code\":0"));
-            assertThat(firstFile).exists().hasContent("first");
+            assertThat(firstFile).exists();
+            assertThat(fileText(firstFile)).startsWith("first");
             assertThat(secondFile).doesNotExist();
         } finally {
             firstFile.delete();
@@ -449,8 +451,8 @@ class TerminalUiApprovalRespondTest {
             assertThat(secondFile.delete()).isTrue();
         }
         try {
-            String firstPath = firstFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
-            String secondPath = secondFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
+            String firstCommand = jsonEscape(writeTextCommand("first", firstFile));
+            String secondCommand = jsonEscape(writeTextCommand("second", secondFile));
 
             RecordingSocket socket = new RecordingSocket();
             listener.onOpen(socket);
@@ -459,8 +461,8 @@ class TerminalUiApprovalRespondTest {
                     "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-first\",\"method\":\"shell.exec\","
                             + "\"params\":{\"session_id\":\""
                             + session.getSessionId()
-                            + "\",\"command\":\"printf first > "
-                            + firstPath
+                            + "\",\"command\":\""
+                            + firstCommand
                             + "\"}}");
             SessionRecord pendingSession = env.sessionRepository.findById(session.getSessionId());
             SqliteAgentSession pendingAgentSession =
@@ -482,16 +484,18 @@ class TerminalUiApprovalRespondTest {
                     "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-shell-policy-second\",\"method\":\"shell.exec\","
                             + "\"params\":{\"session_id\":\""
                             + session.getSessionId()
-                            + "\",\"command\":\"printf second > "
-                            + secondPath
+                            + "\",\"command\":\""
+                            + secondCommand
                             + "\"}}");
 
             assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-shell-policy-second\"")
                     && text.contains("\"code\":0"));
             assertThat(socket.sentText()).noneMatch(text -> text.contains("\"id\":\"rpc-shell-policy-second\"")
                     && text.contains("\"approval_required\":true"));
-            assertThat(firstFile).exists().hasContent("first");
-            assertThat(secondFile).exists().hasContent("second");
+            assertThat(firstFile).exists();
+            assertThat(fileText(firstFile)).startsWith("first");
+            assertThat(secondFile).exists();
+            assertThat(fileText(secondFile)).startsWith("second");
         } finally {
             firstFile.delete();
             secondFile.delete();
@@ -514,8 +518,8 @@ class TerminalUiApprovalRespondTest {
             assertThat(outsideFile.delete()).isTrue();
         }
         try {
-            String escapedPath = outsideFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
-            String command = "curl -fsS https://example.com -o " + escapedPath;
+            String command = "curl -fsS https://example.com -o " + outsideFile.getAbsolutePath();
+            String requestCommand = jsonEscape(command);
 
             RecordingSocket socket = new RecordingSocket();
             listener.onOpen(socket);
@@ -525,7 +529,7 @@ class TerminalUiApprovalRespondTest {
                             + "\"params\":{\"session_id\":\""
                             + session.getSessionId()
                             + "\",\"command\":\""
-                            + command
+                            + requestCommand
                             + "\"}}");
             SessionRecord pendingSession = env.sessionRepository.findById(session.getSessionId());
             SqliteAgentSession pendingAgentSession =
@@ -555,7 +559,7 @@ class TerminalUiApprovalRespondTest {
                     && text.contains("网络外部操作需要审批"));
             assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"approval.request\"")
                     && text.contains("\"session_id\":\"" + session.getSessionId() + "\"")
-                    && text.contains("\"command\":\"" + command + "\""));
+                    && text.contains("\"command\":\"" + requestCommand + "\""));
             List<DangerousCommandApprovalService.PendingApproval> remainingApprovals =
                     env.dangerousCommandApprovalService.listPendingApprovals(refreshedAgentSession);
             assertThat(remainingApprovals)
@@ -667,6 +671,42 @@ class TerminalUiApprovalRespondTest {
             }
         }
         return "";
+    }
+
+    /** 构建跨平台测试写入命令，用于保留直接 shell 审批回放的真实执行路径。 */
+    private static String writeTextCommand(String value, File target) {
+        if (isWindows()) {
+            return "echo " + value + ">" + target.getAbsolutePath();
+        }
+        return "printf '"
+                + shellSingleQuoted(value)
+                + "' > '"
+                + shellSingleQuoted(target.getAbsolutePath())
+                + "'";
+    }
+
+    /** 读取测试输出文件内容，用于兼容不同 shell 的换行行为。 */
+    private static String fileText(File file) throws Exception {
+        return new String(
+                java.nio.file.Files.readAllBytes(file.toPath()),
+                java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    /** 转义 JSON 字符串中的 shell 命令，避免测试请求手写转义出错。 */
+    private static String jsonEscape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    /** 转义 POSIX 单引号字符串中的内容。 */
+    private static String shellSingleQuoted(String value) {
+        return value.replace("'", "'\"'\"'");
+    }
+
+    /** 判断当前测试运行环境是否为 Windows。 */
+    private static boolean isWindows() {
+        return System.getProperty("os.name", "")
+                .toLowerCase(java.util.Locale.ROOT)
+                .contains("win");
     }
 
     /** 收集 WebSocket 文本帧，避免测试依赖真实网络连接。 */

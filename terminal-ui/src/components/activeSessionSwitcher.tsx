@@ -18,11 +18,11 @@ import {
   newSessionMarkerColor,
   orchestratorContextHintSegments,
   orchestratorGlobalHotkeyHintSegments,
+  type OrchestratorHintSegment,
   orchestratorHintSegmentColor,
   resumeRowContextHintSegments,
   selectedSessionRowStyle,
-  sessionsCountLabel,
-  type OrchestratorHintSegment
+  sessionsCountLabel
 } from './activeSessionDisplay.js'
 import { ModelPicker } from './modelPicker.js'
 import { windowOffset } from './overlayControls.js'
@@ -35,12 +35,12 @@ export {
   orchestratorContextHintSegments,
   orchestratorGlobalHotkeyHint,
   orchestratorGlobalHotkeyHintSegments,
+  type OrchestratorHintRole,
+  type OrchestratorHintSegment,
   orchestratorHintSegmentColor,
   resumeRowContextHintSegments,
   selectedSessionRowStyle,
-  sessionsCountLabel,
-  type OrchestratorHintRole,
-  type OrchestratorHintSegment
+  sessionsCountLabel
 } from './activeSessionDisplay.js'
 
 const VISIBLE = 12

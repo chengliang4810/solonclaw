@@ -4,17 +4,13 @@
 from __future__ import annotations
 
 import argparse
-import fcntl
 import os
-import pty
 import re
 import shlex
 import shutil
-import select
 import signal
 import subprocess
 import sys
-import termios
 import tempfile
 import time
 import urllib.error
@@ -23,6 +19,17 @@ import struct
 from pathlib import Path
 
 from guardlib import REPO_ROOT
+
+try:
+    import fcntl
+    import pty
+    import select
+    import termios
+except ModuleNotFoundError:
+    fcntl = None
+    pty = None
+    select = None
+    termios = None
 
 DEFAULT_JAR = REPO_ROOT / "target" / "solonclaw-0.0.1.jar"
 
@@ -275,6 +282,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--keep-workspace", action="store_true", help="保留自动创建的工作区目录。")
     parser.add_argument("--command", action="append", default=[], help="追加一条要审计的命令。")
     return parser.parse_args()
+
+
+def pty_support_available() -> bool:
+    """判断当前平台是否提供脚本所需的 Unix PTY 模块。"""
+    return all(module is not None for module in [fcntl, pty, select, termios])
 
 
 def build_command_list(
@@ -1107,6 +1119,23 @@ def run_tui_pty(
 ) -> int:
     out_path = workspace_home / "audit-tui-pty.out"
     err_path = workspace_home / "audit-tui-pty.err"
+    if not pty_support_available():
+        print("tui SUSPECT --tui guidance", flush=True)
+        print("  issues=pty_not_supported_on_this_platform", flush=True)
+        result = {
+            "command": "--tui guidance",
+            "exit_code": 2,
+            "timeout": False,
+            "suspect": True,
+            "secret_leak": False,
+            "out_path": out_path,
+            "err_path": err_path,
+            "issues": ["pty_not_supported_on_this_platform"],
+        }
+        out_path.write_text("", encoding="utf-8")
+        err_path.write_text("PTY audit requires Unix fcntl/pty/select/termios modules.\n", encoding="utf-8")
+        findings.append(result)
+        return 1
     java_args = [
         "java",
         f"-Dsolonclaw.workspace={workspace_home}",
@@ -1239,6 +1268,13 @@ def run_node_tui_sequence(
     timeout_seconds: float,
     require_exit: bool,
 ) -> dict[str, object]:
+    if not pty_support_available():
+        out_path.write_text("", encoding="utf-8")
+        return {
+            "exit_code": 2,
+            "issues": ["pty_not_supported_on_this_platform"],
+            "stdout": "",
+        }
     pid, master_fd = pty.fork()
     if pid == 0:
         os.chdir(str(REPO_ROOT))
@@ -1380,6 +1416,23 @@ def run_node_tui_pty(
     err_path = workspace_home / "audit-node-tui-pty.err"
     server_out = workspace_home / "audit-node-tui-server.out"
     server_err = workspace_home / "audit-node-tui-server.err"
+    if not pty_support_available():
+        print("node-tui SUSPECT solonclaw server + solonclaw PTY", flush=True)
+        print("  issues=pty_not_supported_on_this_platform", flush=True)
+        result = {
+            "command": "solonclaw server + solonclaw PTY",
+            "exit_code": 2,
+            "timeout": False,
+            "suspect": True,
+            "secret_leak": False,
+            "out_path": out_path,
+            "err_path": err_path,
+            "issues": ["pty_not_supported_on_this_platform"],
+        }
+        out_path.write_text("", encoding="utf-8")
+        err_path.write_text("PTY audit requires Unix fcntl/pty/select/termios modules.\n", encoding="utf-8")
+        findings.append(result)
+        return 1
     bootstrap = run_command(
         jar,
         workspace_home,

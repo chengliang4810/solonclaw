@@ -18,6 +18,9 @@ const buildOverlayState = (): OverlayState => ({
   sudo: null
 })
 
+const PAGER_CLOSE_INPUT_SUPPRESSION_MS = 500
+let pagerClosedByKeyboardAt = 0
+
 export const $overlayState = atom<OverlayState>(buildOverlayState())
 
 export const $isBlocked = computed(
@@ -44,6 +47,21 @@ export const getOverlayState = () => $overlayState.get()
 export const patchOverlayState = (next: Partial<OverlayState> | ((state: OverlayState) => OverlayState)) =>
   $overlayState.set(typeof next === 'function' ? next($overlayState.get()) : { ...$overlayState.get(), ...next })
 
+export const notePagerClosedByKeyboard = (now = Date.now()) => {
+  pagerClosedByKeyboardAt = now
+}
+
+export const consumePagerCloseInputSuppression = (input: string, now = Date.now()) => {
+  if (!pagerClosedByKeyboardAt) {
+    return false
+  }
+
+  const shouldSuppress = input === 'q' && now - pagerClosedByKeyboardAt <= PAGER_CLOSE_INPUT_SUPPRESSION_MS
+  pagerClosedByKeyboardAt = 0
+
+  return shouldSuppress
+}
+
 export const dismissApprovalIfCurrent = (approvalId: string | undefined) =>
   patchOverlayState(state => {
     if (!state.approval || state.approval.approvalId !== approvalId) {
@@ -54,7 +72,10 @@ export const dismissApprovalIfCurrent = (approvalId: string | undefined) =>
   })
 
 /** Full reset — used by session/turn teardown and tests. */
-export const resetOverlayState = () => $overlayState.set(buildOverlayState())
+export const resetOverlayState = () => {
+  pagerClosedByKeyboardAt = 0
+  $overlayState.set(buildOverlayState())
+}
 
 /**
  * Soft reset: drop FLOW-scoped overlays (approval / clarify / confirm / sudo

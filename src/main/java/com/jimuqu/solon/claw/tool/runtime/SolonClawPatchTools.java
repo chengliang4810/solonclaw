@@ -536,7 +536,12 @@ public class SolonClawPatchTools {
         }
         SecurityPolicyService.FileVerdict verdict = securityPolicyService.checkPath(filePath, true);
         if (verdict.isAllowed()) {
-            return null;
+            try {
+                resolvePath(filePath);
+                return null;
+            } catch (SecurityException e) {
+                return PatchResult.error(outsideWorkspaceApprovalRequired(filePath));
+            }
         }
         if (verdict.isApprovalRequired()) {
             return PatchResult.error(
@@ -551,6 +556,18 @@ public class SolonClawPatchTools {
                         + verdict.getMessage()
                         + " path="
                         + redactPath(verdict.getPath(), 400));
+    }
+
+    /**
+     * 生成补丁写入真实工作区外路径时的审批提示。
+     *
+     * @param filePath 补丁中的目标路径。
+     * @return 返回统一的审批提示文本。
+     */
+    private String outsideWorkspaceApprovalRequired(String filePath) {
+        return "APPROVAL_REQUIRED: 工作区外写入需要审批 path="
+                + redactPath(filePath, 400)
+                + "。请先在对话审批该单次操作。";
     }
 
     /**

@@ -4,7 +4,7 @@ import { renderSync } from '@solonclaw/ink'
 import React from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { SessionPanel, collapseToggleMeta, connectedMcpServerCount, mcpHeadlineSuffix } from '../components/branding.js'
+import { collapseToggleMeta, connectedMcpServerCount, mcpHeadlineSuffix, SessionPanel } from '../components/branding.js'
 import { stripAnsi } from '../lib/text.js'
 import { DEFAULT_THEME } from '../theme.js'
 import type { McpServerStatus, SessionInfo } from '../types.js'

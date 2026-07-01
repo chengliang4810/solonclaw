@@ -111,7 +111,7 @@ public class AppConfigPathNormalizationTest {
 
         AppConfig.load(props);
 
-        String content = FileUtil.readUtf8String(runtimeExample);
+        String content = FileUtil.readUtf8String(runtimeExample).replace("\r\n", "\n");
         assertThat(content)
                 .contains("\nsecurity:\n")
                 .contains("  allowPrivateUrls: false")
@@ -141,5 +141,20 @@ public class AppConfigPathNormalizationTest {
                 .isEqualTo("https://api.openai.com/v1/chat/completions");
         assertThat(config.getLlm().getApiKey()).isEqualTo("");
         assertThat(config.getLlm().getModel()).isEqualTo("gpt-5.4");
+    }
+
+    /** 首次启动自动创建 config.yml 时，不能让模板空令牌覆盖命令行传入的 Dashboard 访问令牌。 */
+    @Test
+    void shouldKeepStartupDashboardTokenWhenWorkspaceConfigIsCreated() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-workspace-token").toFile();
+
+        Props props = new Props();
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
+        props.put("solonclaw.dashboard.accessToken", "startup-dashboard-token");
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(new File(workspaceHome, "config.yml")).exists();
+        assertThat(config.getDashboard().getAccessToken()).isEqualTo("startup-dashboard-token");
     }
 }

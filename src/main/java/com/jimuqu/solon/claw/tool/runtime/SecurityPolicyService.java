@@ -369,7 +369,8 @@ public class SecurityPolicyService {
                 }
                 if (!allowPrivate
                         && SecurityAddressPolicySupport.isPrivateOrInternal(address, ip)
-                        && !(trustedPrivateHost && SecurityAddressPolicySupport.isTrustedPrivateAddress(address))) {
+                        && !(trustedPrivateHost && SecurityAddressPolicySupport.isTrustedPrivateAddress(address))
+                        && !(hostIpv4 == null && SecurityAddressPolicySupport.isProxyFakeIpAddress(address))) {
                     return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
                 }
             }
@@ -1051,6 +1052,26 @@ public class SecurityPolicyService {
     }
 
     /**
+     * 收集命令文本中会被文件安全策略拒绝的路径候选，用于诊断输出整体脱敏而不暴露真实系统路径。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @return 返回被策略拒绝的原始路径候选列表。
+     */
+    public List<String> deniedCommandPathTargets(String command) {
+        String code = StrUtil.nullToEmpty(command);
+        if (code.length() == 0) {
+            return Collections.emptyList();
+        }
+        List<String> deniedPaths = new ArrayList<String>();
+        collectDeniedCommandPathTargets(code, deniedPaths);
+        String normalizedCode = normalizePathScanText(code);
+        if (!normalizedCode.equals(code)) {
+            collectDeniedCommandPathTargets(normalizedCode, deniedPaths);
+        }
+        return Collections.unmodifiableList(deniedPaths);
+    }
+
+    /**
      * 检查Configured凭据命令Paths。
      *
      * @param command 待执行或解析的命令文本。
@@ -1125,6 +1146,9 @@ public class SecurityPolicyService {
             if (isUrlLikePathToken(path)) {
                 continue;
             }
+            if (isSlashStyleCommandOption(path)) {
+                continue;
+            }
             if (approvedOutputPaths.contains(policyApprovalTarget(path))) {
                 continue;
             }
@@ -1141,6 +1165,98 @@ public class SecurityPolicyService {
             return configuredCredentialVerdict;
         }
         return FileVerdict.allow();
+    }
+
+    /**
+     * 收集单个命令文本中所有被策略拒绝的路径，避免诊断 target 只隐藏首个命中路径。
+     *
+     * @param code 命令文本。
+     * @param deniedPaths 已收集的拒绝路径。
+     */
+    private void collectDeniedCommandPathTargets(String code, List<String> deniedPaths) {
+        List<String> approvedOutputPaths = new ArrayList<String>();
+        collectDeniedCompactOutputOptionPaths(code, deniedPaths, approvedOutputPaths);
+        Matcher quotedWindowsMatcher = QUOTED_WINDOWS_PATH_PATTERN.matcher(code);
+        while (quotedWindowsMatcher.find()) {
+            String path = quotedWindowsMatcher.group(2);
+            FileVerdict verdict =
+                    checkPath(
+                            path,
+                            isCommandWritePathContext(
+                                    code,
+                                    quotedWindowsMatcher.start(2),
+                                    quotedWindowsMatcher.end(2)));
+            addDeniedCommandPathTarget(deniedPaths, path, verdict);
+        }
+        Matcher relativeCredentialMatcher = SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN.matcher(code);
+        while (relativeCredentialMatcher.find()) {
+            String path = relativeCredentialMatcher.group(1);
+            addDeniedCommandPathTarget(deniedPaths, path, checkPath(path, false));
+        }
+        Matcher credentialMatcher = SHELL_CREDENTIAL_TOKEN_PATTERN.matcher(code);
+        while (credentialMatcher.find()) {
+            String path = cleanCredentialPathToken(credentialMatcher.group(1));
+            addDeniedCommandPathTarget(deniedPaths, path, checkPath(path, false));
+        }
+        Matcher matcher = SHELL_PATH_PATTERN.matcher(code);
+        while (matcher.find()) {
+            String path = matcher.group(1);
+            if (isUrlLikePathToken(path)
+                    || isSlashStyleCommandOption(path)
+                    || approvedOutputPaths.contains(policyApprovalTarget(path))) {
+                continue;
+            }
+            FileVerdict verdict =
+                    checkPath(
+                            path,
+                            isCommandWritePathContext(code, matcher.start(1), matcher.end(1)));
+            addDeniedCommandPathTarget(deniedPaths, path, verdict);
+        }
+    }
+
+    /**
+     * 收集紧凑输出参数中的拒绝路径，同时记录安全输出路径供后续通用路径扫描去重。
+     *
+     * @param command 命令文本。
+     * @param deniedPaths 已收集的拒绝路径。
+     * @param approvedOutputPaths 已确认可写的输出路径。
+     */
+    private void collectDeniedCompactOutputOptionPaths(
+            String command, List<String> deniedPaths, List<String> approvedOutputPaths) {
+        List<String> tokens = shellLikeTokens(command, 200);
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String path = compactOutputOptionPath(token);
+            if (StrUtil.isBlank(path) && isDetachedOutputOption(token) && i + 1 < tokens.size()) {
+                path = cleanUrlToken(tokens.get(++i));
+            }
+            if (StrUtil.isBlank(path) || isEscapedWindowsDriveToken(command, path)) {
+                continue;
+            }
+            FileVerdict verdict = checkPath(path, true);
+            if (verdict.allowed) {
+                approvedOutputPaths.add(policyApprovalTarget(path));
+            } else {
+                addDeniedCommandPathTarget(deniedPaths, path, verdict);
+            }
+        }
+    }
+
+    /**
+     * 追加被拒绝路径并保持顺序去重，避免诊断 target 里重复追加相同占位符。
+     *
+     * @param deniedPaths 已收集的拒绝路径。
+     * @param path 原始路径候选。
+     * @param verdict 路径策略判定。
+     */
+    private void addDeniedCommandPathTarget(
+            List<String> deniedPaths, String path, FileVerdict verdict) {
+        if (verdict == null || verdict.allowed || StrUtil.isBlank(path)) {
+            return;
+        }
+        if (!deniedPaths.contains(path)) {
+            deniedPaths.add(path);
+        }
     }
 
     /**
@@ -1187,6 +1303,17 @@ public class SecurityPolicyService {
                 || "sftp".equals(prefix)
                 || "scp".equals(prefix)
                 || "file".equals(prefix);
+    }
+
+    /**
+     * 判断候选是否为 Windows 命令常见的 slash 短选项，而不是文件路径。
+     *
+     * @param path 路径候选。
+     * @return 如果是单字母 slash 开关返回 true。
+     */
+    private boolean isSlashStyleCommandOption(String path) {
+        String value = StrUtil.nullToEmpty(path).trim();
+        return value.matches("^/[A-Za-z](?::[^/\\\\\\s]*)?$");
     }
 
     /**
@@ -1578,6 +1705,9 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(path)) {
                 continue;
             }
+            if (isEscapedWindowsDriveToken(command, path)) {
+                continue;
+            }
             FileVerdict verdict = checkPath(path, true);
             if (!verdict.allowed) {
                 return verdict;
@@ -1592,6 +1722,19 @@ public class SecurityPolicyService {
     /** 生成当前命令检查内部去重用的文件策略目标。 */
     private String policyApprovalTarget(String path) {
         return SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(path)).trim();
+    }
+
+    /** 判断 shell token 解析是否把 Windows 反斜杠路径误还原成 D:folder 形式。 */
+    private boolean isEscapedWindowsDriveToken(String command, String path) {
+        String value = StrUtil.nullToEmpty(path);
+        if (value.length() < 3 || value.charAt(1) != ':' || !Character.isLetter(value.charAt(0))) {
+            return false;
+        }
+        char next = value.charAt(2);
+        if (next == '\\' || next == '/') {
+            return false;
+        }
+        return StrUtil.nullToEmpty(command).contains(value.substring(0, 2) + "\\");
     }
 
     /**
@@ -1627,6 +1770,12 @@ public class SecurityPolicyService {
         if (token.length() <= 2) {
             return "";
         }
+        if (startsWithPowerShellOptionValue(token, "-OutFile")) {
+            return token.substring("-OutFile".length() + 1);
+        }
+        if (startsWithPowerShellOptionValue(token, "-Destination")) {
+            return token.substring("-Destination".length() + 1);
+        }
         if (token.startsWith("-o") && !token.startsWith("--")) {
             return token.substring(2);
         }
@@ -1656,12 +1805,6 @@ public class SecurityPolicyService {
         }
         if (token.startsWith("-P") && !token.startsWith("--")) {
             return token.substring(2);
-        }
-        if (startsWithPowerShellOptionValue(token, "-OutFile")) {
-            return token.substring("-OutFile".length() + 1);
-        }
-        if (startsWithPowerShellOptionValue(token, "-Destination")) {
-            return token.substring("-Destination".length() + 1);
         }
         return "";
     }
@@ -2350,7 +2493,8 @@ public class SecurityPolicyService {
                 String ip = address.getHostAddress();
                 if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip)
                         || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)
-                        || SecurityAddressPolicySupport.isPrivateOrInternal(address, ip)) {
+                        || (SecurityAddressPolicySupport.isPrivateOrInternal(address, ip)
+                                && !SecurityAddressPolicySupport.isProxyFakeIpAddress(address))) {
                     return false;
                 }
             }
@@ -2463,7 +2607,7 @@ public class SecurityPolicyService {
      */
     private File resolveWorkspaceRelativePath(String rawPath) throws java.io.IOException {
         File file = new File(StrUtil.nullToEmpty(rawPath).trim());
-        if (!file.isAbsolute()) {
+        if (!file.isAbsolute() && !isAbsolutePathText(rawPath)) {
             file = new File(workspaceRoot(), file.getPath());
         }
         return file.getCanonicalFile();

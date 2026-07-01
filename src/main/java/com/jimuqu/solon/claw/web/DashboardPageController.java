@@ -13,6 +13,10 @@ import org.noear.solon.core.handle.DownloadedFile;
 /** Dashboard SPA 页面入口。 */
 @Controller
 public class DashboardPageController {
+    /** SPA 入口必须每次重新验证，避免旧入口继续引用已下线的前端 chunk。 */
+    private static final String INDEX_CACHE_CONTROL =
+            "no-store, no-cache, must-revalidate, max-age=0";
+
     /** 注入认证服务，用于调用对应业务能力。 */
     private final DashboardAuthService authService;
 
@@ -263,6 +267,7 @@ public class DashboardPageController {
      * @return 返回render Index结果。
      */
     private DownloadedFile renderIndex(Context context) {
+        applyIndexCacheHeaders(context);
         String html = loadIndexHtml();
         if (html == null) {
             context.status(503);
@@ -280,6 +285,17 @@ public class DashboardPageController {
                         rendered.getBytes(StandardCharsets.UTF_8),
                         "index.html")
                 .asAttachment(false);
+    }
+
+    /**
+     * 写入 Dashboard 入口页缓存策略。
+     *
+     * @param context 当前请求上下文。
+     */
+    private void applyIndexCacheHeaders(Context context) {
+        context.headerSet("Cache-Control", INDEX_CACHE_CONTROL);
+        context.headerSet("Pragma", "no-cache");
+        context.headerSet("Expires", "0");
     }
 
     /**

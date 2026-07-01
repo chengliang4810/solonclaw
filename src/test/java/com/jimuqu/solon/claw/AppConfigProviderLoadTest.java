@@ -140,6 +140,32 @@ public class AppConfigProviderLoadTest {
         assertThat(resolved.getModel()).isEqualTo("mimo-v2.5-pro");
     }
 
+    /** 首次启动生成默认 config.yml 时，不能覆盖命令行传入的默认模型提供方配置。 */
+    @Test
+    void shouldKeepStartupProviderWhenWorkspaceConfigIsCreated() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-provider-startup").toFile();
+
+        Props props = new Props();
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
+        props.put("providers.default.name", "启动提供方");
+        props.put("providers.default.baseUrl", "https://startup.example.com/v1");
+        props.put("providers.default.apiKey", "startup-provider-key");
+        props.put("providers.default.defaultModel", "startup-model");
+        props.put("providers.default.dialect", "openai-responses");
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(new File(workspaceHome, "config.yml")).exists();
+        assertThat(config.getProviders().get("default").getName()).isEqualTo("启动提供方");
+        assertThat(config.getProviders().get("default").getBaseUrl())
+                .isEqualTo("https://startup.example.com/v1");
+        assertThat(config.getProviders().get("default").getApiKey())
+                .isEqualTo("startup-provider-key");
+        assertThat(config.getProviders().get("default").getDefaultModel())
+                .isEqualTo("startup-model");
+        assertThat(config.getProviders().get("default").getDialect()).isEqualTo("openai-responses");
+    }
+
     @Test
     void shouldRejectUnknownFallbackProvider() throws Exception {
         File workspaceHome = Files.createTempDirectory("jimuqu-provider-load-invalid").toFile();

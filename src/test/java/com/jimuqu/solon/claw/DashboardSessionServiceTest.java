@@ -45,6 +45,29 @@ public class DashboardSessionServiceTest {
         assertThat(assistant.get("reasoning")).isEqualTo("先分析路径");
     }
 
+    @Test
+    void shouldExposeSummaryMetadataWithSessionMessages() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:dash-detail:user");
+        session.setTitle("Detail title");
+        session.setCreatedAt(100L);
+        session.setUpdatedAt(200L);
+        session.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("inspect session detail"))));
+        env.sessionRepository.save(session);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+        Map<String, Object> detail = service.getSessionMessages(session.getSessionId());
+
+        assertThat(detail)
+                .containsEntry("id", session.getSessionId())
+                .containsEntry("source", "local")
+                .containsEntry("title", "Detail title")
+                .containsEntry("started_at", 100L)
+                .containsEntry("last_active", 200L)
+                .containsEntry("message_count", 1)
+                .containsEntry("preview", "inspect session detail");
+    }
+
     /** 验证 Dashboard 会话接口从持久化层读取中文消息和压缩摘要时不产生乱码。 */
     @Test
     void shouldExposeChineseMessagesAndCompressedSummaryWithoutEncodingCorruption()

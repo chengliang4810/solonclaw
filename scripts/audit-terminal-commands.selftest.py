@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -785,11 +786,54 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
 
     def test_node_tui_env_uses_workspace_home_for_frontend_state(self) -> None:
         mod = load_module()
+        workspace_home = Path("/tmp/solonclaw-audit-home")
 
-        env = mod.build_node_tui_env(Path("/tmp/solonclaw-audit-home"), 18123)
+        env = mod.build_node_tui_env(workspace_home, 18123)
 
-        self.assertEqual(env["SOLONCLAW_HOME"], "/tmp/solonclaw-audit-home")
+        self.assertEqual(env["SOLONCLAW_HOME"], str(workspace_home))
         self.assertEqual(env["SOLONCLAW_SERVER_URL"], "http://127.0.0.1:18123")
+
+    def test_pty_support_detection_reports_missing_unix_modules(self) -> None:
+        mod = load_module()
+        original = (mod.fcntl, mod.pty, mod.select, mod.termios)
+        try:
+            mod.fcntl = None
+
+            self.assertFalse(mod.pty_support_available())
+        finally:
+            mod.fcntl, mod.pty, mod.select, mod.termios = original
+
+    def test_node_tui_pty_skips_bootstrap_when_pty_is_unavailable(self) -> None:
+        mod = load_module()
+        calls: list[str] = []
+
+        def fail_run_command(*args: object, **kwargs: object) -> object:
+            calls.append("run_command")
+            raise AssertionError("run_command should not run without PTY support")
+
+        def fail_popen(*args: object, **kwargs: object) -> object:
+            calls.append("Popen")
+            raise AssertionError("server should not start without PTY support")
+
+        original_support = mod.pty_support_available
+        original_run_command = mod.run_command
+        original_popen = mod.subprocess.Popen
+        try:
+            mod.pty_support_available = lambda: False
+            mod.run_command = fail_run_command
+            mod.subprocess.Popen = fail_popen
+            with tempfile.TemporaryDirectory() as tmp:
+                findings: list[dict[str, object]] = []
+
+                exit_code = mod.run_node_tui_pty(Path("missing.jar"), Path(tmp), 18123, 1, findings)
+
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(calls, [])
+            self.assertEqual(findings[0]["issues"], ["pty_not_supported_on_this_platform"])
+        finally:
+            mod.pty_support_available = original_support
+            mod.run_command = original_run_command
+            mod.subprocess.Popen = original_popen
 
 
 if __name__ == "__main__":

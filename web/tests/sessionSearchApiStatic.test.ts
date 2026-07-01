@@ -11,3 +11,7 @@ assert.ok(!api.includes('/api/sessions/${id}'), 'sessions API should not interpo
 assert.ok(!api.includes('/api/checkpoints/${id}'), 'sessions API should not interpolate raw checkpoint id path segments')
 assert.ok(api.includes('match_preview'), 'session search should map the backend match preview field')
 assert.ok(api.includes('updated_at'), 'session search should map the backend updated timestamp')
+assert.ok(
+  !api.includes("request<{ sessions: DashboardSessionSummary[] }>('/api/sessions?limit=500&offset=0')"),
+  'fetchSession should not load the 500-row session list for single-session details',
+)

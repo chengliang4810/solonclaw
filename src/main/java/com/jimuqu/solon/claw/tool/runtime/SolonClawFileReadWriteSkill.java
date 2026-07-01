@@ -202,7 +202,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     public String write(@Param("fileName") String fileName, @Param("content") String content) {
         assertSafe(ToolNameConstants.FILE_WRITE, fileName);
         assertNotInternalFileStatusContent(content);
-        Path target = resolvePath(fileName);
+        Path target;
+        try {
+            target = resolvePath(fileName);
+        } catch (SecurityException e) {
+            throw new IllegalArgumentException(
+                    outsideWorkspaceApprovalRequired(ToolNameConstants.FILE_WRITE, fileName), e);
+        }
         String staleWarning = fileStateTracker.checkStaleness(fileName, target);
         String result;
         boolean success;
@@ -424,8 +430,9 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
             return;
         }
         Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("fileName", path);
-        args.put("dirName", path);
+        String securityPath = normalizeRuntimeReference(path);
+        args.put("fileName", securityPath);
+        args.put("dirName", securityPath);
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkFileToolArgs(toolName, args);
         if (!verdict.isAllowed()) {
@@ -458,6 +465,22 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
                 + "\n路径："
                 + redactPath(verdict.getPath(), 400)
                 + "\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。";
+    }
+
+    /**
+     * 生成写入类工具访问真实工作区外路径时的审批提示。
+     *
+     * @param toolName 工具名称。
+     * @param path 用户传入的原始路径。
+     * @return 返回统一的审批提示文本。
+     */
+    private String outsideWorkspaceApprovalRequired(String toolName, String path) {
+        return "APPROVAL_REQUIRED: 工作区外写入需要审批"
+                + "\n工具："
+                + toolName
+                + "\n路径："
+                + redactPath(path, 400)
+                + "\n请先在对话审批该单次操作。";
     }
 
     /**
@@ -1152,10 +1175,13 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      */
     private String displayPathForCandidate(Path candidate) {
         Path normalized = candidate.toAbsolutePath().normalize();
+        String displayPath;
         if (normalized.startsWith(rootPath)) {
-            return rootPath.relativize(normalized).toString();
+            displayPath = rootPath.relativize(normalized).toString();
+        } else {
+            displayPath = normalized.toString();
         }
-        return normalized.toString();
+        return displayPath.replace(File.separatorChar, '/');
     }
 
     /**

@@ -110,8 +110,16 @@ interface DashboardSessionSummary {
 
 interface DashboardSessionDetail {
   session_id: string
+  id?: string
+  source?: string | null
   model?: string | null
   provider?: string | null
+  title?: string | null
+  started_at?: number
+  ended_at?: number | null
+  last_active?: number
+  message_count?: number
+  tool_call_count?: number
   input_tokens: number
   output_tokens: number
   reasoning_tokens: number
@@ -120,6 +128,7 @@ interface DashboardSessionDetail {
   total_tokens: number
   last_total_tokens: number
   last_usage_at: number
+  preview?: string | null
   compressed_summary?: string | null
   last_compression_at?: number
   last_compression_input_tokens?: number
@@ -263,29 +272,25 @@ function checkpointPath(id: string) {
 
 export async function fetchSession(id: string): Promise<SessionDetail | null> {
   try {
-    const [sessionsRes, detail] = await Promise.all([
-      request<{ sessions: DashboardSessionSummary[] }>('/api/sessions?limit=500&offset=0'),
-      request<DashboardSessionDetail>(`${sessionPath(id)}/messages`),
-    ])
-    const summary = sessionsRes.sessions.find((session) => session.id === id)
-    const base = summary ? mapSummary(summary) : {
-      id,
-      source: 'local',
+    const detail = await request<DashboardSessionDetail>(`${sessionPath(id)}/messages`)
+    const base = mapSummary({
+      id: detail.id || detail.session_id || id,
+      source: detail.source || 'local',
       model: detail.model || '',
-      title: null,
-      preview: '',
-      started_at: 0,
-      ended_at: null,
-      last_active: 0,
-      message_count: detail.messages.length,
-      tool_call_count: 0,
+      provider: detail.provider || null,
+      title: detail.title || null,
+      started_at: detail.started_at || 0,
+      ended_at: detail.ended_at || null,
+      last_active: detail.last_active || 0,
+      message_count: detail.message_count || detail.messages.length,
+      tool_call_count: detail.tool_call_count || 0,
       input_tokens: detail.input_tokens,
       output_tokens: detail.output_tokens,
       cache_read_tokens: detail.cache_read_tokens,
       cache_write_tokens: detail.cache_write_tokens,
       reasoning_tokens: detail.reasoning_tokens,
       last_total_tokens: detail.last_total_tokens || 0,
-      provider: detail.provider || null,
+      preview: detail.preview || '',
       parent_session_id: detail.parent_session_id || null,
       branch_name: detail.branch_name || null,
       compressed_summary: detail.compressed_summary || null,
@@ -294,7 +299,7 @@ export async function fetchSession(id: string): Promise<SessionDetail | null> {
       compression_failure_count: detail.compression_failure_count || 0,
       active_agent_name: detail.active_agent_name || 'default',
       goal_state: detail.goal_state || null,
-    }
+    })
 
     return {
       ...base,

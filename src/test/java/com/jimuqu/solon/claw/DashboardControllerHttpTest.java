@@ -172,6 +172,26 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
+    void shouldSetDashboardCacheHeadersForSpaAndStaticAssets() throws Exception {
+        HttpResult index = request("GET", "/index.html", null, null);
+        assertThat(index.status).isEqualTo(200);
+        assertThat(index.cacheControl).contains("no-store").contains("max-age=0");
+
+        File[] assets =
+                new File(System.getProperty("user.dir"), "web/dist/assets")
+                        .listFiles((dir, name) -> name.endsWith(".js"));
+        assertThat(assets).isNotEmpty();
+
+        HttpResult asset = request("GET", "/assets/" + assets[0].getName(), null, null);
+        assertThat(asset.status).isEqualTo(200);
+        assertThat(asset.cacheControl).contains("max-age=31536000").contains("immutable");
+
+        HttpResult missing = request("GET", "/assets/missing-stale-chunk.js", null, null);
+        assertThat(missing.status).isEqualTo(404);
+        assertThat(missing.cacheControl).contains("no-store");
+    }
+
+    @Test
     void shouldReturnStructuredErrorForInvalidDiagnosticsJson() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
 
@@ -3398,8 +3418,9 @@ public class DashboardControllerHttpTest {
         int status = connection.getResponseCode();
         java.io.InputStream stream =
                 status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+        String cacheControl = connection.getHeaderField("Cache-Control");
         if (stream == null) {
-            return new HttpResult(status, "");
+            return new HttpResult(status, "", cacheControl);
         }
         BufferedReader reader =
                 new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
@@ -3409,7 +3430,7 @@ public class DashboardControllerHttpTest {
             while ((line = reader.readLine()) != null) {
                 buffer.append(line).append('\n');
             }
-            return new HttpResult(status, buffer.toString());
+            return new HttpResult(status, buffer.toString(), cacheControl);
         } finally {
             reader.close();
             connection.disconnect();
@@ -3591,10 +3612,16 @@ public class DashboardControllerHttpTest {
     private static class HttpResult {
         private final int status;
         private final String body;
+        private final String cacheControl;
 
         private HttpResult(int status, String body) {
+            this(status, body, "");
+        }
+
+        private HttpResult(int status, String body, String cacheControl) {
             this.status = status;
             this.body = body;
+            this.cacheControl = cacheControl == null ? "" : cacheControl;
         }
     }
 

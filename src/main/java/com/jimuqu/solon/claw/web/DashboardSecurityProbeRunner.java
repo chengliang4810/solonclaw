@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.web;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.diagnosticFailureSummary;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.approvalAuditItem;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedCommandPathTarget;
+import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedCommandPathTargets;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safeAuditPreview;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safePathProbeTarget;
 
@@ -526,6 +527,11 @@ final class DashboardSecurityProbeRunner {
         String target =
                 redactedCommandPathTarget(
                         command, verdict.getPath(), verdict.getMessage(), !verdict.isAllowed());
+        if (!verdict.isAllowed()) {
+            target =
+                    redactedCommandPathTargets(
+                            target, securityPolicyService.deniedCommandPathTargets(command));
+        }
         return policyProbeItem(
                 key,
                 label,
