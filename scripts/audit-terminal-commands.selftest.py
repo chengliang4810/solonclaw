@@ -85,6 +85,31 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(mod.process_output_text("hello"), "hello")
         self.assertEqual(mod.process_output_text(None), "")
 
+    def test_run_command_uses_utf8_replacement_decoding(self) -> None:
+        mod = load_module()
+        calls: list[dict[str, object]] = []
+
+        def fake_run(*args: object, **kwargs: object) -> object:
+            calls.append(kwargs)
+            return mod.subprocess.CompletedProcess(
+                args[0] if args else [],
+                0,
+                stdout="你好",
+                stderr="",
+            )
+
+        original_run = mod.subprocess.run
+        try:
+            mod.subprocess.run = fake_run
+            with tempfile.TemporaryDirectory() as tmp:
+                result = mod.run_command(Path("missing.jar"), Path(tmp), "/help", 1, 1)
+        finally:
+            mod.subprocess.run = original_run
+
+        self.assertEqual(result["exit_code"], 0)
+        self.assertEqual(calls[0]["encoding"], "utf-8")
+        self.assertEqual(calls[0]["errors"], "replace")
+
     def test_expected_empty_state_exit_is_not_suspect(self) -> None:
         mod = load_module()
 

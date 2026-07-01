@@ -1060,6 +1060,8 @@ def run_command(jar: Path, workspace_home: Path, command: str, index: int, timeo
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout_seconds,
             check=False,
         )
