@@ -5,7 +5,6 @@ import { useI18n } from 'vue-i18n'
 import JobsPanel from '@/components/solonclaw/jobs/JobsPanel.vue'
 import JobFormModal from '@/components/solonclaw/jobs/JobFormModal.vue'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
-import { formatJobTime } from '@/shared/jobsDisplay'
 
 const { t } = useI18n()
 const jobsStore = useJobsStore()
@@ -61,28 +60,6 @@ async function refreshSchedules() {
       </Button>
     </header>
 
-    <section class="simple-hero">
-      <div class="simple-copy">
-        <span>{{ t('jobs.simpleHeroEyebrow') }}</span>
-        <h3>{{ t('jobs.simpleHeroTitle') }}</h3>
-        <p>{{ t('jobs.simpleHeroDesc') }}</p>
-      </div>
-      <div class="simple-steps">
-        <div class="simple-step">
-          <strong>1</strong>
-          <span>{{ t('jobs.simpleHeroStepTask') }}</span>
-        </div>
-        <div class="simple-step">
-          <strong>2</strong>
-          <span>{{ t('jobs.simpleHeroStepTime') }}</span>
-        </div>
-        <div class="simple-step">
-          <strong>3</strong>
-          <span>{{ t('jobs.simpleHeroStepDelivery') }}</span>
-        </div>
-      </div>
-    </section>
-
     <section v-if="jobsStore.status" class="status-panel">
       <div class="status-grid">
         <div class="status-item">
@@ -112,15 +89,6 @@ async function refreshSchedules() {
           <template v-if="jobsStore.status.recent_failures.length">
             <code v-for="failure in jobsStore.status.recent_failures.slice(0, 3)" :key="failure.job_id || failure.id || failure.name">
               {{ failure.name || failure.job_id || failure.id }} · {{ failure.last_error || failure.last_delivery_error || failure.last_status }}
-            </code>
-          </template>
-          <code v-else>—</code>
-        </div>
-        <div class="status-list">
-          <span>{{ t('jobs.pageNextRuns') }}</span>
-          <template v-if="jobsStore.status.next.length">
-            <code v-for="job in jobsStore.status.next.slice(0, 3)" :key="job.id">
-              {{ job.name }} · {{ formatJobTime(job.next_run_at) }}
             </code>
           </template>
           <code v-else>—</code>
@@ -205,7 +173,7 @@ async function refreshSchedules() {
 
 .status-side {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -231,84 +199,8 @@ async function refreshSchedules() {
   }
 }
 
-.simple-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
-  gap: 18px;
-  margin: 0 20px 0;
-  border: 1px solid $border-light;
-  border-radius: $radius-md;
-  background: $bg-card;
-  padding: 16px;
-  flex-shrink: 0;
-}
-
-.simple-copy {
-  min-width: 0;
-
-  span {
-    display: block;
-    color: $accent-primary;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.4;
-  }
-
-  h3 {
-    margin: 4px 0 6px;
-    color: $text-primary;
-    font-size: 18px;
-    line-height: 1.35;
-    font-weight: 700;
-  }
-
-  p {
-    margin: 0;
-    color: $text-secondary;
-    font-size: 13px;
-    line-height: 1.6;
-  }
-}
-
-.simple-steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.simple-step {
-  min-width: 0;
-  border: 1px solid $border-light;
-  border-radius: 6px;
-  background: $bg-card-hover;
-  padding: 10px;
-
-  strong {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: rgba(var(--accent-primary-rgb), 0.12);
-    color: $accent-primary;
-    font-size: 12px;
-    line-height: 1;
-  }
-
-  span {
-    display: block;
-    margin-top: 8px;
-    color: $text-secondary;
-    font-size: 12px;
-    line-height: 1.5;
-  }
-}
-
 @media (max-width: $breakpoint-mobile) {
-  .status-panel,
-  .simple-hero,
-  .simple-steps {
+  .status-panel {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -316,12 +208,10 @@ async function refreshSchedules() {
   .status-side {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
 }
 
 @media (max-width: 900px) {
-  .status-panel,
-  .simple-hero {
+  .status-panel {
     grid-template-columns: 1fr;
   }
 }
@@ -331,24 +221,13 @@ async function refreshSchedules() {
     padding: 12px;
   }
 
-  .status-panel,
-  .simple-hero {
+  .status-panel {
     margin-left: 12px;
     margin-right: 12px;
   }
 
-  .guide-summary {
-    gap: 10px;
-  }
-
-  .guide-meta span {
-    width: 100%;
-  }
-
   .status-grid,
-  .status-side,
-  .guide-grid,
-  .policy-grid {
+  .status-side {
     grid-template-columns: 1fr;
   }
 }

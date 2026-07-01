@@ -65,6 +65,10 @@ const jobCard = readFileSync(
   new URL('../src/components/solonclaw/jobs/JobCard.vue', import.meta.url),
   'utf8',
 )
+const jobsView = readFileSync(
+  new URL('../src/views/solonclaw/JobsView.vue', import.meta.url),
+  'utf8',
+)
 
 assert.equal(humanizeJobToken(t, 'local'), '本地会话')
 assert.equal(humanizeJobToken(t, 'unknown'), 'unknown')
@@ -137,3 +141,5 @@ assert.ok(jobCard.includes('jobActionSummary(t, actionFlags.value)'), 'JobCard s
 assert.ok(jobCard.includes('jobAliasSummary(t, actionFlags.value)'), 'JobCard should reuse shared alias summaries')
 assert.ok(jobCard.includes('jobBadges(t, props.job)'), 'JobCard should reuse shared badge summaries')
 assert.ok(jobCard.includes('jobDeliveryTargetLabel(t, target)'), 'JobCard should reuse shared delivery target labels')
+assert.ok(!jobsView.includes('simpleHero'), 'JobsView should not keep a how-to hero above the operational job list')
+assert.ok(!jobsView.includes('pageNextRuns'), 'JobsView should not duplicate next runs outside the upcoming jobs panel')
