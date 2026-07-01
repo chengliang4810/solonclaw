@@ -898,6 +898,23 @@ describe('createSlashHandler', () => {
     expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
+  it('rejects unknown slash commands locally after the command catalog loads', () => {
+    const ctx = buildCtx({
+      local: {
+        catalog: {
+          canon: {
+            '/help': '/help'
+          }
+        }
+      }
+    })
+
+    expect(createSlashHandler(ctx)('/not-a-real-command')).toBe(true)
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('unknown command: /not-a-real-command — try /help')
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+    expect(ctx.transcript.send).not.toHaveBeenCalled()
+  })
+
   it('falls through to command.dispatch for skill commands and sends the message', async () => {
     const skillMessage = 'Use this skill to do X.\n\n## Steps\n1. First step'
 

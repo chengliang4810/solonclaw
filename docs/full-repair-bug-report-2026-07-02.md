@@ -100,7 +100,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-018：TUI 未知 slash command 被当成普通聊天发送模型
 
-状态：待修复
+状态：已修复，本次提交
 
 影响范围：
 
@@ -118,6 +118,12 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 - TUI 在发送聊天前先判断以 `/` 开头且不属于已注册命令的输入。
 - 对未知命令返回本地提示，例如“未知命令，可输入 /help 查看命令列表”。
 - 不要把未知 slash command 下发给模型。
+
+处理记录：
+
+- 在命令 catalog 已加载且本地命令、catalog exact、catalog 唯一前缀都无法匹配时，直接返回本地未知命令提示。
+- 保留 catalog 未加载时的后端 fallback，避免启动早期动态技能命令不可用。
+- 已用 `createSlashHandler.test.ts` 覆盖未知 slash command 不调用后端、不发送聊天。
 
 ## BUG-019：后端不可达时 Node TUI 高频刷屏和刷日志
 

@@ -97,6 +97,10 @@ export function createSlashHandler(ctx: SlashHandlerContext): (cmd: string) => b
 
           return true
         }
+
+        sys(`unknown command: /${parsed.name} — try /help`)
+
+        return true
       }
     }
 
