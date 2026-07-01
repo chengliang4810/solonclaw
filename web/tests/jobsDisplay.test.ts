@@ -8,6 +8,7 @@ import {
   jobActionSummary,
   jobAliasSummary,
   jobBadges,
+  jobDeliveryTargetLabel,
   jobListDetail,
   jobMapKeysText,
   jobScheduleLabel,
@@ -120,12 +121,19 @@ assert.equal(formatJobTime(null), '—')
 assert.equal(jobListDetail(['a', 'b']), 'a, b')
 assert.equal(jobListDetail([]), '—')
 assert.equal(joinJobDetailParts(['local', '', undefined, '#thread']), 'local · #thread')
+assert.equal(
+  jobDeliveryTargetLabel(t, { platform: 'local', chat_id: 'chat-1', thread_id: 'thread-1' }),
+  '本地会话 · chat-1 · #thread-1',
+)
+assert.equal(jobDeliveryTargetLabel(t, { platform: null, chat_id: null, thread_id: null }), '— · —')
 assert.ok(!jobCard.includes("props.job.state === 'running'"), 'JobCard should not inline job status state branches')
 assert.ok(!jobCard.includes("actions.push(t('jobs.action.pause'))"), 'JobCard should not inline action summary labels')
 assert.ok(!jobCard.includes("aliases.push(t('jobs.alias.enableStart'))"), 'JobCard should not inline alias summary labels')
 assert.ok(!jobCard.includes("badges.push(t('jobs.badge.noAgent'))"), 'JobCard should not inline badge labels')
+assert.ok(!jobCard.includes('function deliveryTargetLabel'), 'JobCard should not inline delivery target labels')
 assert.ok(jobCard.includes('jobStatusLabel(t, props.job)'), 'JobCard should reuse shared job status labels')
 assert.ok(jobCard.includes('jobStatusTone(props.job)'), 'JobCard should reuse shared job status tones')
 assert.ok(jobCard.includes('jobActionSummary(t, actionFlags.value)'), 'JobCard should reuse shared action summaries')
 assert.ok(jobCard.includes('jobAliasSummary(t, actionFlags.value)'), 'JobCard should reuse shared alias summaries')
 assert.ok(jobCard.includes('jobBadges(t, props.job)'), 'JobCard should reuse shared badge summaries')
+assert.ok(jobCard.includes('jobDeliveryTargetLabel(t, target)'), 'JobCard should reuse shared delivery target labels')
