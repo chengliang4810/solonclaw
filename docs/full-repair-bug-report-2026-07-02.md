@@ -48,7 +48,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-016：Web 页面仍触发 Ant Design Vue 废弃属性告警
 
-状态：待修复
+状态：已修复，本次提交
 
 影响范围：
 
@@ -182,3 +182,12 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 - setup-required 状态也应允许本地命令目录类命令执行。
 - 如果当前状态不支持，应给出明确提示，而不是只回显输入。
+
+处理记录：
+
+- 将 Node TUI 的 `/commands` 作为 `/help` 本地别名处理，setup-required 阶段不再落到 slash worker 或普通回显。
+- 增加 `createSlashHandler` 回归测试，确认 `/commands` 打开本地帮助面板且不请求后端。
+
+验证：
+
+- `npm --prefix terminal-ui test -- createSlashHandler.test.ts slashParity.test.ts completionApply.test.ts`

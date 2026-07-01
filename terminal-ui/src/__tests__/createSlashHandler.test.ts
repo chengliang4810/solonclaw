@@ -68,6 +68,14 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).toHaveBeenCalledWith('ui redrawn')
   })
 
+  it('shows the local help panel for /commands', () => {
+    const ctx = buildCtx()
+
+    expect(createSlashHandler(ctx)('/commands')).toBe(true)
+    expect(ctx.transcript.panel).toHaveBeenCalledWith(expect.any(String), expect.any(Array))
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+  })
+
   it('exits locally for /quit', () => {
     const ctx = buildCtx()
 

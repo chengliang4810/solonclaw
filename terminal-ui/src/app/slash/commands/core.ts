@@ -86,6 +86,7 @@ const warnConfigSaveFailed = (ctx: { stale: () => boolean; transcript: { sys: (t
 
 export const coreCommands: SlashCommand[] = [
   {
+    aliases: ['commands'],
     help: 'list commands + hotkeys',
     name: 'help',
     run: (_arg, ctx) => {
