@@ -11,3 +11,8 @@ assert.ok(
 )
 assert.ok(router.includes('sessionStorage'), 'router should guard reload loops across page reloads')
 assert.ok(router.includes('window.location.reload()'), 'router should reload once after stale chunk errors')
+assert.ok(router.includes("path: '/:pathMatch(.*)*'"), 'router should catch unknown dashboard paths')
+assert.ok(
+  router.includes("redirect: { name: 'solonclaw.chat' }"),
+  'unknown dashboard paths should return to the default dashboard page',
+)

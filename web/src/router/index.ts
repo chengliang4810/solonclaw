@@ -103,6 +103,10 @@ const router = createRouter({
       name: 'solonclaw.files',
       component: () => import('@/views/solonclaw/FilesView.vue'),
     },
+    {
+      path: '/:pathMatch(.*)*',
+      redirect: { name: 'solonclaw.chat' },
+    },
   ],
 })
 
