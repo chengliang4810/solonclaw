@@ -691,7 +691,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                                             ? null
                                             : userPrompt(effectivePrompt, runContext, resolved));
                     OwnedModelResponse modelResponse =
-                            executeOwnedModelRequest(requestDesc, feedbackSink, eventSink);
+                            executeOwnedModelRequest(
+                                    requestDesc, feedbackSink, eventSink, usageCollector);
                     rawResponse = modelResponse.rawResponse;
                     assistantMessage = modelResponse.assistantMessage;
                     streamed = streamed || modelResponse.streamed;
@@ -812,12 +813,14 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param requestDesc 请求描述。
      * @param feedbackSink feedbackSink参数。
      * @param eventSink eventSink参数。
+     * @param usageCollector 当前 ReAct 轮次的模型用量收集器。
      * @return 返回模型响应。
      */
     private OwnedModelResponse executeOwnedModelRequest(
             ChatRequestDesc requestDesc,
             ConversationFeedbackSink feedbackSink,
-            ConversationEventSink eventSink)
+            ConversationEventSink eventSink,
+            UsageCollector usageCollector)
             throws Exception {
         if (eventSink == null || eventSink == ConversationEventSink.noop()) {
             ChatResponse response = requestDesc.call();
@@ -870,6 +873,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
 
         ChatResponse response = finalResponse[0];
+        if (response != null && usageCollector != null) {
+            usageCollector.addFinalStreamUsage(response.getUsage());
+        }
         AssistantMessage assistantMessage = null;
         String rawResponse = bufferedVisibleText.toString();
         if (response != null) {
@@ -3323,6 +3329,22 @@ public class SolonAiLlmGateway implements LlmGateway {
             if (usage.getSource() != null) {
                 rawUsageJson.add(usage.getSource().toJson());
             }
+        }
+
+        /**
+         * 记录最终流式分片里的模型用量；若拦截器已经收过同一份原始 usage，则避免重复累计。
+         *
+         * @param usage 最终流式分片携带的用量。
+         */
+        private synchronized void addFinalStreamUsage(AiUsage usage) {
+            if (usage == null) {
+                return;
+            }
+            ONode source = usage.getSource();
+            if (source != null && rawUsageJson.contains(source.toJson())) {
+                return;
+            }
+            add(usage);
         }
 
         /**

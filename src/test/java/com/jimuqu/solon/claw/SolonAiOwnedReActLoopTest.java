@@ -28,6 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
+import org.noear.solon.ai.AiUsage;
 import org.noear.solon.ai.chat.ChatChoice;
 import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.ChatConfigReadonly;
@@ -453,6 +455,12 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(eventSink.assistantDeltas).contains("流式答复");
         assertThat(eventSink.reasoningDeltas).noneMatch(delta -> delta.contains("<think>"));
         assertThat(eventSink.assistantDeltas).noneMatch(delta -> delta.contains("<think>"));
+        assertThat(result.getRequestCount()).isEqualTo(1L);
+        assertThat(result.getInputTokens()).isEqualTo(19L);
+        assertThat(result.getOutputTokens()).isEqualTo(3L);
+        assertThat(result.getReasoningTokens()).isEqualTo(2L);
+        assertThat(result.getTotalTokens()).isEqualTo(24L);
+        assertThat(result.getRawUsageJson()).contains("prompt_tokens");
     }
 
     @Test
@@ -1242,10 +1250,27 @@ public class SolonAiOwnedReActLoopTest {
                 session.addMessage(visible);
                 return Flux.just(
                         new FakeResponse(model, options, thinking, true),
-                        new FakeResponse(model, options, visible, true));
+                        new FakeResponse(model, options, visible, true, visible, streamFinalUsage()));
             } catch (IOException e) {
                 return Flux.error(e);
             }
+        }
+
+        /**
+         * 构造最终流式分片携带的模型用量，复现真实 provider 只在最后一个 chunk 返回 usage 的场景。
+         *
+         * @return 返回模拟的流式最终用量。
+         */
+        private AiUsage streamFinalUsage() {
+            ONode source =
+                    ONode.ofJson(
+                            "{"
+                                    + "\"prompt_tokens\":19,"
+                                    + "\"completion_tokens\":3,"
+                                    + "\"total_tokens\":24,"
+                                    + "\"completion_tokens_details\":{\"reasoning_tokens\":2}"
+                                    + "}");
+            return new AiUsage(19L, 0L, 3L, 24L, source);
         }
 
         private ToolMessage lastToolMessage(List<ChatMessage> messages) {
@@ -1306,6 +1331,8 @@ public class SolonAiOwnedReActLoopTest {
         private final AssistantMessage message;
         private final boolean stream;
         private final AssistantMessage aggregationMessage;
+        /** 模拟协议响应携带的模型用量。 */
+        private final AiUsage usage;
 
         private FakeResponse(
                 FakeChatModel model, ChatOptions options, AssistantMessage message, boolean stream) {
@@ -1318,11 +1345,22 @@ public class SolonAiOwnedReActLoopTest {
                 AssistantMessage message,
                 boolean stream,
                 AssistantMessage aggregationMessage) {
+            this(model, options, message, stream, aggregationMessage, null);
+        }
+
+        private FakeResponse(
+                FakeChatModel model,
+                ChatOptions options,
+                AssistantMessage message,
+                boolean stream,
+                AssistantMessage aggregationMessage,
+                AiUsage usage) {
             this.model = model;
             this.options = options;
             this.message = message;
             this.stream = stream;
             this.aggregationMessage = aggregationMessage;
+            this.usage = usage;
         }
 
         @Override
@@ -1401,8 +1439,8 @@ public class SolonAiOwnedReActLoopTest {
         }
 
         @Override
-        public org.noear.solon.ai.AiUsage getUsage() {
-            return null;
+        public AiUsage getUsage() {
+            return usage;
         }
 
         @Override
