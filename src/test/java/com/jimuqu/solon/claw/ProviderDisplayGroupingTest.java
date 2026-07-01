@@ -237,6 +237,26 @@ public class ProviderDisplayGroupingTest {
                 .isEqualTo(Integer.valueOf(0));
     }
 
+    @Test
+    void shouldExposeSupportedDialectCatalogForDashboardProviderForms() {
+        AppConfig config = config();
+        DashboardProviderService service =
+                new DashboardProviderService(config, null, new LlmProviderService(config));
+
+        Map<String, Object> result = service.listProviders();
+        List<?> catalog = (List<?>) result.get("dialectCatalog");
+
+        assertThat(catalog).hasSize(5);
+        assertThat(catalog.toString())
+                .contains("openai")
+                .contains("openai-responses")
+                .contains("ollama")
+                .contains("gemini")
+                .contains("anthropic")
+                .contains("models.dialectOpenaiResponses")
+                .contains("baseUrlPlaceholder");
+    }
+
     private Map<?, ?> findProfile(List<?> profiles, String provider) {
         for (Object item : profiles) {
             Map<?, ?> row = (Map<?, ?>) item;

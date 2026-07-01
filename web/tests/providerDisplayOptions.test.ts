@@ -7,6 +7,8 @@ import {
   apiKeyStatusLabelKey,
   baseUrlPlaceholderForDialect,
   healthLabelKey,
+  normalizeDialectCatalog,
+  translateDialectCatalogOptions,
   translateDialectLabel,
   translateDialectOptions,
 } from '../src/shared/providerDisplay.ts'
@@ -36,6 +38,21 @@ assert.deepEqual(translated.map(item => item.label), [
 
 assert.equal(translateDialectLabel('openai-responses', key => `label:${key}`), 'label:models.dialectOpenaiResponses')
 assert.equal(translateDialectLabel('custom-protocol', key => `label:${key}`), 'custom-protocol')
+
+const backendCatalog = normalizeDialectCatalog([
+  { value: 'anthropic', labelKey: 'models.dialectAnthropic' },
+  { value: 'unsupported', labelKey: 'models.unsupportedDialect' },
+  { value: 'ollama' },
+])
+assert.deepEqual(backendCatalog.map(item => item.value), ['anthropic', 'ollama'])
+assert.deepEqual(translateDialectCatalogOptions(key => `label:${key}`, backendCatalog), [
+  { label: 'label:models.dialectAnthropic', value: 'anthropic' },
+  { label: 'label:models.dialectOllama', value: 'ollama' },
+])
+assert.deepEqual(
+  translateDialectCatalogOptions(key => `label:${key}`, []).map(item => item.value),
+  ['openai', 'openai-responses', 'ollama', 'gemini', 'anthropic'],
+)
 
 assert.equal(baseUrlPlaceholderForDialect('ollama'), 'http://127.0.0.1:11434')
 assert.equal(baseUrlPlaceholderForDialect('gemini'), 'https://generativelanguage.googleapis.com')
@@ -73,6 +90,10 @@ assert.ok(!providerCard.includes('function dialectLabel'), 'provider card should
 assert.ok(!providerCard.includes('function healthLabel'), 'provider card should reuse shared health display')
 assert.ok(!providerForm.includes('function dialectLabel'), 'provider form should reuse shared dialect display')
 assert.ok(!providerForm.includes('const dialectOptions = ['), 'provider form should reuse shared dialect options')
+assert.ok(
+  providerForm.includes('translateDialectCatalogOptions(t, modelsStore.dialectCatalog)'),
+  'provider form should prefer backend provider dialect catalog from the models store',
+)
 assert.ok(!providerCard.includes("t('models.providerKey')"), 'provider card should reuse shared field labels')
 assert.ok(!providerCard.includes("t('models.baseUrl')"), 'provider card should reuse shared field labels')
 assert.ok(!providerCard.includes("t('models.providerDefaultModel')"), 'provider card should reuse shared field labels')

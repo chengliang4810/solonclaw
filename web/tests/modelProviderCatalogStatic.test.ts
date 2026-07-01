@@ -21,3 +21,7 @@ assert.ok(
   systemApi.includes("request<ProvidersPayload>('/api/providers')"),
   'system API should use the backend provider catalog endpoint as the provider source',
 )
+assert.ok(
+  systemApi.includes('dialectCatalog'),
+  'system API should carry the backend-supported provider dialect catalog with provider metadata',
+)

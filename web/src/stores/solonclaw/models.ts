@@ -4,12 +4,14 @@ import * as systemApi from '@/api/solonclaw/system'
 import type {
   AvailableModelGroup,
   CustomProvider,
+  DialectCatalogItem,
   FallbackProvider,
   ProviderValidationRequest,
   ProviderValidationResponse,
   ModelsHealthProvider,
   RuntimeModelStatus,
 } from '@/api/solonclaw/system'
+import { LLM_DIALECT_OPTIONS, normalizeDialectCatalog } from '@/shared/providerDisplay'
 import { useAppStore } from './app'
 
 export const useModelsStore = defineStore('models', () => {
@@ -22,6 +24,7 @@ export const useModelsStore = defineStore('models', () => {
   const loadError = ref<string | null>(null)
   const providerHealth = ref<Record<string, ModelsHealthProvider>>({})
   const runtimeModels = ref<RuntimeModelStatus[]>([])
+  const dialectCatalog = ref<DialectCatalogItem[]>([...LLM_DIALECT_OPTIONS])
 
   const allModels = computed(() =>
     providers.value.flatMap(g =>
@@ -46,6 +49,7 @@ export const useModelsStore = defineStore('models', () => {
       defaultModel.value = res.default
       defaultProvider.value = res.default_provider
       fallbackProviders.value = res.fallbackProviders
+      dialectCatalog.value = normalizeDialectCatalog(res.dialectCatalog)
     } catch (err) {
       console.error('Failed to fetch providers:', err)
       providers.value = []
@@ -53,6 +57,7 @@ export const useModelsStore = defineStore('models', () => {
       fallbackProviders.value = []
       defaultModel.value = ''
       defaultProvider.value = ''
+      dialectCatalog.value = [...LLM_DIALECT_OPTIONS]
       loadError.value = err instanceof Error ? err.message : String(err || 'Failed to fetch providers')
     } finally {
       loading.value = false
@@ -134,6 +139,7 @@ export const useModelsStore = defineStore('models', () => {
     loadError,
     providerHealth,
     runtimeModels,
+    dialectCatalog,
     allModels,
     fetchProviders,
     setDefaultModel,

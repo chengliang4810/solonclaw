@@ -3,7 +3,11 @@ import { computed, ref } from 'vue'
 import { Modal, Form, FormItem, Input, Button, Select, AutoComplete, message } from 'antdv-next'
 import { useModelsStore } from '@/stores/solonclaw/models'
 import type { AvailableModelGroup } from '@/api/solonclaw/system'
-import { PROVIDER_FORM_FIELD_LABEL_KEYS, baseUrlPlaceholderForDialect, translateDialectOptions } from '@/shared/providerDisplay'
+import {
+  PROVIDER_FORM_FIELD_LABEL_KEYS,
+  baseUrlPlaceholderForDialect,
+  translateDialectCatalogOptions,
+} from '@/shared/providerDisplay'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -42,7 +46,7 @@ function errorMessage(error: unknown, fallback?: string): string {
   return fallback ?? String(error)
 }
 
-const dialectOptions = computed(() => translateDialectOptions(t))
+const dialectOptions = computed(() => translateDialectCatalogOptions(t, modelsStore.dialectCatalog))
 
 async function handleSave() {
   if (!formData.value.providerKey.trim()) {

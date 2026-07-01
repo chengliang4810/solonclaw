@@ -18,6 +18,12 @@ export interface ProviderRecord {
   isDefault: boolean
 }
 
+export interface DialectCatalogItem {
+  value: string
+  labelKey?: string
+  baseUrlPlaceholder?: string
+}
+
 export interface FallbackProvider {
   provider: string
   model: string
@@ -85,6 +91,7 @@ export interface AvailableModelsResponse {
   groups: AvailableModelGroup[]
   allProviders: AvailableModelGroup[]
   fallbackProviders: FallbackProvider[]
+  dialectCatalog: DialectCatalogItem[]
 }
 
 export interface CustomProvider {
@@ -105,6 +112,7 @@ interface ProvidersPayload {
   defaultProviderKey: string
   defaultModel: string
   fallbackProviders: FallbackProvider[]
+  dialectCatalog?: DialectCatalogItem[]
 }
 
 export interface DashboardModelInfo {
@@ -157,6 +165,7 @@ export async function fetchAvailableModels(): Promise<AvailableModelsResponse> {
     groups,
     allProviders: groups,
     fallbackProviders: payload.fallbackProviders || [],
+    dialectCatalog: payload.dialectCatalog || [],
   }
 }
 

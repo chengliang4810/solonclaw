@@ -129,6 +129,7 @@ public class DashboardProviderService {
         result.put("defaultProviderKey", appConfig.getModel().getProviderKey());
         result.put("defaultModel", appConfig.getModel().getDefault());
         result.put("fallbackProviders", cloneFallbackProviders(appConfig.getFallbackProviders()));
+        result.put("dialectCatalog", dialectCatalog());
         result.put("providerProfiles", providerProfileService.listProfiles());
         return result;
     }
@@ -971,6 +972,67 @@ public class DashboardProviderService {
         item.put("metadata", metadataMap(modelMetadataService.resolve(providerKey, provider)));
         appendProviderDisplay(item, ProviderDisplayGrouping.providerDisplay(providerKey, provider));
         return item;
+    }
+
+    /**
+     * 返回 Dashboard 可选择的大模型协议目录，前端表单以此为主、静态清单仅作为离线兜底。
+     *
+     * @return 支持协议的展示目录。
+     */
+    private List<Map<String, Object>> dialectCatalog() {
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        for (String dialect : LlmConstants.SUPPORTED_PROVIDERS) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("value", dialect);
+            item.put("labelKey", dialectLabelKey(dialect));
+            item.put("baseUrlPlaceholder", dialectBaseUrlPlaceholder(dialect));
+            items.add(item);
+        }
+        return items;
+    }
+
+    /**
+     * 返回协议对应的前端翻译键，避免协议名和展示文案散落在页面组件里。
+     *
+     * @param dialect 大模型协议标识。
+     * @return 前端 i18n 翻译键。
+     */
+    private String dialectLabelKey(String dialect) {
+        if (LlmConstants.PROVIDER_OPENAI.equals(dialect)) {
+            return "models.dialectOpenai";
+        }
+        if (LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)) {
+            return "models.dialectOpenaiResponses";
+        }
+        if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
+            return "models.dialectOllama";
+        }
+        if (LlmConstants.PROVIDER_GEMINI.equals(dialect)) {
+            return "models.dialectGemini";
+        }
+        if (LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)) {
+            return "models.dialectAnthropic";
+        }
+        return dialect;
+    }
+
+    /**
+     * 返回协议默认基础地址占位符，仅作为表单提示，不参与运行时路由或安全判断。
+     *
+     * @param dialect 大模型协议标识。
+     * @return 协议基础地址占位符。
+     */
+    private String dialectBaseUrlPlaceholder(String dialect) {
+        if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
+            return "http://127.0.0.1:11434";
+        }
+        if (LlmConstants.PROVIDER_GEMINI.equals(dialect)) {
+            return "https://generativelanguage.googleapis.com";
+        }
+        if (LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)) {
+            return "https://api.anthropic.com";
+        }
+        return "https://api.example.com";
     }
 
     /**
