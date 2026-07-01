@@ -1416,6 +1416,23 @@ def run_node_tui_pty(
     err_path = workspace_home / "audit-node-tui-pty.err"
     server_out = workspace_home / "audit-node-tui-server.out"
     server_err = workspace_home / "audit-node-tui-server.err"
+    if not pty_support_available():
+        print("node-tui SUSPECT solonclaw server + solonclaw PTY", flush=True)
+        print("  issues=pty_not_supported_on_this_platform", flush=True)
+        result = {
+            "command": "solonclaw server + solonclaw PTY",
+            "exit_code": 2,
+            "timeout": False,
+            "suspect": True,
+            "secret_leak": False,
+            "out_path": out_path,
+            "err_path": err_path,
+            "issues": ["pty_not_supported_on_this_platform"],
+        }
+        out_path.write_text("", encoding="utf-8")
+        err_path.write_text("PTY audit requires Unix fcntl/pty/select/termios modules.\n", encoding="utf-8")
+        findings.append(result)
+        return 1
     bootstrap = run_command(
         jar,
         workspace_home,
