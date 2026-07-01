@@ -76,3 +76,23 @@
 2. 先修复不会触碰核心架构的高确定性门禁问题，例如 `terminal-ui` lint error。
 3. 根据 explorer 返回结果拆分后续 worker，确保每个 worker 拥有互不重叠的文件责任。
 4. 启动 Web UI 与 TUI 端到端执行代理前，先确定本地后端、Vite、TUI gateway 的稳定启动命令和临时模型配置注入方式。
+
+## 2026-07-01 继续执行记录
+
+当前工作树仍为 `D:\projects\jimuqu-agent-unattended-target-execution`，分支 `feat/unattended-target-execution`，并已同步到远端 `origin/dev`。
+
+本轮复核结果：
+
+| 检查 | 结果 | 说明 |
+| --- | --- | --- |
+| `git rev-list --left-right --count HEAD...origin/dev` | `0 0` | 当前 worktree 与远端 `dev` 一致。 |
+| `npm --prefix terminal-ui run lint -- --quiet` | 通过 | 旧文档中的 `terminal-ui` lint error 已不再复现。 |
+| `npm --prefix terminal-ui run type-check` | 通过 | TUI TypeScript 门禁通过。 |
+
+当前工作区仅剩 `src/main/java/com/jimuqu/solon/claw/web/DashboardAuthFilter.java` 的换行符状态提示，`git diff --` 未显示内容差异；后续提交不得把它误带入。
+
+后续顺序调整：
+
+1. 不再把 `terminal-ui` lint 作为当前阻塞项。
+2. 继续等待 Web UI 与 TUI 只读 E2E 侧车代理返回，主线程先处理不与其写集冲突的可复现小问题。
+3. 若侧车代理未发现更高优先级问题，下一步优先复核 Windows/TUI 审计脚本剩余兼容性、fake-ip URL 策略是否仍可复现、以及 `mvn test` 当前失败是否还有可原子修复项。
