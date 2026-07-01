@@ -3,6 +3,7 @@ import { createPinia } from 'pinia'
 import router from './router'
 import { i18n } from './i18n'
 import App from './App.vue'
+import { dashboardHashRouteForPath } from './shared/dashboardDirectRoutes'
 import 'antdv-next/dist/reset.css'
 import './styles/global.scss'
 
@@ -18,6 +19,7 @@ const urlParams = new URLSearchParams(window.location.search)
 const hash = window.location.hash
 const hashQueryIndex = hash.indexOf('?')
 const hashRoutePath = hashQueryIndex >= 0 ? hash.slice(0, hashQueryIndex) : hash
+const directRouteHash = hashRoutePath ? '' : dashboardHashRouteForPath(window.location.pathname)
 const hashQuery = hashQueryIndex >= 0 ? hash.slice(hashQueryIndex + 1) : ''
 const hashParams = hashQuery ? new URLSearchParams(hashQuery) : null
 const searchToken = urlParams.get('token')
@@ -32,10 +34,10 @@ if (searchToken) {
 if (hashToken && hashParams) {
   hashParams.delete('token')
 }
-if (searchToken || hashToken) {
+if (searchToken || hashToken || directRouteHash) {
   const nextSearch = urlParams.toString()
   const nextHashQuery = hashParams?.toString() || ''
-  const nextHash = `${hashRoutePath || '#/'}${nextHashQuery ? `?${nextHashQuery}` : ''}`
+  const nextHash = `${hashRoutePath || directRouteHash || '#/'}${nextHashQuery ? `?${nextHashQuery}` : ''}`
   window.history.replaceState(null, document.title, `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${nextHash}`)
 }
 

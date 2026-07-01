@@ -19,3 +19,11 @@ assert.ok(
   main.includes('if (urlToken)'),
   'main.ts should still preserve the login token in memory before cleaning the URL',
 )
+assert.ok(
+  main.includes('dashboardHashRouteForPath(window.location.pathname)'),
+  'main.ts should map direct dashboard paths to hash routes before the router starts',
+)
+assert.ok(
+  main.includes('searchToken || hashToken || directRouteHash'),
+  'main.ts should normalize direct dashboard paths even when no login token is present',
+)
