@@ -2823,7 +2823,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                     }
                 }
             }
-            prepare(config, reactOptions, session, null);
+            prepare(config, reactOptions, session, null, config.getName());
             reset(prompt == null ? Prompt.of("") : prompt);
         }
     }
