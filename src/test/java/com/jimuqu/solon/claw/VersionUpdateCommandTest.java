@@ -4,20 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
-import com.jimuqu.solon.claw.core.service.ContextService;
-import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
-import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
-import com.jimuqu.solon.claw.support.DisplaySettingsService;
-import com.jimuqu.solon.claw.support.LlmProviderService;
-import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.CommandServiceTestSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
-import com.jimuqu.solon.claw.web.DashboardConfigService;
-import com.jimuqu.solon.claw.web.DashboardProviderService;
-import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
-import java.util.LinkedHashMap;
 import org.junit.jupiter.api.Test;
 
 public class VersionUpdateCommandTest {
@@ -43,68 +34,7 @@ public class VersionUpdateCommandTest {
 
     private DefaultCommandService commandService(
             TestEnvironment env, AppUpdateService updateService) {
-        GatewayRuntimeRefreshService refreshService =
-                new GatewayRuntimeRefreshService(
-                        env.appConfig,
-                        new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(
-                                new LinkedHashMap<
-                                        com.jimuqu.solon.claw.core.enums.PlatformType,
-                                        com.jimuqu.solon.claw.core.service.ChannelAdapter>()));
-        LlmProviderService llmProviderService = new LlmProviderService(env.appConfig);
-        RuntimeSettingsService runtimeSettingsService =
-                new RuntimeSettingsService(
-                        env.appConfig,
-                        env.globalSettingRepository,
-                        env.deliveryService,
-                        new DashboardConfigService(env.appConfig, refreshService),
-                        new DashboardRuntimeConfigService(env.appConfig, refreshService),
-                        new AppVersionService(env.appConfig),
-                        llmProviderService,
-                        new DashboardProviderService(
-                                env.appConfig, refreshService, llmProviderService));
-        DisplaySettingsService displaySettingsService =
-                new DisplaySettingsService(env.appConfig, env.globalSettingRepository);
-        return new DefaultCommandService(
-                env.sessionRepository,
-                env.toolRegistry,
-                env.localSkillService,
-                env.cronJobRepository,
-                new ConversationOrchestrator() {
-                    @Override
-                    public GatewayReply handleIncoming(GatewayMessage message) {
-                        return GatewayReply.ok("noop");
-                    }
-
-                    @Override
-                    public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
-                        return GatewayReply.ok("noop");
-                    }
-
-                    @Override
-                    public GatewayReply resumePending(String sourceKey) {
-                        return GatewayReply.ok("noop");
-                    }
-                },
-                new ContextService() {
-                    @Override
-                    public String buildSystemPrompt(String sourceKey) {
-                        return "";
-                    }
-                },
-                env.contextCompressionService,
-                env.deliveryService,
-                env.gatewayAuthorizationService,
-                env.checkpointService,
-                env.skillHubService,
-                env.appConfig,
-                env.globalSettingRepository,
-                env.processRegistry,
-                runtimeSettingsService,
-                displaySettingsService,
-                updateService,
-                env.dangerousCommandApprovalService,
-                env.agentRunControlService,
-                env.agentProfileService);
+        return CommandServiceTestSupport.commandServiceWithUpdate(env, updateService);
     }
 
     private static class CapturingAppUpdateService extends AppUpdateService {
