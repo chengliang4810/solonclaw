@@ -144,6 +144,32 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     }
 
     /**
+     * 统计会话内已产生 token 用量的运行次数，避免 TUI 长会话只读取最近列表造成 API 调用数低估。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回带用量的运行次数。
+     */
+    @Override
+    public long countUsageRunsBySession(String sessionId) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select count(*) from agent_runs where session_id = ? and (input_tokens > 0 or output_tokens > 0 or total_tokens > 0)");
+            statement.setString(1, sessionId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? resultSet.getLong(1) : 0L;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    /**
      * 列出Finished With用量。
      *
      * @param limit 最大返回数量。

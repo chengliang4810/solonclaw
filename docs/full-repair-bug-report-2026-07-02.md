@@ -220,3 +220,33 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 验证：
 
 - `npm --prefix terminal-ui test -- createSlashHandler.test.ts slashParity.test.ts completionApply.test.ts`
+
+## BUG-022：TUI `/retry` 后 `/usage` API calls 不累计
+
+状态：已修复，本次提交
+
+影响范围：
+
+- Node TUI 的 `/usage` 面板。
+- 用户通过 `/retry` 重新执行上一条消息后的会话用量统计。
+
+当前事实：
+
+- 真实 TUI E2E 中，完成一次模型请求后 `/usage` 显示 `API calls=1`、总 token `44`。
+- 执行 `/retry` 后，后端日志确认第二次 LLM 请求产生了用量，`/usage` 总 token 变为 `88`。
+- 但同一面板仍显示 `API calls=1`，调用次数没有随第二次请求累计。
+
+根因：
+
+- `TerminalUiRpcService.usage(SessionRecord)` 的 `calls` 只按“会话有消息则为 1”降级计算。
+- 会话累计 token 字段会被每轮模型请求累加，但调用次数没有读取已落库的 Agent run 用量轨迹。
+
+处理记录：
+
+- `AgentRunRepository` 增加按会话统计带用量运行次数的入口。
+- SQLite 实现用 SQL 直接计数，避免长会话只读取最近 run 列表导致低估。
+- TUI `session.usage` 优先使用该计数；仓储不可用时才退回旧的消息存在性降级。
+
+验证：
+
+- `mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest#sessionUsageCountsRunsWithUsage" test`

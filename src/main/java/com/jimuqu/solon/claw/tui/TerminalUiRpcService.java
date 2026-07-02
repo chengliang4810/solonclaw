@@ -488,8 +488,23 @@ public class TerminalUiRpcService {
         usage.put("cache_write", Long.valueOf(Math.max(0L, session.getCumulativeCacheWriteTokens())));
         usage.put("total", Long.valueOf(Math.max(0L, session.getCumulativeTotalTokens())));
         usage.put("model", model(session));
-        usage.put("calls", Integer.valueOf(messageCount(session) > 0 ? 1 : 0));
+        usage.put("calls", Long.valueOf(usageCallCount(session)));
         return usage;
+    }
+
+    /** 返回当前会话已落库的模型调用次数，仓储不可用时保持旧的消息存在性降级。 */
+    private long usageCallCount(SessionRecord session) {
+        if (session == null) {
+            return 0L;
+        }
+        if (agentRunRepository != null && StrUtil.isNotBlank(session.getSessionId())) {
+            try {
+                return Math.max(0L, agentRunRepository.countUsageRunsBySession(session.getSessionId()));
+            } catch (Exception e) {
+                log.debug("Failed to count TUI usage runs, fallback to message count: session={}", session.getSessionId(), e);
+            }
+        }
+        return messageCount(session) > 0 ? 1L : 0L;
     }
 
     /** 返回当前会话状态文本。 */

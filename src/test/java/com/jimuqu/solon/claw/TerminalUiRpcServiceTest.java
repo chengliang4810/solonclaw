@@ -105,6 +105,50 @@ class TerminalUiRpcServiceTest {
         assertThat(service.sessionUsage(session.getSessionId()).get("active_subagents")).isEqualTo(2);
     }
 
+    /** 验证 TUI 用量面板按同一会话的多次模型运行累计 API 调用次数。 */
+    @Test
+    void sessionUsageCountsRunsWithUsage() throws Exception {
+        AppConfig config = testConfig();
+        SqliteDatabase database = new SqliteDatabase(config);
+        SqliteSessionRepository sessions = new SqliteSessionRepository(database);
+        SqliteAgentRunRepository runs = new SqliteAgentRunRepository(database);
+        SessionRecord session = session("session-usage-calls", "MEMORY:terminal-ui:session-usage-calls");
+        session.setCumulativeInputTokens(76L);
+        session.setCumulativeOutputTokens(12L);
+        session.setCumulativeTotalTokens(88L);
+        sessions.save(session);
+        runs.saveRun(run("run-usage-1", session.getSessionId(), 38L, 6L));
+        runs.saveRun(run("run-usage-2", session.getSessionId(), 38L, 6L));
+
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        config,
+                        sessions,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        runs,
+                        null,
+                        null);
+
+        Map<String, Object> usage = service.sessionUsage(session.getSessionId());
+
+        assertThat(usage.get("calls")).isEqualTo(2L);
+        assertThat(usage.get("input")).isEqualTo(76L);
+        assertThat(usage.get("output")).isEqualTo(12L);
+        assertThat(usage.get("total")).isEqualTo(88L);
+    }
+
     @Test
     void reloadMcpRequiresExplicitConfirmationWhenPolicyRequiresIt() throws Exception {
         AppConfig config = testConfig();
@@ -288,6 +332,21 @@ class TerminalUiRpcServiceTest {
         session.setCreatedAt(1_800_000_000_000L);
         session.setUpdatedAt(1_800_000_000_000L);
         return session;
+    }
+
+    /** 构造带用量的已完成 Agent run，用于模拟 TUI retry 后的多轮模型请求。 */
+    private static AgentRunRecord run(String id, String sessionId, long inputTokens, long outputTokens) {
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId(id);
+        run.setSessionId(sessionId);
+        run.setSourceKey("MEMORY:terminal-ui:" + sessionId);
+        run.setStatus("success");
+        run.setStartedAt(1_800_000_000_000L);
+        run.setFinishedAt(1_800_000_001_000L);
+        run.setInputTokens(inputTokens);
+        run.setOutputTokens(outputTokens);
+        run.setTotalTokens(inputTokens + outputTokens);
+        return run;
     }
 
     private static AppConfig testConfig() throws Exception {
