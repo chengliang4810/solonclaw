@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -13,7 +14,7 @@ SCRIPT_PATH = REPO_ROOT / "scripts" / "check-code-duplication.py"
 
 def run_check(sandbox: Path, *extra_args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["python3", str(SCRIPT_PATH), "--root-path", str(sandbox), *extra_args],
+        [sys.executable, str(SCRIPT_PATH), "--root-path", str(sandbox), *extra_args],
         cwd=str(REPO_ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
