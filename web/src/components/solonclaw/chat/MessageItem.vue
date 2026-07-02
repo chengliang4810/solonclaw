@@ -4,6 +4,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { message as toast } from "antdv-next";
 import { downloadFile } from "@/api/solonclaw/download";
+import { formatFileSize } from "@/shared/fileSizeFormat";
 import MarkdownRenderer from "./MarkdownRenderer.vue";
 import {
   copyTextToClipboard,
@@ -27,12 +28,6 @@ const timeStr = computed(() => {
 
 function isImage(type: string): boolean {
   return type.startsWith("image/");
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return bytes + " B";
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
 /**
@@ -265,7 +260,7 @@ const renderedToolResult = computed(() => {
                       <polyline points="14 2 14 8 20 8" />
                     </svg>
                     <span class="att-name">{{ att.name }}</span>
-                    <span class="att-size">{{ formatSize(att.size) }}</span>
+                    <span class="att-size">{{ formatFileSize(att.size, "0 B") }}</span>
                     <svg class="att-download-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                       <polyline points="7 10 12 15 17 10" />
