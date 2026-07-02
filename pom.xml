@@ -19,7 +19,7 @@
         <maven.compiler.target>8</maven.compiler.target>
         <npm.executable>npm</npm.executable>
         <skip.web.build>false</skip.web.build>
-        <solon.version>4.0.3-SNAPSHOT</solon.version>
+        <solon.version>4.0.3</solon.version>
         <hutool.version>5.8.46</hutool.version>
         <snack4.version>4.0.53</snack4.version>
         <sqlite.version>3.53.2.0</sqlite.version>
@@ -30,27 +30,6 @@
         <jline.version>4.2.1</jline.version>
         <jansi.version>2.4.3</jansi.version>
     </properties>
-
-    <repositories>
-        <repository>
-            <id>sonatype-snapshots</id>
-            <name>Sonatype Snapshots</name>
-            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-        </repository>
-    </repositories>
-    <pluginRepositories>
-        <pluginRepository>
-            <id>sonatype-snapshots</id>
-            <name>Sonatype Snapshots</name>
-            <url>https://central.sonatype.com/repository/maven-snapshots/</url>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-        </pluginRepository>
-    </pluginRepositories>
 
     <dependencies>
         <dependency>
