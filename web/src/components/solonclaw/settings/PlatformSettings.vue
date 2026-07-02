@@ -77,6 +77,97 @@ function splitChannelList(value: unknown) {
     .filter(item => item.length > 0)
 }
 
+interface PrimaryTextSetting {
+  readonly type: 'text'
+  readonly field: string
+  readonly source: 'credentials' | 'credentialRoot' | 'channelList'
+  readonly label?: string
+  readonly labelKey?: string
+  readonly hint?: string
+  readonly hintKey?: string
+  readonly placeholder: string
+}
+
+interface PrimarySwitchSetting {
+  readonly type: 'switch'
+  readonly field: string
+  readonly label?: string
+  readonly labelKey: string
+  readonly hint?: string
+  readonly hintKey: string
+}
+
+type PrimarySetting = PrimaryTextSetting | PrimarySwitchSetting
+
+const primarySettingConfigs: Record<ChannelQrPlatform, PrimarySetting[]> = {
+  feishu: [
+    { type: 'text', field: 'app_id', source: 'credentials', labelKey: 'platform.appId', hintKey: 'platform.appIdHint', placeholder: '请输入飞书应用 ID' },
+    { type: 'text', field: 'app_secret', source: 'credentials', labelKey: 'platform.appSecret', hintKey: 'platform.appSecretHint', placeholder: '请输入应用密钥' },
+    { type: 'switch', field: 'requireMention', labelKey: 'platform.requireMention', hintKey: 'platform.requireMentionGroup' },
+    { type: 'text', field: 'freeResponseChats', source: 'channelList', labelKey: 'platform.freeResponseChats', hintKey: 'platform.freeResponseChatsHint', placeholder: 'chat_id1,chat_id2' },
+  ],
+  dingtalk: [
+    { type: 'text', field: 'client_id', source: 'credentials', labelKey: 'platform.clientId', hintKey: 'platform.clientIdHint', placeholder: '请输入客户端 ID' },
+    { type: 'text', field: 'client_secret', source: 'credentials', labelKey: 'platform.clientSecret', hintKey: 'platform.clientSecretHint', placeholder: '请输入客户端密钥' },
+    { type: 'text', field: 'robot_code', source: 'credentials', label: '机器人编码', hint: '钉钉机器人编码', placeholder: '请输入机器人编码' },
+    { type: 'switch', field: 'requireMention', labelKey: 'platform.requireMention', hintKey: 'platform.requireMentionGroup' },
+    { type: 'text', field: 'freeResponseChats', source: 'channelList', labelKey: 'platform.freeResponseChats', hintKey: 'platform.freeResponseChatsHint', placeholder: 'chat_id1,chat_id2' },
+  ],
+  weixin: [
+    { type: 'text', field: 'token', source: 'credentialRoot', labelKey: 'platform.weixinToken', hintKey: 'platform.weixinTokenHint', placeholder: '请输入令牌' },
+    { type: 'text', field: 'account_id', source: 'credentials', labelKey: 'platform.accountId', hintKey: 'platform.accountIdHint', placeholder: '请输入账号 ID' },
+  ],
+}
+
+function primarySettingLabel(field: PrimarySetting) {
+  return field.labelKey ? t(field.labelKey) : field.label || ''
+}
+
+function primarySettingHint(field: PrimarySetting) {
+  return field.hintKey ? t(field.hintKey) : field.hint || ''
+}
+
+function primaryChannelConfig(platform: ChannelQrPlatform) {
+  return settingsStore[platform] as Record<string, any>
+}
+
+function primaryPlatform(platform: string): ChannelQrPlatform {
+  if (isQrPanelPlatform(platform)) return platform
+  throw new Error(`Unsupported QR platform: ${platform}`)
+}
+
+function primaryTextValue(platform: string, field: PrimaryTextSetting) {
+  const channel = primaryPlatform(platform)
+  if (field.source === 'credentials') {
+    return String(getCreds(channel).extra?.[field.field] || '')
+  }
+  if (field.source === 'credentialRoot') {
+    return String(getCreds(channel)[field.field] || '')
+  }
+  return channelListText(primaryChannelConfig(channel)[field.field])
+}
+
+function primarySwitchValue(platform: string, field: PrimarySwitchSetting) {
+  return primaryChannelConfig(primaryPlatform(platform))[field.field] !== false
+}
+
+function savePrimaryText(platform: string, field: PrimaryTextSetting, value: string) {
+  const channel = primaryPlatform(platform)
+  if (field.source === 'credentials') {
+    return saveCredentials(channel, field.field, {
+      extra: { ...getCreds(channel).extra, [field.field]: value },
+    })
+  }
+  if (field.source === 'credentialRoot') {
+    return saveCredentials(channel, field.field, { [field.field]: value })
+  }
+  return saveChannel(channel, field.field, { [field.field]: splitChannelList(value) })
+}
+
+function savePrimarySwitch(platform: string, field: PrimarySwitchSetting, value: boolean) {
+  return saveChannel(primaryPlatform(platform), field.field, { [field.field]: value })
+}
+
 type UiQrStatus = 'idle' | 'loading' | 'waiting' | 'scaned' | 'confirmed' | 'error' | 'expired'
 
 interface QrState {
@@ -213,26 +304,10 @@ onUnmounted(() => {
           :show-empty-status="shouldShowQrEmptyStatus(p.key)"
           @start="startQrLogin(p.key)"
         />
-      </template>
-
-      <template v-if="p.key === 'feishu'">
-        <PlatformTextSettingRow :label="t('platform.appId')" :hint="t('platform.appIdHint')" :value="String(getCreds('feishu').extra?.app_id || '')" :loading="isSaving('feishu', 'app_id')" placeholder="请输入飞书应用 ID" @change="v => saveCredentials('feishu', 'app_id', { extra: { ...getCreds('feishu').extra, app_id: v } })" />
-        <PlatformTextSettingRow :label="t('platform.appSecret')" :hint="t('platform.appSecretHint')" :value="String(getCreds('feishu').extra?.app_secret || '')" :loading="isSaving('feishu', 'app_secret')" placeholder="请输入应用密钥" @change="v => saveCredentials('feishu', 'app_secret', { extra: { ...getCreds('feishu').extra, app_secret: v } })" />
-        <PlatformSwitchSettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')" :value="settingsStore.feishu.requireMention !== false" :loading="isSaving('feishu', 'requireMention')" @change="v => saveChannel('feishu', 'requireMention', { requireMention: v })" />
-        <PlatformTextSettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')" :value="channelListText(settingsStore.feishu.freeResponseChats)" :loading="isSaving('feishu', 'freeResponseChats')" placeholder="chat_id1,chat_id2" @change="v => saveChannel('feishu', 'freeResponseChats', { freeResponseChats: splitChannelList(v) })" />
-      </template>
-
-      <template v-if="p.key === 'dingtalk'">
-        <PlatformTextSettingRow :label="t('platform.clientId')" :hint="t('platform.clientIdHint')" :value="String(getCreds('dingtalk').extra?.client_id || '')" :loading="isSaving('dingtalk', 'client_id')" placeholder="请输入客户端 ID" @change="v => saveCredentials('dingtalk', 'client_id', { extra: { ...getCreds('dingtalk').extra, client_id: v } })" />
-        <PlatformTextSettingRow :label="t('platform.clientSecret')" :hint="t('platform.clientSecretHint')" :value="String(getCreds('dingtalk').extra?.client_secret || '')" :loading="isSaving('dingtalk', 'client_secret')" placeholder="请输入客户端密钥" @change="v => saveCredentials('dingtalk', 'client_secret', { extra: { ...getCreds('dingtalk').extra, client_secret: v } })" />
-        <PlatformTextSettingRow label="机器人编码" hint="钉钉机器人编码" :value="String(getCreds('dingtalk').extra?.robot_code || '')" :loading="isSaving('dingtalk', 'robot_code')" placeholder="请输入机器人编码" @change="v => saveCredentials('dingtalk', 'robot_code', { extra: { ...getCreds('dingtalk').extra, robot_code: v } })" />
-        <PlatformSwitchSettingRow :label="t('platform.requireMention')" :hint="t('platform.requireMentionGroup')" :value="settingsStore.dingtalk.requireMention !== false" :loading="isSaving('dingtalk', 'requireMention')" @change="v => saveChannel('dingtalk', 'requireMention', { requireMention: v })" />
-        <PlatformTextSettingRow :label="t('platform.freeResponseChats')" :hint="t('platform.freeResponseChatsHint')" :value="channelListText(settingsStore.dingtalk.freeResponseChats)" :loading="isSaving('dingtalk', 'freeResponseChats')" placeholder="chat_id1,chat_id2" @change="v => saveChannel('dingtalk', 'freeResponseChats', { freeResponseChats: splitChannelList(v) })" />
-      </template>
-
-      <template v-if="p.key === 'weixin'">
-        <PlatformTextSettingRow :label="t('platform.weixinToken')" :hint="t('platform.weixinTokenHint')" :value="String(getCreds('weixin').token || '')" :loading="isSaving('weixin', 'token')" placeholder="请输入令牌" @change="v => saveCredentials('weixin', 'token', { token: v })" />
-        <PlatformTextSettingRow :label="t('platform.accountId')" :hint="t('platform.accountIdHint')" :value="String(getCreds('weixin').extra?.account_id || '')" :loading="isSaving('weixin', 'account_id')" placeholder="请输入账号 ID" @change="v => saveCredentials('weixin', 'account_id', { extra: { ...getCreds('weixin').extra, account_id: v } })" />
+        <template v-for="field in primarySettingConfigs[p.key]" :key="`${field.type}:${field.field}`">
+          <PlatformTextSettingRow v-if="field.type === 'text'" :label="primarySettingLabel(field)" :hint="primarySettingHint(field)" :value="primaryTextValue(p.key, field)" :loading="isSaving(p.key, field.field)" :placeholder="field.placeholder" @change="v => savePrimaryText(p.key, field, v)" />
+          <PlatformSwitchSettingRow v-else :label="primarySettingLabel(field)" :hint="primarySettingHint(field)" :value="primarySwitchValue(p.key, field)" :loading="isSaving(p.key, field.field)" @change="v => savePrimarySwitch(p.key, field, v)" />
+        </template>
       </template>
 
       <PlatformOptionalSettings
