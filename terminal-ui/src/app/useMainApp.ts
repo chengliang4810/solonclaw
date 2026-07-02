@@ -213,6 +213,7 @@ export function useMainApp(gw: GatewayClient) {
   const lastUserMsgRef = useRef(lastUserMsg)
   const recoverSidRef = useRef<null | string>(null)
   const recoveryAtRef = useRef<number[]>([])
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const msgIdsRef = useRef(new WeakMap<Msg, string>())
   const msgIdSeqRef = useRef(0)
   const heightCachesRef = useRef(new Map<string, Map<string, number>>())
@@ -772,6 +773,11 @@ export function useMainApp(gw: GatewayClient) {
     const handler = (ev: GatewayEvent) => onEventRef.current(ev)
 
     const exitHandler = () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current)
+        recoveryTimerRef.current = null
+      }
+
       turnController.reset()
 
       // A still-owned child dying while the TUI is alive is an *unexpected*
@@ -793,9 +799,17 @@ export function useMainApp(gw: GatewayClient) {
 
       if (plan.recover && plan.sid) {
         recoverSidRef.current = plan.sid
-        turnController.pushActivity('后端已断开 · 正在恢复会话…', 'warn')
-        sys('后端已断开 — 正在恢复会话（进行中的回复可能丢失）')
-        gw.start()
+        turnController.pushActivity('后端已断开 · 正在恢复会话…', 'warn', '后端已断开')
+
+        if (plan.delayMs === 0) {
+          sys('后端已断开 — 正在恢复会话（进行中的回复可能丢失）')
+          gw.start()
+        } else {
+          recoveryTimerRef.current = setTimeout(() => {
+            recoveryTimerRef.current = null
+            gw.start()
+          }, plan.delayMs)
+        }
 
         return
       }
@@ -811,6 +825,10 @@ export function useMainApp(gw: GatewayClient) {
 
     // entry.tsx's setupGracefulExit handles process cleanup on real exit.
     return () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current)
+        recoveryTimerRef.current = null
+      }
       gw.off('event', handler)
       gw.off('exit', exitHandler)
     }

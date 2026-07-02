@@ -127,7 +127,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-019：后端不可达时 Node TUI 高频刷屏和刷日志
 
-状态：待修复
+状态：已修复，本次提交
 
 影响范围：
 
@@ -145,9 +145,19 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 - 对握手失败和重连失败做退避。
 - UI 状态保持一条稳定离线提示，避免每次失败都追加活动消息。
 
+处理记录：
+
+- `planGatewayRecovery()` 增加恢复延迟：首轮立即恢复，后续 crash-loop 按 1s 递增退避，最高 5s。
+- `useMainApp` 按恢复计划延迟 `gw.start()`，并用同一活动标签替换离线恢复提示，避免短时间内刷屏。
+
+验证：
+
+- `npm --prefix terminal-ui test -- gatewayRecovery.test.ts gatewayClient.test.ts`
+- `npm --prefix terminal-ui run type-check`
+
 ## BUG-020：CLI 未知 slash command 会走服务启动路径
 
-状态：已修复，本次提交
+状态：已修复，提交 `88f08f103`
 
 影响范围：
 

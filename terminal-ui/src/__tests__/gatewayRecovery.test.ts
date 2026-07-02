@@ -6,11 +6,11 @@ describe('planGatewayRecovery', () => {
   it('recovers the live session and records the attempt', () => {
     const plan = planGatewayRecovery('sess-1', null, [], 1000)
 
-    expect(plan).toEqual({ attempts: [1000], recover: true, sid: 'sess-1' })
+    expect(plan).toEqual({ attempts: [1000], delayMs: 0, recover: true, sid: 'sess-1' })
   })
 
   it('does not recover when there is no session to resume', () => {
-    expect(planGatewayRecovery(null, null, [], 1000)).toEqual({ attempts: [], recover: false, sid: null })
+    expect(planGatewayRecovery(null, null, [], 1000)).toEqual({ attempts: [], delayMs: 0, recover: false, sid: null })
   })
 
   it('keeps retrying the recovery target through a startup crash-loop, bounded by the budget', () => {
@@ -35,6 +35,14 @@ describe('planGatewayRecovery', () => {
     plan = planGatewayRecovery(null, 'sess-1', attempts, GATEWAY_RECOVERY_LIMIT)
     expect(plan.recover).toBe(false)
     expect(plan.sid).toBe('sess-1')
+  })
+
+  it('backs off crash-loop recovery retries after the first immediate attempt', () => {
+    const first = planGatewayRecovery('sess-1', null, [], 1000)
+    const second = planGatewayRecovery(null, 'sess-1', first.attempts, 1001)
+
+    expect(first.delayMs).toBe(0)
+    expect(second.delayMs).toBeGreaterThan(0)
   })
 
   it('prunes attempts older than the window so recovery re-arms', () => {
