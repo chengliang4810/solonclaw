@@ -52,6 +52,24 @@ class ToolRegistryWebAndCodeToolsTest {
         assertThat(result.get("status").getString()).isEqualTo("error");
     }
 
+    /** 构造固定公网解析结果的安全策略，避免测试受本机 DNS 或私网判断影响。 */
+    private static SecurityPolicyService fixedPublicDnsPolicy(TestEnvironment env) {
+        return new SecurityPolicyService(env.appConfig) {
+            @Override
+            protected InetAddress[] resolveHost(String host) throws Exception {
+                return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
+            }
+        };
+    }
+
+    /** 配置单个拦截域名并返回固定公网解析策略，用于验证工具返回 URL 的二次拦截。 */
+    private static SecurityPolicyService blockedPolicy(TestEnvironment env, String domain) {
+        env.appConfig.getSecurity().setAllowPrivateUrls(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList(domain));
+        return fixedPublicDnsPolicy(env);
+    }
+
     @Test
     void shouldGuardWebToolsBeforeDelegatingToSolonAiTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -113,19 +131,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardWebfetchFinalDocumentUrlAfterRedirect() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeWebfetchTool webfetch =
                 new SolonClawWebTools.SafeWebfetchTool(
                         policy,
@@ -153,19 +159,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardWebfetchNestedMetadataUrlsAfterProviderResult() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeWebfetchTool webfetch =
                 new SolonClawWebTools.SafeWebfetchTool(
                         policy,
@@ -198,19 +192,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardWebfetchReturnedDocumentContentUrlsAfterProviderResult() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeWebfetchTool webfetch =
                 new SolonClawWebTools.SafeWebfetchTool(
                         policy,
@@ -238,19 +220,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardWebfetchReturnedSchemelessDocumentUrlsAfterProviderResult() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeWebfetchTool webfetch =
                 new SolonClawWebTools.SafeWebfetchTool(
                         policy,
@@ -308,19 +278,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardWebsearchReturnedDocumentUrlsAfterProviderResult() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(
                         policy,
@@ -393,19 +351,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardWebsearchReturnedDocumentContentUrlsAfterProviderResult() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(
                         policy,
@@ -529,21 +475,9 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardBraveFreeReturnedUrls() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
         env.appConfig.getWeb().setSearchBackend("brave-free");
         env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
                     @Override
@@ -572,18 +506,7 @@ class ToolRegistryWebAndCodeToolsTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("brave-free");
         env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("api.search.brave.com"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "api.search.brave.com");
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
                     @Override
@@ -610,13 +533,7 @@ class ToolRegistryWebAndCodeToolsTest {
     void shouldUseDdgsSearchBackendWhenConfigured() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("ddgs");
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = fixedPublicDnsPolicy(env);
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
                     @Override
@@ -651,20 +568,8 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardDdgsReturnedUrls() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
         env.appConfig.getWeb().setSearchBackend("ddgs");
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
                     @Override
@@ -691,18 +596,7 @@ class ToolRegistryWebAndCodeToolsTest {
     void shouldGuardDdgsSearchEndpointBeforeNetworkAccess() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("ddgs");
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("html.duckduckgo.com"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "html.duckduckgo.com");
         SolonClawWebTools.SafeWebsearchTool websearch =
                 new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
                     @Override
@@ -727,19 +621,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardCodesearchReturnedDocumentUrlsInsideContainers() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
@@ -771,19 +653,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardCodesearchReturnedDocumentContentUrlsInsideContainers() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
@@ -813,19 +683,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardCodesearchReturnedStringUrlsInsideContainers() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
@@ -854,19 +712,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardCodesearchReturnedPojoUrlFields() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
@@ -888,13 +734,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldRedactCodesearchReturnedPojoFields() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = fixedPublicDnsPolicy(env);
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
@@ -917,19 +757,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldGuardCodesearchUnstructuredObjectStringUrls() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
@@ -951,13 +779,7 @@ class ToolRegistryWebAndCodeToolsTest {
     @Test
     void shouldRedactCodesearchUnstructuredObjectStringFields() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
-                    @Override
-                    protected InetAddress[] resolveHost(String host) throws Exception {
-                        return new InetAddress[] {InetAddress.getByName("93.184.216.34")};
-                    }
-                };
+        SecurityPolicyService policy = fixedPublicDnsPolicy(env);
         SolonClawWebTools.SafeCodeSearchTool codesearch =
                 new SolonClawWebTools.SafeCodeSearchTool(
                         policy,
