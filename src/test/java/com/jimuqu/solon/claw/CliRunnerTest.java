@@ -5,6 +5,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.CliRunner;
 import com.jimuqu.solon.claw.cli.CliRuntime;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
+import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import java.io.ByteArrayOutputStream;
@@ -12,6 +15,7 @@ import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 /** 验证本地 CLI runner 能执行真实后端 slash 命令，而不是错误要求安装外部 TUI。 */
@@ -97,6 +101,45 @@ class CliRunnerTest {
     }
 
     @Test
+    void cliPromptRejectsUnknownSlashCommandsWithoutCallingAgent() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CountingOrchestrator orchestrator = new CountingOrchestrator();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        orchestrator,
+                        env.agentRunControlService);
+        CliRunner runner =
+                new CliRunner(
+                        runtime,
+                        env.sessionRepository,
+                        env.appConfig,
+                        null,
+                        new LlmProviderService(env.appConfig));
+
+        ByteArrayOutputStream err = new ByteArrayOutputStream();
+        PrintStream originalErr = System.err;
+        try {
+            System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8.name()));
+
+            int exitCode =
+                    runner.run(
+                            new CliMode(
+                                    CliMode.Kind.CLI,
+                                    "/not-a-real-command",
+                                    "cli-runner-unknown"));
+
+            assertThat(exitCode).isEqualTo(1);
+            assertThat(err.toString(StandardCharsets.UTF_8.name()))
+                    .contains("unknown command: /not-a-real-command")
+                    .contains("/help");
+            assertThat(orchestrator.calls.get()).isZero();
+        } finally {
+            System.setErr(originalErr);
+        }
+    }
+
+    @Test
     void bareJavaTuiModeGuidesUsersToNodeTuiEntry() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CliRuntime runtime =
@@ -129,6 +172,28 @@ class CliRunnerTest {
         } finally {
             System.setOut(originalOut);
             System.setErr(originalErr);
+        }
+    }
+
+    /** 统计未知 slash 是否误入 Agent 对话主循环。 */
+    private static class CountingOrchestrator implements ConversationOrchestrator {
+        /** 记录普通对话入口被调用的次数。 */
+        private final AtomicInteger calls = new AtomicInteger();
+
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            calls.incrementAndGet();
+            return GatewayReply.ok("agent called");
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            return GatewayReply.ok("scheduled");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("pending");
         }
     }
 

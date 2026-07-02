@@ -157,6 +157,10 @@ public class CliRuntime {
             }
             return reply;
         }
+        if (text.startsWith(GatewayCommandConstants.COMMAND_PREFIX)) {
+            return GatewayReply.error(
+                    "unknown command: " + text.split("\\s+", 2)[0] + " — try /help");
+        }
         return conversationOrchestrator.handleIncoming(message, sink);
     }
 

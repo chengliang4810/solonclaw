@@ -48,7 +48,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-016：Web 页面仍触发 Ant Design Vue 废弃属性告警
 
-状态：已修复，本次提交
+状态：已修复，提交 `ece1b45b9`
 
 影响范围：
 
@@ -100,7 +100,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-018：TUI 未知 slash command 被当成普通聊天发送模型
 
-状态：已修复，本次提交
+状态：已修复，提交 `3911f0ec4`
 
 影响范围：
 
@@ -147,7 +147,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-020：CLI 未知 slash command 会走服务启动路径
 
-状态：待修复
+状态：已修复，本次提交
 
 影响范围：
 
@@ -164,9 +164,18 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 - CLI 入口对以 `/` 开头但未注册的命令先返回本地错误。
 - 不进入 server 启动分支。
 
+处理记录：
+
+- 顶层 `/unknown` 启动参数先解析为一次性 CLI 模式，不再进入 Solon HTTP 服务启动路径。
+- CLI/TUI runtime 对不支持的 slash command 返回本地错误，并阻止其进入 Agent 对话主循环。
+
+验证：
+
+- `mvn "-Dskip.web.build=true" "-Dtest=CliModeParserTest,CliRunnerTest" test`
+
 ## BUG-021：Node TUI setup-required 状态下 `/commands` 只回显
 
-状态：待修复
+状态：已修复，提交 `6dc47cff8`
 
 影响范围：
 

@@ -29,6 +29,11 @@ class CliModeParserTest {
         assertThat(tui.getInput()).isEqualTo("/setup gateway");
     }
 
+    @Test
+    void shouldKeepTopLevelUnknownSlashCommandsInLocalCliMode() {
+        assertLocalCli(new String[] {"/not-a-real-command"}, "/not-a-real-command");
+    }
+
     private static void assertLocalCli(String[] args, String input) {
         CliMode mode = CliModeParser.parse(args);
         assertThat(mode.getKind()).isEqualTo(CliMode.Kind.CLI);

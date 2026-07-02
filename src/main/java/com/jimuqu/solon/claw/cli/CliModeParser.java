@@ -148,6 +148,9 @@ public final class CliModeParser {
         if (descriptor != null) {
             return localSlashCommand("/" + descriptor.getName(), args, 1);
         }
+        if (first.startsWith("/")) {
+            return localSlashCommand(first, args, 1);
+        }
         return null;
     }
 
