@@ -117,7 +117,7 @@ public class DashboardSessionService {
             item.put("role", message.getRole().name().toLowerCase(Locale.ROOT));
             String content = message.getContent();
             if (message instanceof AssistantMessage) {
-                content = ((AssistantMessage) message).getResultContent();
+                content = MessageSupport.assistantText((AssistantMessage) message);
             }
             item.put("content", SecretRedactor.redact(content, 8000));
             item.put("timestamp", null);
