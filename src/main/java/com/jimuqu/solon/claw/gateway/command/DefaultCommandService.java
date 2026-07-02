@@ -475,7 +475,7 @@ public class DefaultCommandService implements CommandService {
                 agentRunRepository,
                 dashboardMcpService,
                 goalService,
-                new SessionArtifactService());
+                null);
     }
 
     /**
