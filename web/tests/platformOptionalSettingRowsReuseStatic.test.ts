@@ -16,13 +16,34 @@ assert.ok(optionalSettings.includes('PlatformTextSettingRow'), 'Optional setting
 assert.ok(optionalSettings.includes('PlatformSwitchSettingRow'), 'Optional settings should import the shared switch row')
 assert.equal(
   (optionalSettings.match(/<PlatformSwitchSettingRow/g) || []).length,
-  3,
-  'WeCom, QQBot, and Yuanbao should each render enabled state through the shared switch row',
+  1,
+  'Optional platforms should render enabled state through one shared switch row',
 )
 assert.equal(
   (optionalSettings.match(/<PlatformTextSettingRow/g) || []).length,
-  11,
-  'Optional channel text fields should render through the shared text row',
+  1,
+  'Optional channel text fields should render through one shared text row loop',
+)
+assert.ok(optionalSettings.includes('textFieldConfigs'), 'Optional field metadata should live in one config map')
+assert.ok(
+  optionalSettings.includes('v-for="field in textFieldConfigs[platform]"'),
+  'Optional field rows should be rendered from the current platform config',
+)
+assert.equal(
+  (optionalSettings.match(/\{ field: '[^']+', source: 'credentials'/g) || []).length,
+  6,
+  'Optional platform credential fields should stay covered by the config',
+)
+assert.equal(
+  (optionalSettings.match(/\{ field: '[^']+', source: 'channel'/g) || []).length,
+  5,
+  'Optional platform channel fields should stay covered by the config',
+)
+assert.ok(
+  !optionalSettings.includes("platform === 'wecom'")
+    && !optionalSettings.includes("platform === 'qqbot'")
+    && !optionalSettings.includes("platform === 'yuanbao'"),
+  'Optional settings should not keep separate per-platform template blocks',
 )
 assert.ok(!optionalSettings.includes('<SettingRow'), 'Optional settings should not keep duplicated SettingRow field shells')
 assert.ok(!optionalSettings.includes('<Input'), 'Optional settings should not keep duplicated Input field shells')
