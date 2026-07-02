@@ -3,12 +3,14 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.cli.CliRuntime;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
+import com.jimuqu.solon.claw.tui.TerminalUiWebSocketEventSink;
 import com.jimuqu.solon.claw.tui.TerminalUiWebSocketListener;
 import java.io.File;
 import java.net.InetSocketAddress;
@@ -20,10 +22,35 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 import org.noear.solon.core.util.MultiMap;
 import org.noear.solon.net.websocket.WebSocket;
 
 class TerminalUiApprovalRespondTest {
+    /** 校验 TUI JSON-RPC 完成事件会携带非零模型用量，避免前端统计回退成 0。 */
+    @Test
+    void messageCompleteIncludesNonZeroUsageInRpcEnvelope() {
+        RecordingSocket socket = new RecordingSocket();
+        TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
+        LlmResult result = new LlmResult();
+        result.setRequestCount(1L);
+        result.setInputTokens(19L);
+        result.setOutputTokens(3L);
+        result.setReasoningTokens(2L);
+        result.setTotalTokens(24L);
+        result.setModel("usage-model");
+
+        sink.onRunCompleted("tui-usage-session", "ok", result);
+
+        ONode usage = eventPayload(socket.sentText(), "message.complete").get("usage");
+        assertThat(usage.get("calls").getLong()).isEqualTo(1L);
+        assertThat(usage.get("input").getLong()).isEqualTo(19L);
+        assertThat(usage.get("output").getLong()).isEqualTo(3L);
+        assertThat(usage.get("reasoning").getLong()).isEqualTo(2L);
+        assertThat(usage.get("total").getLong()).isEqualTo(24L);
+        assertThat(usage.get("model").getString()).isEqualTo("usage-model");
+    }
+
     @Test
     void sessionUndoReportsZeroRemovedForFreshTuiSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -671,6 +698,17 @@ class TerminalUiApprovalRespondTest {
             }
         }
         return "";
+    }
+
+    /** 查找 JSON-RPC event 帧中的业务事件载荷。 */
+    private static ONode eventPayload(List<String> frames, String type) {
+        for (String text : frames) {
+            ONode event = ONode.ofJson(text).get("params");
+            if (type.equals(event.get("type").getString())) {
+                return event.get("payload");
+            }
+        }
+        throw new AssertionError("event not found: " + type);
     }
 
     /** 构建跨平台测试写入命令，用于保留直接 shell 审批回放的真实执行路径。 */
