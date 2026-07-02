@@ -106,6 +106,25 @@ a {
   line-height: 1.45;
 }
 
+.memory-view {
+  height: calc(100 * var(--vh));
+  display: flex;
+  flex-direction: column;
+}
+
+.memory-content {
+  flex: 1;
+  overflow: hidden;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-actions {
+  display: flex;
+  gap: 8px;
+}
+
 // Responsive utility classes for inline width replacement
 .input-sm { width: 90px; }
 .input-md { width: 200px; }
