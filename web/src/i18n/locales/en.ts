@@ -964,7 +964,7 @@ export default {
     contextFrom: 'Upstream Jobs',
     contextFromPlaceholder: 'Comma-separated upstream job_id values',
     enabledToolsets: 'Enabled Toolsets',
-    enabledToolsetsPlaceholder: 'web, terminal, file, delegation',
+    enabledToolsetsPlaceholder: 'Select one or more toolsets',
     provider: 'Model Provider',
     providerPlaceholder: 'Optional, e.g. default',
     model: 'Model',

@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { Modal, Form, FormItem, Input, Button, Select, InputNumber, Switch, TextArea, message } from 'antdv-next'
 import type { SelectValue } from 'antdv-next'
+import { fetchToolsets, type Toolset } from '@/api/solonclaw/jobs'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
 import { useI18n } from 'vue-i18n'
 import {
@@ -40,7 +41,9 @@ const jobsStore = useJobsStore()
 
 const showModal = ref(true)
 const loading = ref(false)
+const toolsetsLoading = ref(false)
 const showAdvanced = ref(false)
+const toolsets = ref<Toolset[]>([])
 
 const formData = ref({
   name: '',
@@ -56,7 +59,7 @@ const formData = ref({
   workdir: '',
   no_agent: false,
   context_from_text: '',
-  enabled_toolsets_text: '',
+  enabled_toolsets: [] as string[],
   provider: '',
   model: '',
   base_url: '',
@@ -90,6 +93,20 @@ const deliveryPlatformOptions = computed(() => DOMESTIC_PLATFORM_KEYS.map(value 
 
 const skillEditModeOptions = computed(() => translateJobFormOptions(t, JOB_SKILL_EDIT_MODE_OPTIONS))
 const schedulePresets = computed(() => translateJobFormOptions(t, JOB_SCHEDULE_PRESET_OPTIONS))
+const toolsetOptions = computed(() => {
+  const options = toolsets.value.map(toolset => ({
+    label: toolset.label ? `${toolset.label} (${toolset.name})` : toolset.name,
+    value: toolset.name,
+    disabled: toolset.enabled === false || toolset.configured === false,
+  }))
+  const known = new Set(options.map(option => option.value))
+  for (const value of formData.value.enabled_toolsets) {
+    if (value && !known.has(value)) {
+      options.push({ label: value, value, disabled: false })
+    }
+  }
+  return options
+})
 
 function editableScheduleValue(schedule: any, fallback: string) {
   if (!schedule || typeof schedule === 'string') return schedule || fallback
@@ -257,6 +274,7 @@ function buildDeliveryPayload() {
 }
 
 onMounted(async () => {
+  void loadToolsets()
   if (props.jobId) {
     try {
       const job = await jobsStore.fetchJob(props.jobId)
@@ -274,7 +292,7 @@ onMounted(async () => {
         workdir: job.workdir || '',
         no_agent: job.no_agent,
         context_from_text: joinTextList(job.context_from),
-        enabled_toolsets_text: joinTextList(job.enabled_toolsets),
+        enabled_toolsets: [...job.enabled_toolsets],
         provider: job.provider || '',
         model: job.model || '',
         base_url: job.base_url || '',
@@ -292,6 +310,17 @@ onMounted(async () => {
     }
   }
 })
+
+async function loadToolsets() {
+  toolsetsLoading.value = true
+  try {
+    toolsets.value = await fetchToolsets()
+  } catch {
+    message.error(t('common.fetchFailed'))
+  } finally {
+    toolsetsLoading.value = false
+  }
+}
 
 async function handleSave() {
   if (!hasText(formData.value.name)) {
@@ -320,7 +349,6 @@ async function handleSave() {
   try {
     const skills = splitCsv(formData.value.skills_text)
     const contextFrom = splitCsv(formData.value.context_from_text)
-    const enabledToolsets = splitCsv(formData.value.enabled_toolsets_text)
     const repeatValue = formData.value.repeat_times
     const deliveryPayload = buildDeliveryPayload()
     const payload: any = {
@@ -335,7 +363,7 @@ async function handleSave() {
       wrap_response: formData.value.wrap_response,
       no_agent: formData.value.no_agent,
       context_from: contextFrom,
-      enabled_toolsets: enabledToolsets,
+      enabled_toolsets: formData.value.enabled_toolsets,
       enabled: formData.value.state === 'scheduled',
       state: formData.value.state === 'scheduled' ? 'active' : formData.value.state,
       paused_reason: trimText(formData.value.paused_reason) || undefined,
@@ -689,8 +717,11 @@ function handlePresetChange(value: SelectValue) {
           </FormItem>
 
           <FormItem :label="t('jobs.enabledToolsets')">
-            <Input
-              v-model:value="formData.enabled_toolsets_text"
+            <Select
+              v-model:value="formData.enabled_toolsets"
+              mode="multiple"
+              :loading="toolsetsLoading"
+              :options="toolsetOptions"
               :placeholder="t('jobs.enabledToolsetsPlaceholder')"
             />
           </FormItem>

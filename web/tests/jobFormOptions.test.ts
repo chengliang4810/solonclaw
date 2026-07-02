@@ -14,6 +14,7 @@ const jobForm = readFileSync(
   new URL('../src/components/solonclaw/jobs/JobFormModal.vue', import.meta.url),
   'utf8',
 )
+const jobsApi = readFileSync(new URL('../src/api/solonclaw/jobs.ts', import.meta.url), 'utf8')
 
 assert.deepEqual(JOB_SCHEDULE_KIND_OPTIONS.map(item => item.value), ['cron', 'interval', 'once'])
 assert.deepEqual(JOB_INTERVAL_UNIT_OPTIONS.map(item => item.value), ['m', 'h', 'd'])
@@ -40,3 +41,9 @@ for (const inlineLabel of [
 
 assert.ok(jobForm.includes('translateJobFormOptions(t, JOB_SCHEDULE_KIND_OPTIONS)'))
 assert.ok(jobForm.includes('translateJobFormOptions(t, JOB_SCHEDULE_PRESET_OPTIONS)'))
+assert.ok(jobsApi.includes('fetchToolsets'), 'jobs API should expose the backend toolsets catalog')
+assert.ok(jobsApi.includes("'/api/tools/toolsets'"), 'jobs API should fetch the backend toolsets endpoint')
+assert.ok(jobForm.includes('toolsetOptions'), 'job form should render backend-backed toolset options')
+assert.ok(jobForm.includes('mode="multiple"'), 'job form should use a multi-select for enabled toolsets')
+assert.ok(jobForm.includes('formData.value.enabled_toolsets'), 'job form should preserve selected toolsets outside the catalog')
+assert.ok(jobForm.includes('options.push({ label: value, value, disabled: false })'), 'job form should keep legacy selected toolsets selectable')

@@ -163,6 +163,15 @@ export interface CronStatus {
   recent_failures: CronFailure[]
 }
 
+export interface Toolset {
+  name: string
+  label?: string
+  description?: string
+  enabled?: boolean
+  configured?: boolean
+  tools?: string[]
+}
+
 export interface CreateJobRequest {
   name: string
   schedule: string
@@ -339,6 +348,10 @@ export async function fetchCronStatus(includeDisabled = true, limit = 5): Promis
     next: (status.next || []).map(mapJob),
     recent_failures: status.recent_failures || [],
   }
+}
+
+export async function fetchToolsets(): Promise<Toolset[]> {
+  return request<Toolset[]>('/api/tools/toolsets')
 }
 
 export async function getJob(jobId: string): Promise<Job> {

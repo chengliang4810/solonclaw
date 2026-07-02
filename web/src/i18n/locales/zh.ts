@@ -351,7 +351,7 @@ export default {
     contextFrom: '上游任务',
     contextFromPlaceholder: '上游任务 ID，多个用逗号分隔',
     enabledToolsets: '启用工具集',
-    enabledToolsetsPlaceholder: '例如 web、terminal、file、delegation',
+    enabledToolsetsPlaceholder: '选择一个或多个工具集',
     provider: '模型',
     providerPlaceholder: '可选，例如 openai-direct',
     model: '模型',
