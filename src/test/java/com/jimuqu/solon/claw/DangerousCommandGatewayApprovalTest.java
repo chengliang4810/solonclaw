@@ -1756,7 +1756,7 @@ public class DangerousCommandGatewayApprovalTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         String[] commands =
-                new String[] {
+                withCommonHardlineShutdownCommands(
                     "rm -rf /",
                     "rm -rf /*",
                     "rm -rf /home",
@@ -1794,37 +1794,7 @@ public class DangerousCommandGatewayApprovalTest {
                     "sfdisk --wipe always /dev/sdd",
                     "parted /dev/sde mklabel gpt",
                     "echo bad > /dev/sda",
-                    "cat /dev/urandom > /dev/sdb",
-                    ":(){ :|:& };:",
-                    "kill -9 -1",
-                    "kill -1",
-                    "shutdown -h now",
-                    "shutdown -r now",
-                    "sudo shutdown now",
-                    "doas shutdown now",
-                    "pkexec reboot",
-                    "reboot",
-                    "sudo reboot",
-                    "runas /user:Administrator reboot",
-                    "halt",
-                    "poweroff",
-                    "init 0",
-                    "init 6",
-                    "telinit 0",
-                    "systemctl poweroff",
-                    "systemctl reboot",
-                    "systemctl halt",
-                    "ls; reboot",
-                    "echo done && shutdown -h now",
-                    "false || halt",
-                    "$(reboot)",
-                    "`shutdown now`",
-                    "sudo -E shutdown now",
-                    "env FOO=1 reboot",
-                    "exec shutdown",
-                    "nohup reboot",
-                    "setsid poweroff"
-                };
+                    "cat /dev/urandom > /dev/sdb");
 
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =

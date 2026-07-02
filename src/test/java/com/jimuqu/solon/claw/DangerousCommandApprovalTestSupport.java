@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import java.io.File;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +120,45 @@ final class DangerousCommandApprovalTestSupport {
                 .withFailMessage("expected Docker lifecycle detection for command: %s", command)
                 .isNotNull();
         assertThat(result.getPatternKey()).isEqualTo(patternKey);
+    }
+
+    /** 追加通用关机、重启和 fork bomb 硬阻断样例，避免多组测试复制同一命令清单。 */
+    static String[] withCommonHardlineShutdownCommands(String... commands) {
+        String[] common =
+                new String[] {
+                    ":(){ :|:& };:",
+                    "kill -9 -1",
+                    "kill -1",
+                    "shutdown -h now",
+                    "shutdown -r now",
+                    "sudo shutdown now",
+                    "doas shutdown now",
+                    "pkexec reboot",
+                    "reboot",
+                    "sudo reboot",
+                    "runas /user:Administrator reboot",
+                    "halt",
+                    "poweroff",
+                    "init 0",
+                    "init 6",
+                    "telinit 0",
+                    "systemctl poweroff",
+                    "systemctl reboot",
+                    "systemctl halt",
+                    "ls; reboot",
+                    "echo done && shutdown -h now",
+                    "false || halt",
+                    "$(reboot)",
+                    "`shutdown now`",
+                    "sudo -E shutdown now",
+                    "env FOO=1 reboot",
+                    "exec shutdown",
+                    "nohup reboot",
+                    "setsid poweroff"
+                };
+        String[] merged = Arrays.copyOf(commands, commands.length + common.length);
+        System.arraycopy(common, 0, merged, commands.length, common.length);
+        return merged;
     }
 
     static void assertHardlineBlocked(
