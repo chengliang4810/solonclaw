@@ -30,6 +30,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.BlockingLlmGateway;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import java.io.File;
@@ -429,7 +430,7 @@ public class AgentRunSupervisorTest {
     @Test
     void shouldMarkRunningSessionsResumePendingForRestartTimeoutStops() throws Exception {
         Fixture fixture = fixture();
-        BlockingGateway gateway = new BlockingGateway();
+        BlockingLlmGateway gateway = new BlockingLlmGateway();
         AgentRunSupervisor supervisor =
                 supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
         SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:restart:user");
@@ -450,7 +451,7 @@ public class AgentRunSupervisorTest {
                                         Collections.emptyList(),
                                         null));
 
-        assertThat(gateway.started.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(gateway.awaitStarted(2, TimeUnit.SECONDS)).isTrue();
         assertThat(supervisor.stopAllRunningRuns("restart_timeout")).isEqualTo(1);
 
         try {
@@ -464,7 +465,7 @@ public class AgentRunSupervisorTest {
         SqliteAgentSession agentSession = new SqliteAgentSession(reloaded);
         assertThat(agentSession.isPending()).isTrue();
         assertThat(agentSession.getPendingReason()).isEqualTo("restart_timeout");
-        assertThat(gateway.interrupted).isTrue();
+        assertThat(gateway.isInterrupted()).isTrue();
     }
 
     @Test
@@ -959,36 +960,6 @@ public class AgentRunSupervisorTest {
                                     ChatMessage.ofTool("tool done", "shell", "call_1"),
                                     ChatMessage.ofAssistant(""))));
             return result;
-        }
-    }
-
-    private static class BlockingGateway implements LlmGateway {
-        private final CountDownLatch started = new CountDownLatch(1);
-        private volatile boolean interrupted;
-
-        @Override
-        public LlmResult chat(
-                SessionRecord session,
-                String systemPrompt,
-                String userMessage,
-                List<Object> toolObjects)
-                throws Exception {
-            started.countDown();
-            try {
-                while (true) {
-                    Thread.sleep(1000L);
-                }
-            } catch (InterruptedException e) {
-                interrupted = true;
-                throw e;
-            }
-        }
-
-        @Override
-        public LlmResult resume(
-                SessionRecord session, String systemPrompt, List<Object> toolObjects)
-                throws Exception {
-            return chat(session, systemPrompt, null, toolObjects);
         }
     }
 
