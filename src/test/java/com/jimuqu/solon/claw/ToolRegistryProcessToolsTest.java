@@ -28,11 +28,7 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldManageJimuquStyleBackgroundProcesses() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         ONode started =
                 ONode.ofJson(
@@ -82,11 +78,7 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldRedactSecretsFromProcessToolErrors() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         ONode unsupported =
                 ONode.ofJson(
@@ -127,11 +119,7 @@ class ToolRegistryProcessToolsTest {
                         javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
         managed.setNotifyOnComplete(true);
         managed.setWatchPatterns(java.util.Collections.singletonList("ready"));
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         ONode polled =
                 ONode.ofJson(
@@ -157,11 +145,7 @@ class ToolRegistryProcessToolsTest {
                 env.processRegistry.start(
                         javaSleepCommand(), new File(env.appConfig.getRuntime().getHome()));
         managed.setWatchPatterns(java.util.Collections.singletonList("token=secret123"));
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         ONode polled =
                 ONode.ofJson(
@@ -187,11 +171,7 @@ class ToolRegistryProcessToolsTest {
                         new File(env.appConfig.getRuntime().getHome()),
                         true,
                         java.util.Collections.<String>emptyList());
-        ProcessTools tools =
-                new ProcessTools(
-                        registry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(registry, env);
 
         assertThat(registry.waitFor(managed.getId(), 5000L)).isTrue();
         ONode events =
@@ -214,11 +194,7 @@ class ToolRegistryProcessToolsTest {
                         .contains("win"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
-        ProcessTools tools =
-                new ProcessTools(
-                        registry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(registry, env);
 
         ONode completedStart =
                 ONode.ofJson(
@@ -298,23 +274,9 @@ class ToolRegistryProcessToolsTest {
     void shouldExposeKilledManagedProcessLifecycleSnapshot() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProcessRegistry registry = new ProcessRegistry(null, 1000L, 3, 100, 1000L, 1000L);
-        ProcessTools tools =
-                new ProcessTools(
-                        registry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(registry, env);
 
-        ONode started =
-                ONode.ofJson(
-                        tools.process(
-                                "start",
-                                javaSleepCommand(),
-                                null,
-                                env.appConfig.getRuntime().getHome(),
-                                null,
-                                Integer.valueOf(1),
-                                null,
-                                null));
+        ONode started = startSleepingProcess(tools, env);
         String sessionId = started.get("session_id").getString();
         ONode killed =
                 ONode.ofJson(
@@ -345,11 +307,7 @@ class ToolRegistryProcessToolsTest {
                         .toLowerCase(java.util.Locale.ROOT)
                         .contains("win"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         ONode started =
                 ONode.ofJson(
@@ -390,11 +348,7 @@ class ToolRegistryProcessToolsTest {
     void shouldRedactSecretsFromManagedProcessOutputsAndMetadata() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setUrlGuardrailMode("bypass");
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         ONode started =
                 ONode.ofJson(
@@ -457,11 +411,7 @@ class ToolRegistryProcessToolsTest {
                         new File(env.appConfig.getRuntime().getHome()),
                         true,
                         java.util.Collections.<String>emptyList());
-        ProcessTools tools =
-                new ProcessTools(
-                        registry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(registry, env);
 
         assertThat(registry.waitFor(managed.getId(), 5000L)).isTrue();
         ONode events =
@@ -577,11 +527,7 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldPageManagedProcessLogs() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         ONode started =
                 ONode.ofJson(
@@ -632,23 +578,9 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldStopManagedBackgroundProcessesThroughStopCommandRegistry() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
-        ONode started =
-                ONode.ofJson(
-                        tools.process(
-                                "start",
-                                javaSleepCommand(),
-                                null,
-                                env.appConfig.getRuntime().getHome(),
-                                null,
-                                Integer.valueOf(1),
-                                null,
-                                null));
+        ONode started = startSleepingProcess(tools, env);
 
         assertThat(env.processRegistry.runningCount()).isEqualTo(1);
         assertThat(env.processRegistry.stop(started.get("session_id").getString())).isTrue();
@@ -658,23 +590,9 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldReturnJimuquKillStatusesForManagedProcesses() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
-        ONode started =
-                ONode.ofJson(
-                        tools.process(
-                                "start",
-                                javaSleepCommand(),
-                                null,
-                                env.appConfig.getRuntime().getHome(),
-                                null,
-                                Integer.valueOf(1),
-                                null,
-                                null));
+        ONode started = startSleepingProcess(tools, env);
         String sessionId = started.get("session_id").getString();
 
         ONode killed =
@@ -710,23 +628,9 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldReturnTimeoutWhenWaitingForRunningManagedProcess() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
-        ONode started =
-                ONode.ofJson(
-                        tools.process(
-                                "start",
-                                javaSleepCommand(),
-                                null,
-                                env.appConfig.getRuntime().getHome(),
-                                null,
-                                Integer.valueOf(1),
-                                null,
-                                null));
+        ONode started = startSleepingProcess(tools, env);
         String sessionId = started.get("session_id").getString();
 
         ONode waited =
@@ -760,17 +664,7 @@ class ToolRegistryProcessToolsTest {
                         new SecurityPolicyService(env.appConfig),
                         env.appConfig);
 
-        ONode started =
-                ONode.ofJson(
-                        tools.process(
-                                "start",
-                                javaSleepCommand(),
-                                null,
-                                env.appConfig.getRuntime().getHome(),
-                                null,
-                                Integer.valueOf(1),
-                                null,
-                                null));
+        ONode started = startSleepingProcess(tools, env);
         String sessionId = started.get("session_id").getString();
         long startedAt = System.currentTimeMillis();
 
@@ -799,11 +693,7 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldWriteSubmitAndCloseManagedProcessStdin() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         ONode started =
                 ONode.ofJson(
@@ -890,11 +780,7 @@ class ToolRegistryProcessToolsTest {
     void shouldApplyTerminalGuardrailsToManagedProcessStdinForShells() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailMode("approval");
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         ONode started =
                 ONode.ofJson(
@@ -948,11 +834,7 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldRecognizeWrappedManagedProcessStdinInterpretersForGuardrails() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
 
         assertThat(resolveStdinExecutionToolName(tools, "TOKEN=1 python3"))
                 .isEqualTo("execute_python");
@@ -980,11 +862,7 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldRedactManagedProcessInvalidCwdErrors() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
         File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File missing =
                 new File(workspaceHome.getParentFile(), "process-token=ghp_processcwd12345-missing");
@@ -1010,11 +888,7 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldRejectManagedProcessCredentialCwd() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools =
-                new ProcessTools(
-                        env.processRegistry,
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
+        ProcessTools tools = processTools(env);
         File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File credentialDir = new File(workspaceHome, ".ssh");
         assertThat(credentialDir.mkdirs() || credentialDir.isDirectory()).isTrue();
@@ -1037,6 +911,33 @@ class ToolRegistryProcessToolsTest {
                 .contains("敏感系统/凭据文件")
                 .doesNotContain(".ssh")
                 .doesNotContain(workspaceHome.getAbsolutePath());
+    }
+
+    /** 构造使用测试环境默认注册表和安全策略的进程工具。 */
+    private ProcessTools processTools(TestEnvironment env) {
+        return processTools(env.processRegistry, env);
+    }
+
+    /** 构造使用指定注册表和测试环境安全策略的进程工具。 */
+    private ProcessTools processTools(ProcessRegistry registry, TestEnvironment env) {
+        return new ProcessTools(
+                registry,
+                env.appConfig.getRuntime().getHome(),
+                new SecurityPolicyService(env.appConfig));
+    }
+
+    /** 启动测试用长驻后台进程并返回工具响应。 */
+    private ONode startSleepingProcess(ProcessTools tools, TestEnvironment env) {
+        return ONode.ofJson(
+                tools.process(
+                        "start",
+                        javaSleepCommand(),
+                        null,
+                        env.appConfig.getRuntime().getHome(),
+                        null,
+                        Integer.valueOf(1),
+                        null,
+                        null));
     }
 
     private String javaSleepCommand() {
