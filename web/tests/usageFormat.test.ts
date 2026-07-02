@@ -4,7 +4,9 @@ import {
   formatUsageCost,
   formatUsageTokens,
   latestUsageRows,
+  maxUsageValue,
   usageCostFormatPresets,
+  usageBarPercent,
 } from '../src/shared/usageFormat.ts'
 
 assert.equal(formatUsageTokens(999), '999')
@@ -20,4 +22,8 @@ assert.equal(formatUsageCost(0, 'USD', usageCostFormatPresets.detail), '--')
 
 assert.equal(formatUsageDateLabel('2026-06-30'), '06-30')
 assert.equal(formatUsageDateLabel('2026'), '2026')
+assert.equal(maxUsageValue([]), 1)
+assert.equal(maxUsageValue([3, 9, 1]), 9)
+assert.equal(usageBarPercent(5, 10), '50%')
+assert.equal(usageBarPercent(0, 0), '0%')
 assert.deepEqual(latestUsageRows(['day-1', 'day-2', 'day-3'], 2), ['day-3', 'day-2'])

@@ -10,7 +10,7 @@ assert.ok(
   'ModelBreakdown should expose maxTokens as a computed value',
 )
 assert.ok(
-  component.includes('Math.max(...usageStore.modelUsage.map(m => m.totalTokens), 1)'),
+  component.includes('maxUsageValue(usageStore.modelUsage.map(m => m.totalTokens))'),
   'ModelBreakdown should normalize model bars against the real maximum totalTokens value',
 )
 assert.ok(
@@ -18,6 +18,6 @@ assert.ok(
   'ModelBreakdown should not assume the first model usage row has the largest totalTokens value',
 )
 assert.ok(
-  component.includes("m.totalTokens / maxTokens * 100"),
-  'ModelBreakdown should render each bar width from maxTokens rather than the first row',
+  component.includes('usageBarPercent(m.totalTokens, maxTokens)'),
+  'ModelBreakdown should render each bar width through the shared usage bar helper',
 )
