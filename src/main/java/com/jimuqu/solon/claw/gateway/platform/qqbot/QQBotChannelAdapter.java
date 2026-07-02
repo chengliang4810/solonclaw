@@ -709,9 +709,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onOpen(WebSocket webSocket, Response response) {
-            setConnected(true);
-            setSetupState("connected");
-            setDetail("websocket connected");
+            markWebSocketConnected();
         }
 
         /**
@@ -746,10 +744,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
             QQBotChannelAdapter.this.webSocket = null;
-            setConnected(false);
-            setSetupState("error");
-            setLastError("qqbot_websocket_failure", safeError(t));
-            setDetail("websocket disconnected");
+            markWebSocketFailure("qqbot_websocket_failure", t);
         }
 
         /**
@@ -762,9 +757,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
             QQBotChannelAdapter.this.webSocket = null;
-            setConnected(false);
-            setSetupState("disconnected");
-            setDetail("websocket closed: " + code + " " + reason);
+            markWebSocketClosed(code, reason);
         }
     }
 

@@ -203,6 +203,38 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         this.lastErrorMessage = safeStatusText(message);
     }
 
+    /** 标记渠道 websocket 已完成连接，统一 dashboard 状态语义。 */
+    protected void markWebSocketConnected() {
+        setConnected(true);
+        setSetupState("connected");
+        setDetail("websocket connected");
+    }
+
+    /**
+     * 标记渠道 websocket 失败，统一连接状态与最近错误记录。
+     *
+     * @param errorCode 渠道专属错误码。
+     * @param throwable 连接失败异常。
+     */
+    protected void markWebSocketFailure(String errorCode, Throwable throwable) {
+        setConnected(false);
+        setSetupState("error");
+        setLastError(errorCode, safeError(throwable));
+        setDetail("websocket disconnected");
+    }
+
+    /**
+     * 标记渠道 websocket 已关闭，统一关闭状态描述。
+     *
+     * @param code websocket 关闭码。
+     * @param reason websocket 关闭原因。
+     */
+    protected void markWebSocketClosed(int code, String reason) {
+        setConnected(false);
+        setSetupState("disconnected");
+        setDetail("websocket closed: " + code + " " + reason);
+    }
+
     /**
      * 追加缺失配置项，统一过滤空白并去掉两端空格。
      *
