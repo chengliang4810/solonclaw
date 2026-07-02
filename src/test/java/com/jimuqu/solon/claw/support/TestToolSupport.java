@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
+import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
 
@@ -37,6 +38,33 @@ public final class TestToolSupport {
     /** 使用 UTF-8 读取测试夹具文件，避免每个测试重复手写编码转换。 */
     public static String readUtf8(Path file) throws IOException {
         return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+    }
+
+    /** 创建目录链接；Windows 无符号链接权限时回退到 junction，用于测试目录逃逸防护。 */
+    public static boolean createDirectoryLink(Path link, Path target) {
+        try {
+            Files.createSymbolicLink(link, target);
+            return true;
+        } catch (Exception ignored) {
+            if (!System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win")) {
+                return false;
+            }
+            try {
+                Process process =
+                        new ProcessBuilder(
+                                        "cmd",
+                                        "/c",
+                                        "mklink",
+                                        "/J",
+                                        link.toString(),
+                                        target.toString())
+                                .redirectErrorStream(true)
+                                .start();
+                return process.waitFor() == 0 && Files.exists(link);
+            } catch (Exception ignoredAgain) {
+                return false;
+            }
+        }
     }
 
     /** 构造默认 patch 工具实例，适合普通沙箱内文件修改测试。 */

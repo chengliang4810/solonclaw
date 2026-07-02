@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import static com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink;
+
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -2360,35 +2362,6 @@ class ToolRegistryWebAndCodeToolsTest {
         System.arraycopy(suffix, 0, result, prefix.length, suffix.length);
         return result;
     }
-
-    private boolean createDirectoryLink(Path link, Path target) {
-        try {
-            Files.createSymbolicLink(link, target);
-            return true;
-        } catch (Exception ignored) {
-            if (!System.getProperty("os.name", "")
-                    .toLowerCase(java.util.Locale.ROOT)
-                    .contains("win")) {
-                return false;
-            }
-            try {
-                Process process =
-                        new ProcessBuilder(
-                                        "cmd",
-                                        "/c",
-                                        "mklink",
-                                        "/J",
-                                        link.toString(),
-                                        target.toString())
-                                .redirectErrorStream(true)
-                                .start();
-                return process.waitFor() == 0 && Files.exists(link);
-            } catch (Exception ignoredAgain) {
-                return false;
-            }
-        }
-    }
-
     private boolean commandExists(String command) {
         try {
             Process process =

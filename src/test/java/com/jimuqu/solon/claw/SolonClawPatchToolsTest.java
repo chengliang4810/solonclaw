@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import static com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink;
 import static com.jimuqu.solon.claw.support.TestToolSupport.guardedPatchTools;
 import static com.jimuqu.solon.claw.support.TestToolSupport.parseJsonMap;
 import static com.jimuqu.solon.claw.support.TestToolSupport.patchTools;
@@ -649,33 +650,5 @@ public class SolonClawPatchToolsTest {
                 .contains("missing destination path");
         assertThat(readUtf8(source))
                 .isEqualTo("alpha\n");
-    }
-
-    private boolean createDirectoryLink(Path link, Path target) {
-        try {
-            Files.createSymbolicLink(link, target);
-            return true;
-        } catch (Exception ignored) {
-            if (!System.getProperty("os.name", "")
-                    .toLowerCase(java.util.Locale.ROOT)
-                    .contains("win")) {
-                return false;
-            }
-            try {
-                Process process =
-                        new ProcessBuilder(
-                                        "cmd",
-                                        "/c",
-                                        "mklink",
-                                        "/J",
-                                        link.toString(),
-                                        target.toString())
-                                .redirectErrorStream(true)
-                                .start();
-                return process.waitFor() == 0 && Files.exists(link);
-            } catch (Exception ignoredAgain) {
-                return false;
-            }
-        }
     }
 }
