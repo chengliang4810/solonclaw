@@ -9,9 +9,8 @@ import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
+import com.jimuqu.solon.claw.support.FixedSessionRepository;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.UnsupportedAgentRunRepository;
 import com.jimuqu.solon.claw.web.DashboardAgentService;
@@ -40,7 +39,7 @@ class AgentDefaultMetadataTest {
                 new DashboardAgentService(
                         new AgentProfileService(new EmptyAgentProfileRepository(), runtimeService),
                         runtimeService,
-                        new EmptySessionRepository(),
+                        new FixedSessionRepository(),
                         new EmptyAgentRunRepository());
 
         Map<String, Object> agent = dashboardService.get(AgentRuntimeScope.DEFAULT_AGENT, "");
@@ -103,94 +102,6 @@ class AgentDefaultMetadataTest {
 
         @Override
         public void deleteByName(String agentName) {}
-    }
-
-    /** 空会话仓储，默认 Agent 详情测试只需要返回无激活会话。 */
-    private static class EmptySessionRepository implements SessionRepository {
-        @Override
-        public SessionRecord getBoundSession(String sourceKey) {
-            return null;
-        }
-
-        @Override
-        public SessionRecord bindNewSession(String sourceKey) {
-            return null;
-        }
-
-        @Override
-        public void bindSource(String sourceKey, String sessionId) {}
-
-        @Override
-        public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName) {
-            return null;
-        }
-
-        @Override
-        public SessionRecord findById(String sessionId) {
-            return null;
-        }
-
-        @Override
-        public SessionRecord findBySourceAndBranch(String sourceKey, String branchName) {
-            return null;
-        }
-
-        @Override
-        public List<SessionRecord> findResumeCandidates(String reference, int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public void save(SessionRecord sessionRecord) {}
-
-        @Override
-        public List<SessionRecord> search(String keyword, int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public List<SessionRecord> listRecent(int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public List<SessionRecord> listRecent(int limit, int offset) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public List<SessionRecord> listPendingAgentSessions(long updatedAfterMillis, int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public int countAll() {
-            return 0;
-        }
-
-        @Override
-        public void delete(String sessionId) {}
-
-        @Override
-        public void setModelOverride(String sessionId, String modelOverride) {}
-
-        @Override
-        public void setServiceTierOverride(String sessionId, String serviceTierOverride) {}
-
-        @Override
-        public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
-
-        @Override
-        public void setActiveAgentName(String sessionId, String agentName) {}
-
-        @Override
-        public void clearActiveAgentName(String agentName) {}
-
-        @Override
-        public void setGoalState(String sessionId, String goalStateJson) {}
-
-        @Override
-        public void setLastLearningAt(String sessionId, long lastLearningAt) {}
     }
 
     /** 空运行仓储，默认 Agent 详情测试不需要读取运行列表。 */

@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
+import com.jimuqu.solon.claw.support.FixedSessionRepository;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
@@ -573,99 +574,5 @@ public class DashboardStatusServiceTest {
         private EmptySessionRepository() {
             super(Collections.emptyList());
         }
-    }
-
-    private static class FixedSessionRepository implements SessionRepository {
-        private final List<SessionRecord> recentSessions;
-
-        private FixedSessionRepository(List<SessionRecord> recentSessions) {
-            this.recentSessions = recentSessions;
-        }
-
-        @Override
-        public SessionRecord getBoundSession(String sourceKey) {
-            return null;
-        }
-
-        @Override
-        public SessionRecord bindNewSession(String sourceKey) {
-            return null;
-        }
-
-        @Override
-        public void bindSource(String sourceKey, String sessionId) {}
-
-        @Override
-        public SessionRecord cloneSession(
-                String sourceKey, String sourceSessionId, String branchName) {
-            return null;
-        }
-
-        @Override
-        public SessionRecord findById(String sessionId) {
-            return null;
-        }
-
-        @Override
-        public SessionRecord findBySourceAndBranch(String sourceKey, String branchName) {
-            return null;
-        }
-
-        @Override
-        public List<SessionRecord> findResumeCandidates(String reference, int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public void save(SessionRecord sessionRecord) {}
-
-        @Override
-        public List<SessionRecord> search(String keyword, int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public List<SessionRecord> listRecent(int limit) {
-            return recentSessions;
-        }
-
-        @Override
-        public List<SessionRecord> listRecent(int limit, int offset) {
-            return recentSessions;
-        }
-
-        @Override
-        public List<SessionRecord> listPendingAgentSessions(long updatedAfterMillis, int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public int countAll() {
-            return 0;
-        }
-
-        @Override
-        public void delete(String sessionId) {}
-
-        @Override
-        public void setModelOverride(String sessionId, String modelOverride) {}
-
-        @Override
-        public void setServiceTierOverride(String sessionId, String serviceTierOverride) {}
-
-        @Override
-        public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
-
-        @Override
-        public void setActiveAgentName(String sessionId, String agentName) {}
-
-        @Override
-        public void clearActiveAgentName(String agentName) {}
-
-        @Override
-        public void setGoalState(String sessionId, String goalStateJson) {}
-
-        @Override
-        public void setLastLearningAt(String sessionId, long lastLearningAt) {}
     }
 }
