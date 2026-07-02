@@ -1,6 +1,15 @@
 import { request } from '../client'
 
-type TuiRpcMethod = 'setup.status' | 'model.options' | 'channel.options' | 'config.get'
+type TuiRpcMethod =
+  | 'setup.status'
+  | 'model.options'
+  | 'model.save_key'
+  | 'channel.options'
+  | 'channel.status'
+  | 'channel.save'
+  | 'channel.qr.start'
+  | 'channel.qr.get'
+  | 'config.get'
 
 interface TuiRpcErrorBody {
   readonly code: number
@@ -53,7 +62,18 @@ export interface TuiChannelStatus {
   readonly status?: string
   readonly required_keys?: readonly string[]
   readonly allowed_keys?: readonly string[]
+  readonly qr_supported?: boolean
+  readonly fields?: readonly TuiChannelField[]
   readonly required_configured?: Readonly<Record<string, unknown>>
+  readonly [key: string]: unknown
+}
+
+export interface TuiChannelField {
+  readonly key?: string
+  readonly label?: string
+  readonly description?: string
+  readonly required?: boolean
+  readonly secret?: boolean
   readonly [key: string]: unknown
 }
 
@@ -75,6 +95,47 @@ export interface TuiRuntimeOverview {
   readonly models: TuiModelOptions
   readonly channels: TuiChannelOptions
   readonly config: TuiFullConfig
+}
+
+export interface TuiModelSaveKeyResult {
+  readonly ok?: boolean
+  readonly error?: string
+  readonly detail?: unknown
+  readonly provider?: TuiModelProvider
+  readonly [key: string]: unknown
+}
+
+export interface TuiChannelSaveResult {
+  readonly ok?: boolean
+  readonly saved?: boolean
+  readonly channel?: string
+  readonly status?: string
+  readonly enabled?: boolean
+  readonly values?: Readonly<Record<string, unknown>>
+  readonly mtime?: number
+  readonly error?: string
+  readonly detail?: unknown
+  readonly [key: string]: unknown
+}
+
+export interface TuiChannelQrResult {
+  readonly ok?: boolean
+  readonly channel?: string
+  readonly status?: string
+  readonly ticket?: string
+  readonly qrcode?: string
+  readonly qr_code?: string
+  readonly device_code?: string
+  readonly qrcode_url?: string
+  readonly qr_image_url?: string
+  readonly qrcode_img_content?: string
+  readonly qr_url?: string
+  readonly message?: string
+  readonly error?: string
+  readonly error_code?: string
+  readonly error_message?: string
+  readonly domain?: string
+  readonly [key: string]: unknown
 }
 
 export class TuiRuntimeRpcError extends Error {
@@ -118,4 +179,33 @@ export async function fetchTuiRuntimeOverview(): Promise<TuiRuntimeOverview> {
     callTuiRuntimeRpc<TuiFullConfig>('config.get', { key: 'full' }),
   ])
   return { setup, models, channels, config }
+}
+
+export function saveTuiRuntimeModelApiKey(
+  slug: string,
+  apiKey: string,
+): Promise<TuiModelSaveKeyResult> {
+  return callTuiRuntimeRpc<TuiModelSaveKeyResult>('model.save_key', { slug, api_key: apiKey })
+}
+
+export function fetchTuiRuntimeChannelStatus(channel: string): Promise<TuiChannelStatus> {
+  return callTuiRuntimeRpc<TuiChannelStatus>('channel.status', { channel })
+}
+
+export function saveTuiRuntimeChannelConfig(
+  channel: string,
+  values: Readonly<Record<string, string | boolean>>,
+): Promise<TuiChannelSaveResult> {
+  return callTuiRuntimeRpc<TuiChannelSaveResult>('channel.save', { channel, values })
+}
+
+export function startTuiRuntimeChannelQr(channel: string): Promise<TuiChannelQrResult> {
+  return callTuiRuntimeRpc<TuiChannelQrResult>('channel.qr.start', { channel })
+}
+
+export function fetchTuiRuntimeChannelQr(
+  channel: string,
+  ticket: string,
+): Promise<TuiChannelQrResult> {
+  return callTuiRuntimeRpc<TuiChannelQrResult>('channel.qr.get', { channel, ticket })
 }
