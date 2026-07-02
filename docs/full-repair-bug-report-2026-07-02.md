@@ -72,7 +72,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-017：TUI `/help` 分页覆盖层关闭不稳定
 
-状态：待复核修复
+状态：已修复，提交 `8e6ceaaf6`
 
 影响范围：
 
@@ -97,6 +97,16 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 - 优先检查 `terminal-ui/src/app/useInputHandlers.ts` 的 `overlay.pager` 分支。
 - 分页覆盖层应统一处理 `Esc` 和 `q` 关闭，并阻止关闭键落入普通输入框。
+
+复核记录：
+
+- 当前 `/help` 已走本地 panel；残留风险来自任意 pager 被 `Esc` 关闭后紧随的 `q` 落入空输入框。
+- `overlayStore` 记录 pager 键盘关闭时间，`textInput` 吞掉一次紧随其后的空输入框 `q`，避免后续命令拼成 `q/setup`。
+
+验证：
+
+- `npm --prefix terminal-ui test -- overlayStore.test.ts`
+- `npm --prefix terminal-ui run type-check`
 
 ## BUG-018：TUI 未知 slash command 被当成普通聊天发送模型
 
