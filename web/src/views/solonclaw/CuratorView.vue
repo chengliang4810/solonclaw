@@ -12,6 +12,7 @@ import {
   type CuratorReportDetail,
   type CuratorReportSummary,
 } from '@/api/solonclaw/curator'
+import { formatTimestampText } from '@/shared/timeFormat'
 
 const { t } = useI18n()
 const reports = ref<CuratorReportSummary[]>([])
@@ -25,11 +26,6 @@ const selectedJson = computed(() => {
   if (!selected.value) return ''
   return JSON.stringify(selected.value.report ?? selected.value.report_json ?? selected.value, null, 2)
 })
-
-function formatTime(value?: number) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
-}
 
 function statusColor(status?: string) {
   if (status === 'completed' || status === 'success') return 'success'
@@ -117,7 +113,7 @@ onMounted(() => loadReports(true))
               <Tag size="small" :color="statusColor(report.status)" :bordered="false">{{ report.status || '-' }}</Tag>
             </div>
             <p>{{ report.summary || t('curator.noSummary') }}</p>
-            <span class="report-time">{{ formatTime(report.started_at) }}</span>
+            <span class="report-time">{{ formatTimestampText(report.started_at) }}</span>
           </button>
           <div v-if="!reports.length && !loading" class="empty-state">{{ t('curator.empty') }}</div>
         </section>
@@ -132,8 +128,8 @@ onMounted(() => loadReports(true))
               <Tag :color="statusColor(selected.status)" :bordered="false">{{ selected.status || '-' }}</Tag>
             </div>
             <div class="detail-meta">
-              <span>{{ t('curator.startedAt') }} {{ formatTime(selected.started_at) }}</span>
-              <span>{{ t('curator.finishedAt') }} {{ formatTime(selected.finished_at) }}</span>
+              <span>{{ t('curator.startedAt') }} {{ formatTimestampText(selected.started_at) }}</span>
+              <span>{{ t('curator.finishedAt') }} {{ formatTimestampText(selected.finished_at) }}</span>
               <span>{{ selected.report_path || '-' }}</span>
             </div>
             <pre>{{ selectedJson }}</pre>

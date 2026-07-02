@@ -29,6 +29,7 @@
     "test:usage-stat-cards-metadata": "node --experimental-strip-types tests/usageStatCardsMetadataStatic.test.ts",
     "test:daily-trend-columns": "node --experimental-strip-types tests/dailyTrendColumnsStatic.test.ts",
     "test:display-theme-options": "node --experimental-strip-types tests/displayThemeOptionsStatic.test.ts",
+    "test:time-format": "node --experimental-strip-types tests/timeFormat.test.ts",
     "test:usage-format": "node --experimental-strip-types tests/usageFormat.test.ts",
     "test:markdown-document-panel-reuse": "node --experimental-strip-types tests/markdownDocumentPanelReuseStatic.test.ts",
     "test:file-context-menu-actions": "node --experimental-strip-types tests/fileContextMenuActions.test.ts",

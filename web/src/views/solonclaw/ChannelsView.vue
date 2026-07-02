@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import { downloadMedia, fetchMedia, fetchMediaDetail, indexMedia, referenceMedia, refreshMedia, type ChannelMedia } from '@/api/solonclaw/media'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
+import { formatTimestampText } from '@/shared/timeFormat'
 
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
@@ -102,9 +103,6 @@ function formatBytes(value?: number) {
   return `${(value / 1024 / 1024).toFixed(1)} MB`
 }
 
-function formatTime(value?: number) {
-  return value ? new Date(value).toLocaleString() : '-'
-}
 </script>
 
 <template>
@@ -171,7 +169,7 @@ function formatTime(value?: number) {
         <div><span>{{ t('channels.mediaPlatform') }}</span><strong>{{ selectedMediaDetail.platform || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaKind') }}</span><strong>{{ selectedMediaDetail.kind || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaSize') }}</span><strong>{{ formatBytes(selectedMediaDetail.size_bytes) }}</strong></div>
-        <div><span>{{ t('channels.mediaUpdated') }}</span><strong>{{ formatTime(selectedMediaDetail.updated_at) }}</strong></div>
+        <div><span>{{ t('channels.mediaUpdated') }}</span><strong>{{ formatTimestampText(selectedMediaDetail.updated_at) }}</strong></div>
         <div><span>{{ t('channels.mediaPath') }}</span><strong>{{ selectedMediaDetail.local_path || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaReference') }}</span><strong>{{ selectedMediaDetail.reference || '-' }}</strong></div>
         <div v-if="selectedMediaDetail.error"><span>{{ t('channels.mediaError') }}</span><strong>{{ selectedMediaDetail.error }}</strong></div>
