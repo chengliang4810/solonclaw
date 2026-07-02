@@ -1,6 +1,7 @@
 # 全面修复阶段 1.3 未使用变量警告审计记录
 
 生成时间：2026-06-29
+最新复核时间：2026-07-02
 
 ## 对应外部对标能力点
 
@@ -12,6 +13,17 @@
 当前工作树未复现未使用变量或未使用导入告警，因此阶段 1.3 没有需要修改的生产代码。
 
 `terminal-ui` 的 lint 当前仍失败，但失败原因是 `terminal-ui/src/components/prompts.tsx:28` 的 `no-control-regex`，不是未使用变量或未使用导入。本阶段不把该问题混入 unused 清理提交，避免扩大子任务范围。
+
+## 2026-07-02 复核结论
+
+当前工作树仍未复现未使用变量或未使用导入告警；`terminal-ui` lint 现在为 0 error、58 warning，warning 类型为 padding、React hooks 或 react-compiler，不属于阶段 1.3 的 unused 清理范围。
+
+| 命令 | 结果 | 和未使用变量的关系 |
+| --- | --- | --- |
+| `mvn "-Dskip.web.build=true" "-DskipTests" compile` | 通过 | Java 编译未报告未使用变量或导入问题。 |
+| `npm --prefix terminal-ui run type-check` | 通过 | `noUnusedLocals`、`noUnusedParameters` 未发现问题。 |
+| `npm --prefix web run build` | 通过 | `vue-tsc -b` 未发现 Web 未使用变量问题。 |
+| `npm --prefix terminal-ui run lint` | 通过，0 error、58 warning | 没有 `unused-imports` error；剩余 warning 不属于未使用变量或导入。 |
 
 ## 预存问题复核
 
