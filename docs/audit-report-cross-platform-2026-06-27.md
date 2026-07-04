@@ -331,7 +331,7 @@
 
 ## L-04 后端 `CommandRegistry` 别名存在覆盖风险
 
-- 两个不同命令声明相同别名时后者静默覆盖，缺乏冲突检测
+- 已补注册期冲突检测；两个不同命令声明相同别名时会快速失败，避免静默覆盖 slash command 解析。
 
 ## L-05 后端 `DashboardAuthFilter` OPTIONS 仅对 `/api/` 返回 204
 
