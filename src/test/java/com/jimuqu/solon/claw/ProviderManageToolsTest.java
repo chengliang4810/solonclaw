@@ -32,6 +32,26 @@ public class ProviderManageToolsTest {
         assertThat(result.get("models")).asList().containsExactly("provider-remote-model");
     }
 
+    /** fetch_models 和 fetch_model_list 应对齐 UI 的拉取模型列表动作。 */
+    @Test
+    void shouldRouteFetchModelAliasesToRemoteModelList() {
+        RecordingProviderService service = new RecordingProviderService();
+        ProviderManageTools tools = new ProviderManageTools(service);
+
+        for (String action : new String[] {"fetch_models", "fetch_model_list"}) {
+            String json =
+                    tools.providerManage(
+                            action,
+                            null,
+                            null,
+                            "{\"baseUrl\":\"https://api.example.test\",\"dialect\":\"openai\"}");
+
+            Map<?, ?> result = result(json);
+            assertThat(result.get("models")).asList().containsExactly("provider-remote-model");
+        }
+        assertThat(service.remoteModelCalls).isEqualTo(2);
+    }
+
     /** models_health 应对齐 Dashboard 的 /api/models/health 页面动作。 */
     @Test
     void shouldRouteModelsHealthAliasToProviderHealth() {
