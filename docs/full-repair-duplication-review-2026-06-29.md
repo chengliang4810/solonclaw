@@ -60,6 +60,23 @@ python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-
 - diff whitespace 检查通过。
 - 项目命名门禁通过。
 
+## 2026-07-05 复核结果
+
+已执行：
+
+```bash
+python scripts/check-code-duplication.selftest.py
+python scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages
+python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages
+```
+
+结果：
+
+- 重复检测脚本自测通过。
+- 全项目源码 `min-lines=40` 扫描无输出。
+- 全项目源码 `min-lines=25` 宽松扫描也无输出。
+- 当前没有脚本可复现的重复代码块，因此本轮不做新的复用抽取。
+
 ## 保留的高相似候选
 
 以下候选来自当前质量审计与本轮复核，后续应按更小的原子项串行处理：
