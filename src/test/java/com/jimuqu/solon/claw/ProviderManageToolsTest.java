@@ -32,10 +32,26 @@ public class ProviderManageToolsTest {
         assertThat(result.get("models")).asList().containsExactly("provider-remote-model");
     }
 
+    /** models_health 应对齐 Dashboard 的 /api/models/health 页面动作。 */
+    @Test
+    void shouldRouteModelsHealthAliasToProviderHealth() {
+        RecordingProviderService service = new RecordingProviderService();
+        ProviderManageTools tools = new ProviderManageTools(service);
+
+        String json = tools.providerManage("models_health", null, null, null);
+
+        Map<?, ?> result = result(json);
+        assertThat(service.healthCalls).isEqualTo(1);
+        assertThat(result.get("providers")).asList().containsExactly("provider-health-ok");
+    }
+
     /** 记录 provider service 调用，避免测试访问真实模型接口。 */
     private static class RecordingProviderService extends DashboardProviderService {
         /** 远程模型列表调用次数。 */
         private int remoteModelCalls;
+
+        /** 模型健康检查调用次数。 */
+        private int healthCalls;
 
         /** 创建记录型 provider service。 */
         RecordingProviderService() {
@@ -48,6 +64,15 @@ public class ProviderManageToolsTest {
             remoteModelCalls++;
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("models", Collections.singletonList("provider-remote-model"));
+            return result;
+        }
+
+        /** 返回固定模型健康状态。 */
+        @Override
+        public Map<String, Object> health() {
+            healthCalls++;
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("providers", Collections.singletonList("provider-health-ok"));
             return result;
         }
     }
