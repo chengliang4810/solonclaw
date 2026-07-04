@@ -335,7 +335,7 @@
 
 ## L-05 后端 `DashboardAuthFilter` OPTIONS 仅对 `/api/` 返回 204
 
-- 非 `/api/` 的 OPTIONS 请求会继续走 filter chain
+- 已改为所有 OPTIONS 预检统一返回 204，避免静态资源或页面路由链误处理 CORS 预检。
 
 ## L-06 后端 WebSocket token 支持 query 参数明文传输
 
