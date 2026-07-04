@@ -112,6 +112,17 @@
 - `node --experimental-strip-types web/tests/channelQr.test.ts`
 - `npm --prefix web run build`
 
+### 7. TUI QR setup 状态契约补齐
+
+- 2026-07-05 本轮提交：`test: 补齐 TUI QR 状态契约 / Cover TUI QR status contract`。
+- `channelQrStatusActive` 补齐 `wait`、`scaned`、`scaned_but_redirect`，与后端二维码 setup 常见状态词保持一致，避免 TUI 收到这些状态后提前停止轮询。
+- 扩展 `channelQr.test.ts`，同时锁定 `confirmed`、`failed`、`expired`、`error` 不再轮询。
+
+验证：
+
+- `npm --prefix terminal-ui test -- src/__tests__/channelQr.test.ts`
+- `npm --prefix terminal-ui run type-check`
+
 ## 延后候选
 
 - `ChannelQrPanel.vue` 状态展示边界增强：适合作为阶段 3.4 低风险小项，收紧加载、等待、扫码、确认、失效、错误等状态的文案与按钮可见规则。
@@ -120,4 +131,4 @@
 
 ## 阶段状态
 
-阶段 3.3 已完成六个低风险复用原子项。下一步可继续用状态契约测试约束 terminal-ui 侧 QR setup 解释逻辑，或进入阶段 3.4 对 `ChannelQrPanel.vue` 等已融合功能做边界增强评估。
+阶段 3.3 已完成七个低风险复用原子项。下一步可进入阶段 3.4 对 `ChannelQrPanel.vue` 等已融合功能做边界增强评估，或继续按 E2E 路径补真实 Web / TUI 验证脚本。

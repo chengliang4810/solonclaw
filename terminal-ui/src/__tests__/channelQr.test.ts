@@ -45,8 +45,13 @@ describe('channel QR setup helpers', () => {
     expect(channelQrStatusActive('initializing')).toBe(true)
     expect(channelQrStatusActive('pending')).toBe(true)
     expect(channelQrStatusActive('scanned')).toBe(true)
+    expect(channelQrStatusActive('wait')).toBe(true)
+    expect(channelQrStatusActive('scaned')).toBe(true)
+    expect(channelQrStatusActive('scaned_but_redirect')).toBe(true)
     expect(channelQrStatusActive('confirmed')).toBe(false)
     expect(channelQrStatusActive('failed')).toBe(false)
+    expect(channelQrStatusActive('expired')).toBe(false)
+    expect(channelQrStatusActive('error')).toBe(false)
   })
 
   it('renders the QR setup surface without overflowing a narrow terminal', () => {

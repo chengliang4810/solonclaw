@@ -14,7 +14,7 @@ export const channelQrUrl = (qr: ChannelQrResponse | null): string => {
 }
 
 export const channelQrStatusActive = (status?: string): boolean =>
-  status === 'initializing' || status === 'pending' || status === 'scanned'
+  ['initializing', 'pending', 'scanned', 'wait', 'scaned', 'scaned_but_redirect'].includes(status ?? '')
 
 export const channelQrMessage = (qr: ChannelQrResponse | null): string => {
   if (!qr) {
