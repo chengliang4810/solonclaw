@@ -72,6 +72,27 @@ public class TuiRuntimeManageToolsTest {
                 .contains("config.get");
     }
 
+    /** 工具参数说明应包含前端 TUI RPC 的写方法名，便于模型直接选择页面动作。 */
+    @Test
+    void shouldDescribeTuiRpcWriteMethodAliases() throws Exception {
+        Method method =
+                TuiRuntimeManageTools.class.getMethod(
+                        "tuiRuntimeManage",
+                        String.class,
+                        String.class,
+                        String.class,
+                        String.class,
+                        Map.class,
+                        String.class,
+                        String.class);
+
+        assertThat(paramDescription(method, "action"))
+                .contains("model.save_key")
+                .contains("channel.save")
+                .contains("channel.qr.start")
+                .contains("channel.qr.get");
+    }
+
     /** 调用 TUI 运行时工具并解析统一工具结果。 */
     private ONode call(String action, String channel, String key) throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

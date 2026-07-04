@@ -58,12 +58,12 @@ public class TuiRuntimeManageTools {
     @ToolMapping(
             name = "tui_runtime_manage",
             description =
-                    "Inspect or operate TUI runtime setup. Actions: setup_status, setup.status, model_options, model.options, model_save_key, channel_options, channel.options, channel_status, channel.status, channel_save, channel_qr_start, channel_qr_get, config_get, config.get.")
+                    "Inspect or operate TUI runtime setup. Actions: setup_status, setup.status, model_options, model.options, model_save_key, model.save_key, channel_options, channel.options, channel_status, channel.status, channel_save, channel.save, channel_qr_start, channel.qr.start, channel_qr_get, channel.qr.get, config_get, config.get.")
     public String tuiRuntimeManage(
             @Param(
                             name = "action",
                             description =
-                                    "setup_status, setup.status, model_options, model.options, model_save_key, channel_options, channel.options, channel_status, channel.status, channel_save, channel_qr_start, channel_qr_get, config_get, config.get")
+                                    "setup_status, setup.status, model_options, model.options, model_save_key, model.save_key, channel_options, channel.options, channel_status, channel.status, channel_save, channel.save, channel_qr_start, channel.qr.start, channel_qr_get, channel.qr.get, config_get, config.get")
                     String action,
             @Param(
                             name = "channel",
