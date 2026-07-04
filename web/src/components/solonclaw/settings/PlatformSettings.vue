@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, onUnmounted } from 'vue'
-import * as QRCode from 'qrcode'
+import { computed, reactive } from 'vue'
 import { message } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
@@ -10,6 +9,7 @@ import {
   pollPlatformQrStatus,
 } from '@/api/solonclaw/config'
 import type { ChannelQrPlatform } from '@/shared/channelQr'
+import { useChannelQrPolling } from '@/shared/channelQrPolling'
 import ChannelQrPanel from './ChannelQrPanel.vue'
 import PlatformOptionalSettings from './PlatformOptionalSettings.vue'
 import PlatformCard from './PlatformCard.vue'
@@ -168,23 +168,20 @@ function savePrimarySwitch(platform: string, field: PrimarySwitchSetting, value:
   return saveChannel(primaryPlatform(platform), field.field, { [field.field]: value })
 }
 
-type UiQrStatus = 'idle' | 'loading' | 'waiting' | 'scaned' | 'confirmed' | 'error' | 'expired'
-
-interface QrState {
-  url: string
-  imageUrl: string
-  message: string
-  id: string
-  status: UiQrStatus
-  failures: number
-  timer: ReturnType<typeof setTimeout> | null
-}
-
-const qrStates = reactive<Record<ChannelQrPlatform, QrState>>({
-  feishu: { url: '', imageUrl: '', message: '', id: '', status: 'idle', failures: 0, timer: null },
-  dingtalk: { url: '', imageUrl: '', message: '', id: '', status: 'idle', failures: 0, timer: null },
-  weixin: { url: '', imageUrl: '', message: '', id: '', status: 'idle', failures: 0, timer: null },
-})
+const { states: qrStates, start: startQrLogin } = useChannelQrPolling<ChannelQrPlatform>(
+  ['feishu', 'dingtalk', 'weixin'],
+  {
+    start: fetchPlatformQrCode,
+    poll: pollPlatformQrStatus,
+    startErrorMessage: () => t('platform.qrFetching'),
+    pollErrorMessage: () => t('platform.qrFailed'),
+    onError: (text) => message.error(text),
+    onConfirmed: async () => {
+      await settingsStore.fetchSettings()
+      message.success(t('settings.saved'))
+    },
+  },
+)
 
 function isQrPanelPlatform(platform: string): platform is ChannelQrPlatform {
   return platform === 'feishu' || platform === 'dingtalk' || platform === 'weixin'
@@ -197,92 +194,6 @@ function qrPanelDomain(platform: string) {
 function shouldShowQrEmptyStatus(platform: string) {
   return platform === 'weixin'
 }
-
-async function updateQrSource(state: QrState, raw: string) {
-  const value = (raw || '').trim()
-  if (!value || value === state.url) return
-  state.url = value
-  state.imageUrl = /^data:image\//i.test(value)
-    ? value
-    : await QRCode.toDataURL(value, {
-      width: 240,
-      margin: 2,
-      errorCorrectionLevel: 'M',
-    })
-}
-
-async function startQrLogin(platform: ChannelQrPlatform) {
-  const state = qrStates[platform]
-  state.status = 'loading'
-  state.url = ''
-  state.imageUrl = ''
-  state.message = ''
-  state.id = ''
-  state.failures = 0
-  stopQrPoll(platform)
-
-  try {
-    const data = await fetchPlatformQrCode(platform)
-    state.id = data.qrcode
-    await updateQrSource(state, data.qrcode_url)
-    state.status = state.url ? 'waiting' : 'loading'
-    pollQrStatus(platform)
-  } catch (err: any) {
-    state.status = 'error'
-    state.message = err.message || t('platform.qrFetching')
-    message.error(err.message || t('platform.qrFetching'))
-  }
-}
-
-function pollQrStatus(platform: ChannelQrPlatform) {
-  const state = qrStates[platform]
-  if (!state.id) return
-  state.timer = setTimeout(async () => {
-    try {
-      const data = await pollPlatformQrStatus(platform, state.id)
-      state.failures = 0
-      state.message = data.error_message || data.message || ''
-      await updateQrSource(state, data.qrcode_url || '')
-      if (data.status === 'wait') {
-        state.status = state.url ? 'waiting' : 'loading'
-        pollQrStatus(platform)
-      } else if (data.status === 'scaned') {
-        state.status = 'scaned'
-        pollQrStatus(platform)
-      } else if (data.status === 'expired') {
-        state.status = 'expired'
-      } else if (data.status === 'error') {
-        state.status = 'error'
-      } else if (data.status === 'confirmed') {
-        state.status = 'confirmed'
-        await settingsStore.fetchSettings()
-        message.success(t('settings.saved'))
-      }
-    } catch (err: any) {
-      state.failures += 1
-      if (state.failures >= 3) {
-        state.status = 'error'
-        state.message = err?.message || t('platform.qrFailed')
-        return
-      }
-      pollQrStatus(platform)
-    }
-  }, 3000)
-}
-
-function stopQrPoll(platform: ChannelQrPlatform) {
-  const state = qrStates[platform]
-  if (state.timer) {
-    clearTimeout(state.timer)
-    state.timer = null
-  }
-}
-
-onUnmounted(() => {
-  stopQrPoll('feishu')
-  stopQrPoll('dingtalk')
-  stopQrPoll('weixin')
-})
 
 </script>
 

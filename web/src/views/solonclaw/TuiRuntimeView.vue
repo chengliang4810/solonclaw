@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
-import * as QRCode from 'qrcode'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { Button, Input, Spin, Switch, Tag, message } from 'antdv-next'
 import {
   fetchTuiRuntimeOverview,
@@ -15,7 +14,8 @@ import {
   type TuiRuntimeOverview,
 } from '@/api/solonclaw/tuiRuntime'
 import ChannelQrPanel from '@/components/solonclaw/settings/ChannelQrPanel.vue'
-import { normalizeChannelQrStatus, type ChannelQrPlatform } from '@/shared/channelQr'
+import type { ChannelQrPlatform } from '@/shared/channelQr'
+import { useChannelQrPolling, type ChannelQrPollingState } from '@/shared/channelQrPolling'
 import {
   providerAuthColor,
   providerAuthLabel,
@@ -72,20 +72,19 @@ const channelForms = reactive<Record<string, Record<string, string>>>({})
 const channelEnabled = reactive<Record<string, boolean>>({})
 const channelSaving = reactive<Record<string, boolean>>({})
 
-type UiQrStatus = 'idle' | 'loading' | 'waiting' | 'scaned' | 'confirmed' | 'error' | 'expired'
-
-interface QrState {
-  url: string
-  imageUrl: string
-  message: string
-  id: string
-  status: UiQrStatus
-  failures: number
-  timer: ReturnType<typeof setTimeout> | null
-  domain: string
-}
-
-const qrStates = reactive<Record<string, QrState>>({})
+const { stateFor: pollingStateFor, start: startQrPolling } = useChannelQrPolling<string>(
+  [],
+  {
+    start: startTuiRuntimeChannelQr,
+    poll: fetchTuiRuntimeChannelQr,
+    startErrorMessage: text.loadFailed,
+    pollErrorMessage: text.loadFailed,
+    onError: (value) => message.error(value),
+    onConfirmed: async () => {
+      await loadOverview()
+    },
+  },
+)
 
 const providers = computed(() => overview.value?.models.providers ?? [])
 const channels = computed(() => overview.value?.channels.channels ?? [])
@@ -240,100 +239,15 @@ function isQrPlatform(value: string): value is ChannelQrPlatform {
   return value === 'weixin' || value === 'feishu' || value === 'dingtalk'
 }
 
-function qrStateFor(channel: TuiChannelStatus): QrState {
-  const key = channelKey(channel)
-  if (!qrStates[key]) {
-    qrStates[key] = {
-      url: '',
-      imageUrl: '',
-      message: '',
-      id: '',
-      status: 'idle',
-      failures: 0,
-      timer: null,
-      domain: '',
-    }
-  }
-  return qrStates[key]
-}
-
-async function updateQrSource(state: QrState, raw: string): Promise<void> {
-  const value = raw.trim()
-  if (!value || value === state.url) return
-  state.url = value
-  state.imageUrl = /^data:image\//i.test(value)
-    ? value
-    : await QRCode.toDataURL(value, { width: 240, margin: 2, errorCorrectionLevel: 'M' })
-}
-
-function stopQrPoll(channel: string): void {
-  const state = qrStates[channel]
-  if (state?.timer) {
-    clearTimeout(state.timer)
-    state.timer = null
-  }
-}
-
-async function applyQrPayload(channel: string, state: QrState, payload: Record<string, unknown>): Promise<void> {
-  const view = normalizeChannelQrStatus(payload)
-  state.id = view.qrcode || state.id
-  state.message = view.error_message || view.message || ''
-  state.domain = view.domain || ''
-  await updateQrSource(state, view.qrcode_url || '')
-  if (view.status === 'confirmed') {
-    state.status = 'confirmed'
-    await loadOverview()
-    return
-  }
-  if (view.status === 'expired') {
-    state.status = 'expired'
-    return
-  }
-  if (view.status === 'error') {
-    state.status = 'error'
-    return
-  }
-  state.status = view.status === 'scaned' ? 'scaned' : (state.url ? 'waiting' : 'loading')
-  pollChannelQr(channel)
+function qrStateFor(channel: TuiChannelStatus): ChannelQrPollingState {
+  return pollingStateFor(channelKey(channel))
 }
 
 async function startChannelQr(channel: TuiChannelStatus): Promise<void> {
   const key = channelKey(channel)
   if (!isQrPlatform(key)) return
-  const state = qrStateFor(channel)
-  stopQrPoll(key)
-  Object.assign(state, { url: '', imageUrl: '', message: '', id: '', status: 'loading', failures: 0, domain: '' })
-  try {
-    await applyQrPayload(key, state, await startTuiRuntimeChannelQr(key))
-  } catch (error) {
-    state.status = 'error'
-    state.message = error instanceof Error ? error.message : text.loadFailed
-    message.error(state.message)
-  }
+  await startQrPolling(key)
 }
-
-function pollChannelQr(channel: string): void {
-  const state = qrStates[channel]
-  if (!state?.id) return
-  state.timer = setTimeout(async () => {
-    try {
-      await applyQrPayload(channel, state, await fetchTuiRuntimeChannelQr(channel, state.id))
-      state.failures = 0
-    } catch (error) {
-      state.failures += 1
-      if (state.failures >= 3) {
-        state.status = 'error'
-        state.message = error instanceof Error ? error.message : text.loadFailed
-        return
-      }
-      pollChannelQr(channel)
-    }
-  }, 3000)
-}
-
-onUnmounted(() => {
-  Object.keys(qrStates).forEach(stopQrPoll)
-})
 </script>
 
 <template>
