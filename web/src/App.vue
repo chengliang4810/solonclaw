@@ -38,6 +38,9 @@ router.isReady().then(() => {
 })
 
 function syncAppRuntime() {
+  if (!ready.value) {
+    return
+  }
   if (isLoginPage.value) {
     appStore.stopHealthPolling()
     return
@@ -46,7 +49,7 @@ function syncAppRuntime() {
   appStore.startHealthPolling()
 }
 
-watch(isLoginPage, syncAppRuntime)
+watch([isLoginPage, ready], syncAppRuntime)
 
 onMounted(syncAppRuntime)
 
