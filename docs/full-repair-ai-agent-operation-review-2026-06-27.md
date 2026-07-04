@@ -86,10 +86,10 @@
 ## 阶段结论
 
 - 阶段 4.4 的高确定性缺口已经按“窄工具 + 服务复用 + 测试证明”完成。
-- 剩余不补的入口属于高风险写入、浏览器下载、OAuth 回调或聊天运行主链，不按普通自然语言工具处理。
+- 剩余不补的入口属于高风险写入、浏览器下载或聊天运行主链，不按普通自然语言工具处理。
 - 当前结论以 `docs/full-repair-ai-data-driven-implementation-2026-06-27.md` 中的实施清单和验证记录为准。
 
 ## 剩余风险
 
-- 检查点回滚、会话删除、OAuth begin/refresh/callback/handle-401/clear、审批 resolve/revoke 仍保留在更强边界内；这不是遗漏，而是阶段内安全边界决策。
+- 会话删除、审批 resolve/revoke 仍保留在更强边界内；MCP OAuth begin/complete/refresh/handle-401/clear 复用 Dashboard 服务的安全校验和脱敏边界。
 - Dashboard Chat 上传、SSE events、cancel 等聊天运行主链入口不重复包装成普通工具，避免和会话运行生命周期产生两套入口。

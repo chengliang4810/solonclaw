@@ -69,6 +69,69 @@ public class McpManageToolsTest {
         assertThat(result.toJson()).doesNotContain("refresh-token-for-test");
     }
 
+    /** 页面 oauth/begin 动作应能通过自然语言工具生成安全授权链接。 */
+    @Test
+    void shouldBeginOAuthThroughNaturalLanguageToolAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Map<String, Object> oauth = new LinkedHashMap<String, Object>();
+        oauth.put("enabled", Boolean.TRUE);
+        saveMcpServer(env, oauth);
+        McpManageTools tools =
+                new McpManageTools(
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        for (String action : new String[] {"oauth_begin", "start_oauth", "generate_link"}) {
+            ONode result =
+                    ONode.ofJson(
+                            tools.mcpManage(
+                                    action,
+                                    "local-docs",
+                                    "{\"authorization_endpoint\":\"http://127.0.0.1:8765/oauth/authorize\",\"client_id\":\"local-client\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}"));
+
+            assertThat(result.get("status").getString()).isEqualTo("success");
+            assertThat(result.get("result").get("status").getString()).isEqualTo("pending");
+            assertThat(result.get("result").get("authorization_url").getString())
+                    .contains("code_challenge_method=S256")
+                    .contains("scope=repo%20read%3Auser");
+            assertThat(result.get("result").get("oauth").get("has_code_verifier").getBoolean())
+                    .isTrue();
+            assertThat(result.toJson()).doesNotContain("\"code_verifier\":\"");
+        }
+    }
+
+    /** 页面 oauth/callback 动作应能通过自然语言工具进入回调校验。 */
+    @Test
+    void shouldCompleteOAuthThroughNaturalLanguageToolAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Map<String, Object> oauth = new LinkedHashMap<String, Object>();
+        oauth.put("enabled", Boolean.TRUE);
+        saveMcpServer(env, oauth);
+        McpManageTools tools =
+                new McpManageTools(
+                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+
+        ONode begin =
+                ONode.ofJson(
+                        tools.mcpManage(
+                                "oauth_begin",
+                                "local-docs",
+                                "{\"authorization_endpoint\":\"http://127.0.0.1:8765/oauth/authorize\",\"client_id\":\"local-client\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\"}"));
+        String state = begin.get("result").get("state").getString();
+
+        for (String action : new String[] {"oauth_complete", "submit_callback"}) {
+            ONode result =
+                    ONode.ofJson(
+                            tools.mcpManage(
+                                    action,
+                                    "local-docs",
+                                    "{\"code\":\"auth-code\",\"state\":\"" + state + "\"}"));
+
+            assertThat(result.get("status").getString()).isEqualTo("error");
+            assertThat(result.get("error").getString())
+                    .contains("token_endpoint is required for MCP OAuth callback");
+        }
+    }
+
     /** 保存一个禁用运行态也可读取持久化工具快照的 MCP 服务端。 */
     private void saveMcpServer(TestEnvironment env) throws Exception {
         saveMcpServer(env, null);
