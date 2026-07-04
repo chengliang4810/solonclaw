@@ -6,9 +6,27 @@ declare global {
 
 const DEFAULT_BASE_URL = ''
 const TOKEN_KEY = 'solonclaw_api_key'
+const SERVER_URL_KEY = 'solonclaw_server_url'
+
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase()
+  return host === 'localhost' || host === '::1' || host === '[::1]' || host.startsWith('127.')
+}
+
+function isLoopbackUrl(value: string): boolean {
+  try {
+    return isLoopbackHost(new URL(value).hostname)
+  } catch {
+    return false
+  }
+}
 
 export function getBaseUrlValue(): string {
-  return localStorage.getItem('solonclaw_server_url') || DEFAULT_BASE_URL
+  const stored = localStorage.getItem(SERVER_URL_KEY) || DEFAULT_BASE_URL
+  if (stored && isLoopbackHost(window.location.hostname) && isLoopbackUrl(stored)) {
+    return DEFAULT_BASE_URL
+  }
+  return stored
 }
 
 export function getInjectedToken(): string {
@@ -20,7 +38,7 @@ export function getApiKey(): string {
 }
 
 export function setServerUrl(url: string) {
-  localStorage.setItem('solonclaw_server_url', url)
+  localStorage.setItem(SERVER_URL_KEY, url)
 }
 
 export function setApiKey(key: string) {

@@ -202,7 +202,7 @@ npm --prefix terminal-ui test -- src/__tests__/gatewayClient.test.ts
 
 ## BUG-031：浏览器本地缓存的后端地址可能让 Dashboard 指向旧服务
 
-状态：待复核
+状态：已修复（2026-07-05）
 
 影响范围：
 
@@ -214,10 +214,17 @@ npm --prefix terminal-ui test -- src/__tests__/gatewayClient.test.ts
 - Web E2E 观察到浏览器 localStorage 中残留的 `solonclaw_server_url` 可能让 UI 指向旧后端。
 - 该问题会造成“当前后端已启动但页面仍访问旧地址”的假失败。
 
-建议修复方向：
+修复内容：
 
-- 先补充可复现的浏览器测试证据。
-- 若确认成立，优先在现有 server URL 读取入口做最小提示或自动恢复，不新增复杂配置层。
+- `getBaseUrlValue()` 对本机 Dashboard 上残留的 loopback 后端地址回退到相对地址，继续走当前页面的 `/api` 入口与 Vite 代理。
+- 非本机远程后端地址仍保留原有可配置行为。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/sessionAuthClearInjectedToken.test.ts
+npm --prefix web run build
+```
 
 ## BUG-032：Dashboard 暗色侧栏“系统”分组展开后子菜单文字几乎不可读
 
