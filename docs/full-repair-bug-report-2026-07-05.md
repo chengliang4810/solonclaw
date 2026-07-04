@@ -1,0 +1,226 @@
+# 无人值守全面修复阶段 1.1 增量缺陷报告
+
+生成时间：2026-07-05
+
+## 对应外部对标能力点
+
+- Dashboard-first setup / doctor：登录前后不应触发无意义的模型接口错误，模型与运行状态应在授权后稳定刷新。
+- 本地 CLI / TUI 交互层：后端离线、重连、输入、审计和退出路径应保持可控，不应刷屏或快速耗尽内存。
+- 工具系统与 Agent 主循环：工具循环状态必须按调用上下文清理，避免一次工具调用污染后续请求。
+
+## 审计范围
+
+本报告追加记录 2026-07-05 无人值守 E2E 与 focused 测试确认的问题。已在旧报告中闭环的 BUG-001 至 BUG-024 不重复列入。
+
+## BUG-025：TUI 后端离线时握手与普通 RPC 互相触发重连导致刷屏和快速内存增长
+
+状态：已修复，提交 `c9f83b51c`
+
+影响范围：
+
+- Node TUI 离线启动。
+- 后端端口错误、后端进程退出或网络断开后的输入体验。
+- 终端活动流、转写消息和网关日志体积。
+
+当前事实：
+
+- 真实 TTY 复测中，将 `SOLONCLAW_SERVER_URL` 指向不可达端口后，旧路径会反复输出 `gateway not connected: config.get`。
+- 早期复现中出现快速堆内存增长，监测到 heap 约 1.5GB、rss 约 1.7GB。
+- 修复后同一路径运行约 50 秒，`transport_exit=1`，未再出现 memory warning。
+
+根因：
+
+- 后端握手失败后，普通 RPC 仍会重新触发后端握手。
+- 断线事件和转写消息没有对重复离线状态做去重，用户界面和日志会被相同状态消息淹没。
+
+处理记录：
+
+- `GatewayClient` 在后端握手失败后标记 `backendUnavailable`，普通 RPC 不再自动重启握手。
+- 保留显式 `gw.start()` 的重新连接能力。
+- 活动消息和转写消息增加重复状态去重，离线提示保持稳定。
+
+验证命令：
+
+```bash
+npm --prefix terminal-ui test -- src/__tests__/gatewayClient.test.ts src/lib/messages.test.ts src/__tests__/createGatewayEventHandler.test.ts
+npm --prefix terminal-ui run type-check
+npm --prefix terminal-ui run build
+```
+
+真实 TTY 复核：
+
+```bash
+SOLONCLAW_SERVER_URL=http://127.0.0.1:65535
+SOLONCLAW_HOME=%TEMP%\solonclaw-tui-offline-verify-fix2
+npm start
+```
+
+## BUG-026：Dashboard 登录页加载阶段提前请求模型接口导致控制台 401
+
+状态：已修复，提交 `9c54910dc`
+
+影响范围：
+
+- Dashboard 登录页。
+- 首次打开 Web UI 时的浏览器控制台。
+- 未登录状态下的运行时模型和健康状态同步。
+
+当前事实：
+
+- Web E2E 打开登录页时，页面尚未登录就请求 `/api/providers`。
+- 后端按预期返回 401，但用户视角会看到无意义的控制台错误。
+- 登录后模型页和模型配置路径可正常展示，说明问题不在模型配置本身。
+
+根因：
+
+- `App.vue` 在 router 完成初始解析前就启动 runtime model/health 同步。
+- 登录页判断依赖路由状态，初始路由未 ready 时会误把登录页当成可同步页面。
+
+处理记录：
+
+- `web/src/App.vue` 等待 `router.isReady()` 后再启动应用运行时同步。
+- `syncAppRuntime` 监听 `isLoginPage` 和 `ready`，登录页或 router 未 ready 时不请求模型接口。
+- 静态测试覆盖登录页初始化不触发运行时模型同步。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/appHealthPollingAfterLoginStatic.test.ts
+npm --prefix web run build
+```
+
+## BUG-027：启动时模型提供方配置被默认值覆盖
+
+状态：已修复，提交 `00bb4af53`
+
+影响范围：
+
+- `java -jar` 启动时通过系统属性或环境注入的模型提供方配置。
+- Dashboard 模型页显示的默认 provider、base URL、dialect 与 default model。
+- Web/TUI 使用真实模型做 E2E 时的启动可靠性。
+
+当前事实：
+
+- E2E 启动参数中已传入默认 provider、base URL、API key、dialect 和模型。
+- Dashboard 模型页应展示启动注入的 provider/model，而不是被默认配置覆盖。
+
+根因：
+
+- 配置加载阶段会用默认配置覆盖已注入的 provider 细节。
+- 真实 E2E 依赖启动参数时，该问题会让前端看到的模型状态与启动配置不一致。
+
+处理记录：
+
+- `AppConfigLoader` 保留启动阶段已有的模型提供方配置。
+- `AppConfigProviderLoadTest` 覆盖启动 provider 配置不会被默认值覆盖。
+
+验证命令：
+
+```bash
+mvn "-Dskip.web.build=true" "-Dtest=AppConfigProviderLoadTest" test
+```
+
+## BUG-028：工具循环防护线程状态未清理，可能污染后续工具调用
+
+状态：已修复，提交 `95ecb63be`
+
+影响范围：
+
+- Agent 主循环中的工具调用。
+- 同线程复用执行多个请求时的循环防护判断。
+- 长时间运行的 Web/TUI 会话。
+
+当前事实：
+
+- 工具循环防护服务在一次工具调用结束后需要清理线程本地状态。
+- 如果不清理，同线程后续请求可能继承上一轮工具调用上下文。
+
+根因：
+
+- 工具循环状态绑定在线程上下文，但原路径没有在调用结束时统一释放。
+
+处理记录：
+
+- `ToolCallLoopGuardrailService` 在工具调用结束后清理线程状态。
+- 回归测试覆盖状态清理，避免一次调用影响下一次判断。
+
+验证命令：
+
+```bash
+mvn "-Dskip.web.build=true" "-Dtest=ToolCallLoopGuardrailServiceTest" test
+```
+
+## BUG-029：终端审计脚本与 TUI 重连验证路径不稳定
+
+状态：已修复，提交 `041ec41a0`
+
+影响范围：
+
+- `scripts/audit-terminal-commands.py` 终端审计。
+- Windows 环境下的 TUI 重连回归复核。
+- 无人值守流程中的终端质量门禁。
+
+当前事实：
+
+- 终端审计和 TUI 重连验证需要在 Windows 环境下稳定表达“不支持 PTY”或“后端离线”，不能误进入模型启动或刷屏路径。
+- 相关自测需要覆盖 Windows/非 PTY 环境的行为边界。
+
+处理记录：
+
+- 终端审计脚本补充 Windows/PTY 边界处理。
+- `gatewayClient` 增加重连状态相关测试。
+- 自测脚本补充对应断言。
+
+验证命令：
+
+```bash
+python scripts/audit-terminal-commands.selftest.py
+npm --prefix terminal-ui test -- src/__tests__/gatewayClient.test.ts
+```
+
+## BUG-030：真实模型 E2E 返回 401 Invalid API Key
+
+状态：待复核，疑似外部凭据或上游服务状态问题
+
+影响范围：
+
+- Web Dashboard 真实聊天路径。
+- TUI 真实模型会话路径。
+- 使用真实 provider 的无人值守 E2E。
+
+当前事实：
+
+- Web E2E 中，Dashboard 登录、模型页和 SSE 请求路径可达。
+- 真实模型请求返回 `401 Invalid API Key`。
+- 后端 provider/model 路径已确认能按启动参数进入请求链路。
+
+下一步：
+
+- 不在仓库文档中记录密钥值。
+- 后续复测时只记录 provider 名称、协议、模型名、HTTP 状态和脱敏错误。
+- 若同一密钥仍返回 401，应作为外部凭据或服务状态问题单独处理，不阻塞本地 UI/协议路径修复。
+
+## BUG-031：浏览器本地缓存的后端地址可能让 Dashboard 指向旧服务
+
+状态：待复核
+
+影响范围：
+
+- Dashboard 本地开发与 E2E 测试。
+- 频繁切换后端端口或临时工作区的用户。
+
+当前事实：
+
+- Web E2E 观察到浏览器 localStorage 中残留的 `solonclaw_server_url` 可能让 UI 指向旧后端。
+- 该问题会造成“当前后端已启动但页面仍访问旧地址”的假失败。
+
+建议修复方向：
+
+- 先补充可复现的浏览器测试证据。
+- 若确认成立，优先在现有 server URL 读取入口做最小提示或自动恢复，不新增复杂配置层。
+
+## 当前结论
+
+- BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
+- BUG-030 与 BUG-031 保留为待复核项，不在缺少稳定复现前改代码。
+- 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
