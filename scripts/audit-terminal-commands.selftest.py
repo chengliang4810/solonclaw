@@ -110,6 +110,31 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(calls[0]["encoding"], "utf-8")
         self.assertEqual(calls[0]["errors"], "replace")
 
+    def test_configure_stdio_uses_utf8_replacement_errors(self) -> None:
+        mod = load_module()
+
+        class FakeStream:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, str]] = []
+
+            def reconfigure(self, **kwargs: str) -> None:
+                self.calls.append(kwargs)
+
+        fake_stdout = FakeStream()
+        fake_stderr = FakeStream()
+        original_stdout = mod.sys.stdout
+        original_stderr = mod.sys.stderr
+        try:
+            mod.sys.stdout = fake_stdout
+            mod.sys.stderr = fake_stderr
+            mod.configure_stdio()
+        finally:
+            mod.sys.stdout = original_stdout
+            mod.sys.stderr = original_stderr
+
+        self.assertEqual(fake_stdout.calls, [{"encoding": "utf-8", "errors": "replace"}])
+        self.assertEqual(fake_stderr.calls, [{"encoding": "utf-8", "errors": "replace"}])
+
     def test_expected_empty_state_exit_is_not_suspect(self) -> None:
         mod = load_module()
 

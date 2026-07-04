@@ -245,6 +245,16 @@ describe('GatewayClient solonclaw bridge', () => {
     gw.kill()
   })
 
+  it('does not respawn immediately after a startup failure', async () => {
+    const gw = new GatewayClient()
+
+    ;(gw as unknown as { lastStartupFailureAt: number }).lastStartupFailureAt = Date.now()
+
+    await expect(gw.request('session.create', {})).rejects.toThrow(/gateway not connected: session.create/)
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+    expect(FakeWebSocket.instances).toHaveLength(0)
+  })
+
   it('sends JSON-RPC prompt.submit and publishes backend event envelopes', async () => {
     const gw = new GatewayClient()
     const events: Array<{ payload?: unknown; type: string }> = []

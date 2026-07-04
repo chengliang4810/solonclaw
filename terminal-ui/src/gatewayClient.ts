@@ -20,6 +20,10 @@ const MAX_LOG_LINE_BYTES = 4096
 const MAX_BUFFERED_EVENTS = 2000
 const MAX_LOG_PREVIEW = 240
 const STARTUP_TIMEOUT_MS = Math.max(5000, parseInt(process.env.SOLONCLAW_TUI_STARTUP_TIMEOUT_MS ?? '15000', 10) || 15000)
+const STARTUP_RETRY_COOLDOWN_MS = Math.max(
+  250,
+  parseInt(process.env.SOLONCLAW_TUI_STARTUP_RETRY_COOLDOWN_MS ?? '3000', 10) || 3000
+)
 const REQUEST_TIMEOUT_MS = Math.max(30000, parseInt(process.env.SOLONCLAW_TUI_RPC_TIMEOUT_MS ?? '120000', 10) || 120000)
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:8080'
 const PROTOCOL_VERSION = 1
@@ -176,6 +180,7 @@ export class GatewayClient extends EventEmitter {
   private subscribed = false
   private stdoutRl: ReturnType<typeof createInterface> | null = null
   private stderrRl: ReturnType<typeof createInterface> | null = null
+  private lastStartupFailureAt = 0
 
   constructor() {
     super()
@@ -191,6 +196,7 @@ export class GatewayClient extends EventEmitter {
 
     if (ev.type === 'gateway.ready') {
       this.ready = true
+      this.lastStartupFailureAt = 0
 
       if (this.readyTimer) {
         clearTimeout(this.readyTimer)
@@ -282,6 +288,7 @@ export class GatewayClient extends EventEmitter {
 
   private handleTransportExit(code: null | number, reason?: string) {
     this.clearReadyTimer()
+    this.lastStartupFailureAt = Date.now()
     this.closeSidecarSocket()
     this.lifecycle(`[lifecycle] transport exit code=${code ?? 'null'} reason=${reason ?? 'none'}`)
     this.rejectPending(new Error(reason || `gateway exited${code === null ? '' : ` (${code})`}`))
@@ -630,6 +637,10 @@ export class GatewayClient extends EventEmitter {
 
   private async ensureAttachedWebSocket(method: string): Promise<WebSocket> {
     if (!this.startupPromise && (!this.ws || this.ws.readyState === WS_CLOSED || this.ws.readyState === WS_CLOSING)) {
+      if (this.lastStartupFailureAt && Date.now() - this.lastStartupFailureAt < STARTUP_RETRY_COOLDOWN_MS) {
+        throw new Error(`gateway not connected: ${method}`)
+      }
+
       this.start()
     }
 
