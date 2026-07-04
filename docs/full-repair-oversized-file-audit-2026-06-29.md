@@ -4,6 +4,8 @@
 
 复核时间：2026-07-04
 
+复核时间：2026-07-05
+
 ## 对应外部对标能力点
 
 - 代码质量治理：限制单个代码文件继续膨胀，避免命令、审批、安全、诊断和模型协议主链难以审查。
@@ -16,6 +18,8 @@
 本轮仍记录接近阈值的文件，作为后续阶段修改时的串行处理名单。任何后续功能如果需要触碰这些文件，应优先拆出已有职责，避免新增逻辑后越过 4000 行。
 
 2026-07-04 复核后，`DefaultCommandService.java` 已在命令服务构造器链精简后降至 2633 行，不再属于接近阈值文件。
+
+2026-07-05 复核后，受控代码文件仍无超过 4000 行者；当前最高行数文件仍为 `SecurityPolicyService.java`，3765 行。
 
 ## 检查口径
 
@@ -62,6 +66,8 @@ find src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages \
 | 3616 | `src/main/java/com/jimuqu/solon/claw/llm/SolonAiLlmGateway.java` | 模型协议主链；涉及流式输出、工具调用和 Solon AI 调用边界，拆分需要单独验证。 |
 | 3465 | `src/test/java/com/jimuqu/solon/claw/DashboardControllerHttpTest.java` | Dashboard HTTP 行为回归测试；后续新增场景应按接口域拆分测试类。 |
 | 3425 | `src/test/java/com/jimuqu/solon/claw/DefaultCronSchedulerTest.java` | 测试文件接近阈值；后续新增 cron 场景应按行为拆分测试类或抽测试夹具。 |
+| 3361 | `src/test/java/com/jimuqu/solon/claw/DashboardSecurityProbeDiagnosticTest.java` | 安全诊断测试接近阈值；后续新增诊断场景应拆到独立测试类。 |
+| 3334 | `src/test/java/com/jimuqu/solon/claw/DangerousCommandCredentialPolicyTest.java` | 危险命令凭据策略测试接近阈值；后续新增凭据规则应按策略域拆分。 |
 
 ## 阶段处理决定
 
@@ -81,3 +87,12 @@ find src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages -p
 ```
 
 以上检查均未发现超过 4000 行的项目代码文件。
+
+2026-07-05 已追加执行：
+
+```bash
+git ls-files | rg "\.(java|ts|tsx|js|jsx|vue|css|scss|py|md)$" | ForEach-Object { $count = (Get-Content -LiteralPath $_ | Measure-Object -Line).Lines; if ($count -gt 4000) { "${count}`t$_" } }
+git ls-files | rg "\.(java|ts|tsx|js|jsx|vue|css|scss|py)$" | ForEach-Object { $count = (Get-Content -LiteralPath $_ | Measure-Object -Line).Lines; if ($count -gt 2500) { "${count}`t$_" } } | Sort-Object {[int](($_ -split "`t")[0])} -Descending | Select-Object -First 30
+```
+
+第一条命令无输出，确认当前无需拆分超过 4000 行文件。
