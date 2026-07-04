@@ -47,3 +47,7 @@ assert.ok(jobForm.includes('toolsetOptions'), 'job form should render backend-ba
 assert.ok(jobForm.includes('mode="multiple"'), 'job form should use a multi-select for enabled toolsets')
 assert.ok(jobForm.includes('formData.value.enabled_toolsets'), 'job form should preserve selected toolsets outside the catalog')
 assert.ok(jobForm.includes('options.push({ label: value, value, disabled: false })'), 'job form should keep legacy selected toolsets selectable')
+
+const toolsetSelect = jobForm.match(/<FormItem :label="t\('jobs\.enabledToolsets'\)">[\s\S]*?<Select([\s\S]*?)\/>/)
+assert.ok(toolsetSelect, 'job form should render the enabled toolsets select')
+assert.ok(toolsetSelect[1]?.includes(':virtual="false"'), 'enabled toolsets select should avoid hidden zero-size virtual ARIA options')

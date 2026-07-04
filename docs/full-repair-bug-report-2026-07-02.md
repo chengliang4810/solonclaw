@@ -278,3 +278,33 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 验证：
 
 - `node --experimental-strip-types tests/apiClientErrorMessage.test.ts`
+
+## BUG-024：Jobs 工具集下拉存在零尺寸 ARIA option
+
+状态：已修复，本次提交
+
+影响范围：
+
+- Dashboard Jobs 创建和编辑表单。
+- “启用工具集”多选下拉的辅助技术可读性。
+
+当前事实：
+
+- Web E2E 发现 Jobs 表单“启用工具集”下拉中存在零尺寸 `role=option` 节点。
+- 鼠标可见选项可以正常点击，但辅助技术会读到隐藏 option，影响可访问性检查结果。
+
+根因：
+
+- `antdv-next` 内部 `@v-c/select` 在 `virtual=true` 时会额外渲染 `height:0;width:0` 的隐藏 listbox。
+- 该隐藏 listbox 中包含 active 附近的 `role=option` 节点，工具集下拉数据量很小，不需要虚拟列表。
+
+处理记录：
+
+- 仅对 Jobs 表单“启用工具集”多选设置 `:virtual="false"`。
+- 不改全局 Select 行为，避免影响其它长列表选择器。
+
+验证：
+
+- `node --experimental-strip-types tests/jobFormOptions.test.ts`
+- `npm run build`
+- Browser 渲染验证：打开 Jobs 创建弹窗、高级设置、工具集下拉后，`role=option` 总数 2，零尺寸 option 数 0，控制台无 error/warn。

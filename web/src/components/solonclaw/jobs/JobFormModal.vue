@@ -720,6 +720,7 @@ function handlePresetChange(value: SelectValue) {
             <Select
               v-model:value="formData.enabled_toolsets"
               mode="multiple"
+              :virtual="false"
               :loading="toolsetsLoading"
               :options="toolsetOptions"
               :placeholder="t('jobs.enabledToolsetsPlaceholder')"
