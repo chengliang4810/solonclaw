@@ -131,6 +131,27 @@
   }
 }
 
+.nav-system-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+:global(.dark) .nav-system-items :deep(.nav-item) {
+  background-color: transparent;
+  color: $text-secondary;
+
+  &:hover {
+    background-color: $bg-card-hover;
+    color: $text-primary;
+  }
+
+  &.active {
+    background-color: $accent-primary;
+    color: $text-on-accent;
+  }
+}
+
 .nav-item-icon {
   width: 16px;
   height: 16px;

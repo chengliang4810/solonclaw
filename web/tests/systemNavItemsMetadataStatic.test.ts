@@ -39,6 +39,10 @@ assert.ok(
   'sidebar nav item styles should reach delegated system navigation buttons',
 )
 assert.ok(
+  sidebarStyle.includes(':global(.dark) .nav-system-items'),
+  'system navigation submenu should keep an explicit dark-mode contrast override',
+)
+assert.ok(
   !systemNav.includes('终端运行时'),
   'system navigation labels should come from locale metadata instead of hard-coded Chinese text',
 )

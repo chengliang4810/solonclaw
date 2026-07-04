@@ -221,7 +221,7 @@ npm --prefix terminal-ui test -- src/__tests__/gatewayClient.test.ts
 
 ## BUG-032：Dashboard 暗色侧栏“系统”分组展开后子菜单文字几乎不可读
 
-状态：待修复，已由 Web E2E 确认
+状态：已修复（2026-07-05）
 
 影响范围：
 
@@ -240,6 +240,12 @@ npm --prefix terminal-ui test -- src/__tests__/gatewayClient.test.ts
 - 先定位侧栏菜单的暗色主题覆盖规则。
 - 优先使用现有 Ant Design Vue menu 主题或最小 CSS 覆盖修复子菜单背景与文字对比度。
 - 修复后用 Web build 和浏览器复核，避免影响主内容区菜单样式。
+
+修复记录：
+
+- `AppSidebar.vue` 为系统子菜单增加 `nav-system-items` 容器。
+- `AppSidebar.scss` 对暗色主题下系统子菜单的默认、hover、active 状态增加显式背景与文字颜色，避免浅色块继承暗色侧栏上下文导致文字不可读。
+- 验证：`node --experimental-strip-types web/tests/systemNavItemsMetadataStatic.test.ts`、相关侧栏静态测试、`npm --prefix web run build` 均通过。
 
 ## BUG-033：聊天失败后会话列表统计未体现失败消息和失败运行
 
