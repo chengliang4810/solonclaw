@@ -813,7 +813,7 @@ public class CronjobTools {
             Integer limit,
             String reason)
             throws Exception {
-        return cronjob(
+        return cronjobWithStateDefaults(
                 action,
                 jobId,
                 name,
@@ -824,11 +824,6 @@ public class CronjobTools {
                 deliverThreadId,
                 skill,
                 skills,
-                null,
-                null,
-                null,
-                null,
-                null,
                 repeat,
                 includeDisabled,
                 wrapResponse,
@@ -841,11 +836,6 @@ public class CronjobTools {
                 model,
                 provider,
                 baseUrl,
-                null,
-                null,
-                null,
-                null,
-                null,
                 limit,
                 reason);
     }
@@ -913,7 +903,7 @@ public class CronjobTools {
             Integer limit,
             String reason)
             throws Exception {
-        return cronjob(
+        return cronjobWithState(
                 action,
                 jobId,
                 name,
@@ -924,11 +914,6 @@ public class CronjobTools {
                 deliverThreadId,
                 skill,
                 skills,
-                null,
-                null,
-                null,
-                null,
-                null,
                 repeat,
                 includeDisabled,
                 wrapResponse,
@@ -945,7 +930,6 @@ public class CronjobTools {
                 status,
                 state,
                 pausedReason,
-                null,
                 limit,
                 reason);
     }
@@ -1031,6 +1015,97 @@ public class CronjobTools {
                 null,
                 null,
                 null,
+                null,
+                limit,
+                reason);
+    }
+
+    /**
+     * 转发无状态编辑字段的 cronjob 重载，集中保留旧参数签名到完整工具入口的映射规则。
+     */
+    private String cronjobWithStateDefaults(
+            String action, String jobId, String name, String schedule, String prompt,
+            Object deliver, String deliverChatId, String deliverThreadId, Object skill,
+            Object skills, Integer repeat, Boolean includeDisabled, Boolean wrapResponse,
+            String script, String workdir, Boolean noAgent, Object contextFrom,
+            Object dependsOn, Object enabledToolsets, Object model, String provider,
+            String baseUrl, Integer limit, String reason)
+            throws Exception {
+        return cronjobWithState(
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                deliverChatId,
+                deliverThreadId,
+                skill,
+                skills,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                dependsOn,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                null,
+                null,
+                null,
+                null,
+                limit,
+                reason);
+    }
+
+    /**
+     * 转发无技能增删字段的 cronjob 重载，避免多个公开重载重复维护同一串默认参数。
+     */
+    private String cronjobWithState(
+            String action, String jobId, String name, String schedule, String prompt,
+            Object deliver, String deliverChatId, String deliverThreadId, Object skill,
+            Object skills, Integer repeat, Boolean includeDisabled, Boolean wrapResponse,
+            String script, String workdir, Boolean noAgent, Object contextFrom,
+            Object dependsOn, Object enabledToolsets, Object model, String provider,
+            String baseUrl, Boolean enabled, String status, String state,
+            String pausedReason, Integer limit, String reason)
+            throws Exception {
+        return cronjob(
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                deliverChatId,
+                deliverThreadId,
+                skill,
+                skills,
+                null,
+                null,
+                null,
+                null,
+                null,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                dependsOn,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                enabled,
+                status,
+                state,
+                pausedReason,
                 null,
                 limit,
                 reason);

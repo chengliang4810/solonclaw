@@ -27,6 +27,7 @@
 - 模型价格字段写入：`AppConfigLoader` 与 `PriceCatalog` 复用 `ModelPrice.applyTokenPrice(...)`，保留各自解析入口，只统一 `input`、`output`、`cache_read`、`cache_write`、`reasoning` 的字段写入语义。
 - 终端参数切分：`TerminalSetupCommands` 与 `TuiRuntimeProtocolService` 复用 `BasicValueSupport.shellTokens(...)`，只合并不处理转义字符的单双引号切分逻辑。
 - 定时任务短重载转发：`CronjobTools` 无 `limit/reason` 的短重载改为复用已有中间重载，减少一份长参数 null 展开。
+- 定时任务状态重载转发：`CronjobTools` 的无技能增删字段重载复用 `cronjobWithStateDefaults(...)` / `cronjobWithState(...)`，保留公开重载签名和 `@ToolMapping` 主入口，消除当前 25 行阈值下的 CronjobTools 重复块。
 - 终端工具重载元数据：`SolonClawShellSkill` 仅保留真正 `@ToolMapping` 方法上的 `@Param` 元数据，删除两个 Java 便捷转发重载上的重复注解块，方法签名和行为不变。
 
 ## 当前保留的重复项
@@ -38,7 +39,7 @@
 - `TerminalSetupCommands.applyProviderTemplateDefaults(...)` 面向两个不同请求对象，缺少共同协议；为消除相似代码引入接口或 adapter 不划算。
 - 敏感键判断分布在配置、工具预览、MCP 展示等不同安全边界，语义不完全相同，未统一。
 - `TerminalSessionBrowser.shellTokens(...)` 支持反斜杠转义，与 `BasicValueSupport.shellTokens(...)` 的无转义语义不同，暂不强行合并。
-- `CronjobTools.cronjob(...)` 多个重载仍存在相似转发，但属于公开工具签名兼容层；当前只做低风险短重载收口，完整私有 helper 搬移会移动主工具方法体，暂缓。
+- `CronjobTools.cronjob(...)` 仍保留公开重载作为测试和 Java 调用入口，但状态字段桥接已收口到私有 helper；更大范围的内部请求对象化暂缓，避免改动主 `@ToolMapping` 签名。
 - `MemoryView.vue` 与 `PersonaFileView.vue`、`PersonaDiaryView.vue` 与 `SkillsView.vue` 的 UI 相似点已确认，但涉及前端组件抽取和视觉回归，先作为后续前端原子项处理。
 
 ## 2026-06-28 扫描器噪声收口
@@ -78,3 +79,8 @@
 - `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
 - `python3 scripts/check-code-duplication.py --report-only --min-lines 25 src/main/java/com/jimuqu/solon/claw/tool/runtime/SolonClawShellSkill.java`
 - `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=SolonClawShellSkillTest,ToolRegistryProcessToolsTest test`
+
+## 2026-07-04 追加验证
+
+- `mvn -Dskip.web.build=true -Dtest=CronjobToolsSchedulerTest test`
+- `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
