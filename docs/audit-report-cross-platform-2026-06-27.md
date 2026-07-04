@@ -327,7 +327,7 @@
 
 ## L-03 后端 `CronJobService.PROTECTED_CRON_DISABLED_TOOLSETS` 是公开可变 List
 
-- 应使用 `Collections.unmodifiableList()` 包装
+- 已使用 `Collections.unmodifiableList()` 包装，并补充回归测试防止外部改写定时任务禁用工具集。
 
 ## L-04 后端 `CommandRegistry` 别名存在覆盖风险
 
