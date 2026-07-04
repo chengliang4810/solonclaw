@@ -45,6 +45,21 @@ public class ProviderManageToolsTest {
         assertThat(result.get("providers")).asList().containsExactly("provider-health-ok");
     }
 
+    /** set_default_model 应复用 Dashboard 的默认模型保存能力。 */
+    @Test
+    void shouldRouteSetDefaultModelAliasToUpdateDefaultModel() {
+        RecordingProviderService service = new RecordingProviderService();
+        ProviderManageTools tools = new ProviderManageTools(service);
+
+        String json = tools.providerManage("set_default_model", "openai-direct", "mimo-v2.5", null);
+
+        Map<?, ?> result = result(json);
+        assertThat(service.defaultModelCalls).isEqualTo(1);
+        assertThat(service.defaultProviderKey).isEqualTo("openai-direct");
+        assertThat(service.defaultModel).isEqualTo("mimo-v2.5");
+        assertThat(result.get("model")).isEqualTo("mimo-v2.5");
+    }
+
     /** 记录 provider service 调用，避免测试访问真实模型接口。 */
     private static class RecordingProviderService extends DashboardProviderService {
         /** 远程模型列表调用次数。 */
@@ -52,6 +67,15 @@ public class ProviderManageToolsTest {
 
         /** 模型健康检查调用次数。 */
         private int healthCalls;
+
+        /** 默认模型保存调用次数。 */
+        private int defaultModelCalls;
+
+        /** 最近一次默认模型保存的 provider 标识。 */
+        private String defaultProviderKey;
+
+        /** 最近一次默认模型保存的模型名称。 */
+        private String defaultModel;
 
         /** 创建记录型 provider service。 */
         RecordingProviderService() {
@@ -73,6 +97,18 @@ public class ProviderManageToolsTest {
             healthCalls++;
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("providers", Collections.singletonList("provider-health-ok"));
+            return result;
+        }
+
+        /** 返回固定默认模型保存结果。 */
+        @Override
+        public Map<String, Object> updateDefaultModel(String providerKey, String model) {
+            defaultModelCalls++;
+            defaultProviderKey = providerKey;
+            defaultModel = model;
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("provider", providerKey);
+            result.put("model", model);
             return result;
         }
     }

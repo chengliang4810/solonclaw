@@ -115,7 +115,7 @@
      - Dashboard 已有 provider 列表、模型列表、健康检查、创建、更新、删除、默认模型、fallback、远端模型拉取和校验能力。
      - Agent 自然语言路径只能通过配置键或 UI 间接操作，不能复用 Dashboard provider 的 URL 安全、provider 校验、fallback 校验和模型列表逻辑。
    - 改造后：
-     - 新增 `provider_manage` 工具，复用 `DashboardProviderService`，支持 `list`、`models`、`health` / `models_health`、`create`、`update`、`delete`、`default_model`、`fallbacks`、`remote_models` / `provider_models`、`validate`。
+     - 新增 `provider_manage` 工具，复用 `DashboardProviderService`，支持 `list`、`models`、`health` / `models_health`、`create`、`update`、`delete`、`default_model` / `set_default_model`、`fallbacks`、`remote_models` / `provider_models`、`validate`。
      - 工具结果统一脱敏预览，不暴露 API key 或带密 URL。
      - 增加工具暴露测试，证明默认工具列表包含 `provider_manage` 且能解析到 `ProviderManageTools`。
    - 提交：`73032a5ee`
