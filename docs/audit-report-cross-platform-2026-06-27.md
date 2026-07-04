@@ -363,7 +363,7 @@
 
 ## L-12 WEB `fetchModels()` 返回空数据（stub）
 
-- `chat.ts` 第 184-186 行，永远返回 `{ data: [] }`
+- 已移除 `chat.ts` 中的空模型 catalog stub；模型列表统一走 system API/provider catalog 路径，并由 `chatApiModelCatalogStatic` 锁定。
 
 ## L-13 WEB `nous-auth.ts` 和 `codex-auth.ts` 是抛出错误的桩实现
 
