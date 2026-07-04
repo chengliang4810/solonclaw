@@ -359,7 +359,7 @@
 
 ## L-11 TUI `writeActiveSessionFile` 使用 `writeFileSync` 阻塞主线程
 
-- 高频 session 切换场景下可能造成微小 UI 卡顿
+- 已改为异步 `writeFile` best-effort 写入，并由 `useSessionLifecycle.test.ts` 防止回退到同步写入。
 
 ## L-12 WEB `fetchModels()` 返回空数据（stub）
 

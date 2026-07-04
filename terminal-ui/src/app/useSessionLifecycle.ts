@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { writeFile } from 'node:fs'
 
 import type { ScrollBoxHandle } from '@solonclaw/ink'
 import { evictInkCaches } from '@solonclaw/ink'
@@ -49,7 +49,7 @@ export const writeActiveSessionFile = (sessionId: null | string, file = process.
   }
 
   try {
-    writeFileSync(file, JSON.stringify({ session_id: sessionId }), { mode: 0o600 })
+    writeFile(file, JSON.stringify({ session_id: sessionId }), { mode: 0o600 }, () => undefined)
   } catch {
     // Best-effort shell epilogue hint only; never break live session changes.
   }

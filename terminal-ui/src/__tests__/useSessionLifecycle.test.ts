@@ -1,6 +1,7 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
@@ -25,15 +26,33 @@ describe('writeActiveSessionFile', () => {
     }
   })
 
-  it('writes the actual resumed session id for the shell exit summary', () => {
+  it('does not block the TUI thread with synchronous active-session file writes', () => {
+    const source = readFileSync(fileURLToPath(new URL('../app/useSessionLifecycle.ts', import.meta.url)), 'utf8')
+
+    expect(source).not.toContain('writeFileSync')
+  })
+
+  it('writes the actual resumed session id for the shell exit summary', async () => {
     dir = mkdtempSync(join(tmpdir(), 'solonclaw-tui-active-'))
     const path = join(dir, 'active.json')
 
     writeActiveSessionFile('actual_session', path)
 
+    await waitForFile(path)
+
     expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ session_id: 'actual_session' })
   })
 })
+
+const waitForFile = async (path: string) => {
+  for (let i = 0; i < 20; i++) {
+    if (existsSync(path)) {
+      return
+    }
+
+    await new Promise(resolve => setTimeout(resolve, 10))
+  }
+}
 
 
 describe('live session activation in-flight state', () => {
