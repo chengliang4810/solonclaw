@@ -181,6 +181,7 @@ export class GatewayClient extends EventEmitter {
   private stdoutRl: ReturnType<typeof createInterface> | null = null
   private stderrRl: ReturnType<typeof createInterface> | null = null
   private lastStartupFailureAt = 0
+  private backendUnavailable = false
 
   constructor() {
     super()
@@ -197,6 +198,7 @@ export class GatewayClient extends EventEmitter {
     if (ev.type === 'gateway.ready') {
       this.ready = true
       this.lastStartupFailureAt = 0
+      this.backendUnavailable = false
 
       if (this.readyTimer) {
         clearTimeout(this.readyTimer)
@@ -510,6 +512,7 @@ export class GatewayClient extends EventEmitter {
         const message = err instanceof Error ? err.message : String(err)
         const line = `[startup] backend handshake failed: ${message}`
 
+        this.backendUnavailable = true
         this.pushLog(line)
         this.publish({ type: 'gateway.stderr', payload: { line } })
         this.publish({ type: 'error', payload: { message: `无法连接后端服务: ${message}` } })
@@ -522,6 +525,7 @@ export class GatewayClient extends EventEmitter {
     const attachUrl = resolveGatewayAttachUrl()
     const sidecarUrl = resolveSidecarUrl()
 
+    this.backendUnavailable = false
     this.attachUrl = attachUrl
     this.sidecarUrl = sidecarUrl
     this.resetStartupState()
@@ -637,7 +641,7 @@ export class GatewayClient extends EventEmitter {
 
   private async ensureAttachedWebSocket(method: string): Promise<WebSocket> {
     if (!this.startupPromise && (!this.ws || this.ws.readyState === WS_CLOSED || this.ws.readyState === WS_CLOSING)) {
-      if (this.lastStartupFailureAt && Date.now() - this.lastStartupFailureAt < STARTUP_RETRY_COOLDOWN_MS) {
+      if (this.backendUnavailable || this.lastStartupFailureAt && Date.now() - this.lastStartupFailureAt < STARTUP_RETRY_COOLDOWN_MS) {
         throw new Error(`gateway not connected: ${method}`)
       }
 

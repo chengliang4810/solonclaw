@@ -398,9 +398,7 @@ class TurnController {
         ? state.activity.filter(item => !sameToolTrailGroup(replaceLabel, item.text))
         : state.activity
 
-      const tail = base.at(-1)
-
-      if (tail?.text === text && tail.tone === tone) {
+      if (base.some(item => item.text === text && item.tone === tone)) {
         return state
       }
 

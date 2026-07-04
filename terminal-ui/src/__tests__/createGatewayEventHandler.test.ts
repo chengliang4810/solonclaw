@@ -921,6 +921,20 @@ describe('createGatewayEventHandler', () => {
     ])
   })
 
+  it('deduplicates repeated gateway stderr activity across interleaved startup errors', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    onEvent({ payload: { line: '[startup] backend handshake failed: fetch failed' }, type: 'gateway.stderr' } as any)
+    onEvent({ payload: { line: '[startup] backend handshake failed: connection refused' }, type: 'gateway.stderr' } as any)
+    onEvent({ payload: { line: '[startup] backend handshake failed: fetch failed' }, type: 'gateway.stderr' } as any)
+
+    expect(getTurnState().activity.map(a => a.text)).toEqual([
+      '[startup] backend handshake failed: fetch failed',
+      '[startup] backend handshake failed: connection refused'
+    ])
+  })
+
   it('still surfaces terminal turn failures as errors', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))

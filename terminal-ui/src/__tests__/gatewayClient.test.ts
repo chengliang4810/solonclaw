@@ -630,4 +630,22 @@ describe('GatewayClient solonclaw bridge', () => {
 
     gw.kill()
   })
+
+  it('does not restart the backend handshake from ordinary RPCs after startup fails', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error('fetch failed')
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const gw = new GatewayClient()
+
+    gw.start()
+    gw.drain()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await new Promise(resolve => setTimeout(resolve, 3100))
+
+    await expect(gw.request('config.get', { key: 'full' })).rejects.toThrow(/gateway not connected: config.get/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    gw.kill()
+  })
 })
