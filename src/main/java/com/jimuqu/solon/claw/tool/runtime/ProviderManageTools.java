@@ -36,12 +36,12 @@ public class ProviderManageTools {
     @ToolMapping(
             name = "provider_manage",
             description =
-                    "Manage LLM providers. Actions: list, models, health, models_health, create, update, delete, default_model, set_default_model, fallbacks, remote_models, provider_models, fetch_models, fetch_model_list, validate.")
+                    "Manage LLM providers. Actions: list, models, health, models_health, create, update, delete, default_model, set_default_model, fallbacks, remote_models, provider_models, fetch_models, fetch_model_list, validate, test_connection, check_connection.")
     public String providerManage(
             @Param(
                             name = "action",
                             description =
-                                    "list, models, health, models_health, create, update, delete, default_model, set_default_model, fallbacks, remote_models, provider_models, fetch_models, fetch_model_list, validate")
+                                    "list, models, health, models_health, create, update, delete, default_model, set_default_model, fallbacks, remote_models, provider_models, fetch_models, fetch_model_list, validate, test_connection, check_connection")
                     String action,
             @Param(name = "provider_key", required = false, description = "Provider key")
                     String providerKey,
@@ -108,7 +108,9 @@ public class ProviderManageTools {
                 || "fetch_model_list".equals(normalized)) {
             return dashboardProviderService.listRemoteModels(body);
         }
-        if ("validate".equals(normalized)) {
+        if ("validate".equals(normalized)
+                || "test_connection".equals(normalized)
+                || "check_connection".equals(normalized)) {
             return dashboardProviderService.validateProvider(body);
         }
         return dashboardProviderService.listProviders();

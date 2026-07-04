@@ -80,6 +80,27 @@ public class ProviderManageToolsTest {
         assertThat(result.get("model")).isEqualTo("mimo-v2.5");
     }
 
+    /** test_connection 和 check_connection 应复用 provider 连接校验能力。 */
+    @Test
+    void shouldRouteConnectionAliasesToValidateProvider() {
+        RecordingProviderService service = new RecordingProviderService();
+        ProviderManageTools tools = new ProviderManageTools(service);
+
+        for (String action : new String[] {"test_connection", "check_connection"}) {
+            String json =
+                    tools.providerManage(
+                            action,
+                            null,
+                            null,
+                            "{\"baseUrl\":\"https://api.example.test\",\"dialect\":\"openai\"}");
+
+            Map<?, ?> result = result(json);
+            assertThat(result.get("ok")).isEqualTo(Boolean.TRUE);
+        }
+        assertThat(service.validateCalls).isEqualTo(2);
+        assertThat(service.validateBody.get("baseUrl")).isEqualTo("https://api.example.test");
+    }
+
     /** 记录 provider service 调用，避免测试访问真实模型接口。 */
     private static class RecordingProviderService extends DashboardProviderService {
         /** 远程模型列表调用次数。 */
@@ -96,6 +117,12 @@ public class ProviderManageToolsTest {
 
         /** 最近一次默认模型保存的模型名称。 */
         private String defaultModel;
+
+        /** 连接校验调用次数。 */
+        private int validateCalls;
+
+        /** 最近一次连接校验请求体。 */
+        private Map<String, Object> validateBody;
 
         /** 创建记录型 provider service。 */
         RecordingProviderService() {
@@ -129,6 +156,16 @@ public class ProviderManageToolsTest {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("provider", providerKey);
             result.put("model", model);
+            return result;
+        }
+
+        /** 返回固定连接校验结果。 */
+        @Override
+        public Map<String, Object> validateProvider(Map<String, Object> data) {
+            validateCalls++;
+            validateBody = data;
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("ok", Boolean.TRUE);
             return result;
         }
     }
