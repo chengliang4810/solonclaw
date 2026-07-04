@@ -137,7 +137,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-019：后端不可达时 Node TUI 高频刷屏和刷日志
 
-状态：已修复，本次提交
+状态：已修复，提交 `5cc7a4800`
 
 影响范围：
 
@@ -223,7 +223,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-022：TUI `/retry` 后 `/usage` API calls 不累计
 
-状态：已修复，本次提交
+状态：已修复，提交 `83e2e590b`
 
 影响范围：
 
@@ -253,7 +253,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-023：Jobs 无效 Cron 创建失败时 toast 展示原始 JSON
 
-状态：已修复，本次提交
+状态：已修复，提交 `0089e8f68`
 
 影响范围：
 
@@ -281,7 +281,7 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 
 ## BUG-024：Jobs 工具集下拉存在零尺寸 ARIA option
 
-状态：已修复，本次提交
+状态：已修复，提交 `ae5aa73f8`
 
 影响范围：
 
