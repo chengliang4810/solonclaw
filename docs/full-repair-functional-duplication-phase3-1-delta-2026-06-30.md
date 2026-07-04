@@ -49,12 +49,15 @@
 
 ### 3. 模型提供方字段元数据重复
 
+状态：已收口。
+
 - 位置：
   - `web/src/components/solonclaw/models/ProviderCard.vue`
   - `web/src/components/solonclaw/models/ProviderFormModal.vue`
 - 重叠程度：中。
 - 证据：展示卡片和编辑弹窗都围绕 `providerKey`、`name`、`baseUrl`、`defaultModel`、`dialect`、`apiKey` 做字段展示、dialect 语义和基础校验。
 - 建议：抽共享字段元数据、dialect 选项和基础校验规则；保留卡片展示和表单编辑两个视图。
+- 2026-07-04 复核：已由 `291348278` 和 `e1a98833f` 收口。当前 `providerDisplay.ts` 统一提供卡片字段、表单标签、dialect 目录、占位符和健康状态文案；`providerDisplayOptions.test.ts` 与 `modelProviderCatalogStatic.test.ts` 已锁定前端复用后端 provider/dialect catalog。
 
 ### 4. 作业摘要与作业卡片存在同数据重复呈现
 
@@ -119,11 +122,11 @@
 - 平台二维码面板：已由 `ChannelQrPanel.vue` 承担共享展示和状态处理。
 - 控制台错误响应：多数 Dashboard 控制器已复用 `DashboardResponse` 错误入口。
 - 测试安全策略桩、Markdown 文档面板、TUI 审批测试监听器构造、渠道字段行：已由阶段 3.3 原子项处理。
-- 平台设置字段配置化、用量指标元数据化、Jobs 摘要去重、命令构造器链和 CronjobTools 重载桥接：已由后续提交处理。
+- 平台设置字段配置化、模型提供方字段元数据化、用量指标元数据化、Jobs 摘要去重、命令构造器链和 CronjobTools 重载桥接：已由后续提交处理。
 - TUI setup/channel RPC：已明显向 `TuiRuntimeProtocolService` 收敛，当前主要剩薄入口和状态语义统一问题。
 
 ## 推荐后续顺序
 
 1. 阶段 3.2：只剩 QR setup 后端 ticket 生命周期抽取，或审批 / slash confirm 状态源边界收敛；这两项属于语义重复，进入前需要单独测试计划。
-2. 阶段 3.3：模型提供方字段元数据仍可作为低风险候选；平台字段和用量指标已不再排队。
+2. 阶段 3.3：当前低风险机械复用候选已基本收口；继续新增前先重新跑重复扫描和具体页面审计。
 3. 阶段 3.4 / 5.3：Jobs 摘要重复已缓解，后续只在真实 E2E 发现扫读问题时再继续优化。
