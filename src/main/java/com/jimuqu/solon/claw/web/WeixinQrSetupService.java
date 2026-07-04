@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.web;
 
-import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.ContentType;
 import cn.hutool.http.HttpRequest;
@@ -14,9 +13,6 @@ import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URI;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,10 +24,6 @@ import org.noear.snack4.ONode;
 public class WeixinQrSetupService {
     /** 默认基础URL的统一常量值。 */
     private static final String DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
-
-    /** 微信二维码接口时间格式，保持原有本地时区偏移输出。 */
-    private static final DateTimeFormatter ISO_OFFSET_SECONDS_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX").withZone(ZoneId.systemDefault());
 
     /** GET机器人二维码ENDPO整型的统一常量值。 */
     private static final String GET_BOT_QR_ENDPOINT = "ilink/bot/get_bot_qrcode?bot_type=3";
@@ -116,12 +108,7 @@ public class WeixinQrSetupService {
      * @return 返回start结果。
      */
     public Map<String, Object> start() {
-        final TicketState state = new TicketState();
-        state.ticket = IdUtil.fastSimpleUUID();
-        state.status = "initializing";
-        state.createdAt = System.currentTimeMillis();
-        state.updatedAt = state.createdAt;
-        state.expiresAt = state.createdAt + LOGIN_TIMEOUT_MILLIS;
+        final TicketState state = new TicketState(LOGIN_TIMEOUT_MILLIS);
         tickets.put(state.ticket, state);
         executor.submit(
                 new Runnable() {
@@ -174,26 +161,26 @@ public class WeixinQrSetupService {
                 String status =
                         StrUtil.nullToDefault(statusResponse.get("status").getString(), "wait");
                 if ("wait".equals(status)) {
-                    mark(state, "pending", "等待扫码");
+                    state.mark("pending", "等待扫码");
                 } else if ("scaned".equals(status)) {
-                    mark(state, "scanned", "已扫码，等待确认");
+                    state.mark("scanned", "已扫码，等待确认");
                 } else if ("scaned_but_redirect".equals(status)) {
                     String redirectHost = statusResponse.get("redirect_host").getString();
                     if (StrUtil.isNotBlank(redirectHost)) {
                         currentBaseUrl = normalizeBaseUrl("https://" + redirectHost.trim());
                         assertSafeBaseUrl(currentBaseUrl, "微信 iLink redirect_host");
                     }
-                    mark(state, "scanned", "已扫码，等待跳转确认");
+                    state.mark("scanned", "已扫码，等待跳转确认");
                 } else if ("expired".equals(status)) {
                     refreshCount++;
                     if (refreshCount > MAX_REFRESH_COUNT) {
-                        fail(state, "qr_expired", "二维码已过期，请重新发起扫码。");
+                        state.fail("qr_expired", "二维码已过期，请重新发起扫码。");
                         return;
                     }
                     qrResponse = fetchQr(baseUrl);
                     currentBaseUrl = baseUrl;
                     qrCode = updateQrState(state, qrResponse);
-                    mark(state, "pending", "二维码已刷新，请重新扫码");
+                    state.mark("pending", "二维码已刷新，请重新扫码");
                 } else if ("confirmed".equals(status)) {
                     persistConfirmedCredentials(statusResponse);
                     state.accountId = statusResponse.get("ilink_bot_id").getString();
@@ -201,17 +188,17 @@ public class WeixinQrSetupService {
                     state.baseUrl =
                             StrUtil.blankToDefault(
                                     statusResponse.get("baseurl").getString(), baseUrl);
-                    mark(state, "confirmed", "微信连接成功");
+                    state.mark("confirmed", "微信连接成功");
                     return;
                 } else {
-                    fail(state, "qr_status_unknown", "未知二维码状态：" + status);
+                    state.fail("qr_status_unknown", "未知二维码状态：" + status);
                     return;
                 }
                 sleepMillis(1000L);
             }
-            fail(state, "qr_timeout", "微信扫码登录超时。");
+            state.fail("qr_timeout", "微信扫码登录超时。");
         } catch (Exception e) {
-            fail(state, "qr_failed", safeMessage(e));
+            state.fail("qr_failed", safeMessage(e));
         }
     }
 
@@ -294,9 +281,7 @@ public class WeixinQrSetupService {
         }
         state.qrCode = qrCode;
         state.qrImageUrl = qrResponse.get("qrcode_img_content").getString();
-        state.updatedAt = System.currentTimeMillis();
-        state.status = "pending";
-        state.message = "请使用微信扫码";
+        state.mark("pending", "请使用微信扫码");
         return qrCode;
     }
 
@@ -327,35 +312,6 @@ public class WeixinQrSetupService {
     }
 
     /**
-     * 执行mark相关逻辑。
-     *
-     * @param state 状态参数。
-     * @param status 状态参数。
-     * @param message 平台消息或错误消息。
-     */
-    private void mark(TicketState state, String status, String message) {
-        state.status = status;
-        state.message = message;
-        state.updatedAt = System.currentTimeMillis();
-    }
-
-    /**
-     * 构造失败结果并携带安全错误信息。
-     *
-     * @param state 状态参数。
-     * @param code code 参数。
-     * @param message 平台消息或错误消息。
-     */
-    private void fail(TicketState state, String code, String message) {
-        String safe = safeText(message);
-        state.status = "failed";
-        state.errorCode = code;
-        state.errorMessage = safe;
-        state.message = safe;
-        state.updatedAt = System.currentTimeMillis();
-    }
-
-    /**
      * 转换为Map。
      *
      * @param state 状态参数。
@@ -370,9 +326,9 @@ public class WeixinQrSetupService {
         result.put("error_message", state.errorMessage);
         result.put("qrcode", state.qrCode);
         result.put("qrcode_url", state.qrImageUrl);
-        result.put("created_at", isoTime(state.createdAt));
-        result.put("updated_at", isoTime(state.updatedAt));
-        result.put("expires_at", isoTime(state.expiresAt));
+        result.put("created_at", state.isoTime(state.createdAt));
+        result.put("updated_at", state.isoTime(state.updatedAt));
+        result.put("expires_at", state.isoTime(state.expiresAt));
         result.put("account_id", state.accountId);
         result.put("user_id", state.userId);
         result.put("base_url", state.baseUrl);
@@ -400,16 +356,6 @@ public class WeixinQrSetupService {
      */
     private String safeMessage(Exception e) {
         return ErrorTextSupport.safeError(e);
-    }
-
-    /**
-     * 生成安全展示用的文本。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回safe Text结果。
-     */
-    private String safeText(String value) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
     }
 
     /**
@@ -458,50 +404,13 @@ public class WeixinQrSetupService {
         }
     }
 
-    /**
-     * 执行iso时间相关逻辑。
-     *
-     * @param epochMillis epochMillis 参数。
-     * @return 返回iso时间结果。
-     */
-    private String isoTime(long epochMillis) {
-        if (epochMillis <= 0) {
-            return null;
-        }
-        return ISO_OFFSET_SECONDS_FORMATTER.format(Instant.ofEpochMilli(epochMillis));
-    }
-
     /** 表示Ticket数据，在服务、仓储和接口之间传递。 */
-    private static class TicketState {
-        /** 记录Ticket中的ticket。 */
-        private String ticket;
-
-        /** 记录Ticket中的状态。 */
-        private String status;
-
-        /** 记录Ticket中的消息。 */
-        private String message;
-
-        /** 记录Ticket中的错误Code。 */
-        private String errorCode;
-
-        /** 记录Ticket中的错误消息。 */
-        private String errorMessage;
-
+    private static class TicketState extends QrSetupTicketState {
         /** 记录Ticket中的二维码Code。 */
         private String qrCode;
 
         /** 记录Ticket中的二维码图片URL。 */
         private String qrImageUrl;
-
-        /** 记录Ticket中的创建时间。 */
-        private long createdAt;
-
-        /** 记录Ticket中的更新时间。 */
-        private long updatedAt;
-
-        /** 记录Ticket中的expires时间。 */
-        private long expiresAt;
 
         /** 记录Ticket中的account标识。 */
         private String accountId;
@@ -511,5 +420,14 @@ public class WeixinQrSetupService {
 
         /** 记录Ticket中的基础URL。 */
         private String baseUrl;
+
+        /**
+         * 创建微信扫码 setup ticket 状态。
+         *
+         * @param timeoutMillis ticket 生命周期毫秒数。
+         */
+        private TicketState(long timeoutMillis) {
+            super(timeoutMillis);
+        }
     }
 }

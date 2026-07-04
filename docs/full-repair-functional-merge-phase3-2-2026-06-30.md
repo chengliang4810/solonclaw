@@ -40,6 +40,13 @@
 - `DashboardAgentController`、`DashboardCuratorController`、`DashboardMcpController`、`DashboardMediaController` 与 `DashboardSessionController` 改为复用统一错误响应入口。
 - 原有 `context != null` 防御由 `DashboardResponse.error(context, ...)` 内部统一保留。
 
+### 6. 后端 QR setup ticket 生命周期复用
+
+- 2026-07-05 本轮提交：`refactor: 复用二维码 ticket 生命周期 / Reuse QR ticket lifecycle`。
+- 新增 `QrSetupTicketState`，统一 ticket 标识、初始化状态、过期时间、状态更新时间、失败错误脱敏和接口时间格式化。
+- `WeixinQrSetupService` 与 `DomesticQrSetupService` 只保留各自协议字段和 HTTP / 持久化流程，避免把微信 iLink、飞书、钉钉协议强行合并。
+- 新增 `QrSetupTicketStateTest` 锁定 ticket 生命周期和失败脱敏边界，并删除微信测试中对私有 `TicketState` / `fail()` 的反射依赖。
+
 ## 已验证
 
 - `npm --prefix web run test:device-login-modal-reuse`
@@ -48,6 +55,9 @@
 - `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=DashboardResponseTest,DashboardControllerHttpTest#shouldReturnStructuredErrorForInvalidProviderValidationRequest test`
 - `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=DashboardResponseTest,DashboardControllerHttpTest#shouldUpdateDashboardPlatformToolsetPolicy+shouldPersistConfigAndExposeDashboardResources test`
 - `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=DashboardResponseTest,DashboardMediaServiceTest,DashboardCuratorServiceTest,DashboardSessionServiceTest#shouldRedactSecretLikeSessionIdentifiersFromDashboardResponses,AgentMechanismTest#shouldActivateAgentForUnpersistedDashboardSession,McpPackageSecurityServiceTest test`
+- `mvn "-Dskip.web.build=true" "-Dtest=QrSetupTicketStateTest,WeixinQrSetupServiceTest,DomesticQrSetupServiceTest,TuiRuntimeProtocolServiceTest" test`
+- `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java/com/jimuqu/solon/claw/web/WeixinQrSetupService.java src/main/java/com/jimuqu/solon/claw/web/DomesticQrSetupService.java src/main/java/com/jimuqu/solon/claw/web/QrSetupTicketState.java`
+- `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
 - `git diff --check`
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`
 
@@ -55,7 +65,7 @@
 
 ## 延后或不合并项
 
-- 后端 QR setup 状态机：只读复核确认微信与飞书/钉钉协议差异较大，强行抽共享 `TicketState` 会破坏私有状态边界并影响反射测试；本阶段不做。
+- 后端 QR setup 协议流程：本轮只抽 ticket 生命周期，不合并微信 iLink、飞书、钉钉的协议请求与凭据持久化流程。
 - `DashboardCronController`：错误响应状态码按 `isNotFound(e)` 动态分流，留到后续更细测试后再收敛。
 - `DashboardWorkspaceController`：错误文本经过 `workspaceErrorMessage(e)` 特殊转换，不能按普通控制台错误响应机械替换。
 - `DashboardTuiRuntimeController`：JSON-RPC 错误语义不同，不纳入普通 Dashboard response 合并。
