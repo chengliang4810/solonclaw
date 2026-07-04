@@ -250,3 +250,31 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiApprovalRespondTest,TerminalUiRpcS
 验证：
 
 - `mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest#sessionUsageCountsRunsWithUsage" test`
+
+## BUG-023：Jobs 无效 Cron 创建失败时 toast 展示原始 JSON
+
+状态：已修复，本次提交
+
+影响范围：
+
+- Dashboard Jobs 创建和编辑表单。
+- 所有走共享 `request()` 的 Dashboard API 结构化错误提示。
+
+当前事实：
+
+- Web E2E 在 Jobs 创建表单输入无效 Cron `0 0 1 1 * ?` 后，toast 展示 `API Error 400: {"success":false,...}`。
+- 后端已经返回 `success=false`、`code=CRON_BAD_REQUEST`、`error=...` 的结构化错误体，且敏感内容已被后端脱敏。
+
+根因：
+
+- 前端共享 API client 在非 2xx 响应时直接把 HTTP body 拼进 `Error.message`。
+- Jobs 表单捕获异常后直接展示 `e.message`，导致结构化 JSON 被原样暴露给用户。
+
+处理记录：
+
+- `request()` 对 JSON 错误体优先提取 `message`、`error`、`detail` 文本。
+- 没有可读文本时再退回错误码或原始文本，保留非 JSON 错误的原有兜底。
+
+验证：
+
+- `node --experimental-strip-types tests/apiClientErrorMessage.test.ts`
