@@ -2,6 +2,7 @@ import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage
 import { fetchRunDetail } from '@/api/solonclaw/runs'
 import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionGoalState, type SessionSummary } from '@/api/solonclaw/sessions'
 import { shouldUseServerMessages } from '@/shared/chatMessageMerge'
+import { normalizeTimestampMs } from '@/shared/session-display'
 import { selectSessionId } from '@/shared/sessionSelection'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -148,16 +149,16 @@ function mapSolonClawSession(s: SessionSummary): Session {
     title: s.title || '',
     source: s.source || undefined,
     messages: [],
-    createdAt: Math.round(s.started_at * 1000),
-    updatedAt: Math.round((s.last_active || s.ended_at || s.started_at) * 1000),
+    createdAt: normalizeTimestampMs(s.started_at),
+    updatedAt: normalizeTimestampMs(s.last_active || s.ended_at || s.started_at),
     model: s.model,
     provider: s.provider || '',
     messageCount: s.message_count,
     inputTokens: s.input_tokens,
     outputTokens: s.output_tokens,
     lastTotalTokens: s.last_total_tokens || undefined,
-    endedAt: s.ended_at != null ? Math.round(s.ended_at * 1000) : null,
-    lastActiveAt: s.last_active != null ? Math.round(s.last_active * 1000) : undefined,
+    endedAt: s.ended_at != null ? normalizeTimestampMs(s.ended_at) : null,
+    lastActiveAt: s.last_active != null ? normalizeTimestampMs(s.last_active) : undefined,
     activeAgentName: s.active_agent_name || 'default',
     goalState: s.goal_state || null,
   }

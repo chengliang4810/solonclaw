@@ -33,6 +33,11 @@ export function formatTimestampMs(timestamp: number): string {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
+export function normalizeTimestampMs(timestamp?: number | null): number {
+  if (!timestamp) return 0
+  return Math.round(timestamp < 100000000000 ? timestamp * 1000 : timestamp)
+}
+
 export function formatTimestampSeconds(timestamp: number): string {
   return formatTimestampMs(timestamp * 1000)
 }
