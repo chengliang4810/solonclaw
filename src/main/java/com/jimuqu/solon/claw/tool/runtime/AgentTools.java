@@ -81,11 +81,11 @@ public class AgentTools {
     @ToolMapping(
             name = "agent_manage",
             description =
-                    "Manage named Agents. Structured read actions: list, get. Slash-command args still support list, use <name>, create <name> [role], show <name>, model/tools/skills/memory <name> ..., delete <name>. The built-in default Agent cannot be edited or deleted.")
+                    "Manage named Agents. Structured actions: list, get, activate. Slash-command args still support list, use <name>, create <name> [role], show <name>, model/tools/skills/memory <name> ..., delete <name>. The built-in default Agent cannot be edited or deleted.")
     public String agentManage(
-            @Param(name = "action", required = false, description = "Structured action: list, get")
+            @Param(name = "action", required = false, description = "Structured action: list, get, activate")
                     String action,
-            @Param(name = "name", required = false, description = "Agent name for get")
+            @Param(name = "name", required = false, description = "Agent name for get/activate")
                     String name,
             @Param(name = "session_id", required = false, description = "Session id for active agent marker")
                     String sessionId,
@@ -96,7 +96,9 @@ public class AgentTools {
         if (normalized.length() == 0) {
             return agentManage(args);
         }
-        if (!"list".equals(normalized)
+        boolean activate = "activate".equals(normalized) || "use".equals(normalized);
+        if (!activate
+                && !"list".equals(normalized)
                 && !"get".equals(normalized)
                 && !"show".equals(normalized)
                 && !"detail".equals(normalized)) {
@@ -104,8 +106,12 @@ public class AgentTools {
         }
         try {
             Map<String, Object> result =
-                    "list".equals(normalized) ? listAgents(sessionId) : getAgent(name, sessionId);
-            return ToolResultEnvelope.ok("Agent 查询完成")
+                    activate
+                            ? activateAgent(name, sessionId)
+                            : ("list".equals(normalized)
+                                    ? listAgents(sessionId)
+                                    : getAgent(name, sessionId));
+            return ToolResultEnvelope.ok(activate ? "Agent 操作完成" : "Agent 查询完成")
                     .preview(SecretRedactor.redact(String.valueOf(result), 2000))
                     .data("result", result)
                     .toJson();
@@ -118,6 +124,23 @@ public class AgentTools {
                                     1000))
                     .toJson();
         }
+    }
+
+    /**
+     * 切换当前来源绑定会话的 Agent。
+     *
+     * @param name Agent 名称；为空时切回 default。
+     * @param sessionId 显式会话标识；为空时使用当前来源绑定会话。
+     * @return 返回切换后的会话和 Agent 状态。
+     */
+    private Map<String, Object> activateAgent(String name, String sessionId) throws Exception {
+        String target = StrUtil.blankToDefault(StrUtil.nullToEmpty(name).trim(), "default");
+        SessionRecord session =
+                agentProfileService.activateAgent(target, sessionRepository, sourceKey, sessionId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("session_id", safe(session == null ? "" : session.getSessionId()));
+        result.put("active_agent_name", activeAgent(session == null ? "" : session.getSessionId()));
+        return result;
     }
 
     /**

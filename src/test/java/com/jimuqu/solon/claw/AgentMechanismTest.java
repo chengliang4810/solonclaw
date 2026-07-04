@@ -344,6 +344,34 @@ public class AgentMechanismTest {
     }
 
     @Test
+    void shouldActivateDashboardSessionThroughStructuredAgentTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.agentProfileService.createAgent("coder", "你是代码助手。");
+        AgentTools tools =
+                new AgentTools(
+                        env.agentProfileService,
+                        env.sessionRepository,
+                        "MEMORY:agent-structured-room:agent-structured-user");
+
+        Map<?, ?> activated =
+                (Map<?, ?>)
+                        org.noear.snack4.ONode.ofJson(
+                                        tools.agentManage(
+                                                "activate",
+                                                "coder",
+                                                "dashboard-session-agent",
+                                                null))
+                                .toData();
+        SessionRecord session = env.sessionRepository.findById("dashboard-session-agent");
+
+        assertThat(activated.get("status")).isEqualTo("success");
+        assertThat(String.valueOf(activated.get("result"))).contains("active_agent_name=coder");
+        assertThat(session).isNotNull();
+        assertThat(session.getSourceKey()).isEqualTo("MEMORY:dashboard:dashboard-session-agent");
+        assertThat(session.getActiveAgentName()).isEqualTo("coder");
+    }
+
+    @Test
     void shouldAllowAgentManageToolThroughAgentAllowlist() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.agentProfileService.createAgent("operator", "管理 Agent");
