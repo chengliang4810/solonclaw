@@ -98,7 +98,7 @@
      - Dashboard 已有国内渠道平台工具集策略的 overview/update API，负责平台白名单、工具集列表规范化和配置落盘。
      - Agent 自然语言路径没有一等工具入口；`config_set` 只能写单个配置键，不能复用 Dashboard 的平台校验和结构化更新。
    - 改造后：
-     - 新增 `platform_toolsets_manage` 工具，复用 `DashboardPlatformToolsetsService`，支持 `overview`、`update`。
+     - 新增 `platform_toolsets_manage` 工具，复用 `DashboardPlatformToolsetsService`，支持 `overview`、`update` / `save` / `save_toolsets`。
      - 支持平台仍限定为 `feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`。
      - 增加工具暴露测试，证明默认工具列表包含 `platform_toolsets_manage` 且能解析到 `PlatformToolsetsManageTools`。
    - 提交：`b5f6c2cfe`
