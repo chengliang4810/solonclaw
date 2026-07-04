@@ -58,12 +58,12 @@ public class TuiRuntimeManageTools {
     @ToolMapping(
             name = "tui_runtime_manage",
             description =
-                    "Inspect or operate TUI runtime setup. Actions: setup_status, model_options, model_save_key, channel_options, channel_status, channel_save, channel_qr_start, channel_qr_get, config_get.")
+                    "Inspect or operate TUI runtime setup. Actions: setup_status, setup.status, model_options, model.options, model_save_key, channel_options, channel.options, channel_status, channel.status, channel_save, channel_qr_start, channel_qr_get, config_get, config.get.")
     public String tuiRuntimeManage(
             @Param(
                             name = "action",
                             description =
-                                    "setup_status, model_options, model_save_key, channel_options, channel_status, channel_save, channel_qr_start, channel_qr_get, config_get")
+                                    "setup_status, setup.status, model_options, model.options, model_save_key, channel_options, channel.options, channel_status, channel.status, channel_save, channel_qr_start, channel_qr_get, config_get, config.get")
                     String action,
             @Param(
                             name = "channel",
@@ -126,16 +126,19 @@ public class TuiRuntimeManageTools {
             String sessionId) {
         String normalized =
                 action == null ? "setup_status" : action.trim().toLowerCase(Locale.ROOT);
-        if ("model_options".equals(normalized)) {
+        if ("setup_status".equals(normalized) || "setup.status".equals(normalized)) {
+            return protocolService.setupStatus();
+        }
+        if ("model_options".equals(normalized) || "model.options".equals(normalized)) {
             return protocolService.modelOptions(sessionId);
         }
         if ("model_save_key".equals(normalized) || "model.save_key".equals(normalized)) {
             return protocolService.modelSaveKey(key, value, sessionId);
         }
-        if ("channel_options".equals(normalized)) {
+        if ("channel_options".equals(normalized) || "channel.options".equals(normalized)) {
             return protocolService.channelOptions();
         }
-        if ("channel_status".equals(normalized)) {
+        if ("channel_status".equals(normalized) || "channel.status".equals(normalized)) {
             return protocolService.channelStatus(channel);
         }
         if ("channel_save".equals(normalized) || "channel.save".equals(normalized)) {
@@ -147,7 +150,7 @@ public class TuiRuntimeManageTools {
         if ("channel_qr_get".equals(normalized) || "channel.qr.get".equals(normalized)) {
             return protocolService.channelQrGet(channel, ticket, sessionId);
         }
-        if ("config_get".equals(normalized)) {
+        if ("config_get".equals(normalized) || "config.get".equals(normalized)) {
             return protocolService.configGet(key);
         }
         return protocolService.setupStatus();

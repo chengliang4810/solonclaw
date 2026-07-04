@@ -351,7 +351,7 @@
       - Dashboard 已有 `/api/tui/rpc`，TUI 前端可查询 setup 状态、模型选项、渠道选项、渠道状态和配置值。
       - Agent 自然语言路径没有一等 TUI runtime 查询工具，无法直接检查独立终端前端看到的 setup/model/channel/config 状态。
     - 改造后：
-      - 新增 `tui_runtime_manage` 工具，复用 `TuiRuntimeProtocolService`，支持 `setup_status`、`model_options`、`channel_options`、`channel_status`、`config_get`。
+      - 新增 `tui_runtime_manage` 工具，复用 `TuiRuntimeProtocolService`，支持 `setup_status`、`model_options`、`channel_options`、`channel_status`、`config_get`，并兼容前端 RPC 点号读方法名 `setup.status`、`model.options`、`channel.options`、`channel.status`、`config.get`。
       - 后续补齐 TUI Runtime 页面级写动作，支持 `model_save_key`、`channel_save`、`channel_qr_start`、`channel_qr_get`，并通过注册处注入既有二维码 setup 服务。
       - 工具不暴露 `config.set` 这类当前 TUI Runtime 页面没有使用的写入入口，避免扩大自然语言操作面。
       - 增加工具暴露和实际调用测试，证明默认工具列表包含 `tui_runtime_manage`、自然语言工具可返回 setup 状态，并可脱敏保存模型密钥。
