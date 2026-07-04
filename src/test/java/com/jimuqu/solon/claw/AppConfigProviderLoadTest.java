@@ -154,8 +154,16 @@ public class AppConfigProviderLoadTest {
         props.put("providers.default.dialect", "openai-responses");
 
         AppConfig config = AppConfig.load(props);
+        String runtimeConfig =
+                FileUtil.readUtf8String(new File(workspaceHome, "config.yml"));
 
         assertThat(new File(workspaceHome, "config.yml")).exists();
+        assertThat(runtimeConfig).contains("baseUrl: \"https://startup.example.com/v1\"");
+        assertThat(runtimeConfig).contains("defaultModel: \"startup-model\"");
+        assertThat(runtimeConfig).contains("dialect: \"openai-responses\"");
+        assertThat(runtimeConfig).contains("apiKey: \"\"");
+        assertThat(runtimeConfig).doesNotContain("https://api.openai.com");
+        assertThat(runtimeConfig).doesNotContain("startup-provider-key");
         assertThat(config.getProviders().get("default").getName()).isEqualTo("启动提供方");
         assertThat(config.getProviders().get("default").getBaseUrl())
                 .isEqualTo("https://startup.example.com/v1");
@@ -164,6 +172,15 @@ public class AppConfigProviderLoadTest {
         assertThat(config.getProviders().get("default").getDefaultModel())
                 .isEqualTo("startup-model");
         assertThat(config.getProviders().get("default").getDialect()).isEqualTo("openai-responses");
+
+        LlmProviderService.ResolvedProvider resolved =
+                new LlmProviderService(config).resolveEffectiveProvider(null);
+        assertThat(resolved.getProviderKey()).isEqualTo("default");
+        assertThat(resolved.getBaseUrl()).isEqualTo("https://startup.example.com/v1");
+        assertThat(resolved.getApiUrl()).isEqualTo("https://startup.example.com/v1/responses");
+        assertThat(resolved.getApiKey()).isEqualTo("startup-provider-key");
+        assertThat(resolved.getDialect()).isEqualTo("openai-responses");
+        assertThat(resolved.getModel()).isEqualTo("startup-model");
     }
 
     @Test
