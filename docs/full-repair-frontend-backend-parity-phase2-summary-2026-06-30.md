@@ -4,6 +4,8 @@
 
 复核时间：2026-07-04
 
+复核时间：2026-07-05
+
 ## 结论
 
 阶段 2 在当前源码面已完成本轮增量收口。
@@ -11,6 +13,8 @@
 本轮先提交了阶段 2.1 / 2.3 只读复核清单，确认唯一高置信缺口是平台 Toolsets 后端已有更新接口但 Dashboard 只有只读展示。随后已补齐 Web Dashboard 保存入口，并把 `dev` 推送到 `origin/dev`。
 
 2026-07-04 当前 HEAD 复核未发现新的高置信前后端功能缺口。平台 Toolsets 保存入口仍由后端 `PUT /api/tools/platform-toolsets/{platform}`、前端 `updatePlatformToolsets(...)`、诊断页保存按钮和 `platformToolsetsUiStatic.test.ts` 覆盖；新增 TUI runtime 渠道配置能力也已通过 Web 端 `/api/tui/rpc` 调用 `channel.save`、`channel.qr.start`、`channel.qr.get` 等后端方法。
+
+2026-07-05 当前 HEAD 复核仍未发现新的高置信前后端功能缺口。平台 Toolsets 后端更新接口和 Web 保存入口继续存在；真实 Web E2E 发现的模型 `401 Invalid API Key` 属于外部凭据或上游服务状态问题，聊天失败后会话列表 `message_count=0` 已登记为 BUG-033 待复核，不先归类为前端或后端缺失功能。
 
 ## 已完成项
 
@@ -60,6 +64,14 @@
 - 已复核 `/api/gateway/message`、`/api/tui/handshake` 不作为 Web Dashboard 缺口：分别属于渠道注入和 TUI 内部握手面。
 - 本地主线程复核命令覆盖 `updatePlatformToolsets`、`savePlatformToolsets`、`/api/tools/platform-toolsets`、`fetchTuiRuntimeOverview`、`channel.save`、`channel.qr.start`、`channel.qr.get` 和 `/api/tui/rpc`。
 
+2026-07-05 只读复核补充：
+
+- 本地主线程复核 `DashboardPlatformToolsetsController`、`web/src/api/solonclaw/diagnostics.ts`、`DiagnosticsView.vue` 和 `platformToolsetsUiStatic.test.ts`，确认平台 Toolsets 已有保存入口。
+- Web E2E 复测登录、模型页、设置、系统诊断、日志、用量、运行记录、渠道、技能和对话页均可打开，Chrome console 无 error/warn。
+- TUI E2E 复测在线 `/status`、`/stop`、`/quit` 和离线 `/status`、`/quit` 均通过，45 秒离线空闲未见重连刷屏或快速增长。
+- 阶段 2.1 只读复核代理结论：当前 HEAD 未发现新增的“后端已有但前端未使用”高置信缺口；Runs、Sessions、Cron、MCP、Agent、Gateway、平台 Toolsets、Config raw 等可疑项均已复核为已接入或明确非 Dashboard 操作入口。
+- 阶段 2.2 只读复核代理结论：当前 HEAD 未发现新增的“前端已有但后端缺失”高置信缺口；二维码 setup、MCP 子路径、cron job helper、session/checkpoint helper 和 TUI RPC method 等动态路径均已人工复核。
+
 ## 推送状态
 
 - `work/full-repair-optimization`：当前 HEAD 为 `dfc6fcb3e`。
@@ -67,6 +79,7 @@
 - `origin/dev` 已推送到 `dfc6fcb3e`。
 - 直连 GitHub 443 超时，最终使用一次性代理环境变量推送成功；未修改全局 Git 配置。
 - 2026-07-04 复核时，当前 worktree `HEAD...origin/dev` 为 `0 0`。
+- 2026-07-05 复核时，当前 worktree `HEAD...origin/dev` 为 `0 0`。
 
 ## 剩余风险
 
