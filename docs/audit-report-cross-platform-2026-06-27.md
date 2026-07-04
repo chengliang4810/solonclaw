@@ -383,7 +383,7 @@
 
 ## L-17 WEB `useTheme` 在模块顶层注册 `mediaQuery` 监听器
 
-- 不在任何 Vue 生命周期内，无法清理
+- 已改为 `useTheme()` 首次调用时懒初始化，并在 Vue scope dispose 时移除 media query 监听器和 watcher。
 
 ---
 
