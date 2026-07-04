@@ -2,11 +2,15 @@
 
 日期：2026-06-30
 
+复核时间：2026-07-04
+
 ## 结论
 
 阶段 2 在当前源码面已完成本轮增量收口。
 
 本轮先提交了阶段 2.1 / 2.3 只读复核清单，确认唯一高置信缺口是平台 Toolsets 后端已有更新接口但 Dashboard 只有只读展示。随后已补齐 Web Dashboard 保存入口，并把 `dev` 推送到 `origin/dev`。
+
+2026-07-04 当前 HEAD 复核未发现新的高置信前后端功能缺口。平台 Toolsets 保存入口仍由后端 `PUT /api/tools/platform-toolsets/{platform}`、前端 `updatePlatformToolsets(...)`、诊断页保存按钮和 `platformToolsetsUiStatic.test.ts` 覆盖；新增 TUI runtime 渠道配置能力也已通过 Web 端 `/api/tui/rpc` 调用 `channel.save`、`channel.qr.start`、`channel.qr.get` 等后端方法。
 
 ## 已完成项
 
@@ -49,12 +53,20 @@
 - 阻塞问题：无。
 - 审查确认 API 契约、Vue 绑定、本地状态更新、`antdv-next` 组件用法和静态测试均无提交阻塞项。
 
+2026-07-04 只读复核补充：
+
+- 后端能力缺口审计代理结论：`NO_GAPS`。
+- 已复核 `PUT /api/config/raw` 不作为 Web Dashboard 缺口：当前设置页只读展示原始配置，避免绕过安全配置边界。
+- 已复核 `/api/gateway/message`、`/api/tui/handshake` 不作为 Web Dashboard 缺口：分别属于渠道注入和 TUI 内部握手面。
+- 本地主线程复核命令覆盖 `updatePlatformToolsets`、`savePlatformToolsets`、`/api/tools/platform-toolsets`、`fetchTuiRuntimeOverview`、`channel.save`、`channel.qr.start`、`channel.qr.get` 和 `/api/tui/rpc`。
+
 ## 推送状态
 
 - `work/full-repair-optimization`：当前 HEAD 为 `dfc6fcb3e`。
 - `/Users/chengliang/code-projects/jimuqu-agent` 的 `dev` 已快进到 `dfc6fcb3e`。
 - `origin/dev` 已推送到 `dfc6fcb3e`。
 - 直连 GitHub 443 超时，最终使用一次性代理环境变量推送成功；未修改全局 Git 配置。
+- 2026-07-04 复核时，当前 worktree `HEAD...origin/dev` 为 `0 0`。
 
 ## 剩余风险
 
