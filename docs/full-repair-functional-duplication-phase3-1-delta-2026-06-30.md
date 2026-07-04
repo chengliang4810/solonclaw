@@ -4,6 +4,8 @@
 
 复核时间：2026-07-04
 
+复核时间：2026-07-05
+
 ## 结论
 
 当前 HEAD 已包含 2026-06-29 到 2026-06-30 的阶段 3.2、3.3、3.4 修复。原阶段 3.1 清单中的设备码登录弹窗、平台二维码面板、控制台错误响应、测试安全策略桩、Markdown 文档编辑面板、TUI 审批测试构造、渠道设置字段行和 QR 错误状态等问题已被不同提交缓解。
@@ -11,6 +13,8 @@
 本轮按当前源码重新做增量复核，仍存在 7 类值得进入后续 3.2 / 3.3 的功能重复或相似功能面。
 
 2026-07-04 复核后，完全重复扫描已无输出，平台设置字段、命令服务构造器链和定时任务工具重载转发等低风险重复项已由后续提交继续收口。当前不再把这些项作为待修复候选；剩余候选只保留需要语义边界设计的后端 QR 生命周期与审批确认状态源。
+
+2026-07-05 复核后，`min-lines=40` 和 `min-lines=25` 完全重复扫描均无输出。后端旧候选仍为 QR setup ticket 生命周期、审批 / slash confirm 状态源边界；新增高置信候选为 Web 设置页、Web TUI Runtime 页与 terminal-ui 各自维护渠道 QR setup 前端轮询状态机。
 
 ## 检查方法
 
@@ -20,7 +24,8 @@
 - 本地重复检测：
   - `python3 scripts/check-code-duplication.selftest.py`：通过。
   - `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`：无输出，说明当前没有 40 行以上完全重复块。
-  - `python3 scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`：仍有 23 组 25 行以上完全重复块。
+  - 2026-06-30：`python3 scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`：仍有 23 组 25 行以上完全重复块。
+  - 2026-07-05：`python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`：无输出。
 
 ## 当前高置信候选
 
@@ -38,14 +43,18 @@
 - 建议：阶段 3.3 继续抽平台字段配置表，先从 `wecom`、`qqbot`、`yuanbao` 三个平台的可选设置做低风险改造，再评估飞书、钉钉、微信主设置。
 - 2026-07-04 复核：已由 `578287ae9` 和 `b488dca0d` 分别收口可选平台与主平台字段配置驱动化；当前只保留平台差异入口和保存动作。
 
-### 2. 平台 QR 面板已统一，但调用分支仍重复
+### 2. 平台 QR 展示已统一，但 Web/TUI 前端轮询状态机仍重复
 
 - 位置：
   - `web/src/components/solonclaw/settings/ChannelQrPanel.vue`
   - `web/src/components/solonclaw/settings/PlatformSettings.vue`
+  - `web/src/views/solonclaw/TuiRuntimeView.vue`
+  - `terminal-ui/src/components/channelQr.ts`
+  - `terminal-ui/src/components/channelSetup.tsx`
 - 重叠程度：中。
 - 证据：共享面板已覆盖扫码、等待、失败、过期和外链状态；`PlatformSettings.vue` 中仍有飞书、钉钉、微信三段同型调用，只是平台参数和凭据来源不同。
-- 建议：不要拆回平台内联实现；后续把 QR 面板调用参数下沉到平台配置表，减少模板分支。
+- 2026-07-05 复核：Web 设置页、Web TUI Runtime 页和 terminal-ui 都各自维护启动扫码、轮询 ticket、二维码 URL / data image 选择、pending / scanned / confirmed / expired / failed / error 状态解释、失败重试上限和定时器清理。展示层已由 `ChannelQrPanel.vue` 收口，但流程状态机仍分散在三处；后端 QR 字段或状态词变更时需要同步多处前端。
+- 建议：阶段 3.3 先抽 Web 侧最小 QR setup composable/helper，让 `PlatformSettings.vue` 与 `TuiRuntimeView.vue` 共用 state、polling 和 URL 选择；terminal-ui 保留 Ink UI，但补齐同一状态契约测试。
 
 ### 3. 模型提供方字段元数据重复
 
@@ -106,7 +115,7 @@
 
 ## 仍有完全重复块但暂不作为功能重复的项
 
-2026-07-04 复核时，`min-lines=25` 当前无输出。旧报告中记录的 23 组完全重复块已由后续提交和生成目录忽略规则收口。
+2026-07-04 和 2026-07-05 复核时，`min-lines=25` 当前无输出。旧报告中记录的 23 组完全重复块已由后续提交和生成目录忽略规则收口。
 
 已收口项包括：
 
@@ -119,7 +128,7 @@
 ## 已缓解项
 
 - 设备码登录弹窗：已由 `DeviceCodeLoginModal` 承担核心状态机，提供方组件仅保留薄 wrapper。
-- 平台二维码面板：已由 `ChannelQrPanel.vue` 承担共享展示和状态处理。
+- 平台二维码面板：已由 `ChannelQrPanel.vue` 承担共享展示；前端轮询状态机重复已重新列入当前候选 2。
 - 控制台错误响应：多数 Dashboard 控制器已复用 `DashboardResponse` 错误入口。
 - 测试安全策略桩、Markdown 文档面板、TUI 审批测试监听器构造、渠道字段行：已由阶段 3.3 原子项处理。
 - 平台设置字段配置化、模型提供方字段元数据化、用量指标元数据化、Jobs 摘要去重、命令构造器链和 CronjobTools 重载桥接：已由后续提交处理。
@@ -128,5 +137,5 @@
 ## 推荐后续顺序
 
 1. 阶段 3.2：只剩 QR setup 后端 ticket 生命周期抽取，或审批 / slash confirm 状态源边界收敛；这两项属于语义重复，进入前需要单独测试计划。
-2. 阶段 3.3：当前低风险机械复用候选已基本收口；继续新增前先重新跑重复扫描和具体页面审计。
+2. 阶段 3.3：抽 Web 侧 QR setup 前端轮询 composable/helper，并用状态契约测试约束 terminal-ui 侧解释逻辑。
 3. 阶段 3.4 / 5.3：Jobs 摘要重复已缓解，后续只在真实 E2E 发现扫读问题时再继续优化。
