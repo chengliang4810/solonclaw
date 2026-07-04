@@ -51,7 +51,21 @@ public final class CommandServiceTestSupport {
                 appUpdateService,
                 env.dangerousCommandApprovalService,
                 env.agentRunControlService,
-                env.agentProfileService);
+                env.agentProfileService,
+                env.agentRunRepository,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     /** 构造不会触发真实 Agent 主循环的对话编排器。 */

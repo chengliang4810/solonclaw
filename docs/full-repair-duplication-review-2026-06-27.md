@@ -29,6 +29,7 @@
 - 定时任务短重载转发：`CronjobTools` 无 `limit/reason` 的短重载改为复用已有中间重载，减少一份长参数 null 展开。
 - 定时任务状态重载转发：`CronjobTools` 的无技能增删字段重载复用 `cronjobWithStateDefaults(...)` / `cronjobWithState(...)`，保留公开重载签名和 `@ToolMapping` 主入口，消除当前 25 行阈值下的 CronjobTools 重复块。
 - 终端工具重载元数据：`SolonClawShellSkill` 仅保留真正 `@ToolMapping` 方法上的 `@Param` 元数据，删除两个 Java 便捷转发重载上的重复注解块，方法签名和行为不变。
+- 命令服务构造器链：`DefaultCommandService` 删除未直接使用的 public 桥接构造器，只保留单一完整构造器，测试辅助调用点显式传入原本桥接层补齐的默认依赖。
 
 ## 当前保留的重复项
 
@@ -84,3 +85,6 @@
 
 - `mvn -Dskip.web.build=true -Dtest=CronjobToolsSchedulerTest test`
 - `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
+- `mvn -Dskip.web.build=true -DskipTests compile`
+- `mvn -Dskip.web.build=true -Dtest=DefaultCronSchedulerTest,PluginRuntimeIntegrationTest,ProactiveCommandTest,SkillsHubCommandTest,VersionUpdateCommandTest test`
+- `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java/com/jimuqu/solon/claw/gateway/command/DefaultCommandService.java`

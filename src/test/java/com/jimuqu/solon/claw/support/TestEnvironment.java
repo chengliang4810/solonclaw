@@ -491,7 +491,9 @@ public class TestEnvironment {
                         null,
                         dashboardCuratorService,
                         dashboardSkillsService,
-                        browserRuntimeService);
+                        browserRuntimeService,
+                        null,
+                        null);
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(
                         commandService,
