@@ -379,7 +379,7 @@
 
 ## L-16 WEB `main.ts` token 提取逻辑复杂且脆弱
 
-- 从 URL search params 和 hash params 两处提取 token，无错误处理
+- 已抽出 `normalizeLoginTokenUrl()` 统一处理 search/hash token、URL 清理和直达路由归一化，并补充异常输入测试。
 
 ## L-17 WEB `useTheme` 在模块顶层注册 `mediaQuery` 监听器
 
