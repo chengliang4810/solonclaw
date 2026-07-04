@@ -34,12 +34,12 @@ public class McpManageTools {
     @ToolMapping(
             name = "mcp_manage",
             description =
-                    "Manage MCP servers. Actions: list, save, delete, check, connect, reload, refresh_tools, tools_refresh, reload_all, reload_all_async, oauth_status, oauth_clear.")
+                    "Manage MCP servers. Actions: list, save, delete, check, connect, reload, refresh_tools, tools_refresh, reload_all, reload_all_async, oauth_status, oauth_refresh, oauth_handle_401, oauth_clear.")
     public String mcpManage(
             @Param(
                             name = "action",
                             description =
-                                    "list, save, delete, check, connect, reload, refresh_tools, tools_refresh, reload_all, reload_all_async, oauth_status, oauth_clear")
+                                    "list, save, delete, check, connect, reload, refresh_tools, tools_refresh, reload_all, reload_all_async, oauth_status, oauth_refresh, oauth_handle_401, oauth_clear")
                     String action,
             @Param(name = "server_id", required = false, description = "MCP server id")
                     String serverId,
@@ -101,6 +101,12 @@ public class McpManageTools {
         }
         if ("oauth_status".equals(normalized)) {
             return dashboardMcpService.oauthStatus(serverId);
+        }
+        if ("oauth_refresh".equals(normalized)) {
+            return dashboardMcpService.refreshOAuth(serverId);
+        }
+        if ("oauth_handle_401".equals(normalized)) {
+            return dashboardMcpService.handleOAuth401(serverId);
         }
         if ("oauth_clear".equals(normalized)) {
             return dashboardMcpService.clearOAuth(serverId);

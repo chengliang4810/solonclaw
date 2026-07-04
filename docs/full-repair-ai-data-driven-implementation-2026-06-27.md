@@ -62,12 +62,12 @@
      - `src/test/java/com/jimuqu/solon/claw/support/TestEnvironment.java`
    - 改造前：
      - 已有 `mcp` 工具只暴露启用的 MCP 远端工具调用能力。
-     - Dashboard 已有 MCP 服务端列表、保存、删除、检查、连接、重载、工具刷新和 OAuth 状态清理能力，但 Agent 自然语言路径没有一等入口。
+     - Dashboard 已有 MCP 服务端列表、保存、删除、检查、连接、重载、工具刷新和 OAuth 状态、刷新、401 处理、清理能力，但 Agent 自然语言路径没有一等入口。
    - 改造后：
-     - 新增 `mcp_manage` 工具，复用 `DashboardMcpService`，支持 `list`、`save`、`delete`、`check`、`connect`、`reload`、`refresh_tools` / `tools_refresh`、`reload_all`、`reload_all_async`、`oauth_status`、`oauth_clear`。
+     - 新增 `mcp_manage` 工具，复用 `DashboardMcpService`，支持 `list`、`save`、`delete`、`check`、`connect`、`reload`、`refresh_tools` / `tools_refresh`、`reload_all`、`reload_all_async`、`oauth_status`、`oauth_refresh`、`oauth_handle_401`、`oauth_clear`。
      - 不复制 MCP 配置、包安全、URL 安全、工具发现或 OAuth 脱敏逻辑，统一沿用 Dashboard 服务边界。
-     - 增加工具暴露和页面动作别名测试，证明默认工具列表包含 `mcp_manage`、能解析到 `McpManageTools`，且页面 `tools/refresh` 语义可通过自然语言工具执行。
-   - 提交：`e24046e93`
+     - 增加工具暴露和页面动作测试，证明默认工具列表包含 `mcp_manage`、能解析到 `McpManageTools`，且页面 `tools/refresh`、`oauth/refresh`、`oauth/handle-401` 语义可通过自然语言工具执行。
+   - 初始提交：`e24046e93`；后续提交继续补齐页面动作。
 
 5. 增加技能维护管理一等工具
    - 位置：
