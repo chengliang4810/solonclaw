@@ -14,6 +14,10 @@ export interface AgentConfig {
   service_tier?: string
 }
 
+export interface GatewayConfig {
+  processingReactionsEnabled?: boolean
+}
+
 export type PlatformCatalogItem = {
   readonly code: string
   readonly displayName?: string
@@ -25,6 +29,7 @@ export type PlatformCatalogItem = {
 export interface AppConfig {
   display?: DisplayConfig
   agent?: AgentConfig
+  gateway?: GatewayConfig
   wecom?: Record<string, any>
   feishu?: Record<string, any>
   dingtalk?: Record<string, any>
@@ -170,6 +175,9 @@ export async function fetchConfig(_sections?: string[]): Promise<AppConfig> {
     agent: {
       max_turns: data.react?.maxSteps,
     },
+    gateway: {
+      processingReactionsEnabled: configBoolean(data.gateway?.processingReactionsEnabled),
+    },
     wecom: data.channels?.wecom || {},
     feishu: data.channels?.feishu || {},
     dingtalk: data.channels?.dingtalk || {},
@@ -245,6 +253,11 @@ export async function updateConfigSection(
     next.react = {
       ...(next.react || {}),
       maxSteps: values.max_turns ?? next.react?.maxSteps,
+    }
+  } else if (section === 'gateway') {
+    next.gateway = {
+      ...(next.gateway || {}),
+      processingReactionsEnabled: values.processingReactionsEnabled ?? next.gateway?.processingReactionsEnabled,
     }
   } else if (
     section === 'wecom'

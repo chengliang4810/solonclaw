@@ -1443,6 +1443,7 @@ export default {
       display: '显示',
       account: '账户',
       agent: '代理',
+      gateway: '网关',
       memory: '记忆',
       session: '会话',
       privacy: '隐私',
@@ -1481,6 +1482,10 @@ export default {
       auto: '自动',
       always: '始终',
       never: '从不',
+    },
+    gateway: {
+      processingReactionsEnabled: '处理状态表情回应',
+      processingReactionsEnabledHint: '启用后，渠道消息处理中会发送表情状态提示；关闭后只保留最终回复。',
     },
     memory: {
       enabled: '启用记忆',

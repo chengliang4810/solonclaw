@@ -9,6 +9,7 @@ import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/solonclaw/settings";
 import DisplaySettings from "@/components/solonclaw/settings/DisplaySettings.vue";
 import AgentSettings from "@/components/solonclaw/settings/AgentSettings.vue";
+import GatewaySettings from "@/components/solonclaw/settings/GatewaySettings.vue";
 import SessionSettings from "@/components/solonclaw/settings/SessionSettings.vue";
 import AccountSettings from "@/components/solonclaw/settings/AccountSettings.vue";
 import { fetchConfigDefaults, fetchConfigDiagnostics, fetchConfigSchema, fetchRawConfig } from "@/api/solonclaw/config";
@@ -80,6 +81,9 @@ function jsonText(value: unknown) {
           </TabPane>
           <TabPane tabKey="agent" :tab="t('settings.tabs.agent')">
             <AgentSettings />
+          </TabPane>
+          <TabPane tabKey="gateway" :tab="t('settings.tabs.gateway')">
+            <GatewaySettings />
           </TabPane>
           <TabPane tabKey="session" :tab="t('settings.tabs.session')">
             <SessionSettings />

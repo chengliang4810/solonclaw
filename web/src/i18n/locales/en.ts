@@ -1417,6 +1417,7 @@ export default {
       display: 'Display',
       account: 'Account',
       agent: 'Agent',
+      gateway: 'Gateway',
       memory: 'Memory',
       session: 'Session',
       privacy: 'Privacy',
@@ -1455,6 +1456,10 @@ export default {
       auto: 'Auto',
       always: 'Always',
       never: 'Never',
+    },
+    gateway: {
+      processingReactionsEnabled: 'Processing status reactions',
+      processingReactionsEnabledHint: 'Send reaction status hints while channel messages are being processed; disable to keep only the final reply.',
     },
     memory: {
       enabled: 'Enable Memory',

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as configApi from '@/api/solonclaw/config'
-import type { DisplayConfig, AgentConfig, PlatformCatalogItem } from '@/api/solonclaw/config'
+import type { DisplayConfig, AgentConfig, GatewayConfig, PlatformCatalogItem } from '@/api/solonclaw/config'
 
 export const useSettingsStore = defineStore('settings', () => {
   const loading = ref(false)
@@ -9,6 +9,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const display = ref<DisplayConfig>({})
   const agent = ref<AgentConfig>({})
+  const gateway = ref<GatewayConfig>({})
   const telegram = ref<Record<string, any>>({})
   const discord = ref<Record<string, any>>({})
   const slack = ref<Record<string, any>>({})
@@ -29,6 +30,7 @@ export const useSettingsStore = defineStore('settings', () => {
       const data = await configApi.fetchConfig()
       display.value = data.display || {}
       agent.value = data.agent || {}
+      gateway.value = data.gateway || {}
       telegram.value = data.telegram || {}
       discord.value = data.discord || {}
       slack.value = data.slack || {}
@@ -56,6 +58,7 @@ export const useSettingsStore = defineStore('settings', () => {
     switch (section) {
       case 'display': display.value = { ...display.value, ...values }; break
       case 'agent': agent.value = { ...agent.value, ...values }; break
+      case 'gateway': gateway.value = { ...gateway.value, ...values }; break
       case 'telegram': telegram.value = { ...telegram.value, ...values }; break
       case 'discord': discord.value = { ...discord.value, ...values }; break
       case 'slack': slack.value = { ...slack.value, ...values }; break
@@ -85,7 +88,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     loading, saving,
-    display, agent,
+    display, agent, gateway,
     telegram, discord, slack, whatsapp, matrix, wecom, feishu, dingtalk, weixin, qqbot, yuanbao, platforms,
     platformCatalog,
     fetchSettings, saveSection,
