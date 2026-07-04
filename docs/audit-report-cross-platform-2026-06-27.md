@@ -371,7 +371,7 @@
 
 ## L-14 WEB `uid()` 生成的 ID 碰撞风险
 
-- `Date.now().toString(36) + Math.random().toString(36).slice(2, 8)` 在同一毫秒内可能碰撞
+- 已优先使用 `crypto.randomUUID()` 生成聊天消息 ID，并为无 Web Crypto 环境补充模块级计数器兜底。
 
 ## L-15 WEB 密码登录 i18n 有但 UI 无
 

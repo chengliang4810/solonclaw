@@ -50,8 +50,14 @@ export interface Session {
   goalState?: SessionGoalState | null
 }
 
+let chatUidCounter = 0
+
 function uid(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+  chatUidCounter += 1
+  return `${Date.now().toString(36)}-${chatUidCounter.toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
