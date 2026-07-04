@@ -66,6 +66,7 @@
 ## 延后或不合并项
 
 - 后端 QR setup 协议流程：本轮只抽 ticket 生命周期，不合并微信 iLink、飞书、钉钉的协议请求与凭据持久化流程。
+- 危险命令审批与 slash confirm 状态源：危险命令审批绑定 AgentSession / snapshot、审批选择器、会话级授权和恢复执行；slash confirm 仅按 `sourceKey` 暂存待确认的 slash 控制命令，确认后一次性消费。Dashboard 与 TUI 只是复用现有 resolve/respond 入口，不存在第三份状态源，因此不做业务状态融合。
 - `DashboardCronController`：错误响应状态码按 `isNotFound(e)` 动态分流，留到后续更细测试后再收敛。
 - `DashboardWorkspaceController`：错误文本经过 `workspaceErrorMessage(e)` 特殊转换，不能按普通控制台错误响应机械替换。
 - `DashboardTuiRuntimeController`：JSON-RPC 错误语义不同，不纳入普通 Dashboard response 合并。
