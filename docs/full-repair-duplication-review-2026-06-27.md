@@ -46,6 +46,7 @@
 ## 2026-06-28 扫描器噪声收口
 
 - 重复检测脚本已忽略 `package` / `import` 前言行，避免把同类测试文件的依赖清单误报为代码重复。
+- 重复检测脚本复用 `guardlib` 的生成目录过滤，忽略 `dist` 目录，避免把构建产物与源文件同步副本误判为源码重复。
 - 当前 `--min-lines 40` 扫描无重复输出。
 
 ## 验证
@@ -88,3 +89,4 @@
 - `mvn -Dskip.web.build=true -DskipTests compile`
 - `mvn -Dskip.web.build=true -Dtest=DefaultCronSchedulerTest,PluginRuntimeIntegrationTest,ProactiveCommandTest,SkillsHubCommandTest,VersionUpdateCommandTest test`
 - `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java/com/jimuqu/solon/claw/gateway/command/DefaultCommandService.java`
+- `python scripts/check-code-duplication.selftest.py`

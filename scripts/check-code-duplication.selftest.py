@@ -101,6 +101,21 @@ class ImportSecond {{
 
         shutil.rmtree(sandbox)
         sandbox.mkdir(parents=True)
+        generated_block = "\n".join(
+            [
+                "const value1 = 1;",
+                "const value2 = 2;",
+                "const value3 = 3;",
+            ]
+        )
+        write_text(sandbox / "pkg" / "src" / "index.ts", generated_block)
+        write_text(sandbox / "pkg" / "dist" / "index.js", generated_block)
+        generated = run_check(sandbox, "--min-lines", "3")
+        if generated.returncode != 0:
+            raise AssertionError("Duplicate detector should ignore generated dist output: " + generated.stderr)
+
+        shutil.rmtree(sandbox)
+        sandbox.mkdir(parents=True)
         write_text(
             sandbox / "src" / "main" / "java" / "example" / "Unique.java",
             """package example;
