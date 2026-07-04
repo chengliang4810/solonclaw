@@ -352,9 +352,10 @@
       - Agent 自然语言路径没有一等 TUI runtime 查询工具，无法直接检查独立终端前端看到的 setup/model/channel/config 状态。
     - 改造后：
       - 新增 `tui_runtime_manage` 工具，复用 `TuiRuntimeProtocolService`，支持 `setup_status`、`model_options`、`channel_options`、`channel_status`、`config_get`。
-      - 工具只开放只读查询，不暴露 `model.save_key`、`channel.save`、`config.set` 等会写入配置或密钥的 RPC 方法。
-      - 增加工具暴露和实际调用测试，证明默认工具列表包含 `tui_runtime_manage` 且自然语言工具可返回 setup 状态。
-    - 提交：`6df18f509`
+      - 后续补齐 TUI Runtime 页面级写动作，支持 `model_save_key`、`channel_save`、`channel_qr_start`、`channel_qr_get`，并通过注册处注入既有二维码 setup 服务。
+      - 工具不暴露 `config.set` 这类当前 TUI Runtime 页面没有使用的写入入口，避免扩大自然语言操作面。
+      - 增加工具暴露和实际调用测试，证明默认工具列表包含 `tui_runtime_manage`、自然语言工具可返回 setup 状态，并可脱敏保存模型密钥。
+    - 提交：`6df18f509`、`943172367`
 
 22. 增加工作区配置查询一等工具
     - 位置：
@@ -632,6 +633,6 @@
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、技能文件列表、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、子进程环境诊断、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导入口；剩余 Dashboard 专属入口主要是高风险写入、浏览器下载、OAuth 回调或聊天运行主链，暂不按普通工具补齐。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、技能文件列表、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询与页面级 setup 写入、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、子进程环境诊断、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导入口；剩余 Dashboard 专属入口主要是高风险写入、浏览器下载、OAuth 回调或聊天运行主链，暂不按普通工具补齐。
 - 检查点回滚和会话删除暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。
