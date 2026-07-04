@@ -161,6 +161,7 @@ public class DashboardConfiguration {
      * 执行控制台会话服务相关逻辑。
      *
      * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
      * @param checkpointService checkpoint服务依赖。
      * @param sessionArtifactService 会话Artifact服务依赖。
      * @return 返回控制台会话服务结果。
@@ -168,10 +169,14 @@ public class DashboardConfiguration {
     @Bean
     public DashboardSessionService dashboardSessionService(
             SessionRepository sessionRepository,
+            AgentRunRepository agentRunRepository,
             CheckpointService checkpointService,
             SessionArtifactService sessionArtifactService) {
         return new DashboardSessionService(
-                sessionRepository, checkpointService, sessionArtifactService);
+                sessionRepository,
+                checkpointService,
+                sessionArtifactService,
+                agentRunRepository);
     }
 
     /**

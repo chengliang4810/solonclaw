@@ -108,6 +108,55 @@ public class DashboardControllerHttpTest {
         }
     }
 
+    /** 验证 Dashboard 会话列表会用失败运行补足空消息会话的交互统计。 */
+    @Test
+    void shouldReflectFailedRunInDashboardSessionSummary() throws Exception {
+        String token = DASHBOARD_TEST_TOKEN;
+        String sessionId = "dashboard-failed-summary-20260705";
+        String sourceKey = "MEMORY:dashboard-failed-summary-20260705:user";
+        String userInput = "触发失败统计";
+        long now = System.currentTimeMillis();
+
+        SessionRepository sessionRepository = bean(SessionRepository.class);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId(sessionId);
+        session.setSourceKey(sourceKey);
+        session.setBranchName("main");
+        session.setTitle("Dashboard failed summary");
+        session.setNdjson("");
+        session.setCreatedAt(now);
+        session.setUpdatedAt(now);
+        sessionRepository.save(session);
+
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-dashboard-failed-summary-20260705");
+        run.setSessionId(sessionId);
+        run.setSourceKey(sourceKey);
+        run.setRunKind("conversation");
+        run.setAgentName("default");
+        run.setStatus("failed");
+        run.setPhase("failed");
+        run.setInputPreview(userInput);
+        run.setError("401 Invalid API Key");
+        run.setAttempts(2);
+        run.setStartedAt(now);
+        run.setLastActivityAt(now);
+        run.setFinishedAt(now + 1000L);
+        bean(AgentRunRepository.class).saveRun(run);
+
+        HttpResult sessions = request("GET", "/api/sessions?limit=20&offset=0", null, token);
+
+        assertThat(sessions.status).isEqualTo(200);
+        ONode item =
+                findItemByStringField(
+                        ONode.ofJson(sessions.body).get("data").get("sessions"),
+                        "id",
+                        sessionId);
+        assertThat(item).isNotNull();
+        assertThat(item.get("message_count").getInt()).isEqualTo(2);
+        assertThat(item.get("preview").getString()).isEqualTo(userInput);
+    }
+
     @Test
     void shouldAvoidInjectingDashboardTokenAndProtectSensitiveApis() throws Exception {
         HttpResult index = request("GET", "/", null, null);

@@ -249,7 +249,7 @@ npm --prefix terminal-ui test -- src/__tests__/gatewayClient.test.ts
 
 ## BUG-033：聊天失败后会话列表统计未体现失败消息和失败运行
 
-状态：待复核
+状态：已修复（2026-07-05）
 
 影响范围：
 
@@ -269,9 +269,15 @@ npm --prefix terminal-ui test -- src/__tests__/gatewayClient.test.ts
 - 若 UI 已展示失败消息，则会话列表至少应能反映该会话存在失败交互，避免列表统计与聊天面板矛盾。
 - 修复应优先在会话统计的共享查询或映射层完成，不在多个前端调用处补丁。
 
+修复记录：
+
+- `DashboardSessionService` 接入 `AgentRunRepository`，当会话正文为空但存在失败运行时，用运行输入预览和错误状态补足会话列表的 `message_count` 与 `preview`。
+- `DashboardConfiguration` 与 `DefaultToolRegistry` 传入同一运行仓储，保持 Dashboard API 与会话管理工具的摘要语义一致。
+- 新增 HTTP 回归测试覆盖“空 NDJSON 会话 + 失败 run + `/api/sessions` 摘要”场景；验证先红后绿。
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
-- BUG-030、BUG-031 与 BUG-033 保留为待复核项，不在缺少稳定复现前改代码。
-- BUG-032 已有 Web E2E 视觉证据，下一步优先做最小 CSS 修复并复核。
+- BUG-030、BUG-031 保留为待复核项，不在缺少稳定复现前改代码。
+- BUG-032 与 BUG-033 已修复，并补充 focused 验证记录。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
