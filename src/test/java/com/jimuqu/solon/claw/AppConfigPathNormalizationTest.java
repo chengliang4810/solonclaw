@@ -131,9 +131,9 @@ public class AppConfigPathNormalizationTest {
         assertThat(runtimeConfig).exists();
         String content = FileUtil.readUtf8String(runtimeConfig);
         assertThat(content)
-                .contains("baseUrl: https://api.openai.com")
+                .contains("baseUrl: \"https://api.openai.com\"")
                 .contains("apiKey: \"\"")
-                .contains("dialect: openai")
+                .contains("dialect: \"openai\"")
                 .contains("accessToken: \"\"");
         assertThat(config.getDashboard().getAccessToken()).isEmpty();
         assertThat(config.getLlm().getDialect()).isEqualTo("openai");
