@@ -103,7 +103,7 @@
   }
 }
 
-.nav-item {
+:deep(.nav-item) {
   display: flex;
   align-items: center;
   gap: 9px;

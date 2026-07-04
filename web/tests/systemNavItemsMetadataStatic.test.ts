@@ -2,11 +2,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
 const systemNavFile = new URL('../src/components/layout/SystemNavItems.vue', import.meta.url)
+const sidebarStyleFile = new URL('../src/components/layout/AppSidebar.scss', import.meta.url)
 const sidebarNavFile = new URL('../src/shared/sidebarNav.ts', import.meta.url)
 const zhFile = new URL('../src/i18n/locales/zh.ts', import.meta.url)
 const enFile = new URL('../src/i18n/locales/en.ts', import.meta.url)
 
 const systemNav = readFileSync(systemNavFile, 'utf8')
+const sidebarStyle = readFileSync(sidebarStyleFile, 'utf8')
 const sidebarNav = readFileSync(sidebarNavFile, 'utf8')
 const zh = readFileSync(zhFile, 'utf8')
 const en = readFileSync(enFile, 'utf8')
@@ -31,6 +33,10 @@ assert.equal(
   (systemNav.match(/class="nav-item"/g) || []).length,
   1,
   'system navigation should keep one reusable nav-item button shell',
+)
+assert.ok(
+  sidebarStyle.includes(':deep(.nav-item)'),
+  'sidebar nav item styles should reach delegated system navigation buttons',
 )
 assert.ok(
   !systemNav.includes('终端运行时'),
