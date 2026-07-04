@@ -1300,7 +1300,9 @@ public class DefaultToolRegistry implements ToolRegistry {
         DiagnosticsManageTools diagnosticsManageTools =
                 new DiagnosticsManageTools(dashboardDiagnosticsService);
         DoctorManageTools doctorManageTools = new DoctorManageTools(dashboardGatewayDoctorService);
-        TuiRuntimeManageTools tuiRuntimeManageTools = new TuiRuntimeManageTools(appConfig);
+        TuiRuntimeManageTools tuiRuntimeManageTools =
+                new TuiRuntimeManageTools(
+                        appConfig, weixinQrSetupService, domesticQrSetupService);
         InsightsManageTools insightsManageTools = new InsightsManageTools(dashboardInsightsService);
         ApprovalEventsManageTools approvalEventsManageTools =
                 new ApprovalEventsManageTools(dashboardApprovalEventsService);
