@@ -90,6 +90,7 @@ export default {
     clearAccessToken: '清空令牌',
     clearAccessTokenConfirm: '确定清空 solonclaw.dashboard.accessToken 吗？清空后远程 Dashboard 请求会被拒绝，直到重新设置令牌。',
     currentValue: '当前值',
+    workspaceConfigItems: '工作区配置项',
   },
 
   sidebar: {

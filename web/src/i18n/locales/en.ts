@@ -87,6 +87,7 @@ export default {
     clearAccessToken: 'Clear token',
     clearAccessTokenConfirm: 'Clear solonclaw.dashboard.accessToken? Remote Dashboard requests will be rejected until a new token is set.',
     currentValue: 'Current value',
+    workspaceConfigItems: 'Workspace config items',
   },
 
   sidebar: {

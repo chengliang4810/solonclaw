@@ -15,6 +15,7 @@ const revealing = ref(false);
 const configured = ref(false);
 const tokenPreview = ref("");
 const accessToken = ref("");
+const workspaceConfigItems = ref<Array<{ key: string; redactedValue: string }>>([]);
 
 onMounted(loadTokenStatus);
 
@@ -25,6 +26,10 @@ async function loadTokenStatus() {
     const item = items[ACCESS_TOKEN_KEY];
     configured.value = !!item?.is_set;
     tokenPreview.value = item?.redacted_value || "";
+    workspaceConfigItems.value = Object.entries(items)
+      .filter(([, item]) => item.is_set)
+      .map(([key, item]) => ({ key, redactedValue: item.redacted_value || "" }))
+      .sort((a, b) => a.key.localeCompare(b.key));
   } catch (err: any) {
     message.error(err.message || t("common.fetchFailed"));
   } finally {
@@ -71,6 +76,7 @@ async function clearAccessToken() {
     await setWorkspaceConfigItem(ACCESS_TOKEN_KEY, "");
     accessToken.value = "";
     tokenPreview.value = "";
+    workspaceConfigItems.value = workspaceConfigItems.value.filter(item => item.key !== ACCESS_TOKEN_KEY);
     configured.value = false;
     clearApiKey();
     await loadTokenStatus();
@@ -133,6 +139,17 @@ async function clearAccessToken() {
         </Popconfirm>
       </div>
     </div>
+
+    <div class="workspace-config-card">
+      <div class="token-title">{{ t("account.workspaceConfigItems") }}</div>
+      <div v-if="workspaceConfigItems.length" class="workspace-config-list">
+        <div v-for="item in workspaceConfigItems" :key="item.key" class="workspace-config-row">
+          <code class="config-key">{{ item.key }}</code>
+          <code class="token-preview">{{ item.redactedValue || t("common.configured") }}</code>
+        </div>
+      </div>
+      <p v-else class="empty-text">{{ t("common.notConfigured") }}</p>
+    </div>
   </div>
 </template>
 
@@ -156,6 +173,15 @@ async function clearAccessToken() {
   padding: 16px;
   background: $bg-card;
   max-width: 720px;
+}
+
+.workspace-config-card {
+  border: 1px solid $border-color;
+  border-radius: $radius-md;
+  padding: 16px;
+  background: $bg-card;
+  max-width: 720px;
+  margin-top: 12px;
 }
 
 .token-header {
@@ -204,6 +230,28 @@ async function clearAccessToken() {
 
 .token-preview {
   color: $text-secondary;
+}
+
+.workspace-config-list {
+  display: grid;
+  gap: 8px;
+}
+
+.workspace-config-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.workspace-config-row code {
+  overflow-wrap: anywhere;
+}
+
+.empty-text {
+  margin: 0;
+  color: $text-muted;
+  font-size: 12px;
 }
 
 .action-buttons {
