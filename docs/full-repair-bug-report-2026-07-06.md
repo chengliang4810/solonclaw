@@ -84,6 +84,7 @@ mvn "-Dskip.web.build=true" "-DskipTests" package
 
 ```bash
 node --experimental-strip-types web/tests/gatewayReadOnlyStatic.test.ts
+node --experimental-strip-types web/tests/viteProxyTargetStatic.test.ts
 npm --prefix web run build
 python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
 ```
@@ -161,8 +162,48 @@ npm --prefix web run build
 python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
 ```
 
+## BUG-064：Vite 代理模式下消息网关页显示前端端口
+
+状态：已修复，本次提交
+
+影响范围：
+
+- Dashboard 消息网关状态页。
+- 使用 `SOLONCLAW_SERVER_URL` 连接非默认后端端口的 Web 开发与真实 E2E 验证场景。
+
+当前事实：
+
+- Chrome 真实打开 `http://127.0.0.1:5178/?token=smoke-token#/solonclaw/gateways`。
+- 后端实际启动在 `http://127.0.0.1:18081`，但网关页显示 `websocket:5178`、`stream:5178` 等前端 Vite 端口。
+- 页面功能和接口请求成功，控制台无 error/warn；问题集中在展示端口误导。
+
+根因：
+
+- `fetchGateways()` 通过 `window.location.port` 推导端口。
+- 在 jar 内置页面中，前端端口等于后端端口；但 Vite 代理模式中，前端端口和后端端口不同。
+
+修复记录：
+
+- `vite.config.ts` 将显式配置的 `SOLONCLAW_SERVER_URL` 注入为前端构建常量，未配置时保持空值，避免生产包重新带回默认 `8080`。
+- `gateways.ts` 优先从该后端地址解析展示端口，未配置时回退到当前页面端口。
+- `gatewayReadOnlyStatic.test.ts` 增加 dev proxy 后端目标的静态回归断言。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/gatewayReadOnlyStatic.test.ts
+npm --prefix web run build
+python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+```
+
+浏览器复核：
+
+- 后端：`java -Dserver.port=18081 -Dsolonclaw.dashboard.accessToken=smoke-token -jar target/solonclaw-0.0.1.jar server`
+- 前端：`SOLONCLAW_SERVER_URL=http://127.0.0.1:18081 npm --prefix web run dev -- --host 127.0.0.1 --port 5178`
+- Chrome 打开 `http://127.0.0.1:5178/?token=smoke-token#/solonclaw/gateways` 后，网关条目显示 `websocket:18081`、`stream:18081`，控制台 error/warn 为空。
+
 ## 当前结论
 
 - BUG-060 已按侧栏共享组件层修复，没有在单个页面入口处打补丁。
-- BUG-061 至 BUG-063 已按各自共享 store 或页面组件层修复，失败时保留上一轮成功数据并提供页面内错误反馈。
+- BUG-061 至 BUG-064 已按各自共享 store、配置或页面组件层修复，失败时保留上一轮成功数据并提供页面内错误反馈，开发代理端口展示不再误导。
 - 后续 Web UI E2E 若发现其它路由入口遮挡或错位，应继续追加阶段 1.1 原子缺陷报告，再按最小共享层修复。
