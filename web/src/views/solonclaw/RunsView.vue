@@ -52,6 +52,7 @@ const previewOpen = ref(false)
 const selectedSessionId = ref('')
 const selectedRunId = ref('')
 const loading = ref(false)
+const loadError = ref<string | null>(null)
 const rollingBack = ref('')
 const previewingCheckpoint = ref('')
 const savingTrajectory = ref(false)
@@ -59,7 +60,12 @@ const runControlLoading = ref('')
 const subagentControlLoading = ref('')
 const subagentSpawnLoading = ref(false)
 const recoverableLoading = ref(false)
+const recoverableError = ref<string | null>(null)
 const { t } = useI18n()
+
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : String(err || fallback)
+}
 
 const sessionOptions = computed(() => sessions.value.map(session => ({
   label: session.title || session.preview || session.id,
@@ -82,6 +88,7 @@ async function loadSessions() {
 async function loadSessionDetail() {
   if (!selectedSessionId.value) return
   loading.value = true
+  loadError.value = null
   try {
     const [loadedRuns, loadedTree, loadedCheckpoints] = await Promise.all([
       fetchSessionRuns(selectedSessionId.value, 30),
@@ -108,6 +115,9 @@ async function loadSessionDetail() {
       commands.value = []
     }
     await loadSessionArtifacts()
+  } catch (err) {
+    console.error('Failed to load run session detail:', err)
+    loadError.value = errorMessage(err, 'Failed to load run session detail')
   } finally {
     loading.value = false
   }
@@ -125,6 +135,7 @@ async function loadSessionArtifacts() {
 
 async function loadRunDetail(runId: string) {
   selectedRunId.value = runId
+  loadError.value = null
   if (!runId) {
     events.value = []
     tools.value = []
@@ -133,12 +144,17 @@ async function loadRunDetail(runId: string) {
     commands.value = []
     return
   }
-  const detail = await fetchRunDetail(runId)
-  events.value = detail.events || []
-  tools.value = detail.tools || []
-  subagents.value = detail.subagents || []
-  recoveries.value = detail.recoveries || []
-  commands.value = detail.commands || []
+  try {
+    const detail = await fetchRunDetail(runId)
+    events.value = detail.events || []
+    tools.value = detail.tools || []
+    subagents.value = detail.subagents || []
+    recoveries.value = detail.recoveries || []
+    commands.value = detail.commands || []
+  } catch (err) {
+    console.error('Failed to load run detail:', err)
+    loadError.value = errorMessage(err, 'Failed to load run detail')
+  }
 }
 
 async function loadActiveSubagents() {
@@ -149,8 +165,12 @@ async function loadActiveSubagents() {
 
 async function loadRecoverableRuns() {
   recoverableLoading.value = true
+  recoverableError.value = null
   try {
     recoverableRuns.value = await fetchRecoverableRuns(20)
+  } catch (err) {
+    console.error('Failed to load recoverable runs:', err)
+    recoverableError.value = errorMessage(err, 'Failed to load recoverable runs')
   } finally {
     recoverableLoading.value = false
   }
@@ -270,6 +290,10 @@ onMounted(async () => {
       <main class="runs-layout">
         <section class="panel">
           <h3>{{ t('runs.runList') }}</h3>
+          <div v-if="loadError" class="runs-load-error">
+            <strong>{{ t('common.fetchFailed') }}</strong>
+            <span>{{ loadError }}</span>
+          </div>
           <button v-for="run in runs" :key="run.run_id" class="run-row" :class="{ active: run.run_id === selectedRunId }" @click="loadRunDetail(run.run_id)">
             <span class="run-status" :class="run.status">{{ runStatusLabel(run.status, t) }}</span>
             <span>{{ run.provider || '-' }}/{{ run.model || '-' }}</span>
@@ -277,7 +301,7 @@ onMounted(async () => {
             <small>{{ runTimestampText(run.started_at) }}</small>
             <p>{{ run.final_reply_preview || run.input_preview || run.error }}</p>
           </button>
-          <div v-if="runs.length === 0" class="empty">{{ t('runs.noRuns') }}</div>
+          <div v-if="runs.length === 0 && !loadError" class="empty">{{ t('runs.noRuns') }}</div>
         </section>
 
         <section class="panel">
@@ -384,6 +408,10 @@ onMounted(async () => {
             <h3>{{ t('runs.recoverableRuns') }}</h3>
             <Button size="small" :loading="recoverableLoading" @click="loadRecoverableRuns">{{ t('runs.loadRecoverableRuns') }}</Button>
           </div>
+          <div v-if="recoverableError" class="runs-load-error compact-error">
+            <strong>{{ t('common.fetchFailed') }}</strong>
+            <span>{{ recoverableError }}</span>
+          </div>
           <button
             v-for="run in recoverableRuns"
             :key="run.run_id"
@@ -396,7 +424,7 @@ onMounted(async () => {
             <small>{{ runTimestampText(run.started_at) }}</small>
             <p>{{ run.recovery_hint || run.error || run.input_preview || run.run_id }}</p>
           </button>
-          <div v-if="recoverableRuns.length === 0" class="empty compact">{{ t('runs.noRecoverableRuns') }}</div>
+          <div v-if="recoverableRuns.length === 0 && !recoverableError" class="empty compact">{{ t('runs.noRecoverableRuns') }}</div>
 
           <div class="section-heading">
             <h3>{{ t('runs.activeSubagents') }}</h3>
@@ -645,6 +673,26 @@ h3 {
 
 .empty.compact {
   padding: 8px 0 16px;
+}
+
+.runs-load-error {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: $radius-sm;
+  background: rgba(var(--error-rgb), 0.06);
+  color: $error;
+  font-size: 13px;
+
+  span {
+    overflow-wrap: anywhere;
+  }
+}
+
+.compact-error {
+  padding: 8px 10px;
 }
 
 @media (max-width: 1100px) {

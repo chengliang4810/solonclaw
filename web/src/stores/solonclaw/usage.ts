@@ -35,13 +35,16 @@ interface ModelUsage {
 export const useUsageStore = defineStore('usage', () => {
   const analytics = ref<UsageAnalytics | null>(null)
   const isLoading = ref(false)
+  const loadError = ref<string | null>(null)
 
   async function loadUsage() {
     isLoading.value = true
+    loadError.value = null
     try {
       analytics.value = await fetchUsageAnalytics(30)
     } catch (err) {
       console.error('Failed to load usage analytics:', err)
+      loadError.value = err instanceof Error ? err.message : String(err || 'Failed to load usage analytics')
     } finally {
       isLoading.value = false
     }
@@ -133,6 +136,7 @@ export const useUsageStore = defineStore('usage', () => {
   return {
     analytics,
     isLoading,
+    loadError,
     loadUsage,
     totalInputTokens,
     totalOutputTokens,

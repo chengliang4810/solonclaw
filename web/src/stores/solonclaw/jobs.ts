@@ -7,6 +7,10 @@ function matchId(job: Job, id: string): boolean {
   return job.job_id === id || job.id === id
 }
 
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : String(err || fallback)
+}
+
 export const useJobsStore = defineStore('jobs', () => {
   const jobs = ref<Job[]>([])
   const upcomingJobs = ref<Job[]>([])
@@ -17,13 +21,19 @@ export const useJobsStore = defineStore('jobs', () => {
   const upcomingLoading = ref(false)
   const statusLoading = ref(false)
   const guideLoading = ref(false)
+  const loadError = ref<string | null>(null)
+  const upcomingError = ref<string | null>(null)
+  const statusError = ref<string | null>(null)
+  const guideError = ref<string | null>(null)
 
   async function fetchJobs() {
     loading.value = true
+    loadError.value = null
     try {
       jobs.value = await jobsApi.listJobs()
     } catch (err) {
       console.error('Failed to fetch jobs:', err)
+      loadError.value = errorMessage(err, 'Failed to fetch jobs')
     } finally {
       loading.value = false
     }
@@ -31,10 +41,12 @@ export const useJobsStore = defineStore('jobs', () => {
 
   async function fetchUpcomingJobs(limit = 5) {
     upcomingLoading.value = true
+    upcomingError.value = null
     try {
       upcomingJobs.value = await jobsApi.listUpcomingJobs(limit)
     } catch (err) {
       console.error('Failed to fetch upcoming jobs:', err)
+      upcomingError.value = errorMessage(err, 'Failed to fetch upcoming jobs')
     } finally {
       upcomingLoading.value = false
     }
@@ -42,10 +54,12 @@ export const useJobsStore = defineStore('jobs', () => {
 
   async function fetchStatus(limit = 5) {
     statusLoading.value = true
+    statusError.value = null
     try {
       status.value = await jobsApi.fetchCronStatus(true, limit)
     } catch (err) {
       console.error('Failed to fetch cron status:', err)
+      statusError.value = errorMessage(err, 'Failed to fetch cron status')
     } finally {
       statusLoading.value = false
     }
@@ -53,6 +67,7 @@ export const useJobsStore = defineStore('jobs', () => {
 
   async function fetchGuideAndPolicy() {
     guideLoading.value = true
+    guideError.value = null
     try {
       const [guideResult, policyResult] = await Promise.all([
         jobsApi.fetchCronGuide(),
@@ -62,6 +77,7 @@ export const useJobsStore = defineStore('jobs', () => {
       policy.value = policyResult
     } catch (err) {
       console.error('Failed to fetch cron guide:', err)
+      guideError.value = errorMessage(err, 'Failed to fetch cron guide')
     } finally {
       guideLoading.value = false
     }
@@ -131,6 +147,10 @@ export const useJobsStore = defineStore('jobs', () => {
     upcomingLoading,
     statusLoading,
     guideLoading,
+    loadError,
+    upcomingError,
+    statusError,
+    guideError,
     fetchJobs,
     fetchUpcomingJobs,
     fetchStatus,
