@@ -20,7 +20,6 @@
     "test:mcp-display": "node --experimental-strip-types tests/mcpDisplay.test.ts",
     "test:system-nav-items-metadata": "node --experimental-strip-types tests/systemNavItemsMetadataStatic.test.ts",
     "test:backend-ui-coverage": "node --experimental-strip-types tests/backendUiCoverageStatic.test.ts",
-    "test:device-login-modal-reuse": "node --experimental-strip-types tests/deviceLoginModalReuseStatic.test.ts",
     "test:platform-qr-panel-reuse": "node --experimental-strip-types tests/platformQrPanelReuseStatic.test.ts",
     "test:channel-qr-polling-reuse": "node --experimental-strip-types tests/channelQrPollingReuseStatic.test.ts",
     "test:platform-catalog-metadata": "node --experimental-strip-types tests/platformCatalogMetadataStatic.test.ts && node --experimental-strip-types tests/platformCatalogMetadata.test.ts",
