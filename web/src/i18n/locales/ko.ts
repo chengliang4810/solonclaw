@@ -2,7 +2,7 @@ export default {
   // 로그인
   login: {
     title: 'solonclaw Web UI',
-    description: '계속하려면 액세스 토큰을 입력하세요. 서버 시작 로그에서 확인할 수 있습니다.',
+    description: '계속하려면 액세스 토큰을 입력하세요. 서버 설정 또는 시작 파라미터에서 solonclaw.dashboard.accessToken을 설정하세요.',
     placeholder: '액세스 토큰',
     submit: '로그인',
     tokenRequired: '액세스 토큰을 입력해 주세요',

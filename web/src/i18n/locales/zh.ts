@@ -2,7 +2,7 @@ export default {
   // 登录
   login: {
     title: 'solonclaw',
-    description: '输入访问令牌以继续。令牌在服务端启动日志中查看。',
+    description: '输入访问令牌以继续。请在服务端配置 solonclaw.dashboard.accessToken，或通过启动参数传入。',
     placeholder: '访问令牌',
     submit: '登录',
     tokenRequired: '请输入访问令牌',

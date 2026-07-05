@@ -315,10 +315,45 @@ npm --prefix web run build
 python scripts/audit-terminal-commands.py --no-defaults --timeout-seconds 12 --command /help --command /status --command /doctor --command /sessions
 ```
 
+## BUG-035：Dashboard 默认登录提示指向不存在的启动日志令牌
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 首次登录页。
+- 使用默认 `java -jar` 启动且未显式配置 Dashboard 访问令牌的本地用户。
+- Web E2E 登录路径和排障指引。
+
+当前事实：
+
+- Web E2E 默认启动后，登录页提示“令牌在服务端启动日志中查看”。
+- 后端默认配置 `solonclaw.dashboard.accessToken` 留空，非公开 API 会按安全边界返回 401。
+- 启动日志不会输出 Dashboard 访问令牌，用户按页面提示无法找到可用令牌。
+
+根因：
+
+- 登录页文案沿用旧的“启动日志查看令牌”假设，但后端当前不会生成或打印令牌。
+- 空访问令牌拒绝非公开 API 是正确安全边界，问题在错误指引而不是鉴权逻辑。
+
+修复记录：
+
+- 8 个 locale 的 `login.description` 改为指向真实配置键 `solonclaw.dashboard.accessToken`，提示通过服务端配置或启动参数传入。
+- 新增 `loginDescriptionStatic.test.ts`，锁定登录说明必须包含 Dashboard 访问令牌配置键，避免再次回退到日志指引。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/loginDescriptionStatic.test.ts
+node --experimental-strip-types web/tests/i18nRegistrationStatic.test.ts
+node --experimental-strip-types web/tests/loginStoredTokenValidationStatic.test.ts
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
 - BUG-030 保留为待复核项，不在缺少稳定复现前改代码。
 - BUG-031、BUG-032 与 BUG-033 已修复，并补充 focused 验证记录。
 - BUG-034 记录 Windows 真实 Node TUI PTY E2E 的剩余平台限制；当前命令级审计仍可作为 Windows 可用性门禁。
+- BUG-035 已修复默认登录页错误指引，保持空令牌拒绝访问的安全边界不变。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

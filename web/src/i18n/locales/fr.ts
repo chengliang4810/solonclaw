@@ -2,7 +2,7 @@ export default {
   // Login
   login: {
     title: 'solonclaw Web UI',
-    description: 'Entrez votre jeton d\'acces pour continuer. Retrouvez-le dans les journaux de demarrage du serveur.',
+    description: 'Entrez votre jeton d\'acces pour continuer. Configurez solonclaw.dashboard.accessToken cote serveur ou via un parametre de demarrage.',
     placeholder: 'Jeton d\'acces',
     submit: 'Connexion',
     tokenRequired: 'Veuillez entrer votre jeton d\'acces',

@@ -2,7 +2,7 @@ export default {
   // ログイン
   login: {
     title: 'solonclaw Web UI',
-    description: 'アクセストークンを入力して続行してください。サーバーの起動ログで確認できます。',
+    description: 'アクセストークンを入力して続行してください。サーバー設定または起動パラメータで solonclaw.dashboard.accessToken を設定してください。',
     placeholder: 'アクセストークン',
     submit: 'ログイン',
     tokenRequired: 'アクセストークンを入力してください',

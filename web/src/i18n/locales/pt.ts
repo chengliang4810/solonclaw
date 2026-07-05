@@ -2,7 +2,7 @@ export default {
   // Login
   login: {
     title: 'solonclaw Web UI',
-    description: 'Insira seu token de acesso para continuar. Encontre-o nos logs de inicializacao do servidor.',
+    description: 'Insira seu token de acesso para continuar. Configure solonclaw.dashboard.accessToken no servidor ou por parametro de inicializacao.',
     placeholder: 'Token de acesso',
     submit: 'Entrar',
     tokenRequired: 'Por favor, insira seu token de acesso',
