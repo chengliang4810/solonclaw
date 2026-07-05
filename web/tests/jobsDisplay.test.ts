@@ -143,3 +143,7 @@ assert.ok(jobCard.includes('jobBadges(t, props.job)'), 'JobCard should reuse sha
 assert.ok(jobCard.includes('jobDeliveryTargetLabel(t, target)'), 'JobCard should reuse shared delivery target labels')
 assert.ok(!jobsView.includes('simpleHero'), 'JobsView should not keep a how-to hero above the operational job list')
 assert.ok(!jobsView.includes('pageNextRuns'), 'JobsView should not duplicate next runs outside the upcoming jobs panel')
+assert.ok(jobsView.includes('fetchGuideAndPolicy'), 'JobsView should load backend cron guide and policy metadata')
+assert.ok(jobsView.includes('jobsStore.guide'), 'JobsView should render backend cron guide metadata')
+assert.ok(jobsView.includes('jobsStore.policy'), 'JobsView should render backend cron policy metadata')
+assert.ok(jobsView.includes("t('jobs.pageGuideTitle')"), 'JobsView should expose a guide/policy panel')

@@ -22,6 +22,8 @@
 
 2026-07-05 后续增量复核发现可恢复运行列表已有后端和前端 API，但运行记录页没有列表入口。已在 Runs 页面右侧面板补充“可恢复运行”加载入口，点击条目可直接打开对应运行详情。
 
+2026-07-05 后续增量复核发现定时任务 guide/policy 已有后端、前端 API 和 store，但 Jobs 页面没有消费。已在 Jobs 页面补充默认折叠的“定时自动化指南”面板，展示服务端返回的调度、字段、执行策略与运行隔离摘要。
+
 ## 已完成项
 
 ### 1. 阶段 2.1 / 2.3 复核清单
@@ -53,6 +55,14 @@
 - 前端 API：`web/src/api/solonclaw/runs.ts` 已有 `fetchRecoverableRuns(limit)`。
 - 前端 UI：`RunsView.vue` 右侧面板新增“可恢复运行”加载入口，点击运行条目会切换会话并打开该运行详情。
 - 覆盖测试：`web/tests/recoverableRunsUiStatic.test.ts` 锁定 API 消费、页面入口和中英文文案。
+
+### 5. 定时任务 guide/policy 页面入口
+
+- 提交：本次提交。
+- 后端契约：`GET /api/cron/jobs/guide` 与 `GET /api/cron/jobs/policy` 返回调度能力与策略约束。
+- 前端 store：`useJobsStore.fetchGuideAndPolicy()` 已封装 guide/policy 并提供 `guideLoading`。
+- 前端 UI：`JobsView.vue` 挂载时加载 guide/policy，并用原生折叠面板展示调度能力、可更新/可清空字段、执行策略和运行隔离摘要。
+- 覆盖测试：`web/tests/jobsDisplay.test.ts` 锁定 Jobs 页面消费并渲染 guide/policy。
 
 ## 验证记录
 
@@ -109,6 +119,15 @@
 - `node --experimental-strip-types web/tests/runDetailExtendedStatic.test.ts`：通过。
 - `node --experimental-strip-types web/tests/sessionArtifactsUiStatic.test.ts`：通过。
 - `node --experimental-strip-types web/tests/runsDisplay.test.ts`：通过。
+- `npm --prefix web run build`：通过。
+- `git diff --check`：通过，仅有 Windows 换行提示。
+
+2026-07-05 guide/policy 页面入口提交前执行：
+
+- `node --experimental-strip-types web/tests/jobsDisplay.test.ts`：通过。
+- `node --experimental-strip-types web/tests/jobFormOptions.test.ts`：通过。
+- `node --experimental-strip-types web/tests/jobInspectEndpointStatic.test.ts`：通过。
+- `node --experimental-strip-types web/tests/jobMutationPayloadStatic.test.ts`：通过。
 - `npm --prefix web run build`：通过。
 - `git diff --check`：通过，仅有 Windows 换行提示。
 

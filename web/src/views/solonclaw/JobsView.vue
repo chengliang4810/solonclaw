@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import JobsPanel from '@/components/solonclaw/jobs/JobsPanel.vue'
 import JobFormModal from '@/components/solonclaw/jobs/JobFormModal.vue'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
+import { jobMapKeysText, jobTokenListText } from '@/shared/jobsDisplay'
 
 const { t } = useI18n()
 const jobsStore = useJobsStore()
@@ -15,6 +16,7 @@ onMounted(() => {
   jobsStore.fetchJobs()
   jobsStore.fetchUpcomingJobs()
   jobsStore.fetchStatus()
+  jobsStore.fetchGuideAndPolicy()
 })
 
 function openCreateModal() {
@@ -95,6 +97,38 @@ async function refreshSchedules() {
         </div>
       </div>
     </section>
+
+    <details class="guide-panel">
+      <summary>
+        <span>{{ t('jobs.pageGuideTitle') }}</span>
+        <small v-if="jobsStore.guideLoading">{{ t('common.loading') }}</small>
+        <small v-else>{{ jobsStore.guide?.objective || '—' }}</small>
+      </summary>
+      <Spin :spinning="jobsStore.guideLoading">
+        <div class="guide-grid">
+          <div class="guide-card">
+            <span>{{ t('jobs.pageScheduleCapabilities') }}</span>
+            <strong>{{ jobTokenListText(t, jobsStore.guide?.schedule_types, { guide: true }) }}</strong>
+            <code>{{ jobTokenListText(t, jobsStore.guide?.actions ? Object.keys(jobsStore.guide.actions) : [], { guide: true }) }}</code>
+          </div>
+          <div class="guide-card">
+            <span>{{ t('jobs.pageUpdatableFields') }}</span>
+            <strong>{{ jobTokenListText(t, jobsStore.policy?.update_fields, { guide: true }) }}</strong>
+            <code>{{ t('jobs.pageClearableFields') }}：{{ jobTokenListText(t, jobsStore.policy?.clear_fields, { guide: true }) }}</code>
+          </div>
+          <div class="guide-card">
+            <span>{{ t('jobs.pageExecutionPolicy') }}</span>
+            <strong>{{ jobMapKeysText(t, jobsStore.policy?.execution) }}</strong>
+            <code>{{ t('jobs.pageSecurityPolicy') }}：{{ jobMapKeysText(t, jobsStore.guide?.security) }}</code>
+          </div>
+          <div class="guide-card">
+            <span>{{ t('jobs.pageRuntimeIsolation') }}</span>
+            <strong>{{ jobMapKeysText(t, jobsStore.policy?.runtime_isolation) }}</strong>
+            <code>{{ jobTokenListText(t, jobsStore.guide?.api_routes, { separator: ' · ' }) }}</code>
+          </div>
+        </div>
+      </Spin>
+    </details>
 
     <div class="jobs-content">
       <Spin :spinning="jobsStore.loading && jobsStore.jobs.length === 0">
@@ -199,13 +233,79 @@ async function refreshSchedules() {
   }
 }
 
+.guide-panel {
+  margin: 12px 20px 0;
+  border: 1px solid $border-light;
+  border-radius: $radius-md;
+  background: $bg-card;
+  padding: 0 14px;
+  flex-shrink: 0;
+
+  summary {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 12px 0;
+    color: $text-primary;
+
+    small {
+      min-width: 0;
+      color: $text-muted;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding-bottom: 12px;
+}
+
+.guide-card {
+  min-width: 0;
+  border: 1px solid $border-light;
+  border-radius: 6px;
+  background: $bg-card-hover;
+  padding: 8px 10px;
+
+  span,
+  code {
+    display: block;
+    color: $text-muted;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  strong {
+    display: block;
+    margin: 4px 0;
+    color: $text-primary;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  code {
+    color: $text-secondary;
+    font-family: $font-code;
+    overflow-wrap: anywhere;
+  }
+}
+
 @media (max-width: $breakpoint-mobile) {
   .status-panel {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .status-grid,
-  .status-side {
+  .status-side,
+  .guide-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -213,6 +313,10 @@ async function refreshSchedules() {
 @media (max-width: 900px) {
   .status-panel {
     grid-template-columns: 1fr;
+  }
+
+  .guide-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -226,8 +330,14 @@ async function refreshSchedules() {
     margin-right: 12px;
   }
 
+  .guide-panel {
+    margin-left: 12px;
+    margin-right: 12px;
+  }
+
   .status-grid,
-  .status-side {
+  .status-side,
+  .guide-grid {
     grid-template-columns: 1fr;
   }
 }
