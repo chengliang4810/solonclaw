@@ -199,6 +199,17 @@ public class DashboardControllerHttpTest {
                 .contains("\"health_checks\"")
                 .contains("\"platforms\"");
 
+        HttpResult unauthorizedPlugins = request("GET", "/api/plugins/status", null, null);
+        assertThat(unauthorizedPlugins.status).isEqualTo(401);
+
+        HttpResult authorizedPlugins = request("GET", "/api/plugins/status", null, token);
+        assertThat(authorizedPlugins.status).isEqualTo(200);
+        assertThat(authorizedPlugins.body)
+                .contains("\"loaded_count\"")
+                .contains("\"skipped_count\"")
+                .contains("\"failed_count\"")
+                .contains("\"diagnostics\"");
+
         HttpResult login = request("GET", "/login", null, null);
         assertThat(login.status).isEqualTo(200);
         assertThat(login.body).doesNotContain("__APP_SESSION_TOKEN__");

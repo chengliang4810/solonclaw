@@ -88,6 +88,35 @@ export interface PlatformToolsetsOverview {
   platforms: Record<string, PlatformToolsetConfig>
 }
 
+export interface PluginStatusItem {
+  name?: string
+  version?: string
+  description?: string
+  author?: string
+  kind?: string
+  source?: string
+  enabled?: boolean
+  auto_load?: boolean
+  provides_tools?: string[]
+  directory_ref?: string
+}
+
+export interface PluginDiagnosticItem {
+  plugin_name?: string
+  status?: string
+  reason?: string
+  message?: string
+}
+
+export interface PluginStatusOverview {
+  loaded_count: number
+  skipped_count: number
+  failed_count: number
+  diagnostic_count: number
+  plugins: PluginStatusItem[]
+  diagnostics: PluginDiagnosticItem[]
+}
+
 export interface PlatformToolsetsUpdatePayload {
   readonly enabledToolsets: readonly string[]
   readonly disabledToolsets: readonly string[]
@@ -287,6 +316,10 @@ export async function probeSubprocessEnvironment(names: string[]): Promise<Subpr
 
 export async function fetchPlatformToolsets(): Promise<PlatformToolsetsOverview> {
   return request<PlatformToolsetsOverview>('/api/tools/platform-toolsets')
+}
+
+export async function fetchPluginStatus(): Promise<PluginStatusOverview> {
+  return request<PluginStatusOverview>('/api/plugins/status')
 }
 
 export async function updatePlatformToolsets(platform: string, payload: PlatformToolsetsUpdatePayload): Promise<PlatformToolsetConfig> {
