@@ -480,11 +480,11 @@ export const useChatStore = defineStore('chat', () => {
         const prev = msgsByIdBefore.get(s.id)
         if (prev && prev.length) s.messages = prev
       }
-      // Preserve local-only sessions the server hasn't seen yet — e.g. a chat
-      // that was just created and whose first run is still in-flight. Without
-      // this, refreshing mid-run would wipe the session and fall back to
-      // sessions[0], which is exactly what the user reported.
-      const localOnly = sessions.value.filter(s => !freshIds.has(s.id))
+      // 只保留仍可恢复的本地会话；旧浏览器缓存不能覆盖服务端空列表。
+      const localOnly = sessions.value.filter(s =>
+        !freshIds.has(s.id)
+        && (readInFlight(s.id) || streamStates.value.has(s.id) || resumingRuns.value.has(s.id))
+      )
       sessions.value = [...localOnly, ...fresh]
       persistSessionsList()
 
@@ -496,6 +496,11 @@ export const useChatStore = defineStore('chat', () => {
         } else {
           await switchSession(targetId)
         }
+      } else {
+        activeSessionId.value = null
+        activeSession.value = null
+        focusMessageId.value = null
+        removeItem(storageKey())
       }
     } catch (err) {
       console.error('Failed to load sessions:', err)
