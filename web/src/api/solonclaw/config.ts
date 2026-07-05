@@ -308,42 +308,6 @@ export async function saveCredentials(
   }
 }
 
-export interface WeixinQrCode {
-  qrcode: string
-  qrcode_url: string
-}
-
-export interface WeixinQrStatus {
-  status: 'wait' | 'scaned' | 'scaned_but_redirect' | 'expired' | 'confirmed' | 'error'
-  qrcode?: string
-  qrcode_url?: string
-  message?: string
-  error_message?: string
-  account_id?: string
-  base_url?: string
-}
-
-export async function fetchWeixinQrCode(): Promise<WeixinQrCode> {
-  const res = await fetchPlatformQrCode('weixin')
-  return {
-    qrcode: res.qrcode || '',
-    qrcode_url: res.qrcode_url || '',
-  }
-}
-
-export async function pollWeixinQrStatus(qrcode: string): Promise<WeixinQrStatus> {
-  const res = await pollPlatformQrStatus('weixin', qrcode)
-  return {
-    status: res.status,
-    qrcode: res.qrcode,
-    qrcode_url: res.qrcode_url,
-    message: res.message || '',
-    error_message: res.error_message || '',
-    account_id: res.account_id,
-    base_url: res.base_url,
-  }
-}
-
 export async function fetchPlatformQrCode(platform: ChannelQrPlatform): Promise<ChannelQrStatusView> {
   const res = await request<any>(`/api/gateway/setup/${encodeURIComponent(platform)}/qr`, { method: 'POST' })
   return normalizeChannelQrStatus(res)
@@ -355,12 +319,4 @@ export async function pollPlatformQrStatus(
 ): Promise<ChannelQrStatusView> {
   const res = await request<any>(`/api/gateway/setup/${encodeURIComponent(platform)}/qr/${encodeURIComponent(qrcode)}`)
   return normalizeChannelQrStatus(res)
-}
-
-export async function saveWeixinCredentials(_data: {
-  account_id: string
-  token: string
-  base_url?: string
-}): Promise<void> {
-  throw new Error('当前后端未开放微信凭证保存接口')
 }
