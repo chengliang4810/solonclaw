@@ -104,7 +104,7 @@ watch(selectableItems, (items) => {
       <Input
         v-model:value="searchQuery"
         :placeholder="t('models.searchPlaceholder')"
-        clearable
+        allow-clear
         size="small"
         class="model-search"
       />

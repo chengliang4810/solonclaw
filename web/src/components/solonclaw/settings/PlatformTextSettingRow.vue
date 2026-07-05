@@ -35,7 +35,7 @@ function handleChange(value: unknown) {
     <Input
       :default-value="value"
       :loading="loading"
-      clearable
+      allow-clear
       size="small"
       class="input-lg"
       :placeholder="placeholder"

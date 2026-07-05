@@ -65,7 +65,7 @@ function handleSelect(category: string, skill: string) {
         v-model:value="searchQuery"
         :placeholder="t('skills.searchPlaceholder')"
         size="small"
-        clearable
+        allow-clear
         style="width: 160px"
       />
     </header>

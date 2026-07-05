@@ -11,6 +11,8 @@ const roots = [
 const deprecatedProps = [
   { component: 'Spin', prop: 'tip', replacement: 'description' },
   { component: 'Drawer', prop: 'width', replacement: 'style.width' },
+  { component: 'Input', prop: 'clearable', replacement: 'allow-clear' },
+  { component: 'InputNumber', prop: 'clearable', replacement: 'remove unsupported prop' },
 ]
 
 function vueFiles(dir: URL | string): string[] {
@@ -26,7 +28,10 @@ const violations = roots.flatMap((root) =>
   vueFiles(root).flatMap((file) => {
     const source = readFileSync(file, 'utf8')
     return deprecatedProps
-      .filter(({ component, prop }) => new RegExp(`<${component}\\b[^>\\n]*(?:\\s|:)${prop}=`).test(source))
+      .filter(({ component, prop }) =>
+        [...source.matchAll(new RegExp(`<${component}\\b[^>]*>`, 'g'))]
+          .some(([tag]) => new RegExp(`(?:\\s|:)${prop}(?:\\s|=|>)`).test(tag)),
+      )
       .map(({ component, prop, replacement }) => `${relative(sourceRoot, file)} uses ${component}.${prop}; use ${replacement}`)
   }),
 )
