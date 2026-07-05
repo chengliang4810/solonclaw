@@ -16,6 +16,18 @@ assert.equal(
   'normal query token should be removed while preserving remaining query and hash',
 )
 
+const rootSearch = normalizeLoginTokenUrl(
+  { pathname: '/', search: '?token=root-token', hash: '#/solonclaw/chat' },
+  directRoute,
+)
+
+assert.equal(rootSearch.token, 'root-token', 'root query token should be captured before hash routing starts')
+assert.equal(
+  rootSearch.nextUrl,
+  '/#/solonclaw/chat',
+  'root query token should be removed without losing the hash route',
+)
+
 const hash = normalizeLoginTokenUrl(
   { pathname: '/chat', search: '?keep=1', hash: '#/solonclaw/chat?token=hash-token&x=1' },
   directRoute,
