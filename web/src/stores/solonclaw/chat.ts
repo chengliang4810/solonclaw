@@ -663,8 +663,9 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function deleteSession(sessionId: string) {
-    await deleteSessionApi(sessionId)
+  async function deleteSession(sessionId: string): Promise<boolean> {
+    const ok = await deleteSessionApi(sessionId)
+    if (!ok) return false
     sessions.value = sessions.value.filter(s => s.id !== sessionId)
     removeItem(msgsCacheKey(sessionId))
     persistSessionsList()
@@ -676,6 +677,7 @@ export const useChatStore = defineStore('chat', () => {
         switchSession(session.id)
       }
     }
+    return true
   }
 
   function getSessionMsgs(sessionId: string): Message[] {

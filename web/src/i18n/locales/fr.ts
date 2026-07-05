@@ -100,6 +100,7 @@ export default {
     newChat: 'Nouvelle discussion',
     deleteSession: 'Supprimer cette session ?',
     sessionDeleted: 'Session supprimee',
+    deleteFailed: 'Echec de la suppression de la session',
     rename: 'Renommer',
     pin: 'Épingler',
     unpin: 'Désépingler',
