@@ -197,9 +197,6 @@ public class RuntimeConfigResolver {
             if (!sameConfigValue(rawValue, effectiveValue)) {
                 Map<String, Object> diff = new LinkedHashMap<String, Object>();
                 diff.put("key", rawKey);
-                if (!rawKey.equals(effectiveKey)) {
-                    diff.put("effective_key", effectiveKey);
-                }
                 diff.put("raw_value", safeConfigValue(rawKey, rawValue));
                 diff.put("effective_value", safeConfigValue(effectiveKey, effectiveValue));
                 effectiveDiffs.add(diff);
