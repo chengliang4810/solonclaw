@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 
 const files = [
   '../src/components/solonclaw/diagnostics/ApprovalEventsPanel.vue',
+  '../src/components/solonclaw/files/FileList.vue',
   '../src/views/solonclaw/DiagnosticsView.vue',
   '../src/views/solonclaw/TuiRuntimeView.vue',
   '../src/shared/jobsDisplay.ts',

@@ -6,6 +6,7 @@ import { downloadFile } from '@/api/solonclaw/download'
 import type { FileEntry } from '@/api/solonclaw/files'
 import { formatFileSize } from '@/shared/fileSizeFormat'
 import { fileTypeIcon } from '@/shared/fileTypeIcon'
+import { formatTimestampText } from '@/shared/timeFormat'
 
 const { t } = useI18n()
 const filesStore = useFilesStore()
@@ -13,12 +14,6 @@ const filesStore = useFilesStore()
 const emit = defineEmits<{
   (e: 'contextmenu-entry', event: MouseEvent, entry: FileEntry): void
 }>()
-
-function formatDate(iso: string): string {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  return d.toLocaleString()
-}
 
 function handleDoubleClick(entry: FileEntry) {
   if (entry.isDir) {
@@ -80,7 +75,7 @@ async function handleDownload(entry: FileEntry) {
             <span>{{ entry.name }}</span>
           </div>
           <div class="file-size">{{ entry.isDir ? '—' : formatFileSize(entry.size, '—') }}</div>
-          <div class="file-date">{{ formatDate(entry.modTime) }}</div>
+          <div class="file-date">{{ formatTimestampText(entry.modTime, undefined, '—') }}</div>
           <div class="file-actions">
             <Button v-if="isTextFile(entry.name) && !entry.isDir" size="small" type="text" @click.stop="filesStore.openEditor(entry.path)" :title="t('files.edit')">✏️</Button>
             <Button v-if="!entry.isDir" size="small" type="text" @click.stop="handleDownload(entry)" :title="t('files.download')">⬇️</Button>
