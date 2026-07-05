@@ -550,6 +550,42 @@ npm --prefix terminal-ui run build
 npm --prefix terminal-ui run lint -- --quiet
 ```
 
+## BUG-042：TUI `/undo` 和 `/retry` 遇到空响应时没有用户反馈
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- 本地 TUI slash 命令 `/undo`。
+- 本地 TUI slash 命令 `/retry`。
+- 后端会话撤销接口异常返回空响应、旧版本返回空响应或网关适配返回空对象边界时的用户反馈。
+
+当前事实：
+
+- `/undo` 和 `/retry` 都通过 `session.undo` RPC 判断后端是否撤销了消息。
+- `createSlashHandler` 的 `guarded` 包装器会在响应为 `null` 时直接跳过回调。
+- 因此后端返回空响应时，命令既不报错，也不显示 `nothing to undo` / `nothing to retry`，用户只能看到输入进入历史。
+
+根因：
+
+- `/undo` 和 `/retry` 把“空响应也需要展示 nothing 提示”的业务逻辑包在通用 `guarded` 中。
+- 通用 `guarded` 的设计是忽略空响应，适合多数只处理有效载荷的命令，但不适合这两个需要明确空结果反馈的命令。
+
+修复记录：
+
+- `/undo` 和 `/retry` 改为在命令内部先检查 stale，再用 `r?.removed ?? 0` 处理空响应。
+- 保留 stale 请求忽略语义，不修改通用 `guarded` 行为。
+- `createSlashHandler.test.ts` 增加空响应回归，覆盖 `/undo` 输出 `nothing to undo`，`/retry` 输出 `nothing to retry` 且不发送旧消息。
+
+验证命令：
+
+```bash
+npm --prefix terminal-ui test -- src/__tests__/createSlashHandler.test.ts
+npm --prefix terminal-ui run type-check
+npm --prefix terminal-ui run build
+npm --prefix terminal-ui run lint -- --quiet
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -563,4 +599,5 @@ npm --prefix terminal-ui run lint -- --quiet
 - BUG-039 已修复模型设置页加载失败时误显示空模型状态的问题。
 - BUG-040 已修复任务中心未知 token 翻译探测导致浏览器控制台刷 i18n 缺失警告的问题。
 - BUG-041 已修复 TUI busy 状态下 `/model` 被切换模型防护误拦、无法打开模型选择器的问题。
+- BUG-042 已修复 TUI `/undo` 与 `/retry` 空响应被静默吞掉、用户无反馈的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
