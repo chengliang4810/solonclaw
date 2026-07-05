@@ -659,7 +659,6 @@ function handlePresetChange(value: SelectValue) {
               v-model:value="formData.repeat_times"
               :min="1"
               :placeholder="t('jobs.repeatPlaceholder')"
-              clearable
               style="width: 100%"
             />
           </FormItem>

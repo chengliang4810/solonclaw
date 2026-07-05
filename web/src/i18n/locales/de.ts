@@ -81,6 +81,7 @@ export default {
     connected: 'Verbunden',
     disconnected: 'Getrennt',
     logout: 'Abmelden',
+    nodeVersionWarning: 'Node.js v{version} erkannt. Bitte auf Version 23 oder neuer aktualisieren.',
     changelog: 'Anderungsprotokoll',
     noChangelog: 'Kein Anderungsprotokoll verfugbar',
   },

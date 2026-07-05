@@ -225,7 +225,7 @@ onUnmounted(() => {
         ref="inputRef"
       v-model:value="query"
       :placeholder="t('chat.searchPlaceholder')"
-      clearable
+      allow-clear
       size="large"
     />
 

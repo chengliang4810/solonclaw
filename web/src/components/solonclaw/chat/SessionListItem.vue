@@ -21,12 +21,16 @@ const { t } = useI18n()
 </script>
 
 <template>
-  <button
+  <div
     class="session-item"
     :class="{ active }"
+    role="button"
+    tabindex="0"
     :aria-current="active ? 'page' : undefined"
     @click="emit('select')"
     @contextmenu="emit('contextmenu', $event)"
+    @keydown.enter.prevent="emit('select')"
+    @keydown.space.prevent="emit('select')"
   >
     <div class="session-item-content">
       <span class="session-item-title-row">
@@ -52,9 +56,9 @@ const { t } = useI18n()
       :cancel-text="t('common.cancel')"
       @confirm="emit('delete')"
     >
-      <button class="session-item-delete" @click.stop>
+      <button type="button" class="session-item-delete" @click.stop>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
     </Popconfirm>
-  </button>
+  </div>
 </template>

@@ -125,6 +125,7 @@ export default {
     collapse: 'Collapse menu',
     expand: 'Expand menu',
     logout: 'Sign Out',
+    nodeVersionWarning: 'Detected Node.js v{version}. Please upgrade to version 23 or later.',
     changelog: 'Changelog',
     noChangelog: 'No changelog available',
     runs: 'Runs',

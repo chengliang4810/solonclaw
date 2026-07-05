@@ -13,6 +13,7 @@ const shouldUseBackendSetupCommand = (name: string, arg: string): boolean => {
 
   return command === 'auth'
     || command.startsWith('auth ')
+    || command === 'doctor'
     || command === 'gateway'
     || command.startsWith('gateway ')
     || command === 'model set'

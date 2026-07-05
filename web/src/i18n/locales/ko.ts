@@ -81,6 +81,7 @@ export default {
     connected: '연결됨',
     disconnected: '연결 끊김',
     logout: '로그아웃',
+    nodeVersionWarning: 'Node.js v{version}이 감지되었습니다. 버전 23 이상으로 업그레이드하세요.',
     changelog: '변경 이력',
     noChangelog: '변경 이력이 없습니다',
   },
