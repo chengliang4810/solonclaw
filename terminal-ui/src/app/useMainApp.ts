@@ -828,6 +828,7 @@ export function useMainApp(gw: GatewayClient) {
         clearTimeout(recoveryTimerRef.current)
         recoveryTimerRef.current = null
       }
+
       gw.off('event', handler)
       gw.off('exit', exitHandler)
     }
@@ -894,6 +895,7 @@ export function useMainApp(gw: GatewayClient) {
     <T extends Record<string, any> = Record<string, any>>(method: string, params: Record<string, unknown>, done: (result: T) => void) =>
       rpc(method, params).then(r => {
         maybeWarn(r)
+
         if (isPositiveRpcAck(r)) {
           done(r as T)
         }
@@ -911,19 +913,25 @@ export function useMainApp(gw: GatewayClient) {
         result => {
           dismissApprovalIfCurrent(displayedApprovalId)
           patchTurnState({ outcome: choice === 'deny' || result.denied ? 'denied' : `approved (${choice})` })
+
           if (choice === 'deny' || result.denied) {
             patchUiState({ busy: false, status: 'ready' })
+
             return
           }
+
           if (result.direct_shell && result.approval_required) {
             const nextApproval = approvalFromShellResponse(result, ui.sid ?? undefined)
 
             if (nextApproval) {
               patchOverlayState({ approval: nextApproval })
             }
+
             patchUiState({ busy: true, status: 'waiting for approval…' })
+
             return
           }
+
           if (result.direct_shell) {
             const out = directShellOutput(result)
 
@@ -936,8 +944,10 @@ export function useMainApp(gw: GatewayClient) {
             }
 
             patchUiState({ busy: false, status: 'ready' })
+
             return
           }
+
           patchUiState({ status: 'running…' })
         }
       )
