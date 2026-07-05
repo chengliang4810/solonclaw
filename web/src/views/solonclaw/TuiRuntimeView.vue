@@ -36,6 +36,7 @@ const text = {
   current: '当前',
   currentModel: '当前模型',
   currentProvider: '当前 Provider',
+  defaultModel: '默认模型',
   description: '查看并配置独立终端前端使用的模型、国内渠道和工作区配置快照。',
   disabled: '已停用',
   emptyState: '暂无终端运行时数据',
@@ -53,6 +54,8 @@ const text = {
   noData: '暂无数据',
   noWritableValue: '请至少填写一个配置值',
   provider: 'Provider',
+  providerBaseUrl: '接口地址',
+  providerWarning: '警告',
   readOnly: '只读',
   ready: '已就绪',
   refresh: '刷新',
@@ -314,6 +317,9 @@ async function startChannelQr(channel: TuiChannelStatus): Promise<void> {
                 <div>
                   <strong>{{ provider.name || provider.slug || text.noData }}</strong>
                   <span>{{ provider.dialect || text.noData }}</span>
+                  <span>{{ text.providerBaseUrl }}：{{ provider.base_url || text.noData }}</span>
+                  <span>{{ text.defaultModel }}：{{ provider.default_model || text.noData }}</span>
+                  <span v-if="provider.warning">{{ text.providerWarning }}：{{ provider.warning }}</span>
                 </div>
                 <div class="provider-tags">
                   <Tag v-if="provider.is_current" color="success" size="small">{{ text.current }}</Tag>
