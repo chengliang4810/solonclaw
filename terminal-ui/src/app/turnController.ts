@@ -248,6 +248,14 @@ class TurnController {
     patchTurnState({ turnTrail: this.turnTools })
   }
 
+  resetVisibleHistoryState() {
+    this.idle()
+    this.clearReasoning()
+    this.turnTools = []
+    this.persistedToolLabels.clear()
+    patchTurnState({ activity: [] })
+  }
+
   private syncReasoningSegment() {
     const thinking = this.activeReasoningText.trim()
 

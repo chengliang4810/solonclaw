@@ -23,7 +23,6 @@ import type { Msg, PanelSection, SessionInfo, Usage } from '../types.js'
 import type { ComposerActions, GatewayRpc, StateSetter } from './interfaces.js'
 import { patchOverlayState } from './overlayStore.js'
 import { turnController } from './turnController.js'
-import { patchTurnState } from './turnStore.js'
 import { getUiState, patchUiState } from './uiStore.js'
 
 const usageFrom = (info: null | SessionInfo): Usage => (info?.usage ? { ...ZERO, ...info.usage } : ZERO)
@@ -152,16 +151,12 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
 
   const resetVisibleHistory = useCallback(
     (info: null | SessionInfo = null) => {
-      turnController.idle()
-      turnController.clearReasoning()
-      turnController.turnTools = []
-      turnController.persistedToolLabels.clear()
+      turnController.resetVisibleHistoryState()
 
       setHistoryItems(info ? [introMsg(info)] : [])
       setStickyPrompt('')
       setLastUserMsg('')
       composerActions.setPasteSnips([])
-      patchTurnState({ activity: [] })
       patchUiState({ info, usage: usageFrom(info) })
     },
     [composerActions, setHistoryItems, setLastUserMsg, setStickyPrompt]
