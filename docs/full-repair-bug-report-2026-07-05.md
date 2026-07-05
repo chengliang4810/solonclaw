@@ -586,6 +586,39 @@ npm --prefix terminal-ui run build
 npm --prefix terminal-ui run lint -- --quiet
 ```
 
+## BUG-043：Web SSE 非 JSON `data:` 帧会中断后续运行事件
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 聊天运行事件流。
+- 后端、代理或网关偶发输出非 JSON SSE `data:` 帧时的前端恢复能力。
+- 用户正在等待后续合法增量、工具状态或完成事件的聊天界面。
+
+当前事实：
+
+- `streamRunEvents()` 将单个 SSE 事件中的 `data:` 行合并后直接执行 `JSON.parse(dataText)`。
+- 非 JSON `data:` 帧会抛出 `SyntaxError`，异常进入外层 `catch` 后触发 `onError`。
+- 后续已经到达缓冲区或即将到达的合法 SSE 事件不再被处理。
+
+根因：
+
+- 单帧业务 payload 解析错误和网络/读取级错误共用同一个外层异常路径。
+- 预期可跳过的坏帧被提升成整个事件流失败。
+
+修复记录：
+
+- `streamRunEvents()` 对单帧 `data:` JSON 解析增加局部 `try/catch`，解析失败时跳过当前帧并继续处理后续 SSE 事件。
+- `chatStreamEvents.test.ts` 增加回归：先输入 `data: not-json`，再输入合法 `{"delta":"ok"}`，验证 `onError` 不触发且合法事件继续送达。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/chatStreamEvents.test.ts
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -600,4 +633,5 @@ npm --prefix terminal-ui run lint -- --quiet
 - BUG-040 已修复任务中心未知 token 翻译探测导致浏览器控制台刷 i18n 缺失警告的问题。
 - BUG-041 已修复 TUI busy 状态下 `/model` 被切换模型防护误拦、无法打开模型选择器的问题。
 - BUG-042 已修复 TUI `/undo` 与 `/retry` 空响应被静默吞掉、用户无反馈的问题。
+- BUG-043 已修复 Web SSE 非 JSON `data:` 帧导致整个运行事件流提前失败的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
