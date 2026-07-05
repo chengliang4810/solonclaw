@@ -719,6 +719,16 @@ async function handleRenameConfirm() {
   color: $accent-primary;
 }
 
+:deep(.session-item-live) {
+  flex-shrink: 0;
+  color: $success;
+  background: rgba(var(--success-rgb), 0.08);
+  border-radius: 3px;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 16px;
+}
+
 :deep(.session-item-time) {
   font-size: 11px;
   color: $text-muted;

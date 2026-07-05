@@ -47,6 +47,7 @@ export interface Session {
   lastTotalTokens?: number
   endedAt?: number | null
   lastActiveAt?: number
+  isLive?: boolean
   activeAgentName?: string
   goalState?: SessionGoalState | null
 }
@@ -159,6 +160,7 @@ function mapSolonClawSession(s: SessionSummary): Session {
     lastTotalTokens: s.last_total_tokens || undefined,
     endedAt: s.ended_at != null ? normalizeTimestampMs(s.ended_at) : null,
     lastActiveAt: s.last_active != null ? normalizeTimestampMs(s.last_active) : undefined,
+    isLive: Boolean(s.is_active),
     activeAgentName: s.active_agent_name || 'default',
     goalState: s.goal_state || null,
   }
@@ -172,7 +174,6 @@ const SESSIONS_CACHE_KEY = 'solonclaw_sessions_cache_v1'
 const IN_FLIGHT_TTL_MS = 15 * 60 * 1000 // Give up after 15 minutes
 const POLL_INTERVAL_MS = 2000
 const POLL_STABLE_EXITS = 3 // 3 × 2s = 6s of no change → assume run finished
-const LIVE_BADGE_WINDOW_MS = 5 * 60 * 1000
 
 function storageKey(): string { return STORAGE_KEY }
 function readActiveSessionKey(): string | null {
@@ -302,8 +303,7 @@ export const useChatStore = defineStore('chat', () => {
     if (streamStates.value.has(sessionId) || resumingRuns.value.has(sessionId)) return true
 
     const session = sessions.value.find(candidate => candidate.id === sessionId)
-    if (!session?.lastActiveAt || session.endedAt != null) return false
-    return Date.now() - session.lastActiveAt <= LIVE_BADGE_WINDOW_MS
+    return Boolean(session?.isLive)
   }
 
   function persistSessionsList() {

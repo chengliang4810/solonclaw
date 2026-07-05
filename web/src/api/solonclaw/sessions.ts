@@ -9,6 +9,7 @@ export interface SessionSummary {
   started_at: number
   ended_at: number | null
   last_active?: number
+  is_active?: boolean
   message_count: number
   tool_call_count: number
   input_tokens: number
@@ -88,6 +89,7 @@ interface DashboardSessionSummary {
   started_at: number
   ended_at: number | null
   last_active: number
+  is_active?: boolean
   message_count: number
   tool_call_count: number
   input_tokens: number
@@ -161,6 +163,7 @@ function mapSummary(s: DashboardSessionSummary): SessionSummary {
     started_at: s.started_at,
     ended_at: s.ended_at,
     last_active: s.last_active,
+    is_active: Boolean(s.is_active),
     message_count: s.message_count,
     tool_call_count: s.tool_call_count,
     input_tokens: s.input_tokens,

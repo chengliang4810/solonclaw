@@ -38,6 +38,7 @@ const { t } = useI18n()
           </svg>
         </span>
         <span class="session-item-title">{{ session.title }}</span>
+        <span v-if="session.isLive" class="session-item-live">{{ t('chat.liveMode') }}</span>
       </span>
       <span class="session-item-meta">
         <span v-if="session.model" class="session-item-model">{{ session.model }}</span>
