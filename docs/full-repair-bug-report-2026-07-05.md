@@ -976,6 +976,40 @@ mvn "-Dskip.web.build=true" "-Dtest=DashboardControllerHttpTest#shouldAvoidInjec
 npm --prefix web run build
 ```
 
+## BUG-054：TUI slash 补全漏掉本地可执行命令和别名
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- TUI 输入 `/` 后的 Tab 补全候选。
+- `/details`、`/density`、`/logs`、`/save`、`/terminal-setup`、`/replay` 等本地 TUI 命令。
+- `/exit`、`/sb`、`/fork`、`/dense` 等本地别名。
+
+当前事实：
+
+- React TUI 的本地 slash 注册表已经能执行这些命令和别名。
+- 后端 `complete.slash` RPC 只枚举 Java 命令注册表，并手工补了少量 setup/config 类命令。
+- 例如输入 `/de` 时只返回 `/debug`、`/deny`，没有返回可执行的 `/details` 和 `/density`。
+
+根因：
+
+- TUI 补全的后端候选源没有同步包含前端本地命令注册表中只在客户端执行的命令。
+- 别名同样没有进入补全候选，用户输入已支持的别名前缀时无法发现可执行命令。
+
+修复记录：
+
+- `TerminalUiRpcService.completeSlash()` 补充 TUI 本地命令和常用别名候选。
+- 复用已有 `appendLocalSlashCompletion()` 去重与前缀过滤逻辑，避免新增协议或前端改动。
+- `TerminalUiRpcServiceTest#completeSlashIncludesTuiLocalCommandsAndAliases` 增加回归，覆盖本地命令和别名补全。
+
+验证命令：
+
+```bash
+mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest#completeSlashIncludesTuiLocalCommandsAndAliases" test
+npm --prefix terminal-ui test -- slashParity.test.ts createSlashHandler.test.ts
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -1001,4 +1035,5 @@ npm --prefix web run build
 - BUG-051 已修复工作区文件列表修改时间列没有真实数据源、始终显示占位符的问题。
 - BUG-052 已修复带 `token` 的 Dashboard 登录链接在新浏览器中不会自动校验和持久化的问题。
 - BUG-053 已修复 Dashboard 诊断、TUI 运行时、策展与 MCP 页面缺少短路径直达入口的问题。
+- BUG-054 已修复 TUI slash 补全漏掉本地可执行命令和别名的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

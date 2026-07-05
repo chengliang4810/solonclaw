@@ -324,6 +324,18 @@ class TerminalUiRpcServiceTest {
         assertThat(response.get("summary").toString()).contains("headline=nothing to compress");
     }
 
+    @Test
+    void completeSlashIncludesTuiLocalCommandsAndAliases() throws Exception {
+        TerminalUiRpcService service = new TerminalUiRpcService(testConfig());
+
+        assertThat(slashCompletionTexts(service.completeSlash("/de")))
+                .contains("/details", "/density");
+        assertThat(slashCompletionTexts(service.completeSlash("/ex"))).contains("/exit");
+        assertThat(slashCompletionTexts(service.completeSlash("/sb"))).contains("/sb");
+        assertThat(slashCompletionTexts(service.completeSlash("/ter"))).contains("/terminal-setup");
+        assertThat(slashCompletionTexts(service.completeSlash("/rep"))).contains("/replay");
+    }
+
     private static SessionRecord session(String id, String sourceKey) {
         SessionRecord session = new SessionRecord();
         session.setSessionId(id);
@@ -355,6 +367,17 @@ class TerminalUiRpcServiceTest {
         config.getRuntime().setHome(home.getAbsolutePath());
         config.getRuntime().setStateDb(new File(new File(home, "data"), "state.db").getAbsolutePath());
         return config;
+    }
+
+    /** 提取 slash 补全项的真实写入文本，避免测试依赖候选项的展示字段顺序。 */
+    private static List<String> slashCompletionTexts(Map<String, Object> response) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) response.get("items");
+        List<String> texts = new ArrayList<String>();
+        for (Map<String, Object> item : items) {
+            texts.add(String.valueOf(item.get("text")));
+        }
+        return texts;
     }
 
     private static class FixedDelegationService implements DelegationService {

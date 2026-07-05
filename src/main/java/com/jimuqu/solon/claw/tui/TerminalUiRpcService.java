@@ -384,6 +384,7 @@ public class TerminalUiRpcService {
         appendLocalSlashCompletion(items, query, "gateway", "查看或配置国内消息渠道");
         appendLocalSlashCompletion(items, query, "auth", "查看模型 provider 认证状态");
         appendLocalSlashCompletion(items, query, "proxy", "查看代理配置提示");
+        appendTuiLocalSlashCompletions(items, query);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("items", items);
         result.put("replace_from", Integer.valueOf(0));
@@ -2105,7 +2106,85 @@ public class TerminalUiRpcService {
     }
 
     /**
-     * 合并本地 setup/config 命令到 slash 补全候选，避免复制来的前端只能补全后端命令注册表。
+     * 补充只在 React TUI 前端执行的本地命令与别名，保证 Tab 补全不会漏掉可执行命令。
+     *
+     * @param items 当前补全候选。
+     * @param query 用户输入的命令前缀，不含斜杠。
+     */
+    private void appendTuiLocalSlashCompletions(List<Map<String, Object>> items, String query) {
+        appendLocalSlashCompletion(items, query, "help", "列出命令与快捷键");
+        appendLocalSlashCompletion(items, query, "commands", "列出命令与快捷键");
+        appendLocalSlashCompletion(items, query, "quit", "退出 TUI");
+        appendLocalSlashCompletion(items, query, "exit", "退出 TUI");
+        appendLocalSlashCompletion(items, query, "update", "退出并更新 solonclaw");
+        appendLocalSlashCompletion(items, query, "mouse", "设置终端鼠标跟踪模式");
+        appendLocalSlashCompletion(items, query, "scroll", "设置终端鼠标跟踪模式");
+        appendLocalSlashCompletion(items, query, "clear", "清空当前会话");
+        appendLocalSlashCompletion(items, query, "new", "开始新会话");
+        appendLocalSlashCompletion(items, query, "reset", "开始新会话");
+        appendLocalSlashCompletion(items, query, "redraw", "强制重绘终端界面");
+        appendLocalSlashCompletion(items, query, "status", "显示当前会话状态");
+        appendLocalSlashCompletion(items, query, "title", "查看或设置当前会话标题");
+        appendLocalSlashCompletion(items, query, "density", "切换紧凑显示密度");
+        appendLocalSlashCompletion(items, query, "dense", "切换紧凑显示密度");
+        appendLocalSlashCompletion(items, query, "details", "控制 Agent 细节显示");
+        appendLocalSlashCompletion(items, query, "detail", "控制 Agent 细节显示");
+        appendLocalSlashCompletion(items, query, "fortune", "显示本地提示语");
+        appendLocalSlashCompletion(items, query, "copy", "复制选中内容或助手消息");
+        appendLocalSlashCompletion(items, query, "paste", "粘贴剪贴板内容");
+        appendLocalSlashCompletion(items, query, "terminal-setup", "配置 IDE 终端快捷键");
+        appendLocalSlashCompletion(items, query, "logs", "查看网关日志");
+        appendLocalSlashCompletion(items, query, "history", "查看当前 TUI 转录内容");
+        appendLocalSlashCompletion(items, query, "save", "保存当前转录内容");
+        appendLocalSlashCompletion(items, query, "statusbar", "设置状态栏位置");
+        appendLocalSlashCompletion(items, query, "sb", "设置状态栏位置");
+        appendLocalSlashCompletion(items, query, "queue", "查看或追加排队消息");
+        appendLocalSlashCompletion(items, query, "q", "查看或追加排队消息");
+        appendLocalSlashCompletion(items, query, "steer", "在下一次工具调用后插入消息");
+        appendLocalSlashCompletion(items, query, "undo", "撤销上一轮对话");
+        appendLocalSlashCompletion(items, query, "retry", "重试上一条用户消息");
+        appendLocalSlashCompletion(items, query, "background", "启动后台提示任务");
+        appendLocalSlashCompletion(items, query, "bg", "启动后台提示任务");
+        appendLocalSlashCompletion(items, query, "btw", "启动后台提示任务");
+        appendLocalSlashCompletion(items, query, "model", "切换或查看模型");
+        appendLocalSlashCompletion(items, query, "sessions", "浏览或切换会话");
+        appendLocalSlashCompletion(items, query, "switch", "浏览或切换会话");
+        appendLocalSlashCompletion(items, query, "session", "浏览或切换会话");
+        appendLocalSlashCompletion(items, query, "resume", "恢复会话");
+        appendLocalSlashCompletion(items, query, "image", "附加图片");
+        appendLocalSlashCompletion(items, query, "personality", "切换当前会话人格");
+        appendLocalSlashCompletion(items, query, "compress", "压缩当前上下文");
+        appendLocalSlashCompletion(items, query, "compact", "压缩当前上下文");
+        appendLocalSlashCompletion(items, query, "branch", "分支当前会话");
+        appendLocalSlashCompletion(items, query, "fork", "分支当前会话");
+        appendLocalSlashCompletion(items, query, "voice", "查看或切换语音能力");
+        appendLocalSlashCompletion(items, query, "skin", "切换界面皮肤");
+        appendLocalSlashCompletion(items, query, "indicator", "切换忙碌指示器");
+        appendLocalSlashCompletion(items, query, "yolo", "显示审批策略提示");
+        appendLocalSlashCompletion(items, query, "reasoning", "查看或设置推理展示");
+        appendLocalSlashCompletion(items, query, "fast", "查看或切换快速模式");
+        appendLocalSlashCompletion(items, query, "busy", "设置忙碌输入模式");
+        appendLocalSlashCompletion(items, query, "verbose", "切换工具输出详细模式");
+        appendLocalSlashCompletion(items, query, "usage", "显示当前会话用量");
+        appendLocalSlashCompletion(items, query, "stop", "停止后台进程");
+        appendLocalSlashCompletion(items, query, "reload-mcp", "刷新 MCP 服务器");
+        appendLocalSlashCompletion(items, query, "reload_mcp", "刷新 MCP 服务器");
+        appendLocalSlashCompletion(items, query, "reload", "重新读取本地环境变量");
+        appendLocalSlashCompletion(items, query, "browser", "管理浏览器 CDP 连接");
+        appendLocalSlashCompletion(items, query, "rollback", "查看或恢复检查点");
+        appendLocalSlashCompletion(items, query, "tasks", "打开子代理任务面板");
+        appendLocalSlashCompletion(items, query, "replay", "回放已完成的子代理树");
+        appendLocalSlashCompletion(items, query, "replay-diff", "对比两个子代理树");
+        appendLocalSlashCompletion(items, query, "reload-skills", "重新扫描技能");
+        appendLocalSlashCompletion(items, query, "reload_skills", "重新扫描技能");
+        appendLocalSlashCompletion(items, query, "skills", "浏览、检查或安装技能");
+        appendLocalSlashCompletion(items, query, "tools", "启用或禁用工具");
+        appendLocalSlashCompletion(items, query, "heapdump", "写入 V8 堆快照");
+        appendLocalSlashCompletion(items, query, "mem", "显示 TUI 内存指标");
+    }
+
+    /**
+     * 合并本地命令到 slash 补全候选，避免复制来的前端只能补全后端命令注册表。
      *
      * @param items 当前补全候选。
      * @param query 用户输入的命令前缀，不含斜杠。
