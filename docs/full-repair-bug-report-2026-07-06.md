@@ -272,8 +272,43 @@ npm --prefix web run build
 python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
 ```
 
+## BUG-067：渠道媒体缓存加载失败时误显示为空
+
+状态：已修复，提交 `a919aaca5`
+
+影响范围：
+
+- Dashboard 渠道页的媒体缓存区域。
+- 国内渠道附件/媒体传输与附件感知主链的可观测性。
+
+当前事实：
+
+- `loadMedia()` 调用 `fetchMedia('', 30)` 失败时没有 `catch`。
+- 页面继续按 `mediaItems.length === 0` 显示“暂无媒体缓存记录”，用户会把 API 失败误认为确实没有媒体缓存。
+
+根因：
+
+- 渠道页没有保留媒体缓存加载错误。
+- 空态条件没有区分“请求失败”和“成功返回空列表”。
+
+修复记录：
+
+- `ChannelsView.vue` 增加 `mediaLoadError`，加载前清空，失败时保留错误消息并保留旧列表。
+- 媒体缓存区在错误时显示持久错误横幅，只有没有错误且列表为空时才显示空态。
+- `channelMediaUiStatic.test.ts` 增加错误态与空态条件回归断言。
+- 所有已注册 locale 补齐 `channels.mediaLoadFailed` 文案。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/channelMediaUiStatic.test.ts
+node --experimental-strip-types web/tests/i18nRegistrationStatic.test.ts
+npm --prefix web run build
+python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+```
+
 ## 当前结论
 
 - BUG-060 已按侧栏共享组件层修复，没有在单个页面入口处打补丁。
-- BUG-061 至 BUG-066 已按各自共享 store、配置、协议或页面组件层修复，失败时保留上一轮成功数据并提供页面内错误反馈，开发代理端口展示不再误导。
+- BUG-061 至 BUG-067 已按各自共享 store、配置、协议或页面组件层修复，失败时保留上一轮成功数据并提供页面内错误反馈，开发代理端口展示不再误导。
 - 后续 Web UI E2E 若发现其它路由入口遮挡或错位，应继续追加阶段 1.1 原子缺陷报告，再按最小共享层修复。
