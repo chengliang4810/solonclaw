@@ -1,6 +1,6 @@
 import type { InputEvent, Key } from '@solonclaw/ink'
 import * as Ink from '@solonclaw/ink'
-import { type MutableRefObject, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { setInputSelection } from '../app/inputSelectionStore.js'
 import { consumePagerCloseInputSuppression } from '../app/overlayStore.js'
@@ -451,7 +451,7 @@ export function TextInput({
   onPaste,
   onSubmit,
   mask,
-  mouseApiRef,
+  onMouseApi,
   voiceRecordKey = DEFAULT_VOICE_RECORD_KEY,
   placeholder = '',
   focus = true
@@ -839,13 +839,13 @@ export function TextInput({
     curRef.current = c
   }
 
-  const selRange = () => {
+  const selRange = useCallback(() => {
     const range = selRef.current
 
     return range && range.start !== range.end
       ? { end: Math.max(range.start, range.end), start: Math.min(range.start, range.end) }
       : null
-  }
+  }, [])
 
   const ins = (v: string, c: number, s: string) => v.slice(0, c) + s + v.slice(c)
 
@@ -867,7 +867,7 @@ export function TextInput({
     commit(nextValue, nextCursor)
   }
 
-  const startMouseSelection = (next: number) => {
+  const startMouseSelection = useCallback((next: number) => {
     const c = snapPos(vRef.current, next)
 
     mouseAnchorRef.current = c
@@ -875,9 +875,9 @@ export function TextInput({
     setSel(null)
     setCur(c)
     curRef.current = c
-  }
+  }, [])
 
-  const dragMouseSelection = (next: number) => {
+  const dragMouseSelection = useCallback((next: number) => {
     if (mouseAnchorRef.current === null) {
       return
     }
@@ -888,9 +888,9 @@ export function TextInput({
     setSel(range.start === range.end ? null : range)
     setCur(c)
     curRef.current = c
-  }
+  }, [])
 
-  const endMouseSelection = () => {
+  const endMouseSelection = useCallback(() => {
     mouseAnchorRef.current = null
 
     const range = selRef.current
@@ -907,7 +907,7 @@ export function TextInput({
     if (isMac && normalized) {
       void writeClipboardText(vRef.current.slice(normalized.start, normalized.end))
     }
-  }
+  }, [selRange])
 
   const offsetAt = (e: { localCol?: number; localRow?: number }) =>
     offsetFromPosition(display, e.localRow ?? 0, e.localCol ?? 0, columns)
@@ -920,13 +920,19 @@ export function TextInput({
     return now - last.at < MULTI_CLICK_MS && offset === last.offset
   }
 
-  if (mouseApiRef) {
-    mouseApiRef.current = {
+  useEffect(() => {
+    if (!onMouseApi) {
+      return
+    }
+
+    onMouseApi({
       dragAt: (row, col) => dragMouseSelection(offsetFromPosition(display, row, col, columns)),
       end: endMouseSelection,
       startAtBeginning: () => startMouseSelection(0)
-    }
-  }
+    })
+
+    return () => onMouseApi(null)
+  }, [columns, display, dragMouseSelection, endMouseSelection, onMouseApi, startMouseSelection])
 
   useInput(
     (inp: string, k: Key, event: InputEvent) => {
@@ -1313,8 +1319,8 @@ interface TextInputProps {
   columns?: number
   focus?: boolean
   mask?: string
-  mouseApiRef?: MutableRefObject<null | TextInputMouseApi>
   onChange: (v: string) => void
+  onMouseApi?: (api: null | TextInputMouseApi) => void
   onPaste?: (
     e: PasteEvent
   ) => { cursor: number; value: string } | Promise<{ cursor: number; value: string } | null> | null
