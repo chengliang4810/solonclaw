@@ -1,7 +1,11 @@
 import { asArray, isRecord, listCount, splitTrimmedText, trimText } from './text.ts'
 import { formatTimestampText } from './timeFormat.ts'
 
-export type DashboardTranslator = (key: string, params?: Record<string, unknown>) => string
+export type DashboardTranslator = (
+  key: string,
+  params?: Record<string, unknown> | string,
+  options?: { missingWarn?: boolean },
+) => string
 
 const DEFAULT_TOKEN_PATHS = ['jobs.humanize'] as const
 const GUIDE_TOKEN_PATHS = ['jobs.humanize', 'jobs.fieldHumanize', 'jobs.actionHumanize'] as const
@@ -57,7 +61,7 @@ export interface HumanizeJobTokenOptions {
 }
 
 function translatedLabel(t: DashboardTranslator, path: string, fallback = ''): string {
-  const translated = t(path)
+  const translated = t(path, '', { missingWarn: false })
   return translated === path ? fallback : translated
 }
 

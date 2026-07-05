@@ -55,12 +55,19 @@ const labels: Record<string, string> = {
 }
 
 const t: DashboardTranslator = (key, params) => {
-  const template = labels[key] || key
+  const template = labels[key] || (typeof params === 'string' ? params : key)
   return Object.entries(params || {}).reduce(
     (text, [name, value]) => text.replace(`{${name}}`, String(value)),
     template,
   )
 }
+const missingWarnings: string[] = []
+const warningT = ((key: string, params?: Record<string, unknown> | string, options?: { missingWarn?: boolean }) => {
+  if (!labels[key] && options?.missingWarn !== false) {
+    missingWarnings.push(key)
+  }
+  return t(key, typeof params === 'string' ? undefined : params)
+}) as DashboardTranslator
 const jobCard = readFileSync(
   new URL('../src/components/solonclaw/jobs/JobCard.vue', import.meta.url),
   'utf8',
@@ -72,6 +79,8 @@ const jobsView = readFileSync(
 
 assert.equal(humanizeJobToken(t, 'local'), '本地会话')
 assert.equal(humanizeJobToken(t, 'unknown'), 'unknown')
+assert.equal(humanizeGuideToken(warningT, 'runtime_isolation'), 'runtime / isolation')
+assert.deepEqual(missingWarnings, [])
 assert.equal(humanizeJobToken(t, ' ', { fallback: '—' }), '—')
 assert.equal(humanizeGuideToken(t, 'update_fields'), '更新 / 字段')
 assert.equal(jobTokenListText(t, ['cron', 'interval'], { guide: true }), 'Cron 表达式、间隔执行')
