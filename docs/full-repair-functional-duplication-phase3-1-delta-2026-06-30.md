@@ -107,7 +107,8 @@
 - 重叠程度：高。
 - 证据：两个服务都有 `start/get/shutdown`、ticket 状态表、异步 executor、状态标记、失败标记、过期与 map 输出；差异是微信 iLink 与飞书/钉钉协议。
 - 2026-07-05 二次复核：`QrSetupTicketState` 已收口通用字段、时间、mark/fail；剩余重复是 tickets map、executor、start/get/shutdown、toMap、sleep 与安全 URL 包装等生命周期壳。
-- 建议：低优先级进入阶段 3.2；只抽 `QrSetupTicketStore` 或 `toBaseMap` 这类生命周期壳，协议 polling 继续留在各平台服务。
+- 2026-07-05 三次复核：`QrSetupTicketState.baseMap()` 已收口通用输出字段，`WeixinQrSetupService` 与 `DomesticQrSetupService` 的 `toMap` 只保留协议专属字段。
+- 建议：`toBaseMap` 候选已处理；剩余 tickets map、executor、start/get/shutdown 和协议 polling 差异较大，暂不硬合并，后续只有出现真实缺陷或新增第三套后端扫码服务时再抽 `QrSetupTicketStore`。
 
 ### 7. 审批 / slash confirm / TUI 响应语义仍有重叠
 

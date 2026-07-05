@@ -455,18 +455,10 @@ public class DomesticQrSetupService {
      * @return 返回转换后的Map。
      */
     private Map<String, Object> toMap(TicketState state) {
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("ticket", state.ticket);
+        Map<String, Object> result = state.baseMap();
         result.put("platform", state.platform);
-        result.put("status", state.status);
-        result.put("message", state.message);
-        result.put("error_code", state.errorCode);
-        result.put("error_message", state.errorMessage);
         result.put("device_code", state.deviceCode);
         result.put("qr_url", state.qrUrl);
-        result.put("created_at", state.isoTime(state.createdAt));
-        result.put("updated_at", state.isoTime(state.updatedAt));
-        result.put("expires_at", state.isoTime(state.expiresAt));
         result.put("client_id", state.clientId);
         result.put("app_id", state.appId);
         result.put("open_id", state.openId);

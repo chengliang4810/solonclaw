@@ -319,17 +319,9 @@ public class WeixinQrSetupService {
      * @return 返回转换后的Map。
      */
     private Map<String, Object> toMap(TicketState state) {
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("ticket", state.ticket);
-        result.put("status", state.status);
-        result.put("message", state.message);
-        result.put("error_code", state.errorCode);
-        result.put("error_message", state.errorMessage);
+        Map<String, Object> result = state.baseMap();
         result.put("qrcode", state.qrCode);
         result.put("qrcode_url", state.qrImageUrl);
-        result.put("created_at", state.isoTime(state.createdAt));
-        result.put("updated_at", state.isoTime(state.updatedAt));
-        result.put("expires_at", state.isoTime(state.expiresAt));
         result.put("account_id", state.accountId);
         result.put("user_id", state.userId);
         result.put("base_url", state.baseUrl);

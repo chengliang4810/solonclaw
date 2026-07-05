@@ -6,6 +6,8 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /** 维护国内渠道扫码 setup ticket 的平台无关生命周期字段。 */
 class QrSetupTicketState {
@@ -88,5 +90,19 @@ class QrSetupTicketState {
             return null;
         }
         return ISO_OFFSET_SECONDS_FORMATTER.format(Instant.ofEpochMilli(epochMillis));
+    }
+
+    /** 生成扫码 setup 响应中的平台无关基础字段。 */
+    Map<String, Object> baseMap() {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ticket", ticket);
+        result.put("status", status);
+        result.put("message", message);
+        result.put("error_code", errorCode);
+        result.put("error_message", errorMessage);
+        result.put("created_at", isoTime(createdAt));
+        result.put("updated_at", isoTime(updatedAt));
+        result.put("expires_at", isoTime(expiresAt));
+        return result;
     }
 }

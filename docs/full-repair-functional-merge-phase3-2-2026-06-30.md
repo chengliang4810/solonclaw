@@ -44,8 +44,9 @@
 
 - 2026-07-05 本轮提交：`refactor: 复用二维码 ticket 生命周期 / Reuse QR ticket lifecycle`。
 - 新增 `QrSetupTicketState`，统一 ticket 标识、初始化状态、过期时间、状态更新时间、失败错误脱敏和接口时间格式化。
+- 2026-07-05 本轮补充：`QrSetupTicketState.baseMap()` 统一输出 ticket、状态、错误和时间字段，微信与国内扫码服务只追加各自协议字段。
 - `WeixinQrSetupService` 与 `DomesticQrSetupService` 只保留各自协议字段和 HTTP / 持久化流程，避免把微信 iLink、飞书、钉钉协议强行合并。
-- 新增 `QrSetupTicketStateTest` 锁定 ticket 生命周期和失败脱敏边界，并删除微信测试中对私有 `TicketState` / `fail()` 的反射依赖。
+- 新增 `QrSetupTicketStateTest` 与 `QrSetupTicketMapReuseTest` 锁定 ticket 生命周期、失败脱敏、基础字段投影和服务复用边界，并删除微信测试中对私有 `TicketState` / `fail()` 的反射依赖。
 
 ## 已验证
 
@@ -56,6 +57,7 @@
 - `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=DashboardResponseTest,DashboardControllerHttpTest#shouldUpdateDashboardPlatformToolsetPolicy+shouldPersistConfigAndExposeDashboardResources test`
 - `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=DashboardResponseTest,DashboardMediaServiceTest,DashboardCuratorServiceTest,DashboardSessionServiceTest#shouldRedactSecretLikeSessionIdentifiersFromDashboardResponses,AgentMechanismTest#shouldActivateAgentForUnpersistedDashboardSession,McpPackageSecurityServiceTest test`
 - `mvn "-Dskip.web.build=true" "-Dtest=QrSetupTicketStateTest,WeixinQrSetupServiceTest,DomesticQrSetupServiceTest,TuiRuntimeProtocolServiceTest" test`
+- `mvn "-Dskip.web.build=true" "-Dtest=WeixinQrSetupServiceTest,DomesticQrSetupServiceTest,QrSetupTicketStateTest,QrSetupTicketMapReuseTest" test`
 - `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java/com/jimuqu/solon/claw/web/WeixinQrSetupService.java src/main/java/com/jimuqu/solon/claw/web/DomesticQrSetupService.java src/main/java/com/jimuqu/solon/claw/web/QrSetupTicketState.java`
 - `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
 - `git diff --check`
