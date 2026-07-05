@@ -63,6 +63,50 @@ public class DashboardPageController {
     }
 
     /**
+     * 将诊断页短路径交给Dashboard单页应用，由前端Hash路由定位诊断页面。
+     *
+     * @param context 当前请求上下文，用于复用Dashboard入口文件响应。
+     * @return 返回Dashboard页面入口。
+     */
+    @Mapping("/diagnostics")
+    public DownloadedFile diagnostics(Context context) {
+        return renderIndex(context);
+    }
+
+    /**
+     * 将TUI运行时短路径交给Dashboard单页应用，由前端Hash路由定位运行时页面。
+     *
+     * @param context 当前请求上下文，用于复用Dashboard入口文件响应。
+     * @return 返回Dashboard页面入口。
+     */
+    @Mapping("/tui-runtime")
+    public DownloadedFile tuiRuntime(Context context) {
+        return renderIndex(context);
+    }
+
+    /**
+     * 将策展页短路径交给Dashboard单页应用，由前端Hash路由定位策展页面。
+     *
+     * @param context 当前请求上下文，用于复用Dashboard入口文件响应。
+     * @return 返回Dashboard页面入口。
+     */
+    @Mapping("/curator")
+    public DownloadedFile curator(Context context) {
+        return renderIndex(context);
+    }
+
+    /**
+     * 将MCP页面短路径交给Dashboard单页应用，由前端Hash路由定位MCP页面。
+     *
+     * @param context 当前请求上下文，用于复用Dashboard入口文件响应。
+     * @return 返回Dashboard页面入口。
+     */
+    @Mapping("/mcp")
+    public DownloadedFile mcp(Context context) {
+        return renderIndex(context);
+    }
+
+    /**
      * 执行login相关逻辑。
      *
      * @param context 当前请求或运行上下文。

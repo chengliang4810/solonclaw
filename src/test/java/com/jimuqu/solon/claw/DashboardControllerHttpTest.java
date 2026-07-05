@@ -229,6 +229,13 @@ public class DashboardControllerHttpTest {
         HttpResult files = request("GET", "/files", null, null);
         assertThat(files.status).isEqualTo(200);
         assertThat(files.body).doesNotContain("__APP_SESSION_TOKEN__");
+
+        for (String path :
+                new String[] {"/diagnostics", "/tui-runtime", "/curator", "/mcp"}) {
+            HttpResult alias = request("GET", path, null, null);
+            assertThat(alias.status).isEqualTo(200);
+            assertThat(alias.body).doesNotContain("__APP_SESSION_TOKEN__");
+        }
     }
 
     @Test

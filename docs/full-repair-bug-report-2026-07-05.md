@@ -941,6 +941,41 @@ node --experimental-strip-types web/tests/dashboardAuthRedirectStatic.test.ts
 npm --prefix web run build
 ```
 
+## BUG-053：Dashboard 系统页面缺少短路径直达入口
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 诊断、TUI 运行时、策展与 MCP 页面。
+- 用户从浏览器地址栏直接访问常用系统页面的短路径体验。
+- 后端 Dashboard 单页入口的敏感 token 注入保护范围。
+
+当前事实：
+
+- 前端已存在 `solonclaw.diagnostics`、`solonclaw.tui-runtime`、`solonclaw.curator` 和 `solonclaw.mcp` 路由。
+- 共享短路径映射只覆盖 `/status`、`/chat`、`/sessions`、`/files` 等入口，没有覆盖上述系统页的同名短路径。
+- 后端 `DashboardPageController` 没有声明这些短路径，直接访问会绕不开单页入口映射缺口。
+
+根因：
+
+- 新增系统页面时只补了应用内路由，没有同步补齐浏览器直达短路径表。
+- 后端短路径入口以显式 `@Mapping` 方法声明，缺失路径不会自动落到 Dashboard 单页入口。
+
+修复记录：
+
+- `dashboardDirectRoutes` 增加 `/diagnostics`、`/tui-runtime`、`/curator`、`/mcp` 到对应 Hash 路由的映射。
+- `DashboardPageController` 增加四个同名短路径入口，统一返回 Dashboard 单页入口。
+- `dashboardDirectRoutes.test.ts` 和 `DashboardControllerHttpTest#shouldAvoidInjectingDashboardTokenAndProtectSensitiveApis` 增加回归，锁定短路径可访问且不会注入敏感 token 占位符。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/dashboardDirectRoutes.test.ts
+mvn "-Dskip.web.build=true" "-Dtest=DashboardControllerHttpTest#shouldAvoidInjectingDashboardTokenAndProtectSensitiveApis" test
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -965,4 +1000,5 @@ npm --prefix web run build
 - BUG-050 已修复工作区文件页存在直达路由但侧边栏没有可发现入口的问题。
 - BUG-051 已修复工作区文件列表修改时间列没有真实数据源、始终显示占位符的问题。
 - BUG-052 已修复带 `token` 的 Dashboard 登录链接在新浏览器中不会自动校验和持久化的问题。
+- BUG-053 已修复 Dashboard 诊断、TUI 运行时、策展与 MCP 页面缺少短路径直达入口的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
