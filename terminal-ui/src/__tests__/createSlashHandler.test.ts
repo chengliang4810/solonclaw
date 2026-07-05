@@ -219,6 +219,16 @@ describe('createSlashHandler', () => {
     expect(ctx.gateway.rpc).not.toHaveBeenCalledWith('config.set', expect.anything())
   })
 
+  it('opens the model picker while a turn is busy', () => {
+    patchUiState({ busy: true, sid: 'sid-abc' })
+    const ctx = buildCtx({ session: { ...buildSession(), guardBusySessionSwitch: vi.fn(() => true) } })
+
+    expect(createSlashHandler(ctx)('/model')).toBe(true)
+
+    expect(getOverlayState().modelPicker).toBe(true)
+    expect(ctx.session.guardBusySessionSwitch).not.toHaveBeenCalled()
+  })
+
   it('rejects legacy /model pick indexes in the TUI instead of writing them as model names', () => {
     patchUiState({ sid: 'sid-abc' })
     const ctx = buildCtx()
