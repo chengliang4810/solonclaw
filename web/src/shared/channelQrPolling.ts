@@ -13,6 +13,11 @@ export interface ChannelQrPollingState {
   failures: number
   timer: ReturnType<typeof setTimeout> | null
   domain: string
+  accountId: string
+  baseUrl: string
+  clientId: string
+  appId: string
+  openId: string
 }
 
 type MaybePromise<T> = T | Promise<T>
@@ -28,7 +33,21 @@ interface ChannelQrPollingOptions<Key extends string> {
 }
 
 function createState(): ChannelQrPollingState {
-  return { url: '', imageUrl: '', message: '', id: '', status: 'idle', failures: 0, timer: null, domain: '' }
+  return {
+    url: '',
+    imageUrl: '',
+    message: '',
+    id: '',
+    status: 'idle',
+    failures: 0,
+    timer: null,
+    domain: '',
+    accountId: '',
+    baseUrl: '',
+    clientId: '',
+    appId: '',
+    openId: '',
+  }
 }
 
 function fallbackMessage(value: MessageResolver): string {
@@ -84,6 +103,11 @@ export function useChannelQrPolling<Key extends string>(
     state.id = view.qrcode || state.id
     state.message = view.error_message || view.message || ''
     state.domain = view.domain || ''
+    state.accountId = view.account_id || ''
+    state.baseUrl = view.base_url || ''
+    state.clientId = view.client_id || ''
+    state.appId = view.app_id || ''
+    state.openId = view.open_id || ''
     await updateSource(state, view.qrcode_url || '')
     if (view.status === 'confirmed') {
       state.status = 'confirmed'

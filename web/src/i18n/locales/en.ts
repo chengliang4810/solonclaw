@@ -1613,6 +1613,13 @@ export default {
     qrFetching: 'Fetching QR code...',
     qrScanHint: 'Scan with the matching mobile app',
     qrScanedHint: 'Scanned, please confirm on phone...',
+    qrExpired: 'QR code expired. Start QR login again.',
+    qrFailed: 'Failed to fetch QR code. Try again later.',
+    qrAccountId: 'Account ID',
+    qrClientId: 'Client ID',
+    qrAppId: 'App ID',
+    qrOpenId: 'Open ID',
+    qrBaseUrl: 'Base URL',
   },
 
   // Language

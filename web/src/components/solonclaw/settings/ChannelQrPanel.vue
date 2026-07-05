@@ -9,6 +9,11 @@ interface ChannelQrPanelState {
   readonly imageUrl: string
   readonly message: string
   readonly status: ChannelQrUiStatus
+  readonly accountId?: string
+  readonly baseUrl?: string
+  readonly clientId?: string
+  readonly appId?: string
+  readonly openId?: string
 }
 
 const props = withDefaults(defineProps<{
@@ -55,6 +60,16 @@ function shouldShowStandaloneStatus(state: ChannelQrPanelState, showEmptyStatus:
 function isHttpUrl(value: string) {
   return /^https?:\/\//i.test(value)
 }
+
+function qrContextRows(state: ChannelQrPanelState) {
+  return [
+    { label: t('platform.qrAccountId'), value: state.accountId },
+    { label: t('platform.qrClientId'), value: state.clientId },
+    { label: t('platform.qrAppId'), value: state.appId },
+    { label: t('platform.qrOpenId'), value: state.openId },
+    { label: t('platform.qrBaseUrl'), value: state.baseUrl },
+  ].filter(row => row.value)
+}
 </script>
 
 <template>
@@ -78,6 +93,12 @@ function isHttpUrl(value: string) {
       </div>
       <div v-if="state.status === 'confirmed' && domain" class="channel-qr-caption">
         {{ domain }}
+      </div>
+      <div v-if="qrContextRows(state).length" class="channel-qr-context">
+        <div v-for="row in qrContextRows(state)" :key="row.label">
+          <span>{{ row.label }}</span>
+          <strong>{{ row.value }}</strong>
+        </div>
       </div>
       <a
         v-if="isHttpUrl(state.url)"
@@ -134,6 +155,26 @@ function isHttpUrl(value: string) {
 
   &.error {
     color: $error;
+  }
+}
+
+.channel-qr-context {
+  display: grid;
+  gap: 4px;
+  max-width: 100%;
+  font-size: 12px;
+  color: $text-secondary;
+
+  div {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  strong {
+    overflow-wrap: anywhere;
+    font-weight: 500;
+    color: $text-primary;
   }
 }
 
