@@ -195,5 +195,9 @@ async function handleDownload(entry: FileEntry) {
   .file-size, .file-date {
     display: none;
   }
+
+  .file-actions {
+    opacity: 1;
+  }
 }
 </style>
