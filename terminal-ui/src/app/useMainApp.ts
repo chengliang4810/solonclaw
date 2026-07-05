@@ -27,7 +27,7 @@ import { appendTranscriptMessage } from '../lib/messages.js'
 import { DEFAULT_VOICE_RECORD_KEY, isMac, type ParsedVoiceRecordKey } from '../lib/platform.js'
 import { asRpcResult, rpcErrorMessage } from '../lib/rpc.js'
 import { terminalParityHints } from '../lib/terminalParity.js'
-import { buildToolTrailLine, formatAbandonedClarify, sameToolTrailGroup, toolTrailLabel } from '../lib/text.js'
+import { buildToolTrailLine, formatAbandonedClarify, toolTrailLabel } from '../lib/text.js'
 import { estimatedMsgHeight, messageHeightKey } from '../lib/virtualHeights.js'
 import type { Msg, PanelSection, SlashCatalog } from '../types.js'
 
@@ -609,8 +609,7 @@ export function useMainApp(gw: GatewayClient) {
 
       const label = toolTrailLabel('clarify')
 
-      turnController.turnTools = turnController.turnTools.filter(line => !sameToolTrailGroup(label, line))
-      patchTurnState({ turnTrail: turnController.turnTools })
+      turnController.removeTrailGroup(label)
 
       rpc<ClarifyRespondResponse>('clarify.respond', { answer, request_id: clarify.requestId }).then(r => {
         if (!r) {

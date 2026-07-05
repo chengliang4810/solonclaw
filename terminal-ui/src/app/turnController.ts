@@ -243,6 +243,11 @@ class TurnController {
     })
   }
 
+  removeTrailGroup(label: string) {
+    this.turnTools = this.turnTools.filter(line => !sameToolTrailGroup(label, line))
+    patchTurnState({ turnTrail: this.turnTools })
+  }
+
   private syncReasoningSegment() {
     const thinking = this.activeReasoningText.trim()
 
