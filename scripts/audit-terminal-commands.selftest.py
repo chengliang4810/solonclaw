@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import importlib.util
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -875,11 +877,15 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 findings: list[dict[str, object]] = []
 
-                exit_code = mod.run_node_tui_pty(Path("missing.jar"), Path(tmp), 18123, 1, findings)
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    exit_code = mod.run_node_tui_pty(Path("missing.jar"), Path(tmp), 18123, 1, findings)
 
             self.assertEqual(exit_code, 1)
             self.assertEqual(calls, [])
             self.assertEqual(findings[0]["issues"], ["pty_not_supported_on_this_platform"])
+            self.assertIn("node-tui SUSPECT solonclaw server + solonclaw PTY", output.getvalue())
+            self.assertIn("issues=pty_not_supported_on_this_platform", output.getvalue())
         finally:
             mod.pty_support_available = original_support
             mod.run_command = original_run_command
