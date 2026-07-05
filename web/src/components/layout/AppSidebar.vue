@@ -152,6 +152,10 @@ function handleLogout() {
         </div>
         <ThemeSwitch />
       </div>
+      <div v-if="appStore.serverVersion" class="version-row">
+        <span>{{ t("sidebar.version") }}</span>
+        <strong>{{ appStore.serverVersion }}</strong>
+      </div>
     </div>
   </aside>
 </template>

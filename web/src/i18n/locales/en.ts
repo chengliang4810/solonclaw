@@ -117,6 +117,7 @@ export default {
     settings: 'Settings',
     connected: 'Connected',
     disconnected: 'Disconnected',
+    version: 'Version',
     collapse: 'Collapse menu',
     expand: 'Expand menu',
     logout: 'Sign Out',
