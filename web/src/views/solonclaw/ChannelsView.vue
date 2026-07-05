@@ -160,10 +160,16 @@ async function referenceSelectedMedia() {
         </div>
         <div><span>{{ t('channels.mediaStatus') }}</span><strong>{{ selectedMediaDetail.status || '-' }}</strong></div>
         <div><span>ID</span><strong>{{ selectedMediaDetail.media_id }}</strong></div>
+        <div><span>{{ t('channels.mediaChatId') }}</span><strong>{{ selectedMediaDetail.chat_id || '-' }}</strong></div>
+        <div><span>{{ t('channels.mediaMessageId') }}</span><strong>{{ selectedMediaDetail.message_id || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaPlatform') }}</span><strong>{{ selectedMediaDetail.platform || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaKind') }}</span><strong>{{ selectedMediaDetail.kind || '-' }}</strong></div>
+        <div><span>{{ t('channels.mediaMimeType') }}</span><strong>{{ selectedMediaDetail.mime_type || '-' }}</strong></div>
+        <div><span>{{ t('channels.mediaRemoteId') }}</span><strong>{{ selectedMediaDetail.remote_id || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaSize') }}</span><strong>{{ formatFileSize(selectedMediaDetail.size_bytes) }}</strong></div>
+        <div><span>{{ t('channels.mediaCreated') }}</span><strong>{{ formatTimestampText(selectedMediaDetail.created_at) }}</strong></div>
         <div><span>{{ t('channels.mediaUpdated') }}</span><strong>{{ formatTimestampText(selectedMediaDetail.updated_at) }}</strong></div>
+        <div><span>{{ t('channels.mediaExpires') }}</span><strong>{{ formatTimestampText(selectedMediaDetail.expires_at) }}</strong></div>
         <div><span>{{ t('channels.mediaPath') }}</span><strong>{{ selectedMediaDetail.local_path || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaReference') }}</span><strong>{{ selectedMediaDetail.reference || '-' }}</strong></div>
         <div v-if="selectedMediaDetail.error"><span>{{ t('channels.mediaError') }}</span><strong>{{ selectedMediaDetail.error }}</strong></div>
