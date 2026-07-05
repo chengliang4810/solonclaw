@@ -37,6 +37,7 @@ public class DashboardAuthService {
                             "/api/config/defaults",
                             "/api/config/schema",
                             "/api/model/info",
+                            "/api/workspace-config/bootstrap-dashboard-token",
                             "/api/tui/handshake"));
 
     /** 注入应用配置，用于控制台认证。 */

@@ -50,6 +50,15 @@ async function validateExistingToken() {
   }
 }
 
+async function tryBootstrapDashboardToken(key: string) {
+  const res = await dashboardFetch(`${getBaseUrlValue()}/api/workspace-config/bootstrap-dashboard-token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken: key }),
+  });
+  return res.ok;
+}
+
 onMounted(async () => {
   if (urlToken || hasApiKey()) {
     await validateExistingToken();
@@ -72,6 +81,11 @@ async function handleLogin() {
     });
 
     if (!res.ok) {
+      if (res.status === 401 && await tryBootstrapDashboardToken(key)) {
+        setApiKey(key);
+        router.replace(loginTarget());
+        return;
+      }
       const body = await res.text().catch(() => "");
       errorMsg.value = t("login.invalidToken");
       if (res.status !== 401 && handleDashboardAuthFailure(res.status, body)) {

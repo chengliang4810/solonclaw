@@ -1121,6 +1121,43 @@ node --experimental-strip-types web/tests/dashboardAuthRedirectStatic.test.ts
 npm --prefix web run build
 ```
 
+## BUG-058：Dashboard 默认空访问令牌时无法从页面完成首次配置
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- 首次启动且 `solonclaw.dashboard.accessToken` 为空的 Dashboard 登录页。
+- 本机用户通过 Dashboard 自助设置第一个访问令牌的流程。
+- 受保护 `/api/*` 与公开状态接口之间的首次引导边界。
+
+当前事实：
+
+- 默认配置中的 `solonclaw.dashboard.accessToken` 为空。
+- 登录页禁止空 token，并只用输入 token 访问受保护 `/api/sessions` 验证登录。
+- `/api/workspace-config` 与 `/api/workspace-config/reveal` 都受 Dashboard Bearer 鉴权保护。
+- 因此用户未手动编辑配置文件时，页面没有入口写入第一个 Dashboard token。
+
+根因：
+
+- 安全修复移除了空 token 回退弱口令后，没有补上本机限定的一次性首次配置通道。
+- 现有账号设置页依赖已登录状态，不能作为空 token 状态下的引导入口。
+
+修复记录：
+
+- 新增公开路径 `/api/workspace-config/bootstrap-dashboard-token`，但控制器内部只允许本机请求且当前 token 为空时执行。
+- 复用 `DashboardRuntimeConfigService` 写入 `solonclaw.dashboard.accessToken`，并刷新运行时配置。
+- 使用 `SecretValueGuard.hasUsableSecret(..., 8)` 拒绝空值、过短值和占位密钥。
+- 登录页在普通 token 校验返回 401 时尝试本机首次配置；成功后保存新 token 并进入原目标页。
+- `DashboardBootstrapTokenTest` 与 `loginBootstrapTokenStatic.test.ts` 增加回归。
+
+验证命令：
+
+```bash
+mvn "-Dskip.web.build=true" "-Dtest=DashboardBootstrapTokenTest" test
+node --experimental-strip-types web/tests/loginBootstrapTokenStatic.test.ts
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -1150,4 +1187,5 @@ npm --prefix web run build
 - BUG-055 已修复 TUI slash 补全漏掉 Java 命令注册表别名的问题。
 - BUG-056 已修复 TUI live session 列表只显示当前会话且关闭不生效的问题。
 - BUG-057 已修复 Dashboard 文件下载裸链接缺少鉴权头并泄露 query token 的问题。
+- BUG-058 已修复 Dashboard 默认空访问令牌时无法从页面完成首次配置的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

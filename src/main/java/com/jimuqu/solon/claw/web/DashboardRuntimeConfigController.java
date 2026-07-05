@@ -2,6 +2,8 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.DashboardRequestBodies;
+import com.jimuqu.solon.claw.support.SecretValueGuard;
+import java.util.Collections;
 import java.util.Map;
 import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
@@ -38,6 +40,40 @@ public class DashboardRuntimeConfigController {
     @Mapping(value = "/api/workspace-config", method = MethodType.GET)
     public Map<String, Object> configItems() {
         return DashboardResponse.ok(runtimeConfigService.getConfigItems());
+    }
+
+    /**
+     * 本机首次启动且 Dashboard token 为空时，允许用户从登录页写入第一个访问令牌。
+     *
+     * @param context 当前请求或运行上下文。
+     * @return 返回首次配置结果。
+     */
+    @Mapping(value = "/api/workspace-config/bootstrap-dashboard-token", method = MethodType.POST)
+    public Map<String, Object> bootstrapDashboardToken(Context context) throws Exception {
+        if (!authService.isLocalRequest(context)) {
+            context.status(403);
+            return DashboardResponse.error("WORKSPACE_CONFIG_BOOTSTRAP_FORBIDDEN", "仅允许本机首次配置");
+        }
+        if (StrUtil.isNotBlank(authService.sessionToken())) {
+            context.status(409);
+            return DashboardResponse.error("WORKSPACE_CONFIG_BOOTSTRAP_ALREADY_SET", "Dashboard token 已配置");
+        }
+        try {
+            String token = DashboardRequestBodies.jsonObject(context).get("accessToken").getString();
+            if (!SecretValueGuard.hasUsableSecret(token, 8)) {
+                context.status(400);
+                return DashboardResponse.error(
+                        "WORKSPACE_CONFIG_BOOTSTRAP_BAD_TOKEN", "访问令牌至少需要 8 个有效字符");
+            }
+            runtimeConfigService.set("solonclaw.dashboard.accessToken", token, false);
+            return DashboardResponse.ok(Collections.<String, Object>singletonMap("configured", true));
+        } catch (IllegalArgumentException e) {
+            context.status(400);
+            return DashboardResponse.error("WORKSPACE_CONFIG_BOOTSTRAP_BAD_REQUEST", e.getMessage());
+        } catch (IllegalStateException e) {
+            context.status(400);
+            return DashboardResponse.error("WORKSPACE_CONFIG_BOOTSTRAP_BAD_REQUEST", e.getMessage());
+        }
     }
 
     /**
