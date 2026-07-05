@@ -28,17 +28,22 @@ onMounted(() => {
     </header>
 
     <div class="usage-content">
+      <div v-if="usageStore.loadError" class="usage-error">
+        <strong>{{ t('common.fetchFailed') }}</strong>
+        <span>{{ usageStore.loadError }}</span>
+      </div>
+
       <div v-if="usageStore.isLoading && !usageStore.analytics" class="usage-loading">
         {{ t('common.loading') }}
       </div>
 
-      <template v-else-if="usageStore.analytics && usageStore.totalSessions > 0">
+      <template v-if="usageStore.analytics && usageStore.totalSessions > 0">
         <StatCards />
         <ModelBreakdown />
         <DailyTrend />
       </template>
 
-      <div v-else class="usage-empty">
+      <div v-else-if="!usageStore.loadError && !usageStore.isLoading" class="usage-empty">
         {{ t('usage.noData') }}
       </div>
     </div>
@@ -75,5 +80,21 @@ onMounted(() => {
   padding: 60px 0;
   color: $text-muted;
   font-size: 14px;
+}
+
+.usage-error {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: $radius-sm;
+  background: rgba(var(--error-rgb), 0.06);
+  color: $error;
+  font-size: 13px;
+
+  span {
+    overflow-wrap: anywhere;
+  }
 }
 </style>
