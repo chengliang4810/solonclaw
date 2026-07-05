@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from 'antdv-next'
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
 import StatCards from '@/components/solonclaw/usage/StatCards.vue'
@@ -9,10 +9,22 @@ import DailyTrend from '@/components/solonclaw/usage/DailyTrend.vue'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
+const refreshTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
 onMounted(() => {
-  usageStore.loadUsage()
+  loadUsage()
+  refreshTimer.value = setInterval(loadUsage, 30000)
 })
+
+onUnmounted(() => {
+  if (refreshTimer.value) {
+    clearInterval(refreshTimer.value)
+  }
+})
+
+function loadUsage() {
+  usageStore.loadUsage()
+}
 </script>
 
 <template>
@@ -22,7 +34,7 @@ onMounted(() => {
         <h2 class="header-title">{{ t('usage.title') }}</h2>
         <p class="header-subtitle">{{ t('usage.description') }}</p>
       </div>
-      <Button size="small" type="text" :loading="usageStore.isLoading" @click="usageStore.loadUsage()">
+      <Button size="small" type="text" :loading="usageStore.isLoading" @click="loadUsage">
         {{ t('usage.refresh') }}
       </Button>
     </header>
