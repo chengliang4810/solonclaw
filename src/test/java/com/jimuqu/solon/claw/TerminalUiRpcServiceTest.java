@@ -74,6 +74,58 @@ class TerminalUiRpcServiceTest {
     }
 
     @Test
+    void activeSessionsReturnsAllTuiLiveSessionsAndHonorsClose() throws Exception {
+        AppConfig config = testConfig();
+        SqliteDatabase database = new SqliteDatabase(config);
+        SqliteSessionRepository sessions = new SqliteSessionRepository(database);
+        SqliteAgentRunRepository runs = new SqliteAgentRunRepository(database);
+        sessions.save(session("session-a", "MEMORY:terminal-ui:session-a"));
+        sessions.save(session("session-b", "MEMORY:terminal-ui:session-b"));
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-session-b");
+        run.setSessionId("session-b");
+        run.setSourceKey("MEMORY:terminal-ui:session-b");
+        run.setStatus("waiting_approval");
+        run.setStartedAt(1_800_000_000_000L);
+        runs.saveRun(run);
+
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        config,
+                        sessions,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        runs,
+                        null,
+                        null);
+        service.sessionResume("session-a");
+        service.sessionResume("session-b");
+
+        List<Map<String, Object>> live = activeSessionItems(service.activeSessions("session-a"));
+
+        assertThat(live).extracting(item -> item.get("id")).containsExactly("session-a", "session-b");
+        assertThat(live.get(0)).containsEntry("current", Boolean.TRUE).containsEntry("status", "idle");
+        assertThat(live.get(1)).containsEntry("current", Boolean.FALSE).containsEntry("status", "waiting");
+
+        service.sessionClose("session-b");
+
+        assertThat(activeSessionItems(service.activeSessions("session-a")))
+                .extracting(item -> item.get("id"))
+                .containsExactly("session-a");
+    }
+
+    @Test
     void sessionUsageIncludesActiveSubagentCount() throws Exception {
         AppConfig config = testConfig();
         SqliteDatabase database = new SqliteDatabase(config);
@@ -387,6 +439,12 @@ class TerminalUiRpcServiceTest {
             texts.add(String.valueOf(item.get("text")));
         }
         return texts;
+    }
+
+    /** 提取 active_list 会话项，避免每个回归重复 unchecked cast。 */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> activeSessionItems(Map<String, Object> response) {
+        return (List<Map<String, Object>>) response.get("sessions");
     }
 
     private static class FixedDelegationService implements DelegationService {

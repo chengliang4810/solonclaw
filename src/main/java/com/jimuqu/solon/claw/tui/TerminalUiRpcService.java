@@ -102,6 +102,8 @@ public class TerminalUiRpcService {
     private final TuiRuntimeProtocolService runtimeProtocolService;
     /** 全局设置仓储，用于保存仅属于终端 UI 的显示偏好。 */
     private final GlobalSettingRepository globalSettingRepository;
+    /** 当前 JVM 内仍保持打开状态的 TUI 会话，用于驱动 session.active_list。 */
+    private final List<String> liveTerminalSessionIds = new ArrayList<String>();
     /** 当前 TUI 连接创建的浏览器租约 ID，用于 status/disconnect 的轻量状态保持。 */
     private volatile String tuiBrowserSessionId;
 
@@ -230,9 +232,10 @@ public class TerminalUiRpcService {
             bindTerminalSource(session.getSessionId(), session.getSessionId());
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put(
-                "session_id",
-                session == null ? newSessionId() : StrUtil.blankToDefault(session.getSessionId(), newSessionId()));
+        String sessionId =
+                session == null ? newSessionId() : StrUtil.blankToDefault(session.getSessionId(), newSessionId());
+        rememberLiveSession(sessionId);
+        result.put("session_id", sessionId);
         result.put("info", sessionInfo(session));
         return result;
     }
@@ -251,6 +254,7 @@ public class TerminalUiRpcService {
         SessionRecord session = findSession(sessionId);
         if (session != null) {
             bindTerminalSource(session.getSessionId(), session.getSessionId());
+            rememberLiveSession(session.getSessionId());
         }
         String effectiveSessionId =
                 session == null ? StrUtil.blankToDefault(sessionId, newSessionId()) : session.getSessionId();
@@ -271,6 +275,15 @@ public class TerminalUiRpcService {
         return result;
     }
 
+    /** 关闭一个 TUI live 会话；历史会话仍保留给 session.list 恢复。 */
+    public Map<String, Object> sessionClose(String sessionId) {
+        forgetLiveSession(sessionId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", Boolean.TRUE);
+        result.put("closed", Boolean.valueOf(StrUtil.isNotBlank(sessionId)));
+        return result;
+    }
+
     /** 返回最近一个可恢复会话，供终端 UI 自动恢复入口使用。 */
     public Map<String, Object> sessionMostRecent() throws Exception {
         List<SessionRecord> records = listRecentSessions(1);
@@ -286,12 +299,25 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 返回活动会话列表；当前单 JVM 后端没有多 worker 状态，按最近会话暴露 idle 状态。 */
+    /** 返回当前 JVM 内仍打开的 TUI live 会话列表，供 session switcher 直接切换。 */
     public Map<String, Object> activeSessions(String currentSessionId) throws Exception {
         List<Map<String, Object>> sessions = new ArrayList<Map<String, Object>>();
-        SessionRecord current = findSession(currentSessionId);
-        if (current != null) {
-            sessions.add(activeSessionItem(current, true));
+        boolean currentIncluded = false;
+        for (String liveSessionId : liveTerminalSessionIds()) {
+            SessionRecord record = findSession(liveSessionId);
+            if (record == null) {
+                continue;
+            }
+            AgentRunRecord activeRun = latestActiveRun(record.getSessionId());
+            boolean current = record.getSessionId().equals(currentSessionId);
+            currentIncluded = currentIncluded || current;
+            sessions.add(activeSessionItem(record, current, activeRun));
+        }
+        if (!currentIncluded) {
+            SessionRecord current = findSession(currentSessionId);
+            if (current != null) {
+                sessions.add(activeSessionItem(current, true, latestActiveRun(current.getSessionId())));
+            }
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("sessions", sessions);
@@ -2251,8 +2277,38 @@ public class TerminalUiRpcService {
         return TERMINAL_SOURCE_KEY_PREFIX + StrUtil.blankToDefault(sessionId, "terminal-ui");
     }
 
-    /** 转换当前活动会话为终端 UI session.active_list 项。 */
-    private Map<String, Object> activeSessionItem(SessionRecord record, boolean current) {
+    /** 记录一个仍在当前 JVM 内打开的 TUI 会话。 */
+    private void rememberLiveSession(String sessionId) {
+        if (StrUtil.isBlank(sessionId)) {
+            return;
+        }
+        synchronized (liveTerminalSessionIds) {
+            if (!liveTerminalSessionIds.contains(sessionId)) {
+                liveTerminalSessionIds.add(sessionId);
+            }
+        }
+    }
+
+    /** 从当前 JVM live 列表移除一个 TUI 会话。 */
+    private void forgetLiveSession(String sessionId) {
+        if (StrUtil.isBlank(sessionId)) {
+            return;
+        }
+        synchronized (liveTerminalSessionIds) {
+            liveTerminalSessionIds.remove(sessionId);
+        }
+    }
+
+    /** 读取 live 会话快照，避免迭代期间被 WebSocket 其它线程修改。 */
+    private List<String> liveTerminalSessionIds() {
+        synchronized (liveTerminalSessionIds) {
+            return new ArrayList<String>(liveTerminalSessionIds);
+        }
+    }
+
+    /** 转换当前活动会话为终端 UI session.active_list 项，并附带真实运行状态。 */
+    private Map<String, Object> activeSessionItem(
+            SessionRecord record, boolean current, AgentRunRecord activeRun) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("id", record.getSessionId());
         item.put("session_key", record.getSessionId());
@@ -2262,7 +2318,7 @@ public class TerminalUiRpcService {
         item.put("message_count", Integer.valueOf(messageCount(record)));
         item.put("started_at", Long.valueOf(record.getCreatedAt()));
         item.put("last_active", Long.valueOf(record.getUpdatedAt()));
-        item.put("status", "idle");
+        item.put("status", liveSessionStatus(activeRun));
         item.put("current", Boolean.valueOf(current));
         return item;
     }

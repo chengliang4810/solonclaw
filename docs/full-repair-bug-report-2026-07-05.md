@@ -1045,6 +1045,45 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest#completeSlashInclud
 mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest" test
 ```
 
+## BUG-056：TUI live session 列表只显示当前会话
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- TUI Sessions overlay 的 live 会话列表。
+- TUI 状态栏 live session 数量。
+- 多个 live session 之间的切换与关闭。
+
+当前事实：
+
+- 前端 `newLiveSession()` 创建新 live 会话时会保留旧会话，不会调用 `session.close`。
+- 前端 Sessions overlay 独立请求 `session.active_list`，再把 live 会话从历史列表中去重。
+- 后端 `activeSessions()` 只 `findSession(currentSessionId)` 并返回当前项。
+- 后端 `session.close` 原先直接返回 `ok()`，没有改变 live 列表状态。
+
+根因：
+
+- 后端没有维护当前 JVM 内仍打开的 TUI live session 集合。
+- `session.active_list` 只能回显当前会话，不能表达前端已创建但当前未聚焦的 live 会话。
+- `session.close` 没有移除 live session，前端关闭动作无法生效。
+
+修复记录：
+
+- `TerminalUiRpcService` 增加 JVM 内 live session id 列表。
+- `session.create`、`session.resume` 记录 live 会话，`session.close` 移除 live 会话。
+- `activeSessions()` 返回全部仍打开的 live 会话，并用现有 `latestActiveRun()` / `liveSessionStatus()` 填充真实运行状态。
+- `TerminalUiWebSocketListener` 将 `session.close` 接到 `TerminalUiRpcService.sessionClose()`。
+- `TerminalUiRpcServiceTest#activeSessionsReturnsAllTuiLiveSessionsAndHonorsClose` 增加回归，覆盖多 live 会话、waiting 状态和关闭移除。
+
+验证命令：
+
+```bash
+mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest#activeSessionsReturnsAllTuiLiveSessionsAndHonorsClose" test
+mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest" test
+npm --prefix terminal-ui test -- activeSessionSwitcher.test.ts
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -1072,4 +1111,5 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest" test
 - BUG-053 已修复 Dashboard 诊断、TUI 运行时、策展与 MCP 页面缺少短路径直达入口的问题。
 - BUG-054 已修复 TUI slash 补全漏掉本地可执行命令和别名的问题。
 - BUG-055 已修复 TUI slash 补全漏掉 Java 命令注册表别名的问题。
+- BUG-056 已修复 TUI live session 列表只显示当前会话且关闭不生效的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
