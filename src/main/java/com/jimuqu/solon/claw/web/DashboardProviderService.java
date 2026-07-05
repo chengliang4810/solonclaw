@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.HttpRedirectSupport;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.ProviderDisplayGrouping;
 import com.jimuqu.solon.claw.support.ProviderProfileService;
@@ -20,7 +21,6 @@ import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -874,7 +874,7 @@ public class DashboardProviderService {
         }
         HttpResponse response = request.execute();
         int status = response.getStatus();
-        if (isRedirect(status)) {
+        if (HttpRedirectSupport.isRedirectStatus(status)) {
             try {
                 if (redirectCount >= 5) {
                     throw new IllegalStateException("获取模型列表重定向次数过多。");
@@ -883,7 +883,9 @@ public class DashboardProviderService {
                 if (StrUtil.isBlank(location)) {
                     throw new IllegalStateException("获取模型列表重定向缺少 Location。");
                 }
-                String nextUrl = resolveRedirectUrl(url, location);
+                String nextUrl =
+                        HttpRedirectSupport.resolveLocation(
+                                url, location, "获取模型列表重定向 URL 无效");
                 response.close();
                 return executeModelListRequest(
                         initialUrl, nextUrl, apiKey, dialect, redirectCount + 1);
@@ -925,31 +927,6 @@ public class DashboardProviderService {
                         LlmProviderSupport.normalizeDialect(dialect))
                 ? Boolean.TRUE
                 : null;
-    }
-
-    /**
-     * 判断是否Redirect。
-     *
-     * @param status 状态参数。
-     * @return 如果Redirect满足条件则返回 true，否则返回 false。
-     */
-    private boolean isRedirect(int status) {
-        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
-    }
-
-    /**
-     * 解析Redirect URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @param location location 参数。
-     * @return 返回解析后的Redirect URL。
-     */
-    private String resolveRedirectUrl(String baseUrl, String location) {
-        try {
-            return URI.create(baseUrl).resolve(location.trim()).toString();
-        } catch (Exception e) {
-            throw new IllegalStateException("获取模型列表重定向 URL 无效。", e);
-        }
     }
 
     /**

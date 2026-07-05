@@ -10,9 +10,8 @@ import com.jimuqu.solon.claw.support.BaseUrlSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
-import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.HttpRedirectSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -249,7 +248,7 @@ public class WeixinQrSetupService {
                         .execute();
         try {
             int status = response.getStatus();
-            if (isRedirect(status)) {
+            if (HttpRedirectSupport.isRedirectStatus(status)) {
                 if (redirectCount >= MAX_HTTP_REDIRECTS) {
                     throw new IllegalStateException("微信 iLink 请求重定向次数超过限制");
                 }
@@ -257,7 +256,9 @@ public class WeixinQrSetupService {
                 if (StrUtil.isBlank(location)) {
                     throw new IllegalStateException("微信 iLink 请求重定向缺少 Location");
                 }
-                String nextUrl = resolveRedirectUrl(url, location);
+                String nextUrl =
+                        HttpRedirectSupport.resolveLocation(
+                                url, location, "微信 iLink 请求重定向地址无效");
                 response.close();
                 return executeJsonGet(nextUrl, redirectCount + 1);
             }
@@ -366,32 +367,6 @@ public class WeixinQrSetupService {
     /** 规范化基础 URL，避免后续拼接路径时出现重复斜杠。 */
     private String normalizeBaseUrl(String baseUrl) {
         return BaseUrlSupport.stripTrailingSlashes(baseUrl);
-    }
-
-    /**
-     * 判断是否Redirect。
-     *
-     * @param status 状态参数。
-     * @return 如果Redirect满足条件则返回 true，否则返回 false。
-     */
-    private boolean isRedirect(int status) {
-        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
-    }
-
-    /**
-     * 解析Redirect URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @param location location 参数。
-     * @return 返回解析后的Redirect URL。
-     */
-    private String resolveRedirectUrl(String baseUrl, String location) {
-        try {
-            return URI.create(baseUrl).resolve(location.trim()).toString();
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "微信 iLink 请求重定向地址无效：" + SecretRedactor.maskUrl(location), e);
-        }
     }
 
     /** 表示Ticket数据，在服务、仓储和接口之间传递。 */

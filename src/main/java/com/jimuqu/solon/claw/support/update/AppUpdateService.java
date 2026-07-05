@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.HttpRedirectSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -554,7 +555,7 @@ public class AppUpdateService {
             }
             HttpResponse response = request.execute();
             try {
-                if (isRedirect(response.getStatus())) {
+                if (HttpRedirectSupport.isRedirectStatus(response.getStatus())) {
                     if (redirectCount >= MAX_GITHUB_JSON_REDIRECTS) {
                         throw new IllegalStateException("GitHub API redirect count exceeds limit");
                     }
@@ -562,7 +563,9 @@ public class AppUpdateService {
                     if (StrUtil.isBlank(location)) {
                         throw new IllegalStateException("GitHub API redirect missing Location");
                     }
-                    String redirectUrl = resolveRedirectUrl(url, location);
+                    String redirectUrl =
+                            HttpRedirectSupport.resolveLocation(
+                                    url, location, "GitHub API redirect URL is invalid");
                     response.close();
                     return executeGithubJson(redirectUrl, redirectCount + 1, initialUrl);
                 }
@@ -579,32 +582,6 @@ public class AppUpdateService {
                     e.getClass().getSimpleName() + ": " + SecretRedactor.redact(e.getMessage()));
         }
         return result;
-    }
-
-    /**
-     * 判断是否Redirect。
-     *
-     * @param status 状态参数。
-     * @return 如果Redirect满足条件则返回 true，否则返回 false。
-     */
-    private boolean isRedirect(int status) {
-        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
-    }
-
-    /**
-     * 解析Redirect URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @param location location 参数。
-     * @return 返回解析后的Redirect URL。
-     */
-    private String resolveRedirectUrl(String baseUrl, String location) {
-        try {
-            return URI.create(baseUrl).resolve(location.trim()).toString();
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "GitHub API redirect URL is invalid: " + SecretRedactor.maskUrl(location), e);
-        }
     }
 
     /**

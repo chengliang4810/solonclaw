@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.mcp.McpToolListSupport;
 import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.support.HttpRedirectSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.UrlOriginSupport;
@@ -1489,7 +1490,7 @@ public class DashboardMcpService {
         }
         HttpResponse response = request.execute();
         int status = response.getStatus();
-        if (!isRedirect(status)) {
+        if (!HttpRedirectSupport.isRedirectStatus(status)) {
             return response;
         }
         try {
@@ -1502,40 +1503,16 @@ public class DashboardMcpService {
                 throw new IllegalStateException(
                         "MCP OAuth token_endpoint redirect missing Location");
             }
-            String nextUrl = resolveRedirectUrl(url, location);
+            String nextUrl =
+                    HttpRedirectSupport.resolveLocation(
+                            url,
+                            location,
+                            "MCP OAuth token_endpoint redirect URL is invalid");
             response.close();
             return executeOAuthTokenRequest(nextUrl, form, redirectCount + 1, initialUrl);
         } catch (RuntimeException e) {
             response.close();
             throw e;
-        }
-    }
-
-    /**
-     * 判断是否Redirect。
-     *
-     * @param status 状态参数。
-     * @return 如果Redirect满足条件则返回 true，否则返回 false。
-     */
-    private boolean isRedirect(int status) {
-        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
-    }
-
-    /**
-     * 解析Redirect URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @param location location 参数。
-     * @return 返回解析后的Redirect URL。
-     */
-    private String resolveRedirectUrl(String baseUrl, String location) {
-        try {
-            return URI.create(baseUrl).resolve(location.trim()).toString();
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "MCP OAuth token_endpoint redirect URL is invalid: "
-                            + SecretRedactor.maskUrl(location),
-                    e);
         }
     }
 

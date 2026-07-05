@@ -8,7 +8,6 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -279,7 +278,7 @@ public final class BoundedAttachmentIO {
                         .executeAsync();
         try {
             int status = response.getStatus();
-            if (isRedirect(status)) {
+            if (HttpRedirectSupport.isRedirectStatus(status)) {
                 if (redirectCount >= MAX_GUARDED_REDIRECTS) {
                     throw new IllegalStateException(
                             "Download redirect count exceeds limit: " + MAX_GUARDED_REDIRECTS);
@@ -288,7 +287,9 @@ public final class BoundedAttachmentIO {
                 if (StrUtil.isBlank(location)) {
                     throw new IllegalStateException("Download redirect missing Location header");
                 }
-                String nextUrl = resolveRedirectUrl(url, location);
+                String nextUrl =
+                        HttpRedirectSupport.resolveLocation(
+                                url, location, "Download redirect URL is invalid");
                 return downloadHutoolWithRedirectGuard(
                         initialUrl,
                         nextUrl,
@@ -305,32 +306,6 @@ public final class BoundedAttachmentIO {
                     readHutoolResponse(response, maxBytes), response.header("Content-Type"));
         } finally {
             response.close();
-        }
-    }
-
-    /**
-     * 判断是否Redirect。
-     *
-     * @param status 状态参数。
-     * @return 如果Redirect满足条件则返回 true，否则返回 false。
-     */
-    private static boolean isRedirect(int status) {
-        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
-    }
-
-    /**
-     * 解析Redirect URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @param location location 参数。
-     * @return 返回解析后的Redirect URL。
-     */
-    private static String resolveRedirectUrl(String baseUrl, String location) {
-        try {
-            return URI.create(baseUrl).resolve(location.trim()).toString();
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "Download redirect URL is invalid: " + SecretRedactor.maskUrl(location), e);
         }
     }
 
@@ -485,7 +460,7 @@ public final class BoundedAttachmentIO {
         Response response = guardedClient.newCall(request).execute();
         try {
             int status = response.code();
-            if (isRedirect(status)) {
+            if (HttpRedirectSupport.isRedirectStatus(status)) {
                 if (redirectCount >= MAX_GUARDED_REDIRECTS) {
                     throw new IllegalStateException(
                             "Download redirect count exceeds limit: " + MAX_GUARDED_REDIRECTS);
@@ -494,7 +469,9 @@ public final class BoundedAttachmentIO {
                 if (StrUtil.isBlank(location)) {
                     throw new IllegalStateException("Download redirect missing Location header");
                 }
-                String nextUrl = resolveRedirectUrl(url, location);
+                String nextUrl =
+                        HttpRedirectSupport.resolveLocation(
+                                url, location, "Download redirect URL is invalid");
                 return downloadOkHttpWithRedirectGuard(
                         client, nextUrl, maxBytes, securityPolicyService, redirectCount + 1);
             }

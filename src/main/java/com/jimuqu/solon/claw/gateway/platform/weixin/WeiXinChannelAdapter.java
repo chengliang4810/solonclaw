@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BaseUrlSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.HttpRedirectSupport;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -29,7 +30,6 @@ import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -2024,7 +2024,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .timeout(timeoutMs)
                         .setFollowRedirects(false);
         HttpResponse response = request.execute();
-        if (!isRedirect(response.getStatus())) {
+        if (!HttpRedirectSupport.isRedirectStatus(response.getStatus())) {
             return response;
         }
         try {
@@ -2060,7 +2060,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .timeout(120000)
                         .setFollowRedirects(false);
         HttpResponse response = request.execute();
-        if (!isRedirect(response.getStatus())) {
+        if (!HttpRedirectSupport.isRedirectStatus(response.getStatus())) {
             return response;
         }
         try {
@@ -2096,16 +2096,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (StrUtil.isBlank(location)) {
             throw new IllegalStateException(purpose + " redirect missing Location");
         }
-        try {
-            String nextUrl = URI.create(url).resolve(location.trim()).toString();
-            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, nextUrl, purpose);
-            return nextUrl;
-        } catch (RuntimeException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    purpose + " redirect URL is invalid: " + SecretRedactor.maskUrl(location), e);
-        }
+        String nextUrl =
+                HttpRedirectSupport.resolveLocation(
+                        url, location, purpose + " redirect URL is invalid");
+        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, nextUrl, purpose);
+        return nextUrl;
     }
 
 
@@ -2122,16 +2117,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 规范化基础 URL，避免后续拼接路径时出现重复斜杠。 */
     private String normalizeBaseUrl(String baseUrl) {
         return BaseUrlSupport.stripTrailingSlashes(baseUrl);
-    }
-
-    /**
-     * 判断是否Redirect。
-     *
-     * @param status 状态参数。
-     * @return 如果Redirect满足条件则返回 true，否则返回 false。
-     */
-    private boolean isRedirect(int status) {
-        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
     /** 承载聊天Target相关状态和辅助逻辑。 */
