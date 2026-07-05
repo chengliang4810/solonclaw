@@ -671,9 +671,12 @@ export function useMainApp(gw: GatewayClient) {
     maybeGoodVibes,
     setLastUserMsg,
     slashRef,
-    submitRef,
     sys
   })
+
+  useEffect(() => {
+    submitRef.current = submit
+  }, [submit])
 
   // Drain one queued message whenever the session settles (busy → false):
   // agent turn ends, interrupt, shell.exec finishes, error recovered, or the

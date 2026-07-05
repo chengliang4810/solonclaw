@@ -140,6 +140,11 @@ class TurnController {
     this.streamDelay = Math.max(this.streamDelay, STREAM_SCROLL_BATCH_MS)
   }
 
+  beginSubmission() {
+    this.bufRef = ''
+    this.interrupted = false
+  }
+
   relaxStreaming() {
     this.streamDelay = STREAM_IDLE_BATCH_MS
   }

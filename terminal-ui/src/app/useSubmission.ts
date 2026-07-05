@@ -72,7 +72,6 @@ export function useSubmission(opts: UseSubmissionOptions) {
     isExactSlashCommand,
     setLastUserMsg,
     slashRef,
-    submitRef,
     sys
   } = opts
 
@@ -128,8 +127,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
         }
 
         patchUiState({ busy: true, status: '运行中…' })
-        turnController.bufRef = ''
-        turnController.interrupted = false
+        turnController.beginSubmission()
 
         gw.request<PromptSubmitResponse>('prompt.submit', { session_id: sid, text: submitText }).catch((e: Error) => {
           if (isSessionBusyError(e)) {
@@ -477,8 +475,6 @@ export function useSubmission(opts: UseSubmissionOptions) {
     [appendMessage, composerActions, composerRefs, composerState, dispatchSubmission, gw, isExactSlashCommand, sys]
   )
 
-  submitRef.current = submit
-
   return { dispatchSubmission, send, sendQueued, submit }
 }
 
@@ -492,6 +488,5 @@ export interface UseSubmissionOptions {
   isExactSlashCommand: (value: string) => boolean
   setLastUserMsg: (value: string) => void
   slashRef: MutableRefObject<(cmd: string) => boolean>
-  submitRef: MutableRefObject<(value: string) => void>
   sys: (text: string) => void
 }
