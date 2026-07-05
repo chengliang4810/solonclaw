@@ -1,14 +1,20 @@
 const DIRECT_ROUTE_HASHES: Record<string, string> = {
+  '/status': '#/solonclaw/diagnostics',
   '/chat': '#/solonclaw/chat',
+  '/sessions': '#/solonclaw/runs',
+  '/analytics': '#/solonclaw/usage',
   '/models': '#/solonclaw/models',
+  '/memory': '#/solonclaw/persona/journal',
   '/logs': '#/solonclaw/logs',
   '/gateways': '#/solonclaw/gateways',
   '/channels': '#/solonclaw/channels',
   '/agents': '#/solonclaw/agents',
   '/files': '#/solonclaw/files',
+  '/workspace': '#/solonclaw/files',
   '/cron': '#/solonclaw/jobs',
   '/skills': '#/solonclaw/skills',
   '/config': '#/solonclaw/settings',
+  '/env': '#/solonclaw/settings',
 }
 
 export function dashboardHashRouteForPath(pathname: string): string {
