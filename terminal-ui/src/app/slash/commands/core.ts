@@ -628,14 +628,20 @@ export const coreCommands: SlashCommand[] = [
       }
 
       ctx.gateway.rpc<SessionUndoResponse>('session.undo', { session_id: ctx.sid }).then(
-        ctx.guarded<SessionUndoResponse>(r => {
-          if ((r.removed ?? 0) > 0) {
+        r => {
+          if (ctx.stale()) {
+            return
+          }
+
+          const removed = r?.removed ?? 0
+
+          if (removed > 0) {
             ctx.transcript.setHistoryItems((prev: Msg[]) => ctx.transcript.trimLastExchange(prev))
-            ctx.transcript.sys(`undid ${r.removed} messages`)
+            ctx.transcript.sys(`undid ${removed} messages`)
           } else {
             ctx.transcript.sys('nothing to undo')
           }
-        })
+        }
       ).catch(ctx.guardedErr)
     }
   },
@@ -655,14 +661,18 @@ export const coreCommands: SlashCommand[] = [
       }
 
       ctx.gateway.rpc<SessionUndoResponse>('session.undo', { session_id: ctx.sid }).then(
-        ctx.guarded<SessionUndoResponse>(r => {
-          if ((r.removed ?? 0) <= 0) {
+        r => {
+          if (ctx.stale()) {
+            return
+          }
+
+          if ((r?.removed ?? 0) <= 0) {
             return ctx.transcript.sys('nothing to retry')
           }
 
           ctx.transcript.setHistoryItems((prev: Msg[]) => ctx.transcript.trimLastExchange(prev))
           ctx.transcript.send(last)
-        })
+        }
       ).catch(ctx.guardedErr)
     }
   }

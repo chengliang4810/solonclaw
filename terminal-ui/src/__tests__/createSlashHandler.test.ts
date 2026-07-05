@@ -1253,6 +1253,34 @@ describe('createSlashHandler', () => {
       expect(ctx.transcript.sys).toHaveBeenCalledWith('error: undo unavailable')
     })
   })
+
+  it('reports nothing to undo when the backend returns an empty undo response', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve(null))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/undo')
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('nothing to undo')
+    })
+  })
+
+  it('reports nothing to retry when the backend returns an empty undo response', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve(null))
+    const ctx = buildCtx({
+      gateway: { ...buildGateway(), rpc },
+      local: { ...buildLocal(), getLastUserMsg: vi.fn(() => 'retry this') }
+    })
+
+    createSlashHandler(ctx)('/retry')
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('nothing to retry')
+    })
+    expect(ctx.transcript.send).not.toHaveBeenCalled()
+  })
 })
 
 const buildCtx = (overrides: Partial<Ctx> = {}): Ctx => ({
