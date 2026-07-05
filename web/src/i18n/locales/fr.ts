@@ -518,6 +518,7 @@ export default {
     mediaReferenceReady: 'Reference media prete',
     mediaReferenceFailed: 'Echec de la generation de la reference media',
     mediaDetail: 'Detail du media',
+    mediaLoadFailed: 'Echec du chargement du cache media',
     mediaEmpty: 'Aucun enregistrement de cache media',
     mediaStatus: 'Etat',
     mediaPlatform: 'Plateforme',

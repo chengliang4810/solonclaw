@@ -518,6 +518,7 @@ export default {
     mediaReferenceReady: 'Medienreferenz ist bereit',
     mediaReferenceFailed: 'Medienreferenz konnte nicht erzeugt werden',
     mediaDetail: 'Mediendetail',
+    mediaLoadFailed: 'Mediencache konnte nicht geladen werden',
     mediaEmpty: 'Keine Mediencache-Datensatze',
     mediaStatus: 'Status',
     mediaPlatform: 'Plattform',

@@ -12,6 +12,7 @@ const settingsStore = useSettingsStore()
 const { t } = useI18n()
 const mediaItems = ref<ChannelMedia[]>([])
 const mediaLoading = ref(false)
+const mediaLoadError = ref('')
 const mediaRefreshLoading = ref(false)
 const mediaDownloadLoading = ref(false)
 const mediaIndexLoading = ref(false)
@@ -27,8 +28,11 @@ onMounted(() => {
 
 async function loadMedia() {
   mediaLoading.value = true
+  mediaLoadError.value = ''
   try {
     mediaItems.value = await fetchMedia('', 30)
+  } catch (err: any) {
+    mediaLoadError.value = err instanceof Error ? err.message : String(err || t('channels.mediaLoadFailed'))
   } finally {
     mediaLoading.value = false
   }
@@ -133,8 +137,12 @@ async function referenceSelectedMedia() {
           </Button>
         </div>
         <Spin :spinning="mediaLoading" size="small">
-          <div v-if="mediaItems.length === 0" class="empty-state">{{ t('channels.mediaEmpty') }}</div>
-          <div v-else class="media-list">
+          <div v-if="mediaLoadError" class="media-load-error">
+            <strong>{{ t('channels.mediaLoadFailed') }}</strong>
+            <span>{{ mediaLoadError }}</span>
+          </div>
+          <div v-if="!mediaLoadError && mediaItems.length === 0" class="empty-state">{{ t('channels.mediaEmpty') }}</div>
+          <div v-if="mediaItems.length > 0" class="media-list">
             <button v-for="item in mediaItems" :key="item.media_id" class="media-row" @click="openMediaDetail(item.media_id)">
               <span class="media-name">{{ item.original_name || item.media_id }}</span>
               <span class="media-meta">{{ item.platform || '-' }} / {{ item.kind || '-' }} / {{ formatFileSize(item.size_bytes) }}</span>
@@ -232,6 +240,18 @@ async function referenceSelectedMedia() {
   padding: 24px 0;
   text-align: center;
   color: $text-muted;
+}
+
+.media-load-error {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(220, 38, 38, 0.32);
+  border-radius: $radius-sm;
+  background: rgba(220, 38, 38, 0.08);
+  color: $text-primary;
 }
 
 .media-list {

@@ -518,6 +518,7 @@ export default {
     mediaReferenceReady: 'Referencia de medio lista',
     mediaReferenceFailed: 'Error al generar referencia de medio',
     mediaDetail: 'Detalle del medio',
+    mediaLoadFailed: 'No se pudo cargar la cache de medios',
     mediaEmpty: 'No hay registros de cache de medios',
     mediaStatus: 'Estado',
     mediaPlatform: 'Plataforma',

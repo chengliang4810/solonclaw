@@ -1804,6 +1804,7 @@ export default {
     mediaReferenceReady: '媒体引用已生成',
     mediaReferenceFailed: '媒体引用生成失败',
     mediaDetail: '媒体详情',
+    mediaLoadFailed: '媒体缓存加载失败',
     mediaEmpty: '暂无媒体缓存记录',
     mediaStatus: '状态',
     mediaChatId: '会话 ID',
