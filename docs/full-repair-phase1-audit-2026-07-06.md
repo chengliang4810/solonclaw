@@ -56,7 +56,27 @@ $files | Sort-Object -Unique | ForEach-Object { [pscustomobject]@{ Lines=(Get-Co
 python scripts\check-code-duplication.py --report-only --min-lines 30 src\main\java src\test\java web\src terminal-ui\src terminal-ui\packages
 ```
 
+## 阶段 1.1 TUI 端到端复核
+
+TUI 只读代理在真实 PTY 中复核了输入提交路径：
+
+| 场景 | 结果 | 结论 |
+| --- | --- | --- |
+| 一次写入 `/help\r` 或普通文本加 `\r` | 文本进入输入框，需再发送一次独立 `\r` 才执行 | 属于自动化 PTY 把文本和回车合并成同一写入块时的驱动差异。 |
+| 逐键输入文本，等待输入稳定后单独发送 `\r` | 立即提交并进入后端调用 | 产品输入链路支持单次 Enter 提交。 |
+
+本轮不修改业务提交逻辑；新增解析层回归测试，固定 `\r` 与 `\n` 都会被解析为 `return` 键，避免后续误判为产品必须双回车。
+
+验证命令：
+
+```powershell
+npm --prefix terminal-ui test -- packages/solonclaw-ink/src/ink/parse-keypress.test.ts src/__tests__/textInputCursorSourceOfTruth.test.ts src/__tests__/textInputPassThrough.test.ts src/__tests__/completionApply.test.ts
+```
+
+结果：4 个测试文件通过，36 个用例通过。
+
 ## 当前结论
 
 - 阶段 1.2、1.3、1.4 在当前工作树没有需要立即修改的生产代码。
-- 阶段 1.1 继续等待 Web UI 与 TUI 端到端只读验收结果；若发现可复现功能缺陷，应先追加缺陷报告，再按原子项修复并提交。
+- 阶段 1.1 的 TUI 输入提交路径已复核；真实用户式单独 Enter 可提交，批量写入文本加回车的自动化差异不作为生产代码缺陷处理。
+- 阶段 1.1 继续等待 Web UI 端到端只读验收结果；若发现可复现功能缺陷，应先追加缺陷报告，再按原子项修复并提交。
