@@ -833,6 +833,41 @@ npm --prefix terminal-ui run build
 npm --prefix terminal-ui run lint -- --quiet
 ```
 
+## BUG-050：工作区文件页存在路由但侧边栏没有入口
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 工作区文件管理页。
+- 从常规侧边栏进入工作区文件、模板文件与配置文件查看/编辑能力。
+- 用户发现 `/workspace` / `/files` 直达入口背后的实际页面。
+
+当前事实：
+
+- `router` 已注册 `solonclaw.files`，直达 `#/solonclaw/files` 可以打开文件页。
+- `dashboardDirectRoutes` 也把 `/workspace` 和 `/files` 指向该页面。
+- 侧边栏导航元数据里没有 `solonclaw.files`，用户只能靠直达地址进入。
+
+根因：
+
+- 文件管理页上线后只补了路由和直接访问映射，遗漏了统一侧边栏目录 `PRIMARY_NAV_ITEMS`。
+- `AppSidebar.vue` 已经从共享导航元数据渲染主入口，因此根因在元数据缺项，不在组件渲染层。
+
+修复记录：
+
+- 在 `PRIMARY_NAV_ITEMS` 中添加 `solonclaw.files`，复用已有 `sidebar.files` 本地化文案。
+- `appSidebarNavMetadataStatic.test.ts` 增加回归，锁定侧边栏目录必须暴露工作区文件入口。
+
+验证命令：
+
+```bash
+npm --prefix web run test:app-sidebar-nav-metadata
+node --experimental-strip-types web/tests/dashboardDirectRoutes.test.ts
+node --experimental-strip-types web/tests/systemNavItemsMetadataStatic.test.ts
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -854,4 +889,5 @@ npm --prefix terminal-ui run lint -- --quiet
 - BUG-047 已修复 Web 聊天启动前错误气泡刷新后丢失的问题。
 - BUG-048 已修复 TUI 会话创建/恢复前 setup.status 失败导致状态卡住的问题。
 - BUG-049 已修复 TUI `/copy` 非法或超范围数字参数会复制错误助手消息的问题。
+- BUG-050 已修复工作区文件页存在直达路由但侧边栏没有可发现入口的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
