@@ -397,6 +397,18 @@ class TerminalUiRpcServiceTest {
         assertThat(slashCompletionTexts(service.completeSlash("/set-"))).contains("/set-home");
     }
 
+    /** 未真正写入附件缓存时，TUI 不能把 /image 结果渲染为成功附件。 */
+    @Test
+    void imageAttachReportsFailureWhenNoAttachmentResolved() throws Exception {
+        TerminalUiRpcService service = new TerminalUiRpcService(testConfig());
+
+        Map<String, Object> response = service.imageAttach("missing.png");
+
+        assertThat(response.get("attached")).isEqualTo(Boolean.FALSE);
+        assertThat(response.get("message")).isEqualTo("image not attached");
+        assertThat(response).doesNotContainKey("name");
+    }
+
     private static SessionRecord session(String id, String sourceKey) {
         SessionRecord session = new SessionRecord();
         session.setSessionId(id);

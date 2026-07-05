@@ -1134,6 +1134,19 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /image <path>')
   })
 
+  it('/image reports attach failure when the backend did not attach', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve({ attached: false, message: 'image not attached', name: 'missing.png' }))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/image C:\\missing.png')
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('image not attached')
+    })
+    expect(ctx.transcript.sys).not.toHaveBeenCalledWith(expect.stringContaining('Attached image'))
+  })
+
   it('/paste invokes text paste without showing an image-only warning', () => {
     const ctx = buildCtx()
 

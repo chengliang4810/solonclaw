@@ -773,14 +773,16 @@ public class TerminalUiRpcService {
     public Map<String, Object> imageAttach(String path) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         File file = new File(StrUtil.nullToEmpty(path));
-        result.put("name", file.getName());
-        result.put("remainder", "");
-        result.put("token_estimate", Integer.valueOf(0));
+        result.put("attached", Boolean.FALSE);
+        result.put("message", "image not attached");
         if (attachmentResolver != null && StrUtil.isNotBlank(path)) {
             AttachmentPathResolver.ResolvedInput resolved = attachmentResolver.resolve(path);
             if (!resolved.getAttachments().isEmpty()) {
                 MessageAttachment attachment = resolved.getAttachments().get(0);
+                result.remove("message");
                 result.put("name", StrUtil.blankToDefault(attachment.getOriginalName(), file.getName()));
+                result.put("remainder", "");
+                result.put("token_estimate", Integer.valueOf(0));
                 result.put("mime_type", StrUtil.nullToEmpty(attachment.getMimeType()));
                 result.put("kind", StrUtil.nullToEmpty(attachment.getKind()));
                 result.put("size_bytes", Long.valueOf(attachment.getSizeBytes()));
