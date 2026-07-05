@@ -6,6 +6,7 @@ import type { DisplayConfig, AgentConfig, GatewayConfig, PlatformCatalogItem } f
 export const useSettingsStore = defineStore('settings', () => {
   const loading = ref(false)
   const saving = ref(false)
+  const loadError = ref<string | null>(null)
 
   const display = ref<DisplayConfig>({})
   const agent = ref<AgentConfig>({})
@@ -21,6 +22,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   async function fetchSettings() {
     loading.value = true
+    loadError.value = null
     try {
       const data = await configApi.fetchConfig()
       display.value = data.display || {}
@@ -36,6 +38,7 @@ export const useSettingsStore = defineStore('settings', () => {
       platformCatalog.value = data.platformCatalog || []
     } catch (err) {
       console.error('Failed to fetch settings:', err)
+      loadError.value = err instanceof Error ? err.message : String(err || 'Failed to fetch settings')
     } finally {
       loading.value = false
     }
@@ -72,7 +75,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   return {
-    loading, saving,
+    loading, saving, loadError,
     display, agent, gateway,
     wecom, feishu, dingtalk, weixin, qqbot, yuanbao, platforms,
     platformCatalog,

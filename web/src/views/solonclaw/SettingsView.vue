@@ -91,6 +91,11 @@ function jsonText(value: unknown) {
         size="large"
         :description="t('common.loading')"
       >
+        <div v-if="settingsStore.loadError" class="settings-load-error">
+          <strong>{{ t('common.fetchFailed') }}</strong>
+          <span>{{ settingsStore.loadError }}</span>
+        </div>
+
         <Tabs v-model:activeKey="activeTab" type="card" animated>
           <TabPane tabKey="account" :tab="t('settings.tabs.account')">
             <AccountSettings />
@@ -162,6 +167,18 @@ function jsonText(value: unknown) {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
+}
+
+.settings-load-error {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(220, 38, 38, 0.32);
+  border-radius: $radius-sm;
+  background: rgba(220, 38, 38, 0.08);
+  color: $text-primary;
 }
 
 .config-diagnostics {
