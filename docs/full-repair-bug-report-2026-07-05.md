@@ -724,6 +724,43 @@ npm --prefix web run test:i18n-registration
 npm --prefix web run build
 ```
 
+## BUG-047：Web 聊天启动前错误气泡刷新后丢失
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 聊天发送消息后的启动 run 阶段。
+- 附件上传失败、创建 run 失败或后端返回无 run id 的错误展示。
+- 用户刷新页面后排查“消息是否发送成功”的路径。
+
+当前事实：
+
+- 用户消息发送后会立即调用 `persistActiveMessages()` 和 `persistSessionsList()`。
+- `startRun()` 返回无 `run_id` 时会追加系统错误气泡，但追加后直接 `return`。
+- 外层 `catch` 捕获上传或创建 run 失败时也只追加系统错误气泡。
+- 这两个错误分支都没有像 `run.failed` 事件分支一样持久化当前消息列表。
+
+根因：
+
+- 聊天 store 只把流式事件阶段的失败视为需要持久化的失败态。
+- 启动 SSE 之前发生的错误同样已经在 UI 中可见，但没有写回本地会话消息缓存。
+
+修复记录：
+
+- `sendMessage()` 在无 run id 分支追加错误气泡后持久化当前活动消息。
+- `sendMessage()` 外层异常分支追加错误气泡后同样持久化当前活动消息。
+- 新增 `chatPreStreamErrorPersistenceStatic.test.ts`，锁定启动前错误分支必须持久化可见错误消息。
+
+验证命令：
+
+```bash
+npm --prefix web run test:chat-prestream-error-persistence
+npm --prefix web run test:chat-message-merge
+npm --prefix web run test:session-selection
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -742,4 +779,5 @@ npm --prefix web run build
 - BUG-044 已修复 Web settings store 暴露已裁剪海外渠道假配置入口的问题。
 - BUG-045 已修复 TUI 文本协议 `run.completed` 事件被静默丢弃导致最终回复不显示的问题。
 - BUG-046 已修复 Dashboard 技能页面加载失败后只写控制台、界面无失败态的问题。
+- BUG-047 已修复 Web 聊天启动前错误气泡刷新后丢失的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

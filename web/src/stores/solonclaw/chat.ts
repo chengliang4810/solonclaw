@@ -806,6 +806,7 @@ export const useChatStore = defineStore('chat', () => {
           content: `Error: startRun returned no run ID. Response: ${JSON.stringify(run)}`,
           timestamp: Date.now(),
         })
+        if (localSid === activeSessionId.value) persistActiveMessages()
         return
       }
 
@@ -1101,6 +1102,7 @@ export const useChatStore = defineStore('chat', () => {
         content: `Error: ${err.message}`,
         timestamp: Date.now(),
       })
+      if (localSid === activeSessionId.value) persistActiveMessages()
     }
   }
 
