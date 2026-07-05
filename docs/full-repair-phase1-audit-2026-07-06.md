@@ -75,8 +75,20 @@ npm --prefix terminal-ui test -- packages/solonclaw-ink/src/ink/parse-keypress.t
 
 结果：4 个测试文件通过，36 个用例通过。
 
+## 阶段 1.1 Web UI 端到端复核
+
+Web UI 只读代理复核了 Dashboard 主链路：
+
+| 场景 | 结果 | 结论 |
+| --- | --- | --- |
+| 后端健康检查与 Vite 代理 | 新启动的 5175 代理到 8080 后 `/health` 与多数 API 正常 | 已有 5174 进程代理 502 属于旧进程环境失配，不作为代码缺陷。 |
+| 登录后主要路由 | `chat`、`agents`、`jobs`、`models`、`logs`、`usage`、`runs`、`settings`、`diagnostics` 可达 | Dashboard 主导航与路由主体可用。 |
+| 聊天提交与 SSE | `POST /api/chat/runs` 与 SSE `/events` 可达，随后模型调用失败 | 前端发送链路可用，失败点在模型凭据或运行配置。 |
+
+当前 `workspace/config.yml` 中 Dashboard token 与模型 API key 均为空；模型页显示“缺少密钥 / 接口密钥 未配置”。真实模型回复未完成的原因是运行配置或外部凭据状态，不是 Web UI 主链路代码缺陷。本轮不修改生产代码。
+
 ## 当前结论
 
 - 阶段 1.2、1.3、1.4 在当前工作树没有需要立即修改的生产代码。
 - 阶段 1.1 的 TUI 输入提交路径已复核；真实用户式单独 Enter 可提交，批量写入文本加回车的自动化差异不作为生产代码缺陷处理。
-- 阶段 1.1 继续等待 Web UI 端到端只读验收结果；若发现可复现功能缺陷，应先追加缺陷报告，再按原子项修复并提交。
+- 阶段 1.1 的 Web UI 主链路已复核；当前真实模型失败归因于运行配置或外部凭据状态，不作为前端代码缺陷处理。
