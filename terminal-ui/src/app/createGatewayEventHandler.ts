@@ -870,6 +870,17 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
           sys(`error: ${message}`)
           setStatus('ready')
         }
+
+        return
+
+      default:
+        // 未知事件通常表示网关协议漂移；保留可见提示，避免用户只看到界面无响应。
+        turnController.pushActivity(
+          `unhandled gateway event: ${String((ev as { type?: unknown }).type ?? 'unknown')} · /logs to inspect`,
+          'warn'
+        )
+
+        return
     }
   }
 }

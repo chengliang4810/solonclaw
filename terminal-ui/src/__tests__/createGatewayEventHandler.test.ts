@@ -947,6 +947,17 @@ describe('createGatewayEventHandler', () => {
     ])
   })
 
+  it('surfaces unknown gateway events instead of silently dropping protocol drift', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    onEvent({ payload: {}, type: 'future.event' } as any)
+
+    expect(getTurnState().activity).toMatchObject([
+      { text: 'unhandled gateway event: future.event · /logs to inspect', tone: 'warn' }
+    ])
+  })
+
   it('still surfaces terminal turn failures as errors', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))

@@ -23,6 +23,7 @@ import { getUiState, patchUiState } from './uiStore.js'
 
 const DOUBLE_ENTER_MS = 450
 const SESSION_BUSY_RE = /session busy|waiting for model response/i
+const SESSIONLESS_SLASH_COMMAND_RE = /^(?:doctor|setup(?:\s+(?:model|gateway))?)$/i
 
 const isSessionBusyError = (e: unknown) => e instanceof Error && SESSION_BUSY_RE.test(e.message)
 
@@ -335,6 +336,17 @@ export function useSubmission(opts: UseSubmissionOptions) {
       }
 
       if (looksLikeLocalCliCommand(full)) {
+        const command = full.trim()
+
+        if (SESSIONLESS_SLASH_COMMAND_RE.test(command)) {
+          appendMessage({ kind: 'slash', role: 'system', text: command })
+          composerActions.pushHistory(command)
+          composerActions.clearIn()
+          slashRef.current(`/${command}`)
+
+          return
+        }
+
         const sid = getUiState().sid
 
         if (!sid) {
