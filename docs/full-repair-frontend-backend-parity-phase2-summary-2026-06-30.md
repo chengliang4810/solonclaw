@@ -20,6 +20,8 @@
 
 2026-07-05 增量复核发现定时任务 inspect 聚合端点已有后端和前端 API，但任务详情抽屉仍拆成任务详情与运行记录两次请求。已改为通过 store 统一调用 `inspectJob`，让 UI 使用 `/api/cron/jobs/{id}/inspect` 的聚合结果。
 
+2026-07-05 后续增量复核发现可恢复运行列表已有后端和前端 API，但运行记录页没有列表入口。已在 Runs 页面右侧面板补充“可恢复运行”加载入口，点击条目可直接打开对应运行详情。
+
 ## 已完成项
 
 ### 1. 阶段 2.1 / 2.3 复核清单
@@ -43,6 +45,14 @@
 - 前端 API：`web/src/api/solonclaw/jobs.ts` 已有 `inspectJob(jobId, limit)`。
 - 前端 UI：`JobCard.vue` 的详情抽屉改为通过 `jobsStore.inspectJob(jobId, 20)` 一次加载详情任务和运行记录。
 - 覆盖测试：`web/tests/jobInspectEndpointStatic.test.ts` 锁定 store 转发和 JobCard 聚合端点调用。
+
+### 4. 可恢复运行列表入口
+
+- 提交：本次提交。
+- 后端契约：`GET /api/runs/recoverable` 返回可恢复运行列表。
+- 前端 API：`web/src/api/solonclaw/runs.ts` 已有 `fetchRecoverableRuns(limit)`。
+- 前端 UI：`RunsView.vue` 右侧面板新增“可恢复运行”加载入口，点击运行条目会切换会话并打开该运行详情。
+- 覆盖测试：`web/tests/recoverableRunsUiStatic.test.ts` 锁定 API 消费、页面入口和中英文文案。
 
 ## 验证记录
 
@@ -90,6 +100,15 @@
 - `node --experimental-strip-types web/tests/jobMutationPayloadStatic.test.ts`：通过。
 - `node --experimental-strip-types web/tests/jobFormOptions.test.ts`：通过。
 - `node --experimental-strip-types web/tests/jobsDisplay.test.ts`：通过。
+- `npm --prefix web run build`：通过。
+- `git diff --check`：通过，仅有 Windows 换行提示。
+
+2026-07-05 可恢复运行入口提交前执行：
+
+- `node --experimental-strip-types web/tests/recoverableRunsUiStatic.test.ts`：通过。
+- `node --experimental-strip-types web/tests/runDetailExtendedStatic.test.ts`：通过。
+- `node --experimental-strip-types web/tests/sessionArtifactsUiStatic.test.ts`：通过。
+- `node --experimental-strip-types web/tests/runsDisplay.test.ts`：通过。
 - `npm --prefix web run build`：通过。
 - `git diff --check`：通过，仅有 Windows 换行提示。
 

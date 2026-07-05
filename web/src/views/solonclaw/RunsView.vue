@@ -16,6 +16,7 @@ import {
   controlSubagent,
   controlRun,
   fetchActiveSubagents,
+  fetchRecoverableRuns,
   fetchRunDetail,
   fetchSessionRuns,
   type AgentRun,
@@ -38,6 +39,7 @@ const events = ref<AgentRunEvent[]>([])
 const tools = ref<ToolCall[]>([])
 const subagents = ref<SubagentRun[]>([])
 const activeSubagents = ref<SubagentRun[]>([])
+const recoverableRuns = ref<AgentRun[]>([])
 const subagentSpawnPaused = ref(false)
 const recoveries = ref<RunRecovery[]>([])
 const commands = ref<RunControlCommand[]>([])
@@ -56,6 +58,7 @@ const savingTrajectory = ref(false)
 const runControlLoading = ref('')
 const subagentControlLoading = ref('')
 const subagentSpawnLoading = ref(false)
+const recoverableLoading = ref(false)
 const { t } = useI18n()
 
 const sessionOptions = computed(() => sessions.value.map(session => ({
@@ -144,6 +147,25 @@ async function loadActiveSubagents() {
   subagentSpawnPaused.value = Boolean(state.spawn_paused)
 }
 
+async function loadRecoverableRuns() {
+  recoverableLoading.value = true
+  try {
+    recoverableRuns.value = await fetchRecoverableRuns(20)
+  } finally {
+    recoverableLoading.value = false
+  }
+}
+
+async function openRecoverableRun(run: AgentRun) {
+  if (run.session_id) {
+    selectedSessionId.value = run.session_id
+  }
+  if (!runs.value.some(item => item.run_id === run.run_id)) {
+    runs.value = [run, ...runs.value]
+  }
+  await loadRunDetail(run.run_id)
+}
+
 async function handleRollback(id: string) {
   rollingBack.value = id
   try {
@@ -185,6 +207,9 @@ async function handleRunControl(command: 'stop' | 'cancel' | 'resume') {
     await controlRun(runId, command)
     message.success(t('runs.controlSent'))
     await loadSessionDetail()
+    if (command === 'resume') {
+      await loadRecoverableRuns()
+    }
   } catch (err: any) {
     message.error(err.message || t('runs.controlFailed'))
   } finally {
@@ -351,6 +376,24 @@ onMounted(async () => {
         </section>
 
         <section class="panel side-panel">
+          <div class="section-heading">
+            <h3>{{ t('runs.recoverableRuns') }}</h3>
+            <Button size="small" :loading="recoverableLoading" @click="loadRecoverableRuns">{{ t('runs.loadRecoverableRuns') }}</Button>
+          </div>
+          <button
+            v-for="run in recoverableRuns"
+            :key="run.run_id"
+            class="run-row recoverable-row"
+            :class="{ active: run.run_id === selectedRunId }"
+            @click="openRecoverableRun(run)"
+          >
+            <span class="run-status" :class="run.status">{{ runStatusLabel(run.status, t) }}</span>
+            <span>{{ run.provider || '-' }}/{{ run.model || '-' }}</span>
+            <small>{{ runTimestampText(run.started_at) }}</small>
+            <p>{{ run.recovery_hint || run.error || run.input_preview || run.run_id }}</p>
+          </button>
+          <div v-if="recoverableRuns.length === 0" class="empty compact">{{ t('runs.noRecoverableRuns') }}</div>
+
           <div class="section-heading">
             <h3>{{ t('runs.activeSubagents') }}</h3>
             <Button size="small" :loading="subagentSpawnLoading" @click="handleSubagentSpawnToggle">
