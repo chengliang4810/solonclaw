@@ -1269,6 +1269,7 @@ describe('createSlashHandler', () => {
   it('reports nothing to retry when the backend returns an empty undo response', async () => {
     patchUiState({ sid: 'sid-abc' })
     const rpc = vi.fn(() => Promise.resolve(null))
+
     const ctx = buildCtx({
       gateway: { ...buildGateway(), rpc },
       local: { ...buildLocal(), getLastUserMsg: vi.fn(() => 'retry this') }
