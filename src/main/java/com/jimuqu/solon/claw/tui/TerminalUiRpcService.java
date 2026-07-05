@@ -369,14 +369,12 @@ public class TerminalUiRpcService {
         query = query.toLowerCase(Locale.ROOT);
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (CommandDescriptor descriptor : CommandRegistry.all()) {
-            if (!descriptor.getName().startsWith(query)) {
-                continue;
+            if (descriptor.getName().startsWith(query)) {
+                appendLocalSlashCompletion(items, query, descriptor.getName(), descriptor.getDescription());
             }
-            Map<String, Object> item = new LinkedHashMap<String, Object>();
-            item.put("text", descriptor.slashName());
-            item.put("display", descriptor.slashName());
-            item.put("meta", descriptor.getDescription());
-            items.add(item);
+            for (String alias : descriptor.getAliases()) {
+                appendLocalSlashCompletion(items, query, alias, descriptor.getDescription());
+            }
         }
         appendLocalSlashCompletion(items, query, "doctor", "检查模型、渠道与工作区配置");
         appendLocalSlashCompletion(items, query, "setup", "配置模型、消息渠道与初始化设置");

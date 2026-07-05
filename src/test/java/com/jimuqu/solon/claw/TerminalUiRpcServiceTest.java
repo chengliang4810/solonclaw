@@ -336,6 +336,15 @@ class TerminalUiRpcServiceTest {
         assertThat(slashCompletionTexts(service.completeSlash("/rep"))).contains("/replay");
     }
 
+    @Test
+    void completeSlashIncludesRegisteredAliases() throws Exception {
+        TerminalUiRpcService service = new TerminalUiRpcService(testConfig());
+
+        assertThat(slashCompletionTexts(service.completeSlash("/ag"))).contains("/agents");
+        assertThat(slashCompletionTexts(service.completeSlash("/status-"))).contains("/status-bar");
+        assertThat(slashCompletionTexts(service.completeSlash("/set-"))).contains("/set-home");
+    }
+
     private static SessionRecord session(String id, String sourceKey) {
         SessionRecord session = new SessionRecord();
         session.setSessionId(id);

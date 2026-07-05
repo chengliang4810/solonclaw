@@ -1010,6 +1010,41 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest#completeSlashInclud
 npm --prefix terminal-ui test -- slashParity.test.ts createSlashHandler.test.ts
 ```
 
+## BUG-055：TUI slash 补全漏掉 Java 命令注册表别名
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- TUI 输入 `/` 后的 Tab 补全候选。
+- Java 命令注册表中声明的别名，例如 `/agents`、`/status-bar`、`/set-home`。
+- 用户能执行这些别名，但无法通过补全发现它们。
+
+当前事实：
+
+- `CommandRegistry` 已注册 `tasks -> agents`、`statusbar -> status-bar/sb`、`sethome -> set-home` 等别名。
+- `commandsCatalog()` 会把这些 alias 暴露给前端命令目录。
+- `completeSlash()` 只按 `descriptor.getName()` 匹配规范名，没有遍历 `descriptor.getAliases()`。
+- 例如输入 `/ag` 时只返回 `/agent`，没有返回同样可执行的 `/agents`。
+
+根因：
+
+- 命令目录和补全候选使用了同一个注册表，但补全路径只消费了规范名字段。
+- 注册表 alias 的解析路径可执行，展示路径却缺少同源遍历。
+
+修复记录：
+
+- `TerminalUiRpcService.completeSlash()` 复用 `appendLocalSlashCompletion()` 同时追加规范名和注册表别名。
+- 保留原有去重逻辑，避免 `/sb` 等已由本地列表补充的候选重复出现。
+- `TerminalUiRpcServiceTest#completeSlashIncludesRegisteredAliases` 增加回归，覆盖 `/agents`、`/status-bar`、`/set-home`。
+
+验证命令：
+
+```bash
+mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest#completeSlashIncludesRegisteredAliases" test
+mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest" test
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -1036,4 +1071,5 @@ npm --prefix terminal-ui test -- slashParity.test.ts createSlashHandler.test.ts
 - BUG-052 已修复带 `token` 的 Dashboard 登录链接在新浏览器中不会自动校验和持久化的问题。
 - BUG-053 已修复 Dashboard 诊断、TUI 运行时、策展与 MCP 页面缺少短路径直达入口的问题。
 - BUG-054 已修复 TUI slash 补全漏掉本地可执行命令和别名的问题。
+- BUG-055 已修复 TUI slash 补全漏掉 Java 命令注册表别名的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
