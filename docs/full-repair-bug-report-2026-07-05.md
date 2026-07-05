@@ -480,6 +480,40 @@ npm --prefix web run test:models-load-failure
 npm --prefix web run build
 ```
 
+## BUG-040：任务中心指南渲染未知 token 时刷出 i18n 缺失警告
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 任务中心页面。
+- 后端定时任务 guide / policy 返回新增 token、复合字段名或未翻译运行策略时的浏览器控制台。
+- Web E2E 与人工排查前端问题时的信噪比。
+
+当前事实：
+
+- `jobsDisplay.ts` 会把后端 token 依次拼接为 `jobs.humanize.*`、`jobs.fieldHumanize.*`、`jobs.actionHumanize.*` 后调用 `t()` 探测翻译。
+- Vue i18n 对缺失 key 会输出 missing-key warning，再返回原 key。
+- 未知复合 token 例如 `runtime_isolation` 会触发多次探测，控制台出现大量 `jobs.*` 缺失警告，但页面最终展示回退文本是可用的。
+
+根因：
+
+- 共享任务展示 formatter 用普通 `t(key)` 调用承担“翻译存在性探测”，把预期的未知 token 回退路径误变成 i18n 警告路径。
+
+修复记录：
+
+- `translatedLabel()` 改为使用 Vue i18n 支持的单次调用选项 `missingWarn: false`，只静默当前探测，不修改全局 i18n 配置。
+- `jobsDisplay.test.ts` 增加未知复合 token 回归：先确认旧实现会记录缺失警告，再验证修复后仍回退为 `runtime / isolation` 且不产生警告。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/jobsDisplay.test.ts
+npm --prefix web run test:i18n-registration
+npm --prefix web run test:job-form-options
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -491,4 +525,5 @@ npm --prefix web run build
 - BUG-037 已修复消息网关页面固定显示 `8080` 的端口误导。
 - BUG-038 已修复 TUI 本地 OpenAI 兼容模型地址被安全策略阻断时缺少提前提示的问题，安全策略本身不放宽。
 - BUG-039 已修复模型设置页加载失败时误显示空模型状态的问题。
+- BUG-040 已修复任务中心未知 token 翻译探测导致浏览器控制台刷 i18n 缺失警告的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
