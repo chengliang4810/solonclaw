@@ -73,12 +73,12 @@ const renderLiveBlocks = (
 
 export const StreamingAssistant = memo(function StreamingAssistant({
   cols,
-  compact,
+  compact = false,
   detailsMode,
   detailsModeCommandOverride,
   prevMsg,
   progress,
-  sections
+  sections = {}
 }: StreamingAssistantProps) {
   const ui = useStore($uiState)
   const streamSegments = useTurnSelector(state => state.streamSegments)
