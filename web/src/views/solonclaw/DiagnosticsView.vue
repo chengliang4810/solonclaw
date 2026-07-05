@@ -1124,6 +1124,14 @@ onMounted(load)
                 <Tag size="small" :bordered="false">{{ plugin.kind || '-' }}</Tag>
               </div>
               <p>{{ plugin.description || plugin.directory_ref || '-' }}</p>
+              <div class="plugin-meta">
+                <span>{{ t('diagnostics.pluginVersion') }}: {{ plugin.version || '-' }}</span>
+                <span>{{ t('diagnostics.pluginAuthor') }}: {{ plugin.author || '-' }}</span>
+                <span>{{ t('diagnostics.pluginSource') }}: {{ plugin.source || '-' }}</span>
+                <span>{{ t('diagnostics.pluginEnabled') }}: {{ plugin.enabled ? t('common.enabled') : t('common.disabled') }}</span>
+                <span>{{ t('diagnostics.pluginAutoLoad') }}: {{ plugin.auto_load ? t('common.enabled') : t('common.disabled') }}</span>
+                <span>{{ t('diagnostics.pluginProvidesTools') }}: {{ plugin.provides_tools?.join(', ') || '-' }}</span>
+              </div>
             </article>
           </div>
           <div v-else class="empty-state">{{ t('diagnostics.noPlugins') }}</div>
@@ -2048,6 +2056,15 @@ onMounted(load)
   color: $text-secondary;
   font-size: 12px;
   word-break: break-word;
+}
+
+.plugin-meta {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  color: $text-muted;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .plugin-diagnostics {
