@@ -70,6 +70,13 @@
 - `branding.tsx` 新增 `collapseToggleMeta`，统一折叠标题的 `count + suffix` 文本拼接。
 - `CollapseToggle` 不改变布局和状态，仅改为调用纯展示 helper。
 
+### 10. 用量 API 明细字段复用
+
+- 提交：本次提交。
+- `web/src/api/solonclaw/usage.ts` 新增本地 `UsageBreakdownItem`，统一日维度和模型维度用量明细里的 token、费用和计价字段。
+- `DailyUsageItem` 与 `ModelUsageItem` 只保留各自维度字段，避免同一 API 字段清单在同文件内复制维护。
+- 新增 `web/tests/usageApiTypesStatic.test.ts`，防止日维度和模型维度类型重新复制同一批明细字段。
+
 ## 验证记录
 
 本轮每个原子项提交前均执行了对应窄测试、类型检查、前端构建、diff 检查和命名门禁。覆盖过的命令包括：
@@ -95,6 +102,11 @@ npm --prefix terminal-ui run build
 mvn -Dskip.web.build=true -DskipTests compile
 npx vue-tsc -b --noEmit --pretty false
 npm --prefix web run build
+node --experimental-strip-types web/tests/usageApiTypesStatic.test.ts
+node --experimental-strip-types web/tests/usageFormat.test.ts
+node --experimental-strip-types web/tests/modelBreakdownUsageScaleStatic.test.ts
+node --experimental-strip-types web/tests/dailyTrendColumnsStatic.test.ts
+python scripts/check-code-duplication.py --report-only --min-lines 12 --max-findings 20 web/src/api/solonclaw/usage.ts
 git diff --check
 python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
 ```
