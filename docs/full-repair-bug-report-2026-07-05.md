@@ -1084,6 +1084,43 @@ mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest" test
 npm --prefix terminal-ui test -- activeSessionSwitcher.test.ts
 ```
 
+## BUG-057：Dashboard 文件下载会因裸链接缺少鉴权头而 401
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 工作区文件页下载按钮。
+- 聊天附件和 Markdown 文件链接下载入口。
+- 带 dashboard access token 的受保护 `/api/solonclaw/download` 请求。
+
+当前事实：
+
+- 后端 `/api/*` 统一由 Dashboard 鉴权过滤器保护，HTTP 鉴权读取 `Authorization` header。
+- 前端 `getFileDownloadUrl()` 会把 dashboard token 拼进 `token` query。
+- `downloadFile()` 使用裸 `<a href>` 发起下载，浏览器不会附带 `Authorization` header。
+- 结果是默认受保护下载路径无法通过鉴权，且 token 会出现在 URL、历史和日志中。
+
+根因：
+
+- 下载入口没有复用共享的 dashboard 请求通道。
+- 为绕过裸链接不能设置 header 的限制，把 token 放进了 query，和后端鉴权实现不一致。
+
+修复记录：
+
+- `getFileDownloadUrl()` 只生成 `path` 与可选 `name` 参数，不再拼接 dashboard token。
+- `downloadFile()` 使用 `dashboardFetch()` 请求下载 URL，并显式添加 `Authorization: Bearer <token>`。
+- 下载响应按 `blob()` 保留后端字节，再通过 object URL 触发浏览器下载，完成后释放 object URL。
+- `fileDownloadApiStatic.test.ts` 增加回归，锁定不再泄露 query token、必须走带鉴权 header 的 blob 下载路径。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/fileDownloadApiStatic.test.ts
+node --experimental-strip-types web/tests/dashboardAuthRedirectStatic.test.ts
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -1112,4 +1149,5 @@ npm --prefix terminal-ui test -- activeSessionSwitcher.test.ts
 - BUG-054 已修复 TUI slash 补全漏掉本地可执行命令和别名的问题。
 - BUG-055 已修复 TUI slash 补全漏掉 Java 命令注册表别名的问题。
 - BUG-056 已修复 TUI live session 列表只显示当前会话且关闭不生效的问题。
+- BUG-057 已修复 Dashboard 文件下载裸链接缺少鉴权头并泄露 query token 的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

@@ -1,4 +1,4 @@
-import { getApiKey, getBaseUrlValue, request } from '../client'
+import { getBaseUrlValue, request } from '../client'
 import { normalizeWorkspaceBrowserPath, workspaceFileEntries, workspaceFileModTime } from '@/shared/workspaceFileEntries'
 
 export interface FileEntry {
@@ -108,7 +108,5 @@ export function getFileDownloadUrl(relativePath: string, fileName?: string): str
   const base = getBaseUrlValue()
   const params = new URLSearchParams({ path: relativePath })
   if (fileName) params.set('name', fileName)
-  const token = getApiKey()
-  if (token) params.set('token', token)
   return `${base}/api/solonclaw/download?${params.toString()}`
 }
