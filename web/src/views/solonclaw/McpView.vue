@@ -38,6 +38,7 @@ import {
 } from '@/api/solonclaw/mcp'
 import { mcpStatusTone, mcpTimestampText, mcpTransportOptions } from '@/shared/mcpDisplay'
 import { asArray, displayJson, hasItems, listCount, trimText } from '@/shared/text'
+import { copyToClipboard } from '@/utils/clipboard'
 
 const { t } = useI18n()
 const loading = ref(false)
@@ -372,8 +373,9 @@ function confirmDelete(server: McpServer) {
 }
 
 async function copy(text: string) {
-  await navigator.clipboard.writeText(text)
-  message.success(t('common.copied'))
+  const ok = await copyToClipboard(text)
+  if (ok) message.success(t('common.copied'))
+  else message.error(t('common.copied') + ' ✗')
 }
 </script>
 

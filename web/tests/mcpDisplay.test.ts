@@ -39,3 +39,5 @@ assert.ok(!view.includes('const transportOptions = ['), 'McpView should not inli
 assert.ok(!view.includes('function statusType'), 'McpView should not inline MCP status colors')
 assert.ok(!view.includes('function formatTime'), 'McpView should not inline MCP timestamp formatting')
 assert.ok(view.includes("from '@/shared/mcpDisplay'"), 'McpView should reuse shared MCP display helpers')
+assert.ok(view.includes("from '@/utils/clipboard'"), 'McpView should reuse the guarded clipboard helper')
+assert.ok(!view.includes('navigator.clipboard.writeText'), 'McpView should not write to clipboard directly')
