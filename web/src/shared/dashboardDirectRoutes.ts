@@ -1,5 +1,6 @@
 const DIRECT_ROUTE_HASHES: Record<string, string> = {
   '/status': '#/solonclaw/diagnostics',
+  '/login': '#/',
   '/chat': '#/solonclaw/chat',
   '/sessions': '#/solonclaw/runs',
   '/analytics': '#/solonclaw/usage',
