@@ -5,6 +5,12 @@ export function normalizeWorkspaceBrowserPath(path: string): string {
   return value.split('/').filter(Boolean).join('/')
 }
 
+export function workspaceFileModTime(file: WorkspaceFile): string {
+  const value = file.modTime
+  if (typeof value === 'number') return value > 0 ? new Date(value).toISOString() : ''
+  return value ? String(value) : ''
+}
+
 export function workspaceFileEntries(files: WorkspaceFile[], path: string): { entries: FileEntry[]; path: string } {
   const currentPath = normalizeWorkspaceBrowserPath(path)
   const prefix = currentPath ? `${currentPath}/` : ''
@@ -33,7 +39,7 @@ export function workspaceFileEntries(files: WorkspaceFile[], path: string): { en
       path: relativePath,
       isDir: false,
       size: file.content.length,
-      modTime: '',
+      modTime: workspaceFileModTime(file),
     })
   }
 

@@ -868,6 +868,42 @@ node --experimental-strip-types web/tests/systemNavItemsMetadataStatic.test.ts
 npm --prefix web run build
 ```
 
+## BUG-051：工作区文件列表修改时间列始终为空
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 工作区文件管理页。
+- 文件列表的“修改时间”显示与排序。
+- 用户保存或恢复工作区文件后判断文件更新时间。
+
+当前事实：
+
+- `FileList.vue` 已经展示 `files.modified` 列，并支持按 `modTime` 排序。
+- `/api/workspace/files` 和 `/api/workspace/files/{key}` 返回的文件对象没有修改时间字段。
+- 前端 `workspaceFileEntries()` 即使收到文件对象，也固定写入 `modTime: ''`，导致列内容只显示占位符。
+
+根因：
+
+- 后端工作区文件 DTO 只暴露内容和路径，没有把受控文件的 `lastModified` 带给前端。
+- 前端映射层没有保留修改时间字段，排序列与展示列没有真实数据源。
+
+修复记录：
+
+- `DashboardWorkspaceService.describeFile()` 返回受控工作区文件的 `modTime`，值为文件系统 `lastModified` 毫秒值，缺失文件返回 `null`。
+- `workspaceFileEntries()` 和 `statFile()` 统一把数字毫秒值规范化为 ISO 字符串，保持现有字符串排序与 `formatTimestampText()` 展示路径可用。
+- `fileNavigationApiStatic.test.ts` 增加回归，锁定后端数字时间会进入文件列表条目。
+- `DashboardControllerHttpTest#shouldHideWorkspaceHostPaths` 增加 API 字段断言，保持不泄露宿主绝对路径。
+
+验证命令：
+
+```bash
+npm --prefix web run test:file-navigation-api
+mvn "-Dskip.web.build=true" "-Dtest=DashboardControllerHttpTest#shouldHideWorkspaceHostPaths" test
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -890,4 +926,5 @@ npm --prefix web run build
 - BUG-048 已修复 TUI 会话创建/恢复前 setup.status 失败导致状态卡住的问题。
 - BUG-049 已修复 TUI `/copy` 非法或超范围数字参数会复制错误助手消息的问题。
 - BUG-050 已修复工作区文件页存在直达路由但侧边栏没有可发现入口的问题。
+- BUG-051 已修复工作区文件列表修改时间列没有真实数据源、始终显示占位符的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

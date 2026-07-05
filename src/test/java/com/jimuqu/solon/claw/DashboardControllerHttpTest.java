@@ -2745,12 +2745,14 @@ public class DashboardControllerHttpTest {
         HttpResult files = request("GET", "/api/workspace/files", null, token);
         assertThat(files.status).isEqualTo(200);
         assertThat(files.body).contains("workspace://files/");
+        assertThat(files.body).contains("\"modTime\"");
         assertThat(files.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(files.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult agents = request("GET", "/api/workspace/files/agents", null, token);
         assertThat(agents.status).isEqualTo(200);
         assertThat(agents.body).contains("workspace://files/agents");
+        assertThat(agents.body).contains("\"modTime\"");
         assertThat(agents.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(agents.body).doesNotContain(workspaceDir.getAbsolutePath());
 
