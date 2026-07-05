@@ -202,8 +202,78 @@ python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --che
 - 前端：`SOLONCLAW_SERVER_URL=http://127.0.0.1:18081 npm --prefix web run dev -- --host 127.0.0.1 --port 5178`
 - Chrome 打开 `http://127.0.0.1:5178/?token=smoke-token#/solonclaw/gateways` 后，网关条目显示 `websocket:18081`、`stream:18081`，控制台 error/warn 为空。
 
+## BUG-065：TUI `/image` 附件未解析成功时仍提示已附加
+
+状态：已修复，提交 `4ee56ecc3`
+
+影响范围：
+
+- 本地 TUI `/image <path>` 命令。
+- 终端粘贴或输入本地图片路径后的附件感知主链。
+
+当前事实：
+
+- 后端 `image.attach` 在附件解析失败时仍提前返回 `name`。
+- TUI `/image` 命令把 `name` 当作成功信号，用户会看到 `Attached image`，但后端没有写入真实附件缓存。
+
+根因：
+
+- `TerminalUiRpcService.imageAttach()` 在解析附件前先写入成功展示字段。
+- `attachedImageNotice()` 没有识别 `attached=false` 的失败响应。
+
+修复记录：
+
+- `imageAttach()` 只有真实附件存在时才返回 `name`，失败时返回 `attached=false` 与错误消息。
+- `ImageAttachResponse` 补齐 `attached`、`message` 和附件元数据字段。
+- TUI 消息渲染在 `attached=false` 时显示失败消息，不再渲染成功附件提示。
+
+验证命令：
+
+```bash
+npm test -- src/__tests__/createSlashHandler.test.ts
+mvn "-Dskip.web.build=true" "-Dtest=TerminalUiRpcServiceTest#imageAttachReportsFailureWhenNoAttachmentResolved" test
+npm --prefix terminal-ui run lint
+npm --prefix terminal-ui run type-check
+mvn "-Dskip.web.build=true" "-DskipTests" compile
+python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+```
+
+## BUG-066：设置页配置加载失败时没有页面内错误态
+
+状态：已修复，提交 `f85cafa3b`
+
+影响范围：
+
+- Dashboard 设置页。
+- 配置接口临时失败后的 dashboard-first setup / doctor 使用体验。
+
+当前事实：
+
+- `fetchSettings()` 捕获 `/api/config` 失败后只输出控制台错误。
+- 页面停止 loading 后继续显示空表单，用户无法知道配置加载失败，也可能误以为空配置可保存。
+
+根因：
+
+- `settings` store 没有保存或暴露加载错误。
+- `SettingsView.vue` 没有消费加载失败状态。
+
+修复记录：
+
+- `settings` store 增加 `loadError`，每次重试前清空，失败时保留错误消息，并保留上一轮成功配置。
+- `SettingsView.vue` 在 tabs 前渲染持久错误横幅，使用统一 `common.fetchFailed` 文案。
+- 新增静态回归测试覆盖 store 暴露错误与页面错误态位置。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/settingsLoadFailureStatic.test.ts
+node --experimental-strip-types web/tests/settingsUnsupportedSectionsStatic.test.ts
+npm --prefix web run build
+python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+```
+
 ## 当前结论
 
 - BUG-060 已按侧栏共享组件层修复，没有在单个页面入口处打补丁。
-- BUG-061 至 BUG-064 已按各自共享 store、配置或页面组件层修复，失败时保留上一轮成功数据并提供页面内错误反馈，开发代理端口展示不再误导。
+- BUG-061 至 BUG-066 已按各自共享 store、配置、协议或页面组件层修复，失败时保留上一轮成功数据并提供页面内错误反馈，开发代理端口展示不再误导。
 - 后续 Web UI E2E 若发现其它路由入口遮挡或错位，应继续追加阶段 1.1 原子缺陷报告，再按最小共享层修复。

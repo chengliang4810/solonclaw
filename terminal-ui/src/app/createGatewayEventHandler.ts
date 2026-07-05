@@ -823,12 +823,14 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         turnController.recordMessageDelta(ev.payload ?? {})
 
         return
+
       case 'message.complete':
       case 'run.completed': {
         const payload =
           ev.type === 'run.completed'
             ? { ...ev.payload, text: ev.payload?.text ?? ev.payload?.final_reply }
             : (ev.payload ?? {})
+
         const { finalMessages, finalText, wasInterrupted } = turnController.recordMessageComplete(payload)
 
         if (!wasInterrupted) {

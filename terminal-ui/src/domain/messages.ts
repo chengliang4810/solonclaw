@@ -12,7 +12,11 @@ export const imageTokenMeta = (info?: ImageMeta | null) => {
     .join(' · ')
 }
 
-export const attachedImageNotice = (info?: ({ name?: string } & ImageMeta) | null) => {
+export const attachedImageNotice = (info?: ({ attached?: boolean; message?: string; name?: string } & ImageMeta) | null) => {
+  if (info?.attached === false) {
+    return info.message || 'image not attached'
+  }
+
   const meta = imageTokenMeta(info)
   const label = info?.name ? `📎 Attached image: ${info.name}` : '📎 Attached image'
 

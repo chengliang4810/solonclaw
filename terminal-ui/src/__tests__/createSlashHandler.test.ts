@@ -405,6 +405,15 @@ describe('createSlashHandler', () => {
     })
   })
 
+  it('rejects malformed /skills browse pages instead of partial parsing them', () => {
+    const ctx = buildCtx()
+
+    createSlashHandler(ctx)('/skills browse 2abc')
+
+    expect(ctx.gateway.rpc).not.toHaveBeenCalled()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /skills browse [page]  (page must be a positive number)')
+  })
+
   it('delegates non-native /skills subcommands to slash.exec', () => {
     const ctx = buildCtx()
 
@@ -1134,6 +1143,19 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /image <path>')
   })
 
+  it('/image reports attach failure when the backend did not attach', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve({ attached: false, message: 'image not attached', name: 'missing.png' }))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/image C:\\missing.png')
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('image not attached')
+    })
+    expect(ctx.transcript.sys).not.toHaveBeenCalledWith(expect.stringContaining('Attached image'))
+  })
+
   it('/paste invokes text paste without showing an image-only warning', () => {
     const ctx = buildCtx()
 
@@ -1269,6 +1291,7 @@ describe('createSlashHandler', () => {
   it('reports nothing to retry when the backend returns an empty undo response', async () => {
     patchUiState({ sid: 'sid-abc' })
     const rpc = vi.fn(() => Promise.resolve(null))
+
     const ctx = buildCtx({
       gateway: { ...buildGateway(), rpc },
       local: { ...buildLocal(), getLastUserMsg: vi.fn(() => 'retry this') }

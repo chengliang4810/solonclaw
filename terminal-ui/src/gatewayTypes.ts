@@ -394,9 +394,14 @@ export interface TerminalResizeResponse {
 // ── Image attach ─────────────────────────────────────────────────────
 
 export interface ImageAttachResponse {
+  attached?: boolean
   height?: number
+  kind?: string
+  message?: string
+  mime_type?: string
   name?: string
   remainder?: string
+  size_bytes?: number
   token_estimate?: number
   width?: number
 }
