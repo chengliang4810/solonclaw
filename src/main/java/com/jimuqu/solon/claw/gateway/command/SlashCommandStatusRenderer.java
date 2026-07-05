@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.gateway.command;
 
-import cn.hutool.core.date.DateUtil;
+import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.formatTimestamp;
+
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
@@ -73,8 +74,7 @@ final class SlashCommandStatusRenderer {
         buffer.append("last_usage_at=")
                 .append(
                         session.getLastUsageAt() > 0
-                                ? DateUtil.formatDateTime(
-                                        new java.util.Date(session.getLastUsageAt()))
+                                ? formatTimestamp(session.getLastUsageAt())
                                 : "");
         return buffer.toString();
     }
@@ -141,19 +141,6 @@ final class SlashCommandStatusRenderer {
                 + SlashCommandTextSupport.formatBytes(asLong(result.get("bytes_freed")))
                 + "\nremaining="
                 + result.get("checkpoint_count");
-    }
-
-    /**
-     * 格式化毫秒时间戳。
-     *
-     * @param timestamp 毫秒时间戳。
-     * @return 返回可读时间，空值返回 never。
-     */
-    private static String formatTimestamp(long timestamp) {
-        if (timestamp <= 0) {
-            return "never";
-        }
-        return DateUtil.formatDateTime(new java.util.Date(timestamp));
     }
 
     /**

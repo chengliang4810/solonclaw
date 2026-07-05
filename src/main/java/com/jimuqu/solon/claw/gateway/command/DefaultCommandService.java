@@ -7,7 +7,6 @@ import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.restoreI
 import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.safeIdentifier;
 import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.stripGoalOptions;
 
-import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
 import com.jimuqu.solon.claw.command.CommandDescriptor;
@@ -2750,12 +2749,11 @@ public class DefaultCommandService implements CommandService {
                     .append(". ")
                     .append(record.getCheckpointId())
                     .append(" created=")
-                    .append(DateUtil.formatDateTime(new java.util.Date(record.getCreatedAt())))
+                    .append(formatTimestamp(record.getCreatedAt()))
                     .append(", restored=")
                     .append(
                             record.getRestoredAt() > 0
-                                    ? DateUtil.formatDateTime(
-                                            new java.util.Date(record.getRestoredAt()))
+                                    ? formatTimestamp(record.getRestoredAt())
                                     : "never");
             if (StrUtil.isNotBlank(record.getSessionId())) {
                 buffer.append(", session=").append(safeIdentifier(record.getSessionId()));

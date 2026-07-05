@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.gateway.command;
 
-import cn.hutool.core.date.DateUtil;
+import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.formatTimestamp;
+
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
@@ -697,19 +698,6 @@ final class DefaultCronCommandHandler {
      */
     private String safeCronText(String value, int maxLength) {
         return SecretRedactor.redact(value, maxLength);
-    }
-
-    /**
-     * 格式化时间戳。
-     *
-     * @param timestamp 请求携带的时间戳。
-     * @return 返回时间戳结果。
-     */
-    private String formatTimestamp(long timestamp) {
-        if (timestamp <= 0) {
-            return "never";
-        }
-        return DateUtil.formatDateTime(new java.util.Date(timestamp));
     }
 
     /**
