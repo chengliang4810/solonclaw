@@ -13,6 +13,7 @@ const selectedCategory = ref('')
 const selectedSkill = ref('')
 const searchQuery = ref('')
 const showSidebar = ref(true)
+const loadError = ref('')
 let mobileQuery: MediaQueryList | null = null
 
 function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
@@ -34,8 +35,9 @@ async function loadSkills() {
   loading.value = true
   try {
     categories.value = await fetchSkills()
+    loadError.value = ''
   } catch (err: any) {
-    console.error('Failed to load skills:', err)
+    loadError.value = err?.message || t('skills.loadFailed')
   } finally {
     loading.value = false
   }
@@ -71,6 +73,10 @@ function handleSelect(category: string, skill: string) {
     <div class="skills-content">
       <div v-if="loading && categories.length === 0" class="skills-loading">{{ t('common.loading') }}</div>
       <div v-else class="skills-layout">
+          <div v-if="loadError" class="skills-load-error">
+            <strong>{{ t('skills.loadFailed') }}</strong>
+            <span>{{ loadError }}</span>
+          </div>
           <div class="mobile-backdrop" :class="{ active: showSidebar }" @click="showSidebar = false" />
           <div v-if="showSidebar" class="skills-sidebar">
             <SkillList
@@ -99,3 +105,19 @@ function handleSelect(category: string, skill: string) {
     </div>
   </div>
 </template>
+
+<style scoped lang="scss">
+@use '@/styles/variables' as *;
+
+.skills-load-error {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: 8px;
+  color: $error;
+  background: rgba(var(--error-rgb), 0.06);
+}
+</style>

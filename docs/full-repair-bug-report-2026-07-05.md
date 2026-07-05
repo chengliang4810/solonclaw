@@ -689,6 +689,41 @@ npm --prefix terminal-ui run type-check
 npm --prefix terminal-ui run build
 ```
 
+## BUG-046：技能页面加载失败后只写控制台、界面仍显示选择提示
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 技能页面。
+- 技能接口临时失败或后端不可达时的用户反馈。
+- 用户判断技能目录是空、未选择，还是加载失败的排障路径。
+
+当前事实：
+
+- `SkillsView` 的 `loadSkills()` 捕获异常后只调用 `console.error('Failed to load skills:', err)`。
+- 页面继续渲染主布局和“请选择技能”提示，用户看不到技能加载失败。
+- `skills.loadFailed` 翻译键已存在，问题集中在视图没有持久错误状态。
+
+根因：
+
+- 技能列表加载失败没有写入页面状态，只写浏览器控制台。
+- 空选择提示与加载失败态没有区分，失败时会误导为正常未选择技能。
+
+修复记录：
+
+- `SkillsView` 增加 `loadError` 状态，成功加载后清空，失败后保存错误文本。
+- 技能页面在列表区域显示 `skills.loadFailed` 和具体错误，避免只依赖 console。
+- 新增 `skillsLoadFailureStatic.test.ts`，锁定技能页必须保留并渲染加载失败状态。
+
+验证命令：
+
+```bash
+npm --prefix web run test:skills-load-failure
+npm --prefix web run test:i18n-registration
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -706,4 +741,5 @@ npm --prefix terminal-ui run build
 - BUG-043 已修复 Web SSE 非 JSON `data:` 帧导致整个运行事件流提前失败的问题。
 - BUG-044 已修复 Web settings store 暴露已裁剪海外渠道假配置入口的问题。
 - BUG-045 已修复 TUI 文本协议 `run.completed` 事件被静默丢弃导致最终回复不显示的问题。
+- BUG-046 已修复 Dashboard 技能页面加载失败后只写控制台、界面无失败态的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
