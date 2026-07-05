@@ -122,6 +122,8 @@ export default {
     connected: '已连接',
     disconnected: '未连接',
     version: '版本',
+    versionTag: '版本标记',
+    deploymentMode: '部署模式',
     latestVersion: '最新',
     collapse: '收起菜单',
     expand: '展开菜单',

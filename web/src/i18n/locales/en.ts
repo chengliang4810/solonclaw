@@ -119,6 +119,8 @@ export default {
     connected: 'Connected',
     disconnected: 'Disconnected',
     version: 'Version',
+    versionTag: 'Version tag',
+    deploymentMode: 'Deployment',
     latestVersion: 'Latest',
     collapse: 'Collapse menu',
     expand: 'Expand menu',
