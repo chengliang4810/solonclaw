@@ -449,6 +449,37 @@ npm --prefix terminal-ui test -- src/__tests__/setupPanel.test.ts
 npm --prefix terminal-ui run type-check
 ```
 
+## BUG-039：模型设置页加载失败后误显示空模型状态
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 设置页的模型配置面板。
+- 模型提供方接口临时失败或权限/网络异常时的用户反馈。
+
+当前事实：
+
+- `modelsStore.fetchProviders()` 失败后会清空 providers，并把错误写入 `modelsStore.loadError`。
+- 模型管理页的 `ProvidersPanel` 已展示 `modelsStore.loadError`。
+- 设置页的 `ModelSettings` 只判断 `providers.length === 0`，因此接口失败时会显示“暂无已配置的模型”，掩盖真实错误。
+
+根因：
+
+- 设置页模型面板没有消费已有的 `modelsStore.loadError` 状态源，错误态和空状态的展示顺序不一致。
+
+修复记录：
+
+- `ModelSettings` 在空状态之前展示 `modelsStore.loadError` 的错误标题与详情。
+- `modelsLoadFailure.test.ts` 增加 SSR 模板回归，锁定设置页加载失败时不再显示空模型提示。
+
+验证命令：
+
+```bash
+npm --prefix web run test:models-load-failure
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -459,4 +490,5 @@ npm --prefix terminal-ui run type-check
 - BUG-036 已修复 TUI `run.failed` 事件被忽略导致失败不可见的问题。
 - BUG-037 已修复消息网关页面固定显示 `8080` 的端口误导。
 - BUG-038 已修复 TUI 本地 OpenAI 兼容模型地址被安全策略阻断时缺少提前提示的问题，安全策略本身不放宽。
+- BUG-039 已修复模型设置页加载失败时误显示空模型状态的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
