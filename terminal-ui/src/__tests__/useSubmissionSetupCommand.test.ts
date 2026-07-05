@@ -60,6 +60,29 @@ describe('useSubmission local setup commands', () => {
       instance.cleanup()
     }
   })
+
+  it('routes bare doctor through the slash handler before a session exists', async () => {
+    const expose = { current: null as SubmissionApi | null }
+    const opts = buildOpts()
+    const streams = makeStreams()
+    const instance = renderSync(React.createElement(Harness, { expose, opts }), {
+      patchConsole: false,
+      stderr: streams.stderr as NodeJS.WriteStream,
+      stdin: streams.stdin as NodeJS.ReadStream,
+      stdout: streams.stdout as NodeJS.WriteStream
+    })
+
+    try {
+      expose.current!.dispatchSubmission('doctor')
+
+      expect(opts.slashRef.current).toHaveBeenCalledWith('/doctor')
+      expect(opts.sys).not.toHaveBeenCalledWith('session not ready yet')
+      expect(opts.gw.request).not.toHaveBeenCalled()
+    } finally {
+      instance.unmount()
+      instance.cleanup()
+    }
+  })
 })
 
 const buildOpts = (): UseSubmissionOptions => ({
