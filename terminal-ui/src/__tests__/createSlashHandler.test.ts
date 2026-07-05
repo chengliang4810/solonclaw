@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createSlashHandler } from '../app/createSlashHandler.js'
 import { getOverlayState, resetOverlayState } from '../app/overlayStore.js'
+import { clearDiffPair, clearSpawnHistory, getSpawnDiff, pushSnapshot } from '../app/spawnHistoryStore.js'
 import { getUiState, patchUiState, resetUiState } from '../app/uiStore.js'
 import { TUI_SESSION_MODEL_FLAG } from '../domain/slash.js'
+import type { SubagentProgress } from '../types.js'
 
 describe('createSlashHandler', () => {
   beforeEach(() => {
+    clearDiffPair()
+    clearSpawnHistory()
     resetOverlayState()
     resetUiState()
   })
@@ -412,6 +416,27 @@ describe('createSlashHandler', () => {
 
     expect(ctx.gateway.rpc).not.toHaveBeenCalled()
     expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /skills browse [page]  (page must be a positive number)')
+  })
+
+  it('rejects malformed /replay indexes instead of partial parsing them', () => {
+    pushSpawnSnapshot('first')
+    const ctx = buildCtx()
+
+    createSlashHandler(ctx)('/replay 1abc')
+
+    expect(getOverlayState().agents).toBe(false)
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('replay: index out of range 1..1 · use /replay list for disk')
+  })
+
+  it('rejects malformed /replay-diff indexes instead of partial parsing them', () => {
+    pushSpawnSnapshot('first')
+    pushSpawnSnapshot('second')
+    const ctx = buildCtx()
+
+    createSlashHandler(ctx)('/replay-diff 1abc 2')
+
+    expect(getSpawnDiff()).toBeNull()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('replay-diff: could not resolve indices · history has 2 entries')
   })
 
   it('delegates non-native /skills subcommands to slash.exec', () => {
@@ -1046,6 +1071,20 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).toHaveBeenCalledWith('no conversation yet')
   })
 
+  it('rejects malformed /history preview lengths instead of partial parsing them', () => {
+    const ctx = buildCtx({
+      local: {
+        ...buildLocal(),
+        getHistoryItems: vi.fn(() => [{ role: 'user', text: 'hello' }])
+      }
+    })
+
+    createSlashHandler(ctx)('/history 2abc')
+
+    expect(ctx.transcript.page).not.toHaveBeenCalled()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /history [preview-chars]')
+  })
+
   it('/save forwards to session.save RPC and reports the returned file', async () => {
     patchUiState({ sid: 'sid-abc' })
 
@@ -1330,7 +1369,34 @@ describe('createSlashHandler', () => {
 
     expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /copy [number]')
   })
+
+  it('rejects malformed /logs line counts instead of partial parsing them', () => {
+    const ctx = buildCtx()
+
+    createSlashHandler(ctx)('/logs 2abc')
+
+    expect(ctx.gateway.gw.getLogTail).not.toHaveBeenCalled()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /logs [lines]')
+  })
 })
+
+const pushSpawnSnapshot = (goal: string) => {
+  const subagent: SubagentProgress = {
+    depth: 0,
+    goal,
+    id: goal,
+    index: 0,
+    notes: [],
+    parentId: null,
+    status: 'completed',
+    taskCount: 1,
+    thinking: [],
+    toolCount: 0,
+    tools: []
+  }
+
+  pushSnapshot([subagent], { sessionId: 'sid-test', startedAt: 1 })
+}
 
 const buildCtx = (overrides: Partial<Ctx> = {}): Ctx => ({
   ...overrides,
