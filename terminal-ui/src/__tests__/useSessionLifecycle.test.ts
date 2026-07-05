@@ -54,6 +54,34 @@ const waitForFile = async (path: string) => {
   }
 }
 
+describe('session setup failure recovery', () => {
+  const source = () => readFileSync(fileURLToPath(new URL('../app/useSessionLifecycle.ts', import.meta.url)), 'utf8')
+
+  it('restores ready status when setup.status fails before session creation', () => {
+    const startNewSession = blockBetween(source(), 'const startNewSession = useCallback', 'const newSession = useCallback')
+
+    expect(startNewSession).toContain('catch')
+    expect(startNewSession).toContain("sys(`error: ${sessionLifecycleErrorMessage")
+    expect(startNewSession).toContain("patchUiState({ status: 'ready' })")
+  })
+
+  it('restores ready status when setup.status fails before session resume', () => {
+    const resumeById = blockBetween(source(), 'const resumeById = useCallback', 'const guardBusySessionSwitch = useCallback')
+
+    expect(resumeById).toContain('catch')
+    expect(resumeById).toContain("sys(`error: ${sessionLifecycleErrorMessage")
+    expect(resumeById).toContain("patchUiState({ status: 'ready' })")
+  })
+})
+
+const blockBetween = (source: string, start: string, end: string) => {
+  const startIndex = source.indexOf(start)
+  expect(startIndex).toBeGreaterThanOrEqual(0)
+  const endIndex = source.indexOf(end, startIndex)
+  expect(endIndex).toBeGreaterThan(startIndex)
+
+  return source.slice(startIndex, endIndex)
+}
 
 describe('live session activation in-flight state', () => {
   beforeEach(() => {

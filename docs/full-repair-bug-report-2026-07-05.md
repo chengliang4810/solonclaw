@@ -761,6 +761,42 @@ npm --prefix web run test:session-selection
 npm --prefix web run build
 ```
 
+## BUG-048：TUI 会话创建/恢复前 setup.status 失败会卡住状态
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- TUI 首次启动自动创建会话。
+- TUI 恢复指定会话、最近会话或崩溃恢复会话。
+- 后端临时断开或 `setup.status` RPC 失败时的状态栏反馈。
+
+当前事实：
+
+- `startNewSession()` 在调用 `session.create` 前先 `await rpc('setup.status')`，但没有捕获该 RPC 失败。
+- `resumeById()` 会先把状态设为 `resuming…`，然后调用 `rpc('setup.status').then(...)`，同样没有处理该 promise reject。
+- 同文件的 `activateLiveSession()` 已经在失败时输出 `error: ...` 并恢复 `ready`，行为不一致。
+
+根因：
+
+- 会话生命周期把 `session.create` / `session.resume` 的失败恢复视为错误路径，但漏掉了前置 setup 预检失败。
+- 前置预检失败发生在状态已经切到 `forging` 或 `resuming` 之后，未恢复就会让用户看到卡住状态。
+
+修复记录：
+
+- `startNewSession()` 用 `try/catch` 覆盖 setup 预检、关闭旧会话和创建会话全流程，失败时输出错误并恢复 `ready`。
+- `resumeById()` 给 `setup.status` 链路补充 `.catch()`，失败时输出错误并恢复 `ready`。
+- `useSessionLifecycle.test.ts` 增加回归，锁定创建和恢复两条路径都必须处理 setup 预检失败。
+
+验证命令：
+
+```bash
+npm --prefix terminal-ui test -- src/__tests__/useSessionLifecycle.test.ts
+npm --prefix terminal-ui run type-check
+npm --prefix terminal-ui run build
+npm --prefix terminal-ui run lint -- --quiet
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -780,4 +816,5 @@ npm --prefix web run build
 - BUG-045 已修复 TUI 文本协议 `run.completed` 事件被静默丢弃导致最终回复不显示的问题。
 - BUG-046 已修复 Dashboard 技能页面加载失败后只写控制台、界面无失败态的问题。
 - BUG-047 已修复 Web 聊天启动前错误气泡刷新后丢失的问题。
+- BUG-048 已修复 TUI 会话创建/恢复前 setup.status 失败导致状态卡住的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
