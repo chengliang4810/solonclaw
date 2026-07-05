@@ -26,12 +26,12 @@ export interface FileEntry {
 }
 
 type ListResult = { entries: FileEntry[]; path: string }
-type QueuedResponse = () => Promise<ListResult>
+type QueuedResponse = (path: string) => Promise<ListResult>
 
 const queuedResponses: QueuedResponse[] = []
 
 export function queueListSuccess(entries: FileEntry[]): void {
-  queuedResponses.push(async () => ({ entries, path: '' }))
+  queuedResponses.push(async (path) => ({ entries, path }))
 }
 
 export function queueListFailure(message: string): void {
@@ -40,10 +40,10 @@ export function queueListFailure(message: string): void {
   })
 }
 
-export async function listFiles(): Promise<ListResult> {
+export async function listFiles(path = ''): Promise<ListResult> {
   const next = queuedResponses.shift()
   if (!next) throw new Error('No mock file-list response queued')
-  return next()
+  return next(path)
 }
 `)
 
@@ -62,19 +62,21 @@ export async function listFiles(): Promise<ListResult> {
 
   const staleEntry = { name: 'stale.txt', path: 'stale.txt', isDir: false, size: 5, modTime: '2026-06-27T00:00:00Z' }
   mockApi.queueListSuccess([staleEntry])
-  await filesStore.fetchEntries()
+  await filesStore.fetchEntries('workspace')
 
   assert.deepEqual(filesStore.entries, [staleEntry], 'Given an initial successful load, the store should contain entries')
+  assert.equal(filesStore.currentPath, 'workspace', 'Given an initial successful navigation, the store should update the current path')
 
   mockApi.queueListFailure('workspace file API unavailable')
   console.error = (...args: unknown[]) => {
     if (args[0] === 'Failed to fetch files:') return
     originalConsoleError(...args)
   }
-  await assert.rejects(() => filesStore.fetchEntries(), /workspace file API unavailable/)
+  await assert.rejects(() => filesStore.navigateTo('missing'), /workspace file API unavailable/)
   console.error = originalConsoleError
 
-  assert.deepEqual(filesStore.entries, [], 'When loading fails, stale entries should be cleared')
+  assert.deepEqual(filesStore.entries, [staleEntry], 'When loading fails, stale entries should remain visible')
+  assert.equal(filesStore.currentPath, 'workspace', 'When navigation fails, the current path should stay on the previous successful directory')
   assert.equal(filesStore.loadError, 'workspace file API unavailable', 'When loading fails, the error should remain visible')
   assert.equal(filesStore.loading, false, 'When loading fails, the loading flag should be reset')
 
@@ -116,10 +118,14 @@ export async function listFiles(): Promise<ListResult> {
           setSort: () => {},
           openEditor: () => {},
         },
-        t: (key: string) => key === 'files.loadFailed' ? 'Failed to load files' : 'Empty directory',
+        t: (key: string) => {
+          if (key === 'files.loadFailed') return 'Failed to load files'
+          if (key === 'files.emptyDir') return 'Empty directory'
+          return key
+        },
         fileTypeIcon: () => 'file',
-        formatSize: () => '5 B',
-        formatDate: () => '2026-06-27',
+        formatFileSize: () => '5 B',
+        formatTimestampText: () => '2026-06-27',
         handleDoubleClick: () => {},
         handleContextMenu: () => {},
         handleDownload: () => {},
@@ -131,7 +137,7 @@ export async function listFiles(): Promise<ListResult> {
 
   assert.match(html, /Failed to load files/, 'FileList should render the persistent load failure label')
   assert.match(html, /workspace file API unavailable/, 'FileList should render the persistent load failure detail')
-  assert.doesNotMatch(html, /stale\.txt/, 'FileList should hide stale rows while loadError is visible')
+  assert.match(html, /stale\.txt/, 'FileList should keep stale rows visible while loadError is visible')
   assert.doesNotMatch(html, /Empty directory/, 'FileList should not show the empty state while loadError is visible')
 
   for (const locale of ['zh', 'en', 'ja', 'ko', 'pt', 'fr', 'de', 'es']) {
