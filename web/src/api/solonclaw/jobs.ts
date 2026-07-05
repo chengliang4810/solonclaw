@@ -312,6 +312,45 @@ function unwrapSchedule(schedule: string | { kind: string; raw?: string; expr?: 
   return schedule.raw || schedule.expr || schedule.display
 }
 
+function buildJobMutationPayload(data: CreateJobRequest | UpdateJobRequest, update = false): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: data.name,
+    prompt: update ? data.prompt : data.prompt || '',
+    schedule: update ? unwrapSchedule(data.schedule) : data.schedule,
+    deliver: update ? data.deliver : data.deliver || 'local',
+    deliver_chat_id: data.deliver_chat_id,
+    deliver_thread_id: data.deliver_thread_id,
+    skills: data.skills,
+    repeat: data.repeat,
+    wrap_response: data.wrap_response,
+    script: data.script,
+    workdir: data.workdir,
+    no_agent: data.no_agent,
+    context_from: data.context_from,
+    enabled_toolsets: data.enabled_toolsets,
+    model: data.model,
+    provider: data.provider,
+    base_url: data.base_url,
+  }
+  if (update) {
+    const updateData = data as UpdateJobRequest
+    Object.assign(payload, {
+      skill: updateData.skill,
+      add_skill: updateData.add_skill,
+      add_skills: updateData.add_skills,
+      remove_skill: updateData.remove_skill,
+      remove_skills: updateData.remove_skills,
+      clear_skills: updateData.clear_skills,
+      skills_delta: updateData.skills_delta,
+      enabled: updateData.enabled,
+      state: updateData.state,
+      status: updateData.status,
+      paused_reason: updateData.paused_reason,
+    })
+  }
+  return payload
+}
+
 function encodeJobPath(jobId: string): string {
   return `/api/cron/jobs/${encodeURIComponent(jobId)}`
 }
@@ -386,25 +425,7 @@ export async function listUpcomingJobs(limit = 5): Promise<Job[]> {
 export async function createJob(data: CreateJobRequest): Promise<Job> {
   const job = await request<DashboardJob>('/api/cron/jobs', {
     method: 'POST',
-    body: JSON.stringify({
-      name: data.name,
-      prompt: data.prompt || '',
-      schedule: data.schedule,
-      deliver: data.deliver || 'local',
-      deliver_chat_id: data.deliver_chat_id,
-      deliver_thread_id: data.deliver_thread_id,
-      skills: data.skills || [],
-      repeat: data.repeat,
-      wrap_response: data.wrap_response,
-      script: data.script,
-      workdir: data.workdir,
-      no_agent: data.no_agent,
-      context_from: data.context_from,
-      enabled_toolsets: data.enabled_toolsets,
-      model: data.model,
-      provider: data.provider,
-      base_url: data.base_url,
-    }),
+    body: JSON.stringify(buildJobMutationPayload({ ...data, skills: data.skills || [] })),
   })
   return mapJob(job)
 }
@@ -412,36 +433,7 @@ export async function createJob(data: CreateJobRequest): Promise<Job> {
 export async function updateJob(jobId: string, data: UpdateJobRequest): Promise<Job> {
   const job = await request<DashboardJob>(encodeJobPath(jobId), {
     method: 'PUT',
-    body: JSON.stringify({
-      name: data.name,
-      prompt: data.prompt,
-      schedule: unwrapSchedule(data.schedule),
-      deliver: data.deliver,
-      deliver_chat_id: data.deliver_chat_id,
-      deliver_thread_id: data.deliver_thread_id,
-      skills: data.skills,
-      skill: data.skill,
-      add_skill: data.add_skill,
-      add_skills: data.add_skills,
-      remove_skill: data.remove_skill,
-      remove_skills: data.remove_skills,
-      clear_skills: data.clear_skills,
-      skills_delta: data.skills_delta,
-      repeat: data.repeat,
-      enabled: data.enabled,
-      state: data.state,
-      status: data.status,
-      paused_reason: data.paused_reason,
-      wrap_response: data.wrap_response,
-      script: data.script,
-      workdir: data.workdir,
-      no_agent: data.no_agent,
-      context_from: data.context_from,
-      enabled_toolsets: data.enabled_toolsets,
-      model: data.model,
-      provider: data.provider,
-      base_url: data.base_url,
-    }),
+    body: JSON.stringify(buildJobMutationPayload(data, true)),
   })
   return mapJob(job)
 }
