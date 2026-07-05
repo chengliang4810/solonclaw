@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { clearApiKey, dashboardFetch, getApiKey, getBaseUrlValue, handleDashboardAuthFailure, setApiKey, hasApiKey } from "@/api/client";
 
 const { t } = useI18n();
+const route = useRoute();
 const router = useRouter();
 
 // Read token saved by main.ts (before router strips URL params)
@@ -13,6 +14,10 @@ const urlToken = window.__LOGIN_TOKEN__ || "";
 const token = ref(urlToken);
 const loading = ref(false);
 const errorMsg = ref("");
+
+function loginTarget() {
+  return route.redirectedFrom?.fullPath || "/solonclaw/chat";
+}
 
 async function validateExistingToken() {
   const existingKey = (urlToken || getApiKey()).trim();
@@ -28,7 +33,7 @@ async function validateExistingToken() {
     });
 
     if (res.ok) {
-      router.replace("/solonclaw/chat");
+      router.replace(loginTarget());
       return;
     }
 
@@ -76,7 +81,7 @@ async function handleLogin() {
     }
 
     setApiKey(key);
-    router.replace("/solonclaw/chat");
+    router.replace(loginTarget());
   } catch {
     errorMsg.value = t("login.connectionFailed");
   } finally {

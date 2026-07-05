@@ -21,6 +21,14 @@ assert.ok(
   'login page must not route to chat only because a token exists locally',
 )
 assert.ok(
+  loginView.includes('route.redirectedFrom'),
+  'login page should preserve the guarded route that sent the user to login',
+)
+assert.ok(
+  !loginView.includes('router.replace("/solonclaw/chat")'),
+  'login page should not hardcode chat as every successful login target',
+)
+assert.ok(
   loginView.includes('clearApiKey()'),
   'failed stored-token validation should clear stale local and injected tokens',
 )
