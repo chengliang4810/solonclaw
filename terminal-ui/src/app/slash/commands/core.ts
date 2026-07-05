@@ -382,12 +382,20 @@ export const coreCommands: SlashCommand[] = [
         }
       }
 
-      if (arg && Number.isNaN(parseInt(arg, 10))) {
+      const trimmedArg = arg.trim()
+      const copyIndex = trimmedArg ? Number(trimmedArg) : null
+
+      if (trimmedArg && (!/^[1-9]\d*$/.test(trimmedArg) || !Number.isSafeInteger(copyIndex))) {
         return sys('usage: /copy [number]')
       }
 
       const all = ctx.local.getHistoryItems().filter(m => m.role === 'assistant')
-      const target = all[arg ? Math.min(parseInt(arg, 10), all.length) - 1 : all.length - 1]
+
+      if (copyIndex !== null && copyIndex > all.length) {
+        return sys('usage: /copy [number]')
+      }
+
+      const target = all[copyIndex === null ? all.length - 1 : copyIndex - 1]
 
       if (!target) {
         return sys('nothing to copy — start a conversation first')

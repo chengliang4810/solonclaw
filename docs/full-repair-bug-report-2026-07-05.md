@@ -797,6 +797,42 @@ npm --prefix terminal-ui run build
 npm --prefix terminal-ui run lint -- --quiet
 ```
 
+## BUG-049：TUI `/copy` 数字参数会复制错误的助手消息
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- TUI 本地 `/copy` 命令。
+- 用户按序号复制历史助手回复时的剪贴板内容。
+- 输入非法或超范围序号时的安全反馈。
+
+当前事实：
+
+- `/copy` 使用 `parseInt(arg, 10)` 判断和计算目标消息。
+- `parseInt('1abc', 10)` 会得到 `1`，导致非法输入复制第一条助手消息。
+- `Math.min(parseInt(arg, 10), all.length)` 会把 `/copy 999` 夹到最后一条助手消息。
+
+根因：
+
+- 命令参数解析使用宽松的前缀数字解析，并对超范围数字做静默夹取。
+- 用户明确输入的序号无效时应反馈用法，而不是复制另一条消息。
+
+修复记录：
+
+- `/copy` 改为只接受完整匹配的正整数。
+- 超过助手消息数量的序号返回 `usage: /copy [number]`，不再静默夹取到最后一条。
+- `createSlashHandler.test.ts` 增加非法数字和超范围数字回归。
+
+验证命令：
+
+```bash
+npm --prefix terminal-ui test -- src/__tests__/createSlashHandler.test.ts
+npm --prefix terminal-ui run type-check
+npm --prefix terminal-ui run build
+npm --prefix terminal-ui run lint -- --quiet
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -817,4 +853,5 @@ npm --prefix terminal-ui run lint -- --quiet
 - BUG-046 已修复 Dashboard 技能页面加载失败后只写控制台、界面无失败态的问题。
 - BUG-047 已修复 Web 聊天启动前错误气泡刷新后丢失的问题。
 - BUG-048 已修复 TUI 会话创建/恢复前 setup.status 失败导致状态卡住的问题。
+- BUG-049 已修复 TUI `/copy` 非法或超范围数字参数会复制错误助手消息的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

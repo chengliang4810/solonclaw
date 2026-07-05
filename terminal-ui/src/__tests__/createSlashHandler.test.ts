@@ -1281,6 +1281,32 @@ describe('createSlashHandler', () => {
     })
     expect(ctx.transcript.send).not.toHaveBeenCalled()
   })
+
+  it('rejects malformed /copy indexes instead of copying a partial parse match', () => {
+    const ctx = buildCtx({
+      local: { ...buildLocal(), getHistoryItems: vi.fn(() => [{ role: 'assistant', text: 'first' }]) }
+    })
+
+    createSlashHandler(ctx)('/copy 1abc')
+
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /copy [number]')
+  })
+
+  it('rejects out-of-range /copy indexes instead of clamping to the last assistant message', () => {
+    const ctx = buildCtx({
+      local: {
+        ...buildLocal(),
+        getHistoryItems: vi.fn(() => [
+          { role: 'assistant', text: 'first' },
+          { role: 'assistant', text: 'second' }
+        ])
+      }
+    })
+
+    createSlashHandler(ctx)('/copy 999')
+
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /copy [number]')
+  })
 })
 
 const buildCtx = (overrides: Partial<Ctx> = {}): Ctx => ({
