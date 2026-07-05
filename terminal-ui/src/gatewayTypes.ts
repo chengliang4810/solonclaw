@@ -152,7 +152,10 @@ export interface ChannelQrResponse {
   message?: string
   ok?: boolean
   qrcode?: string
+  qrcode_img_content?: string
   qrcode_url?: string
+  qr_code?: string
+  qr_image_url?: string
   qr_url?: string
   session_id?: string
   status?: string

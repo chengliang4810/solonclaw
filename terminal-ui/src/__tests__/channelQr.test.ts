@@ -4,7 +4,13 @@ import { renderSync } from '@solonclaw/ink'
 import React from 'react'
 import { describe, expect, it } from 'vitest'
 
-import { channelQrStatusActive, channelQrUrl, channelSupportsQr } from '../components/channelQr.js'
+import {
+  channelQrResponseStatusActive,
+  channelQrStatus,
+  channelQrStatusActive,
+  channelQrUrl,
+  channelSupportsQr
+} from '../components/channelQr.js'
 import {
   ChannelQrSetupView,
   channelSetupFieldValueLabel,
@@ -23,8 +29,22 @@ describe('channel QR setup helpers', () => {
 
   it('uses platform-specific QR URL fields for display', () => {
     expect(channelQrUrl({ qrcode_url: 'https://weixin.example.test/qr.png' })).toBe('https://weixin.example.test/qr.png')
+    expect(channelQrUrl({ qr_image_url: 'https://weixin.example.test/qr-image.png' })).toBe('https://weixin.example.test/qr-image.png')
+    expect(channelQrUrl({ qrcode_img_content: 'data:image/png;base64,abc' })).toBe('data:image/png;base64,abc')
     expect(channelQrUrl({ qr_url: 'https://login.example.test/qr?code=1' })).toBe('https://login.example.test/qr?code=1')
+    expect(channelQrUrl({ qr_code: 'qr-code-value' })).toBe('qr-code-value')
     expect(channelQrUrl({ qrcode: 'raw-code' })).toBe('raw-code')
+  })
+
+  it('normalizes backend QR statuses to the Web dashboard contract', () => {
+    expect(channelQrStatus({ status: 'initializing' })).toBe('wait')
+    expect(channelQrStatus({ status: 'pending' })).toBe('wait')
+    expect(channelQrStatus({ status: 'scanned' })).toBe('scaned')
+    expect(channelQrStatus({ status: 'failed', error_code: 'qr_timeout' })).toBe('expired')
+    expect(channelQrStatus({ status: 'failed', error_code: 'qr_failed' })).toBe('error')
+    expect(channelQrResponseStatusActive({ status: 'pending' })).toBe(true)
+    expect(channelQrResponseStatusActive(null)).toBe(false)
+    expect(channelQrResponseStatusActive({ status: 'failed', error_code: 'qr_timeout' })).toBe(false)
   })
 
   it('labels channel setup rows with configured and QR capability state', () => {
