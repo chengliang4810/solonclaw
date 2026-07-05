@@ -171,7 +171,7 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
                     respJson == null ? 0 : respJson.length(),
                     RawResponseLogSupport.hexHead(respJson),
                     RawResponseLogSupport.preview(respJson),
-                    safeError(e));
+                    ErrorTextSupport.safeError(e));
             throw e;
         }
     }
@@ -186,16 +186,6 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
     @Override
     public List<AssistantMessage> parseAssistantMessage(ChatResponseDefault resp, ONode oMessage) {
         return delegate.parseAssistantMessage(resp, oMessage);
-    }
-
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param error 错误参数。
-     * @return 返回safe Error结果。
-     */
-    private String safeError(Throwable error) {
-        return ErrorTextSupport.safeError(error);
     }
 
     /**

@@ -390,11 +390,11 @@ public class DefaultSkillHubService implements SkillHubService {
                         StrUtil.nullToEmpty(query),
                         StrUtil.nullToEmpty(sourceFilter),
                         limit,
-                        safeError(e));
+                        ErrorTextSupport.safeError(e));
                 log.debug(
                         "Skills Hub source search failure detail: source={}, error={}",
                         source.sourceId(),
-                        safeError(e));
+                        ErrorTextSupport.safeError(e));
             }
         }
         Map<String, SkillMeta> unique = new LinkedHashMap<String, SkillMeta>();
@@ -581,16 +581,6 @@ public class DefaultSkillHubService implements SkillHubService {
     private String deriveCategory(String installPath) {
         int index = installPath.lastIndexOf('/');
         return index < 0 ? null : installPath.substring(0, index);
-    }
-
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param error 错误参数。
-     * @return 返回safe Error结果。
-     */
-    private String safeError(Throwable error) {
-        return ErrorTextSupport.safeError(error);
     }
 
     /** 表示来源Collect结果，携带调用方后续判断所需信息。 */

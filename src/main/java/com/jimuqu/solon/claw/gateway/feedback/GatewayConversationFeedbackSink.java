@@ -240,7 +240,7 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
                     "DingTalk progress card delivery failed: chatId={}, toolName={}, error={}",
                     message.getChatId(),
                     toolName,
-                    safeError(e));
+                    ErrorTextSupport.safeError(e));
             return false;
         }
     }
@@ -264,7 +264,7 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
                     "Conversation feedback delivery failed: platform={}, chatId={}, error={}",
                     message.getPlatform(),
                     message.getChatId(),
-                    safeError(e));
+                    ErrorTextSupport.safeError(e));
         }
     }
 
@@ -327,13 +327,4 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         return text.substring(0, Math.max(0, limit - 3)) + "...";
     }
 
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param error 进度投递过程中捕获到的异常。
-     * @return 可写入日志的脱敏错误摘要。
-     */
-    private String safeError(Throwable error) {
-        return ErrorTextSupport.safeError(error);
-    }
 }

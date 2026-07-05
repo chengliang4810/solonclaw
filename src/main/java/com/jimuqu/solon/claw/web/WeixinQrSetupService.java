@@ -198,7 +198,7 @@ public class WeixinQrSetupService {
             }
             state.fail("qr_timeout", "微信扫码登录超时。");
         } catch (Exception e) {
-            state.fail("qr_failed", safeMessage(e));
+            state.fail("qr_failed", ErrorTextSupport.safeError(e));
         }
     }
 
@@ -346,16 +346,6 @@ public class WeixinQrSetupService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    /**
-     * 生成安全展示用的消息。
-     *
-     * @param e 捕获到的异常。
-     * @return 返回safe消息结果。
-     */
-    private String safeMessage(Exception e) {
-        return ErrorTextSupport.safeError(e);
     }
 
     /**
