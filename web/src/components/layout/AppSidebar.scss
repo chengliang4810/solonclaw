@@ -46,6 +46,7 @@
   flex: 1;
   display: flex;
   padding-top: 4px;
+  padding-bottom: 8px;
   flex-direction: column;
   gap: 3px;
   overflow-y: auto;
@@ -107,6 +108,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
+  scroll-margin-block: 8px;
   min-height: 36px;
   padding: 8px 10px;
   border: none;
