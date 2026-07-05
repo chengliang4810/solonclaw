@@ -653,6 +653,42 @@ npm --prefix web run test:platform-catalog-metadata
 npm --prefix web run build
 ```
 
+## BUG-045：TUI 文本协议 `run.completed` 事件被静默丢弃
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- 本地 TUI WebSocket 文本协议兼容路径。
+- 后端使用非 JSON-RPC envelope 推送完成事件时的最终回复展示。
+- 忙碌状态回到 ready 的终端交互路径。
+
+当前事实：
+
+- `TerminalUiWebSocketEventSink` 在 JSON-RPC envelope 模式发送 `message.complete`，但文本协议兼容路径发送 `run.completed`，payload 字段为 `final_reply`。
+- TUI `GatewayEvent` 类型只声明了 `message.complete`、`run.failed` 和 `error`，没有声明 `run.completed`。
+- `createGatewayEventHandler` 没有默认错误提示分支，未知事件会直接 fall through，因此最终回复不会进入 transcript。
+
+根因：
+
+- 后端完成事件存在 JSON-RPC 与文本协议两套事件名，但前端只实现了 JSON-RPC 的 `message.complete` 完成分支。
+- 文本协议完成 payload 使用 `final_reply` 字段，未在前端规范成 `recordMessageComplete()` 需要的 `text`。
+
+修复记录：
+
+- `GatewayEvent` 增加 `run.completed` 事件类型，保留文本协议的 `final_reply` 字段。
+- `createGatewayEventHandler` 让 `run.completed` 复用 `message.complete` 完成处理，并把 `final_reply` 映射为 `text`。
+- `terminal-ui/README.md` 的事件表补充 `run.completed`，避免后续兼容路径再次被遗漏。
+- `createGatewayEventHandler.test.ts` 增加回归用例，覆盖 busy 状态下收到 `run.completed` 后写入助手回复并回到 ready。
+
+验证命令：
+
+```bash
+npm --prefix terminal-ui test -- src/__tests__/createGatewayEventHandler.test.ts
+npm --prefix terminal-ui run type-check
+npm --prefix terminal-ui run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -669,4 +705,5 @@ npm --prefix web run build
 - BUG-042 已修复 TUI `/undo` 与 `/retry` 空响应被静默吞掉、用户无反馈的问题。
 - BUG-043 已修复 Web SSE 非 JSON `data:` 帧导致整个运行事件流提前失败的问题。
 - BUG-044 已修复 Web settings store 暴露已裁剪海外渠道假配置入口的问题。
+- BUG-045 已修复 TUI 文本协议 `run.completed` 事件被静默丢弃导致最终回复不显示的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

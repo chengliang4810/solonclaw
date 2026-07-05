@@ -340,6 +340,18 @@ describe('createGatewayEventHandler', () => {
     }
   })
 
+  it('treats run.completed from the text protocol as a completed assistant turn', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    patchUiState({ busy: true, status: '运行中…' })
+
+    onEvent({ payload: { final_reply: 'done' }, type: 'run.completed' } as any)
+
+    expect(appended).toContainEqual({ role: 'assistant', text: 'done' })
+    expect(getUiState().status).toBe('ready')
+  })
+
   it('preserves streamed reasoning as one completed thinking panel after segment flushes', () => {
     const appended: Msg[] = []
     const streamed = 'first reasoning chunk\nsecond reasoning chunk'
