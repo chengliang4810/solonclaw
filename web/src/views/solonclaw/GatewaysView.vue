@@ -1,15 +1,27 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { Spin, Tag } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import { useGatewayStore } from '@/stores/solonclaw/gateways'
 
 const { t } = useI18n()
 const gatewayStore = useGatewayStore()
+const refreshTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
 onMounted(() => {
-  gatewayStore.fetchStatus()
+  refreshStatus()
+  refreshTimer.value = setInterval(refreshStatus, 15000)
 })
+
+onUnmounted(() => {
+  if (refreshTimer.value) {
+    clearInterval(refreshTimer.value)
+  }
+})
+
+function refreshStatus() {
+  gatewayStore.fetchStatus()
+}
 </script>
 
 <template>
@@ -23,11 +35,16 @@ onMounted(() => {
 
     <div class="gateways-content">
       <Spin :spinning="gatewayStore.loading" size="large">
-        <div v-if="gatewayStore.gateways.length === 0" class="empty-state">
+        <div v-if="gatewayStore.loadError" class="gateway-load-error">
+          <strong>{{ t('common.fetchFailed') }}</strong>
+          <span>{{ gatewayStore.loadError }}</span>
+        </div>
+
+        <div v-if="gatewayStore.gateways.length === 0 && !gatewayStore.loadError" class="empty-state">
           {{ t('gateways.emptyState') }}
         </div>
 
-        <div v-else class="gateway-list">
+        <div v-if="gatewayStore.gateways.length > 0" class="gateway-list">
           <div v-for="gw in gatewayStore.gateways" :key="gw.profile" class="gateway-card">
             <div class="gateway-info">
               <div class="gateway-name">{{ gw.profile }}</div>
@@ -67,6 +84,22 @@ onMounted(() => {
   text-align: center;
   color: $text-muted;
   padding: 40px 0;
+}
+
+.gateway-load-error {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: $radius-sm;
+  background: rgba(var(--error-rgb), 0.06);
+  color: $error;
+  font-size: 13px;
+
+  span {
+    overflow-wrap: anywhere;
+  }
 }
 
 .gateway-list {
