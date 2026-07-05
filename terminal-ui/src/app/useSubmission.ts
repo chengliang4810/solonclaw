@@ -414,7 +414,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
       send(full)
     },
-    [appendMessage, composerActions, composerRefs, handleBusyInput, interpolate, send, sendQueued, shellExec, slashRef]
+    [appendMessage, composerActions, composerRefs, gw, handleBusyInput, interpolate, send, sendQueued, shellExec, slashRef, sys]
   )
 
   const submit = useCallback(
@@ -470,7 +470,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
       dispatchSubmission([...composerState.inputBuf, value].join('\n'))
     },
-    [appendMessage, composerActions, composerRefs, composerState, dispatchSubmission, gw, sys]
+    [appendMessage, composerActions, composerRefs, composerState, dispatchSubmission, gw, isExactSlashCommand, sys]
   )
 
   submitRef.current = submit
