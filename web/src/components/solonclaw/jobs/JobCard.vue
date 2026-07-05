@@ -150,12 +150,9 @@ async function handleRun() {
 async function refreshRuns() {
   runsLoading.value = true
   try {
-    const [job, jobRuns] = await Promise.all([
-      jobsStore.fetchJob(jobId.value),
-      jobsStore.fetchJobRuns(jobId.value, 20),
-    ])
-    detailJob.value = job
-    runs.value = jobRuns
+    const inspect = await jobsStore.inspectJob(jobId.value, 20)
+    detailJob.value = inspect.job
+    runs.value = inspect.runs
   } catch (e: any) {
     message.error(e.message)
   } finally {
