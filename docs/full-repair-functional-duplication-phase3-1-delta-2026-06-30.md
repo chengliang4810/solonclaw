@@ -16,6 +16,8 @@
 
 2026-07-05 复核后，`min-lines=40` 和 `min-lines=25` 完全重复扫描均无输出。Web 设置页和 Web TUI Runtime 页已共用 `useChannelQrPolling`，前端 QR 候选收窄为 terminal-ui 与 Web 共享状态契约的对齐问题；后端旧候选仍为 QR setup ticket 生命周期、审批 / slash confirm 状态源边界。新补齐的 Runs 可恢复运行入口和 Jobs guide / policy 面板没有引入新的重复功能面。
 
+2026-07-05 命令时间格式化复用提交后再次复核，完全重复扫描仍无输出。阶段 3.1 当前只保留语义重复候选：QR setup 后端 ticket 生命周期，以及审批 / slash confirm 的诊断命名和状态源边界；其余旧候选已收口或不再构成高置信功能重复。
+
 ## 检查方法
 
 - 只读并行扫描：
@@ -26,6 +28,7 @@
   - `python3 scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`：无输出，说明当前没有 40 行以上完全重复块。
   - 2026-06-30：`python3 scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`：仍有 23 组 25 行以上完全重复块。
   - 2026-07-05：`python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`：无输出。
+  - 2026-07-05 命令时间格式化复用提交后：`python scripts/check-code-duplication.selftest.py`、`--min-lines 40`、`--min-lines 25 --max-findings 80` 均通过且无重复输出。
 
 ## 当前高置信候选
 
