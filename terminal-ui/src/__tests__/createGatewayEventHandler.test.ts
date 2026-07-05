@@ -944,6 +944,19 @@ describe('createGatewayEventHandler', () => {
     expect(getTurnState().activity).toMatchObject([{ text: 'boom', tone: 'error' }])
   })
 
+  it('surfaces backend run failures as terminal errors', () => {
+    const appended: Msg[] = []
+    const ctx = buildCtx(appended)
+    const onEvent = createGatewayEventHandler(ctx)
+
+    onEvent({ payload: { error: 'Remote host terminated the handshake' }, type: 'run.failed' } as any)
+
+    expect(getTurnState().activity).toMatchObject([
+      { text: 'Remote host terminated the handshake', tone: 'error' }
+    ])
+    expect(ctx.system.sys).toHaveBeenCalledWith('error: Remote host terminated the handshake')
+  })
+
   it('accepts timeout/error subagent terminal statuses and ignores stale live events', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))

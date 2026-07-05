@@ -845,10 +845,11 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       }
 
       case 'error':
+      case 'run.failed':
         turnController.recordError()
 
         {
-          const message = String(ev.payload?.message || 'unknown error')
+          const message = String(ev.payload?.message || ev.payload?.error || 'unknown error')
 
           turnController.pushActivity(message, 'error')
 

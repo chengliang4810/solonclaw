@@ -349,6 +349,39 @@ node --experimental-strip-types web/tests/i18nRegistrationStatic.test.ts
 node --experimental-strip-types web/tests/loginStoredTokenValidationStatic.test.ts
 ```
 
+## BUG-036：TUI 后端运行失败事件未在主界面持久展示
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- TUI WebSocket 真实聊天失败路径。
+- 用户排查模型连接、鉴权或 TLS 失败时的终端反馈。
+- 无人值守 TUI E2E 对失败状态的可见性判断。
+
+当前事实：
+
+- TUI E2E 真实聊天失败后，数据库中的 `agent_runs.status=failed`，且事件表有 `run.failed` 与 `attempt.error`。
+- 后端非 JSON-RPC WebSocket 路径会向 TUI 发送 `run.failed`，payload 中包含 `error`。
+- 终端主界面回到 ready 状态，但没有稳定展示失败文本，用户只能从日志或数据库确认失败原因。
+
+根因：
+
+- `GatewayEvent` 类型和 `createGatewayEventHandler` 只处理通用 `error` 事件。
+- 后端已有的 `run.failed` 事件没有进入 TUI 错误展示分支，导致事件被忽略。
+
+修复记录：
+
+- `GatewayEvent` 增加 `run.failed` 事件类型，payload 同时支持 `error` 与 `message`。
+- `createGatewayEventHandler` 复用现有 `error` 分支处理 `run.failed`，把错误写入活动状态和持久系统消息。
+- 新增 `createGatewayEventHandler.test.ts` 回归用例，先红后绿覆盖后端运行失败事件。
+
+验证命令：
+
+```bash
+npm --prefix terminal-ui test -- src/__tests__/createGatewayEventHandler.test.ts
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -356,4 +389,5 @@ node --experimental-strip-types web/tests/loginStoredTokenValidationStatic.test.
 - BUG-031、BUG-032 与 BUG-033 已修复，并补充 focused 验证记录。
 - BUG-034 记录 Windows 真实 Node TUI PTY E2E 的剩余平台限制；当前命令级审计仍可作为 Windows 可用性门禁。
 - BUG-035 已修复默认登录页错误指引，保持空令牌拒绝访问的安全边界不变。
+- BUG-036 已修复 TUI `run.failed` 事件被忽略导致失败不可见的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
