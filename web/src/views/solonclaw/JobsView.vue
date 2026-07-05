@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { Button, Spin } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import JobsPanel from '@/components/solonclaw/jobs/JobsPanel.vue'
@@ -11,12 +11,18 @@ const { t } = useI18n()
 const jobsStore = useJobsStore()
 const showModal = ref(false)
 const editingJob = ref<string | null>(null)
+const refreshTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
 onMounted(() => {
-  jobsStore.fetchJobs()
-  jobsStore.fetchUpcomingJobs()
-  jobsStore.fetchStatus()
+  refreshSchedules()
   jobsStore.fetchGuideAndPolicy()
+  refreshTimer.value = setInterval(refreshSchedules, 15000)
+})
+
+onUnmounted(() => {
+  if (refreshTimer.value) {
+    clearInterval(refreshTimer.value)
+  }
 })
 
 function openCreateModal() {
@@ -62,6 +68,11 @@ async function refreshSchedules() {
       </Button>
     </header>
 
+    <div v-if="jobsStore.statusError" class="jobs-load-error page-error">
+      <strong>{{ t('common.fetchFailed') }}</strong>
+      <span>{{ jobsStore.statusError }}</span>
+    </div>
+
     <section v-if="jobsStore.status" class="status-panel">
       <div class="status-grid">
         <div class="status-item">
@@ -105,6 +116,10 @@ async function refreshSchedules() {
         <small v-else>{{ jobsStore.guide?.objective || '—' }}</small>
       </summary>
       <Spin :spinning="jobsStore.guideLoading">
+        <div v-if="jobsStore.guideError" class="jobs-load-error">
+          <strong>{{ t('common.fetchFailed') }}</strong>
+          <span>{{ jobsStore.guideError }}</span>
+        </div>
         <div class="guide-grid">
           <div class="guide-card">
             <span>{{ t('jobs.pageScheduleCapabilities') }}</span>
@@ -169,6 +184,26 @@ async function refreshSchedules() {
   border-radius: $radius-md;
   background: $bg-card;
   padding: 12px 14px;
+  flex-shrink: 0;
+}
+
+.jobs-load-error {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: $radius-sm;
+  background: rgba(var(--error-rgb), 0.06);
+  color: $error;
+  padding: 10px 12px;
+  font-size: 13px;
+
+  span {
+    overflow-wrap: anywhere;
+  }
+}
+
+.page-error {
+  margin: 12px 20px 0;
   flex-shrink: 0;
 }
 

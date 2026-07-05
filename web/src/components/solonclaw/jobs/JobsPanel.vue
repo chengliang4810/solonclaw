@@ -43,6 +43,11 @@ function refreshUpcoming() {
       </div>
     </section>
 
+    <div v-if="jobsStore.upcomingError" class="jobs-load-error">
+      <strong>{{ t('common.fetchFailed') }}</strong>
+      <span>{{ jobsStore.upcomingError }}</span>
+    </div>
+
     <section class="list-panel">
       <div class="list-head">
         <div>
@@ -52,7 +57,11 @@ function refreshUpcoming() {
       </div>
     </section>
 
-    <div v-if="jobsStore.jobs.length === 0" class="empty-state">
+    <div v-if="jobsStore.loadError" class="jobs-load-error">
+      <strong>{{ t('jobs.loadFailed') }}</strong>
+      <span>{{ jobsStore.loadError }}</span>
+    </div>
+    <div v-if="jobsStore.jobs.length === 0 && !jobsStore.loadError" class="empty-state">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="empty-icon">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
         <line x1="16" y1="2" x2="16" y2="6"/>
@@ -61,7 +70,7 @@ function refreshUpcoming() {
       </svg>
       <p>{{ t('jobs.noJobs') }}</p>
     </div>
-    <div v-else class="jobs-grid">
+    <div v-if="jobsStore.jobs.length > 0" class="jobs-grid">
       <JobCard
         v-for="job in jobsStore.jobs"
         :key="job.id"
@@ -221,6 +230,21 @@ function refreshUpcoming() {
 
   p {
     font-size: 14px;
+  }
+}
+
+.jobs-load-error {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: $radius-sm;
+  background: rgba(var(--error-rgb), 0.06);
+  color: $error;
+  padding: 10px 12px;
+  font-size: 13px;
+
+  span {
+    overflow-wrap: anywhere;
   }
 }
 
