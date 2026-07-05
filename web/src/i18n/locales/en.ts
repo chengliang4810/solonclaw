@@ -1322,6 +1322,8 @@ export default {
     contextWindow: 'Context {count}',
     maxOutput: 'Output {count}',
     price: 'Price in {input} / out {output}',
+    cachePrice: 'Cache read {cacheRead} / write {cacheWrite} / reasoning {reasoning}',
+    priceSource: 'Price source: {source}',
     deleteProvider: 'Delete Provider',
     deleteConfirm: 'Are you sure you want to delete "{name}"?',
     codexLoginTitle: 'OpenAI Codex Login',

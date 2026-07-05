@@ -47,9 +47,23 @@ export interface RuntimeModelStatus {
   status: string
   context_window?: number
   max_output?: number
-  input_price?: number
-  output_price?: number
+  pricing?: ModelPricingStatus
   group_label?: string
+}
+
+export interface ModelPricingStatus {
+  currency?: string
+  input?: string
+  output?: string
+  cache?: string
+  cache_read?: string
+  cache_write?: string
+  reasoning?: string
+  source?: string
+  source_url?: string
+  pricing_version?: string
+  fetched_at?: number
+  free?: boolean
 }
 
 export interface RuntimeModelsResponse {

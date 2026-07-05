@@ -68,7 +68,11 @@ async function handleSaved() {
               <strong>{{ model.provider }} / {{ model.model || '-' }}</strong>
               <span>{{ model.dialect }} · {{ t(`models.health.${model.status}`, model.status) }}</span>
               <small>{{ t('models.contextWindow', { count: model.context_window || '-' }) }} · {{ t('models.maxOutput', { count: model.max_output || '-' }) }}</small>
-              <small v-if="model.input_price || model.output_price">{{ t('models.price', { input: model.input_price || 0, output: model.output_price || 0 }) }}</small>
+              <small v-if="model.pricing?.input || model.pricing?.output">{{ t('models.price', { input: model.pricing?.input || '-', output: model.pricing?.output || '-' }) }}</small>
+              <small v-if="model.pricing?.cache_read || model.pricing?.cache_write || model.pricing?.reasoning">
+                {{ t('models.cachePrice', { cacheRead: model.pricing?.cache_read || '-', cacheWrite: model.pricing?.cache_write || '-', reasoning: model.pricing?.reasoning || '-' }) }}
+              </small>
+              <small v-if="model.pricing?.source">{{ t('models.priceSource', { source: model.pricing.source }) }}</small>
             </div>
           </div>
         </section>

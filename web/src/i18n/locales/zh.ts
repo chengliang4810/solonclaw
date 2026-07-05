@@ -1349,6 +1349,8 @@ export default {
     contextWindow: '上下文 {count}',
     maxOutput: '输出 {count}',
     price: '价格 输入 {input} / 输出 {output}',
+    cachePrice: '缓存读 {cacheRead} / 写 {cacheWrite} / 推理 {reasoning}',
+    priceSource: '价格来源：{source}',
     deleteProvider: '删除模型',
     deleteConfirm: '确定删除 "{name}" 吗？',
     codexLoginTitle: 'OpenAI Codex 登录',
