@@ -1,3 +1,4 @@
+import { parsePositiveIntegerArg } from '../../../domain/slash.js'
 import type {
   BrowserManageResponse,
   CommandsCatalogResponse,
@@ -410,9 +411,9 @@ export const opsCommands: SlashCommand[] = [
       let index = 1
 
       if (raw && lower !== 'last') {
-        const parsed = parseInt(raw, 10)
+        const parsed = parsePositiveIntegerArg(raw)
 
-        if (Number.isNaN(parsed) || parsed < 1 || parsed > history.length) {
+        if (parsed === null || parsed > history.length) {
           return ctx.transcript.sys(`replay: index out of range 1..${history.length} · use /replay list for disk`)
         }
 
@@ -437,9 +438,9 @@ export const opsCommands: SlashCommand[] = [
       const history = getSpawnHistory()
 
       const resolve = (token: string): null | SpawnSnapshot => {
-        const n = parseInt(token!, 10)
+        const n = parsePositiveIntegerArg(token)
 
-        if (Number.isFinite(n) && n >= 1 && n <= history.length) {
+        if (n !== null && n <= history.length) {
           return history[n - 1] ?? null
         }
 
@@ -616,9 +617,9 @@ export const opsCommands: SlashCommand[] = [
       }
 
       if (sub === 'browse') {
-        const pageNum = query ? (/^\d+$/.test(query) ? Number(query) : NaN) : 1
+        const pageNum = query ? parsePositiveIntegerArg(query) : 1
 
-        if (Number.isNaN(pageNum) || pageNum < 1) {
+        if (pageNum === null) {
           return sys('usage: /skills browse [page]  (page must be a positive number)')
         }
 

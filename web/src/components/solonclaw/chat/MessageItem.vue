@@ -243,7 +243,7 @@ const renderedToolResult = computed(() => {
                   />
                 </template>
                 <template v-else>
-                  <div class="msg-attachment-file" @click="handleAttachmentDownload(att)" style="cursor: pointer;" :title="t('download.downloadFile')">
+                  <div class="msg-attachment-file" @click="handleAttachmentDownload(att)" style="cursor: pointer;" :title="t('download.download')">
                     <svg
                       width="16"
                       height="16"

@@ -9,6 +9,18 @@ export const parseSlashCommand = (cmd: string) => {
   return { arg: rest.join(' '), cmd, name: name.toLowerCase() }
 }
 
+export const parsePositiveIntegerArg = (value: string): null | number => {
+  const text = value.trim()
+
+  if (!/^[1-9]\d*$/.test(text)) {
+    return null
+  }
+
+  const n = Number(text)
+
+  return Number.isSafeInteger(n) ? n : null
+}
+
 export const applyCompletion = (value: string, rowText: string, compReplace: number): string => {
   const prefix = value.slice(0, compReplace)
   const text = prefix.endsWith('/') && rowText.startsWith('/') ? rowText.slice(1) : rowText

@@ -1767,6 +1767,7 @@ export default {
     mediaReferenceReady: 'Media reference is ready',
     mediaReferenceFailed: 'Failed to generate media reference',
     mediaDetail: 'Media detail',
+    mediaLoadFailed: 'Failed to load media cache',
     mediaEmpty: 'No media cache records',
     mediaStatus: 'Status',
     mediaChatId: 'Chat ID',

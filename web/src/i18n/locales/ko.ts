@@ -518,6 +518,7 @@ export default {
     mediaReferenceReady: '미디어 참조가 생성되었습니다',
     mediaReferenceFailed: '미디어 참조 생성 실패',
     mediaDetail: '미디어 상세',
+    mediaLoadFailed: '미디어 캐시를 불러오지 못했습니다',
     mediaEmpty: '미디어 캐시 기록 없음',
     mediaStatus: '상태',
     mediaPlatform: '플랫폼',

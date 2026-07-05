@@ -518,6 +518,7 @@ export default {
     mediaReferenceReady: 'メディア参照を生成しました',
     mediaReferenceFailed: 'メディア参照の生成に失敗しました',
     mediaDetail: 'メディア詳細',
+    mediaLoadFailed: 'メディアキャッシュの読み込みに失敗しました',
     mediaEmpty: 'メディアキャッシュ記録はありません',
     mediaStatus: '状態',
     mediaPlatform: 'プラットフォーム',

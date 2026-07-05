@@ -4,6 +4,7 @@ import { NO_CONFIRM_DESTRUCTIVE } from '../../../config/env.js'
 import { dailyFortune, randomFortune } from '../../../content/fortunes.js'
 import { HOTKEYS } from '../../../content/hotkeys.js'
 import { isSectionName, nextDetailsMode, parseDetailsMode, SECTION_NAMES } from '../../../domain/details.js'
+import { parsePositiveIntegerArg } from '../../../domain/slash.js'
 import type {
   ConfigGetValueResponse,
   ConfigSetResponse,
@@ -383,9 +384,9 @@ export const coreCommands: SlashCommand[] = [
       }
 
       const trimmedArg = arg.trim()
-      const copyIndex = trimmedArg ? Number(trimmedArg) : null
+      const copyIndex = trimmedArg ? parsePositiveIntegerArg(trimmedArg) : null
 
-      if (trimmedArg && (!/^[1-9]\d*$/.test(trimmedArg) || !Number.isSafeInteger(copyIndex))) {
+      if (trimmedArg && copyIndex === null) {
         return sys('usage: /copy [number]')
       }
 
@@ -478,7 +479,13 @@ export const coreCommands: SlashCommand[] = [
     help: 'view gateway logs',
     name: 'logs',
     run: (arg, ctx) => {
-      const text = ctx.gateway.gw.getLogTail(Math.min(80, Math.max(1, parseInt(arg, 10) || 20)))
+      const lines = arg.trim() ? parsePositiveIntegerArg(arg) : 20
+
+      if (lines === null) {
+        return ctx.transcript.sys('usage: /logs [lines]')
+      }
+
+      const text = ctx.gateway.gw.getLogTail(Math.min(80, lines))
 
       text ? ctx.transcript.page(text, 'Logs') : ctx.transcript.sys('no gateway logs')
     }
@@ -498,7 +505,13 @@ export const coreCommands: SlashCommand[] = [
         return ctx.transcript.sys('no conversation yet')
       }
 
-      const preview = Math.max(80, parseInt(arg, 10) || 400)
+      const requestedPreview = arg.trim() ? parsePositiveIntegerArg(arg) : 400
+
+      if (requestedPreview === null) {
+        return ctx.transcript.sys('usage: /history [preview-chars]')
+      }
+
+      const preview = Math.max(80, requestedPreview)
 
       const lines = items.map((m, i) => {
         const tag = m.role === 'user' ? `You #${i + 1}` : `solonclaw #${i + 1}`
