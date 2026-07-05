@@ -7,6 +7,7 @@ import { fetchPersonaDiaries, fetchPersonaDiary, type PersonaDiaryEntry } from '
 const { t } = useI18n()
 const diaries = ref<PersonaDiaryEntry[]>([])
 const loading = ref(false)
+const loadError = ref<string | null>(null)
 const selectedPath = ref('')
 const content = ref('')
 const showSidebar = ref(true)
@@ -18,11 +19,14 @@ function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
 
 async function loadDiaryList() {
   loading.value = true
+  loadError.value = null
   try {
     diaries.value = await fetchPersonaDiaries()
     if (!selectedPath.value && diaries.value.length > 0) {
       await selectDiary(diaries.value[0].relativePath)
     }
+  } catch (err: any) {
+    loadError.value = err?.message || t('personaDiary.loadFailed')
   } finally {
     loading.value = false
   }
@@ -30,8 +34,14 @@ async function loadDiaryList() {
 
 async function selectDiary(path: string) {
   selectedPath.value = path
-  const diary = await fetchPersonaDiary(path)
-  content.value = diary.content || ''
+  loadError.value = null
+  try {
+    const diary = await fetchPersonaDiary(path)
+    content.value = diary.content || ''
+  } catch (err: any) {
+    loadError.value = err?.message || t('personaDiary.loadFailed')
+    return
+  }
   if (window.innerWidth <= 768) {
     showSidebar.value = false
   }
@@ -68,6 +78,10 @@ onUnmounted(() => {
       <div v-else class="skills-layout">
         <div class="mobile-backdrop" :class="{ active: showSidebar }" @click="showSidebar = false" />
         <div v-if="showSidebar" class="skills-sidebar">
+          <div v-if="loadError" class="diary-load-error">
+            <strong>{{ t('personaDiary.loadFailed') }}</strong>
+            <span>{{ loadError }}</span>
+          </div>
           <div class="diary-list">
             <button
               v-for="diary in diaries"
@@ -140,6 +154,27 @@ onUnmounted(() => {
 
 .detail-content {
   min-height: 0;
+}
+
+.diary-load-error {
+  margin: 8px;
+  padding: 10px;
+  border: 1px solid rgba($error, 0.25);
+  border-radius: $radius-sm;
+  background: rgba($error, 0.06);
+  color: $error;
+  font-size: 12px;
+
+  strong,
+  span {
+    display: block;
+  }
+
+  span {
+    margin-top: 4px;
+    color: $text-secondary;
+    word-break: break-word;
+  }
 }
 
 </style>
