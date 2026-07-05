@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -42,5 +43,21 @@ class DangerousCommandRuleCatalogTest {
                         "inline_background_ampersand",
                         "long_lived_foreground");
         assertThat(summary.get("terminalGuardrailCount")).isEqualTo(guardrails.size());
+    }
+
+    @Test
+    void hardlineSummaryIncludesVirtualMetadataUrlRule() {
+        assertThat(DangerousCommandRuleCatalog.hardlineRuleCount())
+                .isEqualTo(DangerousCommandRuleCatalog.HARDLINE_RULES.size() + 1);
+        assertThat(DangerousCommandRuleCatalog.hardlineRuleSamples(99))
+                .contains(DangerousCommandRuleCatalog.HARDLINE_METADATA_URL_RULE_KEY);
+        assertThat(DangerousCommandRuleCatalog.hardlineBlockedCategories())
+                .contains("metadata_url_access");
+        assertThat(DangerousCommandRuleCatalog.hardlineCoveredTools())
+                .contains(
+                        ToolNameConstants.EXECUTE_SHELL,
+                        ToolNameConstants.EXECUTE_CODE,
+                        ToolNameConstants.EXECUTE_PYTHON,
+                        ToolNameConstants.EXECUTE_JS);
     }
 }

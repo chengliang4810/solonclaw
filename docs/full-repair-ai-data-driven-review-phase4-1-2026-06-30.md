@@ -26,6 +26,7 @@
 - Slash command 帮助已由 `CommandRegistry` 驱动；当前只保留 usage override，因为命令描述符尚无统一 usage 字段，直接扩字段收益低于风险。
 - 审批策略摘要已从危险规则目录、硬阻断规则、配置项、审批观察者和审计策略生成样例和计数；执行策略仍保持确定性规则优先。
 - 审批策略里的终端护栏摘要键和计数已由 `DangerousCommandRuleCatalog.terminalGuardrailKeys()` 统一派生，覆盖真实检测分支中的 detached session，避免列表和计数漂移。
+- `hardline_metadata_url` 动态硬阻断规则键、硬阻断计数、覆盖工具和阻断类别已收敛到 `DangerousCommandRuleCatalog`，服务检测和摘要展示不再各自手写。
 
 当前阶段 4.1 后续只保留三类高价值方向：主动协作软决策的真实反馈闭环、Dashboard 页面级自然语言操作语义盘点、以及安全规则命中频次/审计解释的数据化。硬阻断、安全放行、URL 策略和工具循环阻断不交给模型决定。
 

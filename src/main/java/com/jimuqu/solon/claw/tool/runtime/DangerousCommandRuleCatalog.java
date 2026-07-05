@@ -135,6 +135,29 @@ final class DangerousCommandRuleCatalog {
     private static final String SHELL_COMMAND_START =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*)?";
 
+    /** 元数据 URL 硬阻断规则键，由 URL 安全策略动态检测。 */
+    static final String HARDLINE_METADATA_URL_RULE_KEY = "hardline_metadata_url";
+
+    /** 硬阻断策略覆盖的工具列表。 */
+    private static final List<String> HARDLINE_COVERED_TOOLS =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            ToolNameConstants.EXECUTE_SHELL,
+                            ToolNameConstants.EXECUTE_CODE,
+                            ToolNameConstants.EXECUTE_PYTHON,
+                            ToolNameConstants.EXECUTE_JS));
+
+    /** 硬阻断策略覆盖的危险类别。 */
+    private static final List<String> HARDLINE_BLOCKED_CATEGORIES =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "root_or_system_recursive_delete",
+                            "filesystem_format_or_raw_device_write",
+                            "system_shutdown_or_reboot",
+                            "kill_all_or_fork_bomb",
+                            "windows_disk_or_profile_destruction",
+                            "metadata_url_access"));
+
     /** KUBECTL选项PREFIX的统一常量值。 */
     private static final String KUBECTL_OPTION_PREFIX =
             "(?:\\s+(?:--?[A-Za-z0-9-]+)(?:=\\S+|\\s+\\S+)?)*";
@@ -2711,6 +2734,21 @@ final class DangerousCommandRuleCatalog {
         return TERMINAL_GUARDRAIL_KEYS;
     }
 
+    /** 返回包含动态元数据 URL 规则在内的硬阻断规则数量。 */
+    static int hardlineRuleCount() {
+        return HARDLINE_RULES.size() + 1;
+    }
+
+    /** 返回硬阻断策略覆盖工具列表。 */
+    static List<String> hardlineCoveredTools() {
+        return HARDLINE_COVERED_TOOLS;
+    }
+
+    /** 返回硬阻断策略覆盖类别列表。 */
+    static List<String> hardlineBlockedCategories() {
+        return HARDLINE_BLOCKED_CATEGORIES;
+    }
+
     /**
      * 执行hardlineRuleSamples相关逻辑。
      *
@@ -2719,11 +2757,11 @@ final class DangerousCommandRuleCatalog {
      */
     static List<String> hardlineRuleSamples(int max) {
         List<String> samples = ruleSamples(HARDLINE_RULES, max);
-        if (max > 0 && !samples.contains("hardline_metadata_url")) {
+        if (max > 0 && !samples.contains(HARDLINE_METADATA_URL_RULE_KEY)) {
             if (samples.size() >= max) {
                 samples.remove(samples.size() - 1);
             }
-            samples.add("hardline_metadata_url");
+            samples.add(HARDLINE_METADATA_URL_RULE_KEY);
         }
         return samples;
     }

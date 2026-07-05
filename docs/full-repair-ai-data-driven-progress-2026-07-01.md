@@ -65,6 +65,17 @@
 - `DangerousCommandApprovalPolicySummaries` 的 `terminalGuardrails` 和 `terminalGuardrailCount` 来自同一共享列表。
 - `DangerousCommandRuleCatalogTest#approvalPolicySummaryUsesSharedTerminalGuardrailCatalog` 已锁定 `detached_terminal_session` 等真实检测分支不会从摘要中漂移。
 
+### 6. 硬阻断元数据 URL 规则复用规则目录
+
+状态：已完成当前低风险部分。
+
+当前证据：
+
+- `DangerousCommandRuleCatalog` 已集中维护 `hardline_metadata_url` 规则键、硬阻断规则计数、覆盖工具和阻断类别。
+- `DangerousCommandApprovalService` 的元数据 URL 硬阻断检测复用规则目录中的规则键。
+- `DangerousCommandApprovalPolicySummaries` 的 hardline 计数、覆盖工具和阻断类别来自规则目录。
+- `DangerousCommandRuleCatalogTest#hardlineSummaryIncludesVirtualMetadataUrlRule` 已锁定动态元数据 URL 规则不会从摘要样例和计数中漂移。
+
 ## 当前不作为 AI 驱动改造入口的项
 
 - 危险命令规则、URL 安全策略、hardline 阻断和工具循环硬门控继续保持确定性规则优先。
