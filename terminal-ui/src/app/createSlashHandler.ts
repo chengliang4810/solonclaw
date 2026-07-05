@@ -1,5 +1,5 @@
 import { parseSlashCommand } from '../domain/slash.js'
-import type { SlashExecResponse } from '../gatewayTypes.js'
+import type { SetupStatusResponse, SlashExecResponse } from '../gatewayTypes.js'
 import { asCommandDispatch, rpcErrorMessage } from '../lib/rpc.js'
 
 import type { SlashHandlerContext } from './interfaces.js'
@@ -53,10 +53,35 @@ export function createSlashHandler(ctx: SlashHandlerContext): (cmd: string) => b
     const runCtx: SlashRunCtx = { ...ctx, flight, guarded, guardedErr, sid, stale, ui }
 
     if (shouldUseBackendSetupCommand(parsed.name, parsed.arg)) {
-      gw.request<SlashExecResponse>('slash.exec', { command: `${parsed.name}${argTail}`, session_id: sid })
+      const backendCommand = `${parsed.name}${argTail}`
+
+      gw.request<SlashExecResponse>('slash.exec', { command: backendCommand, session_id: sid })
         .then(r => {
           if (!stale()) {
             renderSlashExecOutput(ctx.transcript, r, `/${parsed.name}: no output`, parsed.name[0]!.toUpperCase() + parsed.name.slice(1))
+
+            const normalized = backendCommand.trim().toLowerCase()
+            const isModelSetup =
+              normalized === 'model set'
+              || normalized.startsWith('model set ')
+              || normalized === 'model configure'
+              || normalized.startsWith('model configure ')
+
+            if (
+              isModelSetup
+              && String(r?.output ?? '').includes('模型配置已写入')
+              && !getUiState().sid
+              && getUiState().status === 'setup required'
+            ) {
+              // 模型配置成功后立即复查 setup 状态，避免用户必须重启 TUI 才能进入会话。
+              ctx.gateway.rpc<SetupStatusResponse>('setup.status', {})
+                .then(setup => {
+                  if (!stale() && setup?.provider_configured !== false) {
+                    ctx.session.newSession()
+                  }
+                })
+                .catch(guardedErr)
+            }
           }
         })
         .catch(guardedErr)
