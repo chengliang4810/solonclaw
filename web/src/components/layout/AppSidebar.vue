@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/solonclaw/app";
 import ThemeSwitch from "./ThemeSwitch.vue";
+import LanguageSwitch from "./LanguageSwitch.vue";
 import SystemNavItems from "./SystemNavItems.vue";
 
 import { clearApiKey } from "@/api/client";
@@ -165,6 +166,7 @@ watch(
               : t("sidebar.disconnected")
           }}</span>
         </div>
+        <LanguageSwitch />
         <ThemeSwitch />
       </div>
       <div v-if="appStore.serverVersion" class="version-row">
