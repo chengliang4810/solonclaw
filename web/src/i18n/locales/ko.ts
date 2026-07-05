@@ -100,6 +100,7 @@ export default {
     newChat: '새 채팅',
     deleteSession: '이 세션을 삭제하시겠습니까?',
     sessionDeleted: '세션이 삭제되었습니다',
+    deleteFailed: '세션 삭제 실패',
     rename: '이름 변경',
     pin: '고정',
     unpin: '고정 해제',

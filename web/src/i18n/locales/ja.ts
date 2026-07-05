@@ -100,6 +100,7 @@ export default {
     newChat: '新しいチャット',
     deleteSession: 'このセッションを削除しますか？',
     sessionDeleted: 'セッションを削除しました',
+    deleteFailed: 'セッションの削除に失敗しました',
     rename: '名前変更',
     pin: 'ピン留め',
     unpin: 'ピン留め解除',

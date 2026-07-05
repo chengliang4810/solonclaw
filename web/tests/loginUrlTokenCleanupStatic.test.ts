@@ -28,3 +28,11 @@ assert.ok(
   helper.includes('!searchToken && !hashToken && !directRouteHash'),
   'main.ts should normalize direct dashboard paths even when no login token is present',
 )
+assert.ok(
+  !main.includes("import router from './router'"),
+  'main.ts must not create hash router before direct-route URL normalization runs',
+)
+assert.ok(
+  main.includes("await import('./router')"),
+  'main.ts should import the router after URL normalization',
+)

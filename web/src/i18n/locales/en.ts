@@ -156,6 +156,7 @@ export default {
     newChat: 'New Chat',
     deleteSession: 'Delete this session?',
     sessionDeleted: 'Session deleted',
+    deleteFailed: 'Failed to delete session',
     rename: 'Rename',
     pin: 'Pin',
     unpin: 'Unpin',

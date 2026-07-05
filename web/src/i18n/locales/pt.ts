@@ -100,6 +100,7 @@ export default {
     newChat: 'Novo chat',
     deleteSession: 'Excluir esta sessao?',
     sessionDeleted: 'Sessao excluida',
+    deleteFailed: 'Falha ao excluir a sessao',
     rename: 'Renomear',
     pin: 'Fixar',
     unpin: 'Desafixar',

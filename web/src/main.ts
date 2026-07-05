@@ -1,6 +1,5 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import router from './router'
 import { i18n } from './i18n'
 import App from './App.vue'
 import { dashboardHashRouteForPath } from './shared/dashboardDirectRoutes'
@@ -24,8 +23,13 @@ if (loginUrl.nextUrl) {
   window.history.replaceState(null, document.title, loginUrl.nextUrl)
 }
 
-const app = createApp(App)
-app.use(createPinia())
-app.use(i18n)
-app.use(router)
-app.mount('#app')
+bootstrap()
+
+async function bootstrap() {
+  const { default: router } = await import('./router')
+  const app = createApp(App)
+  app.use(createPinia())
+  app.use(i18n)
+  app.use(router)
+  app.mount('#app')
+}

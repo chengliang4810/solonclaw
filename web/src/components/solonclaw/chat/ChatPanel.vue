@@ -262,9 +262,13 @@ async function copySessionId(id?: string) {
   }
 }
 
-function handleDeleteSession(id: string) {
+async function handleDeleteSession(id: string) {
+  const ok = await chatStore.deleteSession(id)
+  if (!ok) {
+    message.error(t('chat.deleteFailed'))
+    return
+  }
   sessionBrowserPrefsStore.removePinned(id)
-  chatStore.deleteSession(id)
   message.success(t('chat.sessionDeleted'))
 }
 

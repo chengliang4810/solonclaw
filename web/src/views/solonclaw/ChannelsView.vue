@@ -39,8 +39,12 @@ async function loadMedia() {
 }
 
 async function openMediaDetail(mediaId: string) {
-  selectedMediaDetail.value = await fetchMediaDetail(mediaId)
-  mediaDetailOpen.value = true
+  try {
+    selectedMediaDetail.value = await fetchMediaDetail(mediaId)
+    mediaDetailOpen.value = true
+  } catch (err: any) {
+    message.error(err.message || t('channels.mediaLoadFailed'))
+  }
 }
 
 async function refreshSelectedMedia() {
@@ -50,6 +54,8 @@ async function refreshSelectedMedia() {
   try {
     selectedMediaDetail.value = await refreshMedia(mediaId)
     mediaItems.value = await fetchMedia('', 30)
+  } catch (err: any) {
+    message.error(err.message || t('channels.mediaLoadFailed'))
   } finally {
     mediaRefreshLoading.value = false
   }

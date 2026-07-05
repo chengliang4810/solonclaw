@@ -100,6 +100,7 @@ export default {
     newChat: 'Neuer Chat',
     deleteSession: 'Diese Sitzung loschen?',
     sessionDeleted: 'Sitzung geloscht',
+    deleteFailed: 'Sitzung konnte nicht geloscht werden',
     rename: 'Umbenennen',
     pin: 'Anheften',
     unpin: 'Lösen',
