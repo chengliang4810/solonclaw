@@ -1681,6 +1681,7 @@ export default {
     runDetail: 'Run detail',
     runId: 'Run ID',
     sessionId: 'Session ID',
+    exitReason: 'Exit reason',
     toolCount: 'Tool calls: {count}',
     tokenCount: 'Total tokens: {count}',
     tools: 'Tool calls',

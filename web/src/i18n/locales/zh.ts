@@ -1715,6 +1715,7 @@ export default {
     runDetail: '运行详情',
     runId: '运行 ID',
     sessionId: '会话 ID',
+    exitReason: '退出原因',
     toolCount: '工具调用：{count} 次',
     tokenCount: '总令牌：{count}',
     events: '事件时间线',

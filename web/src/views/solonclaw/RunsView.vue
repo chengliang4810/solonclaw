@@ -291,6 +291,10 @@ onMounted(async () => {
               <span>{{ t('runs.sessionId') }}</span>
               <code>{{ selectedRun.session_id }}</code>
             </div>
+            <div v-if="selectedRun.exit_reason" class="detail-line">
+              <span>{{ t('runs.exitReason') }}</span>
+              <code>{{ selectedRun.exit_reason }}</code>
+            </div>
             <div class="detail-metrics">
               <span>{{ t('runs.toolCount', { count: selectedRun.tool_call_count || tools.length }) }}</span>
               <span>{{ t('runs.tokenCount', { count: selectedRun.total_tokens || 0 }) }}</span>
