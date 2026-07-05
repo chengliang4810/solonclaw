@@ -228,6 +228,8 @@ export default {
     currentSession: '当前会话',
     defaultAgentName: '默认',
     runningRuns: '运行中任务',
+    lastUsedAt: '最近使用',
+    updatedAt: '最近更新',
     workspacePath: '工作目录',
     skillsPath: '技能目录',
     cachePath: '缓存目录',

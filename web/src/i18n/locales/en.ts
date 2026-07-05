@@ -222,6 +222,8 @@ export default {
     currentSession: 'Current session',
     defaultAgentName: 'Default',
     runningRuns: 'Running tasks',
+    lastUsedAt: 'Last used',
+    updatedAt: 'Updated',
     workspacePath: 'Workspace path',
     skillsPath: 'Skills path',
     cachePath: 'Cache path',

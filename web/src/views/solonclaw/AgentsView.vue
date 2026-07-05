@@ -335,6 +335,14 @@ onMounted(load)
           <span>{{ t('agents.runningRuns') }}</span>
           <strong>{{ selectedAgent?.running_runs || 0 }}</strong>
         </div>
+        <div class="status-row">
+          <span>{{ t('agents.lastUsedAt') }}</span>
+          <strong>{{ formatTimestampText(selectedAgent?.last_used_at, 'zh-CN') }}</strong>
+        </div>
+        <div class="status-row">
+          <span>{{ t('agents.updatedAt') }}</span>
+          <strong>{{ formatTimestampText(selectedAgent?.updated_at, 'zh-CN') }}</strong>
+        </div>
         <div class="status-row path-row">
           <span>{{ t('agents.workspacePath') }}</span>
           <code>{{ selectedAgent?.workspace_path || '-' }}</code>
