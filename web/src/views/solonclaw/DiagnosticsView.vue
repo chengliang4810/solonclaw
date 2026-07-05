@@ -526,6 +526,28 @@ const pluginSkippedCount = computed(() => pluginStatus.value?.skipped_count ?? 0
 const pluginFailedCount = computed(() => pluginStatus.value?.failed_count ?? 0)
 const pluginRows = computed(() => pluginStatus.value?.plugins || [])
 const pluginDiagnostics = computed<PluginDiagnosticItem[]>(() => pluginStatus.value?.diagnostics || [])
+const proactiveDiagnostics = computed<Record<string, unknown>>(() => objectValue(diagnostics.value?.proactive))
+const hasProactiveDiagnostics = computed(() => Object.keys(proactiveDiagnostics.value).length > 0)
+const proactiveBlocked = computed(() =>
+  Boolean(
+    proactiveDiagnostics.value.missing_home_channel ||
+      proactiveDiagnostics.value.quiet_hours_blocked ||
+      proactiveDiagnostics.value.cooldown_blocked ||
+      proactiveDiagnostics.value.daily_cap_blocked ||
+      proactiveDiagnostics.value.delivery_failed,
+  ),
+)
+const proactiveStatusItems = computed<SecurityMetric[]>(() => [
+  { label: d('proactiveEnabled'), value: proactiveDiagnostics.value.enabled },
+  { label: d('proactiveSchedulerRan'), value: proactiveDiagnostics.value.scheduler_ran },
+  { label: d('proactiveCandidates'), value: proactiveDiagnostics.value.pending_candidate_count },
+  { label: d('proactiveHomeChannels'), value: proactiveDiagnostics.value.home_channels },
+  { label: d('proactiveMissingHomeChannel'), value: proactiveDiagnostics.value.missing_home_channel, goodWhenTrue: false },
+  { label: d('proactiveQuietHours'), value: proactiveDiagnostics.value.quiet_hours_blocked, goodWhenTrue: false },
+  { label: d('proactiveCooldown'), value: proactiveDiagnostics.value.cooldown_blocked, goodWhenTrue: false },
+  { label: d('proactiveDailyCap'), value: proactiveDiagnostics.value.daily_cap_blocked, goodWhenTrue: false },
+  { label: d('proactiveDeliveryFailed'), value: proactiveDiagnostics.value.delivery_failed, goodWhenTrue: false },
+])
 const approvalStatItems = computed(() => [
   { label: d('approvalStatTotal'), value: approvalStats.value?.totalEvents ?? 0 },
   { label: d('approvalStatApproved'), value: approvalStats.value?.approved ?? 0 },
@@ -1046,6 +1068,29 @@ onMounted(load)
         <section class="panel">
           <h3>{{ t('diagnostics.toolsAndMcp') }}</h3>
           <pre>{{ diagnostics?.tools }}&#10;{{ diagnostics?.mcp }}</pre>
+        </section>
+        <section class="panel">
+          <div class="panel-title-row">
+            <h3>{{ t('diagnostics.proactiveDiagnostics') }}</h3>
+            <Tag size="small" :color="proactiveBlocked ? 'warning' : 'success'" :bordered="false">
+              {{ proactiveBlocked ? t('diagnostics.hasIssues') : t('diagnostics.allPassed') }}
+            </Tag>
+          </div>
+          <div v-if="hasProactiveDiagnostics" class="metric-grid">
+            <div v-for="item in proactiveStatusItems" :key="item.label" class="metric-item">
+              <span>{{ item.label }}</span>
+              <Tag size="small" :color="metricTagType(item)" :bordered="false">
+                {{ metricText(item.value) }}
+              </Tag>
+            </div>
+          </div>
+          <div v-if="hasProactiveDiagnostics" class="approval-note">
+            {{ t('diagnostics.proactiveWhyNoneSent') }}：{{ valueOf(proactiveDiagnostics, 'why_none_sent') }}
+          </div>
+          <div v-if="hasProactiveDiagnostics" class="approval-note">
+            {{ t('diagnostics.proactiveLastSkipReason') }}：{{ valueOf(proactiveDiagnostics, 'last_skip_reason') }}
+          </div>
+          <div v-else class="empty-state">{{ t('diagnostics.noProactiveDiagnostics') }}</div>
         </section>
         <section class="panel">
           <div class="panel-title-row">
