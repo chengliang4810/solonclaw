@@ -1,4 +1,5 @@
 import { displayJson } from './text.ts'
+import { formatTimestampText } from './timeFormat.ts'
 
 export type RunsDisplayTranslator = (key: string, params?: Readonly<Record<string, unknown>>) => string
 
@@ -6,8 +7,7 @@ export type RunsDisplayTranslator = (key: string, params?: Readonly<Record<strin
  * 运行记录里的时间戳来自后端毫秒值；空值与 0 都按无数据处理，保持列表旧展示语义。
  */
 export function runTimestampText(value?: number | null, fallback = '-'): string {
-  if (!value) return fallback
-  return new Date(value).toLocaleString()
+  return formatTimestampText(value, undefined, fallback)
 }
 
 /**

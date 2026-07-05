@@ -45,6 +45,7 @@ import {
   type SkillInsights,
 } from '@/api/solonclaw/insights'
 import { fetchRuntimeStatus, type RuntimeStatusResponse } from '@/api/solonclaw/system'
+import { formatTimestampText } from '@/shared/timeFormat'
 
 const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
@@ -889,8 +890,7 @@ function slashConfirmBusy(item: PendingSlashConfirm, action: string) {
 }
 
 function timeText(value?: number) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return formatTimestampText(value)
 }
 
 function expiresText(item: { expired?: boolean; expires_in_seconds?: number; expires_at?: number }) {

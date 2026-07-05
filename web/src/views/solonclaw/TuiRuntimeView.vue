@@ -16,6 +16,7 @@ import {
 import ChannelQrPanel from '@/components/solonclaw/settings/ChannelQrPanel.vue'
 import type { ChannelQrPlatform } from '@/shared/channelQr'
 import { useChannelQrPolling, type ChannelQrPollingState } from '@/shared/channelQrPolling'
+import { formatTimestampText } from '@/shared/timeFormat'
 import {
   providerAuthColor,
   providerAuthLabel,
@@ -114,8 +115,7 @@ async function loadOverview(): Promise<void> {
 }
 
 function timestampText(value: number | undefined): string {
-  if (!value) return text.noData
-  return new Date(value).toLocaleString()
+  return formatTimestampText(value, undefined, text.noData)
 }
 
 function jsonText(value: unknown): string {

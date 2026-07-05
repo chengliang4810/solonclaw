@@ -1,4 +1,5 @@
 import { asArray, isRecord, listCount, splitTrimmedText, trimText } from './text.ts'
+import { formatTimestampText } from './timeFormat.ts'
 
 export type DashboardTranslator = (key: string, params?: Record<string, unknown>) => string
 
@@ -219,8 +220,7 @@ export function inferJobScheduleKind(job: JobScheduleSource): string {
 }
 
 export function formatJobTime(value?: string | null): string {
-  if (!value) return '—'
-  return new Date(value).toLocaleString()
+  return formatTimestampText(value, undefined, '—')
 }
 
 export function jobListDetail(values?: string[] | null, separator = ', '): string {
