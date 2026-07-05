@@ -282,9 +282,43 @@ npm --prefix web run build
 - `DashboardConfiguration` 与 `DefaultToolRegistry` 传入同一运行仓储，保持 Dashboard API 与会话管理工具的摘要语义一致。
 - 新增 HTTP 回归测试覆盖“空 NDJSON 会话 + 失败 run + `/api/sessions` 摘要”场景；验证先红后绿。
 
+## BUG-034：Windows 上缺少真实 Node TUI PTY E2E 执行能力
+
+状态：待处理，当前审计脚本已能稳定报告平台限制
+
+影响范围：
+
+- Windows 开发机上的真实 Node TUI PTY E2E。
+- 无人值守流程中对 TUI 真实键盘输入、终端绘制和退出路径的端到端复核。
+- 后续需要覆盖真实交互式终端时的跨平台质量门禁。
+
+当前事实：
+
+- 侧车 TUI E2E 复测中，命令级审计 `/help`、`/status`、`/doctor`、`/sessions` 全部通过，`audit.findings=0`。
+- 真正启动 Node TUI PTY 的路径在 Windows 上返回 `pty_not_supported_on_this_platform`。
+- 该结果不是 TUI 指令语义失败，而是当前审计路径依赖类 Unix PTY 能力，Windows 侧缺少 ConPTY 实现。
+
+根因：
+
+- `scripts/audit-terminal-commands.py` 的真实 PTY 路径使用 `fcntl`、`pty`、`select`、`termios` 等类 Unix 终端模块。
+- Windows 环境不能直接提供这些模块语义，导致真实 Node TUI PTY E2E 只能稳定退出为“不支持平台”。
+
+建议修复方向：
+
+- 若继续要求 Windows 本机真实 PTY E2E，应补充 ConPTY 后端或改用已有可维护的 Windows PTY 封装。
+- 若短期只要求质量门禁稳定，应在文档和 CI 中明确：Windows 走命令级审计，真实 PTY 绘制复核走类 Unix 环境。
+- 修复前不要把 `pty_not_supported_on_this_platform` 误判为 TUI 命令失败。
+
+验证命令：
+
+```bash
+python scripts/audit-terminal-commands.py --no-defaults --timeout-seconds 12 --command /help --command /status --command /doctor --command /sessions
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
 - BUG-030 保留为待复核项，不在缺少稳定复现前改代码。
 - BUG-031、BUG-032 与 BUG-033 已修复，并补充 focused 验证记录。
+- BUG-034 记录 Windows 真实 Node TUI PTY E2E 的剩余平台限制；当前命令级审计仍可作为 Windows 可用性门禁。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
