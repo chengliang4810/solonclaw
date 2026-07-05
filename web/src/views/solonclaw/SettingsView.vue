@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from "vue";
 import {
+  Button,
   Tabs,
   TabPane,
   Spin,
+  TextArea,
+  message,
 } from "antdv-next";
 import { useI18n } from "vue-i18n";
 import { useSettingsStore } from "@/stores/solonclaw/settings";
@@ -12,7 +15,7 @@ import AgentSettings from "@/components/solonclaw/settings/AgentSettings.vue";
 import GatewaySettings from "@/components/solonclaw/settings/GatewaySettings.vue";
 import SessionSettings from "@/components/solonclaw/settings/SessionSettings.vue";
 import AccountSettings from "@/components/solonclaw/settings/AccountSettings.vue";
-import { fetchConfigDefaults, fetchConfigDiagnostics, fetchConfigSchema, fetchRawConfig } from "@/api/solonclaw/config";
+import { fetchConfigDefaults, fetchConfigDiagnostics, fetchConfigSchema, fetchRawConfig, saveRawConfig } from "@/api/solonclaw/config";
 
 const settingsStore = useSettingsStore();
 const { t } = useI18n();
@@ -21,7 +24,9 @@ const configDiagnostics = ref<Record<string, unknown> | null>(null);
 const configSchema = ref<Record<string, unknown> | null>(null);
 const configDefaults = ref<Record<string, unknown> | null>(null);
 const rawConfig = ref<Record<string, unknown> | null>(null);
+const rawConfigText = ref("");
 const configInfoLoading = ref(false);
+const rawConfigSaving = ref(false);
 
 onMounted(() => {
   settingsStore.fetchSettings();
@@ -33,8 +38,8 @@ watch(activeTab, (tab) => {
   }
 });
 
-async function loadConfigInfo() {
-  if (configDiagnostics.value || configSchema.value || configDefaults.value || rawConfig.value) return;
+async function loadConfigInfo(force = false) {
+  if (!force && (configDiagnostics.value || configSchema.value || configDefaults.value || rawConfig.value)) return;
   configInfoLoading.value = true;
   try {
     const [diagnostics, schema, defaults, raw] = await Promise.all([
@@ -47,8 +52,22 @@ async function loadConfigInfo() {
     configSchema.value = schema;
     configDefaults.value = defaults;
     rawConfig.value = raw;
+    rawConfigText.value = jsonText(raw);
   } finally {
     configInfoLoading.value = false;
+  }
+}
+
+async function handleSaveRawConfig() {
+  rawConfigSaving.value = true;
+  try {
+    await saveRawConfig(rawConfigText.value);
+    await loadConfigInfo(true);
+    message.success(t("settings.configDiagnostics.rawSaved"));
+  } catch (err) {
+    message.error(err instanceof Error ? err.message : t("settings.configDiagnostics.rawSaveFailed"));
+  } finally {
+    rawConfigSaving.value = false;
   }
 }
 
@@ -104,8 +123,22 @@ function jsonText(value: unknown) {
                   <pre>{{ jsonText(configDefaults) }}</pre>
                 </section>
                 <section>
-                  <h3>{{ t("settings.configDiagnostics.raw") }}</h3>
-                  <pre>{{ jsonText(rawConfig) }}</pre>
+                  <div class="config-section-title">
+                    <h3>{{ t("settings.configDiagnostics.raw") }}</h3>
+                    <div class="config-section-actions">
+                      <Button size="small" :loading="configInfoLoading" @click="loadConfigInfo(true)">
+                        {{ t("settings.configDiagnostics.refresh") }}
+                      </Button>
+                      <Button type="primary" size="small" :loading="rawConfigSaving" @click="handleSaveRawConfig">
+                        {{ t("settings.configDiagnostics.saveRaw") }}
+                      </Button>
+                    </div>
+                  </div>
+                  <TextArea
+                    v-model:value="rawConfigText"
+                    class="config-raw-editor"
+                    :auto-size="{ minRows: 12, maxRows: 24 }"
+                  />
                 </section>
               </div>
             </Spin>
@@ -148,6 +181,23 @@ function jsonText(value: unknown) {
   font-size: 14px;
 }
 
+.config-section-title h3 {
+  margin: 0;
+}
+
+.config-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.config-section-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .config-diagnostics pre {
   margin: 0;
   max-height: 260px;
@@ -160,5 +210,11 @@ function jsonText(value: unknown) {
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.config-raw-editor {
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

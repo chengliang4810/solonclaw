@@ -142,6 +142,13 @@ export async function fetchRawConfig(): Promise<Record<string, any>> {
   return request<Record<string, any>>('/api/config/raw')
 }
 
+export async function saveRawConfig(yamlText: string): Promise<Record<string, any>> {
+  return request<Record<string, any>>('/api/config/raw', {
+    method: 'PUT',
+    body: JSON.stringify({ yaml_text: yamlText }),
+  })
+}
+
 export async function setWorkspaceConfigItem(key: string, value: string): Promise<void> {
   const text = (value || '').trim()
   if (!text) {

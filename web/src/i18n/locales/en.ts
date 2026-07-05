@@ -1456,6 +1456,10 @@ export default {
       schema: 'Config schema',
       defaults: 'Config defaults',
       raw: 'Raw config',
+      saveRaw: 'Save raw config',
+      refresh: 'Refresh',
+      rawSaved: 'Raw config saved',
+      rawSaveFailed: 'Failed to save raw config',
     },
     models: {
       apiKey: 'API Key',

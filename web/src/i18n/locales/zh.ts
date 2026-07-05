@@ -1482,6 +1482,10 @@ export default {
       schema: '配置结构',
       defaults: '默认配置',
       raw: '原始配置',
+      saveRaw: '保存原始配置',
+      refresh: '刷新',
+      rawSaved: '原始配置已保存',
+      rawSaveFailed: '保存原始配置失败',
     },
     models: {
       apiKey: '接口密钥',
