@@ -156,6 +156,13 @@ function handleLogout() {
         <span>{{ t("sidebar.version") }}</span>
         <strong>{{ appStore.serverVersion }}</strong>
       </div>
+      <div
+        v-if="appStore.latestVersion && appStore.latestVersion !== appStore.serverVersion"
+        class="version-row"
+      >
+        <span>{{ t("sidebar.latestVersion") }}</span>
+        <strong>{{ appStore.latestVersion }}</strong>
+      </div>
     </div>
   </aside>
 </template>

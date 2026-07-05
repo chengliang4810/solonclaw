@@ -118,6 +118,7 @@ export default {
     connected: 'Connected',
     disconnected: 'Disconnected',
     version: 'Version',
+    latestVersion: 'Latest',
     collapse: 'Collapse menu',
     expand: 'Expand menu',
     logout: 'Sign Out',

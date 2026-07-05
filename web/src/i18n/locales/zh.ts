@@ -121,6 +121,7 @@ export default {
     connected: '已连接',
     disconnected: '未连接',
     version: '版本',
+    latestVersion: '最新',
     collapse: '收起菜单',
     expand: '展开菜单',
     logout: '退出登录',

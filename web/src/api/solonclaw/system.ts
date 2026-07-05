@@ -105,6 +105,8 @@ export interface CustomProvider {
 
 interface DashboardStatus {
   version?: string
+  latest_version?: string
+  latest_tag?: string
 }
 
 export interface RuntimeStatusResponse {
@@ -146,7 +148,7 @@ export async function checkHealth(): Promise<HealthResponse> {
     status: health.ok ? 'ok' : 'error',
     version: status.version,
     webui_version: status.version,
-    webui_latest: status.version,
+    webui_latest: status.latest_version || status.latest_tag || status.version,
     node_version: '',
   }
 }
