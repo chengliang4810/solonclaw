@@ -13,5 +13,8 @@ assert.ok(view.includes("t('diagnostics.runtimeCapabilities')"), 'diagnostics vi
 assert.ok(view.includes('runtimeCapabilityRows'), 'diagnostics view should normalize runtime capability rows')
 assert.ok(view.includes("runtime_status?.multimodal"), 'diagnostics view should display multimodal status')
 assert.ok(view.includes("runtime_status?.pricing"), 'diagnostics view should display pricing status')
+assert.ok(view.includes("runtime_status?.gateway"), 'diagnostics view should display gateway runtime status')
 assert.ok(zh.includes("runtimeCapabilities: '运行能力'"), 'Chinese locale should include runtime capabilities label')
+assert.ok(zh.includes("runtimeGateway: '消息网关'"), 'Chinese locale should include runtime gateway label')
 assert.ok(en.includes("runtimeCapabilities: 'Runtime capabilities'"), 'English locale should include runtime capabilities label')
+assert.ok(en.includes("runtimeGateway: 'Gateway'"), 'English locale should include runtime gateway label')

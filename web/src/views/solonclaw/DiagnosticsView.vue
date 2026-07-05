@@ -571,6 +571,7 @@ const runtimeCapabilityRows = computed<RuntimeCapabilityRow[]>(() => {
   const multimodal = objectValue(runtime_status?.multimodal)
   const modelInput = objectValue(multimodal.model_input)
   const pricing = objectValue(runtime_status?.pricing)
+  const gateway = objectValue(runtime_status?.gateway)
   return [
     {
       key: 'multimodal',
@@ -598,6 +599,18 @@ const runtimeCapabilityRows = computed<RuntimeCapabilityRow[]>(() => {
         metric('runtimeUsageCostCalculation', pricing.usage_cost_calculation),
         metric('runtimePricingAvailable', pricing.pricing_available),
         metric('runtimeCurrencyDefault', pricing.currency_default),
+      ],
+    },
+    {
+      key: 'gateway',
+      label: d('runtimeGateway'),
+      highlights: [
+        metric('runtimeGatewayState', gateway.state),
+        metric('runtimeGatewayRunning', gateway.running),
+        metric('runtimeSupportedChannels', gateway.supported_channels),
+        metric('runtimeActiveAgents', gateway.active_agents),
+        metric('runtimeRecentActiveSessions', gateway.recent_active_sessions),
+        metric('runtimeExitReason', gateway.exit_reason),
       ],
     },
   ].filter((row) => row.highlights.some((item) => item.value !== undefined && item.value !== null && item.value !== ''))
