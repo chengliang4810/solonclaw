@@ -514,6 +514,42 @@ npm --prefix web run test:job-form-options
 npm --prefix web run build
 ```
 
+## BUG-041：TUI 忙碌状态下 `/model` 不打开模型选择器
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- 本地 TUI 交互层。
+- 模型未配置、对话运行中或 busy 状态下需要打开模型选择器的用户。
+- 真实 TTY E2E 中通过 `/model` 进入模型配置/选择流程的路径。
+
+当前事实：
+
+- `createSlashHandler` 直接执行 `/model pick` 可打开 `modelPicker`。
+- 真实交互报告显示 busy 状态下输入 `/model` 只进入历史，没有打开模型选择器。
+- `/model` 的空参数和 `pick` 分支只是本地 overlay 操作，不会切换模型或修改会话状态。
+
+根因：
+
+- `terminal-ui/src/app/slash/commands/session.ts` 在解析 `/model` 参数之前先调用 `guardBusySessionSwitch('change models')`。
+- busy 状态下该 guard 会提前返回，导致本地模型选择器 overlay 没有机会打开。
+
+修复记录：
+
+- 将 busy guard 下移到真正执行 `config.set model` 前。
+- 保留输入 `/model <value>` 时的 busy 防护；空参数、`pick` 和只读 `--refresh` 不再被“切换模型”防护误拦。
+- `createSlashHandler.test.ts` 增加 busy 状态下 `/model` 打开 `modelPicker` 的回归用例。
+
+验证命令：
+
+```bash
+npm --prefix terminal-ui test -- src/__tests__/createSlashHandler.test.ts
+npm --prefix terminal-ui run type-check
+npm --prefix terminal-ui run build
+npm --prefix terminal-ui run lint -- --quiet
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -526,4 +562,5 @@ npm --prefix web run build
 - BUG-038 已修复 TUI 本地 OpenAI 兼容模型地址被安全策略阻断时缺少提前提示的问题，安全策略本身不放宽。
 - BUG-039 已修复模型设置页加载失败时误显示空模型状态的问题。
 - BUG-040 已修复任务中心未知 token 翻译探测导致浏览器控制台刷 i18n 缺失警告的问题。
+- BUG-041 已修复 TUI busy 状态下 `/model` 被切换模型防护误拦、无法打开模型选择器的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
