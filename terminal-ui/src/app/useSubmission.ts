@@ -199,6 +199,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
             if (nextApproval) {
               patchOverlayState({ approval: nextApproval })
             }
+
             return
           }
 
@@ -224,6 +225,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
       if (!sid) {
         then(text)
+
         return
       }
 
@@ -348,6 +350,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
           .then((r: unknown) => {
             const output =
               r && typeof r === 'object' && 'output' in r ? String((r as { output?: unknown }).output ?? '') : ''
+
             sys(output || '(no output)')
           })
           .catch((e: Error) => sys(`error: ${e.message}`))
@@ -421,6 +424,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
     (value: string) => {
       if (composerState.completions.length) {
         const row = composerState.completions[composerState.compIdx]
+
         const next = completionToApplyOnSubmit(
           value,
           row?.text,
