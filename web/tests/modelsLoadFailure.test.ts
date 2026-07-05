@@ -124,7 +124,7 @@ export function normalizeDialectCatalog(value) {
   await modelsStore.fetchProviders()
   console.error = originalConsoleError
 
-  assert.deepEqual(modelsStore.providers, [], 'When loading providers fails, stale providers should be cleared')
+  assert.deepEqual(modelsStore.providers, [staleProvider], 'When loading providers fails, stale providers should remain visible')
   assert.equal(modelsStore.loadError, 'provider API unavailable', 'When loading providers fails, the error should remain visible')
   assert.equal(modelsStore.loading, false, 'When loading providers fails, loading should be reset')
 
@@ -160,7 +160,7 @@ export function normalizeDialectCatalog(value) {
 
   assert.match(html, /Failed to fetch models/, 'ProvidersPanel should render the persistent provider load failure label')
   assert.match(html, /provider API unavailable/, 'ProvidersPanel should render the provider load failure detail')
-  assert.doesNotMatch(html, /OpenAI/, 'ProvidersPanel should hide stale providers while loadError is visible')
+  assert.match(html, /OpenAI/, 'ProvidersPanel should keep stale providers visible while loadError is visible')
   assert.doesNotMatch(html, /No providers found/, 'ProvidersPanel should not show the empty state while loadError is visible')
 
   const settingsSource = readFileSync(new URL('../src/components/solonclaw/settings/ModelSettings.vue', import.meta.url), 'utf8')
@@ -188,9 +188,18 @@ export function normalizeDialectCatalog(value) {
       return {
         modelsStore: {
           loading: false,
-          providers: [],
+          providers: [staleProvider],
           loadError: 'provider API unavailable',
         },
+        defaultProvider: 'openai',
+        defaultModel: 'mimo-v2.5',
+        fallbackRows: [],
+        providerOptions: [{ label: 'OpenAI', value: 'openai' }],
+        savingKey: null,
+        handleSaveDefault: () => {},
+        addFallbackRow: () => {},
+        removeFallbackRow: () => {},
+        handleSaveFallbacks: () => {},
         t: (key: string) => {
           if (key === 'models.fetchFailed') return 'Failed to fetch models'
           if (key === 'settings.models.noProviders') return 'No providers configured'
@@ -203,6 +212,7 @@ export function normalizeDialectCatalog(value) {
 
   assert.match(settingsHtml, /Failed to fetch models/, 'ModelSettings should render the provider load failure label')
   assert.match(settingsHtml, /provider API unavailable/, 'ModelSettings should render the provider load failure detail')
+  assert.match(settingsHtml, /models\.defaultProviderSection/, 'ModelSettings should keep the provider settings form visible while loadError is visible')
   assert.doesNotMatch(settingsHtml, /No providers configured/, 'ModelSettings should not show the empty state while loadError is visible')
 } finally {
   console.error = originalConsoleError

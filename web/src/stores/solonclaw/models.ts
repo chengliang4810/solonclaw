@@ -52,12 +52,6 @@ export const useModelsStore = defineStore('models', () => {
       dialectCatalog.value = normalizeDialectCatalog(res.dialectCatalog)
     } catch (err) {
       console.error('Failed to fetch providers:', err)
-      providers.value = []
-      allProviders.value = []
-      fallbackProviders.value = []
-      defaultModel.value = ''
-      defaultProvider.value = ''
-      dialectCatalog.value = [...LLM_DIALECT_OPTIONS]
       loadError.value = err instanceof Error ? err.message : String(err || 'Failed to fetch providers')
     } finally {
       loading.value = false
