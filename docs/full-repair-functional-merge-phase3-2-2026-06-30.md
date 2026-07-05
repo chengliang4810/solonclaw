@@ -54,6 +54,11 @@
 - `DashboardDiagnosticsService.slashConfirmItem(...)` 改为消费 pending confirm 自身过期投影，不再复制 `createdAt + DEFAULT_TIMEOUT_MS` 计算。
 - 危险命令审批队列和 slash confirm 仍保持不同状态源；本轮只收敛同一状态源的派生字段，不合并业务语义。
 
+### 8. Diagnostics 审批与确认文案边界
+
+- 2026-07-05 本轮补充：英文 Diagnostics pending approvals 文案收窄为 pending command approvals，避免与 pending slash confirmations 混淆。
+- 中文文案已经区分“待审批命令”和“待确认 Slash 命令”，本轮不改。
+
 ## 已验证
 
 - `npm --prefix web run test:device-login-modal-reuse`
@@ -66,6 +71,7 @@
 - `mvn "-Dskip.web.build=true" "-Dtest=WeixinQrSetupServiceTest,DomesticQrSetupServiceTest,QrSetupTicketStateTest,QrSetupTicketMapReuseTest" test`
 - `mvn "-Dskip.web.build=true" "-Dtest=SlashConfirmServiceTest" test`
 - `mvn "-Dskip.web.build=true" "-Dtest=SlashConfirmExpiryReuseTest" test`
+- `npm --prefix web run build`
 - `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java/com/jimuqu/solon/claw/web/WeixinQrSetupService.java src/main/java/com/jimuqu/solon/claw/web/DomesticQrSetupService.java src/main/java/com/jimuqu/solon/claw/web/QrSetupTicketState.java`
 - `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
 - `git diff --check`
