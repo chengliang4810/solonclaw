@@ -102,6 +102,8 @@ public class TerminalUiRpcService {
     private final TuiRuntimeProtocolService runtimeProtocolService;
     /** 全局设置仓储，用于保存仅属于终端 UI 的显示偏好。 */
     private final GlobalSettingRepository globalSettingRepository;
+    /** 当前 JVM 内仍保持打开状态的 TUI 会话，用于驱动 session.active_list。 */
+    private final List<String> liveTerminalSessionIds = new ArrayList<String>();
     /** 当前 TUI 连接创建的浏览器租约 ID，用于 status/disconnect 的轻量状态保持。 */
     private volatile String tuiBrowserSessionId;
 
@@ -230,9 +232,10 @@ public class TerminalUiRpcService {
             bindTerminalSource(session.getSessionId(), session.getSessionId());
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put(
-                "session_id",
-                session == null ? newSessionId() : StrUtil.blankToDefault(session.getSessionId(), newSessionId()));
+        String sessionId =
+                session == null ? newSessionId() : StrUtil.blankToDefault(session.getSessionId(), newSessionId());
+        rememberLiveSession(sessionId);
+        result.put("session_id", sessionId);
         result.put("info", sessionInfo(session));
         return result;
     }
@@ -251,6 +254,7 @@ public class TerminalUiRpcService {
         SessionRecord session = findSession(sessionId);
         if (session != null) {
             bindTerminalSource(session.getSessionId(), session.getSessionId());
+            rememberLiveSession(session.getSessionId());
         }
         String effectiveSessionId =
                 session == null ? StrUtil.blankToDefault(sessionId, newSessionId()) : session.getSessionId();
@@ -271,6 +275,15 @@ public class TerminalUiRpcService {
         return result;
     }
 
+    /** 关闭一个 TUI live 会话；历史会话仍保留给 session.list 恢复。 */
+    public Map<String, Object> sessionClose(String sessionId) {
+        forgetLiveSession(sessionId);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("ok", Boolean.TRUE);
+        result.put("closed", Boolean.valueOf(StrUtil.isNotBlank(sessionId)));
+        return result;
+    }
+
     /** 返回最近一个可恢复会话，供终端 UI 自动恢复入口使用。 */
     public Map<String, Object> sessionMostRecent() throws Exception {
         List<SessionRecord> records = listRecentSessions(1);
@@ -286,12 +299,25 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 返回活动会话列表；当前单 JVM 后端没有多 worker 状态，按最近会话暴露 idle 状态。 */
+    /** 返回当前 JVM 内仍打开的 TUI live 会话列表，供 session switcher 直接切换。 */
     public Map<String, Object> activeSessions(String currentSessionId) throws Exception {
         List<Map<String, Object>> sessions = new ArrayList<Map<String, Object>>();
-        SessionRecord current = findSession(currentSessionId);
-        if (current != null) {
-            sessions.add(activeSessionItem(current, true));
+        boolean currentIncluded = false;
+        for (String liveSessionId : liveTerminalSessionIds()) {
+            SessionRecord record = findSession(liveSessionId);
+            if (record == null) {
+                continue;
+            }
+            AgentRunRecord activeRun = latestActiveRun(record.getSessionId());
+            boolean current = record.getSessionId().equals(currentSessionId);
+            currentIncluded = currentIncluded || current;
+            sessions.add(activeSessionItem(record, current, activeRun));
+        }
+        if (!currentIncluded) {
+            SessionRecord current = findSession(currentSessionId);
+            if (current != null) {
+                sessions.add(activeSessionItem(current, true, latestActiveRun(current.getSessionId())));
+            }
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("sessions", sessions);
@@ -369,14 +395,12 @@ public class TerminalUiRpcService {
         query = query.toLowerCase(Locale.ROOT);
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (CommandDescriptor descriptor : CommandRegistry.all()) {
-            if (!descriptor.getName().startsWith(query)) {
-                continue;
+            if (descriptor.getName().startsWith(query)) {
+                appendLocalSlashCompletion(items, query, descriptor.getName(), descriptor.getDescription());
             }
-            Map<String, Object> item = new LinkedHashMap<String, Object>();
-            item.put("text", descriptor.slashName());
-            item.put("display", descriptor.slashName());
-            item.put("meta", descriptor.getDescription());
-            items.add(item);
+            for (String alias : descriptor.getAliases()) {
+                appendLocalSlashCompletion(items, query, alias, descriptor.getDescription());
+            }
         }
         appendLocalSlashCompletion(items, query, "doctor", "检查模型、渠道与工作区配置");
         appendLocalSlashCompletion(items, query, "setup", "配置模型、消息渠道与初始化设置");
@@ -384,6 +408,7 @@ public class TerminalUiRpcService {
         appendLocalSlashCompletion(items, query, "gateway", "查看或配置国内消息渠道");
         appendLocalSlashCompletion(items, query, "auth", "查看模型 provider 认证状态");
         appendLocalSlashCompletion(items, query, "proxy", "查看代理配置提示");
+        appendTuiLocalSlashCompletions(items, query);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("items", items);
         result.put("replace_from", Integer.valueOf(0));
@@ -488,8 +513,23 @@ public class TerminalUiRpcService {
         usage.put("cache_write", Long.valueOf(Math.max(0L, session.getCumulativeCacheWriteTokens())));
         usage.put("total", Long.valueOf(Math.max(0L, session.getCumulativeTotalTokens())));
         usage.put("model", model(session));
-        usage.put("calls", Integer.valueOf(messageCount(session) > 0 ? 1 : 0));
+        usage.put("calls", Long.valueOf(usageCallCount(session)));
         return usage;
+    }
+
+    /** 返回当前会话已落库的模型调用次数，仓储不可用时保持旧的消息存在性降级。 */
+    private long usageCallCount(SessionRecord session) {
+        if (session == null) {
+            return 0L;
+        }
+        if (agentRunRepository != null && StrUtil.isNotBlank(session.getSessionId())) {
+            try {
+                return Math.max(0L, agentRunRepository.countUsageRunsBySession(session.getSessionId()));
+            } catch (Exception e) {
+                log.debug("Failed to count TUI usage runs, fallback to message count: session={}", session.getSessionId(), e);
+            }
+        }
+        return messageCount(session) > 0 ? 1L : 0L;
     }
 
     /** 返回当前会话状态文本。 */
@@ -2090,7 +2130,85 @@ public class TerminalUiRpcService {
     }
 
     /**
-     * 合并本地 setup/config 命令到 slash 补全候选，避免复制来的前端只能补全后端命令注册表。
+     * 补充只在 React TUI 前端执行的本地命令与别名，保证 Tab 补全不会漏掉可执行命令。
+     *
+     * @param items 当前补全候选。
+     * @param query 用户输入的命令前缀，不含斜杠。
+     */
+    private void appendTuiLocalSlashCompletions(List<Map<String, Object>> items, String query) {
+        appendLocalSlashCompletion(items, query, "help", "列出命令与快捷键");
+        appendLocalSlashCompletion(items, query, "commands", "列出命令与快捷键");
+        appendLocalSlashCompletion(items, query, "quit", "退出 TUI");
+        appendLocalSlashCompletion(items, query, "exit", "退出 TUI");
+        appendLocalSlashCompletion(items, query, "update", "退出并更新 solonclaw");
+        appendLocalSlashCompletion(items, query, "mouse", "设置终端鼠标跟踪模式");
+        appendLocalSlashCompletion(items, query, "scroll", "设置终端鼠标跟踪模式");
+        appendLocalSlashCompletion(items, query, "clear", "清空当前会话");
+        appendLocalSlashCompletion(items, query, "new", "开始新会话");
+        appendLocalSlashCompletion(items, query, "reset", "开始新会话");
+        appendLocalSlashCompletion(items, query, "redraw", "强制重绘终端界面");
+        appendLocalSlashCompletion(items, query, "status", "显示当前会话状态");
+        appendLocalSlashCompletion(items, query, "title", "查看或设置当前会话标题");
+        appendLocalSlashCompletion(items, query, "density", "切换紧凑显示密度");
+        appendLocalSlashCompletion(items, query, "dense", "切换紧凑显示密度");
+        appendLocalSlashCompletion(items, query, "details", "控制 Agent 细节显示");
+        appendLocalSlashCompletion(items, query, "detail", "控制 Agent 细节显示");
+        appendLocalSlashCompletion(items, query, "fortune", "显示本地提示语");
+        appendLocalSlashCompletion(items, query, "copy", "复制选中内容或助手消息");
+        appendLocalSlashCompletion(items, query, "paste", "粘贴剪贴板内容");
+        appendLocalSlashCompletion(items, query, "terminal-setup", "配置 IDE 终端快捷键");
+        appendLocalSlashCompletion(items, query, "logs", "查看网关日志");
+        appendLocalSlashCompletion(items, query, "history", "查看当前 TUI 转录内容");
+        appendLocalSlashCompletion(items, query, "save", "保存当前转录内容");
+        appendLocalSlashCompletion(items, query, "statusbar", "设置状态栏位置");
+        appendLocalSlashCompletion(items, query, "sb", "设置状态栏位置");
+        appendLocalSlashCompletion(items, query, "queue", "查看或追加排队消息");
+        appendLocalSlashCompletion(items, query, "q", "查看或追加排队消息");
+        appendLocalSlashCompletion(items, query, "steer", "在下一次工具调用后插入消息");
+        appendLocalSlashCompletion(items, query, "undo", "撤销上一轮对话");
+        appendLocalSlashCompletion(items, query, "retry", "重试上一条用户消息");
+        appendLocalSlashCompletion(items, query, "background", "启动后台提示任务");
+        appendLocalSlashCompletion(items, query, "bg", "启动后台提示任务");
+        appendLocalSlashCompletion(items, query, "btw", "启动后台提示任务");
+        appendLocalSlashCompletion(items, query, "model", "切换或查看模型");
+        appendLocalSlashCompletion(items, query, "sessions", "浏览或切换会话");
+        appendLocalSlashCompletion(items, query, "switch", "浏览或切换会话");
+        appendLocalSlashCompletion(items, query, "session", "浏览或切换会话");
+        appendLocalSlashCompletion(items, query, "resume", "恢复会话");
+        appendLocalSlashCompletion(items, query, "image", "附加图片");
+        appendLocalSlashCompletion(items, query, "personality", "切换当前会话人格");
+        appendLocalSlashCompletion(items, query, "compress", "压缩当前上下文");
+        appendLocalSlashCompletion(items, query, "compact", "压缩当前上下文");
+        appendLocalSlashCompletion(items, query, "branch", "分支当前会话");
+        appendLocalSlashCompletion(items, query, "fork", "分支当前会话");
+        appendLocalSlashCompletion(items, query, "voice", "查看或切换语音能力");
+        appendLocalSlashCompletion(items, query, "skin", "切换界面皮肤");
+        appendLocalSlashCompletion(items, query, "indicator", "切换忙碌指示器");
+        appendLocalSlashCompletion(items, query, "yolo", "显示审批策略提示");
+        appendLocalSlashCompletion(items, query, "reasoning", "查看或设置推理展示");
+        appendLocalSlashCompletion(items, query, "fast", "查看或切换快速模式");
+        appendLocalSlashCompletion(items, query, "busy", "设置忙碌输入模式");
+        appendLocalSlashCompletion(items, query, "verbose", "切换工具输出详细模式");
+        appendLocalSlashCompletion(items, query, "usage", "显示当前会话用量");
+        appendLocalSlashCompletion(items, query, "stop", "停止后台进程");
+        appendLocalSlashCompletion(items, query, "reload-mcp", "刷新 MCP 服务器");
+        appendLocalSlashCompletion(items, query, "reload_mcp", "刷新 MCP 服务器");
+        appendLocalSlashCompletion(items, query, "reload", "重新读取本地环境变量");
+        appendLocalSlashCompletion(items, query, "browser", "管理浏览器 CDP 连接");
+        appendLocalSlashCompletion(items, query, "rollback", "查看或恢复检查点");
+        appendLocalSlashCompletion(items, query, "tasks", "打开子代理任务面板");
+        appendLocalSlashCompletion(items, query, "replay", "回放已完成的子代理树");
+        appendLocalSlashCompletion(items, query, "replay-diff", "对比两个子代理树");
+        appendLocalSlashCompletion(items, query, "reload-skills", "重新扫描技能");
+        appendLocalSlashCompletion(items, query, "reload_skills", "重新扫描技能");
+        appendLocalSlashCompletion(items, query, "skills", "浏览、检查或安装技能");
+        appendLocalSlashCompletion(items, query, "tools", "启用或禁用工具");
+        appendLocalSlashCompletion(items, query, "heapdump", "写入 V8 堆快照");
+        appendLocalSlashCompletion(items, query, "mem", "显示 TUI 内存指标");
+    }
+
+    /**
+     * 合并本地命令到 slash 补全候选，避免复制来的前端只能补全后端命令注册表。
      *
      * @param items 当前补全候选。
      * @param query 用户输入的命令前缀，不含斜杠。
@@ -2159,8 +2277,38 @@ public class TerminalUiRpcService {
         return TERMINAL_SOURCE_KEY_PREFIX + StrUtil.blankToDefault(sessionId, "terminal-ui");
     }
 
-    /** 转换当前活动会话为终端 UI session.active_list 项。 */
-    private Map<String, Object> activeSessionItem(SessionRecord record, boolean current) {
+    /** 记录一个仍在当前 JVM 内打开的 TUI 会话。 */
+    private void rememberLiveSession(String sessionId) {
+        if (StrUtil.isBlank(sessionId)) {
+            return;
+        }
+        synchronized (liveTerminalSessionIds) {
+            if (!liveTerminalSessionIds.contains(sessionId)) {
+                liveTerminalSessionIds.add(sessionId);
+            }
+        }
+    }
+
+    /** 从当前 JVM live 列表移除一个 TUI 会话。 */
+    private void forgetLiveSession(String sessionId) {
+        if (StrUtil.isBlank(sessionId)) {
+            return;
+        }
+        synchronized (liveTerminalSessionIds) {
+            liveTerminalSessionIds.remove(sessionId);
+        }
+    }
+
+    /** 读取 live 会话快照，避免迭代期间被 WebSocket 其它线程修改。 */
+    private List<String> liveTerminalSessionIds() {
+        synchronized (liveTerminalSessionIds) {
+            return new ArrayList<String>(liveTerminalSessionIds);
+        }
+    }
+
+    /** 转换当前活动会话为终端 UI session.active_list 项，并附带真实运行状态。 */
+    private Map<String, Object> activeSessionItem(
+            SessionRecord record, boolean current, AgentRunRecord activeRun) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         item.put("id", record.getSessionId());
         item.put("session_key", record.getSessionId());
@@ -2170,7 +2318,7 @@ public class TerminalUiRpcService {
         item.put("message_count", Integer.valueOf(messageCount(record)));
         item.put("started_at", Long.valueOf(record.getCreatedAt()));
         item.put("last_active", Long.valueOf(record.getUpdatedAt()));
-        item.put("status", "idle");
+        item.put("status", liveSessionStatus(activeRun));
         item.put("current", Boolean.valueOf(current));
         return item;
     }

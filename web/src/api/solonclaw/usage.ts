@@ -1,7 +1,6 @@
 import { request } from '../client'
 
-export interface DailyUsageItem {
-  day: string
+interface UsageBreakdownItem {
   input_tokens: number
   output_tokens: number
   cache_read_tokens: number
@@ -15,19 +14,12 @@ export interface DailyUsageItem {
   backfill_approximate: boolean
 }
 
-export interface ModelUsageItem {
+export interface DailyUsageItem extends UsageBreakdownItem {
+  day: string
+}
+
+export interface ModelUsageItem extends UsageBreakdownItem {
   model: string
-  input_tokens: number
-  output_tokens: number
-  cache_read_tokens: number
-  cache_write_tokens: number
-  reasoning_tokens: number
-  sessions: number
-  cost_micros: number
-  currency: string
-  pricing_available: boolean
-  unpriced_total_tokens: number
-  backfill_approximate: boolean
 }
 
 export interface UsageTotals {

@@ -40,9 +40,68 @@ class TuiRuntimeProtocolServiceTest {
                 .containsEntry("session_id", "session-qr");
     }
 
+    @Test
+    void setupAndModelOptionsWarnWhenCurrentOpenaiProviderUsesBlockedPrivateBaseUrl()
+            throws Exception {
+        AppConfig config = testConfig();
+        config.getModel().setProviderKey("openai");
+        config.getModel().setDefault("mimo-v2.5");
+        config.getSecurity().setAllowPrivateUrls(false);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDialect("openai");
+        provider.setBaseUrl("http://127.0.0.1:18080/v1/chat/completions");
+        provider.setApiKey("tp-valid-local-policy-warning-key");
+        provider.setDefaultModel("mimo-v2.5");
+        config.getProviders().put("openai", provider);
+        TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
+
+        Map<String, Object> setup = service.setupStatus();
+        Map<String, Object> options = service.modelOptions("session-local-provider");
+
+        assertThat((String) setup.get("warning"))
+                .contains("security.allowPrivateUrls")
+                .contains("内网/私有地址");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> providers = (List<Map<String, Object>>) options.get("providers");
+        assertThat((String) provider(providers, "openai").get("warning"))
+                .contains("security.allowPrivateUrls")
+                .contains("内网/私有地址");
+    }
+
+    @Test
+    void ollamaProviderDoesNotRequireApiKeyInTuiRuntime() throws Exception {
+        AppConfig config = testConfig();
+        config.getModel().setProviderKey("ollama");
+        config.getModel().setDefault("qwen3:8b");
+        TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
+
+        Map<String, Object> setup = service.setupStatus();
+        Map<String, Object> options = service.modelOptions("session-ollama");
+
+        assertThat(setup)
+                .containsEntry("provider_configured", Boolean.TRUE)
+                .containsEntry("provider", "ollama")
+                .containsEntry("api_key", "not_required");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> providers = (List<Map<String, Object>>) options.get("providers");
+        Map<String, Object> ollama = provider(providers, "ollama");
+        assertThat(ollama)
+                .containsEntry("auth_type", "none")
+                .containsEntry("authenticated", Boolean.TRUE);
+        assertThat(ollama.get("key_env")).isEqualTo("");
+        assertThat(ollama).doesNotContainKey("warning");
+    }
+
     private Map<String, Object> channel(List<Map<String, Object>> channels, String key) {
         return channels.stream()
                 .filter(item -> key.equals(item.get("key")))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private Map<String, Object> provider(List<Map<String, Object>> providers, String key) {
+        return providers.stream()
+                .filter(item -> key.equals(item.get("slug")))
                 .findFirst()
                 .orElseThrow();
     }

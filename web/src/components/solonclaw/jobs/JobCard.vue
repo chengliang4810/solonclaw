@@ -150,12 +150,9 @@ async function handleRun() {
 async function refreshRuns() {
   runsLoading.value = true
   try {
-    const [job, jobRuns] = await Promise.all([
-      jobsStore.fetchJob(jobId.value),
-      jobsStore.fetchJobRuns(jobId.value, 20),
-    ])
-    detailJob.value = job
-    runs.value = jobRuns
+    const inspect = await jobsStore.inspectJob(jobId.value, 20)
+    detailJob.value = inspect.job
+    runs.value = inspect.runs
   } catch (e: any) {
     message.error(e.message)
   } finally {
@@ -263,7 +260,7 @@ async function handleDelete() {
       />
     </Modal>
 
-    <Drawer v-model:open="showRuns" placement="right" :width="520" :title="t('jobs.historyTitle', { name: job.name })">
+    <Drawer v-model:open="showRuns" placement="right" :style="{ width: '520px' }" :title="t('jobs.historyTitle', { name: job.name })">
         <section class="detail-section">
           <h4>{{ t('jobs.detail.config') }}</h4>
           <div class="detail-grid">

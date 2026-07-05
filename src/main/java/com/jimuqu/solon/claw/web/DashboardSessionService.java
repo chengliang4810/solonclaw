@@ -1,8 +1,10 @@
 package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.CheckpointRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.goal.GoalState;
@@ -33,6 +35,9 @@ public class DashboardSessionService {
     /** 注入会话Artifact服务，用于调用对应业务能力。 */
     private final SessionArtifactService sessionArtifactService;
 
+    /** Agent 运行仓储用于在会话正文为空时补足失败运行的摘要统计。 */
+    private final AgentRunRepository agentRunRepository;
+
     /**
      * 创建控制台会话服务实例，并注入运行所需依赖。
      *
@@ -50,7 +55,7 @@ public class DashboardSessionService {
      */
     public DashboardSessionService(
             SessionRepository sessionRepository, CheckpointService checkpointService) {
-        this(sessionRepository, checkpointService, new SessionArtifactService());
+        this(sessionRepository, checkpointService, new SessionArtifactService(), null);
     }
 
     /**
@@ -64,12 +69,29 @@ public class DashboardSessionService {
             SessionRepository sessionRepository,
             CheckpointService checkpointService,
             SessionArtifactService sessionArtifactService) {
+        this(sessionRepository, checkpointService, sessionArtifactService, null);
+    }
+
+    /**
+     * 创建控制台会话服务实例，并注入运行所需依赖。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param sessionArtifactService 会话Artifact服务依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     */
+    public DashboardSessionService(
+            SessionRepository sessionRepository,
+            CheckpointService checkpointService,
+            SessionArtifactService sessionArtifactService,
+            AgentRunRepository agentRunRepository) {
         this.sessionRepository = sessionRepository;
         this.checkpointService = checkpointService;
         this.sessionArtifactService =
                 sessionArtifactService == null
                         ? new SessionArtifactService()
                         : sessionArtifactService;
+        this.agentRunRepository = agentRunRepository;
     }
 
     /**
@@ -117,7 +139,7 @@ public class DashboardSessionService {
             item.put("role", message.getRole().name().toLowerCase(Locale.ROOT));
             String content = message.getContent();
             if (message instanceof AssistantMessage) {
-                content = ((AssistantMessage) message).getResultContent();
+                content = MessageSupport.assistantText((AssistantMessage) message);
             }
             item.put("content", SecretRedactor.redact(content, 8000));
             item.put("timestamp", null);
@@ -407,6 +429,11 @@ public class DashboardSessionService {
      */
     private Map<String, Object> toSessionInfo(SessionRecord record) throws Exception {
         List<ChatMessage> messages = MessageSupport.loadMessages(record.getNdjson());
+        List<AgentRunRecord> runs = recentRuns(record);
+        int messageCount = messages.size();
+        if (messageCount == 0) {
+            messageCount = visibleRunMessageCount(runs);
+        }
         int toolCallCount = 0;
         for (ChatMessage message : messages) {
             if (message instanceof AssistantMessage) {
@@ -440,7 +467,7 @@ public class DashboardSessionService {
         result.put(
                 "is_active",
                 record.getUpdatedAt() >= System.currentTimeMillis() - 5L * 60L * 1000L);
-        result.put("message_count", messages.size());
+        result.put("message_count", messageCount);
         result.put("tool_call_count", toolCallCount);
         result.put("input_tokens", record.getCumulativeInputTokens());
         result.put("output_tokens", record.getCumulativeOutputTokens());
@@ -462,12 +489,77 @@ public class DashboardSessionService {
                 "preview",
                 safe(
                         trim(
-                                StrUtil.blankToDefault(
-                                        MessageSupport.getLastUserMessage(record.getNdjson()),
-                                        record.getCompressedSummary()),
+                                previewText(record, runs),
                                 160),
                         160));
         return result;
+    }
+
+    /**
+     * 读取会话最近运行记录；读取失败时返回空列表，避免列表接口被运行索引异常拖垮。
+     *
+     * @param record 会话记录。
+     * @return 返回最近运行记录。
+     */
+    private List<AgentRunRecord> recentRuns(SessionRecord record) {
+        if (agentRunRepository == null
+                || record == null
+                || StrUtil.isBlank(record.getSessionId())) {
+            return Collections.emptyList();
+        }
+        try {
+            List<AgentRunRecord> runs =
+                    agentRunRepository.listBySession(record.getSessionId(), 100);
+            return runs == null ? Collections.<AgentRunRecord>emptyList() : runs;
+        } catch (Exception e) {
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * 统计运行记录中可被用户看到的输入和结束状态，用于失败运行未落入会话正文时补足列表数量。
+     *
+     * @param runs 最近运行记录。
+     * @return 返回可见消息数量。
+     */
+    private int visibleRunMessageCount(List<AgentRunRecord> runs) {
+        int count = 0;
+        for (AgentRunRecord run : runs) {
+            if (run == null) {
+                continue;
+            }
+            if (StrUtil.isNotBlank(run.getInputPreview())) {
+                count++;
+            }
+            if (StrUtil.isNotBlank(run.getFinalReplyPreview())
+                    || StrUtil.isNotBlank(run.getError())) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
+     * 生成会话列表预览，正文为空时回退到最近运行的用户输入预览。
+     *
+     * @param record 会话记录。
+     * @param runs 最近运行记录。
+     * @return 返回预览文本。
+     */
+    private String previewText(SessionRecord record, List<AgentRunRecord> runs) throws Exception {
+        String preview =
+                StrUtil.blankToDefault(
+                        MessageSupport.getLastUserMessage(record.getNdjson()),
+                        record.getCompressedSummary());
+        if (StrUtil.isNotBlank(preview)) {
+            return preview;
+        }
+        for (AgentRunRecord run : runs) {
+            if (run != null && StrUtil.isNotBlank(run.getInputPreview())) {
+                return run.getInputPreview();
+            }
+        }
+        return "";
     }
 
     /**

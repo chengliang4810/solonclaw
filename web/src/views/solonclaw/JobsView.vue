@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import JobsPanel from '@/components/solonclaw/jobs/JobsPanel.vue'
 import JobFormModal from '@/components/solonclaw/jobs/JobFormModal.vue'
 import { useJobsStore } from '@/stores/solonclaw/jobs'
-import { formatJobTime } from '@/shared/jobsDisplay'
+import { jobMapKeysText, jobTokenListText } from '@/shared/jobsDisplay'
 
 const { t } = useI18n()
 const jobsStore = useJobsStore()
@@ -16,6 +16,7 @@ onMounted(() => {
   jobsStore.fetchJobs()
   jobsStore.fetchUpcomingJobs()
   jobsStore.fetchStatus()
+  jobsStore.fetchGuideAndPolicy()
 })
 
 function openCreateModal() {
@@ -61,28 +62,6 @@ async function refreshSchedules() {
       </Button>
     </header>
 
-    <section class="simple-hero">
-      <div class="simple-copy">
-        <span>{{ t('jobs.simpleHeroEyebrow') }}</span>
-        <h3>{{ t('jobs.simpleHeroTitle') }}</h3>
-        <p>{{ t('jobs.simpleHeroDesc') }}</p>
-      </div>
-      <div class="simple-steps">
-        <div class="simple-step">
-          <strong>1</strong>
-          <span>{{ t('jobs.simpleHeroStepTask') }}</span>
-        </div>
-        <div class="simple-step">
-          <strong>2</strong>
-          <span>{{ t('jobs.simpleHeroStepTime') }}</span>
-        </div>
-        <div class="simple-step">
-          <strong>3</strong>
-          <span>{{ t('jobs.simpleHeroStepDelivery') }}</span>
-        </div>
-      </div>
-    </section>
-
     <section v-if="jobsStore.status" class="status-panel">
       <div class="status-grid">
         <div class="status-item">
@@ -116,17 +95,40 @@ async function refreshSchedules() {
           </template>
           <code v-else>—</code>
         </div>
-        <div class="status-list">
-          <span>{{ t('jobs.pageNextRuns') }}</span>
-          <template v-if="jobsStore.status.next.length">
-            <code v-for="job in jobsStore.status.next.slice(0, 3)" :key="job.id">
-              {{ job.name }} · {{ formatJobTime(job.next_run_at) }}
-            </code>
-          </template>
-          <code v-else>—</code>
-        </div>
       </div>
     </section>
+
+    <details class="guide-panel">
+      <summary>
+        <span>{{ t('jobs.pageGuideTitle') }}</span>
+        <small v-if="jobsStore.guideLoading">{{ t('common.loading') }}</small>
+        <small v-else>{{ jobsStore.guide?.objective || '—' }}</small>
+      </summary>
+      <Spin :spinning="jobsStore.guideLoading">
+        <div class="guide-grid">
+          <div class="guide-card">
+            <span>{{ t('jobs.pageScheduleCapabilities') }}</span>
+            <strong>{{ jobTokenListText(t, jobsStore.guide?.schedule_types, { guide: true }) }}</strong>
+            <code>{{ jobTokenListText(t, jobsStore.guide?.actions ? Object.keys(jobsStore.guide.actions) : [], { guide: true }) }}</code>
+          </div>
+          <div class="guide-card">
+            <span>{{ t('jobs.pageUpdatableFields') }}</span>
+            <strong>{{ jobTokenListText(t, jobsStore.policy?.update_fields, { guide: true }) }}</strong>
+            <code>{{ t('jobs.pageClearableFields') }}：{{ jobTokenListText(t, jobsStore.policy?.clear_fields, { guide: true }) }}</code>
+          </div>
+          <div class="guide-card">
+            <span>{{ t('jobs.pageExecutionPolicy') }}</span>
+            <strong>{{ jobMapKeysText(t, jobsStore.policy?.execution) }}</strong>
+            <code>{{ t('jobs.pageSecurityPolicy') }}：{{ jobMapKeysText(t, jobsStore.guide?.security) }}</code>
+          </div>
+          <div class="guide-card">
+            <span>{{ t('jobs.pageRuntimeIsolation') }}</span>
+            <strong>{{ jobMapKeysText(t, jobsStore.policy?.runtime_isolation) }}</strong>
+            <code>{{ jobTokenListText(t, jobsStore.guide?.api_routes, { separator: ' · ' }) }}</code>
+          </div>
+        </div>
+      </Spin>
+    </details>
 
     <div class="jobs-content">
       <Spin :spinning="jobsStore.loading && jobsStore.jobs.length === 0">
@@ -205,7 +207,7 @@ async function refreshSchedules() {
 
 .status-side {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -231,98 +233,90 @@ async function refreshSchedules() {
   }
 }
 
-.simple-hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
-  gap: 18px;
-  margin: 0 20px 0;
+.guide-panel {
+  margin: 12px 20px 0;
   border: 1px solid $border-light;
   border-radius: $radius-md;
   background: $bg-card;
-  padding: 16px;
+  padding: 0 14px;
   flex-shrink: 0;
-}
 
-.simple-copy {
-  min-width: 0;
-
-  span {
-    display: block;
-    color: $accent-primary;
-    font-size: 12px;
-    font-weight: 700;
-    line-height: 1.4;
-  }
-
-  h3 {
-    margin: 4px 0 6px;
+  summary {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 12px 0;
     color: $text-primary;
-    font-size: 18px;
-    line-height: 1.35;
-    font-weight: 700;
-  }
 
-  p {
-    margin: 0;
-    color: $text-secondary;
-    font-size: 13px;
-    line-height: 1.6;
+    small {
+      min-width: 0;
+      color: $text-muted;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 }
 
-.simple-steps {
+.guide-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+  padding-bottom: 12px;
 }
 
-.simple-step {
+.guide-card {
   min-width: 0;
   border: 1px solid $border-light;
   border-radius: 6px;
   background: $bg-card-hover;
-  padding: 10px;
+  padding: 8px 10px;
 
-  strong {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: rgba(var(--accent-primary-rgb), 0.12);
-    color: $accent-primary;
-    font-size: 12px;
-    line-height: 1;
-  }
-
-  span {
+  span,
+  code {
     display: block;
-    margin-top: 8px;
-    color: $text-secondary;
+    color: $text-muted;
     font-size: 12px;
     line-height: 1.5;
+  }
+
+  strong {
+    display: block;
+    margin: 4px 0;
+    color: $text-primary;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  code {
+    color: $text-secondary;
+    font-family: $font-code;
+    overflow-wrap: anywhere;
   }
 }
 
 @media (max-width: $breakpoint-mobile) {
-  .status-panel,
-  .simple-hero,
-  .simple-steps {
+  .status-panel {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .status-grid,
-  .status-side {
+  .status-side,
+  .guide-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
 }
 
 @media (max-width: 900px) {
-  .status-panel,
-  .simple-hero {
+  .status-panel {
     grid-template-columns: 1fr;
+  }
+
+  .guide-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -331,24 +325,19 @@ async function refreshSchedules() {
     padding: 12px;
   }
 
-  .status-panel,
-  .simple-hero {
+  .status-panel {
     margin-left: 12px;
     margin-right: 12px;
   }
 
-  .guide-summary {
-    gap: 10px;
-  }
-
-  .guide-meta span {
-    width: 100%;
+  .guide-panel {
+    margin-left: 12px;
+    margin-right: 12px;
   }
 
   .status-grid,
   .status-side,
-  .guide-grid,
-  .policy-grid {
+  .guide-grid {
     grid-template-columns: 1fr;
   }
 }

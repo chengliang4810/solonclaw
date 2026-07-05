@@ -56,7 +56,7 @@ final class AppConfigLoader {
         // 只读取启动前已经存在的运行配置；自动生成的模板不能在首次启动时覆盖命令行参数。
         Map<String, Object> overrides = loadFlatOverrides(workspaceHome);
         Map<String, Object> structuredOverrides = loadStructuredOverrides(workspaceHome);
-        initializeRuntimeConfigIfMissing(workspaceHome);
+        initializeRuntimeConfigIfMissing(workspaceHome, props);
         RuntimeConfigResolver configResolver =
                 RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
 
@@ -3066,8 +3066,9 @@ final class AppConfigLoader {
      * 执行initialize工作区配置IfMissing相关逻辑。
      *
      * @param workspaceHome 工作区根目录。
+     * @param props Solon 启动配置，用于生成首次运行配置中的非密 provider 字段。
      */
-    private static void initializeRuntimeConfigIfMissing(File workspaceHome) {
+    private static void initializeRuntimeConfigIfMissing(File workspaceHome, Props props) {
         File configFile = new File(workspaceHome, RuntimePathConstants.CONFIG_FILE_NAME);
         if (configFile.exists()) {
             return;
@@ -3075,31 +3076,46 @@ final class AppConfigLoader {
 
         try {
             FileUtil.mkParentDirs(configFile);
-            FileUtil.writeUtf8String(defaultRuntimeConfigContent(), configFile);
+            FileUtil.writeUtf8String(defaultRuntimeConfigContent(props), configFile);
         } catch (Exception e) {
             log.warn("运行配置初始化失败，后续保存配置时仍会提示用户修复权限: error={}", exceptionSummary(e));
         }
     }
 
     /**
-     * 执行默认工作区配置Content相关逻辑。
+     * 生成默认工作区配置内容；只持久化启动 provider 的非密字段，避免首次运行模板反向覆盖命令行模型配置。
      *
      * @return 返回默认工作区配置Content结果。
      */
-    private static String defaultRuntimeConfigContent() {
+    private static String defaultRuntimeConfigContent(Props props) {
+        ProviderConfig provider = loadDefaultProvider(props);
+        ModelConfig model = parseModelConfig(null, props);
+        String modelDefault = StrUtil.blankToDefault(model.getDefault(), provider.getDefaultModel());
         return "# solonclaw 最小运行配置。\n"
                 + "# 启动时自动创建；可通过 Dashboard 或直接编辑本文件继续完善。\n"
                 + "providers:\n"
                 + "  default:\n"
-                + "    name: DefaultProvider\n"
-                + "    baseUrl: https://api.openai.com\n"
+                + "    name: "
+                + yamlDoubleQuoted(provider.getName())
+                + "\n"
+                + "    baseUrl: "
+                + yamlDoubleQuoted(provider.getBaseUrl())
+                + "\n"
                 + "    apiKey: \"\"\n"
-                + "    defaultModel: gpt-5.4\n"
-                + "    dialect: openai\n"
+                + "    defaultModel: "
+                + yamlDoubleQuoted(provider.getDefaultModel())
+                + "\n"
+                + "    dialect: "
+                + yamlDoubleQuoted(provider.getDialect())
+                + "\n"
                 + "\n"
                 + "model:\n"
-                + "  providerKey: default\n"
-                + "  default: \"gpt-5.4\"\n"
+                + "  providerKey: "
+                + yamlDoubleQuoted(model.getProviderKey())
+                + "\n"
+                + "  default: "
+                + yamlDoubleQuoted(modelDefault)
+                + "\n"
                 + "\n"
                 + "fallbackProviders: []\n"
                 + "\n"
@@ -3107,6 +3123,17 @@ final class AppConfigLoader {
                 + "  dashboard:\n"
                 + "    # Dashboard 访问令牌必须由部署方设置；留空时拒绝非公开 API 鉴权。\n"
                 + "    accessToken: \"\"\n";
+    }
+
+    /**
+     * 将配置值写成 YAML 双引号字符串，保证 URL、模型名和中文展示名可安全落盘。
+     *
+     * @param value 原始配置值。
+     * @return YAML 双引号字符串。
+     */
+    private static String yamlDoubleQuoted(String value) {
+        String raw = StrUtil.nullToEmpty(value);
+        return "\"" + raw.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     /**

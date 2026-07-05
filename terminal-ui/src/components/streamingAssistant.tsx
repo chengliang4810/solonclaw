@@ -6,6 +6,7 @@ import { toggleTodoCollapsed, useTurnSelector } from '../app/turnStore.js'
 import { $uiState } from '../app/uiStore.js'
 import { blockRenders } from '../domain/blockLayout.js'
 import { appendToolShelfMessage } from '../lib/liveProgress.js'
+import type { Theme } from '../theme.js'
 import type { ActiveTool, DetailsMode, Msg, SectionVisibility } from '../types.js'
 
 import { MessageLine } from './messageLine.js'
@@ -21,14 +22,63 @@ interface LiveBlock {
   tools?: ActiveTool[]
 }
 
+const renderLiveBlocks = (
+  blocks: LiveBlock[],
+  opts: {
+    cols: number
+    compact: boolean
+    detailsMode: DetailsMode
+    detailsModeCommandOverride: boolean
+    prevMsg?: Msg
+    sections: SectionVisibility
+    t: Theme
+  }
+) => {
+  const detailsCtx = {
+    commandOverride: opts.detailsModeCommandOverride,
+    detailsMode: opts.detailsMode,
+    sections: opts.sections
+  }
+
+  let prev = opts.prevMsg
+
+  return blocks.map(block => {
+    const node = (
+      <MessageLine
+        cols={opts.cols}
+        compact={opts.compact}
+        detailsMode={opts.detailsMode}
+        detailsModeCommandOverride={opts.detailsModeCommandOverride}
+        isStreaming={block.isStreaming}
+        key={block.key}
+        msg={block.msg}
+        prev={prev}
+        sections={opts.sections}
+        t={opts.t}
+        {...(block.tools ? { tools: block.tools } : {})}
+      />
+    )
+
+    // Advance the grouping predecessor only past blocks that actually paint,
+    // so a trail hidden by /details stays transparent here too.
+    const checkMsg = block.tools?.length ? { ...block.msg, tools: block.tools.map(tool => tool.name) } : block.msg
+
+    if (blockRenders(checkMsg, detailsCtx)) {
+      prev = block.msg
+    }
+
+    return node
+  })
+}
+
 export const StreamingAssistant = memo(function StreamingAssistant({
   cols,
-  compact,
+  compact = false,
   detailsMode,
   detailsModeCommandOverride,
   prevMsg,
   progress,
-  sections
+  sections = {}
 }: StreamingAssistantProps) {
   const ui = useStore($uiState)
   const streamSegments = useTurnSelector(state => state.streamSegments)
@@ -62,39 +112,9 @@ export const StreamingAssistant = memo(function StreamingAssistant({
     blocks.push({ key: 'pending-tools', msg: { kind: 'trail', role: 'system', text: '', tools: streamPendingTools } })
   }
 
-  const detailsCtx = { commandOverride: detailsModeCommandOverride, detailsMode, sections }
-  let prev = prevMsg
-
   return (
     <>
-      {blocks.map(block => {
-        const node = (
-          <MessageLine
-            cols={cols}
-            compact={compact}
-            detailsMode={detailsMode}
-            detailsModeCommandOverride={detailsModeCommandOverride}
-            isStreaming={block.isStreaming}
-            key={block.key}
-            msg={block.msg}
-            prev={prev}
-            sections={sections}
-            t={ui.theme}
-            {...(block.tools ? { tools: block.tools } : {})}
-          />
-        )
-
-        // Advance the grouping predecessor only past blocks that actually
-        // paint, so a trail hidden by /details stays transparent here too
-        // (active tools live in the prop, so fold them into the check).
-        const checkMsg = block.tools?.length ? { ...block.msg, tools: block.tools.map(tool => tool.name) } : block.msg
-
-        if (blockRenders(checkMsg, detailsCtx)) {
-          prev = block.msg
-        }
-
-        return node
-      })}
+      {renderLiveBlocks(blocks, { cols, compact, detailsMode, detailsModeCommandOverride, prevMsg, sections, t: ui.theme })}
     </>
   )
 })

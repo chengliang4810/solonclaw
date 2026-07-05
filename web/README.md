@@ -13,7 +13,8 @@ Browser-based dashboard for managing Solon Claw configuration, API keys, and act
 ```bash
 # Start the backend from the repository root.
 cd ..
-mvn -Dskip.web.build=true compile
+mvn "-Dskip.web.build=true" "-DskipTests" package
+java -jar target/solonclaw-0.0.1.jar
 
 # In another terminal, start the Vite dev server (with HMR + API proxy)
 cd web

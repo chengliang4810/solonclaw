@@ -37,6 +37,14 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.cl
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.looksLikeUrlKey;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.shellLikeTokens;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.stripOptionalQuote;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.redactSample;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.sample;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsPatchIntentSamples;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsPatchTextKeySamples;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsPathKeySamples;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsUrlKeySamples;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsWriteIntentSamples;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsWriteLikeToolSamples;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.containsSensitiveParameterName;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.extractSchemelessHost;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.extractUriHost;
@@ -2784,84 +2792,6 @@ public class SecurityPolicyService {
     }
 
     /**
-     * 执行工具参数URL键Samples相关逻辑。
-     *
-     * @return 返回工具参数URL键Samples结果。
-     */
-    private static List<String> toolArgsUrlKeySamples() {
-        return Arrays.asList(
-                "url", "uri", "href", "endpoint", "base_url", "callback_url", "proxy", "*_url");
-    }
-
-    /**
-     * 执行工具参数路径键Samples相关逻辑。
-     *
-     * @return 返回工具参数路径键Samples结果。
-     */
-    private static List<String> toolArgsPathKeySamples() {
-        return Arrays.asList(
-                "path",
-                "paths",
-                "file",
-                "filename",
-                "file_path",
-                "dir",
-                "cwd",
-                "workdir",
-                "directory",
-                "output_file",
-                "destination",
-                "*_path");
-    }
-
-    /**
-     * 执行工具参数写入IntentSamples相关逻辑。
-     *
-     * @return 返回工具参数Write Intent Samples结果。
-     */
-    private static List<String> toolArgsWriteIntentSamples() {
-        return Arrays.asList(
-                "write", "append", "delete", "remove", "move", "rename", "create", "patch");
-    }
-
-    /**
-     * 执行工具参数补丁IntentSamples相关逻辑。
-     *
-     * @return 返回工具参数Patch Intent Samples结果。
-     */
-    private static List<String> toolArgsPatchIntentSamples() {
-        return Collections.singletonList("patch");
-    }
-
-    /**
-     * 执行工具参数补丁文本键Samples相关逻辑。
-     *
-     * @return 返回工具参数Patch Text键Samples结果。
-     */
-    private static List<String> toolArgsPatchTextKeySamples() {
-        return Arrays.asList("patch", "diff", "content", "input");
-    }
-
-    /**
-     * 执行工具参数写入Like工具Samples相关逻辑。
-     *
-     * @return 返回工具参数Write Like工具Samples结果。
-     */
-    private static List<String> toolArgsWriteLikeToolSamples() {
-        return Arrays.asList(
-                "file_write",
-                "write_file",
-                "file_delete",
-                "delete_file",
-                "remove_file",
-                "file_append",
-                "file_move",
-                "file_rename",
-                "file_mkdir",
-                ToolNameConstants.PATCH);
-    }
-
-    /**
      * 规范化路径Text。
      *
      * @param raw 原始输入值。
@@ -3295,54 +3225,6 @@ public class SecurityPolicyService {
         }
         List<String> values = appConfig.getTerminal().getCredentialFiles();
         return values == null ? Collections.<String>emptyList() : values;
-    }
-
-    /**
-     * 执行样例相关逻辑。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param max max 参数。
-     * @return 返回sample结果。
-     */
-    private static List<String> sample(List<String> values, int max) {
-        List<String> result = new ArrayList<String>();
-        if (values == null) {
-            return result;
-        }
-        int limit = Math.max(0, max);
-        for (String value : values) {
-            if (result.size() >= limit) {
-                break;
-            }
-            if (StrUtil.isNotBlank(value)) {
-                result.add(value);
-            }
-        }
-        return result;
-    }
-
-    /**
-     * 脱敏Sample。
-     *
-     * @param values 待规范化或校验的原始值集合。
-     * @param max max 参数。
-     * @return 返回Sample结果。
-     */
-    private static List<String> redactSample(List<String> values, int max) {
-        List<String> result = new ArrayList<String>();
-        if (values == null) {
-            return result;
-        }
-        int limit = Math.max(0, max);
-        for (String value : values) {
-            if (result.size() >= limit) {
-                break;
-            }
-            if (StrUtil.isNotBlank(value)) {
-                result.add(SecretRedactor.redact(value, 400));
-            }
-        }
-        return result;
     }
 
     /**

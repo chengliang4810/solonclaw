@@ -4,26 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
-import com.jimuqu.solon.claw.core.service.ContextService;
-import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
-import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
 import com.jimuqu.solon.claw.skillhub.model.ScanResult;
 import com.jimuqu.solon.claw.skillhub.model.SkillBrowseResult;
 import com.jimuqu.solon.claw.skillhub.model.SkillMeta;
 import com.jimuqu.solon.claw.skillhub.model.TapRecord;
-import com.jimuqu.solon.claw.support.DisplaySettingsService;
-import com.jimuqu.solon.claw.support.LlmProviderService;
-import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.CommandServiceTestSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
-import com.jimuqu.solon.claw.support.update.AppUpdateService;
-import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.SkillHubTools;
-import com.jimuqu.solon.claw.web.DashboardConfigService;
-import com.jimuqu.solon.claw.web.DashboardProviderService;
-import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -119,70 +109,7 @@ public class SkillsHubCommandTest {
 
     private DefaultCommandService commandService(
             TestEnvironment env, SkillHubService skillHubService) {
-        GatewayRuntimeRefreshService refreshService =
-                new GatewayRuntimeRefreshService(
-                        env.appConfig,
-                        new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(
-                                new java.util.LinkedHashMap<
-                                        com.jimuqu.solon.claw.core.enums.PlatformType,
-                                        com.jimuqu.solon.claw.core.service.ChannelAdapter>()));
-        LlmProviderService llmProviderService = new LlmProviderService(env.appConfig);
-        RuntimeSettingsService runtimeSettingsService =
-                new RuntimeSettingsService(
-                        env.appConfig,
-                        env.globalSettingRepository,
-                        env.deliveryService,
-                        new DashboardConfigService(env.appConfig, refreshService),
-                        new DashboardRuntimeConfigService(env.appConfig, refreshService),
-                        new AppVersionService(env.appConfig),
-                        llmProviderService,
-                        new DashboardProviderService(
-                                env.appConfig, refreshService, llmProviderService));
-        DisplaySettingsService displaySettingsService =
-                new DisplaySettingsService(env.appConfig, env.globalSettingRepository);
-        AppUpdateService appUpdateService =
-                new AppUpdateService(env.appConfig, new AppVersionService(env.appConfig));
-        return new DefaultCommandService(
-                env.sessionRepository,
-                env.toolRegistry,
-                env.localSkillService,
-                env.cronJobRepository,
-                new ConversationOrchestrator() {
-                    @Override
-                    public GatewayReply handleIncoming(GatewayMessage message) {
-                        return GatewayReply.ok("noop");
-                    }
-
-                    @Override
-                    public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
-                        return GatewayReply.ok("noop");
-                    }
-
-                    @Override
-                    public GatewayReply resumePending(String sourceKey) {
-                        return GatewayReply.ok("noop");
-                    }
-                },
-                new ContextService() {
-                    @Override
-                    public String buildSystemPrompt(String sourceKey) {
-                        return "";
-                    }
-                },
-                env.contextCompressionService,
-                env.deliveryService,
-                env.gatewayAuthorizationService,
-                env.checkpointService,
-                skillHubService,
-                env.appConfig,
-                env.globalSettingRepository,
-                env.processRegistry,
-                runtimeSettingsService,
-                displaySettingsService,
-                appUpdateService,
-                env.dangerousCommandApprovalService,
-                env.agentRunControlService,
-                env.agentProfileService);
+        return CommandServiceTestSupport.commandServiceWithSkillHub(env, skillHubService);
     }
 
     private static class CapturingSkillHubService implements SkillHubService {

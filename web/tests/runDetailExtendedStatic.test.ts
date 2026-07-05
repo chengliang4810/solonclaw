@@ -20,5 +20,8 @@ assert.ok(view.includes('recoveries.value = detail.recoveries || []'), 'runs vie
 assert.ok(view.includes('commands.value = detail.commands || []'), 'runs view should read commands from run detail')
 assert.ok(view.includes("t('runs.recoveries')"), 'runs view should render recoveries')
 assert.ok(view.includes("t('runs.commands')"), 'runs view should render control commands')
+assert.ok(view.includes('selectedRun.exit_reason'), 'runs view should render exit reason from run detail')
 assert.ok(zh.includes("recoveries: '恢复记录'"), 'Chinese locale should include recoveries label')
+assert.ok(zh.includes("exitReason: '退出原因'"), 'Chinese locale should include exit reason label')
 assert.ok(en.includes("recoveries: 'Recoveries'"), 'English locale should include recoveries label')
+assert.ok(en.includes("exitReason: 'Exit reason'"), 'English locale should include exit reason label')

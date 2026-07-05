@@ -46,6 +46,7 @@
   flex: 1;
   display: flex;
   padding-top: 4px;
+  padding-bottom: 8px;
   flex-direction: column;
   gap: 3px;
   overflow-y: auto;
@@ -103,10 +104,11 @@
   }
 }
 
-.nav-item {
+:deep(.nav-item) {
   display: flex;
   align-items: center;
   gap: 9px;
+  scroll-margin-block: 8px;
   min-height: 36px;
   padding: 8px 10px;
   border: none;
@@ -119,6 +121,27 @@
   transition: all $transition-fast;
   width: 100%;
   text-align: left;
+
+  &:hover {
+    background-color: $bg-card-hover;
+    color: $text-primary;
+  }
+
+  &.active {
+    background-color: $accent-primary;
+    color: $text-on-accent;
+  }
+}
+
+.nav-system-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+:global(.dark) .nav-system-items :deep(.nav-item) {
+  background-color: transparent;
+  color: $text-secondary;
 
   &:hover {
     background-color: $bg-card-hover;
@@ -168,6 +191,20 @@
   align-items: center;
   justify-content: space-between;
   padding: 8px 4px 0;
+}
+
+.version-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px 0;
+  color: $text-muted;
+  font-size: 11px;
+
+  strong {
+    color: $text-secondary;
+    font-weight: 600;
+  }
 }
 
 .status-indicator {

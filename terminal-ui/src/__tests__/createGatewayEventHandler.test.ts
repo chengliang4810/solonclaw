@@ -340,6 +340,18 @@ describe('createGatewayEventHandler', () => {
     }
   })
 
+  it('treats run.completed from the text protocol as a completed assistant turn', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    patchUiState({ busy: true, status: '运行中…' })
+
+    onEvent({ payload: { final_reply: 'done' }, type: 'run.completed' } as any)
+
+    expect(appended).toContainEqual({ role: 'assistant', text: 'done' })
+    expect(getUiState().status).toBe('ready')
+  })
+
   it('preserves streamed reasoning as one completed thinking panel after segment flushes', () => {
     const appended: Msg[] = []
     const streamed = 'first reasoning chunk\nsecond reasoning chunk'
@@ -921,6 +933,20 @@ describe('createGatewayEventHandler', () => {
     ])
   })
 
+  it('deduplicates repeated gateway stderr activity across interleaved startup errors', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    onEvent({ payload: { line: '[startup] backend handshake failed: fetch failed' }, type: 'gateway.stderr' } as any)
+    onEvent({ payload: { line: '[startup] backend handshake failed: connection refused' }, type: 'gateway.stderr' } as any)
+    onEvent({ payload: { line: '[startup] backend handshake failed: fetch failed' }, type: 'gateway.stderr' } as any)
+
+    expect(getTurnState().activity.map(a => a.text)).toEqual([
+      '[startup] backend handshake failed: fetch failed',
+      '[startup] backend handshake failed: connection refused'
+    ])
+  })
+
   it('still surfaces terminal turn failures as errors', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))
@@ -928,6 +954,19 @@ describe('createGatewayEventHandler', () => {
     onEvent({ payload: { message: 'boom' }, type: 'error' } as any)
 
     expect(getTurnState().activity).toMatchObject([{ text: 'boom', tone: 'error' }])
+  })
+
+  it('surfaces backend run failures as terminal errors', () => {
+    const appended: Msg[] = []
+    const ctx = buildCtx(appended)
+    const onEvent = createGatewayEventHandler(ctx)
+
+    onEvent({ payload: { error: 'Remote host terminated the handshake' }, type: 'run.failed' } as any)
+
+    expect(getTurnState().activity).toMatchObject([
+      { text: 'Remote host terminated the handshake', tone: 'error' }
+    ])
+    expect(ctx.system.sys).toHaveBeenCalledWith('error: Remote host terminated the handshake')
   })
 
   it('accepts timeout/error subagent terminal statuses and ignores stale live events', () => {

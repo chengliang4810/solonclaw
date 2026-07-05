@@ -2,6 +2,7 @@ import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage
 import { fetchRunDetail } from '@/api/solonclaw/runs'
 import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionGoalState, type SessionSummary } from '@/api/solonclaw/sessions'
 import { shouldUseServerMessages } from '@/shared/chatMessageMerge'
+import { normalizeTimestampMs } from '@/shared/session-display'
 import { selectSessionId } from '@/shared/sessionSelection'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
@@ -46,12 +47,19 @@ export interface Session {
   lastTotalTokens?: number
   endedAt?: number | null
   lastActiveAt?: number
+  isLive?: boolean
   activeAgentName?: string
   goalState?: SessionGoalState | null
 }
 
+let chatUidCounter = 0
+
 function uid(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID()
+  }
+  chatUidCounter += 1
+  return `${Date.now().toString(36)}-${chatUidCounter.toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
 function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
@@ -142,16 +150,17 @@ function mapSolonClawSession(s: SessionSummary): Session {
     title: s.title || '',
     source: s.source || undefined,
     messages: [],
-    createdAt: Math.round(s.started_at * 1000),
-    updatedAt: Math.round((s.last_active || s.ended_at || s.started_at) * 1000),
+    createdAt: normalizeTimestampMs(s.started_at),
+    updatedAt: normalizeTimestampMs(s.last_active || s.ended_at || s.started_at),
     model: s.model,
     provider: s.provider || '',
     messageCount: s.message_count,
     inputTokens: s.input_tokens,
     outputTokens: s.output_tokens,
     lastTotalTokens: s.last_total_tokens || undefined,
-    endedAt: s.ended_at != null ? Math.round(s.ended_at * 1000) : null,
-    lastActiveAt: s.last_active != null ? Math.round(s.last_active * 1000) : undefined,
+    endedAt: s.ended_at != null ? normalizeTimestampMs(s.ended_at) : null,
+    lastActiveAt: s.last_active != null ? normalizeTimestampMs(s.last_active) : undefined,
+    isLive: Boolean(s.is_active),
     activeAgentName: s.active_agent_name || 'default',
     goalState: s.goal_state || null,
   }
@@ -165,7 +174,6 @@ const SESSIONS_CACHE_KEY = 'solonclaw_sessions_cache_v1'
 const IN_FLIGHT_TTL_MS = 15 * 60 * 1000 // Give up after 15 minutes
 const POLL_INTERVAL_MS = 2000
 const POLL_STABLE_EXITS = 3 // 3 × 2s = 6s of no change → assume run finished
-const LIVE_BADGE_WINDOW_MS = 5 * 60 * 1000
 
 function storageKey(): string { return STORAGE_KEY }
 function readActiveSessionKey(): string | null {
@@ -295,8 +303,7 @@ export const useChatStore = defineStore('chat', () => {
     if (streamStates.value.has(sessionId) || resumingRuns.value.has(sessionId)) return true
 
     const session = sessions.value.find(candidate => candidate.id === sessionId)
-    if (!session?.lastActiveAt || session.endedAt != null) return false
-    return Date.now() - session.lastActiveAt <= LIVE_BADGE_WINDOW_MS
+    return Boolean(session?.isLive)
   }
 
   function persistSessionsList() {
@@ -473,11 +480,11 @@ export const useChatStore = defineStore('chat', () => {
         const prev = msgsByIdBefore.get(s.id)
         if (prev && prev.length) s.messages = prev
       }
-      // Preserve local-only sessions the server hasn't seen yet — e.g. a chat
-      // that was just created and whose first run is still in-flight. Without
-      // this, refreshing mid-run would wipe the session and fall back to
-      // sessions[0], which is exactly what the user reported.
-      const localOnly = sessions.value.filter(s => !freshIds.has(s.id))
+      // 只保留仍可恢复的本地会话；旧浏览器缓存不能覆盖服务端空列表。
+      const localOnly = sessions.value.filter(s =>
+        !freshIds.has(s.id)
+        && (readInFlight(s.id) || streamStates.value.has(s.id) || resumingRuns.value.has(s.id))
+      )
       sessions.value = [...localOnly, ...fresh]
       persistSessionsList()
 
@@ -489,6 +496,11 @@ export const useChatStore = defineStore('chat', () => {
         } else {
           await switchSession(targetId)
         }
+      } else {
+        activeSessionId.value = null
+        activeSession.value = null
+        focusMessageId.value = null
+        removeItem(storageKey())
       }
     } catch (err) {
       console.error('Failed to load sessions:', err)
@@ -794,6 +806,7 @@ export const useChatStore = defineStore('chat', () => {
           content: `Error: startRun returned no run ID. Response: ${JSON.stringify(run)}`,
           timestamp: Date.now(),
         })
+        if (localSid === activeSessionId.value) persistActiveMessages()
         return
       }
 
@@ -1089,6 +1102,7 @@ export const useChatStore = defineStore('chat', () => {
         content: `Error: ${err.message}`,
         timestamp: Date.now(),
       })
+      if (localSid === activeSessionId.value) persistActiveMessages()
     }
   }
 

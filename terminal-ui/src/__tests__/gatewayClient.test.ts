@@ -245,6 +245,16 @@ describe('GatewayClient solonclaw bridge', () => {
     gw.kill()
   })
 
+  it('does not respawn immediately after a startup failure', async () => {
+    const gw = new GatewayClient()
+
+    ;(gw as unknown as { lastStartupFailureAt: number }).lastStartupFailureAt = Date.now()
+
+    await expect(gw.request('session.create', {})).rejects.toThrow(/gateway not connected: session.create/)
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+    expect(FakeWebSocket.instances).toHaveLength(0)
+  })
+
   it('sends JSON-RPC prompt.submit and publishes backend event envelopes', async () => {
     const gw = new GatewayClient()
     const events: Array<{ payload?: unknown; type: string }> = []
@@ -498,8 +508,10 @@ describe('GatewayClient solonclaw bridge', () => {
 
   it('redacts query string secrets in attach failure logs and events', () => {
     process.env.SOLONCLAW_TUI_GATEWAY_URL = 'ws://gateway.test/api/ws?token=hunter2&channel=secret'
+
     // 使 WebSocket 构造函数抛错以模拟连接失败（ws 模块 fallback 使 "unavailable" 不再触发）
     const OrigWs = globalThis.WebSocket
+
     ;(globalThis as { WebSocket?: unknown }).WebSocket = class extends (OrigWs ?? Object) {
       constructor() { throw new Error('connection refused') }
     } as unknown as typeof WebSocket
@@ -588,8 +600,10 @@ describe('GatewayClient solonclaw bridge', () => {
     expect(() => new URL(fixture)).toThrow()
 
     process.env.SOLONCLAW_TUI_GATEWAY_URL = fixture
+
     // 使 WebSocket 构造函数抛错以模拟连接失败
     const OrigWs2 = globalThis.WebSocket
+
     ;(globalThis as { WebSocket?: unknown }).WebSocket = class extends (OrigWs2 ?? Object) {
       constructor() { throw new Error('connection refused') }
     } as unknown as typeof WebSocket
@@ -618,6 +632,25 @@ describe('GatewayClient solonclaw bridge', () => {
     expect(tail).not.toContain('hunter2')
     expect(tail).not.toContain('token=secret')
 
+    gw.kill()
+  })
+
+  it('does not restart the backend handshake from ordinary RPCs after startup fails', async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error('fetch failed')
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+
+    const gw = new GatewayClient()
+
+    gw.start()
+    gw.drain()
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await new Promise(resolve => setTimeout(resolve, 3100))
+
+    await expect(gw.request('config.get', { key: 'full' })).rejects.toThrow(/gateway not connected: config.get/)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     gw.kill()
   })
 })

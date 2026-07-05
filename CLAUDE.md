@@ -74,7 +74,7 @@ python3 scripts/check-raw-exception-logging.py
 
 ## Solon / Solon AI 开发注意事项
 
-- 遇到 Solon 或 Solon AI API、注解、插件、配置键不确定时，优先根据远程仓库获取或更新参考源码后再查证：Solon `https://gitee.com/opensolon/solon.git`，Solon AI `https://gitee.com/opensolon/solon-ai.git`；以当前项目依赖版本 `3.10.4` 为准。
+- 遇到 Solon 或 Solon AI API、注解、插件、配置键不确定时，优先根据远程仓库获取或更新参考源码后再查证：Solon `https://gitee.com/opensolon/solon.git`，Solon AI `https://gitee.com/opensolon/solon-ai.git`；以当前项目依赖版本 `4.0.3` 为准。
 - Controller、DI、配置、Filter、RouterInterceptor、AOP、Plugin 等写法必须沿用项目现有 Solon 风格，不要使用 `@RestController`、`@Autowired`、Spring MVC 异常处理或 Spring Validator。
 - AI 能力优先使用 Solon AI 官方模块和本项目已有 `ChatModel`、工具调用、MCP、Agent、Skills 接入方式；只有官方能力明确缺失且无法满足目标行为时才自研补充。
 - JSON 序列化/反序列化优先使用 `snack4`，通用工具优先使用 Hutool。

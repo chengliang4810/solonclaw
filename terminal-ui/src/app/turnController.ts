@@ -140,6 +140,11 @@ class TurnController {
     this.streamDelay = Math.max(this.streamDelay, STREAM_SCROLL_BATCH_MS)
   }
 
+  beginSubmission() {
+    this.bufRef = ''
+    this.interrupted = false
+  }
+
   relaxStreaming() {
     this.streamDelay = STREAM_IDLE_BATCH_MS
   }
@@ -241,6 +246,19 @@ class TurnController {
 
       return next.length === state.turnTrail.length ? state : { ...state, turnTrail: next }
     })
+  }
+
+  removeTrailGroup(label: string) {
+    this.turnTools = this.turnTools.filter(line => !sameToolTrailGroup(label, line))
+    patchTurnState({ turnTrail: this.turnTools })
+  }
+
+  resetVisibleHistoryState() {
+    this.idle()
+    this.clearReasoning()
+    this.turnTools = []
+    this.persistedToolLabels.clear()
+    patchTurnState({ activity: [] })
   }
 
   private syncReasoningSegment() {
@@ -398,9 +416,7 @@ class TurnController {
         ? state.activity.filter(item => !sameToolTrailGroup(replaceLabel, item.text))
         : state.activity
 
-      const tail = base.at(-1)
-
-      if (tail?.text === text && tail.tone === tone) {
+      if (base.some(item => item.text === text && item.tone === tone)) {
         return state
       }
 

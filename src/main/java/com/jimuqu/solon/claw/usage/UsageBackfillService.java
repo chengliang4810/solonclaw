@@ -5,7 +5,6 @@ import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
-import com.jimuqu.solon.claw.pricing.UsageCost;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -163,28 +162,6 @@ public class UsageBackfillService {
      * @param event 事件参数。
      */
     private void applyCost(UsageEventRecord event) {
-        UsageCost cost =
-                calculator.calculate(
-                        event.getProvider(),
-                        event.getModel(),
-                        event.getInputTokens(),
-                        event.getOutputTokens(),
-                        event.getCacheReadTokens(),
-                        event.getCacheWriteTokens(),
-                        event.getReasoningTokens(),
-                        event.getRequestCount());
-        event.setCostMicros(cost.getTotalMicros());
-        event.setCurrency(cost.getCurrency());
-        event.setPriceSource(cost.getPriceSource());
-        event.setPriceSourceUrl(cost.getPriceSourceUrl());
-        event.setPricingVersion(cost.getPricingVersion());
-        event.setPriceFetchedAt(cost.getPriceFetchedAt());
-        event.setPricingAvailable(cost.isPricingAvailable());
-        event.setUnpricedInputTokens(cost.getUnpricedInputTokens());
-        event.setUnpricedOutputTokens(cost.getUnpricedOutputTokens());
-        event.setUnpricedCacheReadTokens(cost.getUnpricedCacheReadTokens());
-        event.setUnpricedCacheWriteTokens(cost.getUnpricedCacheWriteTokens());
-        event.setUnpricedReasoningTokens(cost.getUnpricedReasoningTokens());
-        event.setPricedAt(cost.getPricedAt());
+        UsageEventCostSupport.apply(event, UsageEventCostSupport.calculate(calculator, event));
     }
 }

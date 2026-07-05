@@ -25,6 +25,29 @@ export function handleDashboardAuthFailure(status: number, body: string): boolea
   return false
 }
 
+function apiErrorField(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function apiErrorMessage(status: number, statusText: string, body: string): string {
+  const text = body.trim()
+  if (text) {
+    try {
+      const json = JSON.parse(text) as unknown
+      if (json && typeof json === 'object') {
+        const payload = json as Record<string, unknown>
+        const message = apiErrorField(payload.message) || apiErrorField(payload.error) || apiErrorField(payload.detail)
+        if (message) return message
+        const code = apiErrorField(payload.code)
+        if (code) return `API Error ${status}: ${code}`
+      }
+    } catch {
+      // 非 JSON 响应继续按原始文本展示。
+    }
+  }
+  return `API Error ${status}: ${text || statusText}`
+}
+
 export async function dashboardFetch(input: RequestInfo | URL, options: RequestInit = {}): Promise<Response> {
   const res = await fetch(input, options)
   if (res.ok) {
@@ -60,7 +83,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
     if (handleDashboardAuthFailure(res.status, text)) {
       throw new Error('Unauthorized')
     }
-    throw new Error(`API Error ${res.status}: ${text || res.statusText}`)
+    throw new Error(apiErrorMessage(res.status, res.statusText, text))
   }
 
   const contentType = res.headers.get('content-type') || ''

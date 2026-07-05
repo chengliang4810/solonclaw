@@ -2944,10 +2944,45 @@ public class ToolRegistryExposureTest {
         ONode result =
                 ONode.ofJson(
                         ((TuiRuntimeManageTools) tool)
-                                .tuiRuntimeManage("setup_status", null, null));
+                                .tuiRuntimeManage(
+                                        "setup_status",
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        null));
 
         assertToolSuccess(result);
         assertThat(result.get("result").get("provider_configured").isNull()).isFalse();
+    }
+
+    @Test
+    void shouldOperateTuiRuntimeModelSetupThroughNaturalLanguageTool() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        Object tool =
+                env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1").stream()
+                        .filter(candidate -> candidate instanceof TuiRuntimeManageTools)
+                        .findFirst()
+                        .orElseThrow(() -> new AssertionError("tui runtime manage tool missing"));
+
+        ONode result =
+                ONode.ofJson(
+                        ((TuiRuntimeManageTools) tool)
+                                .tuiRuntimeManage(
+                                        "model_save_key",
+                                        null,
+                                        "default",
+                                        "tp-test-realistic-secret",
+                                        null,
+                                        null,
+                                        "session-tui"));
+
+        assertToolSuccess(result);
+        ONode provider = result.get("result").get("provider");
+        assertThat(provider.get("slug").getString()).isEqualTo("default");
+        assertThat(provider.get("authenticated").getBoolean()).isTrue();
+        assertThat(result.toJson()).doesNotContain("tp-test-realistic-secret");
     }
 
     @Test

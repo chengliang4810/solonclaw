@@ -60,6 +60,53 @@ python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-
 - diff whitespace 检查通过。
 - 项目命名门禁通过。
 
+## 2026-07-05 复核结果
+
+已执行：
+
+```bash
+python scripts/check-code-duplication.selftest.py
+python scripts/check-code-duplication.py --report-only --min-lines 40 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages
+python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages
+```
+
+结果：
+
+- 重复检测脚本自测通过。
+- 全项目源码 `min-lines=40` 扫描无输出。
+- 全项目源码 `min-lines=25` 宽松扫描也无输出。
+- 当前没有脚本可复现的重复代码块，因此本轮不做新的复用抽取。
+
+## 2026-07-05 命令时间格式化复用
+
+本轮在脚本完全重复扫描之外，按历史 1.4 剩余候选继续查找低风险语义重复，发现
+`gateway.command` 包已有 `CommandValueSupport.formatTimestamp(...)`，但多个命令处理器仍各自
+保留 `DateUtil.formatDateTime(new Date(...))` 或私有 `formatTimestamp(...)`。
+
+处理：
+
+- `DefaultCommandService`、`DefaultCronCommandHandler`、`DefaultRuntimeCommandHandler`、
+  `DefaultSkillCommandHandler`、`SlashCommandStatusRenderer` 改为复用
+  `CommandValueSupport.formatTimestamp(...)`。
+- 保留原有空值展示语义：checkpoint 与 cron 仍显示 `never`，技能时间空值仍显示 `-`，
+  用量状态的空 `last_usage_at` 仍显示空字符串。
+- 新增 `CommandTimestampSupportReuseTest`，防止命令处理器重新复制同一时间格式化逻辑。
+
+验证：
+
+```bash
+mvn "-Dskip.web.build=true" "-Dtest=com.jimuqu.solon.claw.gateway.command.CommandTimestampSupportReuseTest" test
+mvn "-Dskip.web.build=true" "-Dtest=com.jimuqu.solon.claw.gateway.command.CommandTimestampSupportReuseTest,com.jimuqu.solon.claw.gateway.command.SlashCommandHelpRendererTest,ProactiveCommandTest,SkillsHubCommandTest,VersionUpdateCommandTest,CronjobToolsSchedulerTest" test
+python scripts/check-code-duplication.selftest.py
+python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages
+```
+
+结果：
+
+- 新增复用守护测试先红后绿。
+- 相关命令测试 32 个通过，0 失败，0 错误。
+- 重复检测脚本自测通过，`min-lines=25` 扫描无输出。
+
 ## 保留的高相似候选
 
 以下候选来自当前质量审计与本轮复核，后续应按更小的原子项串行处理：

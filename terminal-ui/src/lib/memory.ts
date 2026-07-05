@@ -179,6 +179,7 @@ async function pruneHeapdumps(dir: string): Promise<void> {
   const parsed = raw ? Number(raw) : NaN
   const cap = Number.isFinite(parsed) && parsed > 0 ? parsed : 2 * 1024 ** 3
   const names = await readdir(dir)
+
   const stats = await Promise.all(
     names.map(async name => {
       const path = join(dir, name)
@@ -187,6 +188,7 @@ async function pruneHeapdumps(dir: string): Promise<void> {
       return s && s.isFile() ? { mtimeMs: s.mtimeMs, path, size: s.size } : null
     })
   )
+
   const valid = stats.filter((s): s is { mtimeMs: number; path: string; size: number } => s !== null)
 
   valid.sort((a, b) => b.mtimeMs - a.mtimeMs)

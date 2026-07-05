@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
+import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/solonclaw/app";
@@ -16,6 +16,7 @@ const router = useRouter();
 const appStore = useAppStore();
 const selectedKey = computed(() => route.name as string);
 const logoPath = '/logo.png';
+const sidebarNavRef = ref<HTMLElement | null>(null);
 const personaItems = computed(() => PERSONA_NAV_ITEMS.map(item => ({
   ...item,
   title: getPersonaMeta(item.metaKey).title,
@@ -47,6 +48,20 @@ function handleLogout() {
   clearApiKey();
   router.replace({ name: 'login' });
 }
+
+async function scrollActiveNavItem() {
+  await nextTick();
+  requestAnimationFrame(() => {
+    sidebarNavRef.value?.querySelector('.nav-item.active')?.scrollIntoView({ block: "nearest" });
+  });
+}
+
+watch(selectedKey, scrollActiveNavItem, { immediate: true, flush: 'post' });
+watch(
+  () => [appStore.serverVersion, appStore.versionTag, appStore.deploymentMode, appStore.latestVersion],
+  scrollActiveNavItem,
+  { flush: 'post' },
+);
 </script>
 
 <template>
@@ -56,7 +71,7 @@ function handleLogout() {
       <span class="logo-text">solonclaw</span>
     </div>
 
-    <nav class="sidebar-nav">
+    <nav ref="sidebarNavRef" class="sidebar-nav">
       <button
         v-for="item in PRIMARY_NAV_ITEMS"
         :key="item.key"
@@ -120,7 +135,7 @@ function handleLogout() {
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </div>
-        <div v-show="!isGroupCollapsed('system')">
+        <div v-show="!isGroupCollapsed('system')" class="nav-system-items">
           <SystemNavItems :selected-key="selectedKey" @navigate="handleNav" />
         </div>
       </div>
@@ -151,6 +166,25 @@ function handleLogout() {
           }}</span>
         </div>
         <ThemeSwitch />
+      </div>
+      <div v-if="appStore.serverVersion" class="version-row">
+        <span>{{ t("sidebar.version") }}</span>
+        <strong>{{ appStore.serverVersion }}</strong>
+      </div>
+      <div v-if="appStore.versionTag" class="version-row">
+        <span>{{ t("sidebar.versionTag") }}</span>
+        <strong>{{ appStore.versionTag }}</strong>
+      </div>
+      <div v-if="appStore.deploymentMode" class="version-row">
+        <span>{{ t("sidebar.deploymentMode") }}</span>
+        <strong>{{ appStore.deploymentMode }}</strong>
+      </div>
+      <div
+        v-if="appStore.latestVersion && appStore.latestVersion !== appStore.serverVersion"
+        class="version-row"
+      >
+        <span>{{ t("sidebar.latestVersion") }}</span>
+        <strong>{{ appStore.latestVersion }}</strong>
       </div>
     </div>
   </aside>

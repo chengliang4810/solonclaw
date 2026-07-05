@@ -35,49 +35,14 @@ public class ProcessRegistryTest {
     @Test
     void shouldRedactOutputReaderFailureMessage() throws Exception {
         Process process =
-                new Process() {
-                    @Override
-                    public OutputStream getOutputStream() {
-                        return new OutputStream() {
-                            @Override
-                            public void write(int b) {}
-                        };
-                    }
-
-                    @Override
-                    public InputStream getInputStream() {
-                        return new InputStream() {
+                fakeProcess(
+                        new InputStream() {
                             @Override
                             public int read() throws IOException {
                                 throw new IOException(
                                         "stream failed token=sk-test1234567890abcdef");
                             }
-                        };
-                    }
-
-                    @Override
-                    public InputStream getErrorStream() {
-                        return new InputStream() {
-                            @Override
-                            public int read() {
-                                return -1;
-                            }
-                        };
-                    }
-
-                    @Override
-                    public int waitFor() {
-                        return 0;
-                    }
-
-                    @Override
-                    public int exitValue() {
-                        return 0;
-                    }
-
-                    @Override
-                    public void destroy() {}
-                };
+                        });
         ProcessRegistry registry = new ProcessRegistry();
         String id = registry.add(process);
         registry.get(id).startReader();
@@ -93,56 +58,10 @@ public class ProcessRegistryTest {
     @Test
     void shouldRedactManagedProcessDefaultMapViewWithoutMutatingRawOutput() throws Exception {
         Process process =
-                new Process() {
-                    @Override
-                    public OutputStream getOutputStream() {
-                        return new OutputStream() {
-                            @Override
-                            public void write(int b) {}
-                        };
-                    }
-
-                    @Override
-                    public InputStream getInputStream() {
-                        return new InputStream() {
-                            private final byte[] data =
-                                    "api_key=sk-test1234567890abcdef token=secret123\n"
-                                            .getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                            private int index;
-
-                            @Override
-                            public int read() {
-                                if (index >= data.length) {
-                                    return -1;
-                                }
-                                return data[index++];
-                            }
-                        };
-                    }
-
-                    @Override
-                    public InputStream getErrorStream() {
-                        return new InputStream() {
-                            @Override
-                            public int read() {
-                                return -1;
-                            }
-                        };
-                    }
-
-                    @Override
-                    public int waitFor() {
-                        return 0;
-                    }
-
-                    @Override
-                    public int exitValue() {
-                        return 0;
-                    }
-
-                    @Override
-                    public void destroy() {}
-                };
+                fakeProcess(
+                        new java.io.ByteArrayInputStream(
+                                "api_key=sk-test1234567890abcdef token=secret123\n"
+                                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         ProcessRegistry registry = new ProcessRegistry();
         String id = registry.add(process);
         ProcessRegistry.ManagedProcess managed = registry.get(id);
@@ -162,6 +81,47 @@ public class ProcessRegistryTest {
                 .doesNotContain("sk-test1234567890abcdef")
                 .doesNotContain("secret123");
         assertThat(managed.getOutput()).contains("sk-test1234567890abcdef").contains("secret123");
+    }
+
+    /** 构造只需测试输出读取行为的轻量进程，避免每个用例重复无关的进程方法。 */
+    private Process fakeProcess(InputStream stdout) {
+        return new Process() {
+            @Override
+            public OutputStream getOutputStream() {
+                return new OutputStream() {
+                    @Override
+                    public void write(int b) {}
+                };
+            }
+
+            @Override
+            public InputStream getInputStream() {
+                return stdout;
+            }
+
+            @Override
+            public InputStream getErrorStream() {
+                return new InputStream() {
+                    @Override
+                    public int read() {
+                        return -1;
+                    }
+                };
+            }
+
+            @Override
+            public int waitFor() {
+                return 0;
+            }
+
+            @Override
+            public int exitValue() {
+                return 0;
+            }
+
+            @Override
+            public void destroy() {}
+        };
     }
 
     @Test

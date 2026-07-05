@@ -1739,7 +1739,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         String[] blocked =
-                new String[] {
+                withCommonHardlineShutdownCommands(
                     "rm -rf /",
                     "rm -rf /*",
                     "rm -rf /home",
@@ -1777,42 +1777,12 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                     "cat image.bin > '/dev/nvme0n1'",
                     "cat image.bin > /dev/nvme0n1",
                     "cat image.bin > /dev/mmcblk0",
-                    ":(){ :|:& };:",
-                    "kill -9 -1",
-                    "kill -1",
-                    "shutdown -h now",
-                    "shutdown -r now",
-                    "sudo shutdown now",
-                    "doas shutdown now",
-                    "pkexec reboot",
-                    "reboot",
-                    "sudo reboot",
-                    "runas /user:Administrator reboot",
-                    "halt",
-                    "poweroff",
-                    "init 0",
-                    "init 6",
-                    "telinit 0",
-                    "systemctl poweroff",
-                    "systemctl reboot",
-                    "systemctl halt",
-                    "ls; reboot",
-                    "echo done && shutdown -h now",
-                    "false || halt",
-                    "$(reboot)",
-                    "`shutdown now`",
-                    "sudo -E shutdown now",
-                    "env FOO=1 reboot",
                     "env -i reboot",
                     "env --ignore-environment FOO=1 shutdown now",
-                    "exec shutdown",
-                    "nohup reboot",
-                    "setsid poweroff",
                     "Clear-Disk -Number 1 -RemoveData -Confirm:$false",
                     "Remove-Partition -DriveLetter D -Confirm:$false",
                     "Format-Volume -DriveLetter E -FileSystem NTFS",
-                    "diskpart /s wipe-disk.txt && clean"
-                };
+                    "diskpart /s wipe-disk.txt && clean");
 
         for (String command : blocked) {
             DangerousCommandApprovalService.DetectionResult result =

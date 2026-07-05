@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as jobsApi from '@/api/solonclaw/jobs'
-import type { Job, CreateJobRequest, UpdateJobRequest, CronGuide, CronPolicy, CronStatus } from '@/api/solonclaw/jobs'
+import type { Job, CreateJobRequest, UpdateJobRequest, CronGuide, CronPolicy, CronStatus, JobInspectResult } from '@/api/solonclaw/jobs'
 
 function matchId(job: Job, id: string): boolean {
   return job.job_id === id || job.id === id
@@ -117,6 +117,10 @@ export const useJobsStore = defineStore('jobs', () => {
     return jobsApi.getJob(jobId)
   }
 
+  async function inspectJob(jobId: string, limit = 20): Promise<JobInspectResult> {
+    return jobsApi.inspectJob(jobId, limit)
+  }
+
   return {
     jobs,
     upcomingJobs,
@@ -132,6 +136,7 @@ export const useJobsStore = defineStore('jobs', () => {
     fetchStatus,
     fetchGuideAndPolicy,
     fetchJob,
+    inspectJob,
     createJob,
     updateJob,
     deleteJob,

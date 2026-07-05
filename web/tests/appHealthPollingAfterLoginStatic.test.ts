@@ -8,8 +8,12 @@ assert.ok(
   'App.vue should centralize runtime polling startup so route changes can reuse it',
 )
 assert.ok(
-  /watch\(\s*isLoginPage\s*,\s*syncAppRuntime/.test(app),
-  'App.vue should watch login-page state so login -> app starts health polling without remounting',
+  /watch\(\s*\[\s*isLoginPage\s*,\s*ready\s*\]\s*,\s*syncAppRuntime/.test(app),
+  'App.vue should wait for router readiness and login-page state so login -> app starts health polling without remounting',
+)
+assert.ok(
+  app.includes('if (!ready.value)'),
+  'App.vue should not call authenticated APIs before router.isReady resolves the current page',
 )
 assert.ok(
   app.includes('appStore.startHealthPolling()'),

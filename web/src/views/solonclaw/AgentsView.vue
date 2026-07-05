@@ -11,6 +11,7 @@ import {
   previewAgentListInput,
   serializeAgentListInput,
 } from '@/shared/agentLists'
+import { formatTimestampText } from '@/shared/timeFormat'
 
 const agentsStore = useAgentsStore()
 const chatStore = useChatStore()
@@ -78,11 +79,6 @@ function copyAgent(agent: SolonClawAgent | null) {
   form.allowed_tools_text = formatAgentListInput(agent?.allowed_tools_json)
   form.skills_text = formatAgentListInput(agent?.skills_json)
   form.enabled = agent?.enabled !== false
-}
-
-function formatTime(ms?: number) {
-  if (!ms) return '-'
-  return new Date(ms).toLocaleString('zh-CN')
 }
 
 async function load() {
@@ -339,6 +335,14 @@ onMounted(load)
           <span>{{ t('agents.runningRuns') }}</span>
           <strong>{{ selectedAgent?.running_runs || 0 }}</strong>
         </div>
+        <div class="status-row">
+          <span>{{ t('agents.lastUsedAt') }}</span>
+          <strong>{{ formatTimestampText(selectedAgent?.last_used_at, 'zh-CN') }}</strong>
+        </div>
+        <div class="status-row">
+          <span>{{ t('agents.updatedAt') }}</span>
+          <strong>{{ formatTimestampText(selectedAgent?.updated_at, 'zh-CN') }}</strong>
+        </div>
         <div class="status-row path-row">
           <span>{{ t('agents.workspacePath') }}</span>
           <code>{{ selectedAgent?.workspace_path || '-' }}</code>
@@ -357,7 +361,7 @@ onMounted(load)
         <div v-for="run in selectedAgent?.recent_runs || []" :key="run.run_id" class="run-row">
           <span class="run-status">{{ run.status }}</span>
           <span>{{ run.model || '-' }}</span>
-          <small>{{ formatTime(run.started_at) }}</small>
+          <small>{{ formatTimestampText(run.started_at, 'zh-CN') }}</small>
         </div>
       </aside>
     </main>

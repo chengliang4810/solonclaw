@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.COMMAND_ARGUMENT_KEYS;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.DETACHED_TERMINAL_SESSION;
+import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.HARDLINE_METADATA_URL_RULE_KEY;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.HARDLINE_RULES;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.INLINE_BACKGROUND_AMP;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.LONG_LIVED_FOREGROUND_PATTERNS;
@@ -777,8 +778,8 @@ public class DangerousCommandApprovalService {
             return null;
         }
         DetectionResult result = new DetectionResult();
-        result.setPatternKey("hardline_metadata_url");
-        result.setPatternKeys(Collections.singletonList("hardline_metadata_url"));
+        result.setPatternKey(HARDLINE_METADATA_URL_RULE_KEY);
+        result.setPatternKeys(Collections.singletonList(HARDLINE_METADATA_URL_RULE_KEY));
         result.setDescription(verdict.getMessage());
         result.setNormalizedCode(normalized);
         result.setHardline(true);

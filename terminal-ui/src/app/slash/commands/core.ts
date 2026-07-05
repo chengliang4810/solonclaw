@@ -86,6 +86,7 @@ const warnConfigSaveFailed = (ctx: { stale: () => boolean; transcript: { sys: (t
 
 export const coreCommands: SlashCommand[] = [
   {
+    aliases: ['commands'],
     help: 'list commands + hotkeys',
     name: 'help',
     run: (_arg, ctx) => {
@@ -381,12 +382,20 @@ export const coreCommands: SlashCommand[] = [
         }
       }
 
-      if (arg && Number.isNaN(parseInt(arg, 10))) {
+      const trimmedArg = arg.trim()
+      const copyIndex = trimmedArg ? Number(trimmedArg) : null
+
+      if (trimmedArg && (!/^[1-9]\d*$/.test(trimmedArg) || !Number.isSafeInteger(copyIndex))) {
         return sys('usage: /copy [number]')
       }
 
       const all = ctx.local.getHistoryItems().filter(m => m.role === 'assistant')
-      const target = all[arg ? Math.min(parseInt(arg, 10), all.length) - 1 : all.length - 1]
+
+      if (copyIndex !== null && copyIndex > all.length) {
+        return sys('usage: /copy [number]')
+      }
+
+      const target = all[copyIndex === null ? all.length - 1 : copyIndex - 1]
 
       if (!target) {
         return sys('nothing to copy — start a conversation first')
@@ -627,14 +636,20 @@ export const coreCommands: SlashCommand[] = [
       }
 
       ctx.gateway.rpc<SessionUndoResponse>('session.undo', { session_id: ctx.sid }).then(
-        ctx.guarded<SessionUndoResponse>(r => {
-          if ((r.removed ?? 0) > 0) {
+        r => {
+          if (ctx.stale()) {
+            return
+          }
+
+          const removed = r?.removed ?? 0
+
+          if (removed > 0) {
             ctx.transcript.setHistoryItems((prev: Msg[]) => ctx.transcript.trimLastExchange(prev))
-            ctx.transcript.sys(`undid ${r.removed} messages`)
+            ctx.transcript.sys(`undid ${removed} messages`)
           } else {
             ctx.transcript.sys('nothing to undo')
           }
-        })
+        }
       ).catch(ctx.guardedErr)
     }
   },
@@ -654,14 +669,18 @@ export const coreCommands: SlashCommand[] = [
       }
 
       ctx.gateway.rpc<SessionUndoResponse>('session.undo', { session_id: ctx.sid }).then(
-        ctx.guarded<SessionUndoResponse>(r => {
-          if ((r.removed ?? 0) <= 0) {
+        r => {
+          if (ctx.stale()) {
+            return
+          }
+
+          if ((r?.removed ?? 0) <= 0) {
             return ctx.transcript.sys('nothing to retry')
           }
 
           ctx.transcript.setHistoryItems((prev: Msg[]) => ctx.transcript.trimLastExchange(prev))
           ctx.transcript.send(last)
-        })
+        }
       ).catch(ctx.guardedErr)
     }
   }

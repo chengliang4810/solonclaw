@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { useI18n } from "vue-i18n";
 import { clearApiKey, dashboardFetch, getApiKey, getBaseUrlValue, handleDashboardAuthFailure, setApiKey, hasApiKey } from "@/api/client";
 
 const { t } = useI18n();
+const route = useRoute();
 const router = useRouter();
 
 // Read token saved by main.ts (before router strips URL params)
@@ -13,6 +14,10 @@ const urlToken = window.__LOGIN_TOKEN__ || "";
 const token = ref(urlToken);
 const loading = ref(false);
 const errorMsg = ref("");
+
+function loginTarget() {
+  return route.redirectedFrom?.fullPath || "/solonclaw/chat";
+}
 
 async function validateExistingToken() {
   const existingKey = (urlToken || getApiKey()).trim();
@@ -28,7 +33,8 @@ async function validateExistingToken() {
     });
 
     if (res.ok) {
-      router.replace("/solonclaw/chat");
+      setApiKey(existingKey);
+      router.replace(loginTarget());
       return;
     }
 
@@ -44,8 +50,17 @@ async function validateExistingToken() {
   }
 }
 
+async function tryBootstrapDashboardToken(key: string) {
+  const res = await dashboardFetch(`${getBaseUrlValue()}/api/workspace-config/bootstrap-dashboard-token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ accessToken: key }),
+  });
+  return res.ok;
+}
+
 onMounted(async () => {
-  if (hasApiKey()) {
+  if (urlToken || hasApiKey()) {
     await validateExistingToken();
   }
 });
@@ -66,6 +81,11 @@ async function handleLogin() {
     });
 
     if (!res.ok) {
+      if (res.status === 401 && await tryBootstrapDashboardToken(key)) {
+        setApiKey(key);
+        router.replace(loginTarget());
+        return;
+      }
       const body = await res.text().catch(() => "");
       errorMsg.value = t("login.invalidToken");
       if (res.status !== 401 && handleDashboardAuthFailure(res.status, body)) {
@@ -76,7 +96,7 @@ async function handleLogin() {
     }
 
     setApiKey(key);
-    router.replace("/solonclaw/chat");
+    router.replace(loginTarget());
   } catch {
     errorMsg.value = t("login.connectionFailed");
   } finally {

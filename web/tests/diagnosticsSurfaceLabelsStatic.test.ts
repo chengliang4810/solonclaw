@@ -46,4 +46,8 @@ for (const [name, source] of [
   const labels = surfaceLabelKeys(source)
   const missing = probeSurfaces().filter((surface) => !labels.has(surface))
   assert.deepEqual(missing, [], `${name} diagnostics.surfaceLabels missing backend probe surfaces`)
+  assert.ok(
+    labels.has('configuredCredentialCommandPathApproval'),
+    `${name} diagnostics.surfaceLabels should cover configuredCredentialCommandPathApproval audit coverage`,
+  )
 }

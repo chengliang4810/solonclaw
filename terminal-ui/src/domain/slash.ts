@@ -26,10 +26,13 @@ export const completionToApplyOnSubmit = (
   if (!rowText) {
     return null
   }
+
   const normalizedValue = value.trimEnd()
+
   if (compReplace === 0 && value.startsWith('/') && isExactSlashCommand) {
     return null
   }
+
   if (
     compReplace === 0
     && value.startsWith('/')
@@ -37,6 +40,7 @@ export const completionToApplyOnSubmit = (
   ) {
     return null
   }
+
   if (compReplace === 0 && value.startsWith('/') && rowText.startsWith('/') && !rowText.startsWith(value.trim())) {
     return null
   }

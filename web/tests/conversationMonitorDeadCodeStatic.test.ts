@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 
 const srcRoot = new URL('../src', import.meta.url)
@@ -17,7 +18,7 @@ function listFiles(dir: string): string[] {
   })
 }
 
-const references = listFiles(srcRoot.pathname)
+const references = listFiles(fileURLToPath(srcRoot))
   .filter(path => /\.(ts|vue)$/.test(path))
   .filter(path => !path.endsWith('/i18n/locales/en.ts') && !path.endsWith('/i18n/locales/zh.ts'))
   .filter(path => readFileSync(path, 'utf8').includes('ConversationMonitorPane'))

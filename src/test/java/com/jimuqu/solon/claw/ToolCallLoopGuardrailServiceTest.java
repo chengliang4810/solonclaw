@@ -274,6 +274,18 @@ public class ToolCallLoopGuardrailServiceTest {
     }
 
     @Test
+    void shouldClearOtherToolCallEpochWhenAgentEnds() {
+        ReActInterceptor interceptor = new ToolCallLoopGuardrailService(new AppConfig()).buildInterceptor();
+
+        ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool("terminal");
+        assertThat(ToolCallLoopGuardrailService.otherToolCallEpoch()).isGreaterThan(0);
+
+        interceptor.onAgentEnd(newTrace());
+
+        assertThat(ToolCallLoopGuardrailService.otherToolCallEpoch()).isZero();
+    }
+
+    @Test
     void shouldLoadSolonClawReactToolLoopGuardrailConfigKeys() {
         File workspaceHome = FileUtil.file(tempDir, "runtime");
         FileUtil.mkdir(workspaceHome);

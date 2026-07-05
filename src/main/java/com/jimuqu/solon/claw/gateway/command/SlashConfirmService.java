@@ -236,7 +236,7 @@ public class SlashConfirmService {
      * @return 如果Expired满足条件则返回 true，否则返回 false。
      */
     private boolean isExpired(PendingConfirm confirm, long timeoutMs) {
-        return System.currentTimeMillis() - confirm.getCreatedAt() > Math.max(0L, timeoutMs);
+        return confirm.expiredAt(System.currentTimeMillis(), timeoutMs);
     }
 
     /**
@@ -458,6 +458,52 @@ public class SlashConfirmService {
          */
         public void setCreatedAt(long createdAt) {
             this.createdAt = createdAt;
+        }
+
+        /** 读取默认过期时间，供诊断输出与过期判断复用同一口径。 */
+        public long expiresAt() {
+            return expiresAt(DEFAULT_TIMEOUT_MS);
+        }
+
+        /**
+         * 按指定超时时长读取过期时间。
+         *
+         * @param timeoutMs 超时时长毫秒数。
+         * @return 过期时间毫秒时间戳。
+         */
+        long expiresAt(long timeoutMs) {
+            return createdAt + Math.max(0L, timeoutMs);
+        }
+
+        /**
+         * 按默认超时时长判断指定时间点是否已过期。
+         *
+         * @param nowMillis 当前毫秒时间戳。
+         * @return 已过期返回 true。
+         */
+        public boolean expiredAt(long nowMillis) {
+            return expiredAt(nowMillis, DEFAULT_TIMEOUT_MS);
+        }
+
+        /**
+         * 按指定超时时长判断指定时间点是否已过期。
+         *
+         * @param nowMillis 当前毫秒时间戳。
+         * @param timeoutMs 超时时长毫秒数。
+         * @return 已过期返回 true。
+         */
+        boolean expiredAt(long nowMillis, long timeoutMs) {
+            return expiresAt(timeoutMs) <= nowMillis;
+        }
+
+        /**
+         * 按默认超时时长计算指定时间点剩余秒数。
+         *
+         * @param nowMillis 当前毫秒时间戳。
+         * @return 剩余秒数，已过期返回 0。
+         */
+        public long expiresInSecondsAt(long nowMillis) {
+            return Math.max(0L, (expiresAt() - nowMillis) / 1000L);
         }
 
         /**

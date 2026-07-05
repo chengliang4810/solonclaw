@@ -1,5 +1,5 @@
-import { getApiKey, getBaseUrlValue, request } from '../client'
-import { normalizeWorkspaceBrowserPath, workspaceFileEntries } from '@/shared/workspaceFileEntries'
+import { getBaseUrlValue, request } from '../client'
+import { normalizeWorkspaceBrowserPath, workspaceFileEntries, workspaceFileModTime } from '@/shared/workspaceFileEntries'
 
 export interface FileEntry {
   name: string
@@ -24,6 +24,7 @@ export interface WorkspaceFile {
   path: string
   exists: boolean
   content: string
+  modTime?: string | number | null
 }
 
 const PATH_TO_KEY: Record<string, string> = {
@@ -79,7 +80,7 @@ export async function statFile(path: string): Promise<FileStat> {
     path: file.name,
     isDir: false,
     size: file.content.length,
-    modTime: '',
+    modTime: workspaceFileModTime(file),
   }
 }
 
@@ -107,7 +108,5 @@ export function getFileDownloadUrl(relativePath: string, fileName?: string): str
   const base = getBaseUrlValue()
   const params = new URLSearchParams({ path: relativePath })
   if (fileName) params.set('name', fileName)
-  const token = getApiKey()
-  if (token) params.set('token', token)
   return `${base}/api/solonclaw/download?${params.toString()}`
 }

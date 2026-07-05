@@ -97,6 +97,37 @@
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`
 - Vite preview 视觉检查：`#/solonclaw/channels` 桌面与移动宽度下，飞书、钉钉、微信字段和扫码登录入口展开可见；预览环境无后端，`/api/*` 与 `/health` 连接失败属于预期环境限制。
 
+### 6. Web QR setup 轮询状态机复用
+
+- 2026-07-05 本轮提交：`refactor: 复用 Web QR 轮询状态机 / Reuse Web QR polling state`。
+- 新增 `useChannelQrPolling`，统一二维码 payload 归一化、二维码图片生成、ticket 轮询、三次失败上限、状态推进和卸载清理。
+- `PlatformSettings.vue` 与 `TuiRuntimeView.vue` 改为复用同一个轮询 helper，页面只保留各自 API 入口、确认后刷新动作和提示文案。
+- 新增 `test:channel-qr-polling-reuse` 静态测试，锁定 Web 设置页和 Web TUI Runtime 页不再各自维护 QR 图片生成与轮询失败状态。
+
+验证：
+
+- `npm --prefix web run test:channel-qr-polling-reuse`
+- `npm --prefix web run test:platform-qr-panel-reuse`
+- `npm --prefix web run test:tui-runtime-ui`
+- `node --experimental-strip-types web/tests/channelQr.test.ts`
+- `npm --prefix web run build`
+
+### 7. TUI QR setup 状态契约补齐
+
+- 2026-07-05 本轮提交：`test: 补齐 TUI QR 状态契约 / Cover TUI QR status contract`。
+- `channelQrStatus(...)` 将 `initializing/pending/scanned/failed` 等后端状态归一到 Web Dashboard 使用的 `wait/scaned/expired/error` 契约。
+- `channelQrUrl(...)` 补齐 `qrcode_img_content` 与 `qr_code` 字段，避免 TUI 收到后端 data image 或通用 QR code 字段时显示空白。
+- `ChannelSetup` 与 `ChannelQrSetupView` 改为通过同一组 helper 判断轮询是否继续、展示哪个状态文本，避免轮询和展示各解释一套状态词。
+- 扩展 `channelQr.test.ts`，先红后绿锁定 Web / terminal-ui QR 状态契约。
+
+验证：
+
+- `npm --prefix terminal-ui test -- src/__tests__/channelQr.test.ts`
+- `npm --prefix terminal-ui run type-check`
+- `npm --prefix terminal-ui run build`
+- `npm --prefix terminal-ui run lint`
+- `node --experimental-strip-types web/tests/channelQr.test.ts`
+
 ## 延后候选
 
 - `ChannelQrPanel.vue` 状态展示边界增强：适合作为阶段 3.4 低风险小项，收紧加载、等待、扫码、确认、失效、错误等状态的文案与按钮可见规则。
@@ -105,4 +136,4 @@
 
 ## 阶段状态
 
-阶段 3.3 已完成五个低风险复用原子项。下一步可继续收尾更小的前端设置页复用点，或进入阶段 3.4 对 `ChannelQrPanel.vue` 等已融合功能做边界增强评估。
+阶段 3.3 已完成七个低风险复用原子项，并补齐 Web / terminal-ui QR 状态契约的测试闭环。下一步可进入阶段 3.4 对 `ChannelQrPanel.vue` 等已融合功能做边界增强评估，或继续按 E2E 路径补真实 Web / TUI 验证脚本。

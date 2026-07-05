@@ -68,6 +68,14 @@ describe('createSlashHandler', () => {
     expect(ctx.transcript.sys).toHaveBeenCalledWith('ui redrawn')
   })
 
+  it('shows the local help panel for /commands', () => {
+    const ctx = buildCtx()
+
+    expect(createSlashHandler(ctx)('/commands')).toBe(true)
+    expect(ctx.transcript.panel).toHaveBeenCalledWith(expect.any(String), expect.any(Array))
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+  })
+
   it('exits locally for /quit', () => {
     const ctx = buildCtx()
 
@@ -209,6 +217,16 @@ describe('createSlashHandler', () => {
 
     expect(getOverlayState().modelPicker).toBe(true)
     expect(ctx.gateway.rpc).not.toHaveBeenCalledWith('config.set', expect.anything())
+  })
+
+  it('opens the model picker while a turn is busy', () => {
+    patchUiState({ busy: true, sid: 'sid-abc' })
+    const ctx = buildCtx({ session: { ...buildSession(), guardBusySessionSwitch: vi.fn(() => true) } })
+
+    expect(createSlashHandler(ctx)('/model')).toBe(true)
+
+    expect(getOverlayState().modelPicker).toBe(true)
+    expect(ctx.session.guardBusySessionSwitch).not.toHaveBeenCalled()
   })
 
   it('rejects legacy /model pick indexes in the TUI instead of writing them as model names', () => {
@@ -527,6 +545,7 @@ describe('createSlashHandler', () => {
         tts: false
       })
     )
+
     const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
 
     expect(createSlashHandler(ctx)('/voice on')).toBe(true)
@@ -547,6 +566,7 @@ describe('createSlashHandler', () => {
         tts: false
       })
     )
+
     const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
 
     expect(createSlashHandler(ctx)('/voice off')).toBe(true)
@@ -652,11 +672,13 @@ describe('createSlashHandler', () => {
 
   it('renders explicit tool configuration success messages after applying changes', async () => {
     patchUiState({ sid: 'sid-abc' })
+
     const rpc = vi.fn(() => Promise.resolve({
       changed: ['web'],
       info: { model: 'mimo-v2.5-pro' },
       reset: true
     }))
+
     const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
 
     expect(createSlashHandler(ctx)('/tools disable web')).toBe(true)
@@ -855,6 +877,7 @@ describe('createSlashHandler', () => {
 
   it('keeps gateway setup commands on slash.exec even when the catalog aliases gateway', async () => {
     const request = vi.fn(() => Promise.resolve({ output: 'gateway status' }))
+
     const ctx = buildCtx({
       gateway: { ...buildGateway(), gw: { ...buildGateway().gw, request } },
       local: {
@@ -898,6 +921,23 @@ describe('createSlashHandler', () => {
     expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
+  it('rejects unknown slash commands locally after the command catalog loads', () => {
+    const ctx = buildCtx({
+      local: {
+        catalog: {
+          canon: {
+            '/help': '/help'
+          }
+        }
+      }
+    })
+
+    expect(createSlashHandler(ctx)('/not-a-real-command')).toBe(true)
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('unknown command: /not-a-real-command — try /help')
+    expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
+    expect(ctx.transcript.send).not.toHaveBeenCalled()
+  })
+
   it('falls through to command.dispatch for skill commands and sends the message', async () => {
     const skillMessage = 'Use this skill to do X.\n\n## Steps\n1. First step'
 
@@ -931,6 +971,7 @@ describe('createSlashHandler', () => {
 
   it('handles command dispatch payloads returned directly by slash.exec', async () => {
     patchUiState({ sid: 'sid-abc' })
+
     const request = vi.fn((method: string) => {
       if (method === 'slash.exec') {
         return Promise.resolve({
@@ -942,6 +983,7 @@ describe('createSlashHandler', () => {
 
       return Promise.resolve({})
     })
+
     const ctx = buildCtx({
       gateway: {
         gw: { ...buildGateway().gw, request },
@@ -1129,6 +1171,7 @@ describe('createSlashHandler', () => {
 
   it('/compress no-op keeps the visible transcript and reports the result', async () => {
     patchUiState({ sid: 'sid-abc' })
+
     const rpc = vi.fn(() =>
       Promise.resolve({
         messages: [],
@@ -1136,6 +1179,7 @@ describe('createSlashHandler', () => {
         summary: { headline: 'nothing to compress', noop: true }
       })
     )
+
     const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
 
     createSlashHandler(ctx)('/compress')
@@ -1208,6 +1252,60 @@ describe('createSlashHandler', () => {
     await vi.waitFor(() => {
       expect(ctx.transcript.sys).toHaveBeenCalledWith('error: undo unavailable')
     })
+  })
+
+  it('reports nothing to undo when the backend returns an empty undo response', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve(null))
+    const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
+
+    createSlashHandler(ctx)('/undo')
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('nothing to undo')
+    })
+  })
+
+  it('reports nothing to retry when the backend returns an empty undo response', async () => {
+    patchUiState({ sid: 'sid-abc' })
+    const rpc = vi.fn(() => Promise.resolve(null))
+    const ctx = buildCtx({
+      gateway: { ...buildGateway(), rpc },
+      local: { ...buildLocal(), getLastUserMsg: vi.fn(() => 'retry this') }
+    })
+
+    createSlashHandler(ctx)('/retry')
+
+    await vi.waitFor(() => {
+      expect(ctx.transcript.sys).toHaveBeenCalledWith('nothing to retry')
+    })
+    expect(ctx.transcript.send).not.toHaveBeenCalled()
+  })
+
+  it('rejects malformed /copy indexes instead of copying a partial parse match', () => {
+    const ctx = buildCtx({
+      local: { ...buildLocal(), getHistoryItems: vi.fn(() => [{ role: 'assistant', text: 'first' }]) }
+    })
+
+    createSlashHandler(ctx)('/copy 1abc')
+
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /copy [number]')
+  })
+
+  it('rejects out-of-range /copy indexes instead of clamping to the last assistant message', () => {
+    const ctx = buildCtx({
+      local: {
+        ...buildLocal(),
+        getHistoryItems: vi.fn(() => [
+          { role: 'assistant', text: 'first' },
+          { role: 'assistant', text: 'second' }
+        ])
+      }
+    })
+
+    createSlashHandler(ctx)('/copy 999')
+
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /copy [number]')
   })
 })
 

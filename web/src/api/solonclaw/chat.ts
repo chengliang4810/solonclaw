@@ -161,7 +161,11 @@ export function streamRunEvents(
           let payload: any = {}
           if (dataLines.length > 0) {
             const dataText = dataLines.join('\n')
-            payload = dataText ? JSON.parse(dataText) : {}
+            try {
+              payload = dataText ? JSON.parse(dataText) : {}
+            } catch {
+              continue
+            }
           }
           onEvent({ event: eventName || 'message', ...payload })
         }

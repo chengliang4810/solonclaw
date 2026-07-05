@@ -72,7 +72,6 @@ export function useSubmission(opts: UseSubmissionOptions) {
     isExactSlashCommand,
     setLastUserMsg,
     slashRef,
-    submitRef,
     sys
   } = opts
 
@@ -128,8 +127,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
         }
 
         patchUiState({ busy: true, status: '运行中…' })
-        turnController.bufRef = ''
-        turnController.interrupted = false
+        turnController.beginSubmission()
 
         gw.request<PromptSubmitResponse>('prompt.submit', { session_id: sid, text: submitText }).catch((e: Error) => {
           if (isSessionBusyError(e)) {
@@ -199,6 +197,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
             if (nextApproval) {
               patchOverlayState({ approval: nextApproval })
             }
+
             return
           }
 
@@ -224,6 +223,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
       if (!sid) {
         then(text)
+
         return
       }
 
@@ -348,6 +348,7 @@ export function useSubmission(opts: UseSubmissionOptions) {
           .then((r: unknown) => {
             const output =
               r && typeof r === 'object' && 'output' in r ? String((r as { output?: unknown }).output ?? '') : ''
+
             sys(output || '(no output)')
           })
           .catch((e: Error) => sys(`error: ${e.message}`))
@@ -414,13 +415,14 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
       send(full)
     },
-    [appendMessage, composerActions, composerRefs, handleBusyInput, interpolate, send, sendQueued, shellExec, slashRef]
+    [appendMessage, composerActions, composerRefs, gw, handleBusyInput, interpolate, send, sendQueued, shellExec, slashRef, sys]
   )
 
   const submit = useCallback(
     (value: string) => {
       if (composerState.completions.length) {
         const row = composerState.completions[composerState.compIdx]
+
         const next = completionToApplyOnSubmit(
           value,
           row?.text,
@@ -470,10 +472,8 @@ export function useSubmission(opts: UseSubmissionOptions) {
 
       dispatchSubmission([...composerState.inputBuf, value].join('\n'))
     },
-    [appendMessage, composerActions, composerRefs, composerState, dispatchSubmission, gw, sys]
+    [appendMessage, composerActions, composerRefs, composerState, dispatchSubmission, gw, isExactSlashCommand, sys]
   )
-
-  submitRef.current = submit
 
   return { dispatchSubmission, send, sendQueued, submit }
 }
@@ -488,6 +488,5 @@ export interface UseSubmissionOptions {
   isExactSlashCommand: (value: string) => boolean
   setLastUserMsg: (value: string) => void
   slashRef: MutableRefObject<(cmd: string) => boolean>
-  submitRef: MutableRefObject<(value: string) => void>
   sys: (text: string) => void
 }

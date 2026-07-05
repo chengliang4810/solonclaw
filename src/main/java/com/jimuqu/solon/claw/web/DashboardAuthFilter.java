@@ -31,7 +31,7 @@ public class DashboardAuthFilter implements Filter {
     public void doFilter(Context ctx, FilterChain chain) throws Throwable {
         authService.applyCors(ctx);
 
-        if ("OPTIONS".equalsIgnoreCase(ctx.method()) && ctx.path().startsWith("/api/")) {
+        if ("OPTIONS".equalsIgnoreCase(ctx.method())) {
             ctx.status(204);
             return;
         }

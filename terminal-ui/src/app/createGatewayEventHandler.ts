@@ -823,8 +823,13 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         turnController.recordMessageDelta(ev.payload ?? {})
 
         return
-      case 'message.complete': {
-        const { finalMessages, finalText, wasInterrupted } = turnController.recordMessageComplete(ev.payload ?? {})
+      case 'message.complete':
+      case 'run.completed': {
+        const payload =
+          ev.type === 'run.completed'
+            ? { ...ev.payload, text: ev.payload?.text ?? ev.payload?.final_reply }
+            : (ev.payload ?? {})
+        const { finalMessages, finalText, wasInterrupted } = turnController.recordMessageComplete(payload)
 
         if (!wasInterrupted) {
           const msgs: Msg[] = finalMessages.length ? finalMessages : [{ role: 'assistant', text: finalText }]
@@ -837,18 +842,19 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
         setStatus('ready')
 
-        if (ev.payload?.usage) {
-          patchUiState(state => ({ ...state, usage: { ...state.usage, ...ev.payload!.usage } }))
+        if (payload.usage) {
+          patchUiState(state => ({ ...state, usage: { ...state.usage, ...payload.usage } }))
         }
 
         return
       }
 
       case 'error':
+      case 'run.failed':
         turnController.recordError()
 
         {
-          const message = String(ev.payload?.message || 'unknown error')
+          const message = String(ev.payload?.message || ev.payload?.error || 'unknown error')
 
           turnController.pushActivity(message, 'error')
 

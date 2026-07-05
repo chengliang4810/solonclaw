@@ -1,16 +1,18 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.HARDLINE_RULES;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.LONG_LIVED_FOREGROUND_PATTERNS;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.RULES;
+import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.hardlineBlockedCategories;
+import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.hardlineCoveredTools;
+import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.hardlineRuleCount;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.hardlineRuleSamples;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.preferredRuleSamples;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.ruleSamples;
+import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.terminalGuardrailKeys;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -75,7 +77,7 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("smartApprovalPolicy", smartApprovalPolicySummary());
         summary.put("tirithApprovalPolicy", tirithApprovalPolicySummary());
         summary.put("dangerousRuleCount", Integer.valueOf(RULES.size()));
-        summary.put("hardlineRuleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
+        summary.put("hardlineRuleCount", Integer.valueOf(hardlineRuleCount()));
         summary.put("dangerousRuleSamples", ruleSamples(RULES, 8));
         summary.put(
                 "domesticCloudRuleSamples",
@@ -145,14 +147,8 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put(
                 "terminalGuardrailCount",
-                Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
-        summary.put(
-                "terminalGuardrails",
-                Arrays.asList(
-                        "shell_level_background",
-                        "powershell_background_job",
-                        "inline_background_ampersand",
-                        "long_lived_foreground"));
+                Integer.valueOf(terminalGuardrailKeys().size()));
+        summary.put("terminalGuardrails", terminalGuardrailKeys());
         summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
         summary.put("backgroundProcessGuard", Boolean.TRUE);
         summary.put("terminalGuardrailPolicy", terminalGuardrailPolicySummary());
@@ -177,24 +173,10 @@ final class DangerousCommandApprovalPolicySummaries {
      */
     Map<String, Object> hardlinePolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("ruleCount", Integer.valueOf(HARDLINE_RULES.size() + 1));
+        summary.put("ruleCount", Integer.valueOf(hardlineRuleCount()));
         summary.put("ruleSamples", hardlineRuleSamples(12));
-        summary.put(
-                "coveredTools",
-                Arrays.asList(
-                        ToolNameConstants.EXECUTE_SHELL,
-                        ToolNameConstants.EXECUTE_CODE,
-                        ToolNameConstants.EXECUTE_PYTHON,
-                        ToolNameConstants.EXECUTE_JS));
-        summary.put(
-                "blockedCategories",
-                Arrays.asList(
-                        "root_or_system_recursive_delete",
-                        "filesystem_format_or_raw_device_write",
-                        "system_shutdown_or_reboot",
-                        "kill_all_or_fork_bomb",
-                        "windows_disk_or_profile_destruction",
-                        "metadata_url_access"));
+        summary.put("coveredTools", hardlineCoveredTools());
+        summary.put("blockedCategories", hardlineBlockedCategories());
         summary.put("metadataUrlBlocked", Boolean.valueOf(securityPolicyConfigured));
         summary.put("hardlineAllowlist", hardlineAllowlistSummary());
         summary.put("hardlineAllowlistConfigKey", "security.hardlineAllowlist");

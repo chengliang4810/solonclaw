@@ -169,7 +169,7 @@ public class ChannelConnectionManager {
             log.warn(
                     "[CHANNEL] platform={} connect failed, application will continue: {}",
                     adapter.platform(),
-                    safeError(e));
+                    ErrorTextSupport.safeError(e));
             disconnectIsolated(adapter);
             scheduleReconnect(adapter, attempt, e);
         }
@@ -187,7 +187,7 @@ public class ChannelConnectionManager {
             log.debug(
                     "[CHANNEL] platform={} disconnect failed: {}",
                     adapter.platform(),
-                    safeError(e));
+                    ErrorTextSupport.safeError(e));
         }
     }
 
@@ -221,7 +221,7 @@ public class ChannelConnectionManager {
                         attempt + 1,
                         now,
                         now + TimeUnit.SECONDS.toMillis(delaySeconds),
-                        safeError(error));
+                        ErrorTextSupport.safeError(error));
         reconnectStates.put(adapter.platform(), state);
         reconnectExecutor.schedule(
                 new Runnable() {
@@ -266,16 +266,6 @@ public class ChannelConnectionManager {
         if (platform != null) {
             reconnectStates.remove(platform);
         }
-    }
-
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param error 错误参数。
-     * @return 返回safe Error结果。
-     */
-    private String safeError(Throwable error) {
-        return ErrorTextSupport.safeError(error);
     }
 
     /** 表示Reconnect数据，在服务、仓储和接口之间传递。 */

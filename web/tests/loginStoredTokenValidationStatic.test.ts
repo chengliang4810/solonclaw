@@ -17,8 +17,24 @@ assert.ok(
   'login page should run stored-token validation during setup',
 )
 assert.ok(
+  loginView.includes('if (urlToken || hasApiKey())'),
+  'login page should validate an injected URL token even when no token is stored locally',
+)
+assert.ok(
+  /async function validateExistingToken\(\)[\s\S]*setApiKey\(existingKey\)[\s\S]*router\.replace\(loginTarget\(\)\)/.test(loginView),
+  'successful injected token validation should persist the token before routing into the app',
+)
+assert.ok(
   !loginView.includes('if (hasApiKey()) {\n  router.replace("/solonclaw/chat");\n}'),
   'login page must not route to chat only because a token exists locally',
+)
+assert.ok(
+  loginView.includes('route.redirectedFrom'),
+  'login page should preserve the guarded route that sent the user to login',
+)
+assert.ok(
+  !loginView.includes('router.replace("/solonclaw/chat")'),
+  'login page should not hardcode chat as every successful login target',
 )
 assert.ok(
   loginView.includes('clearApiKey()'),

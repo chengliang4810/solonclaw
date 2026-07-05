@@ -36,6 +36,25 @@ public interface AgentRunRepository {
     List<AgentRunRecord> listBySession(String sessionId, int limit) throws Exception;
 
     /**
+     * 统计指定会话中已有模型用量的运行次数，用于 TUI 展示真实 API 调用数。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 返回带用量的运行次数。
+     */
+    default long countUsageRunsBySession(String sessionId) throws Exception {
+        long count = 0L;
+        for (AgentRunRecord run : listBySession(sessionId, Integer.MAX_VALUE)) {
+            if (run != null
+                    && (run.getInputTokens() > 0L
+                            || run.getOutputTokens() > 0L
+                            || run.getTotalTokens() > 0L)) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
      * 列出Finished With用量。
      *
      * @param limit 最大返回数量。

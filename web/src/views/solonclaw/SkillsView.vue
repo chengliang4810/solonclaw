@@ -13,6 +13,7 @@ const selectedCategory = ref('')
 const selectedSkill = ref('')
 const searchQuery = ref('')
 const showSidebar = ref(true)
+const loadError = ref('')
 let mobileQuery: MediaQueryList | null = null
 
 function handleMobileChange(e: MediaQueryListEvent | MediaQueryList) {
@@ -34,8 +35,9 @@ async function loadSkills() {
   loading.value = true
   try {
     categories.value = await fetchSkills()
+    loadError.value = ''
   } catch (err: any) {
-    console.error('Failed to load skills:', err)
+    loadError.value = err?.message || t('skills.loadFailed')
   } finally {
     loading.value = false
   }
@@ -71,6 +73,10 @@ function handleSelect(category: string, skill: string) {
     <div class="skills-content">
       <div v-if="loading && categories.length === 0" class="skills-loading">{{ t('common.loading') }}</div>
       <div v-else class="skills-layout">
+          <div v-if="loadError" class="skills-load-error">
+            <strong>{{ t('skills.loadFailed') }}</strong>
+            <span>{{ loadError }}</span>
+          </div>
           <div class="mobile-backdrop" :class="{ active: showSidebar }" @click="showSidebar = false" />
           <div v-if="showSidebar" class="skills-sidebar">
             <SkillList
@@ -103,114 +109,15 @@ function handleSelect(category: string, skill: string) {
 <style scoped lang="scss">
 @use '@/styles/variables' as *;
 
-.skills-view {
-  height: calc(100 * var(--vh));
+.skills-load-error {
+  grid-column: 1 / -1;
   display: flex;
-  flex-direction: column;
-}
-
-.search-input {
-  width: 100px;
-
-  @media (max-width: $breakpoint-mobile) {
-    width: 100%;
-  }
-}
-
-.skills-content {
-  flex: 1;
-  overflow: hidden;
-}
-
-.skills-loading {
-  display: flex;
+  gap: 8px;
   align-items: center;
-  justify-content: center;
-  height: 100%;
-  font-size: 13px;
-  color: $text-muted;
-}
-
-.skills-layout {
-  display: flex;
-  height: 100%;
-}
-
-.skills-sidebar {
-  width: 280px;
-  border-right: 1px solid $border-color;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-height: 0;
-}
-
-.skills-main {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px;
-  min-width: 0;
-}
-
-.sidebar-toggle {
-  display: none;
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: $text-secondary;
-  padding: 4px;
-  border-radius: $radius-sm;
-
-  &:hover {
-    background: rgba(var(--accent-primary-rgb), 0.06);
-  }
-}
-
-@media (max-width: $breakpoint-mobile) {
-  .sidebar-toggle {
-    display: flex;
-  }
-
-  .skills-sidebar {
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    z-index: 10;
-    background: $bg-card;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
-  }
-
-  .skills-layout {
-    position: relative;
-  }
-
-  .mobile-backdrop {
-    display: block;
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    z-index: 9;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity $transition-fast;
-
-    &.active {
-      opacity: 1;
-      pointer-events: auto;
-    }
-  }
-}
-
-.empty-detail {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  color: $text-muted;
-  font-size: 13px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: 8px;
+  color: $error;
+  background: rgba(var(--error-rgb), 0.06);
 }
 </style>

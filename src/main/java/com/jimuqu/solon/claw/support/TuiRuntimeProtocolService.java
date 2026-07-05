@@ -3,7 +3,10 @@ package com.jimuqu.solon.claw.support;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.support.constants.LlmConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.File;
@@ -61,13 +64,25 @@ public class TuiRuntimeProtocolService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         String providerKey = activeProviderKey();
         AppConfig.ProviderConfig provider = provider(providerKey);
+        RuntimeProviderSetupSpec.ProviderTemplate template =
+                RuntimeProviderSetupSpec.provider(providerKey);
         String model = activeModel(provider);
         boolean configured = providerConfigured(providerKey, provider);
         result.put("provider_configured", Boolean.valueOf(configured));
         result.put("provider", providerKey);
         result.put("model", model);
-        result.put("api_key", configured ? "configured" : "missing");
+        result.put(
+                "api_key",
+                providerRequiresApiKey(provider, template)
+                        ? (configured ? "configured" : "missing")
+                        : "not_required");
         result.put("workspace_config", configResolver().configFile().getPath());
+        String warning =
+                providerUrlPolicyWarning(
+                        providerKey, provider, template);
+        if (StrUtil.isNotBlank(warning)) {
+            result.put("warning", warning);
+        }
         return result;
     }
 
@@ -380,10 +395,11 @@ public class TuiRuntimeProtocolService {
             }
         }
         Map<String, Object> item = new LinkedHashMap<String, Object>();
+        boolean requiresApiKey = providerRequiresApiKey(provider, template);
         item.put("slug", providerKey);
         item.put("name", providerName(providerKey, provider, template));
-        item.put("auth_type", "api_key");
-        item.put("key_env", providerKeyEnv(providerKey, template));
+        item.put("auth_type", requiresApiKey ? "api_key" : "none");
+        item.put("key_env", requiresApiKey ? providerKeyEnv(providerKey, template) : "");
         item.put("authenticated", Boolean.valueOf(providerConfigured(providerKey, provider)));
         item.put("is_current", Boolean.valueOf(providerKey.equals(activeProviderKeyFromRuntime())));
         item.put("models", models);
@@ -391,7 +407,10 @@ public class TuiRuntimeProtocolService {
         item.put("default_model", model);
         item.put("dialect", providerDialect(provider, template));
         item.put("base_url", SecretRedactor.maskUrl(providerBaseUrl(providerKey, provider, template)));
-        if (!providerConfigured(providerKey, provider)) {
+        String urlWarning = providerUrlPolicyWarning(providerKey, provider, template);
+        if (StrUtil.isNotBlank(urlWarning)) {
+            item.put("warning", urlWarning);
+        } else if (requiresApiKey && !providerConfigured(providerKey, provider)) {
             item.put("warning", "paste " + providerKeyEnv(providerKey, template) + " to activate");
         }
         return item;
@@ -826,6 +845,41 @@ public class TuiRuntimeProtocolService {
         return template == null ? "openai" : StrUtil.blankToDefault(template.getDialect(), "openai");
     }
 
+    /**
+     * 提前检查 provider 地址是否会被模型网关安全策略阻断，避免用户到真实对话时才看到失败。
+     *
+     * @param providerKey provider 标识。
+     * @param provider 当前 provider 配置。
+     * @param template provider setup 模板。
+     * @return 可直接展示给 TUI 的警告文案；地址可用时返回空字符串。
+     */
+    private String providerUrlPolicyWarning(
+            String providerKey,
+            AppConfig.ProviderConfig provider,
+            RuntimeProviderSetupSpec.ProviderTemplate template) {
+        String baseUrl = providerBaseUrl(providerKey, provider, template);
+        if (StrUtil.isBlank(baseUrl)) {
+            return "";
+        }
+        String dialect = LlmProviderSupport.normalizeDialect(providerDialect(provider, template));
+        SecurityPolicyService.UrlVerdict verdict =
+                new SecurityPolicyService(appConfig)
+                        .checkUrlSafety(
+                                baseUrl,
+                                LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                                        ? Boolean.TRUE
+                                        : null);
+        if (verdict.isAllowed()) {
+            return "";
+        }
+        String message = "模型地址被安全策略阻断：" + verdict.getMessage();
+        if (!LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                && StrUtil.contains(verdict.getMessage(), "内网/私有地址")) {
+            message += "；如确认该本地/内网模型地址可信，请在 workspace/config.yml 设置 security.allowPrivateUrls=true 后重试。";
+        }
+        return message;
+    }
+
     /** 返回 provider API Key 提示环境变量名。 */
     private String providerKeyEnv(
             String providerKey, RuntimeProviderSetupSpec.ProviderTemplate template) {
@@ -837,11 +891,29 @@ public class TuiRuntimeProtocolService {
 
     /** 判断 provider 是否已有可用凭据。 */
     private boolean providerConfigured(String providerKey, AppConfig.ProviderConfig provider) {
+        RuntimeProviderSetupSpec.ProviderTemplate template =
+                RuntimeProviderSetupSpec.provider(providerKey);
+        if (!providerRequiresApiKey(provider, template)) {
+            return true;
+        }
         String fileValue = runtimeValue("providers." + providerKey + ".apiKey");
         if (SecretValueGuard.hasUsableSecret(fileValue)) {
             return true;
         }
         return provider != null && SecretValueGuard.hasUsableSecret(provider.getApiKey());
+    }
+
+    /**
+     * 判断 provider 是否需要 API Key。Ollama 本地协议默认不需要凭据，不能在 TUI 中提示必须粘贴密钥。
+     *
+     * @param provider 当前 provider 配置。
+     * @param template provider setup 模板。
+     * @return 需要 API Key 返回 true。
+     */
+    private boolean providerRequiresApiKey(
+            AppConfig.ProviderConfig provider, RuntimeProviderSetupSpec.ProviderTemplate template) {
+        return !LlmConstants.PROVIDER_OLLAMA.equals(
+                LlmProviderSupport.normalizeDialect(providerDialect(provider, template)));
     }
 
     /**

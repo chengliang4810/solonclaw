@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
+import com.jimuqu.solon.claw.support.FixedSessionRepository;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
@@ -60,15 +61,7 @@ public class DashboardStatusServiceTest {
                 "Authorization: Bearer ghp_channelerror123 password=channel-password");
 
         DashboardStatusService service =
-                new DashboardStatusService(
-                        config,
-                        new EmptySessionRepository(),
-                        new FixedDeliveryService(channelStatus),
-                        new GatewayRuntimeRefreshService(
-                                config, new ChannelConnectionManager(Collections.emptyMap())),
-                        new AppVersionService(config),
-                        new FixedUpdateService(config),
-                        new LlmProviderService(config));
+                statusService(config, new EmptySessionRepository(), channelStatus);
 
         String statusJson = ONode.serialize(service.getStatus(true));
         assertThat(statusJson).contains("workspace://config.yml");
@@ -111,16 +104,10 @@ public class DashboardStatusServiceTest {
         provider.setDialect("openai");
         config.getProviders().put("default", provider);
         DashboardStatusService service =
-                new DashboardStatusService(
+                statusService(
                         config,
                         new EmptySessionRepository(),
-                        new FixedDeliveryService(
-                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
-                        new GatewayRuntimeRefreshService(
-                                config, new ChannelConnectionManager(Collections.emptyMap())),
-                        new AppVersionService(config),
-                        new FixedUpdateService(config),
-                        new LlmProviderService(config));
+                        new ChannelStatus(PlatformType.FEISHU, false, false, "disabled"));
 
         Map<String, Object> modelInfo = service.getModelInfo(false);
         Map<String, Object> capabilities = (Map<String, Object>) modelInfo.get("capabilities");
@@ -150,15 +137,11 @@ public class DashboardStatusServiceTest {
                         config, new ChannelConnectionManager(Collections.emptyMap()));
         assertThat(refreshService.refreshConfigOnly().isSuccess()).isFalse();
         DashboardStatusService service =
-                new DashboardStatusService(
+                statusService(
                         config,
                         new EmptySessionRepository(),
-                        new FixedDeliveryService(
-                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
-                        refreshService,
-                        new AppVersionService(config),
-                        new FixedUpdateService(config),
-                        new LlmProviderService(config));
+                        new ChannelStatus(PlatformType.FEISHU, false, false, "disabled"),
+                        refreshService);
 
         String statusJson = ONode.serialize(service.getStatus(true));
         String healthJson = ONode.serialize(service.getHealthRuntimeSnapshot());
@@ -194,15 +177,10 @@ public class DashboardStatusServiceTest {
         SessionRecord activeSession = new SessionRecord();
         activeSession.setUpdatedAt(System.currentTimeMillis());
         DashboardStatusService service =
-                new DashboardStatusService(
+                statusService(
                         config,
                         new FixedSessionRepository(Collections.singletonList(activeSession)),
-                        new FixedDeliveryService(channelStatus),
-                        new GatewayRuntimeRefreshService(
-                                config, new ChannelConnectionManager(Collections.emptyMap())),
-                        new AppVersionService(config),
-                        new FixedUpdateService(config),
-                        new LlmProviderService(config));
+                        channelStatus);
 
         Map<String, Object> snapshot = service.getHealthRuntimeSnapshot();
 
@@ -257,16 +235,11 @@ public class DashboardStatusServiceTest {
         SessionRecord activeSession = new SessionRecord();
         activeSession.setUpdatedAt(System.currentTimeMillis());
         DashboardStatusService service =
-                new DashboardStatusService(
+                statusService(
                         config,
                         new FixedSessionRepository(Collections.singletonList(activeSession)),
-                        new FixedDeliveryService(channelStatus),
-                        new FixedAgentRunControlService(0),
-                        new GatewayRuntimeRefreshService(
-                                config, new ChannelConnectionManager(Collections.emptyMap())),
-                        new AppVersionService(config),
-                        new FixedUpdateService(config),
-                        new LlmProviderService(config));
+                        channelStatus,
+                        new FixedAgentRunControlService(0));
 
         Map<String, Object> status = service.getStatus(true);
         Map<String, Object> runtimeStatus = (Map<String, Object>) status.get("runtime_status");
@@ -314,15 +287,7 @@ public class DashboardStatusServiceTest {
         ChannelStatus channelStatus =
                 new ChannelStatus(PlatformType.FEISHU, false, false, "disabled");
         DashboardStatusService service =
-                new DashboardStatusService(
-                        config,
-                        new EmptySessionRepository(),
-                        new FixedDeliveryService(channelStatus),
-                        new GatewayRuntimeRefreshService(
-                                config, new ChannelConnectionManager(Collections.emptyMap())),
-                        new AppVersionService(config),
-                        new FixedUpdateService(config),
-                        new LlmProviderService(config));
+                statusService(config, new EmptySessionRepository(), channelStatus);
 
         Map<String, Object> status = service.getStatus(true);
 
@@ -430,16 +395,10 @@ public class DashboardStatusServiceTest {
         provider.setDialect("openai");
         config.getProviders().put("custom", provider);
         DashboardStatusService service =
-                new DashboardStatusService(
+                statusService(
                         config,
                         new EmptySessionRepository(),
-                        new FixedDeliveryService(
-                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
-                        new GatewayRuntimeRefreshService(
-                                config, new ChannelConnectionManager(Collections.emptyMap())),
-                        new AppVersionService(config),
-                        new FixedUpdateService(config),
-                        new LlmProviderService(config));
+                        new ChannelStatus(PlatformType.FEISHU, false, false, "disabled"));
 
         @SuppressWarnings("unchecked")
         Map<String, Object> status =
@@ -476,16 +435,10 @@ public class DashboardStatusServiceTest {
         provider.setDialect("openai");
         config.getProviders().put("default", provider);
         DashboardStatusService service =
-                new DashboardStatusService(
+                statusService(
                         config,
                         new EmptySessionRepository(),
-                        new FixedDeliveryService(
-                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
-                        new GatewayRuntimeRefreshService(
-                                config, new ChannelConnectionManager(Collections.emptyMap())),
-                        new AppVersionService(config),
-                        new FixedUpdateService(config),
-                        new LlmProviderService(config));
+                        new ChannelStatus(PlatformType.FEISHU, false, false, "disabled"));
 
         Map<String, Object> modelInfo = service.getModelInfo(false);
         Map<?, ?> capabilities = (Map<?, ?>) modelInfo.get("capabilities");
@@ -511,22 +464,61 @@ public class DashboardStatusServiceTest {
         provider.setDialect("openai");
         config.getProviders().put("default", provider);
         DashboardStatusService service =
-                new DashboardStatusService(
+                statusService(
                         config,
                         new EmptySessionRepository(),
-                        new FixedDeliveryService(
-                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
-                        new GatewayRuntimeRefreshService(
-                                config, new ChannelConnectionManager(Collections.emptyMap())),
-                        new AppVersionService(config),
-                        new FixedUpdateService(config),
-                        new LlmProviderService(config));
+                        new ChannelStatus(PlatformType.FEISHU, false, false, "disabled"));
 
         Map<String, Object> modelInfo = service.getModelInfo(false);
         Map<?, ?> capabilities = (Map<?, ?>) modelInfo.get("capabilities");
 
         assertThat(modelInfo.get("model")).isEqualTo("custom-text-model");
         assertThat(capabilities.get("supports_vision")).isEqualTo(Boolean.FALSE);
+    }
+
+    /** 构造 dashboard 状态服务测试夹具，集中复用固定依赖。 */
+    private static DashboardStatusService statusService(
+            AppConfig config, SessionRepository sessionRepository, ChannelStatus channelStatus) {
+        return statusService(
+                config,
+                sessionRepository,
+                channelStatus,
+                new GatewayRuntimeRefreshService(
+                        config, new ChannelConnectionManager(Collections.emptyMap())));
+    }
+
+    /** 构造带自定义运行态刷新服务的 dashboard 状态服务测试夹具。 */
+    private static DashboardStatusService statusService(
+            AppConfig config,
+            SessionRepository sessionRepository,
+            ChannelStatus channelStatus,
+            GatewayRuntimeRefreshService refreshService) {
+        return new DashboardStatusService(
+                config,
+                sessionRepository,
+                new FixedDeliveryService(channelStatus),
+                refreshService,
+                new AppVersionService(config),
+                new FixedUpdateService(config),
+                new LlmProviderService(config));
+    }
+
+    /** 构造带自定义运行控制服务的 dashboard 状态服务测试夹具。 */
+    private static DashboardStatusService statusService(
+            AppConfig config,
+            SessionRepository sessionRepository,
+            ChannelStatus channelStatus,
+            AgentRunControlService runControlService) {
+        return new DashboardStatusService(
+                config,
+                sessionRepository,
+                new FixedDeliveryService(channelStatus),
+                runControlService,
+                new GatewayRuntimeRefreshService(
+                        config, new ChannelConnectionManager(Collections.emptyMap())),
+                new AppVersionService(config),
+                new FixedUpdateService(config),
+                new LlmProviderService(config));
     }
 
     private static class FixedUpdateService extends AppUpdateService {
@@ -582,99 +574,5 @@ public class DashboardStatusServiceTest {
         private EmptySessionRepository() {
             super(Collections.emptyList());
         }
-    }
-
-    private static class FixedSessionRepository implements SessionRepository {
-        private final List<SessionRecord> recentSessions;
-
-        private FixedSessionRepository(List<SessionRecord> recentSessions) {
-            this.recentSessions = recentSessions;
-        }
-
-        @Override
-        public SessionRecord getBoundSession(String sourceKey) {
-            return null;
-        }
-
-        @Override
-        public SessionRecord bindNewSession(String sourceKey) {
-            return null;
-        }
-
-        @Override
-        public void bindSource(String sourceKey, String sessionId) {}
-
-        @Override
-        public SessionRecord cloneSession(
-                String sourceKey, String sourceSessionId, String branchName) {
-            return null;
-        }
-
-        @Override
-        public SessionRecord findById(String sessionId) {
-            return null;
-        }
-
-        @Override
-        public SessionRecord findBySourceAndBranch(String sourceKey, String branchName) {
-            return null;
-        }
-
-        @Override
-        public List<SessionRecord> findResumeCandidates(String reference, int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public void save(SessionRecord sessionRecord) {}
-
-        @Override
-        public List<SessionRecord> search(String keyword, int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public List<SessionRecord> listRecent(int limit) {
-            return recentSessions;
-        }
-
-        @Override
-        public List<SessionRecord> listRecent(int limit, int offset) {
-            return recentSessions;
-        }
-
-        @Override
-        public List<SessionRecord> listPendingAgentSessions(long updatedAfterMillis, int limit) {
-            return Collections.emptyList();
-        }
-
-        @Override
-        public int countAll() {
-            return 0;
-        }
-
-        @Override
-        public void delete(String sessionId) {}
-
-        @Override
-        public void setModelOverride(String sessionId, String modelOverride) {}
-
-        @Override
-        public void setServiceTierOverride(String sessionId, String serviceTierOverride) {}
-
-        @Override
-        public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
-
-        @Override
-        public void setActiveAgentName(String sessionId, String agentName) {}
-
-        @Override
-        public void clearActiveAgentName(String agentName) {}
-
-        @Override
-        public void setGoalState(String sessionId, String goalStateJson) {}
-
-        @Override
-        public void setLastLearningAt(String sessionId, long lastLearningAt) {}
     }
 }

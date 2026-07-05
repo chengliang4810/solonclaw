@@ -28,8 +28,8 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.LlmErrorClassifier;
-import com.jimuqu.solon.claw.pricing.UsageCost;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
+import com.jimuqu.solon.claw.usage.UsageEventCostSupport;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
@@ -1787,37 +1787,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
             return;
         }
         if (usageCostCalculator == null) {
-            event.setPricingAvailable(false);
-            event.setUnpricedInputTokens(event.getInputTokens());
-            event.setUnpricedOutputTokens(event.getOutputTokens());
-            event.setUnpricedCacheReadTokens(event.getCacheReadTokens());
-            event.setUnpricedCacheWriteTokens(event.getCacheWriteTokens());
-            event.setUnpricedReasoningTokens(event.getReasoningTokens());
+            UsageEventCostSupport.markUnpriced(event);
             return;
         }
-        UsageCost cost =
-                usageCostCalculator.calculate(
-                        event.getProvider(),
-                        event.getModel(),
-                        event.getInputTokens(),
-                        event.getOutputTokens(),
-                        event.getCacheReadTokens(),
-                        event.getCacheWriteTokens(),
-                        event.getReasoningTokens(),
-                        event.getRequestCount());
-        event.setCostMicros(cost.getTotalMicros());
-        event.setCurrency(cost.getCurrency());
-        event.setPriceSource(cost.getPriceSource());
-        event.setPriceSourceUrl(cost.getPriceSourceUrl());
-        event.setPricingVersion(cost.getPricingVersion());
-        event.setPriceFetchedAt(cost.getPriceFetchedAt());
-        event.setPricingAvailable(cost.isPricingAvailable());
-        event.setUnpricedInputTokens(cost.getUnpricedInputTokens());
-        event.setUnpricedOutputTokens(cost.getUnpricedOutputTokens());
-        event.setUnpricedCacheReadTokens(cost.getUnpricedCacheReadTokens());
-        event.setUnpricedCacheWriteTokens(cost.getUnpricedCacheWriteTokens());
-        event.setUnpricedReasoningTokens(cost.getUnpricedReasoningTokens());
-        event.setPricedAt(cost.getPricedAt());
+        UsageEventCostSupport.apply(
+                event, UsageEventCostSupport.calculate(usageCostCalculator, event));
     }
 
     /**

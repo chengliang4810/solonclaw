@@ -1,6 +1,5 @@
 package com.jimuqu.solon.claw.web;
 
-import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.ContentType;
 import cn.hutool.http.HttpRequest;
@@ -11,12 +10,8 @@ import com.jimuqu.solon.claw.support.BaseUrlSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URLEncoder;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -31,10 +26,6 @@ import org.noear.snack4.ONode;
 public class DomesticQrSetupService {
     /** 平台钉钉的统一常量值。 */
     private static final String PLATFORM_DINGTALK = "dingtalk";
-
-    /** 国内渠道二维码接口时间格式，保持原有本地时区偏移输出。 */
-    private static final DateTimeFormatter ISO_OFFSET_SECONDS_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX").withZone(ZoneId.systemDefault());
 
     /** 平台飞书的统一常量值。 */
     private static final String PLATFORM_FEISHU = "feishu";
@@ -125,13 +116,8 @@ public class DomesticQrSetupService {
      */
     public Map<String, Object> start(String platform) {
         final String normalized = normalizePlatform(platform);
-        final TicketState state = new TicketState();
-        state.ticket = IdUtil.fastSimpleUUID();
+        final TicketState state = new TicketState(DEFAULT_TIMEOUT_MILLIS);
         state.platform = normalized;
-        state.status = "initializing";
-        state.createdAt = System.currentTimeMillis();
-        state.updatedAt = state.createdAt;
-        state.expiresAt = state.createdAt + DEFAULT_TIMEOUT_MILLIS;
         tickets.put(state.ticket, state);
         executor.submit(
                 new Runnable() {
@@ -197,7 +183,7 @@ public class DomesticQrSetupService {
             }
             state.deviceCode = deviceCode;
             state.qrUrl = qrUrl;
-            mark(state, "pending", "请使用钉钉扫码授权");
+            state.mark("pending", "请使用钉钉扫码授权");
 
             long deadline =
                     Math.min(
@@ -221,23 +207,23 @@ public class DomesticQrSetupService {
                     }
                     persistDingTalk(clientId, clientSecret);
                     state.clientId = clientId;
-                    mark(state, "confirmed", "钉钉连接成功");
+                    state.mark("confirmed", "钉钉连接成功");
                     return;
                 }
                 if ("FAIL".equals(status) || "EXPIRED".equals(status)) {
-                    fail(state, "qr_failed", "钉钉扫码授权失败：" + status);
+                    state.fail("qr_failed", "钉钉扫码授权失败：" + status);
                     return;
                 }
                 if (!"WAITING".equals(status)) {
-                    fail(state, "qr_failed", "钉钉扫码授权返回未知状态：" + status);
+                    state.fail("qr_failed", "钉钉扫码授权返回未知状态：" + status);
                     return;
                 }
-                mark(state, "pending", "等待钉钉扫码授权");
+                state.mark("pending", "等待钉钉扫码授权");
                 sleepMillis(intervalMillis);
             }
-            fail(state, "qr_timeout", "钉钉扫码登录超时。");
+            state.fail("qr_timeout", "钉钉扫码登录超时。");
         } catch (Exception e) {
-            fail(state, "qr_failed", safeMessage(e));
+            state.fail("qr_failed", ErrorTextSupport.safeError(e));
         }
     }
 
@@ -274,7 +260,7 @@ public class DomesticQrSetupService {
             }
             state.deviceCode = deviceCode;
             state.qrUrl = appendFeishuQrSource(qrUrl);
-            mark(state, "pending", "请使用飞书扫码授权");
+            state.mark("pending", "请使用飞书扫码授权");
 
             long expireSeconds = Math.max(1L, begin.get("expires_in").getLong());
             long deadline =
@@ -298,20 +284,20 @@ public class DomesticQrSetupService {
                     state.appId = appId;
                     state.openId = openId;
                     state.domain = domain;
-                    mark(state, "confirmed", "飞书连接成功");
+                    state.mark("confirmed", "飞书连接成功");
                     return;
                 }
                 String error = poll.get("error").getString();
                 if ("access_denied".equals(error) || "expired_token".equals(error)) {
-                    fail(state, "qr_failed", "飞书扫码授权失败：" + error);
+                    state.fail("qr_failed", "飞书扫码授权失败：" + error);
                     return;
                 }
-                mark(state, "pending", "等待飞书扫码授权");
+                state.mark("pending", "等待飞书扫码授权");
                 sleepMillis(intervalMillis);
             }
-            fail(state, "qr_timeout", "飞书扫码登录超时。");
+            state.fail("qr_timeout", "飞书扫码登录超时。");
         } catch (Exception e) {
-            fail(state, "qr_failed", safeMessage(e));
+            state.fail("qr_failed", ErrorTextSupport.safeError(e));
         }
     }
 
@@ -463,53 +449,16 @@ public class DomesticQrSetupService {
     }
 
     /**
-     * 执行mark相关逻辑。
-     *
-     * @param state 状态参数。
-     * @param status 状态参数。
-     * @param message 平台消息或错误消息。
-     */
-    private void mark(TicketState state, String status, String message) {
-        state.status = status;
-        state.message = message;
-        state.updatedAt = System.currentTimeMillis();
-    }
-
-    /**
-     * 构造失败结果并携带安全错误信息。
-     *
-     * @param state 状态参数。
-     * @param code code 参数。
-     * @param message 平台消息或错误消息。
-     */
-    private void fail(TicketState state, String code, String message) {
-        String safe = safeText(message);
-        state.status = "failed";
-        state.errorCode = code;
-        state.errorMessage = safe;
-        state.message = safe;
-        state.updatedAt = System.currentTimeMillis();
-    }
-
-    /**
      * 转换为Map。
      *
      * @param state 状态参数。
      * @return 返回转换后的Map。
      */
     private Map<String, Object> toMap(TicketState state) {
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("ticket", state.ticket);
+        Map<String, Object> result = state.baseMap();
         result.put("platform", state.platform);
-        result.put("status", state.status);
-        result.put("message", state.message);
-        result.put("error_code", state.errorCode);
-        result.put("error_message", state.errorMessage);
         result.put("device_code", state.deviceCode);
         result.put("qr_url", state.qrUrl);
-        result.put("created_at", isoTime(state.createdAt));
-        result.put("updated_at", isoTime(state.updatedAt));
-        result.put("expires_at", isoTime(state.expiresAt));
         result.put("client_id", state.clientId);
         result.put("app_id", state.appId);
         result.put("open_id", state.openId);
@@ -604,39 +553,6 @@ public class DomesticQrSetupService {
     }
 
     /**
-     * 执行iso时间相关逻辑。
-     *
-     * @param epochMillis epochMillis 参数。
-     * @return 返回iso时间结果。
-     */
-    private String isoTime(long epochMillis) {
-        if (epochMillis <= 0) {
-            return null;
-        }
-        return ISO_OFFSET_SECONDS_FORMATTER.format(Instant.ofEpochMilli(epochMillis));
-    }
-
-    /**
-     * 生成安全展示用的消息。
-     *
-     * @param e 捕获到的异常。
-     * @return 返回safe消息结果。
-     */
-    private String safeMessage(Exception e) {
-        return ErrorTextSupport.safeError(e);
-    }
-
-    /**
-     * 生成安全展示用的文本。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回safe Text结果。
-     */
-    private String safeText(String value) {
-        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 1000);
-    }
-
-    /**
      * 执行assert安全基础URL相关逻辑。
      *
      * @param baseUrl 待校验或访问的地址参数。
@@ -652,39 +568,15 @@ public class DomesticQrSetupService {
     }
 
     /** 表示Ticket数据，在服务、仓储和接口之间传递。 */
-    private static class TicketState {
-        /** 记录Ticket中的ticket。 */
-        private String ticket;
-
+    private static class TicketState extends QrSetupTicketState {
         /** 记录Ticket中的平台。 */
         private String platform;
-
-        /** 记录Ticket中的状态。 */
-        private String status;
-
-        /** 记录Ticket中的消息。 */
-        private String message;
-
-        /** 记录Ticket中的错误Code。 */
-        private String errorCode;
-
-        /** 记录Ticket中的错误消息。 */
-        private String errorMessage;
 
         /** 记录Ticket中的deviceCode。 */
         private String deviceCode;
 
         /** 记录Ticket中的二维码URL。 */
         private String qrUrl;
-
-        /** 记录Ticket中的创建时间。 */
-        private long createdAt;
-
-        /** 记录Ticket中的更新时间。 */
-        private long updatedAt;
-
-        /** 记录Ticket中的expires时间。 */
-        private long expiresAt;
 
         /** 记录Ticket中的client标识。 */
         private String clientId;
@@ -697,5 +589,14 @@ public class DomesticQrSetupService {
 
         /** 记录Ticket中的domain。 */
         private String domain;
+
+        /**
+         * 创建国内扫码 setup ticket 状态。
+         *
+         * @param timeoutMillis ticket 生命周期毫秒数。
+         */
+        private TicketState(long timeoutMillis) {
+            super(timeoutMillis);
+        }
     }
 }

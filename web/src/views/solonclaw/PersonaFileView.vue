@@ -109,26 +109,3 @@ watch(fileKey, loadFile)
     </div>
   </div>
 </template>
-
-<style scoped lang="scss">
-@use '@/styles/variables' as *;
-
-.memory-view {
-  height: calc(100 * var(--vh));
-  display: flex;
-  flex-direction: column;
-}
-
-.memory-content {
-  flex: 1;
-  overflow: hidden;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-}
-
-.page-actions {
-  display: flex;
-  gap: 8px;
-}
-</style>

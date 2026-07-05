@@ -27,7 +27,7 @@ import { appendTranscriptMessage } from '../lib/messages.js'
 import { DEFAULT_VOICE_RECORD_KEY, isMac, type ParsedVoiceRecordKey } from '../lib/platform.js'
 import { asRpcResult, rpcErrorMessage } from '../lib/rpc.js'
 import { terminalParityHints } from '../lib/terminalParity.js'
-import { buildToolTrailLine, formatAbandonedClarify, sameToolTrailGroup, toolTrailLabel } from '../lib/text.js'
+import { buildToolTrailLine, formatAbandonedClarify, toolTrailLabel } from '../lib/text.js'
 import { estimatedMsgHeight, messageHeightKey } from '../lib/virtualHeights.js'
 import type { Msg, PanelSection, SlashCatalog } from '../types.js'
 
@@ -213,6 +213,7 @@ export function useMainApp(gw: GatewayClient) {
   const lastUserMsgRef = useRef(lastUserMsg)
   const recoverSidRef = useRef<null | string>(null)
   const recoveryAtRef = useRef<number[]>([])
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const msgIdsRef = useRef(new WeakMap<Msg, string>())
   const msgIdSeqRef = useRef(0)
   const heightCachesRef = useRef(new Map<string, Map<string, number>>())
@@ -608,8 +609,7 @@ export function useMainApp(gw: GatewayClient) {
 
       const label = toolTrailLabel('clarify')
 
-      turnController.turnTools = turnController.turnTools.filter(line => !sameToolTrailGroup(label, line))
-      patchTurnState({ turnTrail: turnController.turnTools })
+      turnController.removeTrailGroup(label)
 
       rpc<ClarifyRespondResponse>('clarify.respond', { answer, request_id: clarify.requestId }).then(r => {
         if (!r) {
@@ -671,9 +671,12 @@ export function useMainApp(gw: GatewayClient) {
     maybeGoodVibes,
     setLastUserMsg,
     slashRef,
-    submitRef,
     sys
   })
+
+  useEffect(() => {
+    submitRef.current = submit
+  }, [submit])
 
   // Drain one queued message whenever the session settles (busy → false):
   // agent turn ends, interrupt, shell.exec finishes, error recovered, or the
@@ -750,7 +753,6 @@ export function useMainApp(gw: GatewayClient) {
     [
       appendMessage,
       bellOnComplete,
-      clearSelection,
       composerActions.setInput,
       gateway,
       panel,
@@ -772,6 +774,11 @@ export function useMainApp(gw: GatewayClient) {
     const handler = (ev: GatewayEvent) => onEventRef.current(ev)
 
     const exitHandler = () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current)
+        recoveryTimerRef.current = null
+      }
+
       turnController.reset()
 
       // A still-owned child dying while the TUI is alive is an *unexpected*
@@ -793,9 +800,17 @@ export function useMainApp(gw: GatewayClient) {
 
       if (plan.recover && plan.sid) {
         recoverSidRef.current = plan.sid
-        turnController.pushActivity('后端已断开 · 正在恢复会话…', 'warn')
-        sys('后端已断开 — 正在恢复会话（进行中的回复可能丢失）')
-        gw.start()
+        turnController.pushActivity('后端已断开 · 正在恢复会话…', 'warn', '后端已断开')
+
+        if (plan.delayMs === 0) {
+          sys('后端已断开 — 正在恢复会话（进行中的回复可能丢失）')
+          gw.start()
+        } else {
+          recoveryTimerRef.current = setTimeout(() => {
+            recoveryTimerRef.current = null
+            gw.start()
+          }, plan.delayMs)
+        }
 
         return
       }
@@ -811,6 +826,11 @@ export function useMainApp(gw: GatewayClient) {
 
     // entry.tsx's setupGracefulExit handles process cleanup on real exit.
     return () => {
+      if (recoveryTimerRef.current) {
+        clearTimeout(recoveryTimerRef.current)
+        recoveryTimerRef.current = null
+      }
+
       gw.off('event', handler)
       gw.off('exit', exitHandler)
     }
@@ -857,6 +877,7 @@ export function useMainApp(gw: GatewayClient) {
       composerActions,
       composerRefs,
       die,
+      dieWithCode,
       gateway,
       hasSelection,
       maybeWarn,
@@ -876,6 +897,7 @@ export function useMainApp(gw: GatewayClient) {
     <T extends Record<string, any> = Record<string, any>>(method: string, params: Record<string, unknown>, done: (result: T) => void) =>
       rpc(method, params).then(r => {
         maybeWarn(r)
+
         if (isPositiveRpcAck(r)) {
           done(r as T)
         }
@@ -893,19 +915,25 @@ export function useMainApp(gw: GatewayClient) {
         result => {
           dismissApprovalIfCurrent(displayedApprovalId)
           patchTurnState({ outcome: choice === 'deny' || result.denied ? 'denied' : `approved (${choice})` })
+
           if (choice === 'deny' || result.denied) {
             patchUiState({ busy: false, status: 'ready' })
+
             return
           }
+
           if (result.direct_shell && result.approval_required) {
             const nextApproval = approvalFromShellResponse(result, ui.sid ?? undefined)
 
             if (nextApproval) {
               patchOverlayState({ approval: nextApproval })
             }
+
             patchUiState({ busy: true, status: 'waiting for approval…' })
+
             return
           }
+
           if (result.direct_shell) {
             const out = directShellOutput(result)
 
@@ -918,13 +946,15 @@ export function useMainApp(gw: GatewayClient) {
             }
 
             patchUiState({ busy: false, status: 'ready' })
+
             return
           }
+
           patchUiState({ status: 'running…' })
         }
       )
     },
-    [overlay.approval?.approvalId, overlay.approval?.sessionId, respondWith, sys, ui.sid]
+    [overlay.approval, respondWith, sys, ui.sid]
   )
 
   const answerSudo = useCallback(
@@ -1086,10 +1116,7 @@ export function useMainApp(gw: GatewayClient) {
       closeLiveSession,
       newPromptSession,
       onModelSelect,
-      session.activateLiveSession,
-      session.guardBusySessionSwitch,
-      session.newLiveSession,
-      session.resumeById,
+      session,
       slashRef
     ]
   )

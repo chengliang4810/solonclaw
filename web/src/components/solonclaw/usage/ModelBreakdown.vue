@@ -2,13 +2,11 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
-import { formatUsageCost, formatUsageTokens } from '@/shared/usageFormat'
+import { formatUsageCost, formatUsageTokens, maxUsageValue, usageBarPercent } from '@/shared/usageFormat'
 
 const { t } = useI18n()
 const usageStore = useUsageStore()
-const maxTokens = computed(() =>
-  Math.max(...usageStore.modelUsage.map(m => m.totalTokens), 1),
-)
+const maxTokens = computed(() => maxUsageValue(usageStore.modelUsage.map(m => m.totalTokens)))
 
 </script>
 
@@ -21,7 +19,7 @@ const maxTokens = computed(() =>
         <div class="model-bar-wrap">
           <div
             class="model-bar"
-            :style="{ width: (m.totalTokens / maxTokens * 100) + '%' }"
+            :style="{ width: usageBarPercent(m.totalTokens, maxTokens) }"
           />
         </div>
         <span class="model-cache">

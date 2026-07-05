@@ -237,6 +237,7 @@ Primary event types the client handles today:
 | `message.start`          | start assistant streaming                       |
 | `message.delta`          | `{ text, rendered? }`                           |
 | `message.complete`       | `{ text, rendered?, usage, status }`            |
+| `run.completed`          | `{ final_reply, usage? }` for text protocol compatibility |
 | `thinking.delta`         | `{ text }`                                      |
 | `reasoning.delta`        | `{ text }`                                      |
 | `reasoning.available`    | `{ text }`                                      |

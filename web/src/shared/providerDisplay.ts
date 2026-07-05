@@ -6,6 +6,12 @@ export interface ProviderDisplayOption {
   readonly value: LlmDialect
 }
 
+export interface ProviderDialectCatalogItem {
+  readonly labelKey?: string
+  readonly value?: string
+  readonly baseUrlPlaceholder?: string
+}
+
 export interface TranslatedProviderDisplayOption {
   readonly label: string
   readonly value: LlmDialect
@@ -95,6 +101,31 @@ export function translateDialectOptions(t: ProviderDisplayTranslator): Translate
     label: t(option.labelKey),
     value: option.value,
   }))
+}
+
+export function translateDialectCatalogOptions(
+  t: ProviderDisplayTranslator,
+  catalog: readonly ProviderDialectCatalogItem[] | undefined,
+): TranslatedProviderDisplayOption[] {
+  return normalizeDialectCatalog(catalog).map(option => ({
+    label: t(option.labelKey),
+    value: option.value,
+  }))
+}
+
+export function normalizeDialectCatalog(
+  catalog: readonly ProviderDialectCatalogItem[] | undefined,
+): ProviderDisplayOption[] {
+  const options = (catalog || [])
+    .filter(item => item.value && isLlmDialect(item.value))
+    .map(item => {
+      const value = item.value as LlmDialect
+      return {
+        labelKey: item.labelKey || LLM_DIALECT_LABEL_KEYS[value],
+        value,
+      }
+    })
+  return options.length ? options : [...LLM_DIALECT_OPTIONS]
 }
 
 export function translateDialectLabel(value: string, t: ProviderDisplayTranslator): string {

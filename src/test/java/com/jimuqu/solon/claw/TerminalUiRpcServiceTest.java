@@ -74,6 +74,58 @@ class TerminalUiRpcServiceTest {
     }
 
     @Test
+    void activeSessionsReturnsAllTuiLiveSessionsAndHonorsClose() throws Exception {
+        AppConfig config = testConfig();
+        SqliteDatabase database = new SqliteDatabase(config);
+        SqliteSessionRepository sessions = new SqliteSessionRepository(database);
+        SqliteAgentRunRepository runs = new SqliteAgentRunRepository(database);
+        sessions.save(session("session-a", "MEMORY:terminal-ui:session-a"));
+        sessions.save(session("session-b", "MEMORY:terminal-ui:session-b"));
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-session-b");
+        run.setSessionId("session-b");
+        run.setSourceKey("MEMORY:terminal-ui:session-b");
+        run.setStatus("waiting_approval");
+        run.setStartedAt(1_800_000_000_000L);
+        runs.saveRun(run);
+
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        config,
+                        sessions,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        runs,
+                        null,
+                        null);
+        service.sessionResume("session-a");
+        service.sessionResume("session-b");
+
+        List<Map<String, Object>> live = activeSessionItems(service.activeSessions("session-a"));
+
+        assertThat(live).extracting(item -> item.get("id")).containsExactly("session-a", "session-b");
+        assertThat(live.get(0)).containsEntry("current", Boolean.TRUE).containsEntry("status", "idle");
+        assertThat(live.get(1)).containsEntry("current", Boolean.FALSE).containsEntry("status", "waiting");
+
+        service.sessionClose("session-b");
+
+        assertThat(activeSessionItems(service.activeSessions("session-a")))
+                .extracting(item -> item.get("id"))
+                .containsExactly("session-a");
+    }
+
+    @Test
     void sessionUsageIncludesActiveSubagentCount() throws Exception {
         AppConfig config = testConfig();
         SqliteDatabase database = new SqliteDatabase(config);
@@ -103,6 +155,50 @@ class TerminalUiRpcServiceTest {
                         null);
 
         assertThat(service.sessionUsage(session.getSessionId()).get("active_subagents")).isEqualTo(2);
+    }
+
+    /** 验证 TUI 用量面板按同一会话的多次模型运行累计 API 调用次数。 */
+    @Test
+    void sessionUsageCountsRunsWithUsage() throws Exception {
+        AppConfig config = testConfig();
+        SqliteDatabase database = new SqliteDatabase(config);
+        SqliteSessionRepository sessions = new SqliteSessionRepository(database);
+        SqliteAgentRunRepository runs = new SqliteAgentRunRepository(database);
+        SessionRecord session = session("session-usage-calls", "MEMORY:terminal-ui:session-usage-calls");
+        session.setCumulativeInputTokens(76L);
+        session.setCumulativeOutputTokens(12L);
+        session.setCumulativeTotalTokens(88L);
+        sessions.save(session);
+        runs.saveRun(run("run-usage-1", session.getSessionId(), 38L, 6L));
+        runs.saveRun(run("run-usage-2", session.getSessionId(), 38L, 6L));
+
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        config,
+                        sessions,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        runs,
+                        null,
+                        null);
+
+        Map<String, Object> usage = service.sessionUsage(session.getSessionId());
+
+        assertThat(usage.get("calls")).isEqualTo(2L);
+        assertThat(usage.get("input")).isEqualTo(76L);
+        assertThat(usage.get("output")).isEqualTo(12L);
+        assertThat(usage.get("total")).isEqualTo(88L);
     }
 
     @Test
@@ -280,6 +376,27 @@ class TerminalUiRpcServiceTest {
         assertThat(response.get("summary").toString()).contains("headline=nothing to compress");
     }
 
+    @Test
+    void completeSlashIncludesTuiLocalCommandsAndAliases() throws Exception {
+        TerminalUiRpcService service = new TerminalUiRpcService(testConfig());
+
+        assertThat(slashCompletionTexts(service.completeSlash("/de")))
+                .contains("/details", "/density");
+        assertThat(slashCompletionTexts(service.completeSlash("/ex"))).contains("/exit");
+        assertThat(slashCompletionTexts(service.completeSlash("/sb"))).contains("/sb");
+        assertThat(slashCompletionTexts(service.completeSlash("/ter"))).contains("/terminal-setup");
+        assertThat(slashCompletionTexts(service.completeSlash("/rep"))).contains("/replay");
+    }
+
+    @Test
+    void completeSlashIncludesRegisteredAliases() throws Exception {
+        TerminalUiRpcService service = new TerminalUiRpcService(testConfig());
+
+        assertThat(slashCompletionTexts(service.completeSlash("/ag"))).contains("/agents");
+        assertThat(slashCompletionTexts(service.completeSlash("/status-"))).contains("/status-bar");
+        assertThat(slashCompletionTexts(service.completeSlash("/set-"))).contains("/set-home");
+    }
+
     private static SessionRecord session(String id, String sourceKey) {
         SessionRecord session = new SessionRecord();
         session.setSessionId(id);
@@ -290,12 +407,44 @@ class TerminalUiRpcServiceTest {
         return session;
     }
 
+    /** 构造带用量的已完成 Agent run，用于模拟 TUI retry 后的多轮模型请求。 */
+    private static AgentRunRecord run(String id, String sessionId, long inputTokens, long outputTokens) {
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId(id);
+        run.setSessionId(sessionId);
+        run.setSourceKey("MEMORY:terminal-ui:" + sessionId);
+        run.setStatus("success");
+        run.setStartedAt(1_800_000_000_000L);
+        run.setFinishedAt(1_800_000_001_000L);
+        run.setInputTokens(inputTokens);
+        run.setOutputTokens(outputTokens);
+        run.setTotalTokens(inputTokens + outputTokens);
+        return run;
+    }
+
     private static AppConfig testConfig() throws Exception {
         File home = Files.createTempDirectory("solonclaw-tui-rpc-test").toFile();
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(home.getAbsolutePath());
         config.getRuntime().setStateDb(new File(new File(home, "data"), "state.db").getAbsolutePath());
         return config;
+    }
+
+    /** 提取 slash 补全项的真实写入文本，避免测试依赖候选项的展示字段顺序。 */
+    private static List<String> slashCompletionTexts(Map<String, Object> response) {
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> items = (List<Map<String, Object>>) response.get("items");
+        List<String> texts = new ArrayList<String>();
+        for (Map<String, Object> item : items) {
+            texts.add(String.valueOf(item.get("text")));
+        }
+        return texts;
+    }
+
+    /** 提取 active_list 会话项，避免每个回归重复 unchecked cast。 */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> activeSessionItems(Map<String, Object> response) {
+        return (List<Map<String, Object>>) response.get("sessions");
     }
 
     private static class FixedDelegationService implements DelegationService {

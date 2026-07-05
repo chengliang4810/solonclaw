@@ -327,15 +327,15 @@
 
 ## L-03 后端 `CronJobService.PROTECTED_CRON_DISABLED_TOOLSETS` 是公开可变 List
 
-- 应使用 `Collections.unmodifiableList()` 包装
+- 已使用 `Collections.unmodifiableList()` 包装，并补充回归测试防止外部改写定时任务禁用工具集。
 
 ## L-04 后端 `CommandRegistry` 别名存在覆盖风险
 
-- 两个不同命令声明相同别名时后者静默覆盖，缺乏冲突检测
+- 已补注册期冲突检测；两个不同命令声明相同别名时会快速失败，避免静默覆盖 slash command 解析。
 
 ## L-05 后端 `DashboardAuthFilter` OPTIONS 仅对 `/api/` 返回 204
 
-- 非 `/api/` 的 OPTIONS 请求会继续走 filter chain
+- 已改为所有 OPTIONS 预检统一返回 204，避免静态资源或页面路由链误处理 CORS 预检。
 
 ## L-06 后端 WebSocket token 支持 query 参数明文传输
 
@@ -359,11 +359,11 @@
 
 ## L-11 TUI `writeActiveSessionFile` 使用 `writeFileSync` 阻塞主线程
 
-- 高频 session 切换场景下可能造成微小 UI 卡顿
+- 已改为异步 `writeFile` best-effort 写入，并由 `useSessionLifecycle.test.ts` 防止回退到同步写入。
 
 ## L-12 WEB `fetchModels()` 返回空数据（stub）
 
-- `chat.ts` 第 184-186 行，永远返回 `{ data: [] }`
+- 已移除 `chat.ts` 中的空模型 catalog stub；模型列表统一走 system API/provider catalog 路径，并由 `chatApiModelCatalogStatic` 锁定。
 
 ## L-13 WEB `nous-auth.ts` 和 `codex-auth.ts` 是抛出错误的桩实现
 
@@ -371,7 +371,7 @@
 
 ## L-14 WEB `uid()` 生成的 ID 碰撞风险
 
-- `Date.now().toString(36) + Math.random().toString(36).slice(2, 8)` 在同一毫秒内可能碰撞
+- 已优先使用 `crypto.randomUUID()` 生成聊天消息 ID，并为无 Web Crypto 环境补充模块级计数器兜底。
 
 ## L-15 WEB 密码登录 i18n 有但 UI 无
 
@@ -379,11 +379,11 @@
 
 ## L-16 WEB `main.ts` token 提取逻辑复杂且脆弱
 
-- 从 URL search params 和 hash params 两处提取 token，无错误处理
+- 已抽出 `normalizeLoginTokenUrl()` 统一处理 search/hash token、URL 清理和直达路由归一化，并补充异常输入测试。
 
 ## L-17 WEB `useTheme` 在模块顶层注册 `mediaQuery` 监听器
 
-- 不在任何 Vue 生命周期内，无法清理
+- 已改为 `useTheme()` 首次调用时懒初始化，并在 Vue scope dispose 时移除 media query 监听器和 watcher。
 
 ---
 

@@ -269,6 +269,11 @@ class PluginRuntimeIntegrationTest {
                 env.gatewayRestartCoordinator,
                 env.slashConfirmService,
                 plugins.pluginCommands(),
-                pluginManager);
+                pluginManager,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 }

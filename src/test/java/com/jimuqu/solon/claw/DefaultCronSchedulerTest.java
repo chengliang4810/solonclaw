@@ -3158,7 +3158,16 @@ public class DefaultCronSchedulerTest {
                         null,
                         null,
                         new SessionArtifactService(env.appConfig),
-                        scheduler);
+                        scheduler,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
 
         GatewayReply runReply =
                 commandService.handle(

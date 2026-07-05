@@ -72,6 +72,7 @@ export const sessionCommands: SlashCommand[] = [
         ctx.guarded<BackgroundStartResponse>(r => {
           if (!r.task_id) {
             ctx.transcript.sys('no active run to move to background')
+
             return
           }
 
@@ -86,10 +87,6 @@ export const sessionCommands: SlashCommand[] = [
     help: 'change or show model',
     name: 'model',
     run: (arg, ctx) => {
-      if (ctx.session.guardBusySessionSwitch('change models')) {
-        return
-      }
-
       const trimmedArg = arg.trim()
       const normalizedArg = trimmedArg.toLowerCase()
 
@@ -106,6 +103,10 @@ export const sessionCommands: SlashCommand[] = [
           .rpc<ModelOptionsResponse>('model.options', { session_id: ctx.sid })
           .then(ctx.guarded<ModelOptionsResponse>(r => ctx.transcript.page(modelOptionsText(r), 'Models')))
           .catch(ctx.guardedErr)
+      }
+
+      if (ctx.session.guardBusySessionSwitch('change models')) {
+        return
       }
 
       ctx.gateway

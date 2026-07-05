@@ -6,10 +6,13 @@
 // crash-loop case — is unit-testable.
 export const GATEWAY_RECOVERY_LIMIT = 10
 export const GATEWAY_RECOVERY_WINDOW_MS = 60_000
+export const GATEWAY_RECOVERY_BACKOFF_MS = 1000
 
 export interface RecoveryPlan {
   // Attempt timestamps to persist (the pruned window, plus `now` iff recovering).
   attempts: number[]
+  // Delay before respawning. First recovery is immediate; crash-loop retries back off.
+  delayMs: number
   recover: boolean
   // Session to resume — the live sid, or the not-yet-consumed recovery target
   // when the live sid was already cleared by a prior exit.
@@ -30,6 +33,7 @@ export function planGatewayRecovery(
   const sid = liveSid ?? recoverSid
   const recent = attempts.filter(t => now - t < GATEWAY_RECOVERY_WINDOW_MS)
   const recover = Boolean(sid) && recent.length < GATEWAY_RECOVERY_LIMIT
+  const delayMs = recover ? Math.min(5000, recent.length * GATEWAY_RECOVERY_BACKOFF_MS) : 0
 
-  return { attempts: recover ? [...recent, now] : recent, recover, sid }
+  return { attempts: recover ? [...recent, now] : recent, delayMs, recover, sid }
 }

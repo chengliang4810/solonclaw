@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.HttpRedirectSupport;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.ProviderDisplayGrouping;
 import com.jimuqu.solon.claw.support.ProviderProfileService;
@@ -20,7 +21,6 @@ import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.math.BigDecimal;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -129,6 +129,7 @@ public class DashboardProviderService {
         result.put("defaultProviderKey", appConfig.getModel().getProviderKey());
         result.put("defaultModel", appConfig.getModel().getDefault());
         result.put("fallbackProviders", cloneFallbackProviders(appConfig.getFallbackProviders()));
+        result.put("dialectCatalog", dialectCatalog());
         result.put("providerProfiles", providerProfileService.listProfiles());
         return result;
     }
@@ -873,7 +874,7 @@ public class DashboardProviderService {
         }
         HttpResponse response = request.execute();
         int status = response.getStatus();
-        if (isRedirect(status)) {
+        if (HttpRedirectSupport.isRedirectStatus(status)) {
             try {
                 if (redirectCount >= 5) {
                     throw new IllegalStateException("获取模型列表重定向次数过多。");
@@ -882,7 +883,9 @@ public class DashboardProviderService {
                 if (StrUtil.isBlank(location)) {
                     throw new IllegalStateException("获取模型列表重定向缺少 Location。");
                 }
-                String nextUrl = resolveRedirectUrl(url, location);
+                String nextUrl =
+                        HttpRedirectSupport.resolveLocation(
+                                url, location, "获取模型列表重定向 URL 无效");
                 response.close();
                 return executeModelListRequest(
                         initialUrl, nextUrl, apiKey, dialect, redirectCount + 1);
@@ -927,31 +930,6 @@ public class DashboardProviderService {
     }
 
     /**
-     * 判断是否Redirect。
-     *
-     * @param status 状态参数。
-     * @return 如果Redirect满足条件则返回 true，否则返回 false。
-     */
-    private boolean isRedirect(int status) {
-        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
-    }
-
-    /**
-     * 解析Redirect URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @param location location 参数。
-     * @return 返回解析后的Redirect URL。
-     */
-    private String resolveRedirectUrl(String baseUrl, String location) {
-        try {
-            return URI.create(baseUrl).resolve(location.trim()).toString();
-        } catch (Exception e) {
-            throw new IllegalStateException("获取模型列表重定向 URL 无效。", e);
-        }
-    }
-
-    /**
      * 转换为提供方Map。
      *
      * @param providerKey 提供方键标识或键值。
@@ -971,6 +949,67 @@ public class DashboardProviderService {
         item.put("metadata", metadataMap(modelMetadataService.resolve(providerKey, provider)));
         appendProviderDisplay(item, ProviderDisplayGrouping.providerDisplay(providerKey, provider));
         return item;
+    }
+
+    /**
+     * 返回 Dashboard 可选择的大模型协议目录，前端表单以此为主、静态清单仅作为离线兜底。
+     *
+     * @return 支持协议的展示目录。
+     */
+    private List<Map<String, Object>> dialectCatalog() {
+        List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
+        for (String dialect : LlmConstants.SUPPORTED_PROVIDERS) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("value", dialect);
+            item.put("labelKey", dialectLabelKey(dialect));
+            item.put("baseUrlPlaceholder", dialectBaseUrlPlaceholder(dialect));
+            items.add(item);
+        }
+        return items;
+    }
+
+    /**
+     * 返回协议对应的前端翻译键，避免协议名和展示文案散落在页面组件里。
+     *
+     * @param dialect 大模型协议标识。
+     * @return 前端 i18n 翻译键。
+     */
+    private String dialectLabelKey(String dialect) {
+        if (LlmConstants.PROVIDER_OPENAI.equals(dialect)) {
+            return "models.dialectOpenai";
+        }
+        if (LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)) {
+            return "models.dialectOpenaiResponses";
+        }
+        if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
+            return "models.dialectOllama";
+        }
+        if (LlmConstants.PROVIDER_GEMINI.equals(dialect)) {
+            return "models.dialectGemini";
+        }
+        if (LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)) {
+            return "models.dialectAnthropic";
+        }
+        return dialect;
+    }
+
+    /**
+     * 返回协议默认基础地址占位符，仅作为表单提示，不参与运行时路由或安全判断。
+     *
+     * @param dialect 大模型协议标识。
+     * @return 协议基础地址占位符。
+     */
+    private String dialectBaseUrlPlaceholder(String dialect) {
+        if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
+            return "http://127.0.0.1:11434";
+        }
+        if (LlmConstants.PROVIDER_GEMINI.equals(dialect)) {
+            return "https://generativelanguage.googleapis.com";
+        }
+        if (LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)) {
+            return "https://api.anthropic.com";
+        }
+        return "https://api.example.com";
     }
 
     /**

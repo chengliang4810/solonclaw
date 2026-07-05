@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import importlib.util
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -84,6 +86,56 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertEqual(mod.process_output_text(b"\xe4\xbd\xa0\xe5\xa5\xbd"), "你好")
         self.assertEqual(mod.process_output_text("hello"), "hello")
         self.assertEqual(mod.process_output_text(None), "")
+
+    def test_run_command_uses_utf8_replacement_decoding(self) -> None:
+        mod = load_module()
+        calls: list[dict[str, object]] = []
+
+        def fake_run(*args: object, **kwargs: object) -> object:
+            calls.append(kwargs)
+            return mod.subprocess.CompletedProcess(
+                args[0] if args else [],
+                0,
+                stdout="你好",
+                stderr="",
+            )
+
+        original_run = mod.subprocess.run
+        try:
+            mod.subprocess.run = fake_run
+            with tempfile.TemporaryDirectory() as tmp:
+                result = mod.run_command(Path("missing.jar"), Path(tmp), "/help", 1, 1)
+        finally:
+            mod.subprocess.run = original_run
+
+        self.assertEqual(result["exit_code"], 0)
+        self.assertEqual(calls[0]["encoding"], "utf-8")
+        self.assertEqual(calls[0]["errors"], "replace")
+
+    def test_configure_stdio_uses_utf8_replacement_errors(self) -> None:
+        mod = load_module()
+
+        class FakeStream:
+            def __init__(self) -> None:
+                self.calls: list[dict[str, str]] = []
+
+            def reconfigure(self, **kwargs: str) -> None:
+                self.calls.append(kwargs)
+
+        fake_stdout = FakeStream()
+        fake_stderr = FakeStream()
+        original_stdout = mod.sys.stdout
+        original_stderr = mod.sys.stderr
+        try:
+            mod.sys.stdout = fake_stdout
+            mod.sys.stderr = fake_stderr
+            mod.configure_stdio()
+        finally:
+            mod.sys.stdout = original_stdout
+            mod.sys.stderr = original_stderr
+
+        self.assertEqual(fake_stdout.calls, [{"encoding": "utf-8", "errors": "replace"}])
+        self.assertEqual(fake_stderr.calls, [{"encoding": "utf-8", "errors": "replace"}])
 
     def test_expected_empty_state_exit_is_not_suspect(self) -> None:
         mod = load_module()
@@ -825,11 +877,15 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 findings: list[dict[str, object]] = []
 
-                exit_code = mod.run_node_tui_pty(Path("missing.jar"), Path(tmp), 18123, 1, findings)
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output):
+                    exit_code = mod.run_node_tui_pty(Path("missing.jar"), Path(tmp), 18123, 1, findings)
 
             self.assertEqual(exit_code, 1)
             self.assertEqual(calls, [])
             self.assertEqual(findings[0]["issues"], ["pty_not_supported_on_this_platform"])
+            self.assertIn("node-tui SUSPECT solonclaw server + solonclaw PTY", output.getvalue())
+            self.assertIn("issues=pty_not_supported_on_this_platform", output.getvalue())
         finally:
             mod.pty_support_available = original_support
             mod.run_command = original_run_command

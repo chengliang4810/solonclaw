@@ -35,9 +35,10 @@ public class PlatformToolsetsManageTools {
     @ToolMapping(
             name = "platform_toolsets_manage",
             description =
-                    "Manage platform toolset policy for domestic channels. Actions: overview, update. Supported platforms: feishu, dingtalk, wecom, weixin, qqbot, yuanbao.")
+                    "Manage platform toolset policy for domestic channels. Actions: overview, update, save, save_toolsets. Supported platforms: feishu, dingtalk, wecom, weixin, qqbot, yuanbao.")
     public String platformToolsetsManage(
-            @Param(name = "action", description = "overview or update") String action,
+            @Param(name = "action", description = "overview, update, save, save_toolsets")
+                    String action,
             @Param(name = "platform", required = false, description = "Platform for update")
                     String platform,
             @Param(
@@ -72,7 +73,9 @@ public class PlatformToolsetsManageTools {
     private Map<String, Object> run(String action, String platform, String bodyJson) {
         String normalized =
                 action == null ? "overview" : action.trim().toLowerCase(java.util.Locale.ROOT);
-        if ("update".equals(normalized)) {
+        if ("update".equals(normalized)
+                || "save".equals(normalized)
+                || "save_toolsets".equals(normalized)) {
             return dashboardPlatformToolsetsService.update(platform, body(bodyJson));
         }
         return dashboardPlatformToolsetsService.overview();

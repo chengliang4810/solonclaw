@@ -11,6 +11,7 @@
   ],
   "scripts": {
     "dev": "npm run build --prefix packages/solonclaw-ink && tsx --watch src/entry.tsx",
+    "prestart": "npm run build --prefix packages/solonclaw-ink",
     "start": "tsx src/entry.tsx",
     "build": "node scripts/build.mjs",
     "prepack": "npm run build && node -e \"const fs=require('fs');const f='dist/entry.js';const c=fs.readFileSync(f,'utf8');if(!c.startsWith('#!'))fs.writeFileSync(f,'#!/usr/bin/env node\\n'+c)\"",

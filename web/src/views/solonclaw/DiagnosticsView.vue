@@ -13,6 +13,7 @@ import {
   fetchPendingApprovals,
   fetchPendingSlashConfirms,
   fetchDiagnostics,
+  fetchPluginStatus,
   fetchPlatformToolsets,
   probeSubprocessEnvironment,
   resolveApproval,
@@ -33,6 +34,8 @@ import {
   type PendingSlashConfirmsResult,
   type PlatformToolsetConfig,
   type PlatformToolsetsOverview,
+  type PluginDiagnosticItem,
+  type PluginStatusOverview,
   type SecurityPolicyProbe,
   type SecurityAuditFinding,
   type SecurityAuditResult,
@@ -44,10 +47,13 @@ import {
   type InsightsOverview,
   type SkillInsights,
 } from '@/api/solonclaw/insights'
+import { fetchRuntimeStatus, type RuntimeStatusResponse } from '@/api/solonclaw/system'
+import { formatTimestampText } from '@/shared/timeFormat'
 
 const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
 const doctor = ref<DiagnosticsDoctor | null>(null)
+const runtimeStatus = ref<RuntimeStatusResponse | null>(null)
 const insightsOverview = ref<InsightsOverview | null>(null)
 const skillInsights = ref<SkillInsights>({})
 const loading = ref(false)
@@ -61,6 +67,7 @@ const auditResult = ref<SecurityAuditResult | null>(null)
 const policyAuditResult = ref<SecurityAuditResult | null>(null)
 const subprocessEnvProbeResult = ref<SubprocessEnvironmentProbeResult | null>(null)
 const subprocessEnvProbeLoading = ref(false)
+const pluginStatus = ref<PluginStatusOverview | null>(null)
 const platformToolsets = ref<PlatformToolsetsOverview | null>(null)
 const platformToolsetForms = ref<Record<string, {
   enabledToolsetsText: string
@@ -121,6 +128,11 @@ type SecurityMetric = {
 type SecurityDetailGroup = {
   title: string
   items: SecurityMetric[]
+}
+type RuntimeCapabilityRow = {
+  key: string
+  label: string
+  highlights: SecurityMetric[]
 }
 const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
   const policy = securityPolicy.value
@@ -509,6 +521,33 @@ const pendingApprovalScanText = computed(() => {
 const historyCount = computed(() => approvalHistory.value.length)
 const alwaysCount = computed(() => alwaysApprovals.value.length)
 const slashConfirmCount = computed(() => pendingSlashConfirms.value.length)
+const pluginLoadedCount = computed(() => pluginStatus.value?.loaded_count ?? 0)
+const pluginSkippedCount = computed(() => pluginStatus.value?.skipped_count ?? 0)
+const pluginFailedCount = computed(() => pluginStatus.value?.failed_count ?? 0)
+const pluginRows = computed(() => pluginStatus.value?.plugins || [])
+const pluginDiagnostics = computed<PluginDiagnosticItem[]>(() => pluginStatus.value?.diagnostics || [])
+const proactiveDiagnostics = computed<Record<string, unknown>>(() => objectValue(diagnostics.value?.proactive))
+const hasProactiveDiagnostics = computed(() => Object.keys(proactiveDiagnostics.value).length > 0)
+const proactiveBlocked = computed(() =>
+  Boolean(
+    proactiveDiagnostics.value.missing_home_channel ||
+      proactiveDiagnostics.value.quiet_hours_blocked ||
+      proactiveDiagnostics.value.cooldown_blocked ||
+      proactiveDiagnostics.value.daily_cap_blocked ||
+      proactiveDiagnostics.value.delivery_failed,
+  ),
+)
+const proactiveStatusItems = computed<SecurityMetric[]>(() => [
+  { label: d('proactiveEnabled'), value: proactiveDiagnostics.value.enabled },
+  { label: d('proactiveSchedulerRan'), value: proactiveDiagnostics.value.scheduler_ran },
+  { label: d('proactiveCandidates'), value: proactiveDiagnostics.value.pending_candidate_count },
+  { label: d('proactiveHomeChannels'), value: proactiveDiagnostics.value.home_channels },
+  { label: d('proactiveMissingHomeChannel'), value: proactiveDiagnostics.value.missing_home_channel, goodWhenTrue: false },
+  { label: d('proactiveQuietHours'), value: proactiveDiagnostics.value.quiet_hours_blocked, goodWhenTrue: false },
+  { label: d('proactiveCooldown'), value: proactiveDiagnostics.value.cooldown_blocked, goodWhenTrue: false },
+  { label: d('proactiveDailyCap'), value: proactiveDiagnostics.value.daily_cap_blocked, goodWhenTrue: false },
+  { label: d('proactiveDeliveryFailed'), value: proactiveDiagnostics.value.delivery_failed, goodWhenTrue: false },
+])
 const approvalStatItems = computed(() => [
   { label: d('approvalStatTotal'), value: approvalStats.value?.totalEvents ?? 0 },
   { label: d('approvalStatApproved'), value: approvalStats.value?.approved ?? 0 },
@@ -527,6 +566,55 @@ const skillInsightRows = computed<Array<{ key: string } & Record<string, unknown
     .sort((left, right) => Number(right.count || 0) - Number(left.count || 0))
     .slice(0, 6),
 )
+const runtimeCapabilityRows = computed<RuntimeCapabilityRow[]>(() => {
+  const runtime_status = runtimeStatus.value?.runtime_status
+  const multimodal = objectValue(runtime_status?.multimodal)
+  const modelInput = objectValue(multimodal.model_input)
+  const pricing = objectValue(runtime_status?.pricing)
+  const gateway = objectValue(runtime_status?.gateway)
+  return [
+    {
+      key: 'multimodal',
+      label: d('runtimeMultimodal'),
+      highlights: [
+        metric('runtimeProvider', multimodal.provider),
+        metric('runtimeModel', multimodal.model),
+        metric('runtimeDialect', multimodal.dialect),
+        metric('runtimeVisionInput', modelInput.vision),
+        metric('runtimeAudioInput', modelInput.audio),
+        metric('runtimeAttachmentInput', modelInput.attachments),
+        metric('runtimePdfInput', modelInput.pdf),
+        metric('runtimeImageGeneration', multimodal.image_generation),
+        metric('runtimeTts', multimodal.tts),
+        metric('runtimeTranscription', multimodal.transcription),
+      ],
+    },
+    {
+      key: 'pricing',
+      label: d('runtimePricing'),
+      highlights: [
+        metric('runtimeBuiltinPriceCount', pricing.builtin_price_count),
+        metric('runtimeConfiguredPriceCount', pricing.configured_price_count),
+        metric('runtimeEffectivePriceCount', pricing.effective_price_count),
+        metric('runtimeUsageCostCalculation', pricing.usage_cost_calculation),
+        metric('runtimePricingAvailable', pricing.pricing_available),
+        metric('runtimeCurrencyDefault', pricing.currency_default),
+      ],
+    },
+    {
+      key: 'gateway',
+      label: d('runtimeGateway'),
+      highlights: [
+        metric('runtimeGatewayState', gateway.state),
+        metric('runtimeGatewayRunning', gateway.running),
+        metric('runtimeSupportedChannels', gateway.supported_channels),
+        metric('runtimeActiveAgents', gateway.active_agents),
+        metric('runtimeRecentActiveSessions', gateway.recent_active_sessions),
+        metric('runtimeExitReason', gateway.exit_reason),
+      ],
+    },
+  ].filter((row) => row.highlights.some((item) => item.value !== undefined && item.value !== null && item.value !== ''))
+})
 
 function valueOf(source: Record<string, unknown>, key: string, fallback: unknown = '-') {
   const value = source[key]
@@ -571,6 +659,13 @@ function metricTagType(item: SecurityMetric) {
     return item.value > 0 ? 'success' : 'default'
   }
   return item.value === undefined || item.value === null || item.value === '' ? 'default' : 'success'
+}
+
+function pluginStatusTagType(status?: string) {
+  if (status === 'loaded') return 'success'
+  if (status === 'failed') return 'error'
+  if (status === 'skipped') return 'warning'
+  return 'default'
 }
 
 function decisionType(decision: unknown) {
@@ -659,8 +754,10 @@ async function savePlatformToolsets(row: PlatformToolsetConfig) {
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData, insightsData, skillInsightData] = await Promise.all([
+    const [diagnosticsData, runtimeStatusData, pluginStatusData, insightsData, skillInsightData] = await Promise.all([
       fetchDiagnostics(),
+      fetchRuntimeStatus(),
+      fetchPluginStatus(),
       fetchInsightsOverview(),
       fetchSkillInsights(),
       loadPolicyAudit(),
@@ -671,6 +768,8 @@ async function load() {
       loadSlashConfirms(),
     ])
     diagnostics.value = diagnosticsData
+    runtimeStatus.value = runtimeStatusData
+    pluginStatus.value = pluginStatusData
     doctor.value = await fetchDiagnosticsDoctor()
     await loadPlatformToolsets()
     insightsOverview.value = insightsData
@@ -844,8 +943,7 @@ function slashConfirmBusy(item: PendingSlashConfirm, action: string) {
 }
 
 function timeText(value?: number) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return formatTimestampText(value)
 }
 
 function expiresText(item: { expired?: boolean; expires_in_seconds?: number; expires_at?: number }) {
@@ -953,6 +1051,26 @@ onMounted(load)
           <pre>{{ diagnostics?.runtime }}</pre>
         </section>
         <section class="panel">
+          <h3>{{ t('diagnostics.runtimeCapabilities') }}</h3>
+          <div v-if="runtimeCapabilityRows.length" class="runtime-capability-list">
+            <article v-for="row in runtimeCapabilityRows" :key="row.key" class="runtime-capability-row">
+              <div class="runtime-capability-head">
+                <strong>{{ row.label }}</strong>
+                <Tag size="small" :bordered="false">{{ row.key }}</Tag>
+              </div>
+              <div class="metric-grid">
+                <div v-for="item in row.highlights" :key="item.label" class="metric-item">
+                  <span>{{ item.label }}</span>
+                  <Tag size="small" :color="metricTagType(item)" :bordered="false">
+                    {{ metricText(item.value) }}
+                  </Tag>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div v-else class="empty-state">{{ t('diagnostics.noRuntimeCapabilities') }}</div>
+        </section>
+        <section class="panel">
           <h3>{{ t('diagnostics.providers') }}</h3>
           <pre>{{ diagnostics?.providers }}</pre>
         </section>
@@ -963,6 +1081,79 @@ onMounted(load)
         <section class="panel">
           <h3>{{ t('diagnostics.toolsAndMcp') }}</h3>
           <pre>{{ diagnostics?.tools }}&#10;{{ diagnostics?.mcp }}</pre>
+        </section>
+        <section class="panel">
+          <div class="panel-title-row">
+            <h3>{{ t('diagnostics.proactiveDiagnostics') }}</h3>
+            <Tag size="small" :color="proactiveBlocked ? 'warning' : 'success'" :bordered="false">
+              {{ proactiveBlocked ? t('diagnostics.hasIssues') : t('diagnostics.allPassed') }}
+            </Tag>
+          </div>
+          <div v-if="hasProactiveDiagnostics" class="metric-grid">
+            <div v-for="item in proactiveStatusItems" :key="item.label" class="metric-item">
+              <span>{{ item.label }}</span>
+              <Tag size="small" :color="metricTagType(item)" :bordered="false">
+                {{ metricText(item.value) }}
+              </Tag>
+            </div>
+          </div>
+          <div v-if="hasProactiveDiagnostics" class="approval-note">
+            {{ t('diagnostics.proactiveWhyNoneSent') }}：{{ valueOf(proactiveDiagnostics, 'why_none_sent') }}
+          </div>
+          <div v-if="hasProactiveDiagnostics" class="approval-note">
+            {{ t('diagnostics.proactiveLastSkipReason') }}：{{ valueOf(proactiveDiagnostics, 'last_skip_reason') }}
+          </div>
+          <div v-else class="empty-state">{{ t('diagnostics.noProactiveDiagnostics') }}</div>
+        </section>
+        <section class="panel">
+          <div class="panel-title-row">
+            <h3>{{ t('diagnostics.pluginStatus') }}</h3>
+            <Tag size="small" :color="pluginFailedCount ? 'error' : 'success'" :bordered="false">
+              {{ pluginLoadedCount }}
+            </Tag>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-item">
+              <span>{{ t('diagnostics.pluginLoaded') }}</span>
+              <Tag size="small" color="success" :bordered="false">{{ pluginLoadedCount }}</Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.pluginSkipped') }}</span>
+              <Tag size="small" color="warning" :bordered="false">{{ pluginSkippedCount }}</Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.pluginFailed') }}</span>
+              <Tag size="small" :color="pluginFailedCount ? 'error' : 'default'" :bordered="false">{{ pluginFailedCount }}</Tag>
+            </div>
+            <div class="metric-item">
+              <span>{{ t('diagnostics.pluginDiagnostics') }}</span>
+              <Tag size="small" :bordered="false">{{ pluginStatus?.diagnostic_count ?? 0 }}</Tag>
+            </div>
+          </div>
+          <div v-if="pluginRows.length" class="plugin-list">
+            <article v-for="plugin in pluginRows.slice(0, 4)" :key="plugin.name" class="plugin-item">
+              <div class="plugin-head">
+                <strong>{{ plugin.name || '-' }}</strong>
+                <Tag size="small" :bordered="false">{{ plugin.kind || '-' }}</Tag>
+              </div>
+              <p>{{ plugin.description || plugin.directory_ref || '-' }}</p>
+              <div class="plugin-meta">
+                <span>{{ t('diagnostics.pluginVersion') }}: {{ plugin.version || '-' }}</span>
+                <span>{{ t('diagnostics.pluginAuthor') }}: {{ plugin.author || '-' }}</span>
+                <span>{{ t('diagnostics.pluginSource') }}: {{ plugin.source || '-' }}</span>
+                <span>{{ t('diagnostics.pluginEnabled') }}: {{ plugin.enabled ? t('common.enabled') : t('common.disabled') }}</span>
+                <span>{{ t('diagnostics.pluginAutoLoad') }}: {{ plugin.auto_load ? t('common.enabled') : t('common.disabled') }}</span>
+                <span>{{ t('diagnostics.pluginProvidesTools') }}: {{ plugin.provides_tools?.join(', ') || '-' }}</span>
+              </div>
+            </article>
+          </div>
+          <div v-else class="empty-state">{{ t('diagnostics.noPlugins') }}</div>
+          <div v-if="pluginDiagnostics.length" class="plugin-diagnostics">
+            <div v-for="item in pluginDiagnostics.slice(0, 5)" :key="`${item.plugin_name}:${item.reason}`" class="doctor-item">
+              <Tag size="small" :color="pluginStatusTagType(item.status)" :bordered="false">{{ item.status || '-' }}</Tag>
+              <span>{{ item.plugin_name || '-' }} · {{ item.reason || item.message || '-' }}</span>
+            </div>
+          </div>
         </section>
         <section class="panel">
           <h3>{{ t('diagnostics.platformToolsets') }}</h3>
@@ -1821,9 +2012,78 @@ onMounted(load)
   white-space: nowrap;
 }
 
+.runtime-capability-list {
+  display: grid;
+  gap: 10px;
+}
+
+.runtime-capability-row {
+  display: grid;
+  gap: 8px;
+}
+
+.runtime-capability-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.runtime-capability-head strong {
+  color: $text-primary;
+  font-size: 13px;
+}
+
 .toolset-list {
   display: grid;
   gap: 8px;
+}
+
+.plugin-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.plugin-item {
+  border: 1px solid $border-light;
+  border-radius: $radius-sm;
+  background: $bg-secondary;
+  padding: 10px;
+}
+
+.plugin-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.plugin-head strong {
+  color: $text-primary;
+  font-size: 13px;
+}
+
+.plugin-item p {
+  margin: 6px 0 0;
+  color: $text-secondary;
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.plugin-meta {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  color: $text-muted;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.plugin-diagnostics {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .toolset-row {

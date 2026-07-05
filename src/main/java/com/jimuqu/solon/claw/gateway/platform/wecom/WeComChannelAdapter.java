@@ -335,10 +335,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
             failPending(t == null ? new IllegalStateException("WeCom websocket failure") : t);
             WeComChannelAdapter.this.webSocket = null;
-            setConnected(false);
-            setSetupState("error");
-            setLastError("wecom_websocket_failure", safeError(t));
-            setDetail("websocket disconnected");
+            markWebSocketFailure("wecom_websocket_failure", t);
             openLatch.countDown();
             log.warn(
                     "[WECOM] websocket failure: errorType={}, error={}",
@@ -358,9 +355,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
             failPending(
                     new IllegalStateException("WeCom websocket closed: " + code + " " + reason));
             WeComChannelAdapter.this.webSocket = null;
-            setConnected(false);
-            setSetupState("disconnected");
-            setDetail("websocket closed: " + code + " " + reason);
+            markWebSocketClosed(code, reason);
         }
     }
 

@@ -36,12 +36,12 @@ public class ProviderManageTools {
     @ToolMapping(
             name = "provider_manage",
             description =
-                    "Manage LLM providers. Actions: list, models, health, create, update, delete, default_model, fallbacks, remote_models, validate.")
+                    "Manage LLM providers. Actions: list, models, health, models_health, create, update, delete, default_model, set_default_model, fallbacks, remote_models, provider_models, fetch_models, fetch_model_list, validate, test_connection, check_connection.")
     public String providerManage(
             @Param(
                             name = "action",
                             description =
-                                    "list, models, health, create, update, delete, default_model, fallbacks, remote_models, validate")
+                                    "list, models, health, models_health, create, update, delete, default_model, set_default_model, fallbacks, remote_models, provider_models, fetch_models, fetch_model_list, validate, test_connection, check_connection")
                     String action,
             @Param(name = "provider_key", required = false, description = "Provider key")
                     String providerKey,
@@ -82,7 +82,7 @@ public class ProviderManageTools {
         if ("models".equals(normalized)) {
             return dashboardProviderService.JimuquModels();
         }
-        if ("health".equals(normalized)) {
+        if ("health".equals(normalized) || "models_health".equals(normalized)) {
             return dashboardProviderService.health();
         }
         if ("create".equals(normalized)) {
@@ -94,7 +94,7 @@ public class ProviderManageTools {
         if ("delete".equals(normalized)) {
             return dashboardProviderService.deleteProvider(providerKey);
         }
-        if ("default_model".equals(normalized)) {
+        if ("default_model".equals(normalized) || "set_default_model".equals(normalized)) {
             return dashboardProviderService.updateDefaultModel(providerKey, model);
         }
         if ("fallbacks".equals(normalized)) {
@@ -102,10 +102,15 @@ public class ProviderManageTools {
             return dashboardProviderService.updateFallbackProviders(
                     items instanceof List ? (List<Map<String, Object>>) items : null);
         }
-        if ("remote_models".equals(normalized)) {
+        if ("remote_models".equals(normalized)
+                || "provider_models".equals(normalized)
+                || "fetch_models".equals(normalized)
+                || "fetch_model_list".equals(normalized)) {
             return dashboardProviderService.listRemoteModels(body);
         }
-        if ("validate".equals(normalized)) {
+        if ("validate".equals(normalized)
+                || "test_connection".equals(normalized)
+                || "check_connection".equals(normalized)) {
             return dashboardProviderService.validateProvider(body);
         }
         return dashboardProviderService.listProviders();

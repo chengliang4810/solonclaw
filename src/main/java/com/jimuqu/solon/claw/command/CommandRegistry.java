@@ -184,12 +184,35 @@ public final class CommandRegistry {
      * @param descriptor 命令描述符。
      */
     private static void register(CommandDescriptor descriptor) {
+        if (COMMANDS.containsKey(descriptor.getName())) {
+            throw new IllegalStateException("Duplicate command registered: " + descriptor.getName());
+        }
+        assertAliasAvailable(descriptor.getName(), descriptor.getName());
+        if (CollUtil.isNotEmpty(descriptor.getAliases())) {
+            for (String alias : descriptor.getAliases()) {
+                assertAliasAvailable(alias, descriptor.getName());
+            }
+        }
         COMMANDS.put(descriptor.getName(), descriptor);
         ALIASES.put(descriptor.getName(), descriptor.getName());
         if (CollUtil.isNotEmpty(descriptor.getAliases())) {
             for (String alias : descriptor.getAliases()) {
                 ALIASES.put(alias, descriptor.getName());
             }
+        }
+    }
+
+    /**
+     * 校验命令别名不会覆盖已注册命令，避免新增命令改变既有 slash command 解析。
+     *
+     * @param alias 待注册的命令名或别名。
+     * @param canonical 当前命令规范名。
+     */
+    private static void assertAliasAvailable(String alias, String canonical) {
+        String existing = ALIASES.get(alias);
+        if (existing != null && !existing.equals(canonical)) {
+            throw new IllegalStateException(
+                    "Command alias conflict: " + alias + " -> " + existing + " / " + canonical);
         }
     }
 }

@@ -84,12 +84,12 @@ public class GitHubSkillSource implements SkillSource {
                         StrUtil.blankToDefault(tap.getPath(), ""),
                         StrUtil.nullToEmpty(query),
                         limit,
-                        safeError(e));
+                        ErrorTextSupport.safeError(e));
                 log.debug(
                         "GitHub Skills Hub tap search failure detail: repo={}, path={}, error={}",
                         tap.getRepo(),
                         StrUtil.blankToDefault(tap.getPath(), ""),
-                        safeError(e));
+                        ErrorTextSupport.safeError(e));
                 continue;
             }
             for (SkillMeta meta : tapResults) {
@@ -385,13 +385,4 @@ public class GitHubSkillSource implements SkillSource {
         return index >= 0 ? normalized.substring(index + 1) : normalized;
     }
 
-    /**
-     * 将异常转换为可展示且不泄漏敏感信息的错误文本。
-     *
-     * @param error 错误参数。
-     * @return 返回safe Error结果。
-     */
-    private String safeError(Throwable error) {
-        return ErrorTextSupport.safeError(error);
-    }
 }

@@ -88,8 +88,8 @@
 .provider-row,
 .channel-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  align-items: stretch;
+  flex-direction: column;
   gap: 12px;
   padding: 12px;
   border: 1px solid $border-light;
@@ -115,12 +115,56 @@
   }
 }
 
-.provider-tags {
-  align-items: flex-end;
+.provider-tags,
+.provider-actions,
+.channel-status-actions,
+.channel-enabled-switch,
+.channel-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.provider-actions {
+  align-items: stretch;
+
+  :deep(.ant-input) {
+    min-width: 0;
+  }
+}
+
+.channel-status-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.channel-enabled-switch {
+  gap: 6px;
+  white-space: nowrap;
 }
 
 .model-count {
   white-space: nowrap;
+}
+
+.channel-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: end;
+  gap: 10px;
+}
+
+.channel-field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  span {
+    color: $text-muted;
+    font-size: 12px;
+  }
 }
 
 .channels-card,
@@ -169,13 +213,11 @@
     grid-template-columns: 1fr;
   }
 
-  .provider-row,
-  .channel-row {
+  .provider-tags,
+  .provider-actions,
+  .channel-status-actions,
+  .channel-row-main {
     align-items: flex-start;
     flex-direction: column;
-  }
-
-  .provider-tags {
-    align-items: flex-start;
   }
 }

@@ -6,7 +6,7 @@ import type { ChannelOption, ChannelQrResponse } from '../gatewayTypes.js'
 import { rpcErrorMessage } from '../lib/rpc.js'
 import type { Theme } from '../theme.js'
 
-import { channelQrMessage, channelQrStatusActive, channelSupportsQr } from './channelQr.js'
+import { channelQrMessage, channelQrResponseStatusActive, channelSupportsQr } from './channelQr.js'
 import { useChannelSetupInput } from './channelSetupInput.js'
 import { type ChannelSetupStage } from './channelSetupKeys.js'
 import { loadChannelOptions, refreshChannelQr, saveChannelConfig, startChannelQr } from './channelSetupRpc.js'
@@ -142,11 +142,12 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
   }
 
   useEffect(() => {
-    if (stage !== 'qr' || !channel || !qr?.ticket || !channelQrStatusActive(qr.status)) {
+    if (stage !== 'qr' || !channel || !qr?.ticket || !channelQrResponseStatusActive(qr)) {
       return
     }
 
     const ticket = qr.ticket
+
     const timer = setTimeout(() => {
       refreshChannelQr(gw, channel.key, ticket, sessionId)
         .then(r => {

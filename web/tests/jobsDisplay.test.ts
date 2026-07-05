@@ -55,19 +55,32 @@ const labels: Record<string, string> = {
 }
 
 const t: DashboardTranslator = (key, params) => {
-  const template = labels[key] || key
+  const template = labels[key] || (typeof params === 'string' ? params : key)
   return Object.entries(params || {}).reduce(
     (text, [name, value]) => text.replace(`{${name}}`, String(value)),
     template,
   )
 }
+const missingWarnings: string[] = []
+const warningT = ((key: string, params?: Record<string, unknown> | string, options?: { missingWarn?: boolean }) => {
+  if (!labels[key] && options?.missingWarn !== false) {
+    missingWarnings.push(key)
+  }
+  return t(key, typeof params === 'string' ? undefined : params)
+}) as DashboardTranslator
 const jobCard = readFileSync(
   new URL('../src/components/solonclaw/jobs/JobCard.vue', import.meta.url),
+  'utf8',
+)
+const jobsView = readFileSync(
+  new URL('../src/views/solonclaw/JobsView.vue', import.meta.url),
   'utf8',
 )
 
 assert.equal(humanizeJobToken(t, 'local'), '本地会话')
 assert.equal(humanizeJobToken(t, 'unknown'), 'unknown')
+assert.equal(humanizeGuideToken(warningT, 'runtime_isolation'), 'runtime / isolation')
+assert.deepEqual(missingWarnings, [])
 assert.equal(humanizeJobToken(t, ' ', { fallback: '—' }), '—')
 assert.equal(humanizeGuideToken(t, 'update_fields'), '更新 / 字段')
 assert.equal(jobTokenListText(t, ['cron', 'interval'], { guide: true }), 'Cron 表达式、间隔执行')
@@ -137,3 +150,9 @@ assert.ok(jobCard.includes('jobActionSummary(t, actionFlags.value)'), 'JobCard s
 assert.ok(jobCard.includes('jobAliasSummary(t, actionFlags.value)'), 'JobCard should reuse shared alias summaries')
 assert.ok(jobCard.includes('jobBadges(t, props.job)'), 'JobCard should reuse shared badge summaries')
 assert.ok(jobCard.includes('jobDeliveryTargetLabel(t, target)'), 'JobCard should reuse shared delivery target labels')
+assert.ok(!jobsView.includes('simpleHero'), 'JobsView should not keep a how-to hero above the operational job list')
+assert.ok(!jobsView.includes('pageNextRuns'), 'JobsView should not duplicate next runs outside the upcoming jobs panel')
+assert.ok(jobsView.includes('fetchGuideAndPolicy'), 'JobsView should load backend cron guide and policy metadata')
+assert.ok(jobsView.includes('jobsStore.guide'), 'JobsView should render backend cron guide metadata')
+assert.ok(jobsView.includes('jobsStore.policy'), 'JobsView should render backend cron policy metadata')
+assert.ok(jobsView.includes("t('jobs.pageGuideTitle')"), 'JobsView should expose a guide/policy panel')

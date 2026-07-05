@@ -13,6 +13,8 @@ export const useAppStore = defineStore('app', () => {
 
   const connected = ref(false)
   const serverVersion = ref(WEB_UI_VERSION)
+  const versionTag = ref('')
+  const deploymentMode = ref('')
   const latestVersion = ref('')
   const modelGroups = ref<AvailableModelGroup[]>([])
   const selectedModel = ref('')
@@ -30,6 +32,8 @@ export const useAppStore = defineStore('app', () => {
       const res = await checkHealth()
       connected.value = res.status === 'ok'
       if (res.webui_version) serverVersion.value = res.webui_version
+      if (res.version_tag) versionTag.value = res.version_tag
+      if (res.deployment_mode) deploymentMode.value = res.deployment_mode
       if (res.webui_latest) latestVersion.value = res.webui_latest
       if (res.node_version) nodeVersion.value = res.node_version
     } catch {
@@ -99,6 +103,8 @@ export const useAppStore = defineStore('app', () => {
     toggleSidebarCollapsed,
     connected,
     serverVersion,
+    versionTag,
+    deploymentMode,
     latestVersion,
     nodeVersion,
     modelGroups,

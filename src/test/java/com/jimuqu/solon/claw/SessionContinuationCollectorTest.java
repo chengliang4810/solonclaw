@@ -6,11 +6,10 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ProactiveObservation;
 import com.jimuqu.solon.claw.core.model.ProactiveTickContext;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.proactive.collector.SessionContinuationCollector;
+import com.jimuqu.solon.claw.support.FixedSessionRepository;
 import com.jimuqu.solon.claw.support.MessageSupport;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -275,132 +274,4 @@ public class SessionContinuationCollectorTest {
         return record;
     }
 
-    /** 固定返回最近会话的内存仓储，避免测试依赖 SQLite。 */
-    private static final class FixedSessionRepository implements SessionRepository {
-        /** 按更新时间倒序准备的测试会话。 */
-        private final List<SessionRecord> sessions;
-
-        /** 是否模拟仓储返回 null，用于验证采集器防御性处理。 */
-        private final boolean returnNullList;
-
-        /** 创建固定会话仓储。 */
-        private FixedSessionRepository(List<SessionRecord> sessions) {
-            this(sessions, false);
-        }
-
-        /** 创建固定会话仓储，并允许模拟异常仓储返回值。 */
-        private FixedSessionRepository(List<SessionRecord> sessions, boolean returnNullList) {
-            this.sessions = sessions == null ? Collections.<SessionRecord>emptyList() : sessions;
-            this.returnNullList = returnNullList;
-        }
-
-        /** 本采集器测试不依赖来源绑定查询，固定返回空结果。 */
-        @Override
-        public SessionRecord getBoundSession(String sourceKey) {
-            return null;
-        }
-
-        /** 本采集器测试不创建新会话，固定返回空结果。 */
-        @Override
-        public SessionRecord bindNewSession(String sourceKey) {
-            return null;
-        }
-
-        /** 本采集器测试不修改来源绑定，方法保持空实现。 */
-        @Override
-        public void bindSource(String sourceKey, String sessionId) {}
-
-        /** 本采集器测试不克隆会话分支，固定返回空结果。 */
-        @Override
-        public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName) {
-            return null;
-        }
-
-        /** 本采集器测试不按 ID 查询会话，固定返回空结果。 */
-        @Override
-        public SessionRecord findById(String sessionId) {
-            return null;
-        }
-
-        /** 本采集器测试不按来源和分支查询会话，固定返回空结果。 */
-        @Override
-        public SessionRecord findBySourceAndBranch(String sourceKey, String branchName) {
-            return null;
-        }
-
-        /** 本采集器测试不复用旧的恢复候选查询，固定返回空列表。 */
-        @Override
-        public List<SessionRecord> findResumeCandidates(String reference, int limit) {
-            return Collections.emptyList();
-        }
-
-        /** 本采集器测试只读最近会话，不持久化会话变更。 */
-        @Override
-        public void save(SessionRecord sessionRecord) {}
-
-        /** 本采集器测试不走全文检索，固定返回空列表。 */
-        @Override
-        public List<SessionRecord> search(String keyword, int limit) {
-            return Collections.emptyList();
-        }
-
-        /** 按调用方给定限制返回测试会话，模拟仓储的最近会话读取能力。 */
-        @Override
-        public List<SessionRecord> listRecent(int limit) {
-            if (returnNullList) {
-                return null;
-            }
-            return new ArrayList<SessionRecord>(sessions.subList(0, Math.min(limit, sessions.size())));
-        }
-
-        /** 本采集器只调用无 offset 版本；offset 版本复用相同测试数据。 */
-        @Override
-        public List<SessionRecord> listRecent(int limit, int offset) {
-            return listRecent(limit);
-        }
-
-        /** 本采集器测试不恢复 pending Agent 会话，固定返回空列表。 */
-        @Override
-        public List<SessionRecord> listPendingAgentSessions(long updatedAfterMillis, int limit) {
-            return Collections.emptyList();
-        }
-
-        /** 返回测试会话总数，满足接口默认方法的基本约束。 */
-        @Override
-        public int countAll() {
-            return sessions.size();
-        }
-
-        /** 本采集器测试不删除会话，方法保持空实现。 */
-        @Override
-        public void delete(String sessionId) {}
-
-        /** 本采集器测试不修改模型覆盖，方法保持空实现。 */
-        @Override
-        public void setModelOverride(String sessionId, String modelOverride) {}
-
-        /** 本采集器测试不修改服务层级覆盖，方法保持空实现。 */
-        @Override
-        public void setServiceTierOverride(String sessionId, String serviceTierOverride) {}
-
-        /** 本采集器测试不修改推理强度覆盖，方法保持空实现。 */
-        @Override
-        public void setReasoningEffortOverride(String sessionId, String reasoningEffortOverride) {}
-
-        /** 本采集器测试不切换激活 Agent，方法保持空实现。 */
-        @Override
-        public void setActiveAgentName(String sessionId, String agentName) {}
-
-        /** 本采集器测试不清理激活 Agent，方法保持空实现。 */
-        @Override
-        public void clearActiveAgentName(String agentName) {}
-
-        /** 本采集器测试直接在记录上设置目标状态，不通过仓储写入。 */
-        @Override
-        public void setGoalState(String sessionId, String goalStateJson) {}
-
-        /** 本采集器测试不更新学习时间，方法保持空实现。 */
-        @Override
-        public void setLastLearningAt(String sessionId, long lastLearningAt) {}
-    }
 }

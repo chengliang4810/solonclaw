@@ -162,6 +162,41 @@ public class AgentProfileService {
     }
 
     /**
+     * 切换指定会话或当前来源绑定会话的 Agent。
+     *
+     * @param name Agent 名称；空值表示 default。
+     * @param sessionRepository 会话仓储依赖。
+     * @param sourceKey 当前来源键，仅 sessionId 为空时用于绑定会话。
+     * @param sessionId 显式会话标识，来自 Dashboard 页面级操作。
+     * @return 返回被更新的会话记录。
+     */
+    public SessionRecord activateAgent(
+            String name, SessionRepository sessionRepository, String sourceKey, String sessionId)
+            throws Exception {
+        if (sessionRepository == null) {
+            throw new IllegalArgumentException("当前入口无法切换 Agent。");
+        }
+        String normalized = normalizeName(name);
+        if (!AgentRuntimeScope.DEFAULT_AGENT.equals(normalized)) {
+            AgentProfile profile = repository.findByName(normalized);
+            if (profile == null) {
+                throw new IllegalArgumentException("未找到 Agent：" + normalized);
+            }
+            if (!profile.isEnabled()) {
+                throw new IllegalArgumentException("Agent 已停用：" + normalized);
+            }
+        }
+        SessionRecord session = targetSession(sessionRepository, sourceKey, sessionId);
+        String stored = AgentRuntimeScope.DEFAULT_AGENT.equals(normalized) ? null : normalized;
+        sessionRepository.setActiveAgentName(session.getSessionId(), stored);
+        if (runtimeService != null) {
+            runtimeService.markUsed(normalized);
+        }
+        session.setActiveAgentName(stored);
+        return session;
+    }
+
+    /**
      * 执行switchAgent相关逻辑。
      *
      * @param name 名称参数。
@@ -171,30 +206,55 @@ public class AgentProfileService {
      */
     private String switchAgent(String name, SessionRepository sessionRepository, String sourceKey)
             throws Exception {
-        if (sessionRepository == null || StrUtil.isBlank(sourceKey)) {
+        if (StrUtil.isBlank(sourceKey)) {
             return "当前入口无法切换 Agent。";
         }
-        String normalized = normalizeName(name);
-        if (!AgentRuntimeScope.DEFAULT_AGENT.equals(normalized)) {
-            AgentProfile profile = repository.findByName(normalized);
-            if (profile == null) {
-                return "未找到 Agent：" + normalized + "。可使用 /agent create " + normalized + " 创建。";
+        try {
+            String normalized = normalizeName(name);
+            activateAgent(normalized, sessionRepository, sourceKey, "");
+            return "已切换当前会话 Agent 为：" + normalized + "。正在运行的任务不会受影响。";
+        } catch (IllegalArgumentException e) {
+            String message = StrUtil.nullToEmpty(e.getMessage());
+            if (message.startsWith("未找到 Agent：")) {
+                return message + "。可使用 /agent create " + normalizeName(name) + " 创建。";
             }
-            if (!profile.isEnabled()) {
-                return "Agent 已停用：" + normalized;
-            }
+            return message;
         }
+    }
 
+    /**
+     * 查找或创建需要切换的目标会话。
+     *
+     * @param sessionRepository 会话仓储依赖。
+     * @param sourceKey 来源键。
+     * @param sessionId 显式会话标识。
+     * @return 返回会话记录。
+     */
+    private SessionRecord targetSession(
+            SessionRepository sessionRepository, String sourceKey, String sessionId)
+            throws Exception {
+        if (StrUtil.isNotBlank(sessionId)) {
+            SessionRecord session = sessionRepository.findById(sessionId);
+            if (session != null) {
+                return session;
+            }
+            long now = System.currentTimeMillis();
+            session = new SessionRecord();
+            session.setSessionId(sessionId);
+            session.setSourceKey("MEMORY:dashboard:" + sessionId);
+            session.setBranchName("main");
+            session.setNdjson("");
+            session.setTitle("");
+            session.setCreatedAt(now);
+            session.setUpdatedAt(now);
+            sessionRepository.save(session);
+            return session;
+        }
+        if (StrUtil.isBlank(sourceKey)) {
+            throw new IllegalArgumentException("当前入口无法切换 Agent。");
+        }
         SessionRecord session = sessionRepository.getBoundSession(sourceKey);
-        if (session == null) {
-            session = sessionRepository.bindNewSession(sourceKey);
-        }
-        String stored = AgentRuntimeScope.DEFAULT_AGENT.equals(normalized) ? null : normalized;
-        sessionRepository.setActiveAgentName(session.getSessionId(), stored);
-        if (runtimeService != null) {
-            runtimeService.markUsed(normalized);
-        }
-        return "已切换当前会话 Agent 为：" + normalized + "。正在运行的任务不会受影响。";
+        return session == null ? sessionRepository.bindNewSession(sourceKey) : session;
     }
 
     /**

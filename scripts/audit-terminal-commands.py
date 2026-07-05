@@ -20,6 +20,17 @@ from pathlib import Path
 
 from guardlib import REPO_ROOT
 
+
+def configure_stdio() -> None:
+    """让 Windows 控制台输出审计摘录时使用可替换编码，避免中文或替换字符导致脚本崩溃。"""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8", errors="replace")
+
+
+configure_stdio()
+
 try:
     import fcntl
     import pty
@@ -1045,7 +1056,13 @@ def run_node_tui_key_steps(
 def run_command(jar: Path, workspace_home: Path, command: str, index: int, timeout_seconds: float) -> dict[str, object]:
     out_path = workspace_home / f"audit-{index:03d}.out"
     err_path = workspace_home / f"audit-{index:03d}.err"
-    java_args = ["java", f"-Dsolonclaw.workspace={workspace_home}", "-jar", str(jar)]
+    java_args = [
+        "java",
+        "-Dfile.encoding=UTF-8",
+        f"-Dsolonclaw.workspace={workspace_home}",
+        "-jar",
+        str(jar),
+    ]
     java_args.extend(command_to_java_args(command))
     env = dict(os.environ)
     env.setdefault("LC_ALL", "C")
@@ -1060,6 +1077,8 @@ def run_command(jar: Path, workspace_home: Path, command: str, index: int, timeo
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout_seconds,
             check=False,
         )
@@ -1138,6 +1157,7 @@ def run_tui_pty(
         return 1
     java_args = [
         "java",
+        "-Dfile.encoding=UTF-8",
         f"-Dsolonclaw.workspace={workspace_home}",
         "-jar",
         str(jar),
@@ -1453,6 +1473,7 @@ def run_node_tui_pty(
     server_env.setdefault("LANG", "C")
     server_cmd = [
         "java",
+        "-Dfile.encoding=UTF-8",
         f"-Dsolonclaw.workspace={workspace_home}",
         f"-Dserver.port={port}",
         "-jar",

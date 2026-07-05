@@ -34,19 +34,19 @@ public class McpManageTools {
     @ToolMapping(
             name = "mcp_manage",
             description =
-                    "Manage MCP servers. Actions: list, save, delete, check, connect, reload, refresh_tools, reload_all, reload_all_async, oauth_status, oauth_clear.")
+                    "Manage MCP servers. Actions: list, save, delete, check, connect, reload, refresh_tools, tools_refresh, reload_all, reload_all_async, oauth_status, oauth_begin, start_oauth, generate_link, oauth_complete, submit_callback, oauth_refresh, oauth_handle_401, oauth_clear.")
     public String mcpManage(
             @Param(
                             name = "action",
                             description =
-                                    "list, save, delete, check, connect, reload, refresh_tools, reload_all, reload_all_async, oauth_status, oauth_clear")
+                                    "list, save, delete, check, connect, reload, refresh_tools, tools_refresh, reload_all, reload_all_async, oauth_status, oauth_begin, start_oauth, generate_link, oauth_complete, submit_callback, oauth_refresh, oauth_handle_401, oauth_clear")
                     String action,
             @Param(name = "server_id", required = false, description = "MCP server id")
                     String serverId,
             @Param(
                             name = "body_json",
                             required = false,
-                            description = "JSON body for action=save")
+                            description = "JSON body for action=save/oauth_begin/oauth_complete")
                     String bodyJson) {
         try {
             if (dashboardMcpService == null) {
@@ -90,7 +90,7 @@ public class McpManageTools {
         if ("reload".equals(normalized)) {
             return dashboardMcpService.reload(serverId);
         }
-        if ("refresh_tools".equals(normalized)) {
+        if ("refresh_tools".equals(normalized) || "tools_refresh".equals(normalized)) {
             return dashboardMcpService.refreshTools(serverId);
         }
         if ("reload_all".equals(normalized)) {
@@ -101,6 +101,20 @@ public class McpManageTools {
         }
         if ("oauth_status".equals(normalized)) {
             return dashboardMcpService.oauthStatus(serverId);
+        }
+        if ("oauth_begin".equals(normalized)
+                || "start_oauth".equals(normalized)
+                || "generate_link".equals(normalized)) {
+            return dashboardMcpService.beginOAuth(serverId, body(bodyJson));
+        }
+        if ("oauth_complete".equals(normalized) || "submit_callback".equals(normalized)) {
+            return dashboardMcpService.completeOAuth(serverId, body(bodyJson));
+        }
+        if ("oauth_refresh".equals(normalized)) {
+            return dashboardMcpService.refreshOAuth(serverId);
+        }
+        if ("oauth_handle_401".equals(normalized)) {
+            return dashboardMcpService.handleOAuth401(serverId);
         }
         if ("oauth_clear".equals(normalized)) {
             return dashboardMcpService.clearOAuth(serverId);

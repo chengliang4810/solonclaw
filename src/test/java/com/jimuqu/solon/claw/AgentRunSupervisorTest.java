@@ -30,6 +30,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.BlockingLlmGateway;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import java.io.File;
@@ -429,7 +430,7 @@ public class AgentRunSupervisorTest {
     @Test
     void shouldMarkRunningSessionsResumePendingForRestartTimeoutStops() throws Exception {
         Fixture fixture = fixture();
-        BlockingGateway gateway = new BlockingGateway();
+        BlockingLlmGateway gateway = new BlockingLlmGateway();
         AgentRunSupervisor supervisor =
                 supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
         SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:restart:user");
@@ -450,7 +451,7 @@ public class AgentRunSupervisorTest {
                                         Collections.emptyList(),
                                         null));
 
-        assertThat(gateway.started.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(gateway.awaitStarted(2, TimeUnit.SECONDS)).isTrue();
         assertThat(supervisor.stopAllRunningRuns("restart_timeout")).isEqualTo(1);
 
         try {
@@ -464,7 +465,7 @@ public class AgentRunSupervisorTest {
         SqliteAgentSession agentSession = new SqliteAgentSession(reloaded);
         assertThat(agentSession.isPending()).isTrue();
         assertThat(agentSession.getPendingReason()).isEqualTo("restart_timeout");
-        assertThat(gateway.interrupted).isTrue();
+        assertThat(gateway.isInterrupted()).isTrue();
     }
 
     @Test
@@ -773,29 +774,44 @@ public class AgentRunSupervisorTest {
         return types;
     }
 
+    /** 构造使用已解析模型配置的成功结果，保持 run supervisor 测试只关注运行状态。 */
+    private static LlmResult resolvedResult(
+            SessionRecord session, AppConfig.LlmConfig resolved, String reply) {
+        LlmResult result = new LlmResult();
+        result.setProvider(resolved.getProvider());
+        result.setModel(resolved.getModel());
+        result.setRawResponse("ok");
+        result.setAssistantMessage(new AssistantMessage(reply));
+        result.setNdjson(session.getNdjson());
+        return result;
+    }
+
     private static class Fixture {
         private AppConfig config;
         private SessionRepository sessionRepository;
         private AgentRunRepository agentRunRepository;
     }
 
-    private static class RecordingGateway implements LlmGateway {
-        private final List<String> attempts = new ArrayList<String>();
-
+    private abstract static class ExecuteOnceOnlyGateway implements LlmGateway {
+        /** 当前测试桩只允许 supervisor 调用 executeOnce，避免误走旧 chat/resume 路径。 */
         @Override
         public LlmResult chat(
                 SessionRecord session,
                 String systemPrompt,
                 String userMessage,
                 List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("executeOnce only");
         }
 
         @Override
         public LlmResult resume(
                 SessionRecord session, String systemPrompt, List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException("executeOnce only");
         }
+    }
+
+    private static class RecordingGateway extends ExecuteOnceOnlyGateway {
+        private final List<String> attempts = new ArrayList<String>();
 
         @Override
         public LlmResult executeOnce(
@@ -812,36 +828,15 @@ public class AgentRunSupervisorTest {
             if ("primary".equals(resolved.getProvider())) {
                 throw new IllegalStateException("HTTP 401 unauthorized");
             }
-            LlmResult result = new LlmResult();
-            result.setProvider(resolved.getProvider());
-            result.setModel(resolved.getModel());
-            result.setRawResponse("ok");
-            result.setAssistantMessage(new AssistantMessage("backup ok"));
-            result.setNdjson(session.getNdjson());
-            return result;
+            return resolvedResult(session, resolved, "backup ok");
         }
     }
 
-    private static class SuccessfulGateway implements LlmGateway {
+    private static class SuccessfulGateway extends ExecuteOnceOnlyGateway {
         private final String reply;
 
         private SuccessfulGateway(String reply) {
             this.reply = reply;
-        }
-
-        @Override
-        public LlmResult chat(
-                SessionRecord session,
-                String systemPrompt,
-                String userMessage,
-                List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public LlmResult resume(
-                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -855,36 +850,15 @@ public class AgentRunSupervisorTest {
                 boolean resume,
                 AppConfig.LlmConfig resolved,
                 com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
-            LlmResult result = new LlmResult();
-            result.setProvider(resolved.getProvider());
-            result.setModel(resolved.getModel());
-            result.setRawResponse("ok");
-            result.setAssistantMessage(new AssistantMessage(reply));
-            result.setNdjson(session.getNdjson());
-            return result;
+            return resolvedResult(session, resolved, reply);
         }
     }
 
-    private static class ThrowingGateway implements LlmGateway {
+    private static class ThrowingGateway extends ExecuteOnceOnlyGateway {
         private final String leakedToken;
 
         private ThrowingGateway(String leakedToken) {
             this.leakedToken = leakedToken;
-        }
-
-        @Override
-        public LlmResult chat(
-                SessionRecord session,
-                String systemPrompt,
-                String userMessage,
-                List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public LlmResult resume(
-                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -902,7 +876,7 @@ public class AgentRunSupervisorTest {
         }
     }
 
-    private static class RecoveryTranscriptGateway implements LlmGateway {
+    private static class RecoveryTranscriptGateway extends ExecuteOnceOnlyGateway {
         private final List<String> prompts = new ArrayList<String>();
         private final String firstNdjson;
         private final String recoveredText;
@@ -910,21 +884,6 @@ public class AgentRunSupervisorTest {
         private RecoveryTranscriptGateway(String firstNdjson, String recoveredText) {
             this.firstNdjson = firstNdjson;
             this.recoveredText = recoveredText;
-        }
-
-        @Override
-        public LlmResult chat(
-                SessionRecord session,
-                String systemPrompt,
-                String userMessage,
-                List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public LlmResult resume(
-                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -966,27 +925,12 @@ public class AgentRunSupervisorTest {
         }
     }
 
-    private static class FailingRecoveryGateway implements LlmGateway {
+    private static class FailingRecoveryGateway extends ExecuteOnceOnlyGateway {
         private final String leakedToken;
         private int attempts;
 
         private FailingRecoveryGateway(String leakedToken) {
             this.leakedToken = leakedToken;
-        }
-
-        @Override
-        public LlmResult chat(
-                SessionRecord session,
-                String systemPrompt,
-                String userMessage,
-                List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public LlmResult resume(
-                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
-            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -1016,36 +960,6 @@ public class AgentRunSupervisorTest {
                                     ChatMessage.ofTool("tool done", "shell", "call_1"),
                                     ChatMessage.ofAssistant(""))));
             return result;
-        }
-    }
-
-    private static class BlockingGateway implements LlmGateway {
-        private final CountDownLatch started = new CountDownLatch(1);
-        private volatile boolean interrupted;
-
-        @Override
-        public LlmResult chat(
-                SessionRecord session,
-                String systemPrompt,
-                String userMessage,
-                List<Object> toolObjects)
-                throws Exception {
-            started.countDown();
-            try {
-                while (true) {
-                    Thread.sleep(1000L);
-                }
-            } catch (InterruptedException e) {
-                interrupted = true;
-                throw e;
-            }
-        }
-
-        @Override
-        public LlmResult resume(
-                SessionRecord session, String systemPrompt, List<Object> toolObjects)
-                throws Exception {
-            return chat(session, systemPrompt, null, toolObjects);
         }
     }
 

@@ -297,8 +297,14 @@ public class CronjobTools {
                         .toJson();
             }
 
-            if ("create".equals(normalized)) {
-                Map<String, Object> createBody =
+            if ("create".equals(normalized) || "update".equals(normalized)) {
+                if ("update".equals(normalized)
+                        && (jobId == null || jobId.trim().length() == 0)) {
+                    return ToolResultEnvelope.error(
+                                    "action=" + safeText(normalized) + " 需要提供 job_id。")
+                            .toJson();
+                }
+                Map<String, Object> writeBody =
                         body(
                                 name,
                                 schedule,
@@ -328,54 +334,70 @@ public class CronjobTools {
                                 jobStatus,
                                 state,
                                 pausedReason);
-                applyDefaultOriginDelivery(createBody);
-                CronJobRecord duplicate =
-                        cronJobService.findDuplicateCreateJob(sourceKey, createBody);
-                if (duplicate != null) {
-                    Map<String, Object> view = formattedView(duplicate);
-                    return ToolResultEnvelope.ok("已存在相同定时任务：" + duplicate.getJobId())
-                            .data("job_id", duplicate.getJobId())
-                            .data("name", safeText(duplicate.getName()))
+                if ("create".equals(normalized)) {
+                    applyDefaultOriginDelivery(writeBody);
+                    CronJobRecord duplicate =
+                            cronJobService.findDuplicateCreateJob(sourceKey, writeBody);
+                    if (duplicate != null) {
+                        Map<String, Object> view = formattedView(duplicate);
+                        return ToolResultEnvelope.ok("已存在相同定时任务：" + duplicate.getJobId())
+                                .data("job_id", duplicate.getJobId())
+                                .data("name", safeText(duplicate.getName()))
+                                .data("skill", view.get("skill"))
+                                .data("skills", view.get("skills"))
+                                .data("schedule", duplicate.getCronExpr())
+                                .data("repeat", repeatDisplay(duplicate))
+                                .data("deliver", safeText(duplicate.getDeliverPlatform()))
+                                .data("wrap_response", Boolean.valueOf(duplicate.isWrapResponse()))
+                                .data("no_agent", Boolean.valueOf(duplicate.isNoAgent()))
+                                .data("script", safeObjectText(view.get("script")))
+                                .data("next_run_at", Long.valueOf(duplicate.getNextRunAt()))
+                                .data("next_run_at_iso", view.get("next_run_at_iso"))
+                                .data("job", view)
+                                .data("deduped", Boolean.TRUE)
+                                .data(
+                                        "message",
+                                        "相同定时任务已存在，已复用 '"
+                                                + safeText(duplicate.getName())
+                                                + "'。")
+                                .preview(
+                                        safeText(
+                                                duplicate.getJobId()
+                                                        + " "
+                                                        + duplicate.getName()
+                                                        + " DEDUPED"))
+                                .toJson();
+                    }
+                    CronJobRecord job = cronJobService.create(sourceKey, writeBody);
+                    Map<String, Object> view = formattedView(job);
+                    return ToolResultEnvelope.ok("已创建定时任务：" + job.getJobId())
+                            .data("job_id", job.getJobId())
+                            .data("name", safeText(job.getName()))
                             .data("skill", view.get("skill"))
                             .data("skills", view.get("skills"))
-                            .data("schedule", duplicate.getCronExpr())
-                            .data("repeat", repeatDisplay(duplicate))
-                            .data("deliver", safeText(duplicate.getDeliverPlatform()))
-                            .data("wrap_response", Boolean.valueOf(duplicate.isWrapResponse()))
-                            .data("no_agent", Boolean.valueOf(duplicate.isNoAgent()))
+                            .data("schedule", job.getCronExpr())
+                            .data("repeat", repeatDisplay(job))
+                            .data("deliver", safeText(job.getDeliverPlatform()))
+                            .data("wrap_response", Boolean.valueOf(job.isWrapResponse()))
+                            .data("no_agent", Boolean.valueOf(job.isNoAgent()))
                             .data("script", safeObjectText(view.get("script")))
-                            .data("next_run_at", Long.valueOf(duplicate.getNextRunAt()))
+                            .data("next_run_at", Long.valueOf(job.getNextRunAt()))
                             .data("next_run_at_iso", view.get("next_run_at_iso"))
                             .data("job", view)
-                            .data("deduped", Boolean.TRUE)
-                            .data("message", "相同定时任务已存在，已复用 '" + safeText(duplicate.getName()) + "'。")
-                            .preview(
-                                    safeText(
-                                            duplicate.getJobId()
-                                                    + " "
-                                                    + duplicate.getName()
-                                                    + " DEDUPED"))
+                            .data("deduped", Boolean.FALSE)
+                            .data("message", "定时任务 '" + safeText(job.getName()) + "' 已创建。")
+                            .preview(safeText(job.getJobId() + " " + job.getName() + " ACTIVE"))
                             .toJson();
                 }
-                CronJobRecord job = cronJobService.create(sourceKey, createBody);
-                Map<String, Object> view = formattedView(job);
-                return ToolResultEnvelope.ok("已创建定时任务：" + job.getJobId())
-                        .data("job_id", job.getJobId())
-                        .data("name", safeText(job.getName()))
-                        .data("skill", view.get("skill"))
-                        .data("skills", view.get("skills"))
-                        .data("schedule", job.getCronExpr())
-                        .data("repeat", repeatDisplay(job))
-                        .data("deliver", safeText(job.getDeliverPlatform()))
-                        .data("wrap_response", Boolean.valueOf(job.isWrapResponse()))
-                        .data("no_agent", Boolean.valueOf(job.isNoAgent()))
-                        .data("script", safeObjectText(view.get("script")))
-                        .data("next_run_at", Long.valueOf(job.getNextRunAt()))
-                        .data("next_run_at_iso", view.get("next_run_at_iso"))
-                        .data("job", view)
-                        .data("deduped", Boolean.FALSE)
-                        .data("message", "定时任务 '" + safeText(job.getName()) + "' 已创建。")
-                        .preview(safeText(job.getJobId() + " " + job.getName() + " ACTIVE"))
+
+                if (writeBody.isEmpty()) {
+                    return ToolResultEnvelope.error("未提供任何更新内容。").toJson();
+                }
+                CronJobRecord job = cronJobService.update(jobId, writeBody);
+                return ToolResultEnvelope.ok("定时任务操作已完成：" + normalized)
+                        .data("job", formattedView(job))
+                        .preview(
+                                safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()))
                         .toJson();
             }
 
@@ -419,42 +441,7 @@ public class CronjobTools {
             }
 
             CronJobRecord job;
-            if ("update".equals(normalized)) {
-                Map<String, Object> updateBody =
-                        body(
-                                name,
-                                schedule,
-                                prompt,
-                                deliver,
-                                deliverChatId,
-                                deliverThreadId,
-                                skill,
-                                skills,
-                                addSkill,
-                                addSkills,
-                                removeSkill,
-                                removeSkills,
-                                clearSkills,
-                                repeat,
-                                wrapResponse,
-                                script,
-                                workdir,
-                                noAgent,
-                                contextFrom,
-                                dependsOn,
-                                enabledToolsets,
-                                model,
-                                provider,
-                                baseUrl,
-                                enabled,
-                                jobStatus,
-                                state,
-                                pausedReason);
-                if (updateBody.isEmpty()) {
-                    return ToolResultEnvelope.error("未提供任何更新内容。").toJson();
-                }
-                job = cronJobService.update(jobId, updateBody);
-            } else if ("pause".equals(normalized)) {
+            if ("pause".equals(normalized)) {
                 job = cronJobService.pause(jobId, pauseReason(reason, "通过 cronjob 工具暂停"));
             } else if ("resume".equals(normalized)) {
                 job = cronJobService.resume(jobId);
@@ -826,7 +813,7 @@ public class CronjobTools {
             Integer limit,
             String reason)
             throws Exception {
-        return cronjob(
+        return cronjobWithStateDefaults(
                 action,
                 jobId,
                 name,
@@ -837,11 +824,6 @@ public class CronjobTools {
                 deliverThreadId,
                 skill,
                 skills,
-                null,
-                null,
-                null,
-                null,
-                null,
                 repeat,
                 includeDisabled,
                 wrapResponse,
@@ -854,11 +836,6 @@ public class CronjobTools {
                 model,
                 provider,
                 baseUrl,
-                null,
-                null,
-                null,
-                null,
-                null,
                 limit,
                 reason);
     }
@@ -926,7 +903,7 @@ public class CronjobTools {
             Integer limit,
             String reason)
             throws Exception {
-        return cronjob(
+        return cronjobWithState(
                 action,
                 jobId,
                 name,
@@ -937,11 +914,6 @@ public class CronjobTools {
                 deliverThreadId,
                 skill,
                 skills,
-                null,
-                null,
-                null,
-                null,
-                null,
                 repeat,
                 includeDisabled,
                 wrapResponse,
@@ -958,7 +930,6 @@ public class CronjobTools {
                 status,
                 state,
                 pausedReason,
-                null,
                 limit,
                 reason);
     }
@@ -1044,6 +1015,97 @@ public class CronjobTools {
                 null,
                 null,
                 null,
+                null,
+                limit,
+                reason);
+    }
+
+    /**
+     * 转发无状态编辑字段的 cronjob 重载，集中保留旧参数签名到完整工具入口的映射规则。
+     */
+    private String cronjobWithStateDefaults(
+            String action, String jobId, String name, String schedule, String prompt,
+            Object deliver, String deliverChatId, String deliverThreadId, Object skill,
+            Object skills, Integer repeat, Boolean includeDisabled, Boolean wrapResponse,
+            String script, String workdir, Boolean noAgent, Object contextFrom,
+            Object dependsOn, Object enabledToolsets, Object model, String provider,
+            String baseUrl, Integer limit, String reason)
+            throws Exception {
+        return cronjobWithState(
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                deliverChatId,
+                deliverThreadId,
+                skill,
+                skills,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                dependsOn,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                null,
+                null,
+                null,
+                null,
+                limit,
+                reason);
+    }
+
+    /**
+     * 转发无技能增删字段的 cronjob 重载，避免多个公开重载重复维护同一串默认参数。
+     */
+    private String cronjobWithState(
+            String action, String jobId, String name, String schedule, String prompt,
+            Object deliver, String deliverChatId, String deliverThreadId, Object skill,
+            Object skills, Integer repeat, Boolean includeDisabled, Boolean wrapResponse,
+            String script, String workdir, Boolean noAgent, Object contextFrom,
+            Object dependsOn, Object enabledToolsets, Object model, String provider,
+            String baseUrl, Boolean enabled, String status, String state,
+            String pausedReason, Integer limit, String reason)
+            throws Exception {
+        return cronjob(
+                action,
+                jobId,
+                name,
+                schedule,
+                prompt,
+                deliver,
+                deliverChatId,
+                deliverThreadId,
+                skill,
+                skills,
+                null,
+                null,
+                null,
+                null,
+                null,
+                repeat,
+                includeDisabled,
+                wrapResponse,
+                script,
+                workdir,
+                noAgent,
+                contextFrom,
+                dependsOn,
+                enabledToolsets,
+                model,
+                provider,
+                baseUrl,
+                enabled,
+                status,
+                state,
+                pausedReason,
                 null,
                 limit,
                 reason);

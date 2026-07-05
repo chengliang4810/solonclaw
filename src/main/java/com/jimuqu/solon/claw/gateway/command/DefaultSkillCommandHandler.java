@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.gateway.command;
 
-import cn.hutool.core.date.DateUtil;
+import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.formatTimestamp;
+
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
@@ -628,6 +629,6 @@ final class DefaultSkillCommandHandler {
                 millis = 0L;
             }
         }
-        return millis <= 0L ? "-" : DateUtil.formatDateTime(new java.util.Date(millis));
+        return millis <= 0L ? "-" : formatTimestamp(millis);
     }
 }

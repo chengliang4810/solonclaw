@@ -331,9 +331,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onOpen(WebSocket webSocket, Response response) {
-            setConnected(true);
-            setSetupState("connected");
-            setDetail("websocket connected");
+            markWebSocketConnected();
         }
 
         /**
@@ -368,10 +366,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
             YuanbaoChannelAdapter.this.webSocket = null;
-            setConnected(false);
-            setSetupState("error");
-            setLastError("yuanbao_websocket_failure", safeError(t));
-            setDetail("websocket disconnected");
+            markWebSocketFailure("yuanbao_websocket_failure", t);
         }
 
         /**
@@ -384,9 +379,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
             YuanbaoChannelAdapter.this.webSocket = null;
-            setConnected(false);
-            setSetupState("disconnected");
-            setDetail("websocket closed: " + code + " " + reason);
+            markWebSocketClosed(code, reason);
         }
     }
 

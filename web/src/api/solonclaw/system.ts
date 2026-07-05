@@ -3,6 +3,8 @@ import { request } from '../client'
 export interface HealthResponse {
   status: string
   version?: string
+  version_tag?: string
+  deployment_mode?: string
   webui_version?: string
   webui_latest?: string
   node_version?: string
@@ -16,6 +18,12 @@ export interface ProviderRecord {
   dialect: string
   hasApiKey: boolean
   isDefault: boolean
+}
+
+export interface DialectCatalogItem {
+  value: string
+  labelKey?: string
+  baseUrlPlaceholder?: string
 }
 
 export interface FallbackProvider {
@@ -41,9 +49,23 @@ export interface RuntimeModelStatus {
   status: string
   context_window?: number
   max_output?: number
-  input_price?: number
-  output_price?: number
+  pricing?: ModelPricingStatus
   group_label?: string
+}
+
+export interface ModelPricingStatus {
+  currency?: string
+  input?: string
+  output?: string
+  cache?: string
+  cache_read?: string
+  cache_write?: string
+  reasoning?: string
+  source?: string
+  source_url?: string
+  pricing_version?: string
+  fetched_at?: number
+  free?: boolean
 }
 
 export interface RuntimeModelsResponse {
@@ -85,6 +107,7 @@ export interface AvailableModelsResponse {
   groups: AvailableModelGroup[]
   allProviders: AvailableModelGroup[]
   fallbackProviders: FallbackProvider[]
+  dialectCatalog: DialectCatalogItem[]
 }
 
 export interface CustomProvider {
@@ -98,6 +121,19 @@ export interface CustomProvider {
 
 interface DashboardStatus {
   version?: string
+  version_tag?: string
+  deployment_mode?: string
+  latest_version?: string
+  latest_tag?: string
+}
+
+export interface RuntimeStatusResponse {
+  runtime_status?: {
+    multimodal?: Record<string, unknown>
+    pricing?: Record<string, unknown>
+    [key: string]: unknown
+  }
+  runtime_capabilities?: Record<string, unknown>
 }
 
 interface ProvidersPayload {
@@ -105,6 +141,7 @@ interface ProvidersPayload {
   defaultProviderKey: string
   defaultModel: string
   fallbackProviders: FallbackProvider[]
+  dialectCatalog?: DialectCatalogItem[]
 }
 
 export interface DashboardModelInfo {
@@ -128,8 +165,10 @@ export async function checkHealth(): Promise<HealthResponse> {
   return {
     status: health.ok ? 'ok' : 'error',
     version: status.version,
+    version_tag: status.version_tag,
+    deployment_mode: status.deployment_mode,
     webui_version: status.version,
-    webui_latest: status.version,
+    webui_latest: status.latest_version || status.latest_tag || status.version,
     node_version: '',
   }
 }
@@ -157,6 +196,7 @@ export async function fetchAvailableModels(): Promise<AvailableModelsResponse> {
     groups,
     allProviders: groups,
     fallbackProviders: payload.fallbackProviders || [],
+    dialectCatalog: payload.dialectCatalog || [],
   }
 }
 
@@ -170,6 +210,10 @@ export async function fetchModelsHealth(): Promise<ModelsHealthResponse> {
 
 export async function fetchRuntimeModels(): Promise<RuntimeModelsResponse> {
   return request<RuntimeModelsResponse>('/api/models')
+}
+
+export async function fetchRuntimeStatus(): Promise<RuntimeStatusResponse> {
+  return request<RuntimeStatusResponse>('/api/status')
 }
 
 export async function validateProvider(data: ProviderValidationRequest): Promise<ProviderValidationResponse> {

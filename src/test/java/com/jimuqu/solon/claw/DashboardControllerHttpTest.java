@@ -108,6 +108,55 @@ public class DashboardControllerHttpTest {
         }
     }
 
+    /** 验证 Dashboard 会话列表会用失败运行补足空消息会话的交互统计。 */
+    @Test
+    void shouldReflectFailedRunInDashboardSessionSummary() throws Exception {
+        String token = DASHBOARD_TEST_TOKEN;
+        String sessionId = "dashboard-failed-summary-20260705";
+        String sourceKey = "MEMORY:dashboard-failed-summary-20260705:user";
+        String userInput = "触发失败统计";
+        long now = System.currentTimeMillis();
+
+        SessionRepository sessionRepository = bean(SessionRepository.class);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId(sessionId);
+        session.setSourceKey(sourceKey);
+        session.setBranchName("main");
+        session.setTitle("Dashboard failed summary");
+        session.setNdjson("");
+        session.setCreatedAt(now);
+        session.setUpdatedAt(now);
+        sessionRepository.save(session);
+
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("run-dashboard-failed-summary-20260705");
+        run.setSessionId(sessionId);
+        run.setSourceKey(sourceKey);
+        run.setRunKind("conversation");
+        run.setAgentName("default");
+        run.setStatus("failed");
+        run.setPhase("failed");
+        run.setInputPreview(userInput);
+        run.setError("401 Invalid API Key");
+        run.setAttempts(2);
+        run.setStartedAt(now);
+        run.setLastActivityAt(now);
+        run.setFinishedAt(now + 1000L);
+        bean(AgentRunRepository.class).saveRun(run);
+
+        HttpResult sessions = request("GET", "/api/sessions?limit=20&offset=0", null, token);
+
+        assertThat(sessions.status).isEqualTo(200);
+        ONode item =
+                findItemByStringField(
+                        ONode.ofJson(sessions.body).get("data").get("sessions"),
+                        "id",
+                        sessionId);
+        assertThat(item).isNotNull();
+        assertThat(item.get("message_count").getInt()).isEqualTo(2);
+        assertThat(item.get("preview").getString()).isEqualTo(userInput);
+    }
+
     @Test
     void shouldAvoidInjectingDashboardTokenAndProtectSensitiveApis() throws Exception {
         HttpResult index = request("GET", "/", null, null);
@@ -150,6 +199,17 @@ public class DashboardControllerHttpTest {
                 .contains("\"health_checks\"")
                 .contains("\"platforms\"");
 
+        HttpResult unauthorizedPlugins = request("GET", "/api/plugins/status", null, null);
+        assertThat(unauthorizedPlugins.status).isEqualTo(401);
+
+        HttpResult authorizedPlugins = request("GET", "/api/plugins/status", null, token);
+        assertThat(authorizedPlugins.status).isEqualTo(200);
+        assertThat(authorizedPlugins.body)
+                .contains("\"loaded_count\"")
+                .contains("\"skipped_count\"")
+                .contains("\"failed_count\"")
+                .contains("\"diagnostics\"");
+
         HttpResult login = request("GET", "/login", null, null);
         assertThat(login.status).isEqualTo(200);
         assertThat(login.body).doesNotContain("__APP_SESSION_TOKEN__");
@@ -169,6 +229,13 @@ public class DashboardControllerHttpTest {
         HttpResult files = request("GET", "/files", null, null);
         assertThat(files.status).isEqualTo(200);
         assertThat(files.body).doesNotContain("__APP_SESSION_TOKEN__");
+
+        for (String path :
+                new String[] {"/diagnostics", "/tui-runtime", "/curator", "/mcp"}) {
+            HttpResult alias = request("GET", path, null, null);
+            assertThat(alias.status).isEqualTo(200);
+            assertThat(alias.body).doesNotContain("__APP_SESSION_TOKEN__");
+        }
     }
 
     @Test
@@ -2685,12 +2752,14 @@ public class DashboardControllerHttpTest {
         HttpResult files = request("GET", "/api/workspace/files", null, token);
         assertThat(files.status).isEqualTo(200);
         assertThat(files.body).contains("workspace://files/");
+        assertThat(files.body).contains("\"modTime\"");
         assertThat(files.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(files.body).doesNotContain(workspaceDir.getAbsolutePath());
 
         HttpResult agents = request("GET", "/api/workspace/files/agents", null, token);
         assertThat(agents.status).isEqualTo(200);
         assertThat(agents.body).contains("workspace://files/agents");
+        assertThat(agents.body).contains("\"modTime\"");
         assertThat(agents.body).doesNotContain(workspaceHome.getAbsolutePath());
         assertThat(agents.body).doesNotContain(workspaceDir.getAbsolutePath());
 

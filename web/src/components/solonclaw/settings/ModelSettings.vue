@@ -88,7 +88,11 @@ async function handleSaveFallbacks() {
 <template>
   <section class="settings-section">
     <Spin :spinning="modelsStore.loading">
-      <div v-if="modelsStore.providers.length === 0" class="empty-hint">
+      <div v-if="modelsStore.loadError" class="providers-load-error">
+        <strong>{{ t('models.fetchFailed') }}</strong>
+        <span>{{ modelsStore.loadError }}</span>
+      </div>
+      <div v-else-if="modelsStore.providers.length === 0" class="empty-hint">
         <Empty :description="t('settings.models.noProviders')" />
       </div>
 
@@ -163,6 +167,20 @@ async function handleSaveFallbacks() {
 
 .empty-hint {
   padding: 40px 0;
+}
+
+.providers-load-error {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: $radius-sm;
+  color: $error;
+  background: rgba(var(--error-rgb), 0.06);
+
+  span {
+    overflow-wrap: anywhere;
+  }
 }
 
 .panel {

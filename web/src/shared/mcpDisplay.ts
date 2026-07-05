@@ -1,3 +1,5 @@
+import { formatTimestampText } from './timeFormat.ts'
+
 export type McpStatusTone = 'success' | 'warning' | 'error' | 'default'
 
 export interface McpTransportOption {
@@ -37,6 +39,5 @@ export function mcpStatusTone(status: string | null | undefined): McpStatusTone 
  * MCP 时间字段来自后端毫秒时间戳；空值保持页面原有占位符。
  */
 export function mcpTimestampText(value?: number | null, fallback = '-'): string {
-  if (!value) return fallback
-  return new Date(value).toLocaleString()
+  return formatTimestampText(value, undefined, fallback)
 }

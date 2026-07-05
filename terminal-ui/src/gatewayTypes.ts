@@ -114,6 +114,7 @@ export interface SetupStatusResponse {
   model?: string
   provider?: string
   provider_configured?: boolean
+  warning?: string
   workspace_config?: string
 }
 
@@ -152,7 +153,10 @@ export interface ChannelQrResponse {
   message?: string
   ok?: boolean
   qrcode?: string
+  qrcode_img_content?: string
   qrcode_url?: string
+  qr_code?: string
+  qr_image_url?: string
   qr_url?: string
   session_id?: string
   status?: string
@@ -636,4 +640,10 @@ export type GatewayEvent =
       session_id?: string
       type: 'message.complete'
     }
-  | { payload?: { message?: string }; session_id?: string; type: 'error' }
+  | {
+      payload?: { final_reply?: string; rendered?: string; text?: string; usage?: Usage }
+      session_id?: string
+      type: 'run.completed'
+    }
+  | { payload?: { error?: string; message?: string }; session_id?: string; type: 'run.failed' }
+  | { payload?: { error?: string; message?: string }; session_id?: string; type: 'error' }

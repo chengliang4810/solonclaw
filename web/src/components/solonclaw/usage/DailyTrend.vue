@@ -2,7 +2,14 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUsageStore } from '@/stores/solonclaw/usage'
-import { formatUsageCost, formatUsageDateLabel, formatUsageTokens, latestUsageRows } from '@/shared/usageFormat'
+import {
+  formatUsageCost,
+  formatUsageDateLabel,
+  formatUsageTokens,
+  latestUsageRows,
+  maxUsageValue,
+  usageBarPercent,
+} from '@/shared/usageFormat'
 import { dailyUsageTrendMetrics, type DailyUsageTrendMetricKey } from '@/shared/usageMetrics'
 
 const { t } = useI18n()
@@ -27,9 +34,7 @@ interface UsageTrendColumn {
 
 type DailyUsageTrendFormatter = (row: DailyUsageRow) => string
 
-const maxTokens = computed(() =>
-  Math.max(...usageStore.dailyUsage.map(d => d.tokens), 1),
-)
+const maxTokens = computed(() => maxUsageValue(usageStore.dailyUsage.map(d => d.tokens)))
 const tableRows = computed(() => latestUsageRows(usageStore.dailyUsage))
 const dailyUsageTrendFormatters = {
   tokens: row => formatUsageTokens(row.tokens),
@@ -62,7 +67,7 @@ const usageTrendColumns = computed<readonly UsageTrendColumn[]>(() =>
         <div class="bar-track">
           <div
             class="bar-fill"
-            :style="{ height: (d.tokens / maxTokens * 100) + '%' }"
+            :style="{ height: usageBarPercent(d.tokens, maxTokens) }"
           />
         </div>
         <div class="bar-tooltip">

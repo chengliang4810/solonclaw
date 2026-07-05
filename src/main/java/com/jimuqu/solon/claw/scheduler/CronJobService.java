@@ -17,6 +17,7 @@ import java.io.File;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -31,9 +32,9 @@ public class CronJobService {
     /** 记录定时任务管理服务的低敏运行诊断日志。 */
     private static final Logger log = LoggerFactory.getLogger(CronJobService.class);
 
-    /** PROTECTED定时任务DISABLEDTOOLSETS的统一常量值。 */
+    /** 定时任务受保护的禁用工具集，禁止外部代码改写安全边界。 */
     public static final List<String> PROTECTED_CRON_DISABLED_TOOLSETS =
-            Arrays.asList("cronjob", "messaging", "clarify");
+            Collections.unmodifiableList(Arrays.asList("cronjob", "messaging", "clarify"));
 
     /** 状态ACTIVE的统一常量值。 */
     private static final String STATUS_ACTIVE = "ACTIVE";

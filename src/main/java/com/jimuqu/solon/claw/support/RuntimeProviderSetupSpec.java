@@ -36,7 +36,7 @@ public final class RuntimeProviderSetupSpec {
                                     LlmConstants.PROVIDER_OLLAMA,
                                     "http://127.0.0.1:11434",
                                     "qwen3:8b",
-                                    "OLLAMA_API_KEY",
+                                    "",
                                     Arrays.asList("qwen3:8b", "llama3.1:8b", "mistral:7b")),
                             new ProviderTemplate(
                                     "gemini",

@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { writeFile } from 'node:fs'
 
 import type { ScrollBoxHandle } from '@solonclaw/ink'
 import { evictInkCaches } from '@solonclaw/ink'
@@ -23,7 +23,6 @@ import type { Msg, PanelSection, SessionInfo, Usage } from '../types.js'
 import type { ComposerActions, GatewayRpc, StateSetter } from './interfaces.js'
 import { patchOverlayState } from './overlayStore.js'
 import { turnController } from './turnController.js'
-import { patchTurnState } from './turnStore.js'
 import { getUiState, patchUiState } from './uiStore.js'
 
 const usageFrom = (info: null | SessionInfo): Usage => (info?.usage ? { ...ZERO, ...info.usage } : ZERO)
@@ -43,13 +42,15 @@ const statusFromLiveSession = (status?: string, running = false) => {
   return running || status === 'working' ? 'running…' : 'ready'
 }
 
+const sessionLifecycleErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
 export const writeActiveSessionFile = (sessionId: null | string, file = process.env.SOLONCLAW_TUI_ACTIVE_SESSION_FILE) => {
   if (!file || !sessionId) {
     return
   }
 
   try {
-    writeFileSync(file, JSON.stringify({ session_id: sessionId }), { mode: 0o600 })
+    writeFile(file, JSON.stringify({ session_id: sessionId }), { mode: 0o600 }, () => undefined)
   } catch {
     // Best-effort shell epilogue hint only; never break live session changes.
   }
@@ -152,16 +153,12 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
 
   const resetVisibleHistory = useCallback(
     (info: null | SessionInfo = null) => {
-      turnController.idle()
-      turnController.clearReasoning()
-      turnController.turnTools = []
-      turnController.persistedToolLabels.clear()
+      turnController.resetVisibleHistoryState()
 
       setHistoryItems(info ? [introMsg(info)] : [])
       setStickyPrompt('')
       setLastUserMsg('')
       composerActions.setPasteSnips([])
-      patchTurnState({ activity: [] })
       patchUiState({ info, usage: usageFrom(info) })
     },
     [composerActions, setHistoryItems, setLastUserMsg, setStickyPrompt]
@@ -169,82 +166,89 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
 
   const startNewSession = useCallback(
     async (msg?: string, title?: string, keepCurrent = false) => {
-      const setup = await rpc<SetupStatusResponse>('setup.status', {})
+      try {
+        const setup = await rpc<SetupStatusResponse>('setup.status', {})
 
-      if (setup?.provider_configured === false) {
-        panel(SETUP_REQUIRED_TITLE, buildSetupRequiredSections())
-        patchUiState({ status: 'setup required' })
+        if (setup?.provider_configured === false) {
+          panel(SETUP_REQUIRED_TITLE, buildSetupRequiredSections())
+          patchUiState({ status: 'setup required' })
 
-        return null
-      }
+          return null
+        }
 
-      if (!keepCurrent) {
-        await closeSession(getUiState().sid)
-      }
+        if (!keepCurrent) {
+          await closeSession(getUiState().sid)
+        }
 
-      const r = await rpc<SessionCreateResponse>('session.create', { cols: colsRef.current })
+        const r = await rpc<SessionCreateResponse>('session.create', { cols: colsRef.current })
 
-      if (!r) {
+        if (!r) {
+          patchUiState({ status: 'ready' })
+
+          return null
+        }
+
+        const info = r.info ?? null
+        const requestedTitle = title?.trim() ?? ''
+
+        resetSession()
+        setSessionStartedAt(Date.now())
+
+        writeActiveSessionFile(r.session_id)
+        patchUiState({
+          info,
+          sid: r.session_id,
+          status: info?.version ? 'ready' : '正在启动…',
+          usage: usageFrom(info)
+        })
+
+        if (info) {
+          setHistoryItems([introMsg(info)])
+        }
+
+        if (info?.credential_warning) {
+          sys(`warning: ${info.credential_warning}`)
+        }
+
+        if (info?.config_warning) {
+          sys(`warning: ${info.config_warning}`)
+        }
+
+        if (msg) {
+          sys(msg)
+        }
+
+        if (requestedTitle) {
+          rpc<SessionTitleResponse>('session.title', {
+            session_id: r.session_id,
+            title: requestedTitle
+          })
+            .then(result => {
+              if (!result || getUiState().sid !== r.session_id) {
+                return
+              }
+
+              const nextTitle = (result.title ?? requestedTitle).trim()
+              const suffix = result.pending ? ' (queued while session initializes)' : ''
+              sys(`session title set: ${nextTitle}${suffix}`)
+            })
+            .catch((err: unknown) => {
+              if (getUiState().sid !== r.session_id) {
+                return
+              }
+
+              const message = err instanceof Error ? err.message : String(err)
+              sys(`warning: failed to set session title: ${message}`)
+            })
+        }
+
+        return r.session_id
+      } catch (error: unknown) {
+        sys(`error: ${sessionLifecycleErrorMessage(error)}`)
         patchUiState({ status: 'ready' })
 
         return null
       }
-
-      const info = r.info ?? null
-      const requestedTitle = title?.trim() ?? ''
-
-      resetSession()
-      setSessionStartedAt(Date.now())
-
-      writeActiveSessionFile(r.session_id)
-      patchUiState({
-        info,
-        sid: r.session_id,
-        status: info?.version ? 'ready' : '正在启动…',
-        usage: usageFrom(info)
-      })
-
-      if (info) {
-        setHistoryItems([introMsg(info)])
-      }
-
-      if (info?.credential_warning) {
-        sys(`warning: ${info.credential_warning}`)
-      }
-
-      if (info?.config_warning) {
-        sys(`warning: ${info.config_warning}`)
-      }
-
-      if (msg) {
-        sys(msg)
-      }
-
-      if (requestedTitle) {
-        rpc<SessionTitleResponse>('session.title', {
-          session_id: r.session_id,
-          title: requestedTitle
-        })
-          .then(result => {
-            if (!result || getUiState().sid !== r.session_id) {
-              return
-            }
-
-            const nextTitle = (result.title ?? requestedTitle).trim()
-            const suffix = result.pending ? ' (queued while session initializes)' : ''
-            sys(`session title set: ${nextTitle}${suffix}`)
-          })
-          .catch((err: unknown) => {
-            if (getUiState().sid !== r.session_id) {
-              return
-            }
-
-            const message = err instanceof Error ? err.message : String(err)
-            sys(`warning: failed to set session title: ${message}`)
-          })
-      }
-
-      return r.session_id
     },
     [closeSession, colsRef, panel, resetSession, rpc, setHistoryItems, setSessionStartedAt, sys]
   )
@@ -302,7 +306,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
           patchUiState({ status: 'ready' })
         })
     },
-    [gw, resetSession, scrollRef, setHistoryItems, setSessionStartedAt, sys]
+    [gw, resetSession, scrollRef, setHistoryItems, setLastUserMsg, setSessionStartedAt, sys]
   )
 
   const resumeById = useCallback(
@@ -310,52 +314,57 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
       patchOverlayState({ sessions: false })
       patchUiState({ status: 'resuming…' })
 
-      rpc<SetupStatusResponse>('setup.status', {}).then(setup => {
-        if (setup?.provider_configured === false) {
-          panel(SETUP_REQUIRED_TITLE, buildSetupRequiredSections())
-          patchUiState({ status: 'setup required' })
+      rpc<SetupStatusResponse>('setup.status', {})
+        .then(setup => {
+          if (setup?.provider_configured === false) {
+            panel(SETUP_REQUIRED_TITLE, buildSetupRequiredSections())
+            patchUiState({ status: 'setup required' })
 
-          return
-        }
+            return
+          }
 
-        closeSession(getUiState().sid === id ? null : getUiState().sid).then(() =>
-          gw
-            .request<SessionResumeResponse>('session.resume', { cols: colsRef.current, session_id: id })
-            .then(raw => {
-              const r = asRpcResult<SessionResumeResponse>(raw)
+          return closeSession(getUiState().sid === id ? null : getUiState().sid).then(() =>
+            gw
+              .request<SessionResumeResponse>('session.resume', { cols: colsRef.current, session_id: id })
+              .then(raw => {
+                const r = asRpcResult<SessionResumeResponse>(raw)
 
-              if (!r) {
-                sys('error: invalid response: session.resume')
+                if (!r) {
+                  sys('error: invalid response: session.resume')
 
-                return patchUiState({ status: 'ready' })
-              }
+                  return patchUiState({ status: 'ready' })
+                }
 
-              resetSession()
-              const running = isLiveSessionRunning(r.running, r.status)
-              setSessionStartedAt(r.started_at ? r.started_at * 1000 : Date.now())
+                resetSession()
+                const running = isLiveSessionRunning(r.running, r.status)
+                setSessionStartedAt(r.started_at ? r.started_at * 1000 : Date.now())
 
-              const resumed = [...toTranscriptMessages(r.messages), ...liveSessionInflightMessages(r.inflight)]
-              setLastUserMsg(lastUserTextFromMessages(resumed))
-              setHistoryItems(r.info ? [introMsg(r.info), ...resumed] : resumed)
-              writeActiveSessionFile(r.resumed ?? r.session_id)
-              patchUiState({
-                busy: running,
-                info: r.info ?? null,
-                sid: r.session_id,
-                status: statusFromLiveSession(r.status, running),
-                usage: usageFrom(r.info ?? null)
+                const resumed = [...toTranscriptMessages(r.messages), ...liveSessionInflightMessages(r.inflight)]
+                setLastUserMsg(lastUserTextFromMessages(resumed))
+                setHistoryItems(r.info ? [introMsg(r.info), ...resumed] : resumed)
+                writeActiveSessionFile(r.resumed ?? r.session_id)
+                patchUiState({
+                  busy: running,
+                  info: r.info ?? null,
+                  sid: r.session_id,
+                  status: statusFromLiveSession(r.status, running),
+                  usage: usageFrom(r.info ?? null)
+                })
+                hydrateLiveSessionInflight(r.inflight)
+                setTimeout(() => scrollRef.current?.scrollToBottom(), 0)
               })
-              hydrateLiveSessionInflight(r.inflight)
-              setTimeout(() => scrollRef.current?.scrollToBottom(), 0)
-            })
-            .catch((e: Error) => {
-              sys(`error: ${e.message}`)
-              patchUiState({ status: 'ready' })
-            })
-        )
-      })
+              .catch((e: Error) => {
+                sys(`error: ${e.message}`)
+                patchUiState({ status: 'ready' })
+              })
+          )
+        })
+        .catch((error: unknown) => {
+          sys(`error: ${sessionLifecycleErrorMessage(error)}`)
+          patchUiState({ status: 'ready' })
+        })
     },
-    [closeSession, colsRef, gw, panel, resetSession, rpc, scrollRef, setHistoryItems, setSessionStartedAt, sys]
+    [closeSession, colsRef, gw, panel, resetSession, rpc, scrollRef, setHistoryItems, setLastUserMsg, setSessionStartedAt, sys]
   )
 
   const guardBusySessionSwitch = useCallback(

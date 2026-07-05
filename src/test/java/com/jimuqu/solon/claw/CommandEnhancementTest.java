@@ -11,15 +11,14 @@ import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
-import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.BlockingLlmGateway;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
@@ -30,7 +29,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -469,7 +467,7 @@ public class CommandEnhancementTest {
 
     @Test
     void shouldInjectExplicitSteerIntoRunningAgentWithoutInterrupting() throws Exception {
-        SteerAwareSlowLlmGateway slowLlmGateway = new SteerAwareSlowLlmGateway();
+        BlockingLlmGateway slowLlmGateway = new BlockingLlmGateway();
         TestEnvironment env = TestEnvironment.withLlm(slowLlmGateway);
         bootstrapAdmin(env);
 
@@ -477,7 +475,7 @@ public class CommandEnhancementTest {
         Future<GatewayReply> running =
                 executorService.submit(() -> env.send("admin-chat", "admin-user", "执行一个长任务"));
 
-        assertThat(slowLlmGateway.started.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(slowLlmGateway.awaitStarted(2, TimeUnit.SECONDS)).isTrue();
         GatewayReply steer = env.send("admin-chat", "admin-user", "/steer prefer simpler fix");
 
         assertThat(steer.getContent()).contains("steer").contains("注入");
@@ -488,7 +486,7 @@ public class CommandEnhancementTest {
         RunControlCommand pending = env.agentRunRepository.findLatestPendingCommand(runId, "steer");
         assertThat(pending).isNotNull();
         assertThat(pending.getPayloadJson()).contains("prefer simpler fix");
-        assertThat(slowLlmGateway.interrupted).isFalse();
+        assertThat(slowLlmGateway.isInterrupted()).isFalse();
 
         env.send("admin-chat", "admin-user", "/stop");
         running.get(3, TimeUnit.SECONDS);
@@ -497,7 +495,7 @@ public class CommandEnhancementTest {
 
     @Test
     void shouldRedactDashboardControlPayloadButKeepRawSteerForRuntime() throws Exception {
-        SteerAwareSlowLlmGateway slowLlmGateway = new SteerAwareSlowLlmGateway();
+        BlockingLlmGateway slowLlmGateway = new BlockingLlmGateway();
         TestEnvironment env = TestEnvironment.withLlm(slowLlmGateway);
         bootstrapAdmin(env);
 
@@ -505,7 +503,7 @@ public class CommandEnhancementTest {
         Future<GatewayReply> running =
                 executorService.submit(() -> env.send("admin-chat", "admin-user", "执行一个长任务"));
 
-        assertThat(slowLlmGateway.started.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(slowLlmGateway.awaitStarted(2, TimeUnit.SECONDS)).isTrue();
         GatewayReply steer =
                 env.send(
                         "admin-chat",
@@ -1812,36 +1810,6 @@ public class CommandEnhancementTest {
 
     private String disguisedConfirmId(String confirmId) {
         return confirmId.substring(0, 8) + "\u202E" + confirmId.substring(8);
-    }
-
-    private static class SteerAwareSlowLlmGateway implements LlmGateway {
-        private final CountDownLatch started = new CountDownLatch(1);
-        private volatile boolean interrupted;
-
-        @Override
-        public LlmResult chat(
-                SessionRecord session,
-                String systemPrompt,
-                String userMessage,
-                List<Object> toolObjects)
-                throws Exception {
-            started.countDown();
-            try {
-                while (true) {
-                    Thread.sleep(1000L);
-                }
-            } catch (InterruptedException e) {
-                interrupted = true;
-                throw e;
-            }
-        }
-
-        @Override
-        public LlmResult resume(
-                SessionRecord session, String systemPrompt, List<Object> toolObjects)
-                throws Exception {
-            return chat(session, systemPrompt, null, toolObjects);
-        }
     }
 
     private String cronJobView(TestEnvironment env, String jobId) throws Exception {

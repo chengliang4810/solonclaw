@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -13,7 +14,7 @@ SCRIPT_PATH = REPO_ROOT / "scripts" / "check-code-duplication.py"
 
 def run_check(sandbox: Path, *extra_args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        ["python3", str(SCRIPT_PATH), "--root-path", str(sandbox), *extra_args],
+        [sys.executable, str(SCRIPT_PATH), "--root-path", str(sandbox), *extra_args],
         cwd=str(REPO_ROOT),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -97,6 +98,21 @@ class ImportSecond {{
         import_only = run_check(sandbox, "--min-lines", "3")
         if import_only.returncode != 0:
             raise AssertionError("Duplicate detector should ignore package/import-only overlap: " + import_only.stderr)
+
+        shutil.rmtree(sandbox)
+        sandbox.mkdir(parents=True)
+        generated_block = "\n".join(
+            [
+                "const value1 = 1;",
+                "const value2 = 2;",
+                "const value3 = 3;",
+            ]
+        )
+        write_text(sandbox / "pkg" / "src" / "index.ts", generated_block)
+        write_text(sandbox / "pkg" / "dist" / "index.js", generated_block)
+        generated = run_check(sandbox, "--min-lines", "3")
+        if generated.returncode != 0:
+            raise AssertionError("Duplicate detector should ignore generated dist output: " + generated.stderr)
 
         shutil.rmtree(sandbox)
         sandbox.mkdir(parents=True)

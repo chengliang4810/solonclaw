@@ -40,6 +40,7 @@ IGNORED_DIRS = {
     ".turbo",
     ".vite",
     "coverage",
+    "dist",
     "target",
 }
 IGNORED_FILES = {

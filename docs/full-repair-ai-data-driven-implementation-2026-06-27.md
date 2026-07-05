@@ -62,12 +62,12 @@
      - `src/test/java/com/jimuqu/solon/claw/support/TestEnvironment.java`
    - 改造前：
      - 已有 `mcp` 工具只暴露启用的 MCP 远端工具调用能力。
-     - Dashboard 已有 MCP 服务端列表、保存、删除、检查、连接、重载、工具刷新和 OAuth 状态清理能力，但 Agent 自然语言路径没有一等入口。
+     - Dashboard 已有 MCP 服务端列表、保存、删除、检查、连接、重载、工具刷新和 OAuth 状态、刷新、401 处理、清理能力，但 Agent 自然语言路径没有一等入口。
    - 改造后：
-     - 新增 `mcp_manage` 工具，复用 `DashboardMcpService`，支持 `list`、`save`、`delete`、`check`、`connect`、`reload`、`refresh_tools`、`reload_all`、`reload_all_async`、`oauth_status`、`oauth_clear`。
+     - 新增 `mcp_manage` 工具，复用 `DashboardMcpService`，支持 `list`、`save`、`delete`、`check`、`connect`、`reload`、`refresh_tools` / `tools_refresh`、`reload_all`、`reload_all_async`、`oauth_status`、`oauth_refresh`、`oauth_handle_401`、`oauth_clear`。
      - 不复制 MCP 配置、包安全、URL 安全、工具发现或 OAuth 脱敏逻辑，统一沿用 Dashboard 服务边界。
-     - 增加工具暴露测试，证明默认工具列表包含 `mcp_manage` 且能解析到 `McpManageTools`。
-   - 提交：`e24046e93`
+     - 增加工具暴露和页面动作测试，证明默认工具列表包含 `mcp_manage`、能解析到 `McpManageTools`，且页面 `tools/refresh`、`oauth/refresh`、`oauth/handle-401` 语义可通过自然语言工具执行。
+   - 初始提交：`e24046e93`；后续提交继续补齐页面动作。
 
 5. 增加技能维护管理一等工具
    - 位置：
@@ -98,7 +98,7 @@
      - Dashboard 已有国内渠道平台工具集策略的 overview/update API，负责平台白名单、工具集列表规范化和配置落盘。
      - Agent 自然语言路径没有一等工具入口；`config_set` 只能写单个配置键，不能复用 Dashboard 的平台校验和结构化更新。
    - 改造后：
-     - 新增 `platform_toolsets_manage` 工具，复用 `DashboardPlatformToolsetsService`，支持 `overview`、`update`。
+     - 新增 `platform_toolsets_manage` 工具，复用 `DashboardPlatformToolsetsService`，支持 `overview`、`update` / `save` / `save_toolsets`。
      - 支持平台仍限定为 `feishu`、`dingtalk`、`wecom`、`weixin`、`qqbot`、`yuanbao`。
      - 增加工具暴露测试，证明默认工具列表包含 `platform_toolsets_manage` 且能解析到 `PlatformToolsetsManageTools`。
    - 提交：`b5f6c2cfe`
@@ -115,7 +115,7 @@
      - Dashboard 已有 provider 列表、模型列表、健康检查、创建、更新、删除、默认模型、fallback、远端模型拉取和校验能力。
      - Agent 自然语言路径只能通过配置键或 UI 间接操作，不能复用 Dashboard provider 的 URL 安全、provider 校验、fallback 校验和模型列表逻辑。
    - 改造后：
-     - 新增 `provider_manage` 工具，复用 `DashboardProviderService`，支持 `list`、`models`、`health`、`create`、`update`、`delete`、`default_model`、`fallbacks`、`remote_models`、`validate`。
+     - 新增 `provider_manage` 工具，复用 `DashboardProviderService`，支持 `list`、`models`、`health` / `models_health`、`create`、`update`、`delete`、`default_model` / `set_default_model`、`fallbacks`、`remote_models` / `provider_models` / `fetch_models` / `fetch_model_list`、`validate` / `test_connection` / `check_connection`。
      - 工具结果统一脱敏预览，不暴露 API key 或带密 URL。
      - 增加工具暴露测试，证明默认工具列表包含 `provider_manage` 且能解析到 `ProviderManageTools`。
    - 提交：`73032a5ee`
@@ -127,12 +127,12 @@
      - `src/main/java/com/jimuqu/solon/claw/support/constants/ToolNameConstants.java`
      - `src/test/java/com/jimuqu/solon/claw/ToolRegistryExposureTest.java`
    - 改造前：
-     - Dashboard 已有会话列表、消息、recap、trajectory、分支树、最新后代、检查点列表和检查点预览能力。
+     - Dashboard 已有会话列表、消息、recap、trajectory、分支树、最新后代、检查点列表、检查点预览和检查点回滚能力。
      - Agent 自然语言路径没有一等 `session_manage` 工具，排查历史会话、分支和检查点时需要绕到 UI 或文件层。
    - 改造后：
-     - 新增 `session_manage` 工具，复用 `DashboardSessionService`，支持 `list`、`messages`、`recap`、`trajectory`、`tree`、`latest_descendant`、`checkpoints`、`checkpoint_preview`。
+     - 新增 `session_manage` 工具，复用 `DashboardSessionService`，支持 `list`、`messages`、`recap`、`trajectory`、`tree`、`latest_descendant`、`checkpoints`、`checkpoint_preview`、`rollback_checkpoint` / `checkpoint_rollback` / `rollback`。
      - 工具结果沿用 Dashboard 会话服务的消息脱敏、摘要裁剪和检查点预览逻辑。
-     - 暂不暴露 `rollbackCheckpoint`、`deleteSession`、`updateSession` 等破坏性或写操作，避免自然语言路径绕过更强审批边界。
+     - 暂不暴露 `deleteSession` 等会话删除操作，避免自然语言路径绕过更强审批边界。
      - 增加工具暴露测试，证明默认工具列表包含 `session_manage` 且能解析到 `SessionManageTools`。
    - 提交：`6cb47184c`
 
@@ -351,10 +351,11 @@
       - Dashboard 已有 `/api/tui/rpc`，TUI 前端可查询 setup 状态、模型选项、渠道选项、渠道状态和配置值。
       - Agent 自然语言路径没有一等 TUI runtime 查询工具，无法直接检查独立终端前端看到的 setup/model/channel/config 状态。
     - 改造后：
-      - 新增 `tui_runtime_manage` 工具，复用 `TuiRuntimeProtocolService`，支持 `setup_status`、`model_options`、`channel_options`、`channel_status`、`config_get`。
-      - 工具只开放只读查询，不暴露 `model.save_key`、`channel.save`、`config.set` 等会写入配置或密钥的 RPC 方法。
-      - 增加工具暴露和实际调用测试，证明默认工具列表包含 `tui_runtime_manage` 且自然语言工具可返回 setup 状态。
-    - 提交：`6df18f509`
+      - 新增 `tui_runtime_manage` 工具，复用 `TuiRuntimeProtocolService`，支持 `setup_status`、`model_options`、`model_save_key`、`channel_options`、`channel_status`、`channel_save`、`channel_qr_start`、`channel_qr_get`、`config_get`，并兼容前端 RPC 点号方法名 `setup.status`、`model.options`、`model.save_key`、`channel.options`、`channel.status`、`channel.save`、`channel.qr.start`、`channel.qr.get`、`config.get`。
+      - 后续补齐 TUI Runtime 页面级写动作，支持 `model_save_key`、`channel_save`、`channel_qr_start`、`channel_qr_get`，并通过注册处注入既有二维码 setup 服务。
+      - 工具不暴露 `config.set` 这类当前 TUI Runtime 页面没有使用的写入入口，避免扩大自然语言操作面。
+      - 增加工具暴露和实际调用测试，证明默认工具列表包含 `tui_runtime_manage`、自然语言工具可返回 setup 状态，并可脱敏保存模型密钥。
+    - 提交：`6df18f509`、`943172367`
 
 22. 增加工作区配置查询一等工具
     - 位置：
@@ -453,7 +454,7 @@
       - `session_manage` 已支持会话查询、轨迹、轨迹保存、分支树和检查点预览，但自然语言工具不能维护会话标题。
     - 改造后：
       - `session_manage` 增加 `update_title` 动作，复用 `DashboardSessionService#updateSession()`。
-      - 工具只开放标题维护，不开放会话删除或检查点回滚，避免把破坏性操作混入普通自然语言入口。
+      - 工具开放标题维护和明确 checkpoint id 的回滚动作，不开放会话删除，避免把会话删除混入普通自然语言入口。
       - 增加实际调用测试，证明自然语言工具可更新会话标题，并持久写回会话仓库。
     - 提交：`5b67d268c`
 
@@ -508,10 +509,11 @@
       - `agent_manage` 只有 slash-command 风格 `args` 参数，Agent 通过自然语言查询时需要拼命令文本，结果也主要放在 preview 中。
     - 改造后：
       - `agent_manage` 增加结构化 `action`、`name`、`session_id` 和 `args` 参数。
-      - 仅开放 `list`、`get`、`show`、`detail` 只读结构化查询；创建、更新、删除、切换仍走原有受控文本命令路径。
+      - 先开放 `list`、`get`、`show`、`detail` 只读结构化查询；后续补齐 `activate/use`，可按显式 `session_id` 切换 Dashboard 会话的当前 Agent。
+      - 创建、更新、删除仍走原有受控文本命令路径，避免把全量 CRUD 混入普通自然语言入口。
       - 查询结果写入 `result`，并继续对预览和结构化字段做脱敏。
-      - 增加红绿测试，证明自然语言工具可结构化查询 Agent 列表和单个 Agent 详情。
-    - 提交：`02c36d2b9`
+      - 增加红绿测试，证明自然语言工具可结构化查询 Agent 列表、单个 Agent 详情，并可切换显式 Dashboard 会话的 Agent。
+    - 提交：`02c36d2b9`、`ee178c0ed`
 
 33. 增加脱敏当前配置查询工具动作
     - 位置：
@@ -627,11 +629,11 @@
   - `DashboardChatController` 的上传、启动 chat run、SSE events 和 cancel，属于聊天运行主链或浏览器会话流，不作为重复工具入口。
   - `DashboardConfigController` 的 raw YAML 读写，已有 `config_manage(current)` 脱敏读取和 `workspace_config_manage` 受控维护替代。
   - `DashboardWorkspaceController` 的 `/api/solonclaw/download`，属于浏览器下载入口；自然语言工具已可读取同一受控文件内容。
-  - 检查点回滚、会话删除、OAuth begin/refresh/callback/handle-401/clear、审批 resolve/revoke 等入口，继续保留审批或 UI 边界，不混入普通自然语言工具。
+  - 会话删除、审批 resolve/revoke 等入口继续保留审批或 UI 边界；MCP OAuth 授权链接生成、回调提交、刷新、401 处理和清理由 `mcp_manage` 复用 Dashboard 服务暴露。
 
 ## 剩余风险
 
 - `DefaultContextCompressionService` 仍主要依赖规则摘要，后续阶段 4 可继续评估可选模型摘要层。
-- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询、MCP 管理、技能维护管理、技能启停、技能文件列表、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、子进程环境诊断、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导入口；剩余 Dashboard 专属入口主要是高风险写入、浏览器下载、OAuth 回调或聊天运行主链，暂不按普通工具补齐。
-- 检查点回滚和会话删除暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
+- 阶段 4.4 “AiAgent 全局操作能力”已补运行管理、运行会话查询、定时任务指南、Agent 结构化查询与会话切换、MCP 管理、MCP OAuth 授权链接生成与回调提交、技能维护管理、技能启停、技能文件列表、工具集查询、平台工具集管理、provider 管理、会话与检查点查询、检查点回滚、会话轨迹保存、会话标题维护、Dashboard 搜索查询、TUI 运行时查询与页面级 setup 写入、用量分析、日志查询、媒体管理、状态查询、诊断总览查询、子进程环境诊断、Doctor 诊断、洞察查询、审批事件查询、审批队列查询、工作区查询、工作区文件维护、工作区配置项查询与非密配置维护、配置元数据查询、脱敏当前配置查询、网关二维码配置引导入口；剩余 Dashboard 专属入口主要是高风险写入、浏览器下载或聊天运行主链，暂不按普通工具补齐。
+- 会话删除暂未进入 `session_manage`，后续如要开放需要先接入明确审批或确认边界。
 - 当前工作树仍存在未纳入本阶段提交的 `terminal-ui/package.json` 与 `terminal-ui/package-lock.json` 本地改动。

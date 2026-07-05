@@ -3,7 +3,7 @@ import { Box, Link, Text } from '@solonclaw/ink'
 import type { ChannelOption, ChannelQrResponse, ChannelSetupField } from '../gatewayTypes.js'
 import type { Theme } from '../theme.js'
 
-import { channelQrMessage, channelQrStatusActive, channelQrUrl, channelSupportsQr } from './channelQr.js'
+import { channelQrMessage, channelQrResponseStatusActive, channelQrStatus, channelQrUrl, channelSupportsQr } from './channelQr.js'
 import { OverlayHint, windowItems } from './overlayControls.js'
 
 /** 通道设置视图只展示后端返回的通道状态，协议字段解释保持在 channelQr/RPC 层。 */
@@ -46,7 +46,7 @@ export function ChannelSetupEmpty({ t, width }: ChannelViewBoxProps) {
 
 export function ChannelQrSetupView({ channel, err, qr, qrLoading, t, width }: ChannelQrSetupViewProps) {
   const qrUrl = channelQrUrl(qr)
-  const status = qr?.status ?? (qrLoading ? 'starting' : 'pending')
+  const status = qr ? channelQrStatus(qr) : (qrLoading ? 'starting' : 'wait')
   const message = err || channelQrMessage(qr) || '等待扫码绑定状态。'
 
   return (
@@ -72,7 +72,7 @@ export function ChannelQrSetupView({ channel, err, qr, qrLoading, t, width }: Ch
         </Text>
       )}
       <Text color={t.color.muted} wrap="truncate-end">
-        {channelQrStatusActive(qr?.status) ? 'polling every 1.5s' : ' '}
+        {channelQrResponseStatusActive(qr) ? 'polling every 1.5s' : ' '}
       </Text>
       <OverlayHint t={t}>Esc back · q close</OverlayHint>
     </Box>

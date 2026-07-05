@@ -40,12 +40,12 @@ public class SessionManageTools {
     @ToolMapping(
             name = "session_manage",
             description =
-                    "Inspect and maintain sessions. Actions: list, messages, recap, trajectory, save_trajectory, update_title, tree, latest_descendant, checkpoints, checkpoint_preview.")
+                    "Inspect and maintain sessions. Actions: list, messages, recap, trajectory, save_trajectory, update_title, tree, latest_descendant, checkpoints, checkpoint_preview, rollback_checkpoint, checkpoint_rollback, rollback.")
     public String sessionManage(
             @Param(
                             name = "action",
                             description =
-                                    "list, messages, recap, trajectory, save_trajectory, update_title, tree, latest_descendant, checkpoints, checkpoint_preview")
+                                    "list, messages, recap, trajectory, save_trajectory, update_title, tree, latest_descendant, checkpoints, checkpoint_preview, rollback_checkpoint, checkpoint_rollback, rollback")
                     String action,
             @Param(name = "session_id", required = false, description = "Session id")
                     String sessionId,
@@ -169,6 +169,11 @@ public class SessionManageTools {
         }
         if ("checkpoint_preview".equals(normalized)) {
             return dashboardSessionService.checkpointPreview(checkpointId);
+        }
+        if ("rollback_checkpoint".equals(normalized)
+                || "checkpoint_rollback".equals(normalized)
+                || "rollback".equals(normalized)) {
+            return dashboardSessionService.rollbackCheckpoint(checkpointId);
         }
         return dashboardSessionService.getSessions(safeInt(limit, 20), safeInt(offset, 0));
     }

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Button, Spin, Tag } from 'antdv-next'
 import { useI18n } from 'vue-i18n'
 import type { ApprovalEventsResult, ApprovalRuntimeEvent } from '@/api/solonclaw/diagnostics'
+import { formatTimestampText } from '@/shared/timeFormat'
 
 const props = defineProps<{
   loading: boolean
@@ -17,8 +18,7 @@ const { t } = useI18n()
 const events = computed<readonly ApprovalRuntimeEvent[]>(() => props.result?.events || [])
 
 function timeText(value?: number) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString()
+  return formatTimestampText(value)
 }
 
 function decisionType(decision?: string) {

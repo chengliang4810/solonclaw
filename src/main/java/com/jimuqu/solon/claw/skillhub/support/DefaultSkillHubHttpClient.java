@@ -1,9 +1,9 @@
 package com.jimuqu.solon.claw.skillhub.support;
 
+import com.jimuqu.solon.claw.support.HttpRedirectSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import java.net.URI;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -145,7 +145,7 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
             throws Exception {
         assertSafeUrl(url);
         Response response = client.newCall(request).execute();
-        if (securityPolicyService == null || !isRedirect(response.code())) {
+        if (securityPolicyService == null || !HttpRedirectSupport.isRedirectStatus(response.code())) {
             return response;
         }
         try {
@@ -157,22 +157,14 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
             if (location == null || location.trim().length() == 0) {
                 throw new IllegalStateException("Skills Hub HTTP redirect missing Location header");
             }
-            String nextUrl = resolveRedirectUrl(url, location);
+            String nextUrl =
+                    HttpRedirectSupport.resolveLocation(
+                            url, location, "Skills Hub HTTP redirect URL is invalid");
             Request nextRequest = redirectRequest(request, url, nextUrl, response.code());
             return executeWithRedirectGuard(nextRequest, nextUrl, redirectCount + 1);
         } finally {
             response.close();
         }
-    }
-
-    /**
-     * 判断是否Redirect。
-     *
-     * @param status 状态参数。
-     * @return 如果Redirect满足条件则返回 true，否则返回 false。
-     */
-    private boolean isRedirect(int status) {
-        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
     /**
@@ -203,23 +195,6 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
             }
         }
         return builder.build();
-    }
-
-    /**
-     * 解析Redirect URL。
-     *
-     * @param baseUrl 待校验或访问的地址参数。
-     * @param location location 参数。
-     * @return 返回解析后的Redirect URL。
-     */
-    private String resolveRedirectUrl(String baseUrl, String location) {
-        try {
-            return URI.create(baseUrl).resolve(location.trim()).toString();
-        } catch (Exception e) {
-            throw new IllegalStateException(
-                    "Skills Hub HTTP redirect URL is invalid: " + SecretRedactor.maskUrl(location),
-                    e);
-        }
     }
 
     /**

@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.proactive.ProactiveRepository;
+import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -55,6 +56,7 @@ import com.jimuqu.solon.claw.web.DashboardLogsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardMediaService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
+import com.jimuqu.solon.claw.web.DashboardPluginStatusService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
@@ -161,6 +163,7 @@ public class DashboardConfiguration {
      * 执行控制台会话服务相关逻辑。
      *
      * @param sessionRepository 会话仓储依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
      * @param checkpointService checkpoint服务依赖。
      * @param sessionArtifactService 会话Artifact服务依赖。
      * @return 返回控制台会话服务结果。
@@ -168,10 +171,14 @@ public class DashboardConfiguration {
     @Bean
     public DashboardSessionService dashboardSessionService(
             SessionRepository sessionRepository,
+            AgentRunRepository agentRunRepository,
             CheckpointService checkpointService,
             SessionArtifactService sessionArtifactService) {
         return new DashboardSessionService(
-                sessionRepository, checkpointService, sessionArtifactService);
+                sessionRepository,
+                checkpointService,
+                sessionArtifactService,
+                agentRunRepository);
     }
 
     /**
@@ -189,6 +196,18 @@ public class DashboardConfiguration {
             com.jimuqu.solon.claw.core.service.DelegationService delegationService) {
         return new DashboardRunService(
                 agentRunRepository, agentRunControlService, delegationService);
+    }
+
+    /**
+     * 执行控制台插件状态服务相关逻辑。
+     *
+     * @param pluginManager 插件生命周期管理器。
+     * @return 返回控制台插件状态服务。
+     */
+    @Bean
+    public DashboardPluginStatusService dashboardPluginStatusService(
+            AgentPluginManager pluginManager) {
+        return new DashboardPluginStatusService(pluginManager);
     }
 
     /**

@@ -15,6 +15,21 @@
 3. 主动协作软决策可以继续强化真实反馈闭环；静默时间、日限额、冷却、危险命令、工具循环防护等硬门控仍必须保持确定性规则优先。
 4. AiAgent 全局操作能力的底层工具骨架已经存在，剩余缺口主要是自然语言到 Dashboard 页面级动作的统一语义，而不是缺少万能 HTTP 调用工具。
 
+## 2026-07-05 当前复核
+
+以下候选在当前源码中已完成，不再作为后续直接待办：
+
+- 用量模型排行比例已由 `ModelBreakdown.vue` 通过 `maxUsageValue(...)` 计算真实最大值，并由 `modelBreakdownUsageScaleStatic.test.ts` 锁定。
+- 用量统计卡片、日趋势列和表格窗口已由 `usageMetrics.ts` 与 `usageFormat.ts` 统一提供指标元数据和格式化入口。
+- Provider 与模型目录已通过后端 `/api/providers`、`dialectCatalog`、前端 `providerDisplay.ts` 和模型 store 收敛，前端静态表只保留展示兜底。
+- 平台定义已由 `platformCatalog` 与平台字段配置驱动，飞书、钉钉、微信和可选渠道设置页不再各自复制字段壳。
+- Slash command 帮助已由 `CommandRegistry` 驱动；当前只保留 usage override，因为命令描述符尚无统一 usage 字段，直接扩字段收益低于风险。
+- 审批策略摘要已从危险规则目录、硬阻断规则、配置项、审批观察者和审计策略生成样例和计数；执行策略仍保持确定性规则优先。
+- 审批策略里的终端护栏摘要键和计数已由 `DangerousCommandRuleCatalog.terminalGuardrailKeys()` 统一派生，覆盖真实检测分支中的 detached session，避免列表和计数漂移。
+- `hardline_metadata_url` 动态硬阻断规则键、硬阻断计数、覆盖工具和阻断类别已收敛到 `DangerousCommandRuleCatalog`，服务检测和摘要展示不再各自手写。
+
+当前阶段 4.1 后续只保留三类高价值方向：主动协作软决策的真实反馈闭环、Dashboard 页面级自然语言操作语义盘点、以及安全规则命中频次/审计解释的数据化。硬阻断、安全放行、URL 策略和工具循环阻断不交给模型决定。
+
 ## 增量候选清单
 
 | 优先级 | 位置 | 硬编码表现 | 建议改造方向 | 风险 |
@@ -47,11 +62,10 @@
 
 ## 建议执行顺序
 
-1. 先修 `ModelBreakdown.vue` 的最大值归一化，这是阶段 4.1 当前最小且可验证的数据驱动改造。
-2. 再把用量展示格式化和卡片配置抽成共享工具，减少 `DailyTrend.vue`、`ModelBreakdown.vue`、`StatCards.vue` 的重复格式规则。
-3. Provider registry 和平台元数据改造需要先定义后端接口契约；同时核对当前 provider 清单是否符合已确认协议范围。
-4. 审批策略摘要、slash 帮助和 Agent 默认 profile 可以作为后端低风险数据化改造批次。
-5. 安全规则、工具循环防护、协议枚举和 hard gate 不作为 AI 优先改造入口，只做数据观测、解释和审计增强。
+1. 主动协作软决策继续补真实反馈闭环，优先让候选排序和触达建议结合历史触达、用户响应和真实会话内容；静默时间、日限额、冷却和危险命令硬门控保持确定性。
+2. Dashboard 页面级自然语言操作先做命令/RPC 目录盘点，再补最小语义入口；不要新增万能 Dashboard HTTP 工具。
+3. 安全规则、工具循环防护、协议枚举和 hard gate 不作为 AI 优先改造入口，只做命中频次、解释、配置建议和审计增强。
+4. Agent 默认 profile 与用户可见文案可继续配置化，但不应阻塞更高价值的真实反馈和自然语言操作链路。
 
 ## 验证建议
 

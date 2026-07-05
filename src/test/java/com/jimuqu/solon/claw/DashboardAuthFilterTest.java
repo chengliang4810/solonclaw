@@ -15,6 +15,26 @@ import org.noear.solon.core.handle.FilterChain;
 
 public class DashboardAuthFilterTest {
     @Test
+    void shouldShortCircuitNonApiOptionsPreflight() throws Throwable {
+        DashboardAuthFilter filter = filter();
+        FakeContext context = new FakeContext("OPTIONS", "/assets/app.js");
+        AtomicBoolean invoked = new AtomicBoolean(false);
+
+        filter.doFilter(
+                context,
+                new FilterChain() {
+                    /** 浏览器预检请求只需要 CORS 响应，不应继续落到静态资源或路由链。 */
+                    @Override
+                    public void doFilter(Context ctx) {
+                        invoked.set(true);
+                    }
+                });
+
+        assertThat(context.status()).isEqualTo(204);
+        assertThat(invoked).isFalse();
+    }
+
+    @Test
     void shouldIgnoreStaticResourceClientDisconnects() throws Throwable {
         DashboardAuthFilter filter = filter();
         FakeContext context = new FakeContext("GET", "/assets/app.js");

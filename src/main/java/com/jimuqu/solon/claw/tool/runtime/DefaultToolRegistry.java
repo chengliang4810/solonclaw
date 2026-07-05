@@ -28,6 +28,7 @@ import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
@@ -1256,7 +1257,11 @@ public class DefaultToolRegistry implements ToolRegistry {
         SearchManageTools searchManageTools = new SearchManageTools(sessionSearchService);
         SessionManageTools sessionManageTools =
                 new SessionManageTools(
-                        new DashboardSessionService(sessionRepository, checkpointService));
+                        new DashboardSessionService(
+                                sessionRepository,
+                                checkpointService,
+                                new SessionArtifactService(),
+                                agentRunRepository));
         AnalyticsManageTools analyticsManageTools =
                 new AnalyticsManageTools(
                         new DashboardAnalyticsService(sessionRepository, usageEventRepository));
@@ -1300,7 +1305,9 @@ public class DefaultToolRegistry implements ToolRegistry {
         DiagnosticsManageTools diagnosticsManageTools =
                 new DiagnosticsManageTools(dashboardDiagnosticsService);
         DoctorManageTools doctorManageTools = new DoctorManageTools(dashboardGatewayDoctorService);
-        TuiRuntimeManageTools tuiRuntimeManageTools = new TuiRuntimeManageTools(appConfig);
+        TuiRuntimeManageTools tuiRuntimeManageTools =
+                new TuiRuntimeManageTools(
+                        appConfig, weixinQrSetupService, domesticQrSetupService);
         InsightsManageTools insightsManageTools = new InsightsManageTools(dashboardInsightsService);
         ApprovalEventsManageTools approvalEventsManageTools =
                 new ApprovalEventsManageTools(dashboardApprovalEventsService);

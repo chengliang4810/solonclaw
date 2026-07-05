@@ -226,6 +226,16 @@ public class ToolCallLoopGuardrailService {
         }
 
         /**
+         * Agent 本轮结束时清理线程本地的文件读取去重 epoch，避免线程复用时携带上一轮工具状态。
+         *
+         * @param trace trace 参数。
+         */
+        @Override
+        public void onAgentEnd(ReActTrace trace) {
+            OTHER_TOOL_CALL_EPOCH.remove();
+        }
+
+        /**
          * 执行参数For相关逻辑。
          *
          * @param trace trace 参数。

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import * as configApi from '@/api/solonclaw/config'
-import type { DisplayConfig, AgentConfig, PlatformCatalogItem } from '@/api/solonclaw/config'
+import type { DisplayConfig, AgentConfig, GatewayConfig, PlatformCatalogItem } from '@/api/solonclaw/config'
 
 export const useSettingsStore = defineStore('settings', () => {
   const loading = ref(false)
@@ -9,11 +9,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const display = ref<DisplayConfig>({})
   const agent = ref<AgentConfig>({})
-  const telegram = ref<Record<string, any>>({})
-  const discord = ref<Record<string, any>>({})
-  const slack = ref<Record<string, any>>({})
-  const whatsapp = ref<Record<string, any>>({})
-  const matrix = ref<Record<string, any>>({})
+  const gateway = ref<GatewayConfig>({})
   const wecom = ref<Record<string, any>>({})
   const feishu = ref<Record<string, any>>({})
   const dingtalk = ref<Record<string, any>>({})
@@ -29,11 +25,7 @@ export const useSettingsStore = defineStore('settings', () => {
       const data = await configApi.fetchConfig()
       display.value = data.display || {}
       agent.value = data.agent || {}
-      telegram.value = data.telegram || {}
-      discord.value = data.discord || {}
-      slack.value = data.slack || {}
-      whatsapp.value = data.whatsapp || {}
-      matrix.value = data.matrix || {}
+      gateway.value = data.gateway || {}
       wecom.value = data.wecom || {}
       feishu.value = data.feishu || {}
       dingtalk.value = data.dingtalk || {}
@@ -56,11 +48,7 @@ export const useSettingsStore = defineStore('settings', () => {
     switch (section) {
       case 'display': display.value = { ...display.value, ...values }; break
       case 'agent': agent.value = { ...agent.value, ...values }; break
-      case 'telegram': telegram.value = { ...telegram.value, ...values }; break
-      case 'discord': discord.value = { ...discord.value, ...values }; break
-      case 'slack': slack.value = { ...slack.value, ...values }; break
-      case 'whatsapp': whatsapp.value = { ...whatsapp.value, ...values }; break
-      case 'matrix': matrix.value = { ...matrix.value, ...values }; break
+      case 'gateway': gateway.value = { ...gateway.value, ...values }; break
       case 'wechat': case 'wecom': wecom.value = { ...wecom.value, ...values }; break
       case 'feishu': feishu.value = { ...feishu.value, ...values }; break
       case 'dingtalk': dingtalk.value = { ...dingtalk.value, ...values }; break
@@ -85,8 +73,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
   return {
     loading, saving,
-    display, agent,
-    telegram, discord, slack, whatsapp, matrix, wecom, feishu, dingtalk, weixin, qqbot, yuanbao, platforms,
+    display, agent, gateway,
+    wecom, feishu, dingtalk, weixin, qqbot, yuanbao, platforms,
     platformCatalog,
     fetchSettings, saveSection,
   }

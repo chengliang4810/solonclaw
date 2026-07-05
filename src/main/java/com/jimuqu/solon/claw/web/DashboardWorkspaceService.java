@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
+import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -133,11 +134,13 @@ public class DashboardWorkspaceService {
      * @return 返回describe文件结果。
      */
     private Map<String, Object> describeFile(String key) {
+        File file = personaWorkspaceService.file(key);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("key", key);
         result.put("name", personaWorkspaceService.fileName(key));
         result.put("path", fileReference(key));
         result.put("exists", personaWorkspaceService.exists(key));
+        result.put("modTime", file.exists() ? Long.valueOf(file.lastModified()) : null);
         result.put("content", personaWorkspaceService.read(key));
         return result;
     }

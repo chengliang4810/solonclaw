@@ -5,6 +5,8 @@ import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import { downloadMedia, fetchMedia, fetchMediaDetail, indexMedia, referenceMedia, refreshMedia, type ChannelMedia } from '@/api/solonclaw/media'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
+import { formatFileSize } from '@/shared/fileSizeFormat'
+import { formatTimestampText } from '@/shared/timeFormat'
 
 const settingsStore = useSettingsStore()
 const { t } = useI18n()
@@ -95,16 +97,6 @@ async function referenceSelectedMedia() {
   }
 }
 
-function formatBytes(value?: number) {
-  if (!value) return '-'
-  if (value < 1024) return `${value} B`
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
-  return `${(value / 1024 / 1024).toFixed(1)} MB`
-}
-
-function formatTime(value?: number) {
-  return value ? new Date(value).toLocaleString() : '-'
-}
 </script>
 
 <template>
@@ -117,7 +109,7 @@ function formatTime(value?: number) {
     </header>
 
     <div class="channels-content">
-      <Spin :spinning="settingsStore.loading || settingsStore.saving" size="large" :tip="t('common.loading')">
+      <Spin :spinning="settingsStore.loading || settingsStore.saving" size="large" :description="t('common.loading')">
         <PlatformSettings v-if="!settingsStore.loading" />
       </Spin>
 
@@ -145,7 +137,7 @@ function formatTime(value?: number) {
           <div v-else class="media-list">
             <button v-for="item in mediaItems" :key="item.media_id" class="media-row" @click="openMediaDetail(item.media_id)">
               <span class="media-name">{{ item.original_name || item.media_id }}</span>
-              <span class="media-meta">{{ item.platform || '-' }} / {{ item.kind || '-' }} / {{ formatBytes(item.size_bytes) }}</span>
+              <span class="media-meta">{{ item.platform || '-' }} / {{ item.kind || '-' }} / {{ formatFileSize(item.size_bytes) }}</span>
               <Tag size="small" :bordered="false">{{ item.status || '-' }}</Tag>
             </button>
           </div>
@@ -153,7 +145,7 @@ function formatTime(value?: number) {
       </section>
     </div>
 
-    <Drawer v-model:open="mediaDetailOpen" placement="right" :width="520" :title="t('channels.mediaDetail')">
+    <Drawer v-model:open="mediaDetailOpen" placement="right" :style="{ width: '520px' }" :title="t('channels.mediaDetail')">
       <div v-if="selectedMediaDetail" class="media-detail">
         <div class="media-actions">
           <Button size="small" :loading="mediaRefreshLoading" @click="refreshSelectedMedia">
@@ -168,10 +160,16 @@ function formatTime(value?: number) {
         </div>
         <div><span>{{ t('channels.mediaStatus') }}</span><strong>{{ selectedMediaDetail.status || '-' }}</strong></div>
         <div><span>ID</span><strong>{{ selectedMediaDetail.media_id }}</strong></div>
+        <div><span>{{ t('channels.mediaChatId') }}</span><strong>{{ selectedMediaDetail.chat_id || '-' }}</strong></div>
+        <div><span>{{ t('channels.mediaMessageId') }}</span><strong>{{ selectedMediaDetail.message_id || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaPlatform') }}</span><strong>{{ selectedMediaDetail.platform || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaKind') }}</span><strong>{{ selectedMediaDetail.kind || '-' }}</strong></div>
-        <div><span>{{ t('channels.mediaSize') }}</span><strong>{{ formatBytes(selectedMediaDetail.size_bytes) }}</strong></div>
-        <div><span>{{ t('channels.mediaUpdated') }}</span><strong>{{ formatTime(selectedMediaDetail.updated_at) }}</strong></div>
+        <div><span>{{ t('channels.mediaMimeType') }}</span><strong>{{ selectedMediaDetail.mime_type || '-' }}</strong></div>
+        <div><span>{{ t('channels.mediaRemoteId') }}</span><strong>{{ selectedMediaDetail.remote_id || '-' }}</strong></div>
+        <div><span>{{ t('channels.mediaSize') }}</span><strong>{{ formatFileSize(selectedMediaDetail.size_bytes) }}</strong></div>
+        <div><span>{{ t('channels.mediaCreated') }}</span><strong>{{ formatTimestampText(selectedMediaDetail.created_at) }}</strong></div>
+        <div><span>{{ t('channels.mediaUpdated') }}</span><strong>{{ formatTimestampText(selectedMediaDetail.updated_at) }}</strong></div>
+        <div><span>{{ t('channels.mediaExpires') }}</span><strong>{{ formatTimestampText(selectedMediaDetail.expires_at) }}</strong></div>
         <div><span>{{ t('channels.mediaPath') }}</span><strong>{{ selectedMediaDetail.local_path || '-' }}</strong></div>
         <div><span>{{ t('channels.mediaReference') }}</span><strong>{{ selectedMediaDetail.reference || '-' }}</strong></div>
         <div v-if="selectedMediaDetail.error"><span>{{ t('channels.mediaError') }}</span><strong>{{ selectedMediaDetail.error }}</strong></div>

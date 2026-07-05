@@ -37,6 +37,14 @@ export function formatUsageDateLabel(date: string): string {
   return date.length > 5 ? date.slice(5) : date
 }
 
+export function maxUsageValue(values: readonly number[]): number {
+  return Math.max(...values, 1)
+}
+
+export function usageBarPercent(value: number, maxValue: number): string {
+  return `${(value / Math.max(maxValue, 1)) * 100}%`
+}
+
 export function latestUsageRows<T>(rows: readonly T[], limit: number = DEFAULT_USAGE_TABLE_LIMIT): T[] {
   return [...rows].reverse().slice(0, limit)
 }
