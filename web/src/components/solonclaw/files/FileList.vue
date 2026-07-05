@@ -46,8 +46,8 @@ async function handleDownload(entry: FileEntry) {
         <strong>{{ t('files.loadFailed') }}</strong>
         <span>{{ filesStore.loadError }}</span>
       </div>
-      <Empty v-else-if="!filesStore.loading && filesStore.sortedEntries.length === 0" :description="t('files.emptyDir')" />
-      <div v-else class="file-list-items">
+      <Empty v-if="!filesStore.loadError && !filesStore.loading && filesStore.sortedEntries.length === 0" :description="t('files.emptyDir')" />
+      <div v-if="filesStore.sortedEntries.length > 0" class="file-list-items">
         <div class="file-list-header">
           <div class="file-name sort-header" @click="filesStore.setSort('name')">
             {{ t('files.name') }}

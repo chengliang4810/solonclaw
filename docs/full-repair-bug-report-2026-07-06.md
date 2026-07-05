@@ -55,7 +55,155 @@ mvn "-Dskip.web.build=true" "-DskipTests" package
 - 修复后 `.sidebar-nav .nav-item.active` 底部约为 `737.015625`，`.sidebar-footer` 顶部约为 `744.734375`。
 - 当前入口位于滚动容器内，且高于 footer；控制台 error/warn 为空。
 
+## BUG-061：消息网关状态加载失败时界面无持久错误提示
+
+状态：已修复，提交 `d57dccd2d`
+
+影响范围：
+
+- Dashboard 消息网关状态页。
+- 后端网关状态接口失败或临时不可达时的排障体验。
+
+当前事实：
+
+- 网关状态请求失败时只进入空状态或旧静态展示，用户无法区分“暂无网关”和“加载失败”。
+- 网关状态页没有自动刷新失败后的恢复路径，用户需要手动离开再返回页面。
+
+根因：
+
+- 网关 store 没有把加载失败写入可渲染状态。
+- 网关视图没有把失败状态作为页面内横幅展示，也没有复用已有的刷新节奏。
+
+修复记录：
+
+- `gateways.ts` 增加 `loadError`，请求开始时清理旧错误，失败时保留错误文本。
+- `GatewaysView.vue` 增加页面内错误横幅，并在失败时继续保留已有网关数据。
+- 页面挂载后复用已有刷新入口，确保状态恢复后能自动更新。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/gatewayReadOnlyStatic.test.ts
+node --experimental-strip-types web/tests/viteProxyTargetStatic.test.ts
+npm --prefix web run build
+python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+```
+
+## BUG-062：模型提供方加载失败后隐藏已加载数据
+
+状态：已修复，提交 `6714e8338`
+
+影响范围：
+
+- Dashboard 模型页提供方列表。
+- Dashboard 设置页模型配置表单。
+- 模型接口临时失败后的配置查看和修复流程。
+
+当前事实：
+
+- 模型提供方刷新失败时，store 会清空 `providers`、`allProviders`、默认模型、默认提供方、fallback 提供方和方言目录。
+- 页面看到加载失败后只剩错误或空状态，之前已经加载成功的模型提供方和设置表单不可见。
+
+根因：
+
+- `fetchProviders()` 在 catch 分支把旧数据当作失败副作用清空。
+- `ProvidersPanel.vue` 和 `ModelSettings.vue` 使用 `v-else` 分支，让错误提示替换掉旧数据区域。
+
+修复记录：
+
+- `models.ts` 失败时只写入 `loadError`，不清空上一轮成功数据。
+- 模型列表和模型设置页改为错误横幅加旧数据继续渲染，只有无错误且无数据时才显示空状态。
+- `modelsLoadFailure.test.ts` 增加 store 与 SSR 模板回归断言。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/modelsLoadFailure.test.ts
+node --experimental-strip-types web/tests/providerDisplayOptions.test.ts
+node --experimental-strip-types web/tests/chatApiModelCatalogStatic.test.ts
+npm --prefix web run build
+python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+```
+
+## BUG-063：文件目录导航失败后会推进路径并清空旧列表
+
+状态：已修复，提交 `ebbeaf14d`
+
+影响范围：
+
+- Dashboard 工作区文件页。
+- 文件目录导航、刷新和错误恢复体验。
+
+当前事实：
+
+- `fetchEntries(path)` 在请求成功前就更新 `currentPath`。
+- 请求失败后 `entries` 被清空，页面只剩错误状态；用户会同时丢失当前目录位置和旧文件列表。
+
+根因：
+
+- 文件 store 把目标路径作为请求前状态提交，失败时没有回滚。
+- 文件列表组件用错误分支替换了列表区域，无法在错误横幅下继续展示上一轮成功数据。
+
+修复记录：
+
+- `files.ts` 使用局部 `nextPath` 请求，只有 `listFiles(nextPath)` 成功后才更新 `currentPath` 和 `entries`。
+- 失败时保留旧 `entries` 和旧 `currentPath`，只写入 `loadError`。
+- `FileList.vue` 改为错误横幅与旧列表并存。
+- `filesLoadFailure.test.ts` 增加导航失败不推进路径、旧列表仍可见的回归断言。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/filesLoadFailure.test.ts
+node --experimental-strip-types web/tests/workspaceFileRestoreStatic.test.ts
+node --experimental-strip-types web/tests/filesUnsupportedActionsStatic.test.ts
+node --experimental-strip-types web/tests/fileTypeIcon.test.ts
+npm --prefix web run build
+python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+```
+
+## BUG-064：Vite 代理模式下消息网关页显示前端端口
+
+状态：已修复，本次提交
+
+影响范围：
+
+- Dashboard 消息网关状态页。
+- 使用 `SOLONCLAW_SERVER_URL` 连接非默认后端端口的 Web 开发与真实 E2E 验证场景。
+
+当前事实：
+
+- Chrome 真实打开 `http://127.0.0.1:5178/?token=smoke-token#/solonclaw/gateways`。
+- 后端实际启动在 `http://127.0.0.1:18081`，但网关页显示 `websocket:5178`、`stream:5178` 等前端 Vite 端口。
+- 页面功能和接口请求成功，控制台无 error/warn；问题集中在展示端口误导。
+
+根因：
+
+- `fetchGateways()` 通过 `window.location.port` 推导端口。
+- 在 jar 内置页面中，前端端口等于后端端口；但 Vite 代理模式中，前端端口和后端端口不同。
+
+修复记录：
+
+- `vite.config.ts` 将显式配置的 `SOLONCLAW_SERVER_URL` 注入为前端构建常量，未配置时保持空值，避免生产包重新带回默认 `8080`。
+- `gateways.ts` 优先从该后端地址解析展示端口，未配置时回退到当前页面端口。
+- `gatewayReadOnlyStatic.test.ts` 增加 dev proxy 后端目标的静态回归断言。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/gatewayReadOnlyStatic.test.ts
+npm --prefix web run build
+python -X utf8 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range
+```
+
+浏览器复核：
+
+- 后端：`java -Dserver.port=18081 -Dsolonclaw.dashboard.accessToken=smoke-token -jar target/solonclaw-0.0.1.jar server`
+- 前端：`SOLONCLAW_SERVER_URL=http://127.0.0.1:18081 npm --prefix web run dev -- --host 127.0.0.1 --port 5178`
+- Chrome 打开 `http://127.0.0.1:5178/?token=smoke-token#/solonclaw/gateways` 后，网关条目显示 `websocket:18081`、`stream:18081`，控制台 error/warn 为空。
+
 ## 当前结论
 
 - BUG-060 已按侧栏共享组件层修复，没有在单个页面入口处打补丁。
+- BUG-061 至 BUG-064 已按各自共享 store、配置或页面组件层修复，失败时保留上一轮成功数据并提供页面内错误反馈，开发代理端口展示不再误导。
 - 后续 Web UI E2E 若发现其它路由入口遮挡或错位，应继续追加阶段 1.1 原子缺陷报告，再按最小共享层修复。

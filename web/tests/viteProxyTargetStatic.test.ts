@@ -12,6 +12,11 @@ assert.ok(
   'vite dev proxy should keep the local backend as its default target',
 )
 assert.ok(
+  viteConfig.includes('__SOLONCLAW_DEV_SERVER_URL__')
+    && viteConfig.includes('JSON.stringify(configuredBackendTarget)'),
+  'vite should expose only the explicitly configured backend target to browser code',
+)
+assert.ok(
   /['"]\/api['"]:\s*backendTarget/.test(viteConfig)
     && /['"]\/health['"]:\s*backendTarget/.test(viteConfig)
     && /['"]\/upload['"]:\s*backendTarget/.test(viteConfig),

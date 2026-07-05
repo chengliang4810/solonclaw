@@ -17,7 +17,7 @@ const modelsStore = useModelsStore()
     <strong>{{ t('models.fetchFailed') }}</strong>
     <span>{{ modelsStore.loadError }}</span>
   </div>
-  <div v-else-if="modelsStore.providers.length === 0" class="empty-state">
+  <div v-if="modelsStore.providers.length === 0 && !modelsStore.loadError" class="empty-state">
     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="empty-icon">
       <path d="M12 2L2 7l10 5 10-5-10-5z" />
       <path d="M2 17l10 5 10-5" />
@@ -25,7 +25,7 @@ const modelsStore = useModelsStore()
     </svg>
     <p>{{ t('models.noProviders') }}</p>
   </div>
-  <div v-else class="providers-grid">
+  <div v-if="modelsStore.providers.length > 0" class="providers-grid">
     <ProviderCard
       v-for="g in modelsStore.providers"
       :key="g.provider"

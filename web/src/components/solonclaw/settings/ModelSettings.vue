@@ -92,11 +92,11 @@ async function handleSaveFallbacks() {
         <strong>{{ t('models.fetchFailed') }}</strong>
         <span>{{ modelsStore.loadError }}</span>
       </div>
-      <div v-else-if="modelsStore.providers.length === 0" class="empty-hint">
+      <div v-if="modelsStore.providers.length === 0 && !modelsStore.loadError" class="empty-hint">
         <Empty :description="t('settings.models.noProviders')" />
       </div>
 
-      <template v-else>
+      <template v-if="modelsStore.providers.length > 0">
         <div class="panel">
           <div class="panel-header">
             <h4>{{ t('models.defaultProviderSection') }}</h4>

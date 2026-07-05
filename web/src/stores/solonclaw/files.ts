@@ -53,21 +53,21 @@ export const useFilesStore = defineStore('files', () => {
   })
 
   async function fetchEntries(path?: string) {
-    if (path !== undefined && path !== currentPath.value) {
-      // Switching directory invalidates the current preview; close it so the
-      // file list becomes visible again. The editor has its own dirty-check
-      // (see hasUnsavedChanges), so we leave editingFile alone here.
-      previewFile.value = null
-    }
-    if (path !== undefined) currentPath.value = path
+    const nextPath = path !== undefined ? path : currentPath.value
     loading.value = true
     loadError.value = null
     try {
-      const result = await filesApi.listFiles(currentPath.value)
+      const result = await filesApi.listFiles(nextPath)
+      if (nextPath !== currentPath.value) {
+        // Switching directory invalidates the current preview; close it so the
+        // file list becomes visible again. The editor has its own dirty-check
+        // (see hasUnsavedChanges), so we leave editingFile alone here.
+        previewFile.value = null
+      }
+      currentPath.value = result.path ?? nextPath
       entries.value = result.entries
     } catch (err) {
       console.error('Failed to fetch files:', err)
-      entries.value = []
       loadError.value = err instanceof Error ? err.message : String(err || 'Failed to fetch files')
       throw err
     } finally {
