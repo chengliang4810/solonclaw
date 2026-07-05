@@ -13,4 +13,6 @@ assert.ok(!store.includes('startGateway'), 'gateway store should not expose unsu
 assert.ok(!store.includes('stopGateway'), 'gateway store should not expose unsupported stop action')
 assert.ok(!api.includes('startGateway'), 'gateway API should not keep a fake start wrapper')
 assert.ok(!api.includes('stopGateway'), 'gateway API should not keep a fake stop wrapper')
+assert.ok(!api.includes('port: 8080'), 'gateway API should not hard-code the default backend port')
+assert.ok(api.includes('currentDashboardPort()'), 'gateway API should display the current dashboard port')
 assert.ok(!zh.includes('查看和控制各消息网关'), 'gateway copy should not imply process control')

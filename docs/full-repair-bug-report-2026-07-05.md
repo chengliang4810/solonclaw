@@ -382,6 +382,37 @@ node --experimental-strip-types web/tests/loginStoredTokenValidationStatic.test.
 npm --prefix terminal-ui test -- src/__tests__/createGatewayEventHandler.test.ts
 ```
 
+## BUG-037：消息网关页面在非默认端口启动时固定显示 8080
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 消息网关页面。
+- 使用 `--server.port` 或空闲端口启动的本地实例。
+- 用户排查渠道连接方式和当前实例地址时的可见信息。
+
+当前事实：
+
+- Web E2E 在 `53227` 端口启动 jar 并打开 Dashboard。
+- `/health` 在 `53227` 可访问，`8080` 不可访问。
+- 消息网关页面仍显示 `websocket:8080`、`stream:8080` 等固定端口。
+
+根因：
+
+- `web/src/api/solonclaw/gateways.ts` 的 `fetchGateways()` 在前端映射层写死 `port: 8080`。
+
+修复记录：
+
+- 网关状态映射改为读取当前 Dashboard 页面端口，未显式端口时按协议回退到 80/443。
+- `gatewayReadOnlyStatic.test.ts` 增加静态回归，禁止网关 API 继续硬编码默认后端端口。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/gatewayReadOnlyStatic.test.ts
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -390,4 +421,5 @@ npm --prefix terminal-ui test -- src/__tests__/createGatewayEventHandler.test.ts
 - BUG-034 记录 Windows 真实 Node TUI PTY E2E 的剩余平台限制；当前命令级审计仍可作为 Windows 可用性门禁。
 - BUG-035 已修复默认登录页错误指引，保持空令牌拒绝访问的安全边界不变。
 - BUG-036 已修复 TUI `run.failed` 事件被忽略导致失败不可见的问题。
+- BUG-037 已修复消息网关页面固定显示 `8080` 的端口误导。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

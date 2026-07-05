@@ -18,11 +18,18 @@ interface DashboardStatusResponse {
   }>
 }
 
+function currentDashboardPort(): number {
+  if (typeof window === 'undefined') return 80
+  const port = Number(window.location.port)
+  if (Number.isInteger(port) && port > 0) return port
+  return window.location.protocol === 'https:' ? 443 : 80
+}
+
 export async function fetchGateways(): Promise<GatewayStatus[]> {
   const res = await request<DashboardStatusResponse>('/api/status')
   return Object.entries(res.gateway_platforms || {}).map(([name, value]) => ({
     profile: name,
-    port: 8080,
+    port: currentDashboardPort(),
     host: value.connection_mode || 'local',
     url: '',
     running: value.state === 'connected',
