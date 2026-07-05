@@ -14,6 +14,7 @@ const originalConsoleError = console.error
 try {
   const mockSystemApiPath = join(tempDir, 'mock-system-api.ts')
   const mockAppStorePath = join(tempDir, 'mock-app-store.ts')
+  const mockProviderDisplayPath = join(tempDir, 'mock-provider-display.ts')
   const modelsStorePath = join(tempDir, 'models-store-under-test.ts')
 
   writeFileSync(mockSystemApiPath, `
@@ -80,10 +81,17 @@ export function useAppStore() {
   return { loadModels() {} }
 }
 `)
+  writeFileSync(mockProviderDisplayPath, `
+export const LLM_DIALECT_OPTIONS = [{ value: 'openai', label: 'OpenAI', labelKey: 'models.dialects.openai' }]
+export function normalizeDialectCatalog(value) {
+  return Array.isArray(value) && value.length ? value : LLM_DIALECT_OPTIONS
+}
+`)
 
   const storeSource = readFileSync(new URL('../src/stores/solonclaw/models.ts', import.meta.url), 'utf8')
     .replace("import * as systemApi from '@/api/solonclaw/system'", "import * as systemApi from './mock-system-api.ts'")
     .replace(/import type \{([\s\S]*?)\} from '@\/api\/solonclaw\/system'/, "import type {$1} from './mock-system-api.ts'")
+    .replace("import { LLM_DIALECT_OPTIONS, normalizeDialectCatalog } from '@/shared/providerDisplay'", "import { LLM_DIALECT_OPTIONS, normalizeDialectCatalog } from './mock-provider-display.ts'")
     .replace("import { useAppStore } from './app'", "import { useAppStore } from './mock-app-store.ts'")
   writeFileSync(modelsStorePath, storeSource)
 
@@ -154,6 +162,48 @@ export function useAppStore() {
   assert.match(html, /provider API unavailable/, 'ProvidersPanel should render the provider load failure detail')
   assert.doesNotMatch(html, /OpenAI/, 'ProvidersPanel should hide stale providers while loadError is visible')
   assert.doesNotMatch(html, /No providers found/, 'ProvidersPanel should not show the empty state while loadError is visible')
+
+  const settingsSource = readFileSync(new URL('../src/components/solonclaw/settings/ModelSettings.vue', import.meta.url), 'utf8')
+  const settingsTemplateSource = parse(settingsSource).descriptor.template?.content
+  assert.ok(settingsTemplateSource, 'ModelSettings should have a renderable template')
+
+  const settingsCompiled = compileTemplate({
+    id: 'model-settings-load-failure-test',
+    filename: 'ModelSettings.vue',
+    source: settingsTemplateSource,
+    compilerOptions: { mode: 'function' },
+  })
+  assert.equal(settingsCompiled.errors.length, 0, 'ModelSettings template should compile for behavior verification')
+
+  const settingsRender = new Function('Vue', settingsCompiled.code)(await import('vue'))
+  const settingsHtml = await renderToString(createSSRApp(defineComponent({
+    components: {
+      Spin: { template: '<div><slot /></div>' },
+      Empty: { props: ['description'], template: '<div class="empty">{{ description }}</div>' },
+      Select: { template: '<select />' },
+      Input: { template: '<input />' },
+      Button: { template: '<button><slot /></button>' },
+    },
+    setup() {
+      return {
+        modelsStore: {
+          loading: false,
+          providers: [],
+          loadError: 'provider API unavailable',
+        },
+        t: (key: string) => {
+          if (key === 'models.fetchFailed') return 'Failed to fetch models'
+          if (key === 'settings.models.noProviders') return 'No providers configured'
+          return key
+        },
+      }
+    },
+    render: settingsRender,
+  })))
+
+  assert.match(settingsHtml, /Failed to fetch models/, 'ModelSettings should render the provider load failure label')
+  assert.match(settingsHtml, /provider API unavailable/, 'ModelSettings should render the provider load failure detail')
+  assert.doesNotMatch(settingsHtml, /No providers configured/, 'ModelSettings should not show the empty state while loadError is visible')
 } finally {
   console.error = originalConsoleError
   rmSync(tempDir, { recursive: true, force: true })
