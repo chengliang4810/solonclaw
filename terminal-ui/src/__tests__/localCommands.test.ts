@@ -9,10 +9,15 @@ describe('looksLikeLocalCliCommand', () => {
     expect(looksLikeLocalCliCommand('doctor')).toBe(true)
     expect(looksLikeLocalCliCommand('config path')).toBe(true)
     expect(looksLikeLocalCliCommand('status')).toBe(true)
+    expect(looksLikeLocalCliCommand('setup')).toBe(true)
+    expect(looksLikeLocalCliCommand('setup model')).toBe(true)
+    expect(looksLikeLocalCliCommand('setup gateway')).toBe(true)
+    expect(looksLikeLocalCliCommand('setup --quick')).toBe(true)
   })
 
   it('leaves natural language model text as chat', () => {
     expect(looksLikeLocalCliCommand('model a safer workflow for this app')).toBe(false)
     expect(looksLikeLocalCliCommand('status of my plan')).toBe(false)
+    expect(looksLikeLocalCliCommand('setup a deployment plan')).toBe(false)
   })
 })
