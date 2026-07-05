@@ -125,6 +125,10 @@ export function useComposerState({
   const { historyRef, historyIdx, setHistoryIdx, historyDraftRef, pushHistory } = useInputHistory()
   const { completions, compIdx, setCompIdx, compReplace } = useCompletion(input, isBlocked, gw)
 
+  const setHistoryDraft = useCallback((value: string) => {
+    historyDraftRef.current = value
+  }, [historyDraftRef])
+
   const clearIn = useCallback(() => {
     setInput('')
     setInputBuf([])
@@ -310,6 +314,7 @@ export function useComposerState({
       removeQueue: removeQ,
       replaceQueue: replaceQ,
       setCompIdx,
+      setHistoryDraft,
       setHistoryIdx,
       setInput,
       setInputBuf,
@@ -327,6 +332,7 @@ export function useComposerState({
       removeQ,
       replaceQ,
       setCompIdx,
+      setHistoryDraft,
       setHistoryIdx,
       setQueueEdit,
       syncQueue
