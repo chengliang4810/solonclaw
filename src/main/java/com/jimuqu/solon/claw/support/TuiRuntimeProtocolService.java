@@ -3,7 +3,10 @@ package com.jimuqu.solon.claw.support;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.support.constants.LlmConstants;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.File;
@@ -68,6 +71,12 @@ public class TuiRuntimeProtocolService {
         result.put("model", model);
         result.put("api_key", configured ? "configured" : "missing");
         result.put("workspace_config", configResolver().configFile().getPath());
+        String warning =
+                providerUrlPolicyWarning(
+                        providerKey, provider, RuntimeProviderSetupSpec.provider(providerKey));
+        if (StrUtil.isNotBlank(warning)) {
+            result.put("warning", warning);
+        }
         return result;
     }
 
@@ -391,7 +400,10 @@ public class TuiRuntimeProtocolService {
         item.put("default_model", model);
         item.put("dialect", providerDialect(provider, template));
         item.put("base_url", SecretRedactor.maskUrl(providerBaseUrl(providerKey, provider, template)));
-        if (!providerConfigured(providerKey, provider)) {
+        String urlWarning = providerUrlPolicyWarning(providerKey, provider, template);
+        if (StrUtil.isNotBlank(urlWarning)) {
+            item.put("warning", urlWarning);
+        } else if (!providerConfigured(providerKey, provider)) {
             item.put("warning", "paste " + providerKeyEnv(providerKey, template) + " to activate");
         }
         return item;
@@ -824,6 +836,41 @@ public class TuiRuntimeProtocolService {
             return provider.getDialect().trim();
         }
         return template == null ? "openai" : StrUtil.blankToDefault(template.getDialect(), "openai");
+    }
+
+    /**
+     * 提前检查 provider 地址是否会被模型网关安全策略阻断，避免用户到真实对话时才看到失败。
+     *
+     * @param providerKey provider 标识。
+     * @param provider 当前 provider 配置。
+     * @param template provider setup 模板。
+     * @return 可直接展示给 TUI 的警告文案；地址可用时返回空字符串。
+     */
+    private String providerUrlPolicyWarning(
+            String providerKey,
+            AppConfig.ProviderConfig provider,
+            RuntimeProviderSetupSpec.ProviderTemplate template) {
+        String baseUrl = providerBaseUrl(providerKey, provider, template);
+        if (StrUtil.isBlank(baseUrl)) {
+            return "";
+        }
+        String dialect = LlmProviderSupport.normalizeDialect(providerDialect(provider, template));
+        SecurityPolicyService.UrlVerdict verdict =
+                new SecurityPolicyService(appConfig)
+                        .checkUrlSafety(
+                                baseUrl,
+                                LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                                        ? Boolean.TRUE
+                                        : null);
+        if (verdict.isAllowed()) {
+            return "";
+        }
+        String message = "模型地址被安全策略阻断：" + verdict.getMessage();
+        if (!LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                && StrUtil.contains(verdict.getMessage(), "内网/私有地址")) {
+            message += "；如确认该本地/内网模型地址可信，请在 workspace/config.yml 设置 security.allowPrivateUrls=true 后重试。";
+        }
+        return message;
     }
 
     /** 返回 provider API Key 提示环境变量名。 */

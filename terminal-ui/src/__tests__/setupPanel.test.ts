@@ -58,4 +58,16 @@ describe('setup panel helpers', () => {
       '配置文件：（未知）'
     ])
   })
+
+  it('formats setup warning when backend detects a blocked local provider URL', () => {
+    expect(
+      setupStatusLines({
+        model: 'mimo-v2.5',
+        provider: 'openai',
+        provider_configured: true,
+        warning: '模型地址被安全策略阻断：阻断内网/私有地址；设置 security.allowPrivateUrls=true 后重试。',
+        workspace_config: '/tmp/workspace/config.yml'
+      })
+    ).toContain('警告：模型地址被安全策略阻断：阻断内网/私有地址；设置 security.allowPrivateUrls=true 后重试。')
+  })
 })

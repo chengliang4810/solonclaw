@@ -114,6 +114,7 @@ export interface SetupStatusResponse {
   model?: string
   provider?: string
   provider_configured?: boolean
+  warning?: string
   workspace_config?: string
 }
 

@@ -413,6 +413,42 @@ npm --prefix terminal-ui test -- src/__tests__/createGatewayEventHandler.test.ts
 node --experimental-strip-types web/tests/gatewayReadOnlyStatic.test.ts
 ```
 
+## BUG-038：TUI 本地 OpenAI 兼容模型地址被阻断时缺少提前提示
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- TUI 首次启动 setup 状态。
+- TUI 模型选择器。
+- 使用 OpenAI 兼容协议连接本机或内网模型服务的用户。
+
+当前事实：
+
+- TUI E2E 中配置 OpenAI 兼容 provider 指向 `http://127.0.0.1:<port>` 后，聊天阶段才失败。
+- 后端模型网关按默认安全策略阻断远程 provider 的私有地址访问，错误为 `LLM apiUrl 被安全策略阻断：阻断内网/私有地址`。
+- 该安全边界是预期行为；问题是 TUI setup/model 页面没有提前告诉用户需要显式启用 `security.allowPrivateUrls`。
+
+根因：
+
+- `TuiRuntimeProtocolService` 只在模型真正请求时依赖 `SolonAiLlmGateway` 做 URL 安全检查。
+- `setup.status` 和 `model.options` 没有复用同一 URL 安全策略做只读预检，导致配置页看起来正常但真实对话失败。
+
+修复记录：
+
+- `setup.status` 对当前 provider base URL 做安全策略预检，若被私有地址策略阻断则返回 `warning`。
+- `model.options` 的 provider 条目复用同一预检结果，在模型选择器中展示阻断原因和 `security.allowPrivateUrls=true` 操作提示。
+- TUI 设置面板新增 warning 行展示，保留启动路径已有的通用 RPC warning 提示。
+- 未放宽 `SolonAiLlmGateway` 的 URL 安全策略；真实模型请求仍保持 fail-closed。
+
+验证命令：
+
+```bash
+mvn "-Dskip.web.build=true" "-Dtest=TuiRuntimeProtocolServiceTest,SolonAiLlmGatewayConfigTest" test
+npm --prefix terminal-ui test -- src/__tests__/setupPanel.test.ts
+npm --prefix terminal-ui run type-check
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -422,4 +458,5 @@ node --experimental-strip-types web/tests/gatewayReadOnlyStatic.test.ts
 - BUG-035 已修复默认登录页错误指引，保持空令牌拒绝访问的安全边界不变。
 - BUG-036 已修复 TUI `run.failed` 事件被忽略导致失败不可见的问题。
 - BUG-037 已修复消息网关页面固定显示 `8080` 的端口误导。
+- BUG-038 已修复 TUI 本地 OpenAI 兼容模型地址被安全策略阻断时缺少提前提示的问题，安全策略本身不放宽。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

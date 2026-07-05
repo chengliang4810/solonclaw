@@ -49,12 +49,14 @@ export const createSetupPanelNavigator = (initialIndex = 0) => {
   }
 }
 
-export const setupStatusLines = (status: SetupStatusResponse | null) => [
-  `模型：${status?.provider_configured ? '已配置' : '未配置'}`,
-  `提供方：${status?.provider || '（未设置）'}`,
-  `当前模型：${status?.model || '（未设置）'}`,
-  `配置文件：${status?.workspace_config || '（未知）'}`
-]
+export const setupStatusLines = (status: SetupStatusResponse | null) =>
+  [
+    `模型：${status?.provider_configured ? '已配置' : '未配置'}`,
+    `提供方：${status?.provider || '（未设置）'}`,
+    `当前模型：${status?.model || '（未设置）'}`,
+    `配置文件：${status?.workspace_config || '（未知）'}`,
+    status?.warning ? `警告：${status.warning}` : ''
+  ].filter(Boolean)
 
 export function SetupPanel({ gw, onChannel, onClose, onDoctor, onModel, t }: SetupPanelProps) {
   const [err, setErr] = useState('')
