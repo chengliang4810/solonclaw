@@ -942,7 +942,7 @@ export function useMainApp(gw: GatewayClient) {
         }
       )
     },
-    [overlay.approval?.approvalId, overlay.approval?.sessionId, respondWith, sys, ui.sid]
+    [overlay.approval, respondWith, sys, ui.sid]
   )
 
   const answerSudo = useCallback(
