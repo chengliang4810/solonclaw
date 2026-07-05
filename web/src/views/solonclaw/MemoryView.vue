@@ -8,6 +8,7 @@ import { fetchMemory, saveMemory, type MemoryData } from '@/api/solonclaw/skills
 const { t } = useI18n()
 const loading = ref(false)
 const data = ref<MemoryData | null>(null)
+const loadError = ref<string | null>(null)
 const editingSection = ref<'memory' | null>(null)
 const editContent = ref('')
 const saving = ref(false)
@@ -16,11 +17,12 @@ onMounted(loadMemory)
 
 async function loadMemory() {
   loading.value = true
+  loadError.value = null
   try {
     data.value = await fetchMemory()
   } catch (err: any) {
     console.error('Failed to load memory:', err)
-    message.error(t('memory.loadFailed'))
+    loadError.value = err instanceof Error ? err.message : String(err || t('memory.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -96,7 +98,12 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
     </header>
 
     <div class="memory-content">
+      <div v-if="loadError" class="memory-load-error">
+        <strong>{{ t('memory.loadFailed') }}</strong>
+        <span>{{ loadError }}</span>
+      </div>
       <MarkdownDocumentPanel
+        v-if="!loadError || data"
         v-model="editContent"
         :display-content="displayMemory"
         :editing="editingSection === 'memory'"
@@ -150,5 +157,21 @@ const displayMemory = computed(() => (data.value?.memory || '').replace(/§/g, '
   margin-top: 6px;
   font-size: 11px;
   color: $text-muted;
+}
+
+.memory-load-error {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(var(--error-rgb), 0.28);
+  border-radius: $radius-sm;
+  background: rgba(var(--error-rgb), 0.06);
+  color: $error;
+  font-size: 13px;
+
+  span {
+    overflow-wrap: anywhere;
+  }
 }
 </style>
