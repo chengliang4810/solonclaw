@@ -302,7 +302,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
           patchUiState({ status: 'ready' })
         })
     },
-    [gw, resetSession, scrollRef, setHistoryItems, setSessionStartedAt, sys]
+    [gw, resetSession, scrollRef, setHistoryItems, setLastUserMsg, setSessionStartedAt, sys]
   )
 
   const resumeById = useCallback(
@@ -355,7 +355,7 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
         )
       })
     },
-    [closeSession, colsRef, gw, panel, resetSession, rpc, scrollRef, setHistoryItems, setSessionStartedAt, sys]
+    [closeSession, colsRef, gw, panel, resetSession, rpc, scrollRef, setHistoryItems, setLastUserMsg, setSessionStartedAt, sys]
   )
 
   const guardBusySessionSwitch = useCallback(
