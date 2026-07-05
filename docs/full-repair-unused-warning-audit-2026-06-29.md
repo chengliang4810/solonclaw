@@ -46,7 +46,7 @@
 | `mvn "-Dskip.web.build=true" "-DskipTests" compile` | 通过 | Java 编译未报告未使用变量或导入问题。 |
 | `npm --prefix terminal-ui run type-check` | 通过 | `noUnusedLocals`、`noUnusedParameters` 未发现问题。 |
 | `npm --prefix web run build` | 通过 | `vue-tsc -b` 未发现 Web 未使用变量问题。 |
-| `npm --prefix terminal-ui run lint` | 通过，0 error、61 warning | 没有 `unused-imports` error；剩余 warning 为 padding、React hooks 或 react-compiler，不属于未使用变量或导入。 |
+| `npm --prefix terminal-ui run lint` | 通过，0 error、3 warning | 没有 `unused-imports` error；剩余 warning 为 padding，不属于未使用变量或导入。 |
 
 ## 预存问题复核
 
