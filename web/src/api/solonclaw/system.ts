@@ -107,6 +107,15 @@ interface DashboardStatus {
   version?: string
 }
 
+export interface RuntimeStatusResponse {
+  runtime_status?: {
+    multimodal?: Record<string, unknown>
+    pricing?: Record<string, unknown>
+    [key: string]: unknown
+  }
+  runtime_capabilities?: Record<string, unknown>
+}
+
 interface ProvidersPayload {
   providers: ProviderRecord[]
   defaultProviderKey: string
@@ -179,6 +188,10 @@ export async function fetchModelsHealth(): Promise<ModelsHealthResponse> {
 
 export async function fetchRuntimeModels(): Promise<RuntimeModelsResponse> {
   return request<RuntimeModelsResponse>('/api/models')
+}
+
+export async function fetchRuntimeStatus(): Promise<RuntimeStatusResponse> {
+  return request<RuntimeStatusResponse>('/api/status')
 }
 
 export async function validateProvider(data: ProviderValidationRequest): Promise<ProviderValidationResponse> {

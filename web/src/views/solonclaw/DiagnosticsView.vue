@@ -44,10 +44,12 @@ import {
   type InsightsOverview,
   type SkillInsights,
 } from '@/api/solonclaw/insights'
+import { fetchRuntimeStatus, type RuntimeStatusResponse } from '@/api/solonclaw/system'
 
 const { t } = useI18n()
 const diagnostics = ref<Diagnostics | null>(null)
 const doctor = ref<DiagnosticsDoctor | null>(null)
+const runtimeStatus = ref<RuntimeStatusResponse | null>(null)
 const insightsOverview = ref<InsightsOverview | null>(null)
 const skillInsights = ref<SkillInsights>({})
 const loading = ref(false)
@@ -121,6 +123,11 @@ type SecurityMetric = {
 type SecurityDetailGroup = {
   title: string
   items: SecurityMetric[]
+}
+type RuntimeCapabilityRow = {
+  key: string
+  label: string
+  highlights: SecurityMetric[]
 }
 const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
   const policy = securityPolicy.value
@@ -527,6 +534,42 @@ const skillInsightRows = computed<Array<{ key: string } & Record<string, unknown
     .sort((left, right) => Number(right.count || 0) - Number(left.count || 0))
     .slice(0, 6),
 )
+const runtimeCapabilityRows = computed<RuntimeCapabilityRow[]>(() => {
+  const runtime_status = runtimeStatus.value?.runtime_status
+  const multimodal = objectValue(runtime_status?.multimodal)
+  const modelInput = objectValue(multimodal.model_input)
+  const pricing = objectValue(runtime_status?.pricing)
+  return [
+    {
+      key: 'multimodal',
+      label: d('runtimeMultimodal'),
+      highlights: [
+        metric('runtimeProvider', multimodal.provider),
+        metric('runtimeModel', multimodal.model),
+        metric('runtimeDialect', multimodal.dialect),
+        metric('runtimeVisionInput', modelInput.vision),
+        metric('runtimeAudioInput', modelInput.audio),
+        metric('runtimeAttachmentInput', modelInput.attachments),
+        metric('runtimePdfInput', modelInput.pdf),
+        metric('runtimeImageGeneration', multimodal.image_generation),
+        metric('runtimeTts', multimodal.tts),
+        metric('runtimeTranscription', multimodal.transcription),
+      ],
+    },
+    {
+      key: 'pricing',
+      label: d('runtimePricing'),
+      highlights: [
+        metric('runtimeBuiltinPriceCount', pricing.builtin_price_count),
+        metric('runtimeConfiguredPriceCount', pricing.configured_price_count),
+        metric('runtimeEffectivePriceCount', pricing.effective_price_count),
+        metric('runtimeUsageCostCalculation', pricing.usage_cost_calculation),
+        metric('runtimePricingAvailable', pricing.pricing_available),
+        metric('runtimeCurrencyDefault', pricing.currency_default),
+      ],
+    },
+  ].filter((row) => row.highlights.some((item) => item.value !== undefined && item.value !== null && item.value !== ''))
+})
 
 function valueOf(source: Record<string, unknown>, key: string, fallback: unknown = '-') {
   const value = source[key]
@@ -659,8 +702,9 @@ async function savePlatformToolsets(row: PlatformToolsetConfig) {
 async function load() {
   loading.value = true
   try {
-    const [diagnosticsData, insightsData, skillInsightData] = await Promise.all([
+    const [diagnosticsData, runtimeStatusData, insightsData, skillInsightData] = await Promise.all([
       fetchDiagnostics(),
+      fetchRuntimeStatus(),
       fetchInsightsOverview(),
       fetchSkillInsights(),
       loadPolicyAudit(),
@@ -671,6 +715,7 @@ async function load() {
       loadSlashConfirms(),
     ])
     diagnostics.value = diagnosticsData
+    runtimeStatus.value = runtimeStatusData
     doctor.value = await fetchDiagnosticsDoctor()
     await loadPlatformToolsets()
     insightsOverview.value = insightsData
@@ -951,6 +996,26 @@ onMounted(load)
         <section class="panel">
           <h3>{{ t('diagnostics.runtime') }}</h3>
           <pre>{{ diagnostics?.runtime }}</pre>
+        </section>
+        <section class="panel">
+          <h3>{{ t('diagnostics.runtimeCapabilities') }}</h3>
+          <div v-if="runtimeCapabilityRows.length" class="runtime-capability-list">
+            <article v-for="row in runtimeCapabilityRows" :key="row.key" class="runtime-capability-row">
+              <div class="runtime-capability-head">
+                <strong>{{ row.label }}</strong>
+                <Tag size="small" :bordered="false">{{ row.key }}</Tag>
+              </div>
+              <div class="metric-grid">
+                <div v-for="item in row.highlights" :key="item.label" class="metric-item">
+                  <span>{{ item.label }}</span>
+                  <Tag size="small" :color="metricTagType(item)" :bordered="false">
+                    {{ metricText(item.value) }}
+                  </Tag>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div v-else class="empty-state">{{ t('diagnostics.noRuntimeCapabilities') }}</div>
         </section>
         <section class="panel">
           <h3>{{ t('diagnostics.providers') }}</h3>
@@ -1819,6 +1884,28 @@ onMounted(load)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.runtime-capability-list {
+  display: grid;
+  gap: 10px;
+}
+
+.runtime-capability-row {
+  display: grid;
+  gap: 8px;
+}
+
+.runtime-capability-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+
+.runtime-capability-head strong {
+  color: $text-primary;
+  font-size: 13px;
 }
 
 .toolset-list {
