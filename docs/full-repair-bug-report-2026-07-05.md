@@ -619,6 +619,40 @@ node --experimental-strip-types web/tests/chatStreamEvents.test.ts
 npm --prefix web run build
 ```
 
+## BUG-044：Web settings store 暴露已裁剪的海外渠道配置
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 设置/渠道配置状态源。
+- 前端配置保存路径。
+- 本项目仅保留国内渠道的范围约束。
+
+当前事实：
+
+- `settings.ts` 仍定义 `telegram`、`discord`、`slack`、`whatsapp`、`matrix` 五个 ref。
+- `fetchSettings()` 会读取后端当前不会返回的同名字段。
+- `saveSection()` 仍接受这些 section 并尝试合并到本地状态。
+- 当前页面实际渲染已经走 `platforms` 与国内渠道 catalog，这些 ref 没有真实 UI 消费。
+
+根因：
+
+- 旧渠道状态在平台 catalog 改造后没有同步删除，形成不可见但可被调用的假配置入口。
+
+修复记录：
+
+- 删除 settings store 中五个已裁剪渠道的 ref、fetch 赋值、saveSection 分支和返回暴露。
+- `settingsUnsupportedSectionsStatic.test.ts` 增加海外渠道配置不可暴露的静态回归。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/settingsUnsupportedSectionsStatic.test.ts
+npm --prefix web run test:platform-catalog-metadata
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -634,4 +668,5 @@ npm --prefix web run build
 - BUG-041 已修复 TUI busy 状态下 `/model` 被切换模型防护误拦、无法打开模型选择器的问题。
 - BUG-042 已修复 TUI `/undo` 与 `/retry` 空响应被静默吞掉、用户无反馈的问题。
 - BUG-043 已修复 Web SSE 非 JSON `data:` 帧导致整个运行事件流提前失败的问题。
+- BUG-044 已修复 Web settings store 暴露已裁剪海外渠道假配置入口的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。

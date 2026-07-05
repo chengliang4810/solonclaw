@@ -14,6 +14,9 @@ assert.ok(!sessionSettings.includes("saveSection('session_reset'"), 'session set
 assert.ok(sessionSettings.includes('sessionBrowserPrefsStore.setHumanOnly'), 'session settings should keep the real local browser preference')
 assert.ok(!settingsStore.includes('MemoryConfig'), 'settings store should not expose unsupported memory config')
 assert.ok(!settingsStore.includes('PrivacyConfig'), 'settings store should not expose unsupported privacy config')
+for (const section of ['telegram', 'discord', 'slack', 'whatsapp', 'matrix']) {
+  assert.ok(!settingsStore.includes(section), `settings store should not expose unsupported ${section} config`)
+}
 assert.ok(!configApi.includes('memory_enabled'), 'config API should not synthesize unsupported memory config')
 assert.ok(!configApi.includes('redact_pii'), 'config API should not synthesize unsupported privacy config')
 assert.ok(!displaySettings.includes('compact'), 'display settings should not expose unsupported compact saves')
