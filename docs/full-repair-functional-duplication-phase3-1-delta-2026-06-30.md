@@ -122,7 +122,8 @@
 - 重叠程度：中高。
 - 证据：后端审批服务维护审批状态、观察者、卡片动作、TTL 和持久化；slash confirm 又维护 pending confirm、过期清理、always 命令和 resolve；Dashboard 暴露 `/api/diagnostics/approvals*` 与 `/api/diagnostics/slash-confirms*` 两组入口，TUI 侧再拼装 approval response 并处理拒绝/清理。
 - 2026-07-05 二次复核：两类功能都呈现为“待处理审批/确认”，但危险操作审批和 slash 命令二次确认的状态源语义不同，不应硬合并。
-- 建议：下一轮先统一 UI / 诊断命名边界：危险操作用 approval，命令二次确认用 confirm；`ApprovalQueueManageTools` 继续聚合只读查询，不迁移状态源。
+- 2026-07-05 三次复核：slash confirm 的 `expires_at`、`expired`、`expires_in_seconds` 已由 `SlashConfirmService.PendingConfirm` 统一投影，Dashboard 不再复制默认超时计算。
+- 建议：危险操作继续用 approval，命令二次确认继续用 confirm；`ApprovalQueueManageTools` 继续聚合只读查询，不迁移状态源。剩余仅有英文 UI 文案可收窄，不作为后端功能融合项。
 
 ## 仍有完全重复块但暂不作为功能重复的项
 

@@ -3699,9 +3699,8 @@ public class DashboardDiagnosticsService {
     private Map<String, Object> slashConfirmItem(SlashConfirmService.PendingConfirm pending) {
         Map<String, Object> item = new LinkedHashMap<String, Object>();
         long now = System.currentTimeMillis();
-        long expiresAt = pending.getCreatedAt() + SlashConfirmService.DEFAULT_TIMEOUT_MS;
-        long remainingMillis = expiresAt - now;
-        boolean expired = remainingMillis <= 0L;
+        long expiresAt = pending.expiresAt();
+        boolean expired = pending.expiredAt(now);
         List<String> actionOptions = new ArrayList<String>();
         if (!expired) {
             actionOptions.add("approve");
@@ -3719,7 +3718,7 @@ public class DashboardDiagnosticsService {
         item.put("action_options", actionOptions);
         item.put("created_at", Long.valueOf(pending.getCreatedAt()));
         item.put("expires_at", Long.valueOf(expiresAt));
-        item.put("expires_in_seconds", Long.valueOf(Math.max(0L, remainingMillis / 1000L)));
+        item.put("expires_in_seconds", Long.valueOf(pending.expiresInSecondsAt(now)));
         item.put("expired", Boolean.valueOf(expired));
         return item;
     }

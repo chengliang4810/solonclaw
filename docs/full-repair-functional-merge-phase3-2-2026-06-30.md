@@ -48,6 +48,12 @@
 - `WeixinQrSetupService` 与 `DomesticQrSetupService` 只保留各自协议字段和 HTTP / 持久化流程，避免把微信 iLink、飞书、钉钉协议强行合并。
 - 新增 `QrSetupTicketStateTest` 与 `QrSetupTicketMapReuseTest` 锁定 ticket 生命周期、失败脱敏、基础字段投影和服务复用边界，并删除微信测试中对私有 `TicketState` / `fail()` 的反射依赖。
 
+### 7. Slash confirm 过期口径复用
+
+- 2026-07-05 本轮补充：`SlashConfirmService.PendingConfirm` 统一提供 `expiresAt()`、`expiredAt(...)` 与 `expiresInSecondsAt(...)`。
+- `DashboardDiagnosticsService.slashConfirmItem(...)` 改为消费 pending confirm 自身过期投影，不再复制 `createdAt + DEFAULT_TIMEOUT_MS` 计算。
+- 危险命令审批队列和 slash confirm 仍保持不同状态源；本轮只收敛同一状态源的派生字段，不合并业务语义。
+
 ## 已验证
 
 - `npm --prefix web run test:device-login-modal-reuse`
@@ -58,6 +64,8 @@
 - `mvn -Dskip.web.build=true -DskipTests=false -Dmaven.test.skip=false -Dsurefire.failIfNoSpecifiedTests=false -Dmaven.compiler.useIncrementalCompilation=false -Dtest=DashboardResponseTest,DashboardMediaServiceTest,DashboardCuratorServiceTest,DashboardSessionServiceTest#shouldRedactSecretLikeSessionIdentifiersFromDashboardResponses,AgentMechanismTest#shouldActivateAgentForUnpersistedDashboardSession,McpPackageSecurityServiceTest test`
 - `mvn "-Dskip.web.build=true" "-Dtest=QrSetupTicketStateTest,WeixinQrSetupServiceTest,DomesticQrSetupServiceTest,TuiRuntimeProtocolServiceTest" test`
 - `mvn "-Dskip.web.build=true" "-Dtest=WeixinQrSetupServiceTest,DomesticQrSetupServiceTest,QrSetupTicketStateTest,QrSetupTicketMapReuseTest" test`
+- `mvn "-Dskip.web.build=true" "-Dtest=SlashConfirmServiceTest" test`
+- `mvn "-Dskip.web.build=true" "-Dtest=SlashConfirmExpiryReuseTest" test`
 - `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java/com/jimuqu/solon/claw/web/WeixinQrSetupService.java src/main/java/com/jimuqu/solon/claw/web/DomesticQrSetupService.java src/main/java/com/jimuqu/solon/claw/web/QrSetupTicketState.java`
 - `python scripts/check-code-duplication.py --report-only --min-lines 25 --max-findings 80 src/main/java src/test/java web/src terminal-ui/src terminal-ui/packages`
 - `git diff --check`
@@ -68,7 +76,7 @@
 ## 延后或不合并项
 
 - 后端 QR setup 协议流程：本轮只抽 ticket 生命周期，不合并微信 iLink、飞书、钉钉的协议请求与凭据持久化流程。
-- 危险命令审批与 slash confirm 状态源：危险命令审批绑定 AgentSession / snapshot、审批选择器、会话级授权和恢复执行；slash confirm 仅按 `sourceKey` 暂存待确认的 slash 控制命令，确认后一次性消费。Dashboard 与 TUI 只是复用现有 resolve/respond 入口，不存在第三份状态源，因此不做业务状态融合。
+- 危险命令审批与 slash confirm 状态源：危险命令审批绑定 AgentSession / snapshot、审批选择器、会话级授权和恢复执行；slash confirm 仅按 `sourceKey` 暂存待确认的 slash 控制命令，确认后一次性消费。Dashboard 与 TUI 只是复用现有 resolve/respond 入口，不存在第三份状态源，因此不做业务状态融合；本轮仅收敛 slash confirm 自身的过期派生字段。
 - `DashboardCronController`：错误响应状态码按 `isNotFound(e)` 动态分流，留到后续更细测试后再收敛。
 - `DashboardWorkspaceController`：错误文本经过 `workspaceErrorMessage(e)` 特殊转换，不能按普通控制台错误响应机械替换。
 - `DashboardTuiRuntimeController`：JSON-RPC 错误语义不同，不纳入普通 Dashboard response 合并。

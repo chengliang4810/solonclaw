@@ -183,6 +183,18 @@ public class SlashConfirmServiceTest {
     }
 
     @Test
+    void shouldExposePendingConfirmExpiryProjection() throws Exception {
+        SlashConfirmService.PendingConfirm pending = new SlashConfirmService.PendingConfirm();
+        pending.setCreatedAt(1000L);
+
+        assertThat(pending.expiresAt()).isEqualTo(301000L);
+        assertThat(pending.expiredAt(300999L)).isFalse();
+        assertThat(pending.expiredAt(301000L)).isTrue();
+        assertThat(pending.expiresInSecondsAt(299000L)).isEqualTo(2L);
+        assertThat(pending.expiresInSecondsAt(302000L)).isEqualTo(0L);
+    }
+
+    @Test
     void shouldPersistAlwaysConfirmedCommandsNormalized() throws Exception {
         MemorySettings settings = new MemorySettings();
         SlashConfirmService service = new SlashConfirmService(settings);
