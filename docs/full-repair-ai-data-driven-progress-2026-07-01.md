@@ -55,6 +55,16 @@
 
 - `SlashCommandHelpRenderer` 中的 `USAGE_OVERRIDES` 仍保存参数格式。当前 `CommandDescriptor` 没有 usage 字段；为消除这张表新增字段会触及全部命令注册和测试，收益低于风险，暂不做。
 
+### 5. 审批策略终端护栏摘要复用规则目录
+
+状态：已完成当前低风险部分。
+
+当前证据：
+
+- `DangerousCommandRuleCatalog.terminalGuardrailKeys()` 已集中维护终端护栏摘要键。
+- `DangerousCommandApprovalPolicySummaries` 的 `terminalGuardrails` 和 `terminalGuardrailCount` 来自同一共享列表。
+- `DangerousCommandRuleCatalogTest#approvalPolicySummaryUsesSharedTerminalGuardrailCatalog` 已锁定 `detached_terminal_session` 等真实检测分支不会从摘要中漂移。
+
 ## 当前不作为 AI 驱动改造入口的项
 
 - 危险命令规则、URL 安全策略、hardline 阻断和工具循环硬门控继续保持确定性规则优先。

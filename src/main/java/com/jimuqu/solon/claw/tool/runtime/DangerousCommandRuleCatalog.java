@@ -171,6 +171,16 @@ final class DangerousCommandRuleCatalog {
             pattern(
                     "\\b(?:os\\.system|subprocess\\.(?:run|Popen|call|check_call|check_output))\\s*\\(");
 
+    /** 终端护栏摘要键，和前台命令实际检测分支保持一致。 */
+    private static final List<String> TERMINAL_GUARDRAIL_KEYS =
+            Collections.unmodifiableList(
+                    Arrays.asList(
+                            "shell_level_background",
+                            "detached_terminal_session",
+                            "powershell_background_job",
+                            "inline_background_ampersand",
+                            "long_lived_foreground"));
+
     /** 命令参数KEYS的统一常量值。 */
     static final Set<String> COMMAND_ARGUMENT_KEYS =
             Collections.unmodifiableSet(
@@ -2694,6 +2704,11 @@ final class DangerousCommandRuleCatalog {
             }
         }
         return samples;
+    }
+
+    /** 返回终端护栏摘要键列表，避免策略摘要和真实检测分支漂移。 */
+    static List<String> terminalGuardrailKeys() {
+        return TERMINAL_GUARDRAIL_KEYS;
     }
 
     /**

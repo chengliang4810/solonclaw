@@ -6,6 +6,7 @@ import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.RUL
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.hardlineRuleSamples;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.preferredRuleSamples;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.ruleSamples;
+import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.terminalGuardrailKeys;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -145,14 +146,8 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("hardlinePolicy", hardlinePolicySummary());
         summary.put(
                 "terminalGuardrailCount",
-                Integer.valueOf(4 + LONG_LIVED_FOREGROUND_PATTERNS.size()));
-        summary.put(
-                "terminalGuardrails",
-                Arrays.asList(
-                        "shell_level_background",
-                        "powershell_background_job",
-                        "inline_background_ampersand",
-                        "long_lived_foreground"));
+                Integer.valueOf(terminalGuardrailKeys().size()));
+        summary.put("terminalGuardrails", terminalGuardrailKeys());
         summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
         summary.put("backgroundProcessGuard", Boolean.TRUE);
         summary.put("terminalGuardrailPolicy", terminalGuardrailPolicySummary());
