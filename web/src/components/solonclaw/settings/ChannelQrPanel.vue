@@ -42,6 +42,10 @@ function statusFallbackMessage(status: ChannelQrUiStatus) {
   return status === 'expired' ? t('platform.qrExpired') : t('platform.qrFailed')
 }
 
+function captionMessage(state: ChannelQrPanelState) {
+  return state.status === 'error' || state.status === 'expired' ? (state.message || statusFallbackMessage(state.status)) : (state.message || scanHint(state.status))
+}
+
 function shouldShowStandaloneStatus(state: ChannelQrPanelState, showEmptyStatus: boolean) {
   if (state.imageUrl) return false
   if (state.status === 'error' || state.status === 'expired') return true
@@ -70,7 +74,7 @@ function isHttpUrl(value: string) {
     <div v-if="state.imageUrl" class="channel-qr-panel">
       <img class="channel-qr-image" :src="state.imageUrl" :alt="t('platform.qrLogin')" />
       <div class="channel-qr-caption" :class="statusClass(state.status)">
-        {{ state.message || scanHint(state.status) }}
+        {{ captionMessage(state) }}
       </div>
       <div v-if="state.status === 'confirmed' && domain" class="channel-qr-caption">
         {{ domain }}
@@ -86,7 +90,7 @@ function isHttpUrl(value: string) {
       </a>
     </div>
     <div v-if="shouldShowStandaloneStatus(state, showEmptyStatus)" :class="statusClass(state.status) ? 'channel-qr-error' : 'channel-qr-hint'">
-      {{ state.status === 'error' || state.status === 'expired' ? (state.message || statusFallbackMessage(state.status)) : scanHint(state.status) }}
+      {{ captionMessage(state) }}
     </div>
   </div>
 </template>

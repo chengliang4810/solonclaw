@@ -28,6 +28,20 @@
 - `git diff --check`
 - `python3 scripts/check-project-naming.py --check-git-commit-subjects --check-git-object-text --check-current-branch-range`
 
+### 2. 有图二维码终态文案兜底
+
+- 2026-07-05 本轮提交：`fix: 对齐二维码终态文案 / Align QR terminal captions`。
+- `ChannelQrPanel.vue` 新增 `captionMessage(...)`，让带二维码图片的 `error` / `expired` 状态也复用失败或过期兜底文案。
+- 独立状态提示和图片 caption 共用同一入口，避免有图终态显示成普通扫码提示。
+- 更新 `platformQrPanelReuseStatic.test.ts`，先红后绿锁定图片内 caption 与无图终态提示使用同一文案解析逻辑。
+
+验证：
+
+- `node --experimental-strip-types web/tests/platformQrPanelReuseStatic.test.ts`
+- `node --experimental-strip-types web/tests/channelQrPollingReuseStatic.test.ts`
+- `node --experimental-strip-types web/tests/channelQr.test.ts`
+- `npm --prefix web run build`
+
 ## 阶段状态
 
-阶段 3.4 已完成 1 个低风险 UI 状态增强项。下一步可继续评估 `DisplaySettings.vue`、`ModelSettings.vue` 等设置页是否存在同类小增强，或转入阶段 4 的 AI/数据驱动审查。
+阶段 3.4 已完成 2 个低风险 UI 状态增强项。下一步可继续评估 `DisplaySettings.vue`、`ModelSettings.vue` 等设置页是否存在同类小增强，或转入阶段 4 的 AI/数据驱动审查。

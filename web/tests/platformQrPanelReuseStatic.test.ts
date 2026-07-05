@@ -31,3 +31,5 @@ assert.ok(sharedPanel.includes('state.status === \'confirmed\' && domain'), 'Sha
 assert.ok(sharedPanel.includes("return showEmptyStatus && (state.status === 'waiting' || state.status === 'scaned')"), 'Shared QR panel should keep Weixin empty-image status branch')
 assert.ok(sharedPanel.includes('shouldShowStandaloneStatus(state, showEmptyStatus)'), 'Shared QR panel should show image-less error and expired states across platforms')
 assert.ok(sharedPanel.includes('statusFallbackMessage(state.status)'), 'Shared QR panel should provide fallback text for image-less terminal states')
+assert.ok(sharedPanel.includes('captionMessage(state)'), 'Shared QR panel should use one caption resolver for image and image-less terminal states')
+assert.ok(sharedPanel.includes('state.status === \'error\' || state.status === \'expired\' ? (state.message || statusFallbackMessage(state.status)) :'), 'Shared QR panel should show terminal fallback text even when a QR image is still visible')
