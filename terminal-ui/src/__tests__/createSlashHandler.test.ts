@@ -938,6 +938,31 @@ describe('createSlashHandler', () => {
     })
   })
 
+  it('keeps /doctor on slash.exec after the command catalog loads', async () => {
+    const request = vi.fn(() => Promise.resolve({ output: 'doctor ok' }))
+
+    const ctx = buildCtx({
+      gateway: { ...buildGateway(), gw: { ...buildGateway().gw, request } },
+      local: {
+        catalog: {
+          canon: {
+            '/help': '/help'
+          }
+        }
+      }
+    })
+
+    expect(createSlashHandler(ctx)('/doctor')).toBe(true)
+
+    await vi.waitFor(() => {
+      expect(request).toHaveBeenCalledWith('slash.exec', {
+        command: 'doctor',
+        session_id: null
+      })
+    })
+    expect(ctx.transcript.sys).not.toHaveBeenCalledWith('unknown command: /doctor — try /help')
+  })
+
   it('keeps ambiguous prefix handling when there is no exact catalog match', () => {
     const ctx = buildCtx({
       local: {
