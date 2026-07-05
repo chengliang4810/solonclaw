@@ -535,6 +535,7 @@ describe('createSlashHandler', () => {
         tts: false
       })
     )
+
     const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
 
     expect(createSlashHandler(ctx)('/voice on')).toBe(true)
@@ -555,6 +556,7 @@ describe('createSlashHandler', () => {
         tts: false
       })
     )
+
     const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
 
     expect(createSlashHandler(ctx)('/voice off')).toBe(true)
@@ -660,11 +662,13 @@ describe('createSlashHandler', () => {
 
   it('renders explicit tool configuration success messages after applying changes', async () => {
     patchUiState({ sid: 'sid-abc' })
+
     const rpc = vi.fn(() => Promise.resolve({
       changed: ['web'],
       info: { model: 'mimo-v2.5-pro' },
       reset: true
     }))
+
     const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
 
     expect(createSlashHandler(ctx)('/tools disable web')).toBe(true)
@@ -863,6 +867,7 @@ describe('createSlashHandler', () => {
 
   it('keeps gateway setup commands on slash.exec even when the catalog aliases gateway', async () => {
     const request = vi.fn(() => Promise.resolve({ output: 'gateway status' }))
+
     const ctx = buildCtx({
       gateway: { ...buildGateway(), gw: { ...buildGateway().gw, request } },
       local: {
@@ -956,6 +961,7 @@ describe('createSlashHandler', () => {
 
   it('handles command dispatch payloads returned directly by slash.exec', async () => {
     patchUiState({ sid: 'sid-abc' })
+
     const request = vi.fn((method: string) => {
       if (method === 'slash.exec') {
         return Promise.resolve({
@@ -967,6 +973,7 @@ describe('createSlashHandler', () => {
 
       return Promise.resolve({})
     })
+
     const ctx = buildCtx({
       gateway: {
         gw: { ...buildGateway().gw, request },
@@ -1154,6 +1161,7 @@ describe('createSlashHandler', () => {
 
   it('/compress no-op keeps the visible transcript and reports the result', async () => {
     patchUiState({ sid: 'sid-abc' })
+
     const rpc = vi.fn(() =>
       Promise.resolve({
         messages: [],
@@ -1161,6 +1169,7 @@ describe('createSlashHandler', () => {
         summary: { headline: 'nothing to compress', noop: true }
       })
     )
+
     const ctx = buildCtx({ gateway: { ...buildGateway(), rpc } })
 
     createSlashHandler(ctx)('/compress')

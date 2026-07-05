@@ -11,6 +11,7 @@ import { recordParentLifecycle } from './lib/parentLog.js'
 // Node.js 20 没有全局 WebSocket，用 ws 模块补全
 // 懒解析：每次调用时检查全局 WebSocket（测试会动态 mock/delete）
 const _wsModuleFallback: typeof WebSocket = WsWebSocket as unknown as typeof WebSocket
+
 function resolveWsCtor(): typeof WebSocket {
   return typeof WebSocket !== 'undefined' ? WebSocket : _wsModuleFallback
 }
@@ -20,10 +21,12 @@ const MAX_LOG_LINE_BYTES = 4096
 const MAX_BUFFERED_EVENTS = 2000
 const MAX_LOG_PREVIEW = 240
 const STARTUP_TIMEOUT_MS = Math.max(5000, parseInt(process.env.SOLONCLAW_TUI_STARTUP_TIMEOUT_MS ?? '15000', 10) || 15000)
+
 const STARTUP_RETRY_COOLDOWN_MS = Math.max(
   250,
   parseInt(process.env.SOLONCLAW_TUI_STARTUP_RETRY_COOLDOWN_MS ?? '3000', 10) || 3000
 )
+
 const REQUEST_TIMEOUT_MS = Math.max(30000, parseInt(process.env.SOLONCLAW_TUI_RPC_TIMEOUT_MS ?? '120000', 10) || 120000)
 const DEFAULT_SERVER_URL = 'http://127.0.0.1:8080'
 const PROTOCOL_VERSION = 1
@@ -83,6 +86,7 @@ type HandshakeResponse = {
 const fetchHandshake = async (): Promise<HandshakeResponse> => {
   const url = handshakeUrl()
   const dashboardToken = resolveDashboardToken()
+
   const response = dashboardToken
     ? await fetch(url, { headers: { Authorization: `Bearer ${dashboardToken}` } })
     : await fetch(url)

@@ -508,8 +508,10 @@ describe('GatewayClient solonclaw bridge', () => {
 
   it('redacts query string secrets in attach failure logs and events', () => {
     process.env.SOLONCLAW_TUI_GATEWAY_URL = 'ws://gateway.test/api/ws?token=hunter2&channel=secret'
+
     // 使 WebSocket 构造函数抛错以模拟连接失败（ws 模块 fallback 使 "unavailable" 不再触发）
     const OrigWs = globalThis.WebSocket
+
     ;(globalThis as { WebSocket?: unknown }).WebSocket = class extends (OrigWs ?? Object) {
       constructor() { throw new Error('connection refused') }
     } as unknown as typeof WebSocket
@@ -598,8 +600,10 @@ describe('GatewayClient solonclaw bridge', () => {
     expect(() => new URL(fixture)).toThrow()
 
     process.env.SOLONCLAW_TUI_GATEWAY_URL = fixture
+
     // 使 WebSocket 构造函数抛错以模拟连接失败
     const OrigWs2 = globalThis.WebSocket
+
     ;(globalThis as { WebSocket?: unknown }).WebSocket = class extends (OrigWs2 ?? Object) {
       constructor() { throw new Error('connection refused') }
     } as unknown as typeof WebSocket
@@ -635,6 +639,7 @@ describe('GatewayClient solonclaw bridge', () => {
     const fetchMock = vi.fn(async () => {
       throw new Error('fetch failed')
     })
+
     vi.stubGlobal('fetch', fetchMock)
 
     const gw = new GatewayClient()

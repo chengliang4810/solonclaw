@@ -72,6 +72,7 @@ export const sessionCommands: SlashCommand[] = [
         ctx.guarded<BackgroundStartResponse>(r => {
           if (!r.task_id) {
             ctx.transcript.sys('no active run to move to background')
+
             return
           }
 

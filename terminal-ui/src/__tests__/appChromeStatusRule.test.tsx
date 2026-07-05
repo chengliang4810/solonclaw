@@ -165,6 +165,7 @@ describe('StatusRule session count click target', () => {
 describe('StatusRule idle-since readout', () => {
   it('shows time since the last final response while idle', () => {
     const endedAt = Date.now() - 42_000
+
     const element = StatusRule({
       bgCount: 0,
       busy: false,

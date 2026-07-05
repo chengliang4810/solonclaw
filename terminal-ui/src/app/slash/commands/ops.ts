@@ -264,6 +264,7 @@ export const opsCommands: SlashCommand[] = [
 
       const hash = first
       const filePath = rest.join(' ').trim()
+
       const restore = () =>
         ctx.gateway
           .rpc<RollbackRestoreResponse>('rollback.restore', {

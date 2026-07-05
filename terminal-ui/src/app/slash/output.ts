@@ -19,6 +19,7 @@ export const renderSlashExecOutput = (
 ) => {
   const body = response?.output || fallback
   const text = response?.warning ? `warning: ${response.warning}\n${body}` : body
+
   const shouldPage =
     text.length > SLASH_PAGE_CHAR_THRESHOLD ||
     text.split('\n').filter(line => line.trim().length > 0).length > SLASH_PAGE_LINE_THRESHOLD
