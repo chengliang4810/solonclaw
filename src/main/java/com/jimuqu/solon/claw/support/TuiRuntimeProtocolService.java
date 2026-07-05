@@ -64,16 +64,22 @@ public class TuiRuntimeProtocolService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         String providerKey = activeProviderKey();
         AppConfig.ProviderConfig provider = provider(providerKey);
+        RuntimeProviderSetupSpec.ProviderTemplate template =
+                RuntimeProviderSetupSpec.provider(providerKey);
         String model = activeModel(provider);
         boolean configured = providerConfigured(providerKey, provider);
         result.put("provider_configured", Boolean.valueOf(configured));
         result.put("provider", providerKey);
         result.put("model", model);
-        result.put("api_key", configured ? "configured" : "missing");
+        result.put(
+                "api_key",
+                providerRequiresApiKey(provider, template)
+                        ? (configured ? "configured" : "missing")
+                        : "not_required");
         result.put("workspace_config", configResolver().configFile().getPath());
         String warning =
                 providerUrlPolicyWarning(
-                        providerKey, provider, RuntimeProviderSetupSpec.provider(providerKey));
+                        providerKey, provider, template);
         if (StrUtil.isNotBlank(warning)) {
             result.put("warning", warning);
         }
@@ -389,10 +395,11 @@ public class TuiRuntimeProtocolService {
             }
         }
         Map<String, Object> item = new LinkedHashMap<String, Object>();
+        boolean requiresApiKey = providerRequiresApiKey(provider, template);
         item.put("slug", providerKey);
         item.put("name", providerName(providerKey, provider, template));
-        item.put("auth_type", "api_key");
-        item.put("key_env", providerKeyEnv(providerKey, template));
+        item.put("auth_type", requiresApiKey ? "api_key" : "none");
+        item.put("key_env", requiresApiKey ? providerKeyEnv(providerKey, template) : "");
         item.put("authenticated", Boolean.valueOf(providerConfigured(providerKey, provider)));
         item.put("is_current", Boolean.valueOf(providerKey.equals(activeProviderKeyFromRuntime())));
         item.put("models", models);
@@ -403,7 +410,7 @@ public class TuiRuntimeProtocolService {
         String urlWarning = providerUrlPolicyWarning(providerKey, provider, template);
         if (StrUtil.isNotBlank(urlWarning)) {
             item.put("warning", urlWarning);
-        } else if (!providerConfigured(providerKey, provider)) {
+        } else if (requiresApiKey && !providerConfigured(providerKey, provider)) {
             item.put("warning", "paste " + providerKeyEnv(providerKey, template) + " to activate");
         }
         return item;
@@ -884,11 +891,29 @@ public class TuiRuntimeProtocolService {
 
     /** 判断 provider 是否已有可用凭据。 */
     private boolean providerConfigured(String providerKey, AppConfig.ProviderConfig provider) {
+        RuntimeProviderSetupSpec.ProviderTemplate template =
+                RuntimeProviderSetupSpec.provider(providerKey);
+        if (!providerRequiresApiKey(provider, template)) {
+            return true;
+        }
         String fileValue = runtimeValue("providers." + providerKey + ".apiKey");
         if (SecretValueGuard.hasUsableSecret(fileValue)) {
             return true;
         }
         return provider != null && SecretValueGuard.hasUsableSecret(provider.getApiKey());
+    }
+
+    /**
+     * 判断 provider 是否需要 API Key。Ollama 本地协议默认不需要凭据，不能在 TUI 中提示必须粘贴密钥。
+     *
+     * @param provider 当前 provider 配置。
+     * @param template provider setup 模板。
+     * @return 需要 API Key 返回 true。
+     */
+    private boolean providerRequiresApiKey(
+            AppConfig.ProviderConfig provider, RuntimeProviderSetupSpec.ProviderTemplate template) {
+        return !LlmConstants.PROVIDER_OLLAMA.equals(
+                LlmProviderSupport.normalizeDialect(providerDialect(provider, template)));
     }
 
     /**

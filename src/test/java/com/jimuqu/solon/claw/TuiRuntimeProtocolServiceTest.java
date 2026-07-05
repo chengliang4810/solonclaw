@@ -68,6 +68,30 @@ class TuiRuntimeProtocolServiceTest {
                 .contains("内网/私有地址");
     }
 
+    @Test
+    void ollamaProviderDoesNotRequireApiKeyInTuiRuntime() throws Exception {
+        AppConfig config = testConfig();
+        config.getModel().setProviderKey("ollama");
+        config.getModel().setDefault("qwen3:8b");
+        TuiRuntimeProtocolService service = new TuiRuntimeProtocolService(config);
+
+        Map<String, Object> setup = service.setupStatus();
+        Map<String, Object> options = service.modelOptions("session-ollama");
+
+        assertThat(setup)
+                .containsEntry("provider_configured", Boolean.TRUE)
+                .containsEntry("provider", "ollama")
+                .containsEntry("api_key", "not_required");
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> providers = (List<Map<String, Object>>) options.get("providers");
+        Map<String, Object> ollama = provider(providers, "ollama");
+        assertThat(ollama)
+                .containsEntry("auth_type", "none")
+                .containsEntry("authenticated", Boolean.TRUE);
+        assertThat(ollama.get("key_env")).isEqualTo("");
+        assertThat(ollama).doesNotContainKey("warning");
+    }
+
     private Map<String, Object> channel(List<Map<String, Object>> channels, String key) {
         return channels.stream()
                 .filter(item -> key.equals(item.get("key")))

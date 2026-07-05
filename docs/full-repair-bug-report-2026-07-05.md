@@ -1158,6 +1158,45 @@ mvn "-Dskip.web.build=true" "-Dtest=DashboardBootstrapTokenTest" test
 node --experimental-strip-types web/tests/loginBootstrapTokenStatic.test.ts
 ```
 
+## BUG-059：TUI Runtime 将本地 Ollama 误标为必须 API Key
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 终端运行时页面的模型 provider 状态。
+- TUI `model.options` 与 `setup.status` 展示。
+- 本地 Ollama 首次配置与状态判断。
+
+当前事实：
+
+- Ollama provider 模板写入了 `OLLAMA_API_KEY`。
+- `TuiRuntimeProtocolService.providerOption()` 统一返回 `auth_type=api_key`。
+- `providerConfigured()` 对所有 provider 都只按 API Key 是否存在判断。
+- 结果是本地 Ollama 被显示为“未认证”，并提示用户粘贴 `OLLAMA_API_KEY`。
+
+根因：
+
+- TUI runtime 的 provider 状态没有区分 API Key provider 与本地免密 provider。
+- Ollama 协议默认不需要 API Key，不能套用 OpenAI/Gemini/Anthropic 的认证语义。
+
+修复记录：
+
+- Ollama provider 模板不再提供 API Key 环境变量提示。
+- `TuiRuntimeProtocolService` 增加 provider 是否需要 API Key 的统一判断。
+- Ollama 返回 `auth_type=none`、`api_key=not_required`、`authenticated=true`。
+- 未配置凭据提示只对需要 API Key 的 provider 出现。
+- `TuiRuntimeProtocolServiceTest#ollamaProviderDoesNotRequireApiKeyInTuiRuntime` 增加回归。
+
+验证命令：
+
+```bash
+mvn "-Dskip.web.build=true" "-Dtest=TuiRuntimeProtocolServiceTest#ollamaProviderDoesNotRequireApiKeyInTuiRuntime" test
+mvn "-Dskip.web.build=true" "-Dtest=TuiRuntimeProtocolServiceTest,TuiRuntimeManageToolsTest" test
+node --experimental-strip-types web/tests/tuiRuntimeDisplay.test.ts
+node --experimental-strip-types web/tests/tuiRuntimeUiStatic.test.ts
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -1188,4 +1227,5 @@ node --experimental-strip-types web/tests/loginBootstrapTokenStatic.test.ts
 - BUG-056 已修复 TUI live session 列表只显示当前会话且关闭不生效的问题。
 - BUG-057 已修复 Dashboard 文件下载裸链接缺少鉴权头并泄露 query token 的问题。
 - BUG-058 已修复 Dashboard 默认空访问令牌时无法从页面完成首次配置的问题。
+- BUG-059 已修复 TUI Runtime 将本地 Ollama 误标为必须 API Key 的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
