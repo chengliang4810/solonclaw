@@ -33,6 +33,7 @@ async function validateExistingToken() {
     });
 
     if (res.ok) {
+      setApiKey(existingKey);
       router.replace(loginTarget());
       return;
     }
@@ -50,7 +51,7 @@ async function validateExistingToken() {
 }
 
 onMounted(async () => {
-  if (hasApiKey()) {
+  if (urlToken || hasApiKey()) {
     await validateExistingToken();
   }
 });

@@ -904,6 +904,43 @@ mvn "-Dskip.web.build=true" "-Dtest=DashboardControllerHttpTest#shouldHideWorksp
 npm --prefix web run build
 ```
 
+## BUG-052：带 token 的 Dashboard 登录链接不会自动进入应用
+
+状态：已修复（2026-07-05）
+
+影响范围：
+
+- Dashboard 首次打开带 `?token=...` 的登录链接。
+- 由 `main.ts` 清理 URL token 后注入到 `window.__LOGIN_TOKEN__` 的登录流程。
+- 无本地已保存 token 的新浏览器或隐私窗口。
+
+当前事实：
+
+- `LoginView.vue` 已读取 `window.__LOGIN_TOKEN__`，并把它作为输入框默认值。
+- `validateExistingToken()` 会优先校验 URL token，但 `onMounted()` 只有 `hasApiKey()` 为真才调用它。
+- 验证成功后只跳转页面，没有把通过校验的 `existingKey` 写入本地会话 token。
+
+根因：
+
+- URL token 支持只接入了“读 token”和“清理 URL”路径，遗漏了自动校验 gate。
+- 存储路径仍只存在于手动提交登录表单，自动验证成功不会持久化 token，后续 API 请求仍可能缺少 Authorization。
+
+修复记录：
+
+- `onMounted()` 在存在 URL token 或本地 token 时都执行 `validateExistingToken()`。
+- `validateExistingToken()` 在响应成功后调用 `setApiKey(existingKey)`，再跳转到登录目标页。
+- `loginStoredTokenValidationStatic.test.ts` 增加回归，锁定 URL token 自动验证和成功持久化。
+
+验证命令：
+
+```bash
+node --experimental-strip-types web/tests/loginStoredTokenValidationStatic.test.ts
+node --experimental-strip-types web/tests/loginUrlTokenCleanupStatic.test.ts
+node --experimental-strip-types web/tests/loginUrlTokenNormalization.test.ts
+node --experimental-strip-types web/tests/dashboardAuthRedirectStatic.test.ts
+npm --prefix web run build
+```
+
 ## 当前结论
 
 - BUG-025 至 BUG-029 已有提交和 focused 验证，属于本轮新增闭环记录。
@@ -927,4 +964,5 @@ npm --prefix web run build
 - BUG-049 已修复 TUI `/copy` 非法或超范围数字参数会复制错误助手消息的问题。
 - BUG-050 已修复工作区文件页存在直达路由但侧边栏没有可发现入口的问题。
 - BUG-051 已修复工作区文件列表修改时间列没有真实数据源、始终显示占位符的问题。
+- BUG-052 已修复带 `token` 的 Dashboard 登录链接在新浏览器中不会自动校验和持久化的问题。
 - 仓库内仍缺正式 Web/TUI 浏览器级 E2E 入口；当前无人值守复测继续通过真实 Chrome/真实 TTY 侧车代理补证据。
