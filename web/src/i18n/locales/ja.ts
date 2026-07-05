@@ -81,6 +81,7 @@ export default {
     connected: '接続済み',
     disconnected: '未接続',
     logout: 'ログアウト',
+    nodeVersionWarning: 'Node.js v{version} を検出しました。バージョン 23 以上にアップグレードしてください。',
     changelog: '更新履歴',
     noChangelog: '更新履歴はありません',
   },

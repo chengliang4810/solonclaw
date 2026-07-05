@@ -81,6 +81,7 @@ export default {
     connected: 'Conectado',
     disconnected: 'Desconectado',
     logout: 'Sair',
+    nodeVersionWarning: 'Node.js v{version} detectado. Atualize para a versao 23 ou superior.',
     changelog: 'Registro de alteracoes',
     noChangelog: 'Nenhum registro disponivel',
   },
