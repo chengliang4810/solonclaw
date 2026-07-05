@@ -5,6 +5,7 @@ import { useI18n } from "vue-i18n";
 import { message as toast } from "antdv-next";
 import { downloadFile } from "@/api/solonclaw/download";
 import { formatFileSize } from "@/shared/fileSizeFormat";
+import { formatTimestampMs } from "@/shared/session-display";
 import MarkdownRenderer from "./MarkdownRenderer.vue";
 import {
   copyTextToClipboard,
@@ -21,10 +22,7 @@ const toolExpanded = ref(false);
 const reasoningExpanded = ref(false);
 const hasReasoning = computed(() => !!props.message.reasoning?.trim());
 
-const timeStr = computed(() => {
-  const d = new Date(props.message.timestamp);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-});
+const timeStr = computed(() => formatTimestampMs(props.message.timestamp));
 
 function isImage(type: string): boolean {
   return type.startsWith("image/");
@@ -303,7 +301,7 @@ const renderedToolResult = computed(() => {
               <span></span><span></span><span></span>
             </span>
           </div>
-          <div class="message-time">{{ timeStr }}</div>
+          <div v-if="timeStr" class="message-time">{{ timeStr }}</div>
         </div>
       </div>
     </template>
