@@ -616,7 +616,7 @@ export const opsCommands: SlashCommand[] = [
       }
 
       if (sub === 'browse') {
-        const pageNum = query ? parseInt(query, 10) : 1
+        const pageNum = query ? (/^\d+$/.test(query) ? Number(query) : NaN) : 1
 
         if (Number.isNaN(pageNum) || pageNum < 1) {
           return sys('usage: /skills browse [page]  (page must be a positive number)')

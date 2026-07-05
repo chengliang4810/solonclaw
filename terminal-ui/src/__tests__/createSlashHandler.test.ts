@@ -405,6 +405,15 @@ describe('createSlashHandler', () => {
     })
   })
 
+  it('rejects malformed /skills browse pages instead of partial parsing them', () => {
+    const ctx = buildCtx()
+
+    createSlashHandler(ctx)('/skills browse 2abc')
+
+    expect(ctx.gateway.rpc).not.toHaveBeenCalled()
+    expect(ctx.transcript.sys).toHaveBeenCalledWith('usage: /skills browse [page]  (page must be a positive number)')
+  })
+
   it('delegates non-native /skills subcommands to slash.exec', () => {
     const ctx = buildCtx()
 
