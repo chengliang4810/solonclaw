@@ -24,6 +24,8 @@
 
 2026-07-05 后续增量复核发现定时任务 guide/policy 已有后端、前端 API 和 store，但 Jobs 页面没有消费。已在 Jobs 页面补充默认折叠的“定时自动化指南”面板，展示服务端返回的调度、字段、执行策略与运行隔离摘要。
 
+2026-07-05 命令时间格式化复用提交后再次做阶段 2 当前态复核，未发现新的高置信前后端功能缺口。历史高置信项平台 Toolsets、定时任务 inspect 聚合端点、可恢复运行列表、定时任务 guide/policy 仍可从当前源码证明后端契约、前端 API 和 UI 消费均存在。
+
 ## 已完成项
 
 ### 1. 阶段 2.1 / 2.3 复核清单
@@ -130,6 +132,14 @@
 - `node --experimental-strip-types web/tests/jobMutationPayloadStatic.test.ts`：通过。
 - `npm --prefix web run build`：通过。
 - `git diff --check`：通过，仅有 Windows 换行提示。
+
+2026-07-05 命令时间格式化复用提交后阶段 2 当前态复核：
+
+- `git fetch origin --prune && git rev-list --left-right --count HEAD...origin/dev`：`0 0`。
+- `rg -n "updatePlatformToolsets|savePlatformToolsets|/api/tools/platform-toolsets" web/src src/main/java src/test/java web/tests`：确认平台 Toolsets 仍有后端 `PUT`、前端 API、诊断页保存入口和静态测试。
+- 复核 `web/src/api`、`web/src/views`、`web/src/components` 中的 `/api/` 消费面。
+- 复核 `web` 与 `tui` 控制器中的 `@Mapping(value = "/api...")` 暴露面。
+- 本地主线程未找到可从当前源码直接证明的新增阶段 2.1、2.2 或 2.3 高置信缺口。
 
 ## 推送状态
 
