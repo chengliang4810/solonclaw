@@ -69,7 +69,40 @@ public class GoalService {
      * @return 返回get结果。
      */
     public GoalState get(SessionRecord session) {
-        return session == null ? null : GoalState.fromJson(session.getGoalStateJson());
+        if (session == null) {
+            return null;
+        }
+        GoalState state = GoalState.fromJson(session.getGoalStateJson());
+        return state;
+    }
+
+    /**
+     * 重载并惰性清屏障：读取持久化目标状态，若 pid 屏障的进程已退出或时间屏障已过期，
+     * 则清除等待字段并回写，保证"死 pid / 过期屏障立即解除"语义。
+     *
+     * @param session 会话参数。
+     * @return 返回目标状态；无目标返回 null。
+     */
+    public GoalState getAndLazyClearBarrier(SessionRecord session) throws Exception {
+        GoalState state = get(session);
+        if (state == null) {
+            return null;
+        }
+        if (hasStaleBarrier(state)) {
+            state.clearWaitBarrier();
+            save(session, state);
+        }
+        return state;
+    }
+
+    /** 判断等待屏障字段是否仍残留但已失效（进程退出或时间过期）。 */
+    private boolean hasStaleBarrier(GoalState state) {
+        boolean hasField =
+                state.getWaitingOnPid() != null
+                        || state.getWaitingUntil() > 0
+                        || StrUtil.isNotBlank(state.getWaitingReason())
+                        || state.getWaitingSince() > 0;
+        return hasField && !state.isWaiting();
     }
 
     /**
@@ -81,7 +114,21 @@ public class GoalService {
      * @return 返回set结果。
      */
     public GoalState set(SessionRecord session, String goal, int maxTurns) throws Exception {
-        String text = StrUtil.nullToEmpty(goal).trim();
+        return set(session, goal, null, maxTurns);
+    }
+
+    /**
+     * set 的 contract 重载：带完成契约设置目标。
+     *
+     * @param session 会话参数。
+     * @param headline 目标主标题参数。
+     * @param contract 完成契约参数，可为 null。
+     * @param maxTurns maxTurns 参数。
+     * @return 返回设置后的目标状态。
+     */
+    public GoalState set(SessionRecord session, String headline, GoalContract contract, int maxTurns)
+            throws Exception {
+        String text = StrUtil.nullToEmpty(headline).trim();
         if (StrUtil.isBlank(text)) {
             throw new IllegalArgumentException("goal text is empty");
         }
@@ -92,6 +139,9 @@ public class GoalService {
         state.setMaxTurns(maxTurns > 0 ? maxTurns : defaultMaxTurns);
         state.setCreatedAt(System.currentTimeMillis());
         state.setLastTurnAt(0L);
+        if (contract != null) {
+            state.setContract(contract);
+        }
         save(session, state);
         return state;
     }
@@ -110,6 +160,7 @@ public class GoalService {
         }
         state.setStatus(GoalState.STATUS_PAUSED);
         state.setPausedReason(StrUtil.blankToDefault(reason, "user-paused"));
+        state.clearWaitBarrier();
         save(session, state);
         return state;
     }
@@ -128,6 +179,7 @@ public class GoalService {
         }
         state.setStatus(GoalState.STATUS_ACTIVE);
         state.setPausedReason(null);
+        state.clearWaitBarrier();
         if (resetBudget) {
             state.setTurnsUsed(0);
         }
@@ -147,8 +199,90 @@ public class GoalService {
             return false;
         }
         state.setStatus(GoalState.STATUS_CLEARED);
+        state.clearWaitBarrier();
         save(session, state);
         return true;
+    }
+
+    /** 追加一条子目标准则。仅当存在 active 目标时生效。 */
+    public void addSubgoal(SessionRecord session, String text) throws Exception {
+        GoalState state = get(session);
+        if (state == null || !state.isActive()) {
+            return;
+        }
+        state.addSubgoal(text);
+        save(session, state);
+    }
+
+    /** 删除第 n 条子目标（1-based）。删除成功返回 true。 */
+    public boolean removeSubgoal(SessionRecord session, int oneBasedIndex) throws Exception {
+        GoalState state = get(session);
+        if (state == null) {
+            return false;
+        }
+        boolean removed = state.removeSubgoal(oneBasedIndex);
+        if (removed) {
+            save(session, state);
+        }
+        return removed;
+    }
+
+    /** 清空全部子目标。 */
+    public void clearSubgoals(SessionRecord session) throws Exception {
+        GoalState state = get(session);
+        if (state == null) {
+            return;
+        }
+        state.clearSubgoals();
+        save(session, state);
+    }
+
+    /** 列出当前子目标（返回副本，无目标时为空列表）。 */
+    public java.util.List<String> listSubgoals(SessionRecord session) {
+        GoalState state = get(session);
+        return state == null || state.getSubgoals() == null
+                ? java.util.Collections.emptyList()
+                : new java.util.ArrayList<>(state.getSubgoals());
+    }
+
+    /** 设置 pid 等待屏障：循环暂停直到该进程退出。 */
+    public void waitOnPid(SessionRecord session, int pid, String reason) throws Exception {
+        GoalState state = get(session);
+        if (state == null || !state.isActive()) {
+            return;
+        }
+        // 校验 pid 合法性（存在则更佳，这里只校验 > 0）
+        if (pid <= 0) {
+            throw new IllegalArgumentException("invalid pid: " + pid);
+        }
+        state.setWaitingOnPid(pid);
+        state.setWaitingReason(StrUtil.blankToDefault(reason, "waiting on pid " + pid));
+        state.setWaitingSince(System.currentTimeMillis());
+        save(session, state);
+    }
+
+    /** 清除等待屏障。 */
+    public void stopWaiting(SessionRecord session) throws Exception {
+        GoalState state = get(session);
+        if (state == null) {
+            return;
+        }
+        state.clearWaitBarrier();
+        save(session, state);
+    }
+
+    /** 渲染当前契约块（/goal show 用）。无 active 目标或无契约时返回占位提示。 */
+    public String renderContract(SessionRecord session) {
+        GoalState state = get(session);
+        if (state == null
+                || state.getStatus() == null
+                || GoalState.STATUS_CLEARED.equals(state.getStatus())) {
+            return "(no active goal)";
+        }
+        if (!state.hasContract()) {
+            return "(no contract set)";
+        }
+        return state.getContract().renderBlock();
     }
 
     /**

@@ -40,6 +40,7 @@ import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
+import com.jimuqu.solon.claw.goal.GoalContractParser;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
@@ -338,6 +339,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_GOAL.equals(command)) {
             return handleGoal(message, args);
+        }
+
+        if (GatewayCommandConstants.COMMAND_SUBGOAL.equals(command)) {
+            return handleSubgoal(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_RECAP.equals(command)) {
@@ -1017,61 +1022,144 @@ public class DefaultCommandService implements CommandService {
     private GatewayReply handleGoal(GatewayMessage message, String args) throws Exception {
         SessionRecord session = requireSession(message.sourceKey());
         String raw = StrUtil.nullToEmpty(args).trim();
+        // 无参或 status：状态行
         if (StrUtil.isBlank(raw) || "status".equalsIgnoreCase(raw)) {
-            GatewayReply reply = GatewayReply.ok(goalService.statusLine(session));
-            reply.setSessionId(session.getSessionId());
-            reply.setBranchName(session.getBranchName());
-            return reply;
+            return okGoalReply(session, goalService.statusLine(session));
         }
+        // show：状态 + 契约块
+        if ("show".equalsIgnoreCase(raw)) {
+            String body = goalService.statusLine(session) + "\n" + goalService.renderContract(session);
+            return okGoalReply(session, body);
+        }
+        // draft：留到 Task 13 实现，先返回提示
+        if (raw.toLowerCase().startsWith("draft ")) {
+            return okGoalReply(session, "/goal draft 暂未实现，请用 /goal <目标> 直接设置。");
+        }
+        // pause/resume
         if ("pause".equalsIgnoreCase(raw)) {
             GoalState state = goalService.pause(session, "user-paused");
-            GatewayReply reply =
-                    GatewayReply.ok(
-                            state == null ? "No goal set." : "⏸ Goal paused: " + state.getGoal());
-            reply.setSessionId(session.getSessionId());
-            reply.setBranchName(session.getBranchName());
-            return reply;
+            return okGoalReply(session, state == null ? "No goal set." : "⏸ Goal paused: " + state.getGoal());
         }
         if ("resume".equalsIgnoreCase(raw)) {
             GoalState state = goalService.resume(session, true);
             String continuationPrompt = goalService.nextContinuationPrompt(state);
-            GatewayReply reply =
-                    GatewayReply.ok(
-                            state == null
-                                    ? "No goal to resume."
-                                    : "▶ Goal resumed: "
-                                            + state.getGoal()
-                                            + "\n"
-                                            + continuationPrompt);
-            reply.setSessionId(session.getSessionId());
-            reply.setBranchName(session.getBranchName());
+            String body =
+                    state == null
+                            ? "No goal to resume."
+                            : "▶ Goal resumed: "
+                                    + state.getGoal()
+                                    + (StrUtil.isNotBlank(continuationPrompt)
+                                            ? "\n" + continuationPrompt
+                                            : "");
+            GatewayReply reply = okGoalReply(session, body);
             if (StrUtil.isNotBlank(continuationPrompt)) {
                 reply.getRuntimeMetadata().put("goal_kickoff", continuationPrompt);
             }
             return reply;
         }
-        if ("clear".equalsIgnoreCase(raw)) {
+        // clear/stop/done 别名
+        if ("clear".equalsIgnoreCase(raw)
+                || "stop".equalsIgnoreCase(raw)
+                || "done".equalsIgnoreCase(raw)) {
             boolean had = goalService.clear(session);
-            GatewayReply reply = GatewayReply.ok(had ? "✓ Goal cleared." : "No active goal.");
-            reply.setSessionId(session.getSessionId());
-            reply.setBranchName(session.getBranchName());
-            return reply;
+            return okGoalReply(session, had ? "✓ Goal cleared." : "No active goal.");
         }
+        // wait <pid> [reason]
+        if (raw.toLowerCase().startsWith("wait ")) {
+            String[] parts = raw.substring(5).trim().split("\\s+", 2);
+            try {
+                int pid = Integer.parseInt(parts[0]);
+                String reason = parts.length > 1 ? parts[1] : null;
+                goalService.waitOnPid(session, pid, reason);
+                return okGoalReply(
+                        session,
+                        "⏳ Goal parked on pid "
+                                + pid
+                                + (reason != null ? " (" + reason + ")" : "")
+                                + ". 循环暂停直到该进程退出。");
+            } catch (NumberFormatException e) {
+                return okGoalReply(session, "无效的 pid，用法：/goal wait <pid> [reason]");
+            }
+        }
+        // unwait
+        if ("unwait".equalsIgnoreCase(raw)) {
+            goalService.stopWaiting(session);
+            return okGoalReply(session, "▶ Wait barrier cleared — goal loop resumes.");
+        }
+        // 否则：解析 inline contract + 设置新目标
         int maxTurns = parseGoalMaxTurns(raw, GoalState.DEFAULT_MAX_TURNS, log);
-        String goal = stripGoalOptions(raw);
-        GoalState state = goalService.set(session, goal, maxTurns);
+        String goalText = stripGoalOptions(raw);
+        GoalContractParser.ParseResult parsed = GoalContractParser.parse(goalText);
+        GoalState state =
+                goalService.set(session, parsed.getHeadline(), parsed.getContract(), maxTurns);
         GatewayReply reply =
-                GatewayReply.ok(
+                okGoalReply(
+                        session,
                         "⊙ Goal set ("
                                 + state.getMaxTurns()
                                 + "-turn budget): "
                                 + state.getGoal()
+                                + (state.hasContract() ? "\n" + state.getContract().renderBlock() : "")
                                 + "\nI'll keep working until the goal is done, you pause/clear it, or the budget is exhausted.\n"
-                                + "Controls: /goal status · /goal pause · /goal resume · /goal clear");
-        reply.setSessionId(session.getSessionId());
-        reply.setBranchName(session.getBranchName());
+                                + "Controls: /goal status · /goal pause · /goal resume · /goal clear · /subgoal <text>");
         reply.getRuntimeMetadata().put("goal_kickoff", state.getGoal());
         return reply;
+    }
+
+    /** 构造统一带 sessionId/branchName 的目标命令回复。 */
+    private GatewayReply okGoalReply(SessionRecord session, String content) {
+        GatewayReply reply = GatewayReply.ok(content);
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        return reply;
+    }
+
+    /**
+     * 执行子目标命令逻辑：无参列出、clear 清空、remove <n> 删除、其余追加。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 工具或命令参数。
+     * @return 返回子目标命令回复。
+     */
+    private GatewayReply handleSubgoal(GatewayMessage message, String args) throws Exception {
+        SessionRecord session = requireSession(message.sourceKey());
+        String raw = StrUtil.nullToEmpty(args).trim();
+        // 无参：列出
+        if (StrUtil.isBlank(raw)) {
+            java.util.List<String> sg = goalService.listSubgoals(session);
+            String body = sg.isEmpty() ? "No subgoals." : "Subgoals:\n" + formatSubgoalList(sg);
+            return okGoalReply(session, body);
+        }
+        // clear
+        if ("clear".equalsIgnoreCase(raw)) {
+            goalService.clearSubgoals(session);
+            return okGoalReply(session, "✓ Subgoals cleared.");
+        }
+        // remove <n>
+        if (raw.toLowerCase().startsWith("remove ")) {
+            try {
+                int n = Integer.parseInt(raw.substring(7).trim());
+                boolean removed = goalService.removeSubgoal(session, n);
+                return okGoalReply(
+                        session,
+                        removed ? "✓ Subgoal " + n + " removed." : "No subgoal at index " + n + ".");
+            } catch (NumberFormatException e) {
+                return okGoalReply(session, "无效的序号，用法：/subgoal remove <n>");
+            }
+        }
+        // 否则：追加
+        goalService.addSubgoal(session, raw);
+        java.util.List<String> sg = goalService.listSubgoals(session);
+        return okGoalReply(session, "✓ Added subgoal: " + raw + "\n" + formatSubgoalList(sg));
+    }
+
+    /** 把子目标列表格式化为 "1. xxx\n2. yyy" 形式。 */
+    private String formatSubgoalList(java.util.List<String> sg) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < sg.size(); i++) {
+            sb.append(i + 1).append(". ").append(sg.get(i)).append("\n");
+        }
+        return sb.toString().trim();
     }
 
     /**

@@ -191,6 +191,9 @@ public interface GatewayCommandConstants {
     /** 命令目标的统一常量值。 */
     String COMMAND_GOAL = "goal";
 
+    /** subgoal 命令名。 */
+    String COMMAND_SUBGOAL = "subgoal";
+
     /** 命令RECAP的统一常量值。 */
     String COMMAND_RECAP = "recap";
 
@@ -343,6 +346,9 @@ public interface GatewayCommandConstants {
 
     /** 斜杠命令目标的统一常量值。 */
     String SLASH_GOAL = COMMAND_PREFIX + COMMAND_GOAL;
+
+    /** subgoal 斜杠命令。 */
+    String SLASH_SUBGOAL = COMMAND_PREFIX + COMMAND_SUBGOAL;
 
     /** 斜杠命令RECAP的统一常量值。 */
     String SLASH_RECAP = COMMAND_PREFIX + COMMAND_RECAP;
