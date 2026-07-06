@@ -249,6 +249,8 @@ public class AppConfig {
         this.llm.setTemperature(other.getTemperature());
         this.llm.setMaxTokens(other.getMaxTokens());
         this.llm.setContextWindowTokens(other.getContextWindowTokens());
+        this.llm.setContextFallbackTokens(other.getContextFallbackTokens());
+        this.llm.setModelsDevRefreshEnabled(other.isModelsDevRefreshEnabled());
         this.llm.getPromptCache().setEnabled(other.getPromptCache().isEnabled());
         this.llm.getPromptCache().setTtl(other.getPromptCache().getTtl());
         this.llm.getPromptCache().setLayout(other.getPromptCache().getLayout());
@@ -813,8 +815,23 @@ public class AppConfig {
         /** 最大输出 token。 */
         private int maxTokens;
 
-        /** 模型上下文窗口大小，用于自动压缩阈值计算。 */
+        /**
+         * 模型上下文窗口大小，用于自动压缩阈值计算。
+         *
+         * <p>设为 0（默认）时按模型自动识别（在线目录 → 硬编码目录 → 兜底）；
+         * 设为大于 0 的值时作为全局强制覆盖，对齐外部对标仓库的显式配置覆盖语义。
+         */
         private int contextWindowTokens;
+
+        /**
+         * 自动识别失败时的兜底上下文窗口大小。
+         *
+         * <p>对齐外部对标仓库的 DEFAULT_FALLBACK_CONTEXT，默认 256000。
+         */
+        private int contextFallbackTokens = 256000;
+
+        /** 是否启用 models.dev/OpenRouter 在线目录刷新，用于自动识别模型上下文长度。 */
+        private boolean modelsDevRefreshEnabled = true;
 
         /** 提示词缓存配置。 */
         private PromptCacheConfig promptCache = new PromptCacheConfig();

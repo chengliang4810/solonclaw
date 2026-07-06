@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -21,13 +22,35 @@ public class ModelMetadataService {
     /** 注入应用配置，用于模型元数据。 */
     private final AppConfig appConfig;
 
+    /** 模型上下文长度在线目录服务，用于按模型自动识别上下文窗口，可为 null（降级到纯硬编码）。 */
+    private final ModelContextCatalogService catalogService;
+
+    /** 模型上下文长度持久化缓存，用于存储在线探测结果，可为 null。 */
+    private final ModelContextCacheStore cacheStore;
+
     /**
      * 创建模型元数据服务实例，并注入运行所需依赖。
      *
      * @param appConfig 应用运行配置。
      */
     public ModelMetadataService(AppConfig appConfig) {
+        this(appConfig, null, null);
+    }
+
+    /**
+     * 创建模型元数据服务实例，注入在线目录和持久化缓存。
+     *
+     * @param appConfig 应用运行配置。
+     * @param catalogService 模型上下文在线目录服务，null 时降级到纯硬编码。
+     * @param cacheStore 模型上下文持久化缓存，null 时跳过缓存读写。
+     */
+    public ModelMetadataService(
+            AppConfig appConfig,
+            ModelContextCatalogService catalogService,
+            ModelContextCacheStore cacheStore) {
         this.appConfig = appConfig;
+        this.catalogService = catalogService;
+        this.cacheStore = cacheStore;
     }
 
     /**
@@ -49,7 +72,9 @@ public class ModelMetadataService {
         metadata.setModel(model);
         metadata.setDialect(dialect);
         metadata.setAliases(aliases(normalizedModel));
-        metadata.setContextWindow(resolveContextWindow(dialect, normalizedModel));
+        String baseUrl = provider == null ? null : provider.getBaseUrl();
+        metadata.setContextWindow(
+                resolveContextWindow(providerKey, dialect, baseUrl, normalizedModel));
         metadata.setMaxOutput(appConfig.getLlm().getMaxTokens());
         metadata.setApiUrl(resolveApiUrl(provider, dialect));
         metadata.setModelListUrl(resolveModelListUrl(providerKey, provider, dialect));
@@ -180,18 +205,76 @@ public class ModelMetadataService {
     }
 
     /**
-     * 解析上下文Window。
+     * 按模型解析上下文窗口大小，遵循 5 步优先级链（对齐外部对标仓库）：
      *
-     * @param dialect dialect 参数。
-     * @param model 模型名称。
-     * @return 返回解析后的上下文Window。
+     * <ol>
+     *   <li>用户配置覆盖（contextWindowTokens &gt; 0 时作为全局强制覆盖）
+     *   <li>持久化缓存（model@baseUrl）
+     *   <li>在线 API（models.dev + OpenRouter）
+     *   <li>按家族硬编码目录
+     *   <li>兜底（contextFallbackTokens，默认 256K）
+     * </ol>
+     *
+     * @param providerKey 提供方配置键。
+     * @param dialect 协议方言。
+     * @param baseUrl 提供方 baseUrl。
+     * @param model 已规范化的模型名。
+     * @return 返回解析后的上下文窗口 token 数。
      */
-    private int resolveContextWindow(String dialect, String model) {
+    private int resolveContextWindow(String providerKey, String dialect, String baseUrl, String model) {
+        // Step 1: 用户配置覆盖
         int configured = appConfig.getLlm().getContextWindowTokens();
         if (configured > 0) {
             return configured;
         }
+
+        String normalizedModel = StrUtil.nullToEmpty(model).trim();
+        String normalizedBaseUrl = StrUtil.nullToEmpty(baseUrl).trim();
+
+        // Step 2: 持久化缓存
+        if (cacheStore != null && StrUtil.isNotBlank(normalizedModel)) {
+            OptionalInt cached = cacheStore.get(normalizedModel, normalizedBaseUrl);
+            if (cached.isPresent()) {
+                return cached.getAsInt();
+            }
+        }
+
+        // Step 3: 在线 API（models.dev + OpenRouter）
+        if (catalogService != null && StrUtil.isNotBlank(normalizedModel)) {
+            OptionalInt online =
+                    catalogService.getContextLength(
+                            dialect, providerKey, normalizedBaseUrl, normalizedModel);
+            if (online.isPresent()) {
+                int length = online.getAsInt();
+                if (cacheStore != null && StrUtil.isNotBlank(normalizedBaseUrl) && length >= 64000) {
+                    cacheStore.save(normalizedModel, normalizedBaseUrl, length);
+                }
+                return length;
+            }
+        }
+
+        // Step 4: 按家族硬编码目录
+        int hardcoded = resolveHardcodedContextWindow(dialect, normalizedModel);
+        if (hardcoded > 0) {
+            return hardcoded;
+        }
+
+        // Step 5: 兜底
+        return appConfig.getLlm().getContextFallbackTokens();
+    }
+
+    /**
+     * 按模型族硬编码目录解析上下文窗口，最长键优先子串匹配。
+     *
+     * @param dialect 协议方言。
+     * @param model 已规范化的模型名。
+     * @return 返回匹配到的上下文窗口，未匹配返回 0。
+     */
+    private int resolveHardcodedContextWindow(String dialect, String model) {
         String lower = StrUtil.nullToEmpty(model).toLowerCase();
+        if (lower.length() == 0) {
+            return 0;
+        }
         if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
             return 32768;
         }
@@ -239,7 +322,21 @@ public class ModelMetadataService {
         if (matchesAny(lower, "gpt-4", "qwen", "deepseek", "llama", "grok")) {
             return 131072;
         }
-        return 64000;
+        return 0;
+    }
+
+    /**
+     * 为运行时（压缩/预算计算）解析当前会话模型的上下文窗口。
+     *
+     * @param providerKey 当前提供方配置键。
+     * @param dialect 当前协议方言。
+     * @param baseUrl 当前提供方 baseUrl。
+     * @param model 当前模型名。
+     * @return 返回该模型的上下文窗口 token 数。
+     */
+    public int resolveContextWindowForRuntime(
+            String providerKey, String dialect, String baseUrl, String model) {
+        return resolveContextWindow(providerKey, dialect, baseUrl, model);
     }
 
     /**

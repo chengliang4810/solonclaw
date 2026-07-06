@@ -815,6 +815,7 @@ public class GatewayRuntimeRefreshService {
             setOf(
                     "solonclaw.llm.maxTokens",
                     "solonclaw.llm.contextWindowTokens",
+                    "solonclaw.llm.contextFallbackTokens",
                     "solonclaw.scheduler.tickSeconds",
                     "solonclaw.scheduler.scriptTimeoutSeconds",
                     "solonclaw.scheduler.inactivityTimeoutSeconds",
@@ -904,6 +905,7 @@ public class GatewayRuntimeRefreshService {
                     "approvals.mcp_reload_confirm",
                     "security.websiteBlocklist.enabled",
                     "security.website_blocklist.enabled",
+                    "solonclaw.llm.modelsDevRefreshEnabled",
                     "solonclaw.mcp.enabled");
 
     /** 列表KEYS的统一常量值。 */

@@ -229,7 +229,16 @@ public class DashboardConfigService {
         addField(new FieldDefinition("llm.temperature", "number", "general", "采样温度"));
         addField(new FieldDefinition("llm.maxTokens", "number", "general", "最大输出 token"));
         addField(
-                new FieldDefinition("llm.contextWindowTokens", "number", "general", "上下文窗口 token"));
+                new FieldDefinition("llm.contextWindowTokens", "number", "general", "上下文窗口 token（0=自动识别）"));
+        addField(
+                new FieldDefinition(
+                        "llm.contextFallbackTokens", "number", "general", "自动识别失败兜底 token"));
+        addField(
+                new FieldDefinition(
+                        "llm.modelsDevRefreshEnabled",
+                        "boolean",
+                        "general",
+                        "启用 models.dev 在线目录刷新"));
         addField(new FieldDefinition("llm.promptCache.enabled", "boolean", "general", "启用提示词缓存策略"));
         addField(
                 new FieldDefinition("llm.promptCache.ttl", "select", "general", "提示词缓存 TTL")
