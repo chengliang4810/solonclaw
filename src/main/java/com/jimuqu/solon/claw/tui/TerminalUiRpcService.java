@@ -526,7 +526,8 @@ public class TerminalUiRpcService {
             try {
                 return Math.max(0L, agentRunRepository.countUsageRunsBySession(session.getSessionId()));
             } catch (Exception e) {
-                log.debug("Failed to count TUI usage runs, fallback to message count: session={}", session.getSessionId(), e);
+                // 仅记录异常类型与脱敏后的会话标识，避免原始 Throwable 堆栈携带敏感上下文进入日志
+                log.debug("Failed to count TUI usage runs, fallback to message count: session={} error={}", session.getSessionId(), exceptionSummary(e));
             }
         }
         return messageCount(session) > 0 ? 1L : 0L;

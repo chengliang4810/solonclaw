@@ -50,6 +50,10 @@ describe('setup panel helpers', () => {
     ).toEqual(['模型：已配置', '提供方：openai', '当前模型：mimo-v2.5-pro', '配置文件：/tmp/workspace/config.yml'])
   })
 
+  it('formats loading setup status without saying the model is missing', () => {
+    expect(setupStatusLines(null)).toEqual(['正在读取配置状态...'])
+  })
+
   it('formats missing setup status without hiding the next action', () => {
     expect(setupStatusLines({ provider_configured: false })).toEqual([
       '模型：未配置',

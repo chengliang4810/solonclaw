@@ -144,7 +144,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     }
 
     /**
-     * 统计会话内已产生 token 用量的运行次数，避免 TUI 长会话只读取最近列表造成 API 调用数低估。
+     * 统计会话内已产生 token 用量或已结束模型尝试的运行次数，避免 TUI 长会话只读取最近列表造成 API 调用数低估。
      *
      * @param sessionId 当前会话标识。
      * @return 返回带用量的运行次数。
@@ -155,7 +155,7 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select count(*) from agent_runs where session_id = ? and (input_tokens > 0 or output_tokens > 0 or total_tokens > 0)");
+                            "select count(*) from agent_runs where session_id = ? and (input_tokens > 0 or output_tokens > 0 or total_tokens > 0 or (attempts > 0 and finished_at > 0 and coalesce(provider, '') <> '' and coalesce(model, '') <> ''))");
             statement.setString(1, sessionId);
             ResultSet resultSet = statement.executeQuery();
             try {

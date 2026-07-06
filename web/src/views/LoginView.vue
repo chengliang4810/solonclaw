@@ -16,6 +16,10 @@ const loading = ref(false);
 const errorMsg = ref("");
 
 function loginTarget() {
+  const redirect = typeof route.query.redirect === "string" ? route.query.redirect : "";
+  if (redirect.startsWith("/solonclaw/")) {
+    return redirect;
+  }
   return route.redirectedFrom?.fullPath || "/solonclaw/chat";
 }
 

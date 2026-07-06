@@ -47,7 +47,13 @@ public interface AgentRunRepository {
             if (run != null
                     && (run.getInputTokens() > 0L
                             || run.getOutputTokens() > 0L
-                            || run.getTotalTokens() > 0L)) {
+                            || run.getTotalTokens() > 0L
+                            || (run.getAttempts() > 0
+                                    && run.getFinishedAt() > 0L
+                                    && run.getProvider() != null
+                                    && !run.getProvider().trim().isEmpty()
+                                    && run.getModel() != null
+                                    && !run.getModel().trim().isEmpty()))) {
                 count++;
             }
         }
