@@ -201,6 +201,59 @@ class TerminalUiRpcServiceTest {
         assertThat(usage.get("total")).isEqualTo(88L);
     }
 
+    /** 失败的真实模型请求没有 token 用量时，TUI 仍应显示已经发生过 API 调用。 */
+    @Test
+    void sessionUsageCountsFailedModelAttemptsWithoutTokens() throws Exception {
+        AppConfig config = testConfig();
+        SqliteDatabase database = new SqliteDatabase(config);
+        SqliteSessionRepository sessions = new SqliteSessionRepository(database);
+        SqliteAgentRunRepository runs = new SqliteAgentRunRepository(database);
+        SessionRecord session =
+                session("session-usage-failed-call", "MEMORY:terminal-ui:session-usage-failed-call");
+        sessions.save(session);
+        AgentRunRecord failed = new AgentRunRecord();
+        failed.setRunId("run-usage-failed-call");
+        failed.setSessionId(session.getSessionId());
+        failed.setSourceKey(session.getSourceKey());
+        failed.setStatus("failed");
+        failed.setPhase("failed");
+        failed.setProvider("default");
+        failed.setModel("mimo-v2.5-pro");
+        failed.setAttempts(1);
+        failed.setStartedAt(1_800_000_000_000L);
+        failed.setFinishedAt(1_800_000_001_000L);
+        failed.setError("401 Invalid API Key");
+        runs.saveRun(failed);
+
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        config,
+                        sessions,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        runs,
+                        null,
+                        null);
+
+        Map<String, Object> usage = service.sessionUsage(session.getSessionId());
+
+        assertThat(usage.get("calls")).isEqualTo(1L);
+        assertThat(usage.get("input")).isEqualTo(0L);
+        assertThat(usage.get("output")).isEqualTo(0L);
+        assertThat(usage.get("total")).isEqualTo(0L);
+    }
+
     @Test
     void reloadMcpRequiresExplicitConfirmationWhenPolicyRequiresIt() throws Exception {
         AppConfig config = testConfig();
