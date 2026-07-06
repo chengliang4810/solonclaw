@@ -30,28 +30,29 @@ public class HeuristicGoalJudge implements GoalJudge {
     };
 
     /**
-     * 执行judge相关逻辑。
+     * 综合目标、上轮回复、子目标和契约，裁决目标是否完成、继续还是等待。
      *
-     * @param goal 目标参数。
-     * @param lastResponse last响应响应或执行结果。
-     * @return 返回judge结果。
+     * @param request 裁决请求，含 goal/lastResponse/subgoals/contract。
+     * @return 裁决结果。
      */
     @Override
-    public GoalVerdict judge(String goal, String lastResponse) {
+    public GoalJudgeResult judge(GoalJudgeRequest request) {
+        String goal = request == null ? null : request.getGoal();
+        String lastResponse = request == null ? null : request.getLastResponse();
         if (StrUtil.isBlank(goal)) {
-            return GoalVerdict.skipped("empty goal");
+            return GoalJudgeResult.done("empty goal");
         }
         String text = StrUtil.nullToEmpty(lastResponse).trim();
         if (StrUtil.isBlank(text)) {
-            return GoalVerdict.continueGoal("empty response");
+            return GoalJudgeResult.continueGoal("empty response");
         }
         String lower = text.toLowerCase();
         if (containsAny(lower, text, BLOCKED_MARKERS)
                 || containsAny(lower, text, COMPLETION_MARKERS)) {
-            return GoalVerdict.done(
+            return GoalJudgeResult.done(
                     "response explicitly indicates completion or a user/input blocker");
         }
-        return GoalVerdict.continueGoal("response did not clearly complete the standing goal");
+        return GoalJudgeResult.continueGoal("response did not clearly complete the standing goal");
     }
 
     /**

@@ -6,14 +6,6 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 
 /** 提供Goal相关业务能力，封装调用方不需要感知的运行细节。 */
 public class GoalService {
-    /** CONTINUATION提示词TEMPLATE的统一常量值。 */
-    public static final String CONTINUATION_PROMPT_TEMPLATE =
-            "[Continuing toward your standing goal]\n"
-                    + "Goal: %s\n\n"
-                    + "Continue working toward this goal. Take the next concrete step. "
-                    + "If you believe the goal is complete, state so explicitly and stop. "
-                    + "If you are blocked and need input from the user, say so clearly and stop.";
-
     /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
 
@@ -194,22 +186,63 @@ public class GoalService {
             return decision;
         }
 
+        // 等待屏障：仍在等待时不消耗轮次、不调 judge，直接 quiesce
+        if (state.isWaiting()) {
+            decision.setStatus(GoalState.STATUS_ACTIVE);
+            decision.setVerdict(GoalVerdict.WAIT);
+            decision.setReason("waiting on barrier");
+            decision.setShouldContinue(false);
+            decision.setMessage("⏳ Goal parked — waiting: " + state.getWaitingReason());
+            return decision;
+        }
+
         state.setTurnsUsed(state.getTurnsUsed() + 1);
         state.setLastTurnAt(System.currentTimeMillis());
-        GoalVerdict verdict = judge.judge(state.getGoal(), lastResponse);
-        state.setLastVerdict(verdict.getVerdict());
-        state.setLastReason(verdict.getReason());
+        GoalJudgeRequest judgeReq =
+                new GoalJudgeRequest(
+                        state.getGoal(), lastResponse, state.getSubgoals(), state.getContract());
+        GoalJudgeResult result = judge.judge(judgeReq);
+        state.setLastVerdict(result.getVerdict());
+        state.setLastReason(result.getReason());
 
-        if (verdict.isDone()) {
+        if (result.isDone()) {
             state.setStatus(GoalState.STATUS_DONE);
             save(session, state);
             decision.setStatus(GoalState.STATUS_DONE);
             decision.setVerdict(GoalVerdict.DONE);
-            decision.setReason(verdict.getReason());
-            decision.setMessage("✓ Goal achieved: " + verdict.getReason());
+            decision.setReason(result.getReason());
+            decision.setMessage("✓ Goal achieved: " + result.getReason());
             return decision;
         }
 
+        if (result.isWait()) {
+            // wait 屏障：设 pid 或时间，不消耗"已完成轮次"判定，但计入 turns
+            if (result.getWaitOnPid() != null) {
+                state.setWaitingOnPid(result.getWaitOnPid());
+                state.setWaitingSince(System.currentTimeMillis());
+            }
+            if (result.getWaitForSeconds() != null && result.getWaitForSeconds() > 0) {
+                state.setWaitingUntil(
+                        System.currentTimeMillis() + result.getWaitForSeconds() * 1000L);
+                state.setWaitingSince(System.currentTimeMillis());
+            }
+            state.setWaitingReason(result.getReason());
+            save(session, state);
+            decision.setStatus(GoalState.STATUS_ACTIVE);
+            decision.setVerdict(GoalVerdict.WAIT);
+            decision.setReason(result.getReason());
+            String tgt =
+                    result.getWaitOnPid() != null
+                            ? "pid " + result.getWaitOnPid()
+                            : (result.getWaitForSeconds() != null
+                                    ? result.getWaitForSeconds() + "s"
+                                    : "");
+            decision.setMessage("⏳ Goal parked — waiting on " + tgt + ": " + result.getReason());
+            // 等待期间不发起续轮；屏障解除后由下一次 evaluateAfterTurn 推进
+            return decision;
+        }
+
+        // CONTINUE 分支：保留原有 budget-exhausted 检查
         if (state.getTurnsUsed() >= state.getMaxTurns()) {
             state.setStatus(GoalState.STATUS_PAUSED);
             state.setPausedReason(
@@ -221,7 +254,7 @@ public class GoalService {
             save(session, state);
             decision.setStatus(GoalState.STATUS_PAUSED);
             decision.setVerdict(GoalVerdict.CONTINUE);
-            decision.setReason(verdict.getReason());
+            decision.setReason(result.getReason());
             decision.setMessage(
                     "⏸ Goal paused — "
                             + state.getTurnsUsed()
@@ -236,14 +269,14 @@ public class GoalService {
         decision.setShouldContinue(true);
         decision.setContinuationPrompt(nextContinuationPrompt(state));
         decision.setVerdict(GoalVerdict.CONTINUE);
-        decision.setReason(verdict.getReason());
+        decision.setReason(result.getReason());
         decision.setMessage(
                 "↻ Continuing toward goal ("
                         + state.getTurnsUsed()
                         + "/"
                         + state.getMaxTurns()
                         + "): "
-                        + verdict.getReason());
+                        + result.getReason());
         return decision;
     }
 
@@ -268,7 +301,37 @@ public class GoalService {
         if (state == null || !GoalState.STATUS_ACTIVE.equals(state.getStatus())) {
             return null;
         }
-        return String.format(CONTINUATION_PROMPT_TEMPLATE, state.getGoal());
+        if (state.hasContract()) {
+            String contractBlock = state.getContract().renderBlock();
+            if (state.getSubgoals() != null && !state.getSubgoals().isEmpty()) {
+                StringBuilder extra = new StringBuilder();
+                for (int i = 0; i < state.getSubgoals().size(); i++) {
+                    extra.append("\n- Extra criterion ")
+                            .append(i + 1)
+                            .append(": ")
+                            .append(state.getSubgoals().get(i));
+                }
+                contractBlock = contractBlock + extra.toString();
+            }
+            return String.format(
+                    GoalPromptTemplates.CONTINUATION_PROMPT_WITH_CONTRACT_TEMPLATE,
+                    state.getGoal(),
+                    contractBlock);
+        }
+        if (state.getSubgoals() != null && !state.getSubgoals().isEmpty()) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < state.getSubgoals().size(); i++) {
+                if (i > 0) {
+                    sb.append("\n");
+                }
+                sb.append("- ").append(state.getSubgoals().get(i));
+            }
+            return String.format(
+                    GoalPromptTemplates.CONTINUATION_PROMPT_WITH_SUBGOALS_TEMPLATE,
+                    state.getGoal(),
+                    sb.toString());
+        }
+        return String.format(GoalPromptTemplates.CONTINUATION_PROMPT_TEMPLATE, state.getGoal());
     }
 
     /**
