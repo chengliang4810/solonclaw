@@ -338,8 +338,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(path, "devicePathBlocked"))
                 .append(" workspaceFree=")
                 .append(value(path, "workspaceWriteFree"))
-                .append(" outsideWriteApproval=")
-                .append(value(path, "outsideWorkspaceWriteApprovalRequired"));
+                .append(" outsideWriteFree=")
+                .append(value(path, "outsideWorkspaceWriteFree"));
         Map<String, Object> toolArgs = securityPolicyService.toolArgsPolicySummary();
         buffer.append('\n')
                 .append("- 工具参数：recursiveUrl=")
@@ -1285,8 +1285,8 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 写入边界：workspaceFree=")
                 .append(value(path, "workspaceWriteFree"))
-                .append(" outsideWriteApproval=")
-                .append(value(path, "outsideWorkspaceWriteApprovalRequired"))
+                .append(" outsideWriteFree=")
+                .append(value(path, "outsideWorkspaceWriteFree"))
                 .append(" exactDenied=")
                 .append(value(path, "writeDeniedExactPathCount"))
                 .append(" prefixDenied=")

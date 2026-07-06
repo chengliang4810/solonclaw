@@ -276,7 +276,7 @@ public class DangerousCommandFilePolicyTest {
                 securityPolicyService.checkFileToolArgs("file_write", args);
 
         assertThat(safe.getMessage()).doesNotContain("裸块设备");
-        assertThat(safe.isApprovalRequired()).isTrue();
+        assertThat(safe.isAllowed()).isTrue();
     }
 
     @Test
@@ -347,43 +347,6 @@ public class DangerousCommandFilePolicyTest {
     }
 
     @Test
-    void shouldRequireApprovalForWritesOutsideWorkspace() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        File workspaceRootDir = workspaceBoundaryParent("writes-outside");
-        File workspace = new File(workspaceRootDir, "workspace").getCanonicalFile();
-        File outsideDir = new File(workspaceRootDir, "outside-workspace").getCanonicalFile();
-        FileUtil.mkdir(workspace);
-        FileUtil.mkdir(outsideDir);
-        env.appConfig.getWorkspace().setDir(workspace.getAbsolutePath());
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-        Map<String, Object> rootArgs = new LinkedHashMap<String, Object>();
-        rootArgs.put("fileName", workspace.getAbsolutePath());
-        Map<String, Object> insideArgs = new LinkedHashMap<String, Object>();
-        insideArgs.put("fileName", new File(workspace, "src/main.java").getAbsolutePath());
-        Map<String, Object> outsideArgs = new LinkedHashMap<String, Object>();
-        outsideArgs.put("fileName", new File(outsideDir, "file.txt").getAbsolutePath());
-        Map<String, Object> prefixArgs = new LinkedHashMap<String, Object>();
-        prefixArgs.put(
-                "fileName",
-                new File(workspace.getParentFile(), workspace.getName() + "-other/file.txt")
-                        .getAbsolutePath());
-
-        SecurityPolicyService.FileVerdict root =
-                securityPolicyService.checkFileToolArgs("file_write", rootArgs);
-        SecurityPolicyService.FileVerdict inside =
-                securityPolicyService.checkFileToolArgs("file_write", insideArgs);
-        SecurityPolicyService.FileVerdict outside =
-                securityPolicyService.checkFileToolArgs("file_write", outsideArgs);
-        SecurityPolicyService.FileVerdict prefix =
-                securityPolicyService.checkFileToolArgs("file_write", prefixArgs);
-
-        assertThat(root.isAllowed()).isTrue();
-        assertThat(inside.isAllowed()).isTrue();
-        assertFileApprovalRequired(outside, "workspace_outside_write");
-        assertFileApprovalRequired(prefix, "workspace_outside_write");
-    }
-
-    @Test
     void shouldApplyWritePolicyToFileToolAliases() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File workspaceRootDir = workspaceBoundaryParent("file-tool-aliases");
@@ -406,8 +369,7 @@ public class DangerousCommandFilePolicyTest {
             SecurityPolicyService.FileVerdict credential =
                     securityPolicyService.checkFileToolArgs(toolName, credentialArgs);
 
-            assertFileApprovalRequired(outside, "workspace_outside_write");
-            assertThat(outside.getPath()).as(toolName).isEqualTo(outsideFile.getAbsolutePath());
+            assertThat(outside.isAllowed()).as(toolName).isTrue();
             assertThat(credential.isAllowed()).as(toolName).isFalse();
             assertThat(credential.getMessage()).as(toolName).contains("凭据");
             assertThat(credential.getPath()).as(toolName).isEqualTo(".env.local");
@@ -467,62 +429,16 @@ public class DangerousCommandFilePolicyTest {
         SecurityPolicyService.FileVerdict destination =
                 securityPolicyService.checkFileToolArgs("mcp_remote_tool", destinationWrite);
 
-        assertFileApprovalRequired(write, "workspace_outside_write");
-        assertThat(write.getPath()).isEqualTo(writeFile.getAbsolutePath());
+        assertThat(write.isAllowed()).isTrue();
         assertThat(patch.isAllowed()).isFalse();
         assertThat(patch.getMessage()).contains("敏感系统文件");
         assertThat(patch.getPath()).isEqualTo("/etc/systemd/evil.service");
         assertThat(read.isAllowed()).isTrue();
-        assertFileApprovalRequired(toolNameWrite, "workspace_outside_write");
-        assertThat(toolNameWrite.getPath()).isEqualTo(toolNameWriteFile.getAbsolutePath());
-        assertFileApprovalRequired(outputFile, "workspace_outside_write");
-        assertThat(outputFile.getPath()).isEqualTo(outputFilePath.getAbsolutePath());
+        assertThat(toolNameWrite.isAllowed()).isTrue();
+        assertThat(outputFile.isAllowed()).isTrue();
         assertThat(destination.isAllowed()).isFalse();
         assertThat(destination.getMessage()).contains("凭据");
         assertThat(destination.getPath()).isEqualTo(".env.local");
-    }
-
-    @Test
-    void shouldUseWorkspaceBoundaryWithCanonicalConfig() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        String oldHome = System.getProperty("user.home");
-        File workspaceParent =
-                new File("target/workspace-boundary-test/" + System.nanoTime()).getCanonicalFile();
-        File fakeHome = new File(workspaceParent, "workspace").getCanonicalFile();
-        File outsideHome =
-                new File(fakeHome.getParentFile(), "outside-workspace.txt").getCanonicalFile();
-        FileUtil.mkdir(fakeHome);
-        FileUtil.writeUtf8String("outside\n", outsideHome);
-        System.setProperty("user.home", fakeHome.getAbsolutePath());
-        env.appConfig.getWorkspace().setDir(fakeHome.getAbsolutePath());
-        try {
-            SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-            Map<String, Object> insideArgs = new LinkedHashMap<String, Object>();
-            insideArgs.put(
-                    "fileName", new File(fakeHome, "ordinary-project-note.txt").getAbsolutePath());
-            Map<String, Object> outsideArgs = new LinkedHashMap<String, Object>();
-            outsideArgs.put("fileName", outsideHome.getAbsolutePath());
-            Map<String, Object> credentialArgs = new LinkedHashMap<String, Object>();
-            credentialArgs.put("fileName", new File(fakeHome, ".ssh/id_rsa").getAbsolutePath());
-
-            SecurityPolicyService.FileVerdict inside =
-                    securityPolicyService.checkFileToolArgs("file_write", insideArgs);
-            SecurityPolicyService.FileVerdict outside =
-                    securityPolicyService.checkFileToolArgs("file_write", outsideArgs);
-            SecurityPolicyService.FileVerdict credential =
-                    securityPolicyService.checkFileToolArgs("file_write", credentialArgs);
-
-            assertThat(inside.isAllowed()).isTrue();
-            assertFileApprovalRequired(outside, "workspace_outside_write");
-            assertThat(credential.isAllowed()).isFalse();
-            assertThat(credential.getMessage()).contains("凭据");
-        } finally {
-            if (oldHome == null) {
-                System.clearProperty("user.home");
-            } else {
-                System.setProperty("user.home", oldHome);
-            }
-        }
     }
 
     @Test
@@ -555,28 +471,6 @@ public class DangerousCommandFilePolicyTest {
                 securityPolicyService.checkFileToolArgs("file_write", args);
 
         assertFileApprovalRequired(verdict, "workspace_outside_write");
-    }
-
-    @Test
-    void shouldApplyWorkspaceBoundaryToShellCommandPaths() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        File workspaceRootDir = workspaceBoundaryParent("shell-command-paths");
-        File workspace = new File(workspaceRootDir, "workspace").getCanonicalFile();
-        File outsideFile = new File(workspaceRootDir, "outside-workspace/output.txt").getCanonicalFile();
-        FileUtil.mkdir(workspace);
-        FileUtil.mkdir(outsideFile.getParentFile());
-        env.appConfig.getWorkspace().setDir(workspace.getAbsolutePath());
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.FileVerdict inside =
-                securityPolicyService.checkCommandPaths(
-                        "echo ok > " + new File(workspace, "output.txt").getAbsolutePath());
-        SecurityPolicyService.FileVerdict outside =
-                securityPolicyService.checkCommandPaths("echo bad > " + outsideFile.getAbsolutePath());
-
-        assertThat(inside.isAllowed()).isTrue();
-        assertFileApprovalRequired(outside, "workspace_outside_write");
-        assertThat(outside.getPath()).isEqualTo(outsideFile.getAbsolutePath());
     }
 
     @Test

@@ -2506,7 +2506,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "localManagementPipeAccessBlocked");
             copyPolicyValue(summary, safe, "workspaceWriteFree");
             copyPolicyValue(summary, safe, "outsideWorkspaceReadFree");
-            copyPolicyValue(summary, safe, "outsideWorkspaceWriteApprovalRequired");
+            copyPolicyValue(summary, safe, "outsideWorkspaceWriteFree");
             copyPolicyValue(summary, safe, "writeDeniedExactPathCount");
             copyPolicyValue(summary, safe, "writeDeniedPrefixCount");
             copyPolicyValue(summary, safe, "writeDeniedHomeFileCount");
@@ -2910,7 +2910,7 @@ public class DashboardDiagnosticsService {
         }
         copyPolicyValue(terminal, safe, "workspaceWriteFree");
         copyPolicyValue(terminal, safe, "outsideWorkspaceReadFree");
-        copyPolicyValue(terminal, safe, "outsideWorkspaceWriteApprovalRequired");
+        copyPolicyValue(terminal, safe, "outsideWorkspaceWriteFree");
         if (terminal.get("terminalGuardrailPolicy") instanceof Map) {
             safe.put("terminalGuardrailPolicy", safeTerminalGuardrailPolicySummary());
         }

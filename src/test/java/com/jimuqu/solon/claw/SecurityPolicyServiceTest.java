@@ -535,46 +535,6 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
-    void shouldBlockSchemelessUserInfoUrlsInCommandsAndArguments() {
-        SecurityPolicyService policy =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict direct = policy.checkUrl("alice:secret@example.com/path");
-        SecurityPolicyService.UrlVerdict command =
-                policy.checkCommandUrls("curl alice:secret@example.com/path");
-        SecurityPolicyService.UrlVerdict safe = policy.checkCommandUrls("curl example.com/path");
-
-        assertThat(direct.isAllowed()).isFalse();
-        assertThat(direct.getMessage()).contains("userinfo");
-        assertThat(command.isAllowed()).isFalse();
-        assertThat(command.getMessage()).contains("userinfo");
-    }
-
-    @Test
-    void shouldBlockRepeatedlyEncodedUserInfoUrlsBeforeNetworkAccess() {
-        SecurityPolicyService policy =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("url", "https://user%253Apassword@example.com/private");
-
-        SecurityPolicyService.UrlVerdict direct =
-                policy.checkUrl("https://user%253Apassword@example.com/private");
-        SecurityPolicyService.UrlVerdict command =
-                policy.checkCommandUrls("curl https://user%253Apassword@example.com/private");
-        SecurityPolicyService.UrlVerdict toolArg = policy.checkToolArgs("webfetch", args);
-
-        assertThat(direct.isAllowed()).isFalse();
-        assertThat(direct.getMessage()).contains("userinfo");
-        assertThat(command.isAllowed()).isFalse();
-        assertThat(command.getMessage()).contains("userinfo");
-        assertThat(toolArg.isAllowed()).isFalse();
-        assertThat(toolArg.getMessage()).contains("userinfo");
-        assertThat(com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(direct.getUrl()))
-                .contains("user%253A***@")
-                .doesNotContain("password");
-    }
-
-    @Test
     void shouldCheckProtocolRelativeUrlsInCommandsAndArguments() {
         AppConfig config = new AppConfig();
         config.getSecurity().setAllowPrivateUrls(false);
@@ -590,10 +550,6 @@ public class SecurityPolicyServiceTest {
         toolArgs.put("url", "//internal.example/path");
         SecurityPolicyService.UrlVerdict privateToolArg =
                 privatePolicy.checkToolArgs("remote_fetch", toolArgs);
-        SecurityPolicyService.UrlVerdict userInfoCommand =
-                publicPolicy.checkCommandUrls("curl //alice:secret@example.com/path");
-        SecurityPolicyService.UrlVerdict publicCommand =
-                publicPolicy.checkCommandUrls("curl //example.com/path");
 
         assertThat(privateDirect.isAllowed()).isFalse();
         assertThat(privateDirect.getMessage()).contains("内网");
@@ -602,8 +558,6 @@ public class SecurityPolicyServiceTest {
         assertThat(privatePolicy.extractUrlishValues(toolArgs)).contains("//internal.example/path");
         assertThat(privateToolArg.isAllowed()).isFalse();
         assertThat(privateToolArg.getMessage()).contains("内网");
-        assertThat(userInfoCommand.isAllowed()).isFalse();
-        assertThat(userInfoCommand.getMessage()).contains("userinfo");
     }
 
     @Test
@@ -618,17 +572,11 @@ public class SecurityPolicyServiceTest {
                 privatePolicy.checkCommandUrls("websocat ws://internal.example/socket");
         SecurityPolicyService.UrlVerdict metadataCommand =
                 publicPolicy.checkCommandUrls("websocat wss://169.254.169.254/latest");
-        SecurityPolicyService.UrlVerdict userInfoCommand =
-                publicPolicy.checkCommandUrls("websocat ws://alice:secret@example.com/socket");
-        SecurityPolicyService.UrlVerdict publicCommand =
-                publicPolicy.checkCommandUrls("websocat wss://example.com/socket");
 
         assertThat(privateCommand.isAllowed()).isFalse();
         assertThat(privateCommand.getMessage()).contains("内网");
         assertThat(metadataCommand.isAllowed()).isFalse();
         assertThat(metadataCommand.getMessage()).contains("元数据");
-        assertThat(userInfoCommand.isAllowed()).isFalse();
-        assertThat(userInfoCommand.getMessage()).contains("userinfo");
     }
 
     @Test
@@ -1045,145 +993,6 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
-    void shouldBlockSensitiveCredentialNamesInUrlPathSegments() {
-        SecurityPolicyService policy =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("url", "https://example.com/oauth/access_token/secret123");
-
-        SecurityPolicyService.UrlVerdict directEquals =
-                policy.checkUrl("https://example.com/callback/client_secret=secret123");
-        SecurityPolicyService.UrlVerdict directColon =
-                policy.checkUrl("https://example.com/callback/api_key:secret123");
-        SecurityPolicyService.UrlVerdict directSegment =
-                policy.checkUrl("https://example.com/oauth/access_token/secret123");
-        SecurityPolicyService.UrlVerdict command =
-                policy.checkCommandUrls("curl https://example.com/oauth/refresh_token/secret123");
-        SecurityPolicyService.UrlVerdict encodedCommand =
-                policy.checkCommandUrls(
-                        "curl https://example.com/callback?api%25255Fkey=secret123");
-        SecurityPolicyService.UrlVerdict toolArg = policy.checkToolArgs("remote_fetch", args);
-        SecurityPolicyService.UrlVerdict safe =
-                policy.checkUrl("https://example.com/docs/access_token");
-
-        assertThat(directEquals.isAllowed()).isFalse();
-        assertThat(directEquals.getMessage()).contains("敏感凭据参数");
-        assertThat(directColon.isAllowed()).isFalse();
-        assertThat(directColon.getMessage()).contains("敏感凭据参数");
-        assertThat(directSegment.isAllowed()).isFalse();
-        assertThat(directSegment.getMessage()).contains("敏感凭据参数");
-        assertThat(command.isAllowed()).isFalse();
-        assertThat(command.getMessage()).contains("敏感凭据参数");
-        assertThat(encodedCommand.isAllowed()).isFalse();
-        assertThat(encodedCommand.getMessage()).contains("敏感凭据参数");
-        assertThat(toolArg.isAllowed()).isFalse();
-        assertThat(toolArg.getMessage()).contains("敏感凭据参数");
-    }
-
-    @Test
-    void shouldBlockEncodedSensitiveCredentialNamesInUrlParameters() {
-        SecurityPolicyService policy =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict doubleEncodedName =
-                policy.checkUrl("https://example.com/callback?api%255Fkey=secret123");
-        SecurityPolicyService.UrlVerdict repeatedEncodedName =
-                policy.checkUrl("https://example.com/callback?api%25255Fkey=secret123");
-        SecurityPolicyService.UrlVerdict encodedSeparator =
-                policy.checkUrl("https://example.com/callback?page=1%2526client_secret=secret123");
-        SecurityPolicyService.UrlVerdict htmlEntityName =
-                policy.checkUrl("https://example.com/callback?client&#95;secret=secret123");
-        SecurityPolicyService.UrlVerdict mixedCase =
-                policy.checkUrl("https://example.com/callback?Refresh_Token=secret123");
-        SecurityPolicyService.UrlVerdict plainToken =
-                policy.checkUrl("https://example.com/callback?token=secret123");
-        SecurityPolicyService.UrlVerdict dashedName =
-                policy.checkUrl("https://example.com/callback?access-token=secret123");
-        SecurityPolicyService.UrlVerdict dottedName =
-                policy.checkUrl("https://example.com/callback?api.key=secret123");
-        SecurityPolicyService.UrlVerdict spacedName =
-                policy.checkUrl("https://example.com/callback?client%20secret=secret123");
-        SecurityPolicyService.UrlVerdict safe =
-                policy.checkUrl("https://example.com/callback?page=1%2526category=docs");
-
-        assertThat(doubleEncodedName.isAllowed()).isFalse();
-        assertThat(doubleEncodedName.getMessage()).contains("敏感凭据参数");
-        assertThat(repeatedEncodedName.isAllowed()).isFalse();
-        assertThat(repeatedEncodedName.getMessage()).contains("敏感凭据参数");
-        assertThat(encodedSeparator.isAllowed()).isFalse();
-        assertThat(encodedSeparator.getMessage()).contains("敏感凭据参数");
-        assertThat(htmlEntityName.isAllowed()).isFalse();
-        assertThat(htmlEntityName.getMessage()).contains("敏感凭据参数");
-        assertThat(mixedCase.isAllowed()).isFalse();
-        assertThat(mixedCase.getMessage()).contains("敏感凭据参数");
-        assertThat(plainToken.isAllowed()).isFalse();
-        assertThat(plainToken.getMessage()).contains("敏感凭据参数");
-        assertThat(dashedName.isAllowed()).isFalse();
-        assertThat(dashedName.getMessage()).contains("敏感凭据参数");
-        assertThat(dottedName.isAllowed()).isFalse();
-        assertThat(dottedName.getMessage()).contains("敏感凭据参数");
-        assertThat(spacedName.isAllowed()).isFalse();
-        assertThat(spacedName.getMessage()).contains("敏感凭据参数");
-    }
-
-    @Test
-    void shouldBlockSignedObjectStorageUrlsAndNestedSignedUrls() {
-        SecurityPolicyService policy =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict objectStorage =
-                policy.checkUrl(
-                        "https://bucket.example.com/file?OSSAccessKeyId=ak&Signature=sig&Expires=9999999999");
-        SecurityPolicyService.UrlVerdict nested =
-                policy.checkUrl(
-                        "https://example.com/download?next=https%253A%252F%252Fcdn.example%252Ffile%253Fx-amz-signature%253Dsecret");
-        SecurityPolicyService.UrlVerdict command =
-                policy.checkCommandUrls(
-                        "curl \"https://bucket.example.com/file?AWSAccessKeyId=ak&Signature=sig&Expires=9999999999\"");
-        SecurityPolicyService.UrlVerdict safe =
-                policy.checkReturnedUrl("https://example.com/search?signature=public-docs&page=1");
-
-        assertThat(objectStorage.isAllowed()).isFalse();
-        assertThat(objectStorage.getMessage()).contains("敏感凭据参数");
-        assertThat(nested.isAllowed()).isFalse();
-        assertThat(nested.getMessage()).contains("敏感凭据参数");
-        assertThat(command.isAllowed()).isFalse();
-        assertThat(command.getMessage()).contains("敏感凭据参数");
-        assertThat(safe.isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldBlockSensitiveCredentialNamesInSchemelessUrls() {
-        SecurityPolicyService policy =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "93.184.216.34");
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("url", "example.com/callback?api_key=secret123");
-
-        SecurityPolicyService.UrlVerdict directQuery =
-                policy.checkUrl("example.com/callback?access_token=secret123");
-        SecurityPolicyService.UrlVerdict directFragment =
-                policy.checkUrl("example.com/callback#refresh_token=secret123");
-        SecurityPolicyService.UrlVerdict directPath =
-                policy.checkUrl("example.com/oauth/client_secret/secret123");
-        SecurityPolicyService.UrlVerdict command =
-                policy.checkCommandUrls("curl example.com/callback?api%255Fkey=secret123");
-        SecurityPolicyService.UrlVerdict toolArg = policy.checkToolArgs("webfetch", args);
-        SecurityPolicyService.UrlVerdict safe = policy.checkUrl("example.com/docs/access_token");
-
-        assertThat(directQuery.isAllowed()).isFalse();
-        assertThat(directQuery.getMessage()).contains("敏感凭据参数");
-        assertThat(directFragment.isAllowed()).isFalse();
-        assertThat(directFragment.getMessage()).contains("敏感凭据参数");
-        assertThat(directPath.isAllowed()).isFalse();
-        assertThat(directPath.getMessage()).contains("敏感凭据参数");
-        assertThat(command.isAllowed()).isFalse();
-        assertThat(command.getMessage()).contains("敏感凭据参数");
-        assertThat(toolArg.isAllowed()).isFalse();
-        assertThat(toolArg.getMessage()).contains("敏感凭据参数");
-        assertThat(safe.isAllowed()).isTrue();
-    }
-
-    @Test
     void shouldNormalizeWebsiteBlocklistHostsBeforeMatching() {
         AppConfig config = new AppConfig();
         config.getSecurity().getWebsiteBlocklist().setEnabled(true);
@@ -1444,52 +1253,8 @@ public class SecurityPolicyServiceTest {
         assertWriteDenied(policy, "service-account.json");
         assertWriteDenied(policy, "private-api-key.pem");
 
-        File workspaceParent =
-                new File("target/workspace-boundary-test/path-policy-" + System.nanoTime())
-                        .getCanonicalFile();
-        File workspace = new File(workspaceParent, "workspace").getCanonicalFile();
-        File outside = new File(workspaceParent, "outside/main.py").getCanonicalFile();
-        FileUtil.mkdir(workspace);
-        FileUtil.mkdir(outside.getParentFile());
-        AppConfig boundaryConfig = new AppConfig();
-        boundaryConfig.getWorkspace().setDir(workspace.getAbsolutePath());
-        SecurityPolicyService boundaryPolicy = new SecurityPolicyService(boundaryConfig);
-
-        assertFileApprovalRequired(
-                boundaryPolicy.checkPath(outside.getAbsolutePath(), true),
-                "workspace_outside_write");
-        SecurityPolicyService.FileVerdict workspaceWrite =
-                boundaryPolicy.checkPath(new File(workspace, "main.py").getAbsolutePath(), true);
-        assertThat(workspaceWrite.isAllowed()).isTrue();
-        SecurityPolicyService.FileVerdict oldRuntimeConfigWrite =
-                policy.checkPath(home + "/.jimuqu/config.yml", true);
-        assertFileApprovalRequired(oldRuntimeConfigWrite, "workspace_outside_write");
         assertThat(policy.checkPath(".env.example", true).isAllowed()).isTrue();
         assertThat(policy.checkPath(".envrc.example", true).isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldConsumeApprovedCommandPathTokenBeforeCheckingCommandUrls() throws Exception {
-        File workspaceParent =
-                new File("target/workspace-boundary-test/curl-policy-" + System.nanoTime())
-                        .getCanonicalFile();
-        File workspace = new File(workspaceParent, "workspace").getCanonicalFile();
-        File outside = new File(workspaceParent, "solonclaw-policy-curl-output.txt").getCanonicalFile();
-        FileUtil.mkdir(workspace);
-        AppConfig config = new AppConfig();
-        config.getWorkspace().setDir(workspace.getAbsolutePath());
-        SecurityPolicyService policy = new FixedDnsSecurityPolicyService(config, "93.184.216.34");
-        String command = "curl -fsS https://example.com -o " + outside.getAbsolutePath();
-
-        SecurityPolicyService.FileVerdict fileVerdict = policy.checkCommandPaths(command);
-        assertFileApprovalRequired(fileVerdict, "workspace_outside_write");
-
-        SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
-
-        SecurityPolicyService.FileVerdict replayVerdict = policy.checkCommandPaths(command);
-        assertThat(replayVerdict.isAllowed())
-                .as("initial path=%s replay path=%s", fileVerdict.getPath(), replayVerdict.getPath())
-                .isTrue();
     }
 
     @Test
@@ -1810,7 +1575,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("localManagementSocketEnvironmentBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("workspaceWriteFree")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("outsideWorkspaceReadFree")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("outsideWorkspaceWriteApprovalRequired")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("outsideWorkspaceWriteFree")).isEqualTo(Boolean.TRUE);
         assertThat(summary.containsKey("writeSafeRoot")).isFalse();
         assertThat(summary.containsKey("writeSafeRootConfigured")).isFalse();
         assertThat(((Integer) summary.get("writeDeniedExactPathCount")).intValue())

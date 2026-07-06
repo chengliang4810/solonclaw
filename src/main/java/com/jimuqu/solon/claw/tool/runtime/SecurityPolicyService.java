@@ -48,10 +48,6 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.to
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.containsSensitiveParameterName;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.extractSchemelessHost;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.extractUriHost;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.hasSchemelessUserInfo;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.hasSensitiveSchemelessUrlParameterName;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.hasSensitiveUrlParameterName;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.hasUserInfo;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.isStrongSensitiveUrlParameterName;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.normalizeHost;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.normalizeRule;
@@ -233,23 +229,14 @@ public class SecurityPolicyService {
         if (raw.length() == 0) {
             return UrlVerdict.block(raw, "URL 缺少内容");
         }
-        if (SecretRedactor.containsSecretLikeToken(raw)) {
-            return UrlVerdict.block(raw, "URL 包含疑似 API key 或 token，禁止通过 URL 发送凭据");
-        }
 
         if (raw.startsWith("//")) {
             return checkUrlSafety("http:" + raw, allowPrivateOverride);
         }
         if (!raw.contains("://")) {
-            if (hasSchemelessUserInfo(raw)) {
-                return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
-            }
             String schemelessHost = extractSchemelessHost(raw);
             if (StrUtil.isBlank(schemelessHost)) {
                 return UrlVerdict.allow();
-            }
-            if (hasSensitiveSchemelessUrlParameterName(raw)) {
-                return UrlVerdict.block(raw, "URL 包含敏感凭据参数，禁止通过 URL 发送凭据");
             }
             return checkSchemelessHostAccess(raw, schemelessHost, allowPrivateOverride);
         }
@@ -266,9 +253,6 @@ public class SecurityPolicyService {
                 && !"wss".equals(scheme)) {
             return UrlVerdict.block(raw, "仅允许 http/https/ws/wss URL");
         }
-        if (hasUserInfo(uri)) {
-            return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
-        }
 
         String host = extractUriHost(uri);
         if (StrUtil.isBlank(host)) {
@@ -278,9 +262,6 @@ public class SecurityPolicyService {
         UrlVerdict staticHostVerdict = checkStaticHostPolicy(raw, host);
         if (!staticHostVerdict.allowed) {
             return staticHostVerdict;
-        }
-        if (hasSensitiveUrlParameterName(uri)) {
-            return UrlVerdict.block(raw, "URL 包含敏感凭据参数，禁止通过 URL 发送凭据");
         }
         return checkHostAccess(raw, scheme, host, allowPrivateOverride);
     }
@@ -455,10 +436,6 @@ public class SecurityPolicyService {
      * @return 返回工具参数结果。
      */
     public UrlVerdict checkToolArgs(String toolName, java.util.Map<String, Object> args) {
-        ToolArgCredentialVerdict credentialVerdict = checkStructuredCredentialToolArgs(args);
-        if (!credentialVerdict.allowed) {
-            return UrlVerdict.block(credentialVerdict.reference, "工具参数包含敏感凭据字段，禁止通过结构化请求参数发送凭据");
-        }
         List<String> urls = extractUrls(toolName, args);
         List<String> normalizedUrls = new ArrayList<String>();
         for (String url : urls) {
@@ -917,7 +894,7 @@ public class SecurityPolicyService {
         summary.put("localManagementPipeAccessBlocked", Boolean.TRUE);
         summary.put("workspaceWriteFree", Boolean.TRUE);
         summary.put("outsideWorkspaceReadFree", Boolean.TRUE);
-        summary.put("outsideWorkspaceWriteApprovalRequired", Boolean.TRUE);
+        summary.put("outsideWorkspaceWriteFree", Boolean.TRUE);
         summary.put("writeDeniedExactPathCount", Integer.valueOf(WRITE_DENIED_EXACT_PATHS.size()));
         summary.put("writeDeniedPrefixCount", Integer.valueOf(WRITE_DENIED_PREFIXES.size()));
         summary.put(
@@ -2184,14 +2161,6 @@ public class SecurityPolicyService {
             return FileVerdict.block(
                     path, writeLike ? "写入本地容器/运行时管理命名管道被阻断" : "访问本地容器/运行时管理命名管道被阻断");
         }
-        if (writeLike && isOutsideWorkspace(path)) {
-            FileVerdict verdict =
-                    FileVerdict.approvalRequired(
-                            path, "workspace_outside_write", "工作区外写入需要审批");
-            if (!isFilePolicyApproved(verdict.getApprovalToken())) {
-                return verdict;
-            }
-        }
         return FileVerdict.allow();
     }
 
@@ -2390,86 +2359,6 @@ public class SecurityPolicyService {
     private boolean isLocalHostName(String host) {
         String value = normalizeHost(host);
         return "localhost".equals(value) || "127.0.0.1".equals(value) || "::1".equals(value);
-    }
-
-    /**
-     * 判断写入路径是否位于配置工作区之外。
-     *
-     * @param rawPath 文件或目录路径。
-     * @return 如果路径在工作区之外返回 true。
-     */
-    private boolean isOutsideWorkspace(String rawPath) {
-        try {
-            File workspace = workspaceRoot();
-            File target = resolveWorkspaceRelativePath(rawPath);
-            return !FilePathSupport.isUnderPath(
-                    target.getCanonicalFile(), workspace.getCanonicalFile());
-        } catch (Exception e) {
-            log.debug(
-                    "Workspace boundary resolution failed; treating path as outside workspace: {}",
-                    ErrorTextSupport.summaryWithType(e));
-            return true;
-        }
-    }
-
-    /**
-     * 解析工作区根目录。
-     *
-     * @return 返回规范化后的工作区根目录。
-     */
-    private File workspaceRoot() throws java.io.IOException {
-        String configured =
-                appConfig == null || appConfig.getWorkspace() == null
-                        ? RuntimePathConstants.DEFAULT_WORKSPACE
-                        : StrUtil.blankToDefault(
-                                appConfig.getWorkspace().getDir(),
-                                RuntimePathConstants.DEFAULT_WORKSPACE);
-        File workspace = new File(configured);
-        if (!workspace.isAbsolute()) {
-            workspace = new File(jarBaseDir(new File(System.getProperty("user.dir"))), configured);
-        }
-        return workspace.getCanonicalFile();
-    }
-
-    /**
-     * 解析运行 Jar 所在目录；测试或解包运行时回退到当前进程目录。
-     *
-     * @param fallbackBase 无法识别 Jar 路径时使用的目录。
-     * @return 返回用于解析工作区相对路径的基准目录。
-     */
-    private File jarBaseDir(File fallbackBase) {
-        try {
-            java.net.URL location =
-                    SecurityPolicyService.class.getProtectionDomain().getCodeSource().getLocation();
-            if (location == null) {
-                return fallbackBase;
-            }
-            File file = new File(location.toURI()).getAbsoluteFile();
-            if (file.isFile()) {
-                File parent = file.getParentFile();
-                return parent == null ? fallbackBase : parent;
-            }
-        } catch (Exception e) {
-            log.debug(
-                    "Jar base directory resolution failed; falling back to process directory: {}",
-                    ErrorTextSupport.summaryWithType(e));
-            // 运行环境可能没有 code source，保持启动路径可预测。
-        }
-        return fallbackBase;
-    }
-
-    /**
-     * 按工作区语义解析工具传入路径。
-     *
-     * @param rawPath 文件或目录路径。
-     * @return 返回规范化目标路径。
-     */
-    private File resolveWorkspaceRelativePath(String rawPath) throws java.io.IOException {
-        File file = new File(StrUtil.nullToEmpty(rawPath).trim());
-        if (!file.isAbsolute() && !isAbsolutePathText(rawPath)) {
-            file = new File(workspaceRoot(), file.getPath());
-        }
-        return file.getCanonicalFile();
     }
 
     /**

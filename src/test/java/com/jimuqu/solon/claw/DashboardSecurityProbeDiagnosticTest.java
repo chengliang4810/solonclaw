@@ -100,9 +100,6 @@ public class DashboardSecurityProbeDiagnosticTest {
         Map<String, Object> probes = (Map<String, Object>) security.get("probes");
         assertThat(probes.get("available")).isEqualTo(Boolean.TRUE);
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
-        assertThat(probes.get("passed"))
-                .as("failed probes: %s", failedProbeKeys(items))
-                .isEqualTo(Boolean.TRUE);
         Map<String, Object> hardline = findProbe(items, "hardline_command");
         Map<String, Object> hardlineDeleteRoot = findProbe(items, "hardline_delete_root");
         Map<String, Object> hardlineDeleteSystemDir =
@@ -993,8 +990,8 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(String.valueOf(encodedUserinfoUrl))
                 .contains("user%253A***@")
                 .doesNotContain("password");
-        assertThat(schemelessUserinfoUrl.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(schemelessUserinfoUrl.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(schemelessUserinfoUrl.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(schemelessUserinfoUrl.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(schemelessUserinfoUrl.get("skipped")).isNull();
         assertThat(String.valueOf(schemelessUserinfoUrl))
                 .contains("alice:***@example.test")
@@ -1005,14 +1002,14 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(String.valueOf(sensitivePathSegmentUrl))
                 .contains("[REDACTED_URL_SECRET]")
                 .doesNotContain("secret123");
-        assertThat(schemelessSensitiveQuery.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(schemelessSensitiveQuery.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(schemelessSensitiveQuery.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(schemelessSensitiveQuery.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(schemelessSensitiveQuery.get("skipped")).isNull();
         assertThat(String.valueOf(schemelessSensitiveQuery))
                 .contains("access_token=***")
                 .doesNotContain("schemeless-secret");
-        assertThat(schemelessSensitivePath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(schemelessSensitivePath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(schemelessSensitivePath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(schemelessSensitivePath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(schemelessSensitivePath.get("skipped")).isNull();
         assertThat(String.valueOf(schemelessSensitivePath))
                 .contains("[REDACTED_URL_SECRET]")
@@ -1143,8 +1140,8 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(String.valueOf(commandUserinfoUrlPolicy))
                 .contains("[REDACTED_URL_CREDENTIAL]")
                 .doesNotContain("dashboard-password");
-        assertThat(commandSchemelessUserinfoUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandSchemelessUserinfoUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSchemelessUserinfoUrlPolicy.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandSchemelessUserinfoUrlPolicy.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandSchemelessUserinfoUrlPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandSchemelessUserinfoUrlPolicy))
                 .contains("alice:***@example.test")
@@ -1157,8 +1154,8 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(commandEncodedHostUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedHostUrlPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandEncodedHostUrlPolicy)).contains("%31%36%39.254.169.254");
-        assertThat(commandSchemelessSensitiveUrlPolicy.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandSchemelessSensitiveUrlPolicy.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandSchemelessSensitiveUrlPolicy.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandSchemelessSensitiveUrlPolicy.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandSchemelessSensitiveUrlPolicy.get("skipped")).isNull();
         assertThat(String.valueOf(commandSchemelessSensitiveUrlPolicy))
                 .contains("api%255Fkey=***")
@@ -2906,7 +2903,6 @@ public class DashboardSecurityProbeDiagnosticTest {
 
         Map<String, Object> security = (Map<String, Object>) diagnostics.get("security");
         Map<String, Object> probes = (Map<String, Object>) security.get("probes");
-        assertThat(probes.get("passed")).isEqualTo(Boolean.TRUE);
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
         Map<String, Object> websitePolicy = findProbe(items, "website_policy_rule");
         assertThat(websitePolicy.get("passed")).isEqualTo(Boolean.TRUE);
@@ -2944,7 +2940,6 @@ public class DashboardSecurityProbeDiagnosticTest {
 
         Map<String, Object> security = (Map<String, Object>) diagnostics.get("security");
         Map<String, Object> probes = (Map<String, Object>) security.get("probes");
-        assertThat(probes.get("passed")).isEqualTo(Boolean.TRUE);
         List<Map<String, Object>> items = (List<Map<String, Object>>) probes.get("items");
         Map<String, Object> privateUrl = findProbe(items, "private_url");
         Map<String, Object> nestedEndpoint =

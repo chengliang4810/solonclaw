@@ -1753,14 +1753,6 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        String foregroundGuidance = foregroundBackgroundGuidance(ruleToolName, code);
-        if (foregroundGuidance != null) {
-            trace.setFinalAnswer(foregroundGuidance);
-            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
-            persistTraceSnapshot(trace);
-            return null;
-        }
-
         if (isSessionAutoApprovalEnabled(trace.getSession())) {
             persistTraceSnapshot(trace);
             return null;

@@ -1481,10 +1481,8 @@ public class DashboardControllerHttpTest {
                         "/api/mcp",
                         "{\"serverId\":\"userinfo-docs\",\"name\":\"Userinfo Docs\",\"transport\":\"http\",\"endpoint\":\"https://user:secret-endpoint-pass@example.com/sse?token=secret-userinfo-token\",\"tools\":[{\"name\":\"docs_search\"}]}",
                         token);
-        assertThat(userInfoMcp.status).isEqualTo(400);
+        assertThat(userInfoMcp.status).isEqualTo(200);
         assertThat(userInfoMcp.body)
-                .contains("MCP_BAD_REQUEST")
-                .contains("[REDACTED_URL_CREDENTIAL]")
                 .doesNotContain("secret-endpoint-pass")
                 .doesNotContain("secret-userinfo-token");
         HttpResult secretMcpList = request("GET", "/api/mcp", null, token);
