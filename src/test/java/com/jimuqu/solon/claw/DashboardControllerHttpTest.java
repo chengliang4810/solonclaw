@@ -571,16 +571,24 @@ public class DashboardControllerHttpTest {
                 request(
                         "PUT",
                         "/api/config",
-                        "{\"config\":{\"llm\":{\"model\":\"dashboard-model\"},\"scheduler\":{\"tickSeconds\":45}}}",
+                        "{\"config\":{\"providers\":{\"default\":{\"defaultModel\":\"dashboard-model\"}},\"scheduler\":{\"tickSeconds\":45}}}",
                         token);
         assertThat(saveConfig.status).isEqualTo(200);
         File overrideFile = new File(workspaceHome, "config.yml");
         assertThat(overrideFile).exists();
-        assertThat(FileUtil.readUtf8String(overrideFile)).contains("dashboard-model");
+        assertThat(FileUtil.readUtf8String(overrideFile))
+                .contains("providers:")
+                .contains("defaultModel: dashboard-model")
+                .doesNotContain("model: dashboard-model");
 
         HttpResult configSchema = request("GET", "/api/config/schema", null, token);
         assertThat(configSchema.status).isEqualTo(200);
         assertThat(configSchema.body)
+                .contains("\"model.providerKey\"")
+                .contains("\"providers.default.name\"")
+                .contains("\"providers.default.baseUrl\"")
+                .contains("\"providers.default.defaultModel\"")
+                .contains("\"providers.default.dialect\"")
                 .contains("\"task.toolOutputInlineLimit\"")
                 .contains("\"task.toolOutputTurnBudget\"")
                 .contains("\"task.toolOutputMaxLines\"")
@@ -589,6 +597,9 @@ public class DashboardControllerHttpTest {
                 .contains("\"channels.feishu.freeResponseChats\"")
                 .contains("\"channels.dingtalk.requireMention\"")
                 .contains("\"channels.dingtalk.freeResponseChats\"")
+                .doesNotContain("\"llm.provider\"")
+                .doesNotContain("\"llm.apiUrl\"")
+                .doesNotContain("\"llm.model\"")
                 .doesNotContain("\"tool_output.max_bytes\"");
 
         HttpResult saveRuntimeConfig =

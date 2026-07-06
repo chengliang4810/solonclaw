@@ -211,11 +211,17 @@ public class DashboardConfigService {
 
     /** 注册Fields。 */
     private void registerFields() {
+        addField(new FieldDefinition("model.providerKey", "string", "general", "当前默认模型 provider 键"));
+        addField(new FieldDefinition("providers.default.name", "string", "general", "默认 provider 名称"));
         addField(
-                new FieldDefinition("llm.provider", "select", "general", "模型协议提供方")
+                new FieldDefinition(
+                        "providers.default.baseUrl", "string", "general", "默认 provider API 地址"));
+        addField(
+                new FieldDefinition(
+                        "providers.default.defaultModel", "string", "general", "默认 provider 模型名"));
+        addField(
+                new FieldDefinition("providers.default.dialect", "select", "general", "默认 provider 协议")
                         .options("openai", "openai-responses", "ollama", "gemini", "anthropic"));
-        addField(new FieldDefinition("llm.apiUrl", "string", "general", "所选提供方的 API 地址"));
-        addField(new FieldDefinition("llm.model", "string", "general", "默认模型名"));
         addField(new FieldDefinition("llm.stream", "boolean", "general", "是否启用流式输出"));
         addField(
                 new FieldDefinition("llm.reasoningEffort", "select", "general", "默认推理强度")
