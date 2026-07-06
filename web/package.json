@@ -42,6 +42,7 @@
     "test:job-form-options": "node --experimental-strip-types tests/jobFormOptions.test.ts",
     "test:log-view-options": "node --experimental-strip-types tests/logViewOptions.test.ts",
     "test:i18n-registration": "node --experimental-strip-types tests/i18nRegistrationStatic.test.ts",
+    "test:i18n-message-compile": "node --experimental-strip-types tests/i18nMessagesCompileStatic.test.ts",
     "test:antd-deprecated-props": "node --experimental-strip-types tests/antdDeprecatedPropsStatic.test.ts",
     "test:provider-display-options": "node --experimental-strip-types tests/providerDisplayOptions.test.ts",
     "test:models-load-failure": "node --experimental-strip-types tests/modelsLoadFailure.test.ts",

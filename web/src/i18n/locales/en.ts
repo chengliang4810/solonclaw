@@ -480,7 +480,7 @@ export default {
     auditCommandPlaceholder: 'Enter a command to audit',
     auditUrlPlaceholder: 'https://example.com',
     auditPathPlaceholder: 'workspace/config.yml',
-    auditArgsPlaceholder: '{"url":"https://example.com"}',
+    auditArgsPlaceholder: "{'{\"url\":\"https://example.com\"}'}",
     auditStatusHint: 'Reads only the current security policy summary. Does not execute commands, access URLs, or read files.',
     auditPolicyHint: 'Reads the full security policy coverage so every audit surface can be checked.',
     auditRun: 'Audit',
