@@ -337,7 +337,9 @@ public class GoalService {
     public GoalDecision evaluateAfterTurn(SessionRecord session, String lastResponse)
             throws Exception {
         GoalDecision decision = new GoalDecision();
-        GoalState state = get(session);
+        // 加载时惰性清理失效屏障（死 pid / 过期 deadline）并回写持久化，
+        // 保证内存判定与持久化 JSON 一致；语义与 get() 一致（无目标返回 null）。
+        GoalState state = getAndLazyClearBarrier(session);
         if (state == null || !GoalState.STATUS_ACTIVE.equals(state.getStatus())) {
             decision.setStatus(state == null ? null : state.getStatus());
             decision.setVerdict("inactive");
