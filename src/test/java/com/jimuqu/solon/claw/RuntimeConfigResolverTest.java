@@ -115,6 +115,32 @@ public class RuntimeConfigResolverTest {
         assertThat(diagnostics).containsEntry("effective_diff_count", 1);
     }
 
+    /** 配置诊断面向用户展示当前配置键，不能暴露 AppConfig 内部字段路径。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldKeepExternalConfigKeyInDashboardTokenDriftDiagnostics() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-config-dashboard-token").toFile();
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  dashboard:\n"
+                        + "    accessToken: stale-dashboard-token\n",
+                new File(workspaceHome, "config.yml"));
+
+        AppConfig config = new AppConfig();
+        config.getDashboard().setAccessToken("fresh-dashboard-token");
+        RuntimeConfigResolver resolver =
+                RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
+
+        Map<String, Object> diagnostics = resolver.diagnostics(config);
+        List<Map<String, Object>> diffs =
+                (List<Map<String, Object>>) diagnostics.get("effective_diffs");
+
+        assertThat(diffs).hasSize(1);
+        assertThat(diffs.get(0)).containsEntry("key", "solonclaw.dashboard.accessToken");
+        assertThat(diffs.get(0)).doesNotContainKey("effective_key");
+        assertThat(String.valueOf(diagnostics)).doesNotContain("effective_key=dashboard.accessToken");
+    }
+
     @Test
     void shouldWriteFallbackProvidersAsYamlList() throws Exception {
         File workspaceHome = Files.createTempDirectory("solonclaw-workspace-fallback-list").toFile();

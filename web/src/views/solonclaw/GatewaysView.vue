@@ -49,7 +49,7 @@ function refreshStatus() {
             <div class="gateway-info">
               <div class="gateway-name">{{ gw.profile }}</div>
               <div class="gateway-meta">
-                <span class="meta-item">{{ gw.host }}:{{ gw.port }}</span>
+                <span class="meta-item">{{ gw.port ? `${gw.host}:${gw.port}` : gw.host }}</span>
                 <span v-if="gw.pid" class="meta-item">PID: {{ gw.pid }}</span>
               </div>
             </div>

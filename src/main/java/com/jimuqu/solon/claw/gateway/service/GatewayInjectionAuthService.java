@@ -107,7 +107,7 @@ public class GatewayInjectionAuthService {
     }
 
     /**
-     * 记录随机串并淘汰过期缓存，阻止同一重放窗口内重复提交。
+     * 记录随机串并淘汰过期缓存；缓存仍满时拒绝新随机串，避免淘汰窗口内 nonce 后放开重放。
      *
      * @param nonce 用于防重放的随机串。
      * @param now 当前时间戳。
@@ -123,11 +123,14 @@ public class GatewayInjectionAuthService {
             Iterator<Map.Entry<String, Long>> iterator = seenNonces.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Long> entry = iterator.next();
-                if (now - entry.getValue() > window || seenNonces.size() > MAX_NONCES) {
+                if (now - entry.getValue() > window) {
                     iterator.remove();
                 }
             }
             if (seenNonces.containsKey(key)) {
+                return false;
+            }
+            if (seenNonces.size() >= MAX_NONCES) {
                 return false;
             }
             seenNonces.put(key, now);
