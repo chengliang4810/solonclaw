@@ -148,7 +148,7 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict privateUrl = policy.checkUrl("http://router.example/");
         SecurityPolicyService.UrlVerdict metadata = policy.checkUrl("http://169.254.169.254/");
 
-        assertUrlApprovalRequired(privateUrl, "network_external_operation");
+        assertThat(privateUrl.isAllowed()).isTrue();
         assertThat(metadata.isAllowed()).isFalse();
         assertThat(metadata.getMessage()).contains("元数据");
     }
@@ -163,7 +163,7 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.UrlVerdict literal =
                 policy.checkUrl("https://198.18.0.43/resource");
 
-        assertUrlApprovalRequired(domain, "network_external_operation");
+        assertThat(domain.isAllowed()).isTrue();
         assertThat(literal.isAllowed()).isFalse();
         assertThat(literal.getMessage()).contains("内网");
     }
@@ -548,7 +548,6 @@ public class SecurityPolicyServiceTest {
         assertThat(direct.getMessage()).contains("userinfo");
         assertThat(command.isAllowed()).isFalse();
         assertThat(command.getMessage()).contains("userinfo");
-        assertUrlApprovalRequired(safe, "network_external_operation");
     }
 
     @Test
@@ -605,7 +604,6 @@ public class SecurityPolicyServiceTest {
         assertThat(privateToolArg.getMessage()).contains("内网");
         assertThat(userInfoCommand.isAllowed()).isFalse();
         assertThat(userInfoCommand.getMessage()).contains("userinfo");
-        assertUrlApprovalRequired(publicCommand, "network_external_operation");
     }
 
     @Test
@@ -631,7 +629,6 @@ public class SecurityPolicyServiceTest {
         assertThat(metadataCommand.getMessage()).contains("元数据");
         assertThat(userInfoCommand.isAllowed()).isFalse();
         assertThat(userInfoCommand.getMessage()).contains("userinfo");
-        assertUrlApprovalRequired(publicCommand, "network_external_operation");
     }
 
     @Test
@@ -729,7 +726,6 @@ public class SecurityPolicyServiceTest {
         assertThat(setEnvironmentVariable.getMessage()).contains("元数据");
         assertThat(setxProxy.isAllowed()).isFalse();
         assertThat(setxProxy.getMessage()).contains("内网");
-        assertUrlApprovalRequired(publicProxy, "network_external_operation");
     }
 
     @Test
@@ -778,7 +774,6 @@ public class SecurityPolicyServiceTest {
         assertThat(powershellSetNoProxyOnly.getMessage()).contains("元数据");
         assertThat(setxNoProxy.isAllowed()).isFalse();
         assertThat(setxNoProxy.getMessage()).contains("元数据");
-        assertUrlApprovalRequired(publicBypass, "network_external_operation");
     }
 
     @Test
@@ -820,7 +815,6 @@ public class SecurityPolicyServiceTest {
         assertThat(powershellNpmNoProxy.getMessage()).contains("元数据");
         assertThat(powershellNpmNoProxyOnly.isAllowed()).isFalse();
         assertThat(powershellNpmNoProxyOnly.getMessage()).contains("元数据");
-        assertUrlApprovalRequired(publicNoProxy, "network_external_operation");
     }
 
     @Test
@@ -875,7 +869,6 @@ public class SecurityPolicyServiceTest {
         assertThat(assignedNpmNoProxy.getMessage()).contains("内网");
         assertThat(assignedPipProxy.isAllowed()).isFalse();
         assertThat(assignedPipProxy.getMessage()).contains("元数据");
-        assertUrlApprovalRequired(publicProxy, "network_external_operation");
     }
 
     @Test
@@ -918,7 +911,6 @@ public class SecurityPolicyServiceTest {
         assertThat(macosProxy.getMessage()).contains("内网");
         assertThat(macosSocksProxy.isAllowed()).isFalse();
         assertThat(macosSocksProxy.getMessage()).contains("元数据");
-        assertUrlApprovalRequired(publicProxy, "network_external_operation");
     }
 
     @Test
@@ -958,7 +950,6 @@ public class SecurityPolicyServiceTest {
         assertThat(netshDns.getMessage()).contains("内网");
         assertThat(nmcliDns.isAllowed()).isFalse();
         assertThat(nmcliDns.getMessage()).contains("元数据");
-        assertUrlApprovalRequired(publicDns, "network_external_operation");
     }
 
     @Test
@@ -999,7 +990,6 @@ public class SecurityPolicyServiceTest {
         assertThat(proxyOverride.getMessage()).contains("内网");
         assertThat(inlineProxyServer.isAllowed()).isFalse();
         assertThat(inlineProxyServer.getMessage()).contains("内网");
-        assertUrlApprovalRequired(publicProxy, "network_external_operation");
     }
 
     @Test
@@ -1051,7 +1041,6 @@ public class SecurityPolicyServiceTest {
         assertThat(addNoProxy.getMessage()).contains("元数据");
         assertThat(replaceAllProxy.isAllowed()).isFalse();
         assertThat(replaceAllProxy.getMessage()).contains("内网");
-        assertUrlApprovalRequired(publicProxy, "network_external_operation");
         assertThat(readOnly.isAllowed()).isTrue();
     }
 
@@ -1089,7 +1078,6 @@ public class SecurityPolicyServiceTest {
         assertThat(encodedCommand.getMessage()).contains("敏感凭据参数");
         assertThat(toolArg.isAllowed()).isFalse();
         assertThat(toolArg.getMessage()).contains("敏感凭据参数");
-        assertUrlApprovalRequired(safe, "network_external_operation");
     }
 
     @Test
@@ -1136,7 +1124,6 @@ public class SecurityPolicyServiceTest {
         assertThat(dottedName.getMessage()).contains("敏感凭据参数");
         assertThat(spacedName.isAllowed()).isFalse();
         assertThat(spacedName.getMessage()).contains("敏感凭据参数");
-        assertUrlApprovalRequired(safe, "network_external_operation");
     }
 
     @Test
@@ -1219,7 +1206,6 @@ public class SecurityPolicyServiceTest {
         assertThat(schemeless.getMessage()).contains("blocked.example");
         assertThat(wildcard.isAllowed()).isFalse();
         assertThat(wildcard.getMessage()).contains("wild.example");
-        assertUrlApprovalRequired(bareWildcard, "network_external_operation");
     }
 
     @Test
@@ -1265,7 +1251,6 @@ public class SecurityPolicyServiceTest {
         assertThat(sharedUrlRule.getMessage()).contains("evil.test");
         assertThat(wildcardChild.isAllowed()).isFalse();
         assertThat(wildcardChild.getMessage()).contains("tracking.example");
-        assertUrlApprovalRequired(wildcardBare, "network_external_operation");
     }
 
     @Test
@@ -1304,10 +1289,8 @@ public class SecurityPolicyServiceTest {
                 .setSharedFiles(Arrays.asList("missing-blocklist.txt", "../outside-blocklist.txt"));
         SecurityPolicyService policy = new FixedDnsSecurityPolicyService(config, "8.8.8.8");
 
-        assertUrlApprovalRequired(
-                policy.checkUrl("https://allowed.example/"), "network_external_operation");
-        assertUrlApprovalRequired(
-                policy.checkUrl("https://blocked-outside.example/"), "network_external_operation");
+        assertThat(policy.checkUrl("https://allowed.example/").isAllowed()).isTrue();
+        assertThat(policy.checkUrl("https://blocked-outside.example/").isAllowed()).isTrue();
     }
 
     @Test
@@ -1507,7 +1490,6 @@ public class SecurityPolicyServiceTest {
         assertThat(replayVerdict.isAllowed())
                 .as("initial path=%s replay path=%s", fileVerdict.getPath(), replayVerdict.getPath())
                 .isTrue();
-        assertUrlApprovalRequired(policy.checkCommandUrls(command), "network_external_operation");
     }
 
     @Test
@@ -1518,9 +1500,10 @@ public class SecurityPolicyServiceTest {
 
         SecurityPolicyService.UrlVerdict previewVerdict =
                 SecurityPolicyService.previewPolicyApprovals(() -> policy.checkCommandUrls(command));
-        assertUrlApprovalRequired(previewVerdict, "network_external_operation");
 
-        SecurityPolicyService.approveUrlPolicyForCurrentThread(previewVerdict.getApprovalToken());
+        // public network access is allowed directly without interactive approval;
+        // previewing must yield the same allow verdict as the actual check.
+        assertThat(previewVerdict.isAllowed()).isTrue();
 
         assertThat(policy.checkCommandUrls(command).isAllowed()).isTrue();
     }
@@ -2057,13 +2040,6 @@ public class SecurityPolicyServiceTest {
 
     private static void assertFileApprovalRequired(
             SecurityPolicyService.FileVerdict verdict, String policyKey) {
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.isApprovalRequired()).isTrue();
-        assertThat(verdict.getPolicyKey()).isEqualTo(policyKey);
-    }
-
-    private static void assertUrlApprovalRequired(
-            SecurityPolicyService.UrlVerdict verdict, String policyKey) {
         assertThat(verdict.isAllowed()).isFalse();
         assertThat(verdict.isApprovalRequired()).isTrue();
         assertThat(verdict.getPolicyKey()).isEqualTo(policyKey);

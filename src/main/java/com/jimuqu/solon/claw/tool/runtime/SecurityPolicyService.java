@@ -105,10 +105,6 @@ public class SecurityPolicyService {
     private static final ThreadLocal<Collection<String>> APPROVED_FILE_POLICY_KEYS =
             new ThreadLocal<Collection<String>>();
 
-    /** 当前线程已通过人工审批的一次性 URL 策略键集合。 */
-    private static final ThreadLocal<Collection<String>> APPROVED_URL_POLICY_KEYS =
-            new ThreadLocal<Collection<String>>();
-
     /** 当前线程是否只预览策略审批命中而不消费审批。 */
     private static final ThreadLocal<Boolean> POLICY_APPROVAL_PREVIEW =
             new ThreadLocal<Boolean>();
@@ -138,11 +134,7 @@ public class SecurityPolicyService {
      * @return 返回URL结果。
      */
     public UrlVerdict checkUrl(String url) {
-        UrlVerdict verdict = checkUrlSafety(url, null);
-        if (!verdict.allowed) {
-            return verdict;
-        }
-        return checkExternalUrlApproval(normalizeExternalApprovalUrl(url));
+        return checkUrlSafety(url, null);
     }
 
     /**
@@ -152,11 +144,7 @@ public class SecurityPolicyService {
      * @return 返回URL Allowing私聊结果。
      */
     public UrlVerdict checkUrlAllowingPrivate(String url) {
-        UrlVerdict verdict = checkUrlSafety(url, Boolean.TRUE);
-        if (!verdict.allowed) {
-            return verdict;
-        }
-        return checkExternalUrlApproval(normalizeExternalApprovalUrl(url));
+        return checkUrlSafety(url, Boolean.TRUE);
     }
 
     /**
@@ -166,11 +154,7 @@ public class SecurityPolicyService {
      * @return 返回URL 块ing私聊结果。
      */
     public UrlVerdict checkUrlBlockingPrivate(String url) {
-        UrlVerdict verdict = checkUrlSafety(url, Boolean.FALSE);
-        if (!verdict.allowed) {
-            return verdict;
-        }
-        return checkExternalUrlApproval(normalizeExternalApprovalUrl(url));
+        return checkUrlSafety(url, Boolean.FALSE);
     }
 
     /**
@@ -487,33 +471,7 @@ public class SecurityPolicyService {
                 return verdict;
             }
         }
-        for (String normalizedUrl : normalizedUrls) {
-            UrlVerdict externalVerdict = checkExternalUrlApproval(normalizedUrl);
-            if (externalVerdict.allowed && isSchemelessPublicNetworkTarget(normalizedUrl)) {
-                externalVerdict = checkExternalNetworkOperation(toolName);
-            }
-            if (!externalVerdict.allowed) {
-                return externalVerdict;
-            }
-        }
         return UrlVerdict.allow();
-    }
-
-    /**
-     * 检查没有显式 URL 参数但会发起外部网络访问的工具。
-     *
-     * @param toolName 工具名称。
-     * @return 返回 URL 策略判定。
-     */
-    public UrlVerdict checkExternalNetworkOperation(String toolName) {
-        UrlVerdict networkVerdict =
-                UrlVerdict.approvalRequired(
-                        "tool://" + StrUtil.nullToEmpty(toolName).trim(),
-                        "network_external_operation",
-                        "网络外部操作需要审批");
-        return isUrlPolicyApproved(networkVerdict.getApprovalToken())
-                ? UrlVerdict.allow()
-                : networkVerdict;
     }
 
     /**
@@ -1843,40 +1801,14 @@ public class SecurityPolicyService {
         }
         List<String> urls = new ArrayList<String>();
         extractCommandUrlishFromText(command, urls);
-        List<String> normalizedUrls = new ArrayList<String>();
-        List<String> approvedExternalUrls = new ArrayList<String>();
         for (String url : urls) {
             String value = cleanUrlToken(url);
             if (isBareNumericCommandUrlCandidate(value)) {
                 continue;
             }
-            normalizedUrls.add(value);
             UrlVerdict verdict = checkUrlSafety(value, null);
-            if (verdict.isApprovalRequired()
-                    && "network_external_operation".equals(verdict.getPolicyKey())
-                    && isUrlPolicyApproved(verdict.getApprovalToken())) {
-                approvedExternalUrls.add(normalizeExternalApprovalUrl(value));
-                continue;
-            }
             if (!verdict.allowed) {
                 return verdict;
-            }
-        }
-        for (String value : normalizedUrls) {
-            String approvalUrl = normalizeExternalApprovalUrl(value);
-            if (approvedExternalUrls.contains(approvalUrl)) {
-                continue;
-            }
-            if (isUrlPolicyApprovedWithoutConsuming(
-                    policyApprovalToken("network_external_operation", "tool://command_url"))) {
-                continue;
-            }
-            UrlVerdict externalVerdict = checkExternalUrlApproval(approvalUrl);
-            if (externalVerdict.allowed && isSchemelessPublicNetworkTarget(value)) {
-                externalVerdict = checkExternalNetworkOperation("command_url");
-            }
-            if (!externalVerdict.allowed) {
-                return externalVerdict;
             }
         }
         return UrlVerdict.allow();
@@ -2283,30 +2215,10 @@ public class SecurityPolicyService {
     }
 
     /**
-     * 记录当前线程已通过审批的 URL 策略键。
-     *
-     * @param policyKey URL 策略键。
-     */
-    public static void approveUrlPolicyForCurrentThread(String policyKey) {
-        approvePolicyForCurrentThread(APPROVED_URL_POLICY_KEYS, policyKey);
-    }
-
-    /**
-     * 记录当前线程已通过审批的具体 URL 策略目标。
-     *
-     * @param policyKey URL 策略键。
-     * @param target 审批绑定的具体 URL 或工具目标。
-     */
-    public static void approveUrlPolicyForCurrentThread(String policyKey, String target) {
-        approveUrlPolicyForCurrentThread(policyApprovalToken(policyKey, target));
-    }
-
-    /**
      * 清理当前线程的一次性策略审批，避免审批泄漏到后续工具调用。
      */
     public static void clearCurrentThreadPolicyApprovals() {
         APPROVED_FILE_POLICY_KEYS.remove();
-        APPROVED_URL_POLICY_KEYS.remove();
     }
 
     /**
@@ -2360,26 +2272,6 @@ public class SecurityPolicyService {
      */
     private boolean isFilePolicyApproved(String policyKey) {
         return isPolicyApproved(APPROVED_FILE_POLICY_KEYS, policyKey);
-    }
-
-    /**
-     * 判断 URL 策略键是否已被当前线程一次性放行。
-     *
-     * @param policyKey 策略键。
-     * @return 如果已放行返回 true。
-     */
-    private boolean isUrlPolicyApproved(String policyKey) {
-        return isPolicyApproved(APPROVED_URL_POLICY_KEYS, policyKey);
-    }
-
-    /**
-     * 判断 URL 策略键是否已放行但不消费 token，用于命令内同策略重复候选去重。
-     *
-     * @param policyKey URL 策略键。
-     * @return 如果已放行返回 true。
-     */
-    private boolean isUrlPolicyApprovedWithoutConsuming(String policyKey) {
-        return isPolicyApprovedWithoutConsuming(APPROVED_URL_POLICY_KEYS, policyKey);
     }
 
     /**
@@ -2438,47 +2330,6 @@ public class SecurityPolicyService {
         String normalizedTarget =
                 SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(target)).trim();
         return normalizedTarget.length() == 0 ? key : key + "\n" + normalizedTarget;
-    }
-
-    /**
-     * 检查普通外部 URL 操作是否需要审批。
-     *
-     * @param url 待访问 URL。
-     * @return 返回 URL 策略判定。
-     */
-    private UrlVerdict checkExternalUrlApproval(String url) {
-        String text = StrUtil.nullToEmpty(url).trim();
-        if (text.length() == 0) {
-            return UrlVerdict.allow();
-        }
-        URI uri = parseUri(text);
-        if (uri == null || StrUtil.isBlank(uri.getScheme())) {
-            return UrlVerdict.allow();
-        }
-        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
-        if (!"http".equals(scheme)
-                && !"https".equals(scheme)
-                && !"ws".equals(scheme)
-                && !"wss".equals(scheme)) {
-            return UrlVerdict.allow();
-        }
-        if (isLocalUrl(uri)) {
-            return UrlVerdict.allow();
-        }
-        UrlVerdict verdict =
-                UrlVerdict.approvalRequired(text, "network_external_operation", "网络外部操作需要审批");
-        return isUrlPolicyApproved(verdict.getApprovalToken()) ? UrlVerdict.allow() : verdict;
-    }
-
-    /**
-     * 标准化用于外部网络审批的 URL 文本。
-     *
-     * @param raw 原始 URL 或主机文本。
-     * @return 返回可解析的 URL 文本。
-     */
-    private String normalizeExternalApprovalUrl(String raw) {
-        String value = StrUtil.nullToEmpty(raw).trim();
-        return value.startsWith("//") ? "https:" + value : value;
     }
 
     /**

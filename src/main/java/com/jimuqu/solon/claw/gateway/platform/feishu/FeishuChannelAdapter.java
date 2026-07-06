@@ -11,7 +11,6 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
-import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -1207,7 +1206,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     private ONode fetchMessageMeta(String messageId) {
         refreshTenantTokenIfNecessary();
         String url = "https://open.feishu.cn/open-apis/im/v1/messages/" + messageId;
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Feishu message lookup URL");
         HttpResponse httpResponse =
                 HttpRequest.get(url)
                         .header("Authorization", "Bearer " + tenantAccessToken)
@@ -1296,7 +1294,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     protected Map<String, String> fetchBotInfo() {
         refreshTenantTokenIfNecessary();
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, BOT_INFO_URL, "Feishu bot info URL");
         HttpResponse httpResponse =
                 HttpRequest.get(BOT_INFO_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
@@ -1778,7 +1775,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回upload图片结果。
      */
     private String uploadImage(File file) {
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, IMAGE_UPLOAD_URL, "Feishu image upload URL");
         HttpResponse httpResponse =
                 HttpRequest.post(IMAGE_UPLOAD_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
@@ -1809,7 +1805,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回upload文件结果。
      */
     private String uploadFile(File file, String uploadType) {
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, FILE_UPLOAD_URL, "Feishu file upload URL");
         HttpResponse httpResponse =
                 HttpRequest.post(FILE_UPLOAD_URL)
                         .header("Authorization", "Bearer " + tenantAccessToken)
@@ -1885,7 +1880,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回post JSON结果。
      */
     private String postJson(String url, String body) {
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Feishu API URL");
         HttpResponse response =
                 HttpRequest.post(url)
                         .contentType(ContentType.JSON.toString())
@@ -1934,7 +1928,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         try {
             refreshTenantTokenIfNecessary();
             String url = String.format(MESSAGE_REACTION_URL, messageId) + "/" + reactionId;
-            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Feishu reaction delete URL");
             HttpResponse response =
                     HttpRequest.delete(url)
                             .header("Authorization", "Bearer " + tenantAccessToken)
@@ -1988,7 +1981,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .set("app_id", config.getAppId())
                         .set("app_secret", config.getAppSecret())
                         .toJson();
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, TOKEN_URL, "Feishu token URL");
         HttpResponse httpResponse =
                 HttpRequest.post(TOKEN_URL)
                         .contentType(ContentType.JSON.toString())

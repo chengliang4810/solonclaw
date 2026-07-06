@@ -867,14 +867,6 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                         agentSession, directShellPolicyPatternFromPolicyKey(fileVerdict.getPolicyKey()), command)) {
             SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
         }
-        SecurityPolicyService.UrlVerdict urlVerdict =
-                SecurityPolicyService.previewPolicyApprovals(
-                        () -> securityPolicyService.checkCommandUrls(command));
-        if (urlVerdict.isApprovalRequired()
-                && isStoredDirectShellPolicyApproved(
-                        agentSession, directShellPolicyPatternFromPolicyKey(urlVerdict.getPolicyKey()), command)) {
-            SecurityPolicyService.approveUrlPolicyForCurrentThread(urlVerdict.getApprovalToken());
-        }
     }
 
     /** 判断当前 direct shell 命令是否已有同类策略的会话或永久审批。 */
@@ -942,9 +934,6 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         if (text.contains("工作区外写入需要审批")) {
             return "policy:workspace_outside_write";
         }
-        if (text.contains("网络外部操作需要审批")) {
-            return "policy:network_external_operation";
-        }
         return "";
     }
 
@@ -952,9 +941,6 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     private String directShellPolicyDescription(String patternKey, String error) {
         if ("policy:workspace_outside_write".equals(patternKey)) {
             return "工作区外写入需要审批";
-        }
-        if ("policy:network_external_operation".equals(patternKey)) {
-            return "网络外部操作需要审批";
         }
         return StrUtil.blankToDefault(error, "安全策略需要审批");
     }
@@ -1061,14 +1047,6 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                 }
                 continue;
             }
-            if ("policy:network_external_operation".equals(patternKey)) {
-                SecurityPolicyService.UrlVerdict urlVerdict =
-                        SecurityPolicyService.previewPolicyApprovals(
-                                () -> securityPolicyService.checkCommandUrls(command));
-                if (urlVerdict.isApprovalRequired()) {
-                    SecurityPolicyService.approveUrlPolicyForCurrentThread(urlVerdict.getApprovalToken());
-                }
-            }
         }
     }
 
@@ -1120,8 +1098,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return false;
         }
         for (String patternKey : pending.effectivePatternKeys()) {
-            if ("policy:workspace_outside_write".equals(patternKey)
-                    || "policy:network_external_operation".equals(patternKey)) {
+            if ("policy:workspace_outside_write".equals(patternKey)) {
                 return true;
             }
         }

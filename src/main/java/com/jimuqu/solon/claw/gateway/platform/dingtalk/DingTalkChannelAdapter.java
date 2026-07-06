@@ -54,7 +54,6 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
-import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -1164,7 +1163,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                         attachment.getMimeType());
         String type = "image".equals(kind) ? "image" : ("voice".equals(kind) ? "voice" : "file");
         String uploadUrl = MEDIA_UPLOAD_URL + "?access_token=" + accessToken + "&type=" + type;
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, uploadUrl, "DingTalk media upload URL");
         HttpResponse uploadResponse =
                 HttpRequest.post(uploadUrl)
                         .form("media", file)
@@ -1529,7 +1527,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             throw new IllegalStateException("DingTalk upload info missing signed resource url");
         }
         String uploadUrl = body.getHeaderSignatureInfo().getResourceUrls().get(0);
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, uploadUrl, "DingTalk signed upload URL");
         HttpRequest request =
                 HttpRequest.put(uploadUrl).timeout(120000).setFollowRedirects(false).body(data);
         Map<String, String> headers = body.getHeaderSignatureInfo().getHeaders();

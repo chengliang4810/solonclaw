@@ -61,13 +61,6 @@ public class ToolRegistryExposureTest {
     }
 
     /**
-     * 为测试中的一次外部网络工具调用模拟用户已完成单次审批。
-     */
-    private static void approveNetworkOperationForTest(String target) {
-        SecurityPolicyService.approveUrlPolicyForCurrentThread("network_external_operation", target);
-    }
-
-    /**
      * 断言工具结果为当前成功状态，避免测试重新依赖已删除的 success 布尔字段。
      */
     private static void assertToolSuccess(ONode result) {

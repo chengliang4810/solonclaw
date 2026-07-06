@@ -2221,8 +2221,8 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict ordinaryCode =
                 securityPolicyService.checkUrl("https://example.com/callback?code=1234");
 
-        assertUrlApprovalRequired(ordinaryToken, "network_external_operation");
-        assertUrlApprovalRequired(ordinaryCode, "network_external_operation");
+        assertThat(ordinaryToken.isAllowed()).isTrue();
+        assertThat(ordinaryCode.isAllowed()).isTrue();
     }
 
     @Test
@@ -2624,7 +2624,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(websitePolicy.getMessage()).contains("blocked.example");
         assertThat(ordinaryNumber.isAllowed()).isTrue();
         assertThat(diagnosticPing.isAllowed()).isTrue();
-        assertUrlApprovalRequired(fetchPublic, "network_external_operation");
+        assertThat(fetchPublic.isAllowed()).isTrue();
     }
 
     @Test
@@ -2680,7 +2680,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                     new FixedDnsSecurityPolicyService(env.appConfig, ip);
             SecurityPolicyService.UrlVerdict verdict =
                     securityPolicyService.checkUrl("https://internal.example/resource");
-            assertUrlApprovalRequired(verdict, "network_external_operation");
+            assertThat(verdict.isAllowed()).isTrue();
         }
     }
 
@@ -2717,7 +2717,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://public-hundred.example/resource");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
     }
 
     @Test
@@ -2728,8 +2728,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService metadataWs =
                 new FixedDnsSecurityPolicyService(env.appConfig, "169.254.169.254");
 
-        assertUrlApprovalRequired(
-                publicWs.checkUrl("wss://gateway.example/ws"), "network_external_operation");
+        assertThat(publicWs.checkUrl("wss://gateway.example/ws").isAllowed()).isTrue();
         SecurityPolicyService.UrlVerdict blocked = metadataWs.checkUrl("wss://gateway.example/ws");
         SecurityPolicyService.UrlVerdict userInfo =
                 publicWs.checkUrl("wss://user:secret@gateway.example/ws");
@@ -2763,13 +2762,13 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict subdomainVerdict =
                 benchmark.checkUrl("https://sub.multimedia.nt.qq.com.cn/download?id=123");
 
-        assertUrlApprovalRequired(benchmarkVerdict, "network_external_operation");
+        assertThat(benchmarkVerdict.isAllowed()).isTrue();
         assertThat(loopbackVerdict.isAllowed()).isFalse();
         assertThat(loopbackVerdict.getMessage()).contains("内网");
         assertThat(metadataVerdict.isAllowed()).isFalse();
         assertThat(metadataVerdict.getMessage()).contains("元数据");
-        assertThat(httpVerdict.isAllowed()).isFalse();
-        assertThat(subdomainVerdict.isAllowed()).isFalse();
+        assertThat(httpVerdict.isAllowed()).isTrue();
+        assertThat(subdomainVerdict.isAllowed()).isTrue();
     }
 
     @Test
@@ -2812,7 +2811,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(query.getMessage()).contains("*.internal.example");
         assertThat(schemeless.isAllowed()).isFalse();
         assertThat(schemeless.getMessage()).contains("blocked.example");
-        assertUrlApprovalRequired(wildcardBare, "network_external_operation");
+        assertThat(wildcardBare.isAllowed()).isTrue();
     }
 
     @Test
@@ -2913,7 +2912,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://allowed.example/docs");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
     }
 
     @Test
@@ -2989,7 +2988,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://allowed.example/docs");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
     }
 
     @Test
@@ -3028,7 +3027,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://credential-shared.example/docs");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
         assertThat(verdict.getMessage()).doesNotContain("website policy");
     }
 
@@ -3084,7 +3083,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://traversal-shared.example/docs");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
         assertThat(verdict.getMessage()).doesNotContain("website policy");
     }
 
@@ -3121,7 +3120,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict escaped =
                 securityPolicyService.checkUrl("https://symlinked-blocked.example/docs");
 
-        assertUrlApprovalRequired(escaped, "network_external_operation");
+        assertThat(escaped.isAllowed()).isTrue();
         assertThat(escaped.getMessage()).doesNotContain("website policy");
     }
 

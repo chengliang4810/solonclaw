@@ -212,13 +212,6 @@ final class DangerousCommandApprovalTestSupport {
         assertThat(verdict.getPolicyKey()).isEqualTo(policyKey);
     }
 
-    static void assertUrlApprovalRequired(
-            SecurityPolicyService.UrlVerdict verdict, String policyKey) {
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.isApprovalRequired()).isTrue();
-        assertThat(verdict.getPolicyKey()).isEqualTo(policyKey);
-    }
-
     static void assertReadDenied(
             SecurityPolicyService securityPolicyService, String path, String message) {
         Map<String, Object> args = new LinkedHashMap<String, Object>();

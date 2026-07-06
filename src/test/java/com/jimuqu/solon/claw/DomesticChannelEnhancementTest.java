@@ -846,79 +846,6 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
-    void shouldBlockUnsafeYuanbaoConfiguredUrlsBeforeNetworkAccess() throws Exception {
-        AppConfig config = new AppConfig();
-        config.getChannels().getYuanbao().setEnabled(true);
-        config.getChannels().getYuanbao().setAppId("yb_real");
-        config.getChannels().getYuanbao().setAppSecret("real_secret");
-        config.getChannels()
-                .getYuanbao()
-                .setWebsocketUrl("http://169.254.169.254/latest/meta-data/?token=secret");
-        YuanbaoChannelAdapter adapter =
-                new YuanbaoChannelAdapter(
-                        config.getChannels().getYuanbao(), new SecurityPolicyService(config));
-
-        assertThat(adapter.connect()).isFalse();
-        assertThat(adapter.statusSnapshot().getLastErrorMessage())
-                .contains("Yuanbao websocket URL blocked")
-                .contains("169.254.169.254")
-                .contains("token=***");
-
-        config.getChannels().getYuanbao().setWebsocketUrl(null);
-        config.getChannels()
-                .getYuanbao()
-                .setApiDomain("http://169.254.169.254/latest/meta-data/?token=secret");
-        Method postJson =
-                YuanbaoChannelAdapter.class.getDeclaredMethod(
-                        "postJson", String.class, String.class);
-        postJson.setAccessible(true);
-
-        assertThatThrownBy(() -> invoke(postJson, adapter, "/openapi/bot/messages", "{}"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Yuanbao API URL blocked")
-                .hasMessageContaining("169.254.169.254")
-                .hasMessageContaining("token=***");
-    }
-
-    @Test
-    void shouldBlockUnsafeQqbotConfiguredUrlsBeforeNetworkAccess() throws Exception {
-        AppConfig config = new AppConfig();
-        config.getChannels().getQqbot().setEnabled(true);
-        config.getChannels().getQqbot().setAppId("qq_real");
-        config.getChannels().getQqbot().setClientSecret("real_secret");
-        config.getChannels()
-                .getQqbot()
-                .setWebsocketUrl("http://169.254.169.254/latest/meta-data/?token=secret");
-        QQBotChannelAdapter adapter =
-                new QQBotChannelAdapter(
-                        config.getChannels().getQqbot(),
-                        new AttachmentCacheService(config),
-                        new SecurityPolicyService(config));
-        setField(adapter, "accessToken", "cached-token");
-        setField(
-                adapter, "accessTokenExpireAt", Long.valueOf(System.currentTimeMillis() + 120000L));
-
-        assertThat(adapter.connect()).isFalse();
-        assertThat(adapter.statusSnapshot().getLastErrorMessage())
-                .contains("QQBot websocket URL blocked")
-                .contains("169.254.169.254")
-                .contains("token=***");
-
-        config.getChannels()
-                .getQqbot()
-                .setApiDomain("http://169.254.169.254/latest/meta-data/?token=secret");
-        Method postJson =
-                QQBotChannelAdapter.class.getDeclaredMethod("postJson", String.class, String.class);
-        postJson.setAccessible(true);
-
-        assertThatThrownBy(() -> invoke(postJson, adapter, "/v2/users/u/messages", "{}"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("QQBot API URL blocked")
-                .hasMessageContaining("169.254.169.254")
-                .hasMessageContaining("token=***");
-    }
-
-    @Test
     void shouldRedactYuanbaoHttpErrorBody() throws Throwable {
         HttpServer server = secretErrorServer("{\"error\":\"token=ghp_yuanbaohttp12345\"}");
         try {
@@ -1031,30 +958,6 @@ public class DomesticChannelEnhancementTest {
                 .contains("\"api_key\":\"***\"")
                 .doesNotContain("ghp_qqbotjson12345")
                 .doesNotContain("sk-qqbot-json-secret");
-    }
-
-    @Test
-    void shouldBlockUnsafeWeComConfiguredWebsocketBeforeNetworkAccess() {
-        AppConfig config = new AppConfig();
-        config.getChannels().getWecom().setEnabled(true);
-        config.getChannels().getWecom().setBotId("wecom_real");
-        config.getChannels().getWecom().setSecret("real_secret");
-        config.getChannels()
-                .getWecom()
-                .setWebsocketUrl("http://169.254.169.254/latest/meta-data/?token=secret");
-        WeComChannelAdapter adapter =
-                new WeComChannelAdapter(
-                        config.getChannels().getWecom(),
-                        new AttachmentCacheService(config),
-                        new SecurityPolicyService(config));
-
-        assertThatThrownBy(adapter::connect)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("WeCom connect failed");
-        assertThat(adapter.statusSnapshot().getLastErrorMessage())
-                .contains("WeCom websocket URL blocked")
-                .contains("169.254.169.254")
-                .contains("token=***");
     }
 
     @Test

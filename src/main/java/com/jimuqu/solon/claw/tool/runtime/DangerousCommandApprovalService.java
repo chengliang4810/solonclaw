@@ -101,10 +101,6 @@ public class DangerousCommandApprovalService {
     private static final String POLICY_WORKSPACE_OUTSIDE_WRITE =
             POLICY_PATTERN_PREFIX + "workspace_outside_write";
 
-    /** 网络外部操作策略键。 */
-    private static final String POLICY_NETWORK_EXTERNAL_OPERATION =
-            POLICY_PATTERN_PREFIX + "network_external_operation";
-
     /** 审批选择器PREFIX最小LENGTH的统一常量值。 */
     static final int APPROVAL_SELECTOR_PREFIX_MIN_LENGTH = 8;
 
@@ -133,9 +129,6 @@ public class DangerousCommandApprovalService {
 
     /** 记录Dangerous命令审批中的smart审批Judge。 */
     private SmartApprovalJudge smartApprovalJudge;
-
-    /** 需要按外部网络操作审批的插件工具名集合。 */
-    private final Set<String> externalNetworkPluginTools = new LinkedHashSet<String>();
 
     /**
      * 创建Dangerous命令审批服务实例，并注入运行所需依赖。
@@ -189,24 +182,6 @@ public class DangerousCommandApprovalService {
         this.appConfig = appConfig;
         this.securityPolicyService = securityPolicyService;
         this.tirithSecurityService = tirithSecurityService;
-    }
-
-    /**
-     * 覆盖需要外部网络操作审批的插件工具名集合。
-     *
-     * @param toolNames 插件工具名集合。
-     */
-    public synchronized void setExternalNetworkPluginTools(Collection<String> toolNames) {
-        externalNetworkPluginTools.clear();
-        if (toolNames == null) {
-            return;
-        }
-        for (String toolName : toolNames) {
-            String normalized = StrUtil.nullToEmpty(toolName).trim();
-            if (StrUtil.isNotBlank(normalized)) {
-                externalNetworkPluginTools.add(normalized);
-            }
-        }
     }
 
     /**
@@ -316,11 +291,6 @@ public class DangerousCommandApprovalService {
                         ToolNameConstants.CODESEARCH,
                         (trace, args) ->
                                 evaluateUrlTool(trace, ToolNameConstants.CODESEARCH, args));
-        for (String pluginToolName : externalNetworkPluginTools) {
-            interceptor.onTool(
-                    pluginToolName,
-                    (trace, args) -> evaluateExternalNetworkTool(trace, pluginToolName, args));
-        }
         return interceptor;
     }
 
@@ -2337,33 +2307,6 @@ public class DangerousCommandApprovalService {
     }
 
     /**
-     * 执行插件外部网络工具审批。
-     *
-     * @param trace trace 参数。
-     * @param toolName 插件工具名称。
-     * @param args 工具参数。
-     * @return 返回待用户审批消息或 null。
-     */
-    private String evaluateExternalNetworkTool(
-            ReActTrace trace, String toolName, Map<String, Object> args) {
-        if (securityPolicyService == null) {
-            return null;
-        }
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkExternalNetworkOperation(toolName);
-        if (verdict.isAllowed()) {
-            return null;
-        }
-        if (verdict.isApprovalRequired()) {
-            return evaluatePolicyApproval(trace, toolName, urlPolicyDetection(verdict));
-        }
-        trace.setFinalAnswer(messageRenderer.buildUrlPolicyMessage(verdict));
-        trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
-        persistTraceSnapshot(trace);
-        return null;
-    }
-
-    /**
      * 执行文件或 URL 策略的人工审批流程，支持本次、会话和永久同类审批。
      *
      * @param trace trace 参数。
@@ -2454,9 +2397,6 @@ public class DangerousCommandApprovalService {
             if (POLICY_WORKSPACE_OUTSIDE_WRITE.equals(patternKey)) {
                 SecurityPolicyService.approveFilePolicyForCurrentThread(
                         "workspace_outside_write", detection.getNormalizedCode());
-            } else if (POLICY_NETWORK_EXTERNAL_OPERATION.equals(patternKey)) {
-                SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                        "network_external_operation", detection.getNormalizedCode());
             }
         }
     }

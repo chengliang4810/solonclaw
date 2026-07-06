@@ -15,7 +15,6 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
-import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BaseUrlSupport;
@@ -2006,7 +2005,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private HttpResponse executeApiPost(
             String url, String body, int timeoutMs, String initialUrl, int redirectCount) {
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Weixin API URL");
         HttpRequest request =
                 HttpRequest.post(url)
                         .header("AuthorizationType", "ilink_bot_token")
@@ -2052,7 +2050,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private HttpResponse executeBinaryPost(
             String url, byte[] body, String initialUrl, int redirectCount) {
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Weixin CDN upload URL");
         HttpRequest request =
                 HttpRequest.post(url)
                         .body(body)
@@ -2099,7 +2096,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         String nextUrl =
                 HttpRedirectSupport.resolveLocation(
                         url, location, purpose + " redirect URL is invalid");
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, nextUrl, purpose);
         return nextUrl;
     }
 

@@ -427,8 +427,6 @@ public class McpRuntimeServiceTest {
         String remote = String.valueOf(remoteTool.handle(Collections.<String, Object>emptyMap()));
         String resources =
                 String.valueOf(listResources.handle(Collections.<String, Object>emptyMap()));
-        SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                "network_external_operation", "https://example.com/guide");
         String resource = String.valueOf(readResource.handle(resourceArgs));
         String prompts = String.valueOf(listPrompts.handle(Collections.<String, Object>emptyMap()));
         String prompt = String.valueOf(getPrompt.handle(promptArgs));
@@ -923,8 +921,6 @@ public class McpRuntimeServiceTest {
         sse.put("name", "SSE Docs");
         sse.put("transport", "SSE");
         sse.put("endpoint", "https://example.com/sse");
-        SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                "network_external_operation", "https://example.com/sse");
         service.save(sse);
 
         assertThat(readMcpTransport(env.sqliteDatabase, "sse-docs")).isEqualTo("sse");
@@ -934,8 +930,6 @@ public class McpRuntimeServiceTest {
         hyphenated.put("name", "Stateless Docs");
         hyphenated.put("transport", "streamable-stateless");
         hyphenated.put("endpoint", "https://example.com/mcp");
-        SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                "network_external_operation", "https://example.com/mcp");
         service.save(hyphenated);
 
         assertThat(readMcpTransport(env.sqliteDatabase, "stateless-docs"))
@@ -946,8 +940,6 @@ public class McpRuntimeServiceTest {
         httpAlias.put("name", "HTTP Docs");
         httpAlias.put("transport", "http");
         httpAlias.put("endpoint", "https://example.com/http-mcp");
-        SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                "network_external_operation", "https://example.com/http-mcp");
         service.save(httpAlias);
 
         assertThat(readMcpTransport(env.sqliteDatabase, "http-docs")).isEqualTo("streamable");

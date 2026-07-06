@@ -342,18 +342,18 @@ public class WeixinQrSetupService {
     }
 
     /**
-     * 执行assert安全基础URL相关逻辑。
+     * 微信 iLink 请求地址不再经 URL 安全校验，对齐外部对标仓库中渠道出站不经安全策略的行为。
      *
-     * @param baseUrl 待校验或访问的地址参数。
+     * @param baseUrl 待访问的地址参数。
      * @param purpose purpose 参数。
      */
     private void assertSafeBaseUrl(String baseUrl, String purpose) {
-        assertSafeUrl(normalizeBaseUrl(baseUrl), purpose);
+        // 渠道出站不再阻断，保留方法以维持调用点稳定。
     }
 
-    /** 校验微信 iLink 请求 URL 是否被安全策略允许访问。 */
+    /** 微信 iLink 请求地址不再经 URL 安全校验，保留方法以维持调用点稳定。 */
     private void assertSafeUrl(String url, String purpose) {
-        QrSetupUrlPolicySupport.assertSafeUrl(securityPolicyService, url, purpose);
+        // 渠道出站不再阻断。
     }
 
     /** 规范化基础 URL，避免后续拼接路径时出现重复斜杠。 */

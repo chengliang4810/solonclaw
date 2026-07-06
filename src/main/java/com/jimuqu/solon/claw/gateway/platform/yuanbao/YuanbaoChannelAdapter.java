@@ -13,7 +13,6 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelHttpSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelInboundPolicySupport;
-import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
@@ -122,7 +121,6 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         try {
             String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL);
-            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, wsUrl, "Yuanbao websocket URL");
             callbackExecutor = Executors.newSingleThreadExecutor();
             Request request =
                     new Request.Builder()
@@ -262,7 +260,6 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private ONode postJson(String path, String body) throws Exception {
         String url = apiDomain() + path;
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "Yuanbao API URL");
         Request request =
                 new Request.Builder()
                         .url(url)

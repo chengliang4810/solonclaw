@@ -1206,9 +1206,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 pluginTools == null
                         ? Collections.<ToolRegistration>emptyList()
                         : new ArrayList<ToolRegistration>(pluginTools);
-        if (this.approvalService != null) {
-            this.approvalService.setExternalNetworkPluginTools(pluginToolNames());
-        }
     }
 
     /**
