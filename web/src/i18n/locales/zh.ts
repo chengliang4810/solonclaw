@@ -769,6 +769,7 @@ export default {
     auditPathPlaceholder: 'workspace/config.yml',
     auditArgsPlaceholder: '{"url":"https://example.com"}',
     auditStatusHint: '只读取当前安全策略摘要，不执行命令、不访问 URL、不读取文件。',
+    auditPolicyHint: '读取完整安全策略覆盖面，用于检查所有审计面是否已接入。',
     auditRun: '审计',
     notAudited: '未审计',
     waitingAuditInput: '等待输入待审计内容',
@@ -843,6 +844,7 @@ export default {
       url: 'URL',
       path: '路径',
       toolArgs: '工具参数',
+      policy: '完整策略',
       status: '策略状态',
     },
     findingActions: {

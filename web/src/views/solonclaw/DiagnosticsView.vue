@@ -507,6 +507,7 @@ const auditActionOptions = [
   { label: d('auditActions.url'), value: 'url' },
   { label: d('auditActions.path'), value: 'path' },
   { label: d('auditActions.toolArgs'), value: 'tool_args' },
+  { label: d('auditActions.policy'), value: 'policy' },
   { label: d('auditActions.status'), value: 'status' },
 ]
 const auditFindings = computed<SecurityAuditFinding[]>(() => auditResult.value?.findings || [])
@@ -1496,6 +1497,9 @@ onMounted(load)
               </label>
               <p v-if="auditForm.action === 'status'" class="approval-note">
                 {{ t('diagnostics.auditStatusHint') }}
+              </p>
+              <p v-if="auditForm.action === 'policy'" class="approval-note">
+                {{ t('diagnostics.auditPolicyHint') }}
               </p>
               <Button size="small" type="primary" :loading="auditLoading" @click="runAudit">{{ t('diagnostics.auditRun') }}</Button>
             </div>
