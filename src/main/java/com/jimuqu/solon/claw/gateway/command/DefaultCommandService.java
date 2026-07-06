@@ -1115,6 +1115,14 @@ public class DefaultCommandService implements CommandService {
             return okGoalReply(session, "▶ Wait barrier cleared — goal loop resumes.");
         }
         // 否则：解析 inline contract + 设置新目标
+        // §5.1 运行中保护：agent 运行期间只允许控制子命令，禁止设置新目标文本，
+        // 避免与在飞的 evaluateAfterTurn 发生状态覆盖竞态。
+        if (agentRunControlService != null
+                && agentRunControlService.isRunning(message.sourceKey())) {
+            return okGoalReply(
+                    session,
+                    "Agent 正在运行 —— 用 /goal status/pause/clear/wait，或先 /stop 再设新目标。");
+        }
         int maxTurns = parseGoalMaxTurns(raw, GoalState.DEFAULT_MAX_TURNS, log);
         String goalText = stripGoalOptions(raw);
         GoalContractParser.ParseResult parsed = GoalContractParser.parse(goalText);

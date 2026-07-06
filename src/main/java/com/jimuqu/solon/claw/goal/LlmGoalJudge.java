@@ -63,11 +63,10 @@ public class LlmGoalJudge implements GoalJudge {
     @Override
     public GoalJudgeResult judge(GoalJudgeRequest request) {
         final String systemPrompt = GoalPromptTemplates.JUDGE_SYSTEM_PROMPT;
-        final String userMessage =
-                String.format(
-                        GoalPromptTemplates.JUDGE_USER_PROMPT_TEMPLATE,
-                        StrUtil.nullToEmpty(request == null ? null : request.getGoal()),
-                        StrUtil.nullToEmpty(request == null ? null : request.getLastResponse()));
+        final String goal = StrUtil.nullToEmpty(request == null ? null : request.getGoal());
+        final String lastResponse =
+                StrUtil.nullToEmpty(request == null ? null : request.getLastResponse());
+        final String userMessage = buildJudgeUserMessage(request, goal, lastResponse);
         Future<LlmResult> future =
                 executor.submit(
                         () -> {
@@ -93,6 +92,63 @@ public class LlmGoalJudge implements GoalJudge {
         // 交由 GoalService 累计 consecutiveParseFailures；不与 fail-open 分支混为一谈。
         String raw = extractText(result);
         return parseJudgeJson(raw);
+    }
+
+    /**
+     * 按优先级（契约 > 子目标 > 裸目标）选择裁决器用户提示，对标
+     * {@code GoalService.nextContinuationPrompt} 的优先级约定。
+     *
+     * <p>契约存在时，若同时携带子目标，则把子目标折叠为「Extra criterion N」追加到契约块，
+     * 让裁决器在同一提示里同时看到契约 Verification 与子目标。子目标列表格式化为编号行
+     * 「- 1. <text>」，与续轮提示一致。
+     *
+     * @param request 裁决请求。
+     * @param goal 目标文本（已空安全）。
+     * @param lastResponse 上轮回复（已空安全）。
+     * @return 渲染后的裁决器用户提示。
+     */
+    private String buildJudgeUserMessage(
+            GoalJudgeRequest request, String goal, String lastResponse) {
+        if (request == null) {
+            return String.format(GoalPromptTemplates.JUDGE_USER_PROMPT_TEMPLATE, goal, lastResponse);
+        }
+        GoalContract contract = request.getContract();
+        boolean hasContract = contract != null && !contract.isEmpty();
+        boolean hasSubgoals = request.getSubgoals() != null && !request.getSubgoals().isEmpty();
+        if (hasContract) {
+            String contractBlock = contract.renderBlock();
+            if (hasSubgoals) {
+                // 子目标折叠为「Extra criterion N」，与 nextContinuationPrompt 的契约分支一致
+                StringBuilder extra = new StringBuilder();
+                for (int i = 0; i < request.getSubgoals().size(); i++) {
+                    extra.append("\n- Extra criterion ")
+                            .append(i + 1)
+                            .append(": ")
+                            .append(request.getSubgoals().get(i));
+                }
+                contractBlock = contractBlock + extra.toString();
+            }
+            return String.format(
+                    GoalPromptTemplates.JUDGE_USER_PROMPT_WITH_CONTRACT_TEMPLATE,
+                    goal,
+                    contractBlock,
+                    lastResponse);
+        }
+        if (hasSubgoals) {
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < request.getSubgoals().size(); i++) {
+                if (i > 0) {
+                    sb.append("\n");
+                }
+                sb.append("- ").append(i + 1).append(". ").append(request.getSubgoals().get(i));
+            }
+            return String.format(
+                    GoalPromptTemplates.JUDGE_USER_PROMPT_WITH_SUBGOALS_TEMPLATE,
+                    goal,
+                    sb.toString(),
+                    lastResponse);
+        }
+        return String.format(GoalPromptTemplates.JUDGE_USER_PROMPT_TEMPLATE, goal, lastResponse);
     }
 
     /**
