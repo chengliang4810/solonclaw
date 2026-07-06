@@ -77,6 +77,15 @@ describe('createSlashHandler', () => {
 
     expect(createSlashHandler(ctx)('/commands')).toBe(true)
     expect(ctx.transcript.panel).toHaveBeenCalledWith(expect.any(String), expect.any(Array))
+    expect(ctx.transcript.panel.mock.calls[0]?.[1]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          rows: expect.arrayContaining([
+            ['/terminal-setup [auto|vscode|cursor|windsurf]', 'configure IDE terminal keybindings']
+          ])
+        })
+      ])
+    )
     expect(ctx.gateway.gw.request).not.toHaveBeenCalled()
   })
 
