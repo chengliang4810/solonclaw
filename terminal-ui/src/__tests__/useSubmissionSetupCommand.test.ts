@@ -4,9 +4,9 @@ import { renderSync } from '@solonclaw/ink'
 import React, { useLayoutEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { resetUiState } from '../app/uiStore.js'
 import type { UseSubmissionOptions } from '../app/useSubmission.js'
 import { useSubmission } from '../app/useSubmission.js'
-import { resetUiState } from '../app/uiStore.js'
 
 type SubmissionApi = ReturnType<typeof useSubmission>
 

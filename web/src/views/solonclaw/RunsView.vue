@@ -445,7 +445,7 @@ onMounted(async () => {
           <pre class="artifact-block">{{ runArtifactText(recap, t) }}</pre>
           <div class="section-heading">
             <h3>{{ t('runs.sessionTrajectory') }}</h3>
-            <Button size="small" :loading="savingTrajectory" @click="handleSaveTrajectory">{{ t('runs.saveTrajectory') }}</Button>
+            <Button size="small" :loading="savingTrajectory" :disabled="!selectedSessionId" @click="handleSaveTrajectory">{{ t('runs.saveTrajectory') }}</Button>
           </div>
           <pre class="artifact-block">{{ runArtifactText(trajectory, t) }}</pre>
           <h3>{{ t('runs.sessionTree') }}</h3>

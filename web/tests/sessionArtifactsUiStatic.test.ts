@@ -13,5 +13,6 @@ assert.ok(sessionsApi.includes('/trajectory'), 'trajectory fetch should call bac
 assert.ok(view.includes('loadSessionArtifacts'), 'runs view should load session recap and trajectory')
 assert.ok(view.includes("t('runs.sessionRecap')"), 'runs view should render recap section')
 assert.ok(view.includes("t('runs.sessionTrajectory')"), 'runs view should render trajectory section')
+assert.ok(view.includes(':disabled="!selectedSessionId"'), 'save trajectory button should be disabled without a selected session')
 assert.ok(zh.includes("sessionRecap: '会话摘要'"), 'Chinese locale should include recap label')
 assert.ok(en.includes("sessionRecap: 'Session recap'"), 'English locale should include recap label')
