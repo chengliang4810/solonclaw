@@ -1297,7 +1297,7 @@ export default {
       endpoint: 'https://example.com/mcp',
       command: 'node',
       commandArgsJson: '["server.js", "--stdio"]',
-      toolsJson: '[{"name":"docs_search","description":"检索文档"}]',
+      toolsJson: "{'[{\"name\":\"docs_search\",\"description\":\"检索文档\"}]'}",
     },
     oauth: {
       title: 'OAuth 授权',

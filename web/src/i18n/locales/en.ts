@@ -337,7 +337,7 @@ export default {
       endpoint: 'https://example.com/mcp',
       command: 'node',
       commandArgsJson: '["server.js", "--stdio"]',
-      toolsJson: '[{"name":"docs_search","description":"Search documents"}]',
+      toolsJson: "{'[{\"name\":\"docs_search\",\"description\":\"Search documents\"}]'}",
     },
     oauth: {
       title: 'OAuth authorization',
