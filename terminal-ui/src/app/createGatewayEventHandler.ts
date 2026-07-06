@@ -199,11 +199,6 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
     agentsNudgedThisTurn = false
   }
 
-  // Kick off the config fetch eagerly at handler creation so the flag is
-  // resolved well before the first delegation of any real session (which
-  // only happens after gateway.ready + a user turn).
-  ensureAgentsNudgeConfig()
-
   const refreshDelegationStatus = (force = false) => {
     const now = Date.now()
 
@@ -281,6 +276,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
   const handleReady = (skin?: GatewaySkin) => {
     recordParentLifecycle('[startup] handle gateway.ready')
+    ensureAgentsNudgeConfig()
 
     if (skin) {
       applySkin(skin)

@@ -708,6 +708,17 @@ describe('createGatewayEventHandler', () => {
     expect(resumeById).not.toHaveBeenCalled()
   })
 
+  it('does not read full config before the gateway is ready', async () => {
+    const appended: Msg[] = []
+    const ctx = buildCtx(appended)
+
+    createGatewayEventHandler(ctx)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(ctx.gateway.rpc).not.toHaveBeenCalled()
+  })
+
   it('on gateway.ready surfaces a ready startup status after the forged session resolves', async () => {
     const appended: Msg[] = []
     const ctx = buildCtx(appended)
@@ -1133,8 +1144,9 @@ describe('createGatewayEventHandler', () => {
     )
     const onEvent = createGatewayEventHandler(ctx)
 
-    // Eager config fetch fires at creation; let it resolve before any spawn
-    // (mirrors real usage — config lands well before the first delegation).
+    // The gateway.ready path prefetches full config after the backend is
+    // connected, so delegation can honor the flag without startup noise.
+    onEvent({ payload: {}, type: 'gateway.ready' } as any)
     await Promise.resolve()
     await Promise.resolve()
 
