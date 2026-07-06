@@ -70,14 +70,14 @@ security:
   tirithPath: tirith
   # Tirith 扫描超时时间，单位秒。
   tirithTimeoutSeconds: 5
-  # Tirith 不可用、超时或返回未知退出码时是否放行；默认 false 表示 fail-closed 阻断。
-  tirithFailOpen: false
+  # Tirith 不可用、超时或返回未知退出码时是否放行；默认 true 表示 fail-open 放行，对齐外部对标仓库行为。
+  tirithFailOpen: true
   # 文件路径安全预检模式：
   # strict 默认值，会对 execute_code/终端/进程命令阻断敏感系统或凭据路径。
   # bypass 仅适合完全可信的本机临时联调环境。
   fileGuardrailMode: strict
   # URL 安全预检模式：
-  # strict 默认值，会对 execute_code/终端/进程命令阻断 metadata、敏感 URL 参数等风险 URL。
+  # strict 默认值，会对 execute_code/终端/进程命令阻断 metadata 和私有/内网地址（SSRF 防护）。
   # bypass 仅适合完全可信的本机临时联调环境。
   urlGuardrailMode: strict
   # Agent 工具安全策略模式：

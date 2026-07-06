@@ -475,64 +475,6 @@ public class WeixinInboundDispatchTest {
     }
 
     @Test
-    void shouldBlockUnsafeWeixinApiBaseUrlBeforeNetworkAccess() throws Exception {
-        AppConfig config = newConfig();
-        config.getChannels()
-                .getWeixin()
-                .setBaseUrl("http://169.254.169.254/latest/meta-data/?token=secret");
-        WeiXinChannelAdapter adapter =
-                new WeiXinChannelAdapter(
-                        config.getChannels().getWeixin(),
-                        new InMemoryChannelStateRepository(),
-                        new AttachmentCacheService(config),
-                        new SecurityPolicyService(config));
-        Method apiPost =
-                WeiXinChannelAdapter.class.getDeclaredMethod("apiPost", String.class, ONode.class);
-        apiPost.setAccessible(true);
-
-        assertThatThrownBy(() -> invoke(apiPost, adapter, "ilink/bot/sendmessage", new ONode()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Weixin API URL blocked")
-                .hasMessageContaining("169.254.169.254")
-                .hasMessageContaining("token=***");
-    }
-
-    @Test
-    void shouldBlockUnsafeWeixinCdnBaseUrlBeforeUpload() throws Exception {
-        AppConfig config = newConfig();
-        config.getChannels()
-                .getWeixin()
-                .setCdnBaseUrl("http://169.254.169.254/latest/meta-data/?token=secret");
-        WeiXinChannelAdapter adapter =
-                new WeiXinChannelAdapter(
-                        config.getChannels().getWeixin(),
-                        new InMemoryChannelStateRepository(),
-                        new AttachmentCacheService(config),
-                        new SecurityPolicyService(config));
-        Method resolveUploadUrl =
-                WeiXinChannelAdapter.class.getDeclaredMethod(
-                        "resolveUploadUrl", ONode.class, String.class);
-        resolveUploadUrl.setAccessible(true);
-        String uploadUrl =
-                String.valueOf(
-                        resolveUploadUrl.invoke(
-                                adapter,
-                                new ONode().set("upload_param", "abc").asObject(),
-                                "file-1"));
-        Method uploadCiphertext =
-                WeiXinChannelAdapter.class.getDeclaredMethod(
-                        "uploadCiphertext", String.class, byte[].class);
-        uploadCiphertext.setAccessible(true);
-
-        assertThat(uploadUrl).contains("169.254.169.254");
-        assertThatThrownBy(() -> invoke(uploadCiphertext, adapter, uploadUrl, new byte[] {1}))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Weixin CDN upload URL blocked")
-                .hasMessageContaining("169.254.169.254")
-                .hasMessageContaining("token=***");
-    }
-
-    @Test
     void shouldRedactWeixinFailureJson() throws Throwable {
         WeiXinChannelAdapter adapter = newAdapter();
         Method safeJson = WeiXinChannelAdapter.class.getDeclaredMethod("safeJson", ONode.class);

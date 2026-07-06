@@ -1486,7 +1486,7 @@ final class AppConfigLoader {
         config.getSecurity()
                 .setTirithFailOpen(
                         resolveBoolean(
-                                readBoolean(props, overrides, "security.tirithFailOpen", false)));
+                                readBoolean(props, overrides, "security.tirithFailOpen", true)));
         config.getSecurity()
                 .setFileGuardrailMode(
                         normalizeBinaryGuardrailMode(

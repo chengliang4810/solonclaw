@@ -975,7 +975,7 @@ public class DashboardDiagnosticOutputTest {
         AppConfig config = new AppConfig();
         config.getSecurity()
                 .setTirithPath("/tmp/jimuqu-dashboard-tirith/secret-" + token + "/tirith");
-        config.getSecurity().setTirithFailOpen(false);
+        config.getSecurity().setTirithFailOpen(true);
         config.getSecurity().setTirithTimeoutSeconds(9);
         DashboardDiagnosticsService diagnosticsService =
                 new DashboardDiagnosticsService(
@@ -1006,9 +1006,9 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> sampleAudit = (Map<String, Object>) tirithPolicy.get("sampleAudit");
 
         assertThat(security.get("tirithTimeoutSeconds")).isEqualTo(Integer.valueOf(9));
-        assertThat(security.get("tirithFailOpen")).isEqualTo(Boolean.FALSE);
+        assertThat(security.get("tirithFailOpen")).isEqualTo(Boolean.TRUE);
         assertThat(tirithPolicy.get("scannerState")).isEqualTo("configured_unavailable");
-        assertThat(tirithPolicy.get("failureMode")).isEqualTo("fail-closed");
+        assertThat(tirithPolicy.get("failureMode")).isEqualTo("fail-open");
         assertThat(diagnosticSummary.get("scannerConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(diagnosticSummary.get("scannerAvailable")).isEqualTo(Boolean.FALSE);
         assertThat(diagnosticSummary.get("timeoutSeconds")).isEqualTo(Integer.valueOf(9));

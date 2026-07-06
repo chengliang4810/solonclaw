@@ -26,7 +26,7 @@ public class AppConfigProviderLoadTest {
         assertThat(config.getProviders()).containsKeys("default", "local-ollama");
         assertThat(config.getModel().getProviderKey()).isEqualTo("default");
         assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
-        assertThat(config.getSecurity().isTirithFailOpen()).isFalse();
+        assertThat(config.getSecurity().isTirithFailOpen()).isTrue();
         assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("strict");
         assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("strict");
         assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("approval");

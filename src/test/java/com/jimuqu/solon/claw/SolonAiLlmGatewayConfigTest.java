@@ -129,17 +129,6 @@ public class SolonAiLlmGatewayConfigTest {
     }
 
     @Test
-    void shouldRejectUserInfoInProviderApiUrl() {
-        AppConfig config =
-                remoteProviderConfig("https://user:pass@example.com/v1/chat/completions");
-
-        assertThatThrownBy(() -> validateLlmConfig(config))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("LLM apiUrl 被安全策略阻断")
-                .hasMessageContaining("userinfo");
-    }
-
-    @Test
     void shouldAllowLocalOllamaApiUrl() throws Exception {
         AppConfig config = new AppConfig();
         config.getLlm().setProvider("ollama");

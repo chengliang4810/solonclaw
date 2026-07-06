@@ -48,10 +48,6 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.to
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.containsSensitiveParameterName;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.extractSchemelessHost;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.extractUriHost;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.hasSchemelessUserInfo;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.hasSensitiveSchemelessUrlParameterName;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.hasSensitiveUrlParameterName;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.hasUserInfo;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.isStrongSensitiveUrlParameterName;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.normalizeHost;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.normalizeRule;
@@ -105,10 +101,6 @@ public class SecurityPolicyService {
     private static final ThreadLocal<Collection<String>> APPROVED_FILE_POLICY_KEYS =
             new ThreadLocal<Collection<String>>();
 
-    /** 当前线程已通过人工审批的一次性 URL 策略键集合。 */
-    private static final ThreadLocal<Collection<String>> APPROVED_URL_POLICY_KEYS =
-            new ThreadLocal<Collection<String>>();
-
     /** 当前线程是否只预览策略审批命中而不消费审批。 */
     private static final ThreadLocal<Boolean> POLICY_APPROVAL_PREVIEW =
             new ThreadLocal<Boolean>();
@@ -138,11 +130,7 @@ public class SecurityPolicyService {
      * @return 返回URL结果。
      */
     public UrlVerdict checkUrl(String url) {
-        UrlVerdict verdict = checkUrlSafety(url, null);
-        if (!verdict.allowed) {
-            return verdict;
-        }
-        return checkExternalUrlApproval(normalizeExternalApprovalUrl(url));
+        return checkUrlSafety(url, null);
     }
 
     /**
@@ -152,11 +140,7 @@ public class SecurityPolicyService {
      * @return 返回URL Allowing私聊结果。
      */
     public UrlVerdict checkUrlAllowingPrivate(String url) {
-        UrlVerdict verdict = checkUrlSafety(url, Boolean.TRUE);
-        if (!verdict.allowed) {
-            return verdict;
-        }
-        return checkExternalUrlApproval(normalizeExternalApprovalUrl(url));
+        return checkUrlSafety(url, Boolean.TRUE);
     }
 
     /**
@@ -166,11 +150,7 @@ public class SecurityPolicyService {
      * @return 返回URL 块ing私聊结果。
      */
     public UrlVerdict checkUrlBlockingPrivate(String url) {
-        UrlVerdict verdict = checkUrlSafety(url, Boolean.FALSE);
-        if (!verdict.allowed) {
-            return verdict;
-        }
-        return checkExternalUrlApproval(normalizeExternalApprovalUrl(url));
+        return checkUrlSafety(url, Boolean.FALSE);
     }
 
     /**
@@ -249,23 +229,14 @@ public class SecurityPolicyService {
         if (raw.length() == 0) {
             return UrlVerdict.block(raw, "URL 缺少内容");
         }
-        if (SecretRedactor.containsSecretLikeToken(raw)) {
-            return UrlVerdict.block(raw, "URL 包含疑似 API key 或 token，禁止通过 URL 发送凭据");
-        }
 
         if (raw.startsWith("//")) {
             return checkUrlSafety("http:" + raw, allowPrivateOverride);
         }
         if (!raw.contains("://")) {
-            if (hasSchemelessUserInfo(raw)) {
-                return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
-            }
             String schemelessHost = extractSchemelessHost(raw);
             if (StrUtil.isBlank(schemelessHost)) {
                 return UrlVerdict.allow();
-            }
-            if (hasSensitiveSchemelessUrlParameterName(raw)) {
-                return UrlVerdict.block(raw, "URL 包含敏感凭据参数，禁止通过 URL 发送凭据");
             }
             return checkSchemelessHostAccess(raw, schemelessHost, allowPrivateOverride);
         }
@@ -282,9 +253,6 @@ public class SecurityPolicyService {
                 && !"wss".equals(scheme)) {
             return UrlVerdict.block(raw, "仅允许 http/https/ws/wss URL");
         }
-        if (hasUserInfo(uri)) {
-            return UrlVerdict.block(raw, "URL 包含 userinfo 凭据，禁止通过 URL 发送用户名或密码");
-        }
 
         String host = extractUriHost(uri);
         if (StrUtil.isBlank(host)) {
@@ -294,9 +262,6 @@ public class SecurityPolicyService {
         UrlVerdict staticHostVerdict = checkStaticHostPolicy(raw, host);
         if (!staticHostVerdict.allowed) {
             return staticHostVerdict;
-        }
-        if (hasSensitiveUrlParameterName(uri)) {
-            return UrlVerdict.block(raw, "URL 包含敏感凭据参数，禁止通过 URL 发送凭据");
         }
         return checkHostAccess(raw, scheme, host, allowPrivateOverride);
     }
@@ -471,10 +436,6 @@ public class SecurityPolicyService {
      * @return 返回工具参数结果。
      */
     public UrlVerdict checkToolArgs(String toolName, java.util.Map<String, Object> args) {
-        ToolArgCredentialVerdict credentialVerdict = checkStructuredCredentialToolArgs(args);
-        if (!credentialVerdict.allowed) {
-            return UrlVerdict.block(credentialVerdict.reference, "工具参数包含敏感凭据字段，禁止通过结构化请求参数发送凭据");
-        }
         List<String> urls = extractUrls(toolName, args);
         List<String> normalizedUrls = new ArrayList<String>();
         for (String url : urls) {
@@ -487,33 +448,7 @@ public class SecurityPolicyService {
                 return verdict;
             }
         }
-        for (String normalizedUrl : normalizedUrls) {
-            UrlVerdict externalVerdict = checkExternalUrlApproval(normalizedUrl);
-            if (externalVerdict.allowed && isSchemelessPublicNetworkTarget(normalizedUrl)) {
-                externalVerdict = checkExternalNetworkOperation(toolName);
-            }
-            if (!externalVerdict.allowed) {
-                return externalVerdict;
-            }
-        }
         return UrlVerdict.allow();
-    }
-
-    /**
-     * 检查没有显式 URL 参数但会发起外部网络访问的工具。
-     *
-     * @param toolName 工具名称。
-     * @return 返回 URL 策略判定。
-     */
-    public UrlVerdict checkExternalNetworkOperation(String toolName) {
-        UrlVerdict networkVerdict =
-                UrlVerdict.approvalRequired(
-                        "tool://" + StrUtil.nullToEmpty(toolName).trim(),
-                        "network_external_operation",
-                        "网络外部操作需要审批");
-        return isUrlPolicyApproved(networkVerdict.getApprovalToken())
-                ? UrlVerdict.allow()
-                : networkVerdict;
     }
 
     /**
@@ -959,7 +894,7 @@ public class SecurityPolicyService {
         summary.put("localManagementPipeAccessBlocked", Boolean.TRUE);
         summary.put("workspaceWriteFree", Boolean.TRUE);
         summary.put("outsideWorkspaceReadFree", Boolean.TRUE);
-        summary.put("outsideWorkspaceWriteApprovalRequired", Boolean.TRUE);
+        summary.put("outsideWorkspaceWriteFree", Boolean.TRUE);
         summary.put("writeDeniedExactPathCount", Integer.valueOf(WRITE_DENIED_EXACT_PATHS.size()));
         summary.put("writeDeniedPrefixCount", Integer.valueOf(WRITE_DENIED_PREFIXES.size()));
         summary.put(
@@ -1843,40 +1778,14 @@ public class SecurityPolicyService {
         }
         List<String> urls = new ArrayList<String>();
         extractCommandUrlishFromText(command, urls);
-        List<String> normalizedUrls = new ArrayList<String>();
-        List<String> approvedExternalUrls = new ArrayList<String>();
         for (String url : urls) {
             String value = cleanUrlToken(url);
             if (isBareNumericCommandUrlCandidate(value)) {
                 continue;
             }
-            normalizedUrls.add(value);
             UrlVerdict verdict = checkUrlSafety(value, null);
-            if (verdict.isApprovalRequired()
-                    && "network_external_operation".equals(verdict.getPolicyKey())
-                    && isUrlPolicyApproved(verdict.getApprovalToken())) {
-                approvedExternalUrls.add(normalizeExternalApprovalUrl(value));
-                continue;
-            }
             if (!verdict.allowed) {
                 return verdict;
-            }
-        }
-        for (String value : normalizedUrls) {
-            String approvalUrl = normalizeExternalApprovalUrl(value);
-            if (approvedExternalUrls.contains(approvalUrl)) {
-                continue;
-            }
-            if (isUrlPolicyApprovedWithoutConsuming(
-                    policyApprovalToken("network_external_operation", "tool://command_url"))) {
-                continue;
-            }
-            UrlVerdict externalVerdict = checkExternalUrlApproval(approvalUrl);
-            if (externalVerdict.allowed && isSchemelessPublicNetworkTarget(value)) {
-                externalVerdict = checkExternalNetworkOperation("command_url");
-            }
-            if (!externalVerdict.allowed) {
-                return externalVerdict;
             }
         }
         return UrlVerdict.allow();
@@ -2252,14 +2161,6 @@ public class SecurityPolicyService {
             return FileVerdict.block(
                     path, writeLike ? "写入本地容器/运行时管理命名管道被阻断" : "访问本地容器/运行时管理命名管道被阻断");
         }
-        if (writeLike && isOutsideWorkspace(path)) {
-            FileVerdict verdict =
-                    FileVerdict.approvalRequired(
-                            path, "workspace_outside_write", "工作区外写入需要审批");
-            if (!isFilePolicyApproved(verdict.getApprovalToken())) {
-                return verdict;
-            }
-        }
         return FileVerdict.allow();
     }
 
@@ -2283,30 +2184,10 @@ public class SecurityPolicyService {
     }
 
     /**
-     * 记录当前线程已通过审批的 URL 策略键。
-     *
-     * @param policyKey URL 策略键。
-     */
-    public static void approveUrlPolicyForCurrentThread(String policyKey) {
-        approvePolicyForCurrentThread(APPROVED_URL_POLICY_KEYS, policyKey);
-    }
-
-    /**
-     * 记录当前线程已通过审批的具体 URL 策略目标。
-     *
-     * @param policyKey URL 策略键。
-     * @param target 审批绑定的具体 URL 或工具目标。
-     */
-    public static void approveUrlPolicyForCurrentThread(String policyKey, String target) {
-        approveUrlPolicyForCurrentThread(policyApprovalToken(policyKey, target));
-    }
-
-    /**
      * 清理当前线程的一次性策略审批，避免审批泄漏到后续工具调用。
      */
     public static void clearCurrentThreadPolicyApprovals() {
         APPROVED_FILE_POLICY_KEYS.remove();
-        APPROVED_URL_POLICY_KEYS.remove();
     }
 
     /**
@@ -2360,26 +2241,6 @@ public class SecurityPolicyService {
      */
     private boolean isFilePolicyApproved(String policyKey) {
         return isPolicyApproved(APPROVED_FILE_POLICY_KEYS, policyKey);
-    }
-
-    /**
-     * 判断 URL 策略键是否已被当前线程一次性放行。
-     *
-     * @param policyKey 策略键。
-     * @return 如果已放行返回 true。
-     */
-    private boolean isUrlPolicyApproved(String policyKey) {
-        return isPolicyApproved(APPROVED_URL_POLICY_KEYS, policyKey);
-    }
-
-    /**
-     * 判断 URL 策略键是否已放行但不消费 token，用于命令内同策略重复候选去重。
-     *
-     * @param policyKey URL 策略键。
-     * @return 如果已放行返回 true。
-     */
-    private boolean isUrlPolicyApprovedWithoutConsuming(String policyKey) {
-        return isPolicyApprovedWithoutConsuming(APPROVED_URL_POLICY_KEYS, policyKey);
     }
 
     /**
@@ -2441,47 +2302,6 @@ public class SecurityPolicyService {
     }
 
     /**
-     * 检查普通外部 URL 操作是否需要审批。
-     *
-     * @param url 待访问 URL。
-     * @return 返回 URL 策略判定。
-     */
-    private UrlVerdict checkExternalUrlApproval(String url) {
-        String text = StrUtil.nullToEmpty(url).trim();
-        if (text.length() == 0) {
-            return UrlVerdict.allow();
-        }
-        URI uri = parseUri(text);
-        if (uri == null || StrUtil.isBlank(uri.getScheme())) {
-            return UrlVerdict.allow();
-        }
-        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);
-        if (!"http".equals(scheme)
-                && !"https".equals(scheme)
-                && !"ws".equals(scheme)
-                && !"wss".equals(scheme)) {
-            return UrlVerdict.allow();
-        }
-        if (isLocalUrl(uri)) {
-            return UrlVerdict.allow();
-        }
-        UrlVerdict verdict =
-                UrlVerdict.approvalRequired(text, "network_external_operation", "网络外部操作需要审批");
-        return isUrlPolicyApproved(verdict.getApprovalToken()) ? UrlVerdict.allow() : verdict;
-    }
-
-    /**
-     * 标准化用于外部网络审批的 URL 文本。
-     *
-     * @param raw 原始 URL 或主机文本。
-     * @return 返回可解析的 URL 文本。
-     */
-    private String normalizeExternalApprovalUrl(String raw) {
-        String value = StrUtil.nullToEmpty(raw).trim();
-        return value.startsWith("//") ? "https:" + value : value;
-    }
-
-    /**
      * 判断无协议文本是否仍代表外部网络目标；DNS 失败时也不能把潜在网络访问静默放行。
      *
      * @param raw 原始 URL 或主机文本。
@@ -2539,86 +2359,6 @@ public class SecurityPolicyService {
     private boolean isLocalHostName(String host) {
         String value = normalizeHost(host);
         return "localhost".equals(value) || "127.0.0.1".equals(value) || "::1".equals(value);
-    }
-
-    /**
-     * 判断写入路径是否位于配置工作区之外。
-     *
-     * @param rawPath 文件或目录路径。
-     * @return 如果路径在工作区之外返回 true。
-     */
-    private boolean isOutsideWorkspace(String rawPath) {
-        try {
-            File workspace = workspaceRoot();
-            File target = resolveWorkspaceRelativePath(rawPath);
-            return !FilePathSupport.isUnderPath(
-                    target.getCanonicalFile(), workspace.getCanonicalFile());
-        } catch (Exception e) {
-            log.debug(
-                    "Workspace boundary resolution failed; treating path as outside workspace: {}",
-                    ErrorTextSupport.summaryWithType(e));
-            return true;
-        }
-    }
-
-    /**
-     * 解析工作区根目录。
-     *
-     * @return 返回规范化后的工作区根目录。
-     */
-    private File workspaceRoot() throws java.io.IOException {
-        String configured =
-                appConfig == null || appConfig.getWorkspace() == null
-                        ? RuntimePathConstants.DEFAULT_WORKSPACE
-                        : StrUtil.blankToDefault(
-                                appConfig.getWorkspace().getDir(),
-                                RuntimePathConstants.DEFAULT_WORKSPACE);
-        File workspace = new File(configured);
-        if (!workspace.isAbsolute()) {
-            workspace = new File(jarBaseDir(new File(System.getProperty("user.dir"))), configured);
-        }
-        return workspace.getCanonicalFile();
-    }
-
-    /**
-     * 解析运行 Jar 所在目录；测试或解包运行时回退到当前进程目录。
-     *
-     * @param fallbackBase 无法识别 Jar 路径时使用的目录。
-     * @return 返回用于解析工作区相对路径的基准目录。
-     */
-    private File jarBaseDir(File fallbackBase) {
-        try {
-            java.net.URL location =
-                    SecurityPolicyService.class.getProtectionDomain().getCodeSource().getLocation();
-            if (location == null) {
-                return fallbackBase;
-            }
-            File file = new File(location.toURI()).getAbsoluteFile();
-            if (file.isFile()) {
-                File parent = file.getParentFile();
-                return parent == null ? fallbackBase : parent;
-            }
-        } catch (Exception e) {
-            log.debug(
-                    "Jar base directory resolution failed; falling back to process directory: {}",
-                    ErrorTextSupport.summaryWithType(e));
-            // 运行环境可能没有 code source，保持启动路径可预测。
-        }
-        return fallbackBase;
-    }
-
-    /**
-     * 按工作区语义解析工具传入路径。
-     *
-     * @param rawPath 文件或目录路径。
-     * @return 返回规范化目标路径。
-     */
-    private File resolveWorkspaceRelativePath(String rawPath) throws java.io.IOException {
-        File file = new File(StrUtil.nullToEmpty(rawPath).trim());
-        if (!file.isAbsolute() && !isAbsolutePathText(rawPath)) {
-            file = new File(workspaceRoot(), file.getPath());
-        }
-        return file.getCanonicalFile();
     }
 
     /**

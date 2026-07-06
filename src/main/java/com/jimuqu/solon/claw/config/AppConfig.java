@@ -1400,8 +1400,8 @@ public class AppConfig {
         /** Tirith 单次扫描超时时间，单位秒。 */
         private int tirithTimeoutSeconds = 5;
 
-        /** Tirith 不可用或超时时是否放行；默认 fail-closed，避免扫描缺失时静默放行。 */
-        private boolean tirithFailOpen = false;
+        /** Tirith 不可用或超时时是否放行；默认 fail-open，对齐外部对标仓库在扫描缺失时放行而非阻断的行为。 */
+        private boolean tirithFailOpen = true;
 
         /** 文件路径安全预检模式：strict / bypass。默认 strict，先阻断敏感系统或凭据路径。 */
         private String fileGuardrailMode = "strict";

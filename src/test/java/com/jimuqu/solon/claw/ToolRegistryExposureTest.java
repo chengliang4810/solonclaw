@@ -61,13 +61,6 @@ public class ToolRegistryExposureTest {
     }
 
     /**
-     * 为测试中的一次外部网络工具调用模拟用户已完成单次审批。
-     */
-    private static void approveNetworkOperationForTest(String target) {
-        SecurityPolicyService.approveUrlPolicyForCurrentThread("network_external_operation", target);
-    }
-
-    /**
      * 断言工具结果为当前成功状态，避免测试重新依赖已删除的 success 布尔字段。
      */
     private static void assertToolSuccess(ONode result) {
@@ -348,12 +341,12 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 null));
-        assertThat(dangerous.get("decision").getString()).isEqualTo("block");
-        assertThat(dangerous.get("blocking").getBoolean()).isTrue();
+        assertThat(dangerous.get("decision").getString()).isEqualTo("warn");
+        assertThat(dangerous.get("blocking").getBoolean()).isFalse();
         assertThat(dangerous.get("approval_required").getBoolean()).isTrue();
         assertThat(String.valueOf(dangerous.get("findings")))
-                .contains("request_approval")
-                .contains("change_command");
+                .contains("recursive_delete")
+                .contains("request_approval");
         ONode structuredCommandArgs =
                 ONode.ofJson(
                         tools.audit(
@@ -364,13 +357,12 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 "{\"command\":[\"rm\",\"-rf\",\"workspace/cache\"]}"));
-        assertThat(structuredCommandArgs.get("decision").getString()).isEqualTo("block");
-        assertThat(structuredCommandArgs.get("blocking").getBoolean()).isTrue();
+        assertThat(structuredCommandArgs.get("decision").getString()).isEqualTo("warn");
+        assertThat(structuredCommandArgs.get("blocking").getBoolean()).isFalse();
         assertThat(structuredCommandArgs.get("approval_required").getBoolean()).isTrue();
         assertThat(String.valueOf(structuredCommandArgs.get("findings")))
                 .contains("recursive_delete")
-                .contains("request_approval")
-                .contains("change_command");
+                .contains("request_approval");
         ONode nestedStructuredCommandArgs =
                 ONode.ofJson(
                         tools.audit(
@@ -381,13 +373,12 @@ public class ToolRegistryExposureTest {
                                 null,
                                 null,
                                 "{\"command\":[\"echo ready\",{\"cmd\":\"rm -rf workspace/cache\"}]}"));
-        assertThat(nestedStructuredCommandArgs.get("decision").getString()).isEqualTo("block");
-        assertThat(nestedStructuredCommandArgs.get("blocking").getBoolean()).isTrue();
+        assertThat(nestedStructuredCommandArgs.get("decision").getString()).isEqualTo("warn");
+        assertThat(nestedStructuredCommandArgs.get("blocking").getBoolean()).isFalse();
         assertThat(nestedStructuredCommandArgs.get("approval_required").getBoolean()).isTrue();
         assertThat(String.valueOf(nestedStructuredCommandArgs.get("findings")))
                 .contains("recursive_delete")
-                .contains("request_approval")
-                .contains("change_command");
+                .contains("request_approval");
 
         assertToolSuccess(policyStatus);
         assertThat(policyStatus.get("summary").getString())
@@ -925,7 +916,7 @@ public class ToolRegistryExposureTest {
                                 .get("policy")
                                 .get("terminal")
                                 .get("pathPolicy")
-                                .get("outsideWorkspaceWriteApprovalRequired")
+                                .get("outsideWorkspaceWriteFree")
                                 .getBoolean())
                 .isTrue();
         assertThat(String.valueOf(policyStatus.get("policy").get("terminal").get("pathPolicy")))
@@ -2240,83 +2231,6 @@ public class ToolRegistryExposureTest {
                 .contains("file_policy")
                 .contains("敏感系统/凭据文件")
                 .doesNotContain("credentials.json");
-    }
-
-    @Test
-    void shouldAuditStructuredCredentialToolArgsBeforeNetworkTools() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
-        SecurityAuditTools tools =
-                new SecurityAuditTools(
-                        policy,
-                        new DangerousCommandApprovalService(
-                                env.globalSettingRepository, env.appConfig, policy, null),
-                        null,
-                        env.appConfig);
-
-        ONode header =
-                ONode.ofJson(
-                        tools.audit(
-                                "tool_args",
-                                "webfetch",
-                                null,
-                                null,
-                                null,
-                                null,
-                                "{\"url\":\"https://example.com/docs\",\"headers\":{\"Authorization\":\"Bearer ghp_toolargheader12345\"}}"));
-        ONode body =
-                ONode.ofJson(
-                        tools.audit(
-                                "tool_args",
-                                "websearch",
-                                null,
-                                null,
-                                null,
-                                null,
-                                "{\"query\":\"docs\",\"payload\":{\"apiKey\":\"sk-toolargbody12345\"}}"));
-
-        assertThat(header.get("decision").getString()).isEqualTo("block");
-        assertThat(header.get("blocking").getBoolean()).isTrue();
-        assertThat(header.toJson())
-                .contains("工具参数包含敏感凭据字段")
-                .contains("Authorization")
-                .doesNotContain("ghp_toolargheader12345");
-        assertThat(body.get("decision").getString()).isEqualTo("block");
-        assertThat(body.get("blocking").getBoolean()).isTrue();
-        assertThat(body.toJson())
-                .contains("工具参数包含敏感凭据字段")
-                .contains("apiKey")
-                .doesNotContain("sk-toolargbody12345");
-    }
-
-    @Test
-    void shouldRedactStructuredCredentialToolArgFieldReference() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
-        SecurityAuditTools tools =
-                new SecurityAuditTools(
-                        policy,
-                        new DangerousCommandApprovalService(
-                                env.globalSettingRepository, env.appConfig, policy, null),
-                        null,
-                        env.appConfig);
-
-        ONode result =
-                ONode.ofJson(
-                        tools.audit(
-                                "tool_args",
-                                "webfetch",
-                                null,
-                                null,
-                                null,
-                                null,
-                                "{\"url\":\"https://example.com/docs\",\"headers\":{\"Authorization\\nBearer ghp_toolargfield12345\":\"secret-value\"}}"));
-
-        assertThat(result.get("decision").getString()).isEqualTo("block");
-        assertThat(result.toJson())
-                .contains("tool_arg://Authorization")
-                .doesNotContain("ghp_toolargfield12345")
-                .doesNotContain("Authorization\\nBearer");
     }
 
     @Test

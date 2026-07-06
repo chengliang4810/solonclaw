@@ -7,7 +7,6 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
-import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -170,7 +169,6 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         try {
             String wsUrl = StrUtil.blankToDefault(config.getWebsocketUrl(), DEFAULT_WS_URL).trim();
-            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, wsUrl, "WeCom websocket URL");
             callbackExecutor = Executors.newSingleThreadExecutor();
             CountDownLatch latch = new CountDownLatch(1);
             Request request = new Request.Builder().url(wsUrl).build();

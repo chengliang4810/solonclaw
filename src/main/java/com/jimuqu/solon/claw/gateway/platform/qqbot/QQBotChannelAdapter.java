@@ -11,7 +11,6 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelHttpSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelInboundPolicySupport;
-import com.jimuqu.solon.claw.gateway.platform.ChannelUrlPolicyGuard;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -188,7 +187,6 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 setDetail("REST ready; websocket gateway unavailable");
                 return true;
             }
-            ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, gateway, "QQBot websocket URL");
             callbackExecutor = Executors.newSingleThreadExecutor();
             Request request =
                     new Request.Builder()
@@ -544,7 +542,6 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .set("appId", config.getAppId())
                         .set("clientSecret", config.getClientSecret())
                         .toJson();
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, TOKEN_URL, "QQBot token URL");
         Request request =
                 new Request.Builder().url(TOKEN_URL).post(RequestBody.create(JSON, body)).build();
         Response response = client.newCall(request).execute();
@@ -596,7 +593,6 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private ONode getJson(String path) throws Exception {
         String url = apiDomain() + path;
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "QQBot API URL");
         Request request =
                 new Request.Builder()
                         .url(url)
@@ -647,7 +643,6 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private ONode requestJson(String method, String path, String body) throws Exception {
         String url = apiDomain() + path;
-        ChannelUrlPolicyGuard.assertSafeUrl(securityPolicyService, url, "QQBot API URL");
         RequestBody requestBody = RequestBody.create(JSON, body);
         Request request =
                 new Request.Builder()

@@ -864,7 +864,6 @@ public class SolonClawCodeExecutionSkills {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             result.put("url", url);
             try {
-                approveManagedWebfetchUrl(url);
                 Document doc =
                         webfetchTool.webfetch(
                                 url,
@@ -881,23 +880,6 @@ public class SolonClawCodeExecutionSkills {
                 result.put("status", "error");
             }
             return result;
-        }
-
-        /**
-         * 为 execute_code 托管 webfetch 的单次 URL 调用预置外部网络审批。
-         *
-         * @param url 待获取的 URL。
-         */
-        private void approveManagedWebfetchUrl(String url) {
-            if (securityPolicyService == null) {
-                return;
-            }
-            SecurityPolicyService.UrlVerdict hardBoundary =
-                    securityPolicyService.checkReturnedUrl(url);
-            if (hardBoundary.isAllowed()) {
-                SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                        "network_external_operation", url);
-            }
         }
 
         /**

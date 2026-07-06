@@ -2150,101 +2150,6 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
     }
 
     @Test
-    void shouldBlockSecretLikeTokensInUrlsBeforeNetworkAccess() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        List<String> blocked =
-                Arrays.asList(
-                        "https://example.com/callback?next=sk-proj-abcdefghijklmnop",
-                        "https://example.com/callback?next=sk%2Dproj%2Dabcdefghijklmnop",
-                        "https://evil.com/callback?key=sk%2Dant%2Dfake123",
-                        "https://example.com/callback?next=github_pat_abcdefghijklmnopqrstuvwxyz");
-
-        for (String url : blocked) {
-            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
-            assertThat(verdict.getMessage()).contains("API key").contains("token");
-        }
-    }
-
-    @Test
-    void shouldBlockSensitiveUrlParameterNamesBeforeNetworkAccess() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        List<String> blocked =
-                Arrays.asList(
-                        "https://example.com/callback?access_token=short",
-                        "https://example.com/callback?client_secret=abc",
-                        "https://example.com/callback?authorization=Bearer%20abc",
-                        "https://example.com/callback?proxy-authorization=Basic%20abc",
-                        "https://example.com/callback?bearer_token=abc",
-                        "https://example.com/callback?oauth_token=abc",
-                        "https://example.com/callback?code_verifier=abc",
-                        "https://example.com/callback?client_assertion=abc",
-                        "https://example.com/callback?SAMLResponse=abc",
-                        "https://example.com/callback?accessToken=abc",
-                        "https://example.com/callback?clientSecret=abc",
-                        "https://example.com/callback?privateKey=abc",
-                        "https://storage.example/object?access_key=abc",
-                        "https://storage.example/object?secret-key=abc",
-                        "https://storage.example/object?session.token=abc",
-                        "https://example.com/callback?password=p",
-                        "https://example.com/callback?x-amz-signature=abc",
-                        "https://storage.example/object?X-Amz-Credential=abc",
-                        "https://storage.example/object?x-amz-security-token=abc",
-                        "https://storage.example/object?x-goog-signature=abc",
-                        "https://storage.example/object?x-oss-signature=abc",
-                        "https://storage.example/object?x-cos-security-token=abc",
-                        "https://storage.example/object?x-obs-signature=abc",
-                        "https://storage.example/object?x-ms-signature=abc",
-                        "https://storage.example/object?security-token=abc",
-                        "https://example.com/callback?api%5Fkey=abc",
-                        "https://example.com/callback;access_token=short",
-                        "https://example.com/oauth/;client_secret=abc",
-                        "https://example.com/oauth;api%5Fkey=abc/callback",
-                        "https://example.com/callback#refresh_token=short",
-                        "https://example.com/relay?payload=%7B%22accessToken%22%3A%22abc%22%7D",
-                        "https://example.com/relay?payload=clientSecret%3Dabc");
-
-        for (String url : blocked) {
-            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
-            assertThat(verdict.getMessage()).contains("敏感凭据参数");
-        }
-
-        SecurityPolicyService.UrlVerdict ordinaryToken =
-                securityPolicyService.checkUrl("https://example.com/list?token=page");
-        SecurityPolicyService.UrlVerdict ordinaryCode =
-                securityPolicyService.checkUrl("https://example.com/callback?code=1234");
-
-        assertUrlApprovalRequired(ordinaryToken, "network_external_operation");
-        assertUrlApprovalRequired(ordinaryCode, "network_external_operation");
-    }
-
-    @Test
-    void shouldBlockUrlUserinfoCredentialsBeforeNetworkAccess() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        List<String> blocked =
-                Arrays.asList(
-                        "https://user:password@example.com/private",
-                        "https://user%3Apassword@example.com/private",
-                        "https://safe.example@169.254.169.254/latest/meta-data/");
-
-        for (String url : blocked) {
-            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
-            assertThat(verdict.getMessage()).contains("userinfo").contains("凭据");
-        }
-    }
-
-    @Test
     void shouldAllowExternalNetworkToolWithoutExplicitUrls() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
@@ -2379,15 +2284,9 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict authProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy user:pass@127.0.0.1:8080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict authProxyPublic =
-                securityPolicyService.checkCommandUrls(
-                        "curl --proxy user:pass@proxy.example:8080 https://safe.example/");
         SecurityPolicyService.UrlVerdict schemeProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "curl --proxy socks5h://127.0.0.1:1080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict schemeAuthProxyPublic =
-                securityPolicyService.checkCommandUrls(
-                        "curl --proxy http://user:pass@proxy.example:8080 https://safe.example/");
         SecurityPolicyService.UrlVerdict schemeProxyMetadata =
                 securityPolicyService.checkCommandUrls(
                         "https_proxy=http://169.254.169.254:8080 curl https://safe.example/");
@@ -2527,12 +2426,8 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(compactProxyPrivate.getMessage()).contains("内网");
         assertThat(authProxyPrivate.isAllowed()).isFalse();
         assertThat(authProxyPrivate.getMessage()).contains("内网");
-        assertThat(authProxyPublic.isAllowed()).isFalse();
-        assertThat(authProxyPublic.getMessage()).contains("userinfo");
         assertThat(schemeProxyPrivate.isAllowed()).isFalse();
         assertThat(schemeProxyPrivate.getMessage()).contains("内网");
-        assertThat(schemeAuthProxyPublic.isAllowed()).isFalse();
-        assertThat(schemeAuthProxyPublic.getMessage()).contains("userinfo");
         assertThat(schemeProxyMetadata.isAllowed()).isFalse();
         assertThat(schemeProxyMetadata.getMessage()).contains("元数据");
         assertThat(powershellProxyPrivate.isAllowed()).isFalse();
@@ -2624,7 +2519,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(websitePolicy.getMessage()).contains("blocked.example");
         assertThat(ordinaryNumber.isAllowed()).isTrue();
         assertThat(diagnosticPing.isAllowed()).isTrue();
-        assertUrlApprovalRequired(fetchPublic, "network_external_operation");
+        assertThat(fetchPublic.isAllowed()).isTrue();
     }
 
     @Test
@@ -2680,7 +2575,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                     new FixedDnsSecurityPolicyService(env.appConfig, ip);
             SecurityPolicyService.UrlVerdict verdict =
                     securityPolicyService.checkUrl("https://internal.example/resource");
-            assertUrlApprovalRequired(verdict, "network_external_operation");
+            assertThat(verdict.isAllowed()).isTrue();
         }
     }
 
@@ -2717,7 +2612,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://public-hundred.example/resource");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
     }
 
     @Test
@@ -2728,16 +2623,11 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService metadataWs =
                 new FixedDnsSecurityPolicyService(env.appConfig, "169.254.169.254");
 
-        assertUrlApprovalRequired(
-                publicWs.checkUrl("wss://gateway.example/ws"), "network_external_operation");
+        assertThat(publicWs.checkUrl("wss://gateway.example/ws").isAllowed()).isTrue();
         SecurityPolicyService.UrlVerdict blocked = metadataWs.checkUrl("wss://gateway.example/ws");
-        SecurityPolicyService.UrlVerdict userInfo =
-                publicWs.checkUrl("wss://user:secret@gateway.example/ws");
 
         assertThat(blocked.isAllowed()).isFalse();
         assertThat(blocked.getMessage()).contains("元数据");
-        assertThat(userInfo.isAllowed()).isFalse();
-        assertThat(userInfo.getMessage()).contains("userinfo");
     }
 
     @Test
@@ -2763,13 +2653,13 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict subdomainVerdict =
                 benchmark.checkUrl("https://sub.multimedia.nt.qq.com.cn/download?id=123");
 
-        assertUrlApprovalRequired(benchmarkVerdict, "network_external_operation");
+        assertThat(benchmarkVerdict.isAllowed()).isTrue();
         assertThat(loopbackVerdict.isAllowed()).isFalse();
         assertThat(loopbackVerdict.getMessage()).contains("内网");
         assertThat(metadataVerdict.isAllowed()).isFalse();
         assertThat(metadataVerdict.getMessage()).contains("元数据");
-        assertThat(httpVerdict.isAllowed()).isFalse();
-        assertThat(subdomainVerdict.isAllowed()).isFalse();
+        assertThat(httpVerdict.isAllowed()).isTrue();
+        assertThat(subdomainVerdict.isAllowed()).isTrue();
     }
 
     @Test
@@ -2812,7 +2702,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(query.getMessage()).contains("*.internal.example");
         assertThat(schemeless.isAllowed()).isFalse();
         assertThat(schemeless.getMessage()).contains("blocked.example");
-        assertUrlApprovalRequired(wildcardBare, "network_external_operation");
+        assertThat(wildcardBare.isAllowed()).isTrue();
     }
 
     @Test
@@ -2913,7 +2803,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://allowed.example/docs");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
     }
 
     @Test
@@ -2989,7 +2879,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://allowed.example/docs");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
     }
 
     @Test
@@ -3028,7 +2918,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://credential-shared.example/docs");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
         assertThat(verdict.getMessage()).doesNotContain("website policy");
     }
 
@@ -3084,7 +2974,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkUrl("https://traversal-shared.example/docs");
 
-        assertUrlApprovalRequired(verdict, "network_external_operation");
+        assertThat(verdict.isAllowed()).isTrue();
         assertThat(verdict.getMessage()).doesNotContain("website policy");
     }
 
@@ -3121,7 +3011,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict escaped =
                 securityPolicyService.checkUrl("https://symlinked-blocked.example/docs");
 
-        assertUrlApprovalRequired(escaped, "network_external_operation");
+        assertThat(escaped.isAllowed()).isTrue();
         assertThat(escaped.getMessage()).doesNotContain("website policy");
     }
 

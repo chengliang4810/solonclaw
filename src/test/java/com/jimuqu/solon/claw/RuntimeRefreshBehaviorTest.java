@@ -183,11 +183,7 @@ public class RuntimeRefreshBehaviorTest {
         assertThat(blocked.isAllowed()).isFalse();
         assertThat(blocked.getMessage()).contains("blocked.example").doesNotContain("secret");
         assertThat(policy.checkUrl("https://pixel.tracking.example/p.gif").isAllowed()).isFalse();
-        SecurityPolicyService.UrlVerdict bareDomain =
-                policy.checkUrl("https://tracking.example/p.gif");
-        assertThat(bareDomain.isAllowed()).isFalse();
-        assertThat(bareDomain.isApprovalRequired()).isTrue();
-        assertThat(bareDomain.getPolicyKey()).isEqualTo("network_external_operation");
+        assertThat(policy.checkUrl("https://tracking.example/p.gif").isAllowed()).isTrue();
         assertThat(policy.websitePolicySummary().get("enabled")).isEqualTo(Boolean.TRUE);
         assertThat(policy.websitePolicySummary().get("configuredDomainCount")).isEqualTo(2);
         assertThat(adapter.disconnectCount).isZero();
@@ -1034,8 +1030,7 @@ public class RuntimeRefreshBehaviorTest {
         @Override
         public UrlVerdict checkUrl(String url) {
             if (url != null && url.contains("127.0.0.1")) {
-                return UrlVerdict.approvalRequired(
-                        url, "network_external_operation", "网络外部操作需要审批");
+                return UrlVerdict.block(url, "网络外部阻断模拟");
             }
             return super.checkUrl(url);
         }

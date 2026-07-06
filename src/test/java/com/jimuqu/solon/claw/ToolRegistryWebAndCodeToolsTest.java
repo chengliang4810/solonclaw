@@ -37,11 +37,6 @@ import org.noear.solon.ai.talents.web.WebsearchTalent;
 
 /** Web、代码执行和文件工具安全测试，从工具注册测试中拆出以控制单文件行数。 */
 class ToolRegistryWebAndCodeToolsTest {
-    /** 为测试中的一次外部网络工具调用模拟用户已完成单次审批。 */
-    private static void approveNetworkOperationForTest(String target) {
-        SecurityPolicyService.approveUrlPolicyForCurrentThread("network_external_operation", target);
-    }
-
     /** 断言工具结果为当前成功状态，避免测试重新依赖已删除的 success 布尔字段。 */
     private static void assertToolSuccess(ONode result) {
         assertThat(result.get("status").getString()).as(result.toJson()).isNotEqualTo("error");
@@ -117,15 +112,6 @@ class ToolRegistryWebAndCodeToolsTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("blocked.example")
                 .hasMessageNotContaining("secret123");
-        assertThatThrownBy(
-                        () ->
-                                webfetch.webfetch(
-                                        "https://example.com/docs?next=sk-proj-abcdefghijklmnop",
-                                        "text",
-                                        Integer.valueOf(1)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("疑似 API key")
-                .hasMessageNotContaining("sk-proj-abcdefghijklmnop");
     }
 
     @Test
@@ -143,7 +129,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("https://allowed.example/start");
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
@@ -176,7 +161,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("https://allowed.example/page");
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
@@ -204,7 +188,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("https://allowed.example/page");
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
@@ -232,7 +215,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("https://allowed.example/page");
         assertThatThrownBy(
                         () ->
                                 webfetch.webfetch(
@@ -259,7 +241,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("https://example.com/docs");
         Document document =
                 webfetch.webfetch("https://example.com/docs", "markdown", Integer.valueOf(1));
         String text = document.toString();
@@ -294,7 +275,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://websearch");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -327,7 +307,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://websearch");
         Document document =
                 websearch.websearch(
                         "allowed search",
@@ -367,7 +346,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://websearch");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -406,7 +384,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://codesearch");
         Object result = codesearch.codesearch("allowed code query", Integer.valueOf(5000));
         String text = String.valueOf(result);
 
@@ -438,7 +415,6 @@ class ToolRegistryWebAndCodeToolsTest {
                     }
                 };
 
-        approveNetworkOperationForTest("https://api.search.brave.com/res/v1/web/search");
         Document document =
                 websearch.websearch(
                         "solon ai", Integer.valueOf(2), "fallback", "auto", Integer.valueOf(1000));
@@ -459,7 +435,6 @@ class ToolRegistryWebAndCodeToolsTest {
                 new SolonClawWebTools.SafeWebsearchTool(
                         new SecurityPolicyService(env.appConfig), null, env.appConfig);
 
-        approveNetworkOperationForTest("https://api.search.brave.com/res/v1/web/search");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -487,7 +462,6 @@ class ToolRegistryWebAndCodeToolsTest {
                     }
                 };
 
-        approveNetworkOperationForTest("https://api.search.brave.com/res/v1/web/search");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -516,7 +490,6 @@ class ToolRegistryWebAndCodeToolsTest {
                     }
                 };
 
-        approveNetworkOperationForTest("https://api.search.brave.com/res/v1/web/search");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -549,7 +522,6 @@ class ToolRegistryWebAndCodeToolsTest {
                     }
                 };
 
-        approveNetworkOperationForTest("https://html.duckduckgo.com/html/");
         Document document =
                 websearch.websearch(
                         "solon ai", Integer.valueOf(2), "fallback", "auto", Integer.valueOf(1000));
@@ -578,7 +550,6 @@ class ToolRegistryWebAndCodeToolsTest {
                     }
                 };
 
-        approveNetworkOperationForTest("https://html.duckduckgo.com/html/");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -605,7 +576,6 @@ class ToolRegistryWebAndCodeToolsTest {
                     }
                 };
 
-        approveNetworkOperationForTest("https://html.duckduckgo.com/html/");
         assertThatThrownBy(
                         () ->
                                 websearch.websearch(
@@ -642,7 +612,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -672,7 +641,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -701,7 +669,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -723,7 +690,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -745,7 +711,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://codesearch");
         Object result = codesearch.codesearch("allowed code query", Integer.valueOf(5000));
 
         assertThat(result).isInstanceOf(String.class);
@@ -768,7 +733,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://codesearch");
         assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略")
@@ -790,7 +754,6 @@ class ToolRegistryWebAndCodeToolsTest {
                             }
                         });
 
-        approveNetworkOperationForTest("tool://codesearch");
         Object result = codesearch.codesearch("allowed code query", Integer.valueOf(5000));
 
         assertThat(result).isInstanceOf(String.class);

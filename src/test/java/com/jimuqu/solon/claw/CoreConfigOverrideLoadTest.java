@@ -391,7 +391,7 @@ public class CoreConfigOverrideLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
-        assertThat(config.getSecurity().isTirithFailOpen()).isFalse();
+        assertThat(config.getSecurity().isTirithFailOpen()).isTrue();
         assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("strict");
         assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("strict");
         assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("approval");
@@ -602,8 +602,7 @@ public class CoreConfigOverrideLoadTest {
         assertThat(policy.checkUrl("http://127.0.0.1:8080/status").isAllowed()).isTrue();
         assertThat(policy.checkUrl("https://docs.blocked.example/page").isAllowed()).isFalse();
         assertThat(policy.checkUrl("https://a.tracking.example/pixel").isAllowed()).isFalse();
-        assertUrlApprovalRequired(
-                policy.checkUrl("https://tracking.example/pixel"), "network_external_operation");
+        assertThat(policy.checkUrl("https://tracking.example/pixel").isAllowed()).isTrue();
     }
 
     @Test
@@ -646,12 +645,5 @@ public class CoreConfigOverrideLoadTest {
         protected InetAddress[] resolveHost(String host) throws Exception {
             return new InetAddress[] {InetAddress.getByName(ip)};
         }
-    }
-
-    private static void assertUrlApprovalRequired(
-            SecurityPolicyService.UrlVerdict verdict, String policyKey) {
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.isApprovalRequired()).isTrue();
-        assertThat(verdict.getPolicyKey()).isEqualTo(policyKey);
     }
 }

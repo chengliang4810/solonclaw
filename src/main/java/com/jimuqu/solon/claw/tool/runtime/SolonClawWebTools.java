@@ -105,29 +105,6 @@ public class SolonClawWebTools {
     }
 
     /**
-     * 检查无显式 URL 但会发起外部网络请求的工具。
-     *
-     * @param securityPolicyService 安全策略服务依赖。
-     * @param toolName 工具名称。
-     */
-    private static void checkExternalNetworkOperation(
-            SecurityPolicyService securityPolicyService, String toolName) {
-        if (securityPolicyService == null) {
-            return;
-        }
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkExternalNetworkOperation(toolName);
-        if (!verdict.isAllowed()) {
-            throw new IllegalArgumentException(
-                    "APPROVAL_REQUIRED: "
-                            + verdict.getMessage()
-                            + " url="
-                            + SecretRedactor.maskUrl(verdict.getUrl())
-                            + "。请先在对话审批该单次操作。");
-        }
-    }
-
-    /**
      * 检查URL。
      *
      * @param securityPolicyService 安全策略服务依赖。
@@ -432,7 +409,6 @@ public class SolonClawWebTools {
                 checkReturnedUrls(securityPolicyService, document);
                 return safeDocument(document);
             }
-            checkExternalNetworkOperation(securityPolicyService, ToolNameConstants.WEBSEARCH);
             Document document =
                     documentFromTalent(
                             delegate.websearch(
@@ -827,7 +803,6 @@ public class SolonClawWebTools {
             args.put("query", query);
             args.put("tokensNum", tokensNum);
             check(securityPolicyService, ToolNameConstants.CODESEARCH, args);
-            checkExternalNetworkOperation(securityPolicyService, ToolNameConstants.CODESEARCH);
             Object result = delegate.codesearch(query, tokensNum);
             checkReturnedUrls(securityPolicyService, result);
             return safeValue(result);

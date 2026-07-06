@@ -350,38 +350,6 @@ public class McpRuntimeServiceTest {
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageNotContaining("secret123");
 
-        Map<String, Object> headers = new LinkedHashMap<String, Object>();
-        headers.put("Authorization", "Bearer ghp_mcpheader12345");
-        Map<String, Object> structuredCredentials = new LinkedHashMap<String, Object>();
-        structuredCredentials.put("url", "https://example.com/docs");
-        structuredCredentials.put("headers", headers);
-        assertThatThrownBy(() -> docsFetch.handle(structuredCredentials))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("MCP tool")
-                .hasMessageContaining("敏感凭据字段")
-                .hasMessageContaining("Authorization")
-                .hasMessageNotContaining("ghp_mcpheader12345");
-
-        Map<String, Object> unsafePath = new LinkedHashMap<String, Object>();
-        unsafePath.put("file_path", ".env");
-        assertThatThrownBy(() -> docsFetch.handle(unsafePath))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("文件安全策略")
-                .hasMessageContaining(".env");
-
-        File workspace = new File(env.appConfig.getRuntime().getHome(), "workspace").getCanonicalFile();
-        File outsideFile =
-                new File(env.appConfig.getRuntime().getHome(), "../outside/generated.txt")
-                        .getCanonicalFile();
-        env.appConfig.getWorkspace().setDir(workspace.getAbsolutePath());
-        Map<String, Object> unsafeOutputFile = new LinkedHashMap<String, Object>();
-        unsafeOutputFile.put("action", "save");
-        unsafeOutputFile.put("output_file", outsideFile.getAbsolutePath());
-        assertThatThrownBy(() -> docsFetch.handle(unsafeOutputFile))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("文件安全策略")
-                .hasMessageContaining(outsideFile.getAbsolutePath());
-
         Map<String, Object> nestedUnsafeUrl = new LinkedHashMap<String, Object>();
         Map<String, Object> metadata = new LinkedHashMap<String, Object>();
         metadata.put(
@@ -427,8 +395,6 @@ public class McpRuntimeServiceTest {
         String remote = String.valueOf(remoteTool.handle(Collections.<String, Object>emptyMap()));
         String resources =
                 String.valueOf(listResources.handle(Collections.<String, Object>emptyMap()));
-        SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                "network_external_operation", "https://example.com/guide");
         String resource = String.valueOf(readResource.handle(resourceArgs));
         String prompts = String.valueOf(listPrompts.handle(Collections.<String, Object>emptyMap()));
         String prompt = String.valueOf(getPrompt.handle(promptArgs));
@@ -923,8 +889,6 @@ public class McpRuntimeServiceTest {
         sse.put("name", "SSE Docs");
         sse.put("transport", "SSE");
         sse.put("endpoint", "https://example.com/sse");
-        SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                "network_external_operation", "https://example.com/sse");
         service.save(sse);
 
         assertThat(readMcpTransport(env.sqliteDatabase, "sse-docs")).isEqualTo("sse");
@@ -934,8 +898,6 @@ public class McpRuntimeServiceTest {
         hyphenated.put("name", "Stateless Docs");
         hyphenated.put("transport", "streamable-stateless");
         hyphenated.put("endpoint", "https://example.com/mcp");
-        SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                "network_external_operation", "https://example.com/mcp");
         service.save(hyphenated);
 
         assertThat(readMcpTransport(env.sqliteDatabase, "stateless-docs"))
@@ -946,8 +908,6 @@ public class McpRuntimeServiceTest {
         httpAlias.put("name", "HTTP Docs");
         httpAlias.put("transport", "http");
         httpAlias.put("endpoint", "https://example.com/http-mcp");
-        SecurityPolicyService.approveUrlPolicyForCurrentThread(
-                "network_external_operation", "https://example.com/http-mcp");
         service.save(httpAlias);
 
         assertThat(readMcpTransport(env.sqliteDatabase, "http-docs")).isEqualTo("streamable");

@@ -107,7 +107,7 @@ security.websiteBlocklist.sharedFiles:
 security.tirithEnabled: true
 security.tirithPath: tirith
 security.tirithTimeoutSeconds: 5
-security.tirithFailOpen: false
+security.tirithFailOpen: true
 security.fileGuardrailMode: strict
 security.urlGuardrailMode: strict
 security.guardrailMode: approval
