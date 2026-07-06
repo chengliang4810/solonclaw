@@ -33,6 +33,14 @@ assert.ok(
   'login page should preserve the guarded route that sent the user to login',
 )
 assert.ok(
+  router.includes("query: { redirect: to.fullPath }"),
+  'router guard should pass direct dashboard targets to login explicitly',
+)
+assert.ok(
+  loginView.includes("route.query.redirect"),
+  'login page should restore the explicit redirect query after token validation',
+)
+assert.ok(
   !loginView.includes('router.replace("/solonclaw/chat")'),
   'login page should not hardcode chat as every successful login target',
 )
