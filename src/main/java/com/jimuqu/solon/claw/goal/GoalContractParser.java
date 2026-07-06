@@ -93,7 +93,7 @@ public final class GoalContractParser {
         return new ParseResult(String.join("\n", headlineLines).trim(), contract);
     }
 
-    /** 找到可作为字段分隔的冒号位置；若冒号前文本不是已知别名候选，返回 -1 让调用方按 headline 处理。 */
+    /** 返回行内第一个冒号的索引；无冒号时返回 -1。别名判定由调用方 matchAlias 完成。 */
     private static int indexOfFieldColon(String line) {
         int idx = line.indexOf(':');
         return idx;

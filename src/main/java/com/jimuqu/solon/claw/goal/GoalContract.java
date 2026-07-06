@@ -32,9 +32,6 @@ public class GoalContract {
     /** 阻塞放弃条件，对应 Stop when blocked。 */
     private String stopWhen = "";
 
-    /** renderBlock 显示用的字段标签，顺序固定。 */
-    private static final String[] FIELD_KEYS = {"outcome", "verification", "constraints", "boundaries", "stopWhen"};
-
     /** renderBlock 显示用的字段中文/英文标签。 */
     private static final String[] FIELD_LABELS = {
         "Outcome", "Verification", "Constraints", "Boundaries", "Stop when blocked"
@@ -61,7 +58,7 @@ public class GoalContract {
     public String renderBlock() {
         String[] values = {outcome, verification, constraints, boundaries, stopWhen};
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < FIELD_KEYS.length; i++) {
+        for (int i = 0; i < FIELD_LABELS.length; i++) {
             String v = StrUtil.nullToEmpty(values[i]).trim();
             if (StrUtil.isBlank(v)) {
                 continue;
