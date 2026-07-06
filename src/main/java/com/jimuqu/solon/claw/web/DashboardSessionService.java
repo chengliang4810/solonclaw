@@ -130,7 +130,7 @@ public class DashboardSessionService {
             return Collections.singletonMap("messages", Collections.emptyList());
         }
 
-        List<ChatMessage> loadedMessages = MessageSupport.loadMessages(record.getNdjson());
+        List<ChatMessage> loadedMessages = visibleMessages(record);
         MessageSupport.dropCurrentSummaryArtifacts(
                 loadedMessages, record.getCompressedSummary());
         List<Map<String, Object>> messages = new ArrayList<Map<String, Object>>();
@@ -234,7 +234,7 @@ public class DashboardSessionService {
             empty.put("text", "当前会话不存在。");
             return empty;
         }
-        return sessionArtifactService.recap(record, maxExchanges);
+        return sessionArtifactService.recap(recordForArtifacts(record), maxExchanges);
     }
 
     /**
@@ -255,7 +255,7 @@ public class DashboardSessionService {
             empty.put("conversations", Collections.emptyList());
             return empty;
         }
-        return sessionArtifactService.trajectory(record, userQuery, completed);
+        return sessionArtifactService.trajectory(recordForArtifacts(record), userQuery, completed);
     }
 
     /**
@@ -277,7 +277,7 @@ public class DashboardSessionService {
             return empty;
         }
         Map<String, Object> saved =
-                sessionArtifactService.saveTrajectory(record, userQuery, completed);
+                sessionArtifactService.saveTrajectory(recordForArtifacts(record), userQuery, completed);
         saved.put("saved", Boolean.TRUE);
         return saved;
     }
@@ -428,7 +428,7 @@ public class DashboardSessionService {
      * @return 返回转换后的会话Info。
      */
     private Map<String, Object> toSessionInfo(SessionRecord record) throws Exception {
-        List<ChatMessage> messages = MessageSupport.loadMessages(record.getNdjson());
+        List<ChatMessage> messages = visibleMessages(record);
         List<AgentRunRecord> runs = recentRuns(record);
         int messageCount = messages.size();
         if (messageCount == 0) {
@@ -514,6 +514,66 @@ public class DashboardSessionService {
         } catch (Exception e) {
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * 读取 Dashboard 可见消息；会话正文为空但存在失败运行时，用运行预览补足详情、摘要和导出。
+     *
+     * @param record 会话记录。
+     * @return 返回可展示消息列表。
+     */
+    private List<ChatMessage> visibleMessages(SessionRecord record) throws Exception {
+        List<ChatMessage> messages = MessageSupport.loadMessages(record.getNdjson());
+        if (!messages.isEmpty()) {
+            return messages;
+        }
+        return runPreviewMessages(recentRuns(record));
+    }
+
+    /**
+     * 为 artifact 服务生成只读会话副本，避免把运行预览补足内容写回持久化会话正文。
+     *
+     * @param record 会话记录。
+     * @return 返回用于摘要和轨迹导出的会话记录。
+     */
+    private SessionRecord recordForArtifacts(SessionRecord record) throws Exception {
+        List<ChatMessage> messages = visibleMessages(record);
+        if (MessageSupport.loadMessages(record.getNdjson()).size() == messages.size()) {
+            return record;
+        }
+
+        SessionRecord copy = new SessionRecord();
+        copy.setSessionId(record.getSessionId());
+        copy.setTitle(record.getTitle());
+        copy.setLastResolvedModel(record.getLastResolvedModel());
+        copy.setLastResolvedProvider(record.getLastResolvedProvider());
+        copy.setNdjson(MessageSupport.toNdjson(messages));
+        return copy;
+    }
+
+    /**
+     * 将最近运行预览转换为用户可读消息，用于失败运行尚未落正文时的 Dashboard 只读展示。
+     *
+     * @param runs 最近运行记录。
+     * @return 返回按时间顺序排列的消息。
+     */
+    private List<ChatMessage> runPreviewMessages(List<AgentRunRecord> runs) {
+        List<ChatMessage> messages = new ArrayList<ChatMessage>();
+        for (int i = runs.size() - 1; i >= 0; i--) {
+            AgentRunRecord run = runs.get(i);
+            if (run == null) {
+                continue;
+            }
+            if (StrUtil.isNotBlank(run.getInputPreview())) {
+                messages.add(ChatMessage.ofUser(run.getInputPreview()));
+            }
+            String assistant =
+                    StrUtil.blankToDefault(run.getFinalReplyPreview(), run.getError());
+            if (StrUtil.isNotBlank(assistant)) {
+                messages.add(ChatMessage.ofAssistant(assistant));
+            }
+        }
+        return messages;
     }
 
     /**
