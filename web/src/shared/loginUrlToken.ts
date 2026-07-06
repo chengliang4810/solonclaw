@@ -37,9 +37,10 @@ export function normalizeLoginTokenUrl(
   const nextSearch = urlParams.toString()
   const nextHashQuery = hashParams?.toString() || ''
   const nextHash = `${hashRoutePath || directRouteHash || '#/'}${nextHashQuery ? `?${nextHashQuery}` : ''}`
+  const nextPathname = directRouteHash ? '/' : location.pathname
   return {
     token,
-    nextUrl: `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}${nextHash}`,
+    nextUrl: `${nextPathname}${nextSearch ? `?${nextSearch}` : ''}${nextHash}`,
   }
 }
 

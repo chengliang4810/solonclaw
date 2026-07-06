@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 
 import { normalizeLoginTokenUrl } from '../src/shared/loginUrlToken.ts'
 
-const directRoute = (pathname: string) => pathname === '/chat' ? '#/solonclaw/chat' : ''
+const directRoute = (pathname: string) => {
+  if (pathname === '/chat') return '#/solonclaw/chat'
+  if (pathname === '/diagnostics') return '#/solonclaw/diagnostics'
+  return ''
+}
 
 const search = normalizeLoginTokenUrl(
   { pathname: '/solonclaw', search: '?token=abc&keep=1', hash: '#/solonclaw/chat?x=1' },
@@ -47,4 +51,8 @@ assert.doesNotThrow(
 
 const direct = normalizeLoginTokenUrl({ pathname: '/chat', search: '', hash: '' }, directRoute)
 assert.equal(direct.token, '', 'direct route normalization should not invent a token')
-assert.equal(direct.nextUrl, '/chat#/solonclaw/chat', 'direct dashboard paths should normalize before router starts')
+assert.equal(direct.nextUrl, '/#/solonclaw/chat', 'direct dashboard paths should normalize to the root hash router before router starts')
+
+const diagnostics = normalizeLoginTokenUrl({ pathname: '/diagnostics', search: '', hash: '' }, directRoute)
+assert.equal(diagnostics.token, '', 'diagnostics direct route normalization should not invent a token')
+assert.equal(diagnostics.nextUrl, '/#/solonclaw/diagnostics', 'diagnostics direct route should land on the diagnostics hash route')
