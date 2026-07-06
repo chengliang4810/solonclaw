@@ -53,4 +53,15 @@ public final class GoalPromptTemplates {
     /** Judge 用户提示模板。 */
     public static final String JUDGE_USER_PROMPT_TEMPLATE =
             "Goal: %s\n\nLast assistant response:\n%s\n\nReturn your JSON verdict.";
+
+    /** draft-contract 系统提示：把裸目标转为 5 字段 JSON 契约。 */
+    public static final String DRAFT_CONTRACT_SYSTEM_PROMPT =
+            "You draft a completion contract for a standing goal. Output ONLY JSON with keys: "
+                    + "outcome, verification, constraints, boundaries, stop_when. Each value is a short string. "
+                    + "Leave a field empty if not applicable. Example:\n"
+                    + "{\"outcome\":\"...\",\"verification\":\"...\",\"constraints\":\"\","
+                    + "\"boundaries\":\"\",\"stop_when\":\"\"}";
+
+    /** draft-contract 用户提示模板。 */
+    public static final String DRAFT_CONTRACT_USER_TEMPLATE = "Goal: %s";
 }

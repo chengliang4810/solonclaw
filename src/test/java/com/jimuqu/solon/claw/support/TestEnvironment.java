@@ -55,6 +55,7 @@ import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.goal.GoalContractDrafter;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.HeuristicGoalJudge;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
@@ -486,6 +487,7 @@ public class TestEnvironment {
                         agentRunRepository,
                         dashboardMcpService,
                         goalService,
+                        new GoalContractDrafter(llmGateway, config.getGoal()),
                         new SessionArtifactService(config),
                         null,
                         gatewayRestartCoordinator,

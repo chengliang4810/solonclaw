@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
+import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.CommandService;
@@ -40,6 +41,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartNotificationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.goal.GoalContractDrafter;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.LlmGoalJudge;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
@@ -236,6 +238,18 @@ public class GatewayConfiguration {
     }
 
     /**
+     * 执行目标契约起草器相关逻辑，供 /goal draft 调用辅助模型起草完成契约。
+     *
+     * @param llmGateway LLM 网关，供发起 auxiliary 聊天。
+     * @param appConfig 应用运行配置，提供 goal 子配置。
+     * @return 返回goal契约起草器结果。
+     */
+    @Bean
+    public GoalContractDrafter goalContractDrafter(LlmGateway llmGateway, AppConfig appConfig) {
+        return new GoalContractDrafter(llmGateway, appConfig.getGoal());
+    }
+
+    /**
      * 执行消息网关重启Coordinator相关逻辑。
      *
      * @param appConfig 应用运行配置。
@@ -299,6 +313,7 @@ public class GatewayConfiguration {
      * @param agentRunRepository Agent运行仓储依赖。
      * @param dashboardMcpService dashboardMCP服务依赖。
      * @param goalService 目标服务依赖。
+     * @param goalContractDrafter 目标契约起草器依赖，用于 /goal draft。
      * @param sessionArtifactService 会话Artifact服务依赖。
      * @param defaultCronScheduler 默认定时任务调度器参数。
      * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
@@ -337,6 +352,7 @@ public class GatewayConfiguration {
             AgentRunRepository agentRunRepository,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
+            GoalContractDrafter goalContractDrafter,
             SessionArtifactService sessionArtifactService,
             DefaultCronScheduler defaultCronScheduler,
             GatewayRestartCoordinator gatewayRestartCoordinator,
@@ -372,6 +388,7 @@ public class GatewayConfiguration {
                 agentRunRepository,
                 dashboardMcpService,
                 goalService,
+                goalContractDrafter,
                 sessionArtifactService,
                 defaultCronScheduler,
                 gatewayRestartCoordinator,
@@ -398,6 +415,7 @@ public class GatewayConfiguration {
      * @param channelAdapters 渠道Adapters参数。
      * @param channelConnectionManager 渠道连接Manager参数。
      * @param gatewayRestartNotificationService 网关RestartNotification服务依赖。
+     * @param agentRunSupervisor Agent 运行监督器，启用 goal 续轮抢占检查。
      * @return 返回消息网关服务结果。
      */
     @Bean
@@ -411,7 +429,8 @@ public class GatewayConfiguration {
             AttachmentCacheService attachmentCacheService,
             Map<PlatformType, ChannelAdapter> channelAdapters,
             ChannelConnectionManager channelConnectionManager,
-            GatewayRestartNotificationService gatewayRestartNotificationService) {
+            GatewayRestartNotificationService gatewayRestartNotificationService,
+            AgentRunSupervisor agentRunSupervisor) {
         final DefaultGatewayService service =
                 new DefaultGatewayService(
                         commandService,
@@ -422,6 +441,7 @@ public class GatewayConfiguration {
                         skillLearningService,
                         attachmentCacheService,
                         channelAdapters);
+        service.setAgentRunSupervisor(agentRunSupervisor);
 
         channelConnectionManager.bindInboundHandler(
                 new InboundMessageHandler() {

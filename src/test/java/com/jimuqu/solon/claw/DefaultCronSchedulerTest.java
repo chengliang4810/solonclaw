@@ -3157,6 +3157,7 @@ public class DefaultCronSchedulerTest {
                         env.agentRunRepository,
                         null,
                         null,
+                        null,
                         new SessionArtifactService(env.appConfig),
                         scheduler,
                         null,

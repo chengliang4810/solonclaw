@@ -286,10 +286,10 @@ public class GoalService {
     }
 
     /**
-     * 执行状态行相关逻辑。
+     * 渲染目标状态行，含轮次预算、子目标数、契约标记、等待屏障等 meta。
      *
      * @param session 会话参数。
-     * @return 返回状态Line结果。
+     * @return 返回状态Line结果；无目标或已清除返回提示。
      */
     public String statusLine(SessionRecord session) {
         GoalState state = get(session);
@@ -297,19 +297,34 @@ public class GoalService {
             return "No active goal. Set one with /goal <text>.";
         }
         String turns = state.getTurnsUsed() + "/" + state.getMaxTurns() + " turns";
-        String judge = judgeSummary(state);
+        String meta = turns;
+        // 子目标数 meta
+        if (state.getSubgoals() != null && !state.getSubgoals().isEmpty()) {
+            meta += ", " + state.getSubgoals().size() + " subgoal(s)";
+        }
+        // 完成契约标记 meta
+        if (state.hasContract()) {
+            meta += ", contract";
+        }
+        // judge 摘要 meta（最近一次裁决的 verdict 与 reason）
+        meta += judgeSummary(state);
+        // 等待屏障状态（parked）：仍在等待时优先展示
+        if (state.isActive() && state.isWaiting()) {
+            String reason = StrUtil.blankToDefault(state.getWaitingReason(), "waiting");
+            return "⏳ Goal (parked, " + meta + " — " + reason + "): " + state.getGoal();
+        }
         if (GoalState.STATUS_ACTIVE.equals(state.getStatus())) {
-            return "⊙ Goal (active, " + turns + judge + "): " + state.getGoal();
+            return "⊙ Goal (active, " + meta + "): " + state.getGoal();
         }
         if (GoalState.STATUS_PAUSED.equals(state.getStatus())) {
             String extra =
                     StrUtil.isBlank(state.getPausedReason()) ? "" : " — " + state.getPausedReason();
-            return "⏸ Goal (paused, " + turns + judge + extra + "): " + state.getGoal();
+            return "⏸ Goal (paused, " + meta + extra + "): " + state.getGoal();
         }
         if (GoalState.STATUS_DONE.equals(state.getStatus())) {
-            return "✓ Goal done (" + turns + judge + "): " + state.getGoal();
+            return "✓ Goal done (" + meta + "): " + state.getGoal();
         }
-        return "Goal (" + state.getStatus() + ", " + turns + judge + "): " + state.getGoal();
+        return "Goal (" + state.getStatus() + ", " + meta + "): " + state.getGoal();
     }
 
     /**

@@ -38,6 +38,8 @@ import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
+import com.jimuqu.solon.claw.goal.GoalContract;
+import com.jimuqu.solon.claw.goal.GoalContractDrafter;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.goal.GoalContractParser;
@@ -151,6 +153,9 @@ public class DefaultCommandService implements CommandService {
     /** 注入目标服务，用于调用对应业务能力。 */
     private final GoalService goalService;
 
+    /** 注入目标契约起草器，用于 /goal draft 把裸目标起草为完成契约。 */
+    private final GoalContractDrafter goalContractDrafter;
+
     /** 注入会话Artifact服务，用于调用对应业务能力。 */
     private final SessionArtifactService sessionArtifactService;
 
@@ -210,6 +215,7 @@ public class DefaultCommandService implements CommandService {
      * @param agentRunRepository Agent运行仓储依赖。
      * @param dashboardMcpService dashboardMCP服务依赖。
      * @param goalService 目标服务依赖。
+     * @param goalContractDrafter 目标契约起草器依赖，用于 /goal draft。
      * @param sessionArtifactService 会话Artifact服务依赖。
      * @param cronScheduler 定时任务调度器参数。
      * @param gatewayRestartCoordinator 网关RestartCoordinator参数。
@@ -246,6 +252,7 @@ public class DefaultCommandService implements CommandService {
             AgentRunRepository agentRunRepository,
             DashboardMcpService dashboardMcpService,
             GoalService goalService,
+            GoalContractDrafter goalContractDrafter,
             SessionArtifactService sessionArtifactService,
             DefaultCronScheduler cronScheduler,
             GatewayRestartCoordinator gatewayRestartCoordinator,
@@ -281,6 +288,7 @@ public class DefaultCommandService implements CommandService {
         this.agentRunRepository = agentRunRepository;
         this.dashboardMcpService = dashboardMcpService;
         this.goalService = goalService == null ? new GoalService(sessionRepository) : goalService;
+        this.goalContractDrafter = goalContractDrafter;
         this.sessionArtifactService =
                 sessionArtifactService == null
                         ? new SessionArtifactService()
@@ -1031,9 +1039,29 @@ public class DefaultCommandService implements CommandService {
             String body = goalService.statusLine(session) + "\n" + goalService.renderContract(session);
             return okGoalReply(session, body);
         }
-        // draft：留到 Task 13 实现，先返回提示
+        // draft：用辅助模型把裸目标起草为完成契约后再设置目标
         if (raw.toLowerCase().startsWith("draft ")) {
-            return okGoalReply(session, "/goal draft 暂未实现，请用 /goal <目标> 直接设置。");
+            String objective = raw.substring(6).trim();
+            if (StrUtil.isBlank(objective)) {
+                return okGoalReply(session, "用法：/goal draft <目标>");
+            }
+            GoalContract drafted =
+                    goalContractDrafter == null
+                            ? new GoalContract()
+                            : goalContractDrafter.draft(objective);
+            GoalState state = goalService.set(session, objective, drafted, defaultGoalMaxTurns());
+            GatewayReply reply =
+                    okGoalReply(
+                            session,
+                            "⊙ Goal set with drafted contract ("
+                                    + state.getMaxTurns()
+                                    + "-turn budget): "
+                                    + state.getGoal()
+                                    + (state.hasContract()
+                                            ? "\n" + state.getContract().renderBlock()
+                                            : ""));
+            reply.getRuntimeMetadata().put("goal_kickoff", state.getGoal());
+            return reply;
         }
         // pause/resume
         if ("pause".equalsIgnoreCase(raw)) {
@@ -1112,6 +1140,19 @@ public class DefaultCommandService implements CommandService {
         reply.setSessionId(session.getSessionId());
         reply.setBranchName(session.getBranchName());
         return reply;
+    }
+
+    /**
+     * 读取配置中的默认目标轮次预算。
+     *
+     * @return 大于 0 的最大轮次。
+     */
+    private int defaultGoalMaxTurns() {
+        int configured =
+                appConfig == null || appConfig.getGoal() == null
+                        ? 0
+                        : appConfig.getGoal().getMaxTurns();
+        return configured > 0 ? configured : GoalState.DEFAULT_MAX_TURNS;
     }
 
     /**

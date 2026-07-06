@@ -65,6 +65,9 @@ public class GatewayMessage {
     /** 是否为 heartbeat 触发的合成消息。 */
     private boolean heartbeat;
 
+    /** 标记本消息是 goal 续轮/kickoff 合成消息（非真实用户输入），用于抢占判定，不参与序列化。 */
+    private transient boolean goalContinuation;
+
     /** 入站附件列表。 */
     private List<MessageAttachment> attachments = new ArrayList<MessageAttachment>();
 
