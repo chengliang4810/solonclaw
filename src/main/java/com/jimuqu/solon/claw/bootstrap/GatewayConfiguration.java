@@ -23,6 +23,7 @@ import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
+import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
@@ -40,6 +41,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartNotificationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.goal.LlmGoalJudge;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
@@ -220,11 +222,17 @@ public class GatewayConfiguration {
      * 执行目标服务相关逻辑。
      *
      * @param sessionRepository 会话仓储依赖。
+     * @param llmGateway LLM 网关，供 LLM 裁决器发起 auxiliary 调用。
+     * @param appConfig 应用运行配置，提供 goal 子配置。
      * @return 返回goal服务结果。
      */
     @Bean
-    public GoalService goalService(SessionRepository sessionRepository) {
-        return new GoalService(sessionRepository);
+    public GoalService goalService(
+            SessionRepository sessionRepository,
+            LlmGateway llmGateway,
+            AppConfig appConfig) {
+        LlmGoalJudge llmJudge = new LlmGoalJudge(llmGateway, appConfig.getGoal());
+        return new GoalService(sessionRepository, llmJudge, appConfig.getGoal());
     }
 
     /**

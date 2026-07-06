@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.goal;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 
@@ -11,6 +12,9 @@ public class GoalService {
 
     /** 记录目标中的judge。 */
     private final GoalJudge judge;
+
+    /** 记录目标中的goal配置（超时、轮次预算、解析失败上限等）。 */
+    private final AppConfig.GoalConfig goalConfig;
 
     /** 记录目标中的默认MaxTurns。 */
     private final int defaultMaxTurns;
@@ -34,7 +38,28 @@ public class GoalService {
     public GoalService(SessionRepository sessionRepository, GoalJudge judge, int defaultMaxTurns) {
         this.sessionRepository = sessionRepository;
         this.judge = judge == null ? new HeuristicGoalJudge() : judge;
+        this.goalConfig = new AppConfig.GoalConfig();
         this.defaultMaxTurns = defaultMaxTurns <= 0 ? GoalState.DEFAULT_MAX_TURNS : defaultMaxTurns;
+    }
+
+    /**
+     * 创建 Goal 服务实例，注入 judge 与 goal 配置。
+     *
+     * @param sessionRepository 会话仓储。
+     * @param judge 裁决器。
+     * @param goalConfig goal 配置。
+     */
+    public GoalService(
+            SessionRepository sessionRepository,
+            GoalJudge judge,
+            AppConfig.GoalConfig goalConfig) {
+        this.sessionRepository = sessionRepository;
+        this.judge = judge == null ? new HeuristicGoalJudge() : judge;
+        this.goalConfig = goalConfig == null ? new AppConfig.GoalConfig() : goalConfig;
+        this.defaultMaxTurns =
+                this.goalConfig.getMaxTurns() > 0
+                        ? this.goalConfig.getMaxTurns()
+                        : GoalState.DEFAULT_MAX_TURNS;
     }
 
     /**
@@ -201,7 +226,50 @@ public class GoalService {
         GoalJudgeRequest judgeReq =
                 new GoalJudgeRequest(
                         state.getGoal(), lastResponse, state.getSubgoals(), state.getContract());
-        GoalJudgeResult result = judge.judge(judgeReq);
+        GoalJudgeResult result;
+        try {
+            result = judge.judge(judgeReq);
+            state.setConsecutiveParseFailures(0); // 成功裁决（含 API 错误 fail-open）重置计数
+        } catch (GoalJudgeUnparseableException e) {
+            state.setConsecutiveParseFailures(state.getConsecutiveParseFailures() + 1);
+            int limit =
+                    goalConfig.getMaxConsecutiveParseFailures() > 0
+                            ? goalConfig.getMaxConsecutiveParseFailures()
+                            : 3;
+            if (state.getConsecutiveParseFailures() >= limit) {
+                state.setStatus(GoalState.STATUS_PAUSED);
+                state.setPausedReason("judge parse failures (" + limit + ")");
+                save(session, state);
+                decision.setStatus(GoalState.STATUS_PAUSED);
+                decision.setVerdict("skipped");
+                decision.setReason(e.getMessage());
+                decision.setMessage(
+                        "⏸ Goal paused — the judge model isn't returning valid JSON "
+                                + "("
+                                + limit
+                                + " times). Check auxiliary.goal_judge config or /goal clear.");
+                return decision;
+            }
+            // 未达上限：保存计数，fail-open continue
+            save(session, state);
+            decision.setStatus(GoalState.STATUS_ACTIVE);
+            decision.setShouldContinue(true);
+            decision.setContinuationPrompt(nextContinuationPrompt(state));
+            decision.setVerdict(GoalVerdict.CONTINUE);
+            decision.setReason(
+                    "judge parse failure "
+                            + state.getConsecutiveParseFailures()
+                            + "/"
+                            + limit
+                            + ", fail-open");
+            decision.setMessage(
+                    "↻ Continuing toward goal (judge parse fail "
+                            + state.getConsecutiveParseFailures()
+                            + "/"
+                            + limit
+                            + ")");
+            return decision;
+        }
         state.setLastVerdict(result.getVerdict());
         state.setLastReason(result.getReason());
 

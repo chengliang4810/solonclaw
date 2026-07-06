@@ -56,6 +56,7 @@ import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.goal.HeuristicGoalJudge;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -421,7 +422,8 @@ public class TestEnvironment {
                         contextBudgetService,
                         llmGateway,
                         llmProviderService);
-        GoalService goalService = new GoalService(sessionRepository);
+        GoalService goalService =
+                new GoalService(sessionRepository, new HeuristicGoalJudge(), config.getGoal());
         ConversationOrchestrator orchestrator =
                 new DefaultConversationOrchestrator(
                         sessionRepository,
