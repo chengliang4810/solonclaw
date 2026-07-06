@@ -767,7 +767,7 @@ export default {
     auditCommandPlaceholder: '输入待审计命令',
     auditUrlPlaceholder: 'https://example.com',
     auditPathPlaceholder: 'workspace/config.yml',
-    auditArgsPlaceholder: '{"url":"https://example.com"}',
+    auditArgsPlaceholder: "{'{\"url\":\"https://example.com\"}'}",
     auditStatusHint: '只读取当前安全策略摘要，不执行命令、不访问 URL、不读取文件。',
     auditPolicyHint: '读取完整安全策略覆盖面，用于检查所有审计面是否已接入。',
     auditRun: '审计',
@@ -1297,7 +1297,7 @@ export default {
       endpoint: 'https://example.com/mcp',
       command: 'node',
       commandArgsJson: '["server.js", "--stdio"]',
-      toolsJson: '[{"name":"docs_search","description":"检索文档"}]',
+      toolsJson: "{'[{\"name\":\"docs_search\",\"description\":\"检索文档\"}]'}",
     },
     oauth: {
       title: 'OAuth 授权',

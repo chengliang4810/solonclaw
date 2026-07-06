@@ -155,6 +155,30 @@ public class DashboardControllerHttpTest {
         assertThat(item).isNotNull();
         assertThat(item.get("message_count").getInt()).isEqualTo(2);
         assertThat(item.get("preview").getString()).isEqualTo(userInput);
+
+        HttpResult messages =
+                request("GET", "/api/sessions/" + sessionId + "/messages", null, token);
+        assertThat(messages.status).isEqualTo(200);
+        ONode messageList = ONode.ofJson(messages.body).get("data").get("messages");
+        assertThat(messageList.size()).isEqualTo(2);
+        assertThat(messageList.get(0).get("role").getString()).isEqualTo("user");
+        assertThat(messageList.get(0).get("content").getString()).isEqualTo(userInput);
+        assertThat(messageList.get(1).get("role").getString()).isEqualTo("assistant");
+        assertThat(messageList.get(1).get("content").getString()).contains("401 Invalid API Key");
+
+        HttpResult recap = request("GET", "/api/sessions/" + sessionId + "/recap", null, token);
+        assertThat(recap.status).isEqualTo(200);
+        assertThat(ONode.ofJson(recap.body).get("data").get("text").getString())
+                .contains(userInput)
+                .contains("401 Invalid API Key");
+
+        HttpResult trajectory =
+                request("GET", "/api/sessions/" + sessionId + "/trajectory", null, token);
+        assertThat(trajectory.status).isEqualTo(200);
+        ONode conversations = ONode.ofJson(trajectory.body).get("data").get("conversations");
+        assertThat(conversations.size()).isGreaterThanOrEqualTo(3);
+        assertThat(conversations.get(1).get("from").getString()).isEqualTo("human");
+        assertThat(conversations.get(1).get("value").getString()).isEqualTo(userInput);
     }
 
     @Test

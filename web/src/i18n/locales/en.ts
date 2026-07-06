@@ -337,7 +337,7 @@ export default {
       endpoint: 'https://example.com/mcp',
       command: 'node',
       commandArgsJson: '["server.js", "--stdio"]',
-      toolsJson: '[{"name":"docs_search","description":"Search documents"}]',
+      toolsJson: "{'[{\"name\":\"docs_search\",\"description\":\"Search documents\"}]'}",
     },
     oauth: {
       title: 'OAuth authorization',
@@ -480,7 +480,7 @@ export default {
     auditCommandPlaceholder: 'Enter a command to audit',
     auditUrlPlaceholder: 'https://example.com',
     auditPathPlaceholder: 'workspace/config.yml',
-    auditArgsPlaceholder: '{"url":"https://example.com"}',
+    auditArgsPlaceholder: "{'{\"url\":\"https://example.com\"}'}",
     auditStatusHint: 'Reads only the current security policy summary. Does not execute commands, access URLs, or read files.',
     auditPolicyHint: 'Reads the full security policy coverage so every audit surface can be checked.',
     auditRun: 'Audit',

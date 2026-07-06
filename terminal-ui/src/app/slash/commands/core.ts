@@ -111,6 +111,7 @@ export const coreCommands: SlashCommand[] = [
               'override one section (thinking/tools/subagents/activity)'
             ],
             ['/mouse [off|wheel|buttons|all]', 'set terminal mouse tracking preset'],
+            ['/terminal-setup [auto|vscode|cursor|windsurf]', 'configure IDE terminal keybindings'],
             ['/voice [status]', 'show local voice availability'],
             ['/fortune [random|daily]', 'show a random or daily local fortune']
           ],
