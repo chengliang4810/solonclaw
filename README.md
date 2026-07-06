@@ -87,6 +87,12 @@ java -jar target/solonclaw-0.0.1.jar
 http://127.0.0.1:8080
 ```
 
+首次打开 Dashboard 时输入一个新的访问令牌即可完成本机初始化；页面会通过本机限定的首次设置接口写入 `workspace/config.yml`。如果要提前固定访问令牌，也可以在启动时传入：
+
+```bash
+java -Dsolonclaw.dashboard.accessToken=your-token -jar target/solonclaw-0.0.1.jar
+```
+
 运行后会在当前目录创建 `workspace/`，用于保存 Agent 工作区、配置、SQLite 数据库、缓存、日志、技能和上下文文件。运行态子目录由程序内置派生：`context/`、`skills/`、`cache/`、`logs/` 和 `data/state.db`。
 
 ### Docker Compose

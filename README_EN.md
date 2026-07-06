@@ -64,6 +64,12 @@ The default endpoint is:
 http://127.0.0.1:8080
 ```
 
+On first Dashboard open, enter a new access token to initialize the local instance; the page writes it to `workspace/config.yml` through the localhost-only bootstrap endpoint. To pin the token before startup, pass:
+
+```bash
+java -Dsolonclaw.dashboard.accessToken=your-token -jar target/solonclaw-0.0.1.jar
+```
+
 On startup, the service creates a local `workspace/` directory for configuration, SQLite data, cache, logs, skills, and context files. Workspace children are derived by the program: `context/`, `skills/`, `cache/`, `logs/`, and `data/state.db`.
 
 ### Docker Compose
