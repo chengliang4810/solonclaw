@@ -56,6 +56,9 @@ public class AppConfig {
     /** 任务后自动学习配置。 */
     private LearningConfig learning = new LearningConfig();
 
+    /** goal 目标循环配置。 */
+    private GoalConfig goal = new GoalConfig();
+
     /** 技能后台维护配置。 */
     private CuratorConfig curator = new CuratorConfig();
 
@@ -167,6 +170,7 @@ public class AppConfig {
         copyScheduler(other.getScheduler());
         copyCompression(other.getCompression());
         copyLearning(other.getLearning());
+        copyGoal(other.getGoal());
         copyCurator(other.getCurator());
         copySkills(other.getSkills());
         copyRollback(other.getRollback());
@@ -367,6 +371,20 @@ public class AppConfig {
         this.learning.setEnabled(other.isEnabled());
         this.learning.setToolCallThreshold(other.getToolCallThreshold());
         this.learning.setAuxiliaryTimeoutSeconds(other.getAuxiliaryTimeoutSeconds());
+    }
+
+    /**
+     * 复制 goal 配置。
+     *
+     * @param other 源配置。
+     */
+    private void copyGoal(GoalConfig other) {
+        this.goal.setMaxTurns(other.getMaxTurns());
+        this.goal.setJudgeTimeoutSeconds(other.getJudgeTimeoutSeconds());
+        this.goal.setJudgeMaxTokens(other.getJudgeMaxTokens());
+        this.goal.setJudgeProvider(other.getJudgeProvider());
+        this.goal.setJudgeModel(other.getJudgeModel());
+        this.goal.setMaxConsecutiveParseFailures(other.getMaxConsecutiveParseFailures());
     }
 
     /**
@@ -988,6 +1006,30 @@ public class AppConfig {
 
         /** 辅助模型分类/总结调用总超时，单位秒。 */
         private int auxiliaryTimeoutSeconds = 60;
+    }
+
+    /** goal 目标循环相关配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class GoalConfig {
+        /** 默认轮次预算上限。 */
+        private int maxTurns = 20;
+
+        /** judge 辅助调用超时秒数。 */
+        private int judgeTimeoutSeconds = 30;
+
+        /** judge 最大 token 数。 */
+        private int judgeMaxTokens = 4096;
+
+        /** judge 使用的 provider，留空则用会话默认。 */
+        private String judgeProvider = "";
+
+        /** judge 使用的 model，留空则用会话默认。 */
+        private String judgeModel = "";
+
+        /** 连续 JSON 解析失败上限，超过自动暂停。 */
+        private int maxConsecutiveParseFailures = 3;
     }
 
     /** 技能后台维护配置。 */
