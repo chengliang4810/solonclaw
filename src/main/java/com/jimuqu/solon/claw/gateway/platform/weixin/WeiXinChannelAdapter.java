@@ -281,6 +281,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         pendingTextBatches.clear();
         pendingTextBatchTasks.clear();
+        // 关闭控制命令并发执行器，避免断开连接后线程泄漏
+        shutdownControlExecutor();
         setConnected(false);
         setDetail("disconnected");
     }
@@ -1388,6 +1390,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             final String chatType,
             final String chatId,
             final String contextToken) {
+        // 控制命令（/stop、/cancel）走并发执行器，避免被串行入站队列中运行中的任务阻塞而错过取消时机
+        if (isControlCommand(gatewayMessage.getText())) {
+            dispatchInboundControl(gatewayMessage);
+            return;
+        }
         try {
             ensureInboundExecutor()
                     .submit(

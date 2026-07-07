@@ -349,6 +349,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
             if (callbackExecutor != null) {
                 callbackExecutor.shutdownNow();
             }
+            // 关闭控制命令并发执行器，避免断开连接后线程泄漏
+            shutdownControlExecutor();
             setConnected(false);
             setDetail("stream mode disconnected");
         }
@@ -455,6 +457,33 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (callbackExecutor == null || inboundMessageHandler() == null || message == null) {
             return;
         }
+        // 控制命令（/stop、/cancel）走并发执行器，避免被串行回调队列中运行中的任务阻塞而错过取消时机
+        if (isControlCommand(extractText(message))) {
+            // 复用现有转换逻辑构造网关消息后再投递到控制执行器
+            final String text = extractText(message);
+            String conversationId =
+                    notBlank(message.getConversationId())
+                            ? message.getConversationId()
+                            : message.getSenderId();
+            String chatType =
+                    "2".equals(String.valueOf(message.getConversationType())) ? "group" : "dm";
+            String userId =
+                    notBlank(message.getSenderStaffId())
+                            ? message.getSenderStaffId()
+                            : message.getSenderId();
+            GatewayMessage gatewayMessage =
+                    new GatewayMessage(PlatformType.DINGTALK, conversationId, userId, text);
+            gatewayMessage.setChatType(chatType);
+            gatewayMessage.setChatName(
+                    notBlank(message.getConversationTitle())
+                            ? message.getConversationTitle()
+                            : conversationId);
+            gatewayMessage.setUserName(
+                    notBlank(message.getSenderNick()) ? message.getSenderNick() : userId);
+            gatewayMessage.setThreadId(message.getMsgId());
+            dispatchInboundControl(gatewayMessage);
+            return;
+        }
         callbackExecutor.submit(
                 new Runnable() {
                     /** 执行异步任务主体。 */
@@ -542,16 +571,22 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (callbackExecutor == null || inboundMessageHandler() == null || payload == null) {
             return;
         }
+        // 先解析卡片回调消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞
+        final GatewayMessage message = toCardCallbackMessage(payload);
+        if (message == null) {
+            return;
+        }
+        if (isControlCommand(message.getText())) {
+            dispatchInboundControl(message);
+            return;
+        }
         callbackExecutor.submit(
                 new Runnable() {
                     /** 执行异步任务主体。 */
                     @Override
                     public void run() {
                         try {
-                            GatewayMessage message = toCardCallbackMessage(payload);
-                            if (message != null) {
-                                inboundMessageHandler().handle(message);
-                            }
+                            inboundMessageHandler().handle(message);
                         } catch (Exception e) {
                             log.warn(
                                     "[DINGTALK] card callback dispatch failed: errorType={}, error={}",

@@ -331,6 +331,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             inboundExecutor.shutdownNow();
             inboundExecutor = null;
         }
+        // 关闭控制命令并发执行器，避免断开连接后线程泄漏
+        shutdownControlExecutor();
         setConnected(false);
         setDetail("disconnected");
     }
@@ -380,6 +382,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         event == null ? null : event.getMessage(),
                         event == null ? null : event.getSender());
         if (message != null && inboundMessageHandler() != null) {
+            // 控制命令（/stop、/cancel）走并发执行器，避免被串行入站队列中运行中的任务阻塞而错过取消时机
+            if (isControlCommand(message.getText())) {
+                dispatchInboundControl(message);
+                return;
+            }
             try {
                 inboundMessageHandler().handle(message);
             } catch (Exception e) {
@@ -506,6 +513,15 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (!config.isCommentEnabled() || inboundMessageHandler() == null) {
             return;
         }
+        // 先解析评论消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞
+        GatewayMessage message = toCommentGatewayMessage(req);
+        if (message == null) {
+            return;
+        }
+        if (isControlCommand(message.getText())) {
+            dispatchInboundControl(message);
+            return;
+        }
         if (inboundExecutor == null) {
             inboundExecutor = Executors.newSingleThreadExecutor();
         }
@@ -515,10 +531,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                     @Override
                     public void run() {
                         try {
-                            GatewayMessage message = toCommentGatewayMessage(req);
-                            if (message != null) {
-                                inboundMessageHandler().handle(message);
-                            }
+                            inboundMessageHandler().handle(message);
                         } catch (Exception e) {
                             log.warn(
                                     "[FEISHU-COMMENT] dispatch failed: errorType={}, error={}",
