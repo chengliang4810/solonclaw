@@ -177,7 +177,7 @@ public class DangerousCommandGatewayApprovalTest {
                 .onAction(ariaCredentialTrace, exchange("execute_shell", ariaCredentialArgs));
 
         assertThat(ariaCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(ariaCredentialTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+        assertThat(ariaCredentialTrace.getFinalAnswer()).contains("URL 安全策略");
 
         Map<String, Object> ariaOutputCredentialArgs = new LinkedHashMap<String, Object>();
         ariaOutputCredentialArgs.put(

@@ -1047,10 +1047,6 @@ public class SecurityPolicyService {
         if (!compactOutputVerdict.allowed) {
             return compactOutputVerdict;
         }
-        FileVerdict credentialOptionVerdict = checkCredentialPathOptions(code);
-        if (!credentialOptionVerdict.allowed) {
-            return credentialOptionVerdict;
-        }
         Matcher quotedWindowsMatcher = QUOTED_WINDOWS_PATH_PATTERN.matcher(code);
         while (quotedWindowsMatcher.find()) {
             FileVerdict verdict =

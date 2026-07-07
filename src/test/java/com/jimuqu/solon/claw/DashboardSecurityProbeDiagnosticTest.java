@@ -1481,34 +1481,34 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(String.valueOf(commandArchiveCredentialPath))
                 .contains("tar")
                 .contains("[REDACTED_PATH]");
-        assertThat(commandCredentialOptionPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandCredentialOptionPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCredentialOptionPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandCredentialOptionPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandCredentialOptionPath.get("skipped")).isNull();
         assertThat(String.valueOf(commandCredentialOptionPath.get("target")))
                 .contains("ssh")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("deploy_key");
-        assertThat(commandCurlConfigCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandCurlConfigCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+                .contains("deploy_key")
+                .doesNotContain("[REDACTED_PATH]");
+        assertThat(commandCurlConfigCredentialPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandCurlConfigCredentialPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandCurlConfigCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(commandCurlConfigCredentialPath.get("target")))
                 .contains("curl")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".curlrc");
-        assertThat(commandCurlCookieCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandCurlCookieCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+                .contains(".curlrc")
+                .doesNotContain("[REDACTED_PATH]");
+        assertThat(commandCurlCookieCredentialPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandCurlCookieCredentialPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandCurlCookieCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(commandCurlCookieCredentialPath.get("target")))
                 .contains("-b")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("cookies.txt");
-        assertThat(commandWgetCookieCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandWgetCookieCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+                .contains("cookies.txt")
+                .doesNotContain("[REDACTED_PATH]");
+        assertThat(commandWgetCookieCredentialPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandWgetCookieCredentialPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandWgetCookieCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(commandWgetCookieCredentialPath.get("target")))
                 .contains("load-cookies")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("cookies.txt");
+                .contains("cookies.txt")
+                .doesNotContain("[REDACTED_PATH]");
         assertThat(commandKubectlKubeconfigPath.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandKubectlKubeconfigPath.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandKubectlKubeconfigPath.get("skipped")).isNull();
@@ -1517,13 +1517,13 @@ public class DashboardSecurityProbeDiagnosticTest {
                 .contains("--kubeconfig")
                 .contains("[REDACTED_PATH]")
                 .doesNotContain(" kubeconfig get");
-        assertThat(commandGcloudKeyFilePath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandGcloudKeyFilePath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandGcloudKeyFilePath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandGcloudKeyFilePath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandGcloudKeyFilePath.get("skipped")).isNull();
         assertThat(String.valueOf(commandGcloudKeyFilePath.get("target")))
                 .contains("gcloud")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("service.json");
+                .contains("service.json")
+                .doesNotContain("[REDACTED_PATH]");
         assertThat(commandEncodedPathTraversal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedPathTraversal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedPathTraversal.get("skipped")).isNull();
