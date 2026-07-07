@@ -505,6 +505,54 @@ public class WeixinInboundDispatchTest {
                 new AttachmentCacheService(config));
     }
 
+    @Test
+    void shouldStartAndCancelTypingHeartbeat() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        WeiXinChannelAdapter adapter = newAdapter(config);
+
+        // 直接通过反射调用 startTypingHeartbeat，验证返回非 null 的可取消调度句柄
+        Method startHeartbeat =
+                WeiXinChannelAdapter.class.getDeclaredMethod(
+                        "startTypingHeartbeat", String.class, String.class);
+        startHeartbeat.setAccessible(true);
+        java.util.concurrent.ScheduledFuture<?> heartbeat =
+                (java.util.concurrent.ScheduledFuture<?>)
+                        startHeartbeat.invoke(adapter, "wx-heartbeat-user", null);
+
+        org.assertj.core.api.Assertions.assertThat((Object) heartbeat).isNotNull();
+        assertThat(heartbeat.isCancelled()).isFalse();
+        assertThat(heartbeat.isDone()).isFalse();
+
+        // 等待至少一个心跳周期，确认任务在调度中（未抛异常、未自动结束）
+        TimeUnit.MILLISECONDS.sleep(2500L);
+        assertThat(heartbeat.isDone()).isFalse();
+
+        // 取消后确认不再调度
+        heartbeat.cancel(false);
+        assertThat(heartbeat.isCancelled()).isTrue();
+
+        adapter.disconnect();
+    }
+
+    @Test
+    void shouldNotStartTypingHeartbeatExecutorFailureIsSafe() throws Exception {
+        WeiXinChannelAdapter adapter = newAdapter();
+        // 心跳执行器懒加载；直接调用 startTypingHeartbeat 应安全返回非 null（无 ticket 静默）
+        Method startHeartbeat =
+                WeiXinChannelAdapter.class.getDeclaredMethod(
+                        "startTypingHeartbeat", String.class, String.class);
+        startHeartbeat.setAccessible(true);
+        java.util.concurrent.ScheduledFuture<?> heartbeat =
+                (java.util.concurrent.ScheduledFuture<?>)
+                        startHeartbeat.invoke(adapter, "wx-safe-user", null);
+        // 即使无 ticket，心跳调度本身应成功（sendTyping 内部静默 no-op）
+        org.assertj.core.api.Assertions.assertThat((Object) heartbeat).isNotNull();
+        heartbeat.cancel(false);
+        adapter.disconnect();
+    }
+
     private Object invoke(Method method, Object target, Object... args) throws Throwable {
         try {
             return method.invoke(target, args);

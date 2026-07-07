@@ -123,6 +123,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** TYPINGSTOP的统一常量值。 */
     private static final int TYPING_STOP = 2;
 
+    /**
+     * 输入状态心跳刷新间隔（秒）。
+     *
+     * <p>微信 sendtyping 信号不持久，几秒后即失效；参考实现在整个 Agent 运行期间每 2 秒刷新一次。
+     * 若任务时长超过该间隔，需要在运行中持续发送 TYPING_START，否则用户看不到“正在输入中”。
+     */
+    static final int TYPING_HEARTBEAT_INTERVAL_SECONDS = 2;
+
     /** 最大文本分片LENGTH的统一常量值。 */
     private static final int MAX_TEXT_CHUNK_LENGTH = 2000;
 
@@ -178,6 +186,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** 保存text Batch执行器执行组件，负责调度异步或定时任务。 */
     private volatile ScheduledExecutorService textBatchExecutor;
+
+    /**
+     * 输入状态心跳刷新执行器：在 Agent 运行期间周期性重发 sendtyping。
+     *
+     * <p>独立于 textBatchExecutor，避免与文本分片调度的生命周期和队列相互干扰。
+     */
+    private volatile ScheduledExecutorService typingHeartbeatExecutor;
 
     /** 是否启用polling。 */
     private volatile boolean polling;
@@ -1363,6 +1378,64 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     }
 
     /**
+     * 确保输入状态心跳执行器可用。
+     *
+     * <p>独立于 textBatchExecutor，避免与文本分片调度的队列相互干扰。懒加载，关闭或终止后自动重建。
+     *
+     * @return 输入状态心跳调度执行器。
+     */
+    private synchronized ScheduledExecutorService ensureTypingHeartbeatExecutor() {
+        if (typingHeartbeatExecutor == null
+                || typingHeartbeatExecutor.isShutdown()
+                || typingHeartbeatExecutor.isTerminated()) {
+            typingHeartbeatExecutor = BoundedExecutorFactory.scheduled("weixin-typing-heartbeat", 1);
+        }
+        return typingHeartbeatExecutor;
+    }
+
+    /**
+     * 启动输入状态心跳：每 {@link #TYPING_HEARTBEAT_INTERVAL_SECONDS} 秒刷新 ticket 并重发 sendtyping。
+     *
+     * <p>微信 typing 信号不持久，几秒后即失效；整个 Agent 运行期间需周期性重发，
+     * 否则长任务中用户看不到“正在输入中”。心跳任务在 dispatchInboundMessage 的 finally 中取消。
+     *
+     * @param chatId 私聊用户标识。
+     * @param contextToken 上下文 token，用于刷新可能过期的 typing ticket。
+     * @return 心跳调度句柄，供调用方在任务结束时取消；启动失败返回 null。
+     */
+    private java.util.concurrent.ScheduledFuture<?> startTypingHeartbeat(
+            final String chatId, final String contextToken) {
+        try {
+            return ensureTypingHeartbeatExecutor()
+                    .scheduleAtFixedRate(
+                            new Runnable() {
+                                /** 执行心跳刷新：重新获取 ticket 后重发 TYPING_START。 */
+                                @Override
+                                public void run() {
+                                    try {
+                                        maybeFetchTypingTicket(chatId, contextToken);
+                                        sendTyping(chatId, TYPING_START);
+                                    } catch (Exception e) {
+                                        log.debug(
+                                                "[WEIXIN] typing heartbeat tick failed: errorType={}, error={}",
+                                                errorType(e),
+                                                safeError(e));
+                                    }
+                                }
+                            },
+                            TYPING_HEARTBEAT_INTERVAL_SECONDS,
+                            TYPING_HEARTBEAT_INTERVAL_SECONDS,
+                            java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.debug(
+                    "[WEIXIN] typing heartbeat start failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
+            return null;
+        }
+    }
+
+    /**
      * 执行flush文本Batch相关逻辑。
      *
      * @param key 配置键或映射键。
@@ -1402,10 +1475,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 /** 执行异步任务主体。 */
                                 @Override
                                 public void run() {
+                                    // 输入状态心跳：dm 会话在 Agent 运行期间周期性重发 sendtyping，
+                                    // 避免微信 typing 信号过期后用户看不到“正在输入中”。
+                                    java.util.concurrent.ScheduledFuture<?> typingHeartbeat = null;
                                     try {
                                         if ("dm".equals(chatType)) {
                                             maybeFetchTypingTicket(chatId, contextToken);
                                             sendTyping(chatId, TYPING_START);
+                                            typingHeartbeat = startTypingHeartbeat(chatId, contextToken);
                                         }
                                         inboundMessageHandler().handle(gatewayMessage);
                                     } catch (Exception e) {
@@ -1414,6 +1491,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                                 errorType(e),
                                                 safeError(e));
                                     } finally {
+                                        if (typingHeartbeat != null) {
+                                            typingHeartbeat.cancel(false);
+                                        }
                                         if ("dm".equals(chatType)) {
                                             sendTyping(chatId, TYPING_STOP);
                                         }
