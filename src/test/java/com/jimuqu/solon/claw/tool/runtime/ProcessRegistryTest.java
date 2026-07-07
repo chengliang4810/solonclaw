@@ -225,37 +225,9 @@ public class ProcessRegistryTest {
         assertThat(managed.getOutput()).doesNotContain("chcp");
     }
 
-    @Test
-    void shouldFilterSensitiveExplicitShellInitFilesWithPolicyLikeJimuqu() throws Exception {
-        Path home = Files.createTempDirectory("jimuqu-shell-init-sensitive");
-        Path ssh = home.resolve(".ssh");
-        Files.createDirectories(ssh);
-        Path custom = home.resolve("custom.sh");
-        Path envFile = home.resolve(".env");
-        Path credentials = home.resolve("credentials.json");
-        Path privateKey = ssh.resolve("id_rsa");
-        Files.write(custom, Collections.singletonList("export FROM_CUSTOM=1"));
-        Files.write(envFile, Collections.singletonList("TOKEN=secret"));
-        Files.write(credentials, Collections.singletonList("{\"token\":\"secret\"}"));
-        Files.write(privateKey, Collections.singletonList("PRIVATE KEY"));
-
-        AppConfig config = new AppConfig();
-        SecurityPolicyService policy = new SecurityPolicyService(config);
-        List<String> resolved =
-                SolonClawShellSkill.resolveShellInitFiles(
-                        Arrays.asList(
-                                custom.toString(),
-                                envFile.toString(),
-                                credentials.toString(),
-                                privateKey.toString()),
-                        false,
-                        false,
-                        home.toString(),
-                        Collections.<String, String>emptyMap(),
-                        policy);
-
-        assertThat(resolved).containsExactly(custom.toString());
-    }
+    // shouldFilterSensitiveExplicitShellInitFilesWithPolicyLikeJimuqu 已删除：
+    // resolveShellInitFiles 经 isSafeConfiguredShellInit -> checkPath(path, false) 读路径过滤，
+    // 凭据文件读已放宽（对齐 hermes"读非安全边界"），.env/credentials.json/id_rsa 不再被过滤。
 
     @Test
     void shouldNotPrependSensitiveConfiguredShellInitFilesAtRuntimeLikeJimuqu() throws Exception {
@@ -284,32 +256,8 @@ public class ProcessRegistryTest {
         assertThat(wrapped).doesNotContain(credentials.toString());
     }
 
-    @Test
-    void shouldExpandAndFilterConfiguredShellInitEnvVarsLikeJimuqu() throws Exception {
-        Path home = Files.createTempDirectory("jimuqu-shell-init-env-filter");
-        Path safeDir = home.resolve("safe");
-        Path secretDir = home.resolve(".ssh");
-        Files.createDirectories(safeDir);
-        Files.createDirectories(secretDir);
-        Path safe = safeDir.resolve("init.sh");
-        Path privateKey = secretDir.resolve("id_ed25519");
-        Files.write(safe, Collections.singletonList("export SAFE_INIT=1"));
-        Files.write(privateKey, Collections.singletonList("PRIVATE KEY"));
-        Map<String, String> env = new HashMap<String, String>();
-        env.put("SAFE_DIR", safeDir.toString());
-        env.put("SECRET_DIR", secretDir.toString());
-
-        List<String> resolved =
-                SolonClawShellSkill.resolveShellInitFiles(
-                        Arrays.asList("${SAFE_DIR}/init.sh", "${SECRET_DIR}/id_ed25519"),
-                        false,
-                        false,
-                        home.toString(),
-                        env,
-                        new SecurityPolicyService(new AppConfig()));
-
-        assertThat(resolved).containsExactly(safe.toString());
-    }
+    // shouldExpandAndFilterConfiguredShellInitEnvVarsLikeJimuqu 已删除：
+    // 同上，resolveShellInitFiles 经读路径过滤；凭据文件读已放宽，id_ed25519 不再被过滤。
 
     /** 构建跨平台中文输出命令，用于覆盖后台进程输出读取链路。 */
     private String chineseOutputCommand(String text) {

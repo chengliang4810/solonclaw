@@ -185,15 +185,16 @@ final class DashboardSecurityProbeCatalog {
                         "网站访问策略先于凭据参数阻断",
                         "blocked.example",
                         "https://api.blocked.example/path?token=dashboard-website-token-secret"));
-        items.add(runner.pathProbe("credential_path", "凭据文件读取阻断", "~/.ssh/id_rsa", false));
-        items.add(runner.pathProbe("credential_file_name", "凭据文件名读取阻断", ".npmrc", false));
+        // 凭据文件读已放宽（对齐 hermes"读非安全边界"），这些探针改为校验"写入凭据文件仍阻断"。
+        items.add(runner.pathProbe("credential_path", "凭据文件写入阻断", "~/.ssh/id_rsa", true));
+        items.add(runner.pathProbe("credential_file_name", "凭据文件名写入阻断", ".npmrc", true));
         items.add(runner.pathProbe("project_env_file_write", "项目环境凭据文件写入阻断", ".env.local", true));
         items.add(
                 runner.pathProbe(
                         "credential_path_suffix",
-                        "凭据路径后缀读取阻断",
+                        "凭据路径后缀写入阻断",
                         "~/.config/gemini/oauth_creds.json",
-                        false));
+                        true));
         items.add(
                 runner.pathProbe(
                         "encoded_path_traversal",
@@ -543,17 +544,18 @@ final class DashboardSecurityProbeCatalog {
                         "command_local_management_crio_socket",
                         "命令 CRI-O 本地管理套接字阻断",
                         "CONTAINER_HOST=unix:///var/run/crio/crio.sock crictl ps"));
+        // 凭据文件读已放宽（对齐 hermes"读非安全边界"），文件工具凭据路径探针改为校验"写入凭据文件仍阻断"。
         items.add(
                 runner.fileToolPathPolicyProbe(
                         "file_tool_credential_path",
-                        "文件工具凭据路径参数检查",
-                        ToolNameConstants.READ_FILE,
+                        "文件工具凭据路径写入检查",
+                        ToolNameConstants.WRITE_FILE,
                         ".env"));
         items.add(
                 runner.fileToolPathPolicyProbe(
                         "file_tool_entity_credential_path",
-                        "文件工具编码凭据路径检查",
-                        ToolNameConstants.READ_FILE,
+                        "文件工具编码凭据路径写入检查",
+                        ToolNameConstants.WRITE_FILE,
                         "client&#95;secret.json"));
         items.add(
                 runner.fileToolPathPolicyProbe(

@@ -294,48 +294,8 @@ public class SolonClawShellSkillTest {
         assertThat(nullByte.getMessage()).contains("\\u0000");
     }
 
-    @Test
-    void shouldRejectForegroundAndBackgroundCredentialWorkdirs() throws Exception {
-        AppConfig config = new AppConfig();
-        ProcessRegistry registry = new ProcessRegistry();
-        Path workdir = Files.createTempDirectory("jimuqu-shell");
-        Path credentialDir = workdir.resolve(".ssh");
-        Files.createDirectories(credentialDir);
-        SolonClawShellSkill skill =
-                new SolonClawShellSkill(
-                        workdir.toString(), config, new SecurityPolicyService(config), registry);
-
-        ONode foreground =
-                ONode.ofJson(
-                        skill.terminal(
-                                "echo blocked",
-                                Boolean.FALSE,
-                                Integer.valueOf(1),
-                                credentialDir.toString(),
-                                Boolean.FALSE));
-        ONode background =
-                ONode.ofJson(
-                        skill.terminal(
-                                javaSleepCommand(),
-                                Boolean.TRUE,
-                                Integer.valueOf(1),
-                                credentialDir.toString(),
-                                Boolean.FALSE));
-
-        assertThat(foreground.get("status").getString()).isEqualTo("error");
-        assertThat(foreground.get("exit_code").getInt()).isEqualTo(-1);
-        assertThat(foreground.get("error").getString())
-                .contains("workdir path")
-                .contains("敏感系统/凭据文件")
-                .doesNotContain(".ssh")
-                .doesNotContain(workdir.toString());
-        assertThat(background.get("status").getString()).isEqualTo("error");
-        assertThat(background.get("error").getString())
-                .contains("workdir path")
-                .contains("敏感系统/凭据文件")
-                .doesNotContain(".ssh")
-                .doesNotContain(workdir.toString());
-    }
+    // shouldRejectForegroundAndBackgroundCredentialWorkdirs 已删除：终端 workdir 解析走 checkPath(value, false)
+    // 读路径，凭据目录读已放宽（对齐 hermes"读非安全边界"），现在放行。
 
     @Test
     void shouldStripEightBitAnsiFromTerminalOutputLikeJimuqu() throws Exception {

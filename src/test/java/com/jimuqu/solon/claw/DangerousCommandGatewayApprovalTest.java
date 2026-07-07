@@ -141,9 +141,8 @@ public class DangerousCommandGatewayApprovalTest {
         service.buildInterceptor()
                 .onAction(archiveCredentialTrace, exchange("call_tool", gatewayArchiveCredential));
 
-        assertThat(archiveCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(archiveCredentialTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
-        assertThat(service.getPendingApproval(archiveCredentialTrace.session)).isNull();
+        // tar czf backup.tgz .env 读 .env 已放宽（对齐 hermes"读非安全边界"），归档读凭据不再阻断，
+        // 原"文件安全策略/凭据"读阻断断言已移除。下方 patch/write_file 写凭据阻断断言保留。
 
         Map<String, Object> patchArgs = new LinkedHashMap<String, Object>();
         patchArgs.put(
@@ -172,17 +171,8 @@ public class DangerousCommandGatewayApprovalTest {
         assertThat(patchApplyTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(patchApplyTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
 
-        Map<String, Object> readFileArgs = new LinkedHashMap<String, Object>();
-        readFileArgs.put("path", ".env");
-        Map<String, Object> gatewayReadFile = new LinkedHashMap<String, Object>();
-        gatewayReadFile.put("tool_name", "read_file");
-        gatewayReadFile.put("tool_args", readFileArgs);
-        TestTrace readFileTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(readFileTrace, exchange("call_tool", gatewayReadFile));
-
-        assertThat(readFileTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(readFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
+        // read_file .env 读已放宽（对齐 hermes"读非安全边界"），原"文件安全策略/凭据"读阻断断言已移除。
+        // 下方 write_file 写 .env.local 阻断断言保留。
 
         Map<String, Object> writeFileArgs = new LinkedHashMap<String, Object>();
         writeFileArgs.put("path", ".env.local");
@@ -216,18 +206,8 @@ public class DangerousCommandGatewayApprovalTest {
         assertThat(nestedFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
         assertThat(service.getPendingApproval(nestedFileTrace.session)).isNull();
 
-        Map<String, Object> socketReadArgs = new LinkedHashMap<String, Object>();
-        socketReadArgs.put("path", "/var/run/docker.sock");
-        Map<String, Object> gatewaySocketRead = new LinkedHashMap<String, Object>();
-        gatewaySocketRead.put("tool_name", "read_file");
-        gatewaySocketRead.put("tool_args", socketReadArgs);
-        TestTrace socketReadTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(socketReadTrace, exchange("call_tool", gatewaySocketRead));
-
-        assertThat(socketReadTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(socketReadTrace.getFinalAnswer()).contains("文件安全策略").contains("管理套接字");
-        assertThat(service.getPendingApproval(socketReadTrace.session)).isNull();
+        // read_file /var/run/docker.sock 读管理套接字已放宽（对齐 hermes"读非安全边界"，
+        // isLocalManagementSocket 仅在写时阻断），原读阻断断言已移除。下方 write_file 写命名管道断言保留。
 
         Map<String, Object> pipeWriteArgs = new LinkedHashMap<String, Object>();
         pipeWriteArgs.put("path", "npipe:////./pipe/docker_engine");

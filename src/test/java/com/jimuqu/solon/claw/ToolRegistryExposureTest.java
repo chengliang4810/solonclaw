@@ -277,6 +277,8 @@ public class ToolRegistryExposureTest {
                                 null));
         ONode path =
                 ONode.ofJson(tools.audit("path", null, null, null, ".env", Boolean.FALSE, null));
+        // 注意：.env 读路径审计已放宽（writeLike=false，对齐 hermes"读非安全边界"），
+        // 其下方原本断言 path decision=block 的语句已移除；其余（hardline/外部路径/路径遍历）断言保留。
         String externalPath =
                 new java.io.File(
                                 new java.io.File(env.appConfig.getRuntime().getHome())
@@ -310,14 +312,8 @@ public class ToolRegistryExposureTest {
                 .contains("change_command")
                 .contains("blocking")
                 .contains("approval_required");
-        assertThat(path.get("decision").getString()).isEqualTo("block");
-        assertThat(path.get("blocking").getBoolean()).isTrue();
-        assertThat(path.get("approval_required").getBoolean()).isFalse();
-        assertThat(path.get("path").getString()).isEqualTo("path://.env");
-        assertThat(String.valueOf(path.get("findings")))
-                .contains("file_policy")
-                .contains("凭据")
-                .contains("change_path");
+        // .env 读路径审计（writeLike=false）现已放行：path.get("decision") 不再为 "block"，
+        // 相关读阻断断言已移除（对齐 hermes"读非安全边界"）。
         assertThat(externalPathAudit.get("path").getString())
                 .startsWith("path://")
                 .contains(new java.io.File(externalPath).getParentFile().getAbsolutePath())
@@ -2186,52 +2182,8 @@ public class ToolRegistryExposureTest {
                 .doesNotContain("secret-sudo");
     }
 
-    @Test
-    void shouldAuditToolArgWorkingDirectoriesAsPaths() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
-        SecurityAuditTools tools =
-                new SecurityAuditTools(
-                        policy,
-                        new DangerousCommandApprovalService(
-                                env.globalSettingRepository, env.appConfig, policy, null),
-                        null,
-                        env.appConfig);
-
-        ONode terminal =
-                ONode.ofJson(
-                        tools.audit(
-                                "tool_args",
-                                "terminal",
-                                null,
-                                null,
-                                null,
-                                null,
-                                "{\"command\":\"echo ok\",\"workdir\":\".ssh\"}"));
-        ONode process =
-                ONode.ofJson(
-                        tools.audit(
-                                "tool_args",
-                                "process",
-                                null,
-                                null,
-                                null,
-                                null,
-                                "{\"action\":\"start\",\"command\":\"echo ok\",\"cwd\":\"credentials.json\"}"));
-
-        assertThat(terminal.get("decision").getString()).isEqualTo("block");
-        assertThat(terminal.get("blocking").getBoolean()).isTrue();
-        assertThat(terminal.toJson())
-                .contains("file_policy")
-                .contains("敏感系统/凭据文件")
-                .doesNotContain(".ssh");
-        assertThat(process.get("decision").getString()).isEqualTo("block");
-        assertThat(process.get("blocking").getBoolean()).isTrue();
-        assertThat(process.toJson())
-                .contains("file_policy")
-                .contains("敏感系统/凭据文件")
-                .doesNotContain("credentials.json");
-    }
+    // shouldAuditToolArgWorkingDirectoriesAsPaths 已删除：terminal/process 的 workdir/cwd 走读路径
+    // 审计（非 write-like 工具），凭据目录读已放宽（对齐 hermes"读非安全边界"），现在放行。
 
     @Test
     void shouldAuditNestedAndArrayCommandToolArgs() throws Exception {

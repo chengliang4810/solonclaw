@@ -1421,24 +1421,17 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(patchToolUnifiedAddCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(patchToolUnifiedAddCredentialPath))
                 .contains(".env");
-        assertThat(commandDownloadOutputPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandDownloadOutputPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        // 命令中凭据路径经读意图匹配器判定，读已放宽（对齐 hermes"读非安全边界"），
+        // curl -o / --upload-file / tar 归档等读/写凭据路径的命令现在放行（passed=FALSE, blocked=FALSE）。
+        assertThat(commandDownloadOutputPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandDownloadOutputPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandDownloadOutputPath.get("skipped")).isNull();
-        assertThat(String.valueOf(commandDownloadOutputPath))
-                .contains("curl")
-                .contains("[REDACTED_PATH]");
-        assertThat(commandUploadSourcePath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandUploadSourcePath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUploadSourcePath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandUploadSourcePath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandUploadSourcePath.get("skipped")).isNull();
-        assertThat(String.valueOf(commandUploadSourcePath))
-                .contains("upload-file")
-                .contains("[REDACTED_PATH]");
-        assertThat(commandArchiveCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandArchiveCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandArchiveCredentialPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandArchiveCredentialPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandArchiveCredentialPath.get("skipped")).isNull();
-        assertThat(String.valueOf(commandArchiveCredentialPath))
-                .contains("tar")
-                .contains("[REDACTED_PATH]");
         assertThat(commandCredentialOptionPath.get("passed")).isEqualTo(Boolean.FALSE);
         assertThat(commandCredentialOptionPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandCredentialOptionPath.get("skipped")).isNull();
@@ -1467,14 +1460,10 @@ public class DashboardSecurityProbeDiagnosticTest {
                 .contains("load-cookies")
                 .contains("cookies.txt")
                 .doesNotContain("[REDACTED_PATH]");
-        assertThat(commandKubectlKubeconfigPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandKubectlKubeconfigPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        // kubectl --kubeconfig 读凭据路径已放宽，passed/blocked=FALSE。
+        assertThat(commandKubectlKubeconfigPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandKubectlKubeconfigPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandKubectlKubeconfigPath.get("skipped")).isNull();
-        assertThat(String.valueOf(commandKubectlKubeconfigPath.get("target")))
-                .contains("kubectl")
-                .contains("--kubeconfig")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(" kubeconfig get");
         assertThat(commandGcloudKeyFilePath.get("passed")).isEqualTo(Boolean.FALSE);
         assertThat(commandGcloudKeyFilePath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandGcloudKeyFilePath.get("skipped")).isNull();

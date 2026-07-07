@@ -1688,18 +1688,17 @@ public class SecurityPolicyService {
                             ? "写入 Skills Hub 内部缓存文件被阻断，请使用技能管理能力维护技能"
                             : "读取 Skills Hub 内部缓存文件被阻断，请使用 skills_list 或 skill_view 工具");
         }
-        if (matchesCredentialPath(normalized)) {
-            return FileVerdict.block(path, writeLike ? "写入敏感系统/凭据文件被阻断" : "读取敏感系统/凭据文件被阻断");
+        if (writeLike && matchesCredentialPath(normalized)) {
+            return FileVerdict.block(path, "写入敏感系统/凭据文件被阻断");
         }
         if (writeLike && matchesWriteDeniedPath(normalized)) {
             return FileVerdict.block(path, "写入敏感系统文件被阻断");
         }
-        if (isLocalManagementSocket(path)) {
-            return FileVerdict.block(path, writeLike ? "写入本地容器/运行时管理套接字被阻断" : "访问本地容器/运行时管理套接字被阻断");
+        if (writeLike && isLocalManagementSocket(path)) {
+            return FileVerdict.block(path, "写入本地容器/运行时管理套接字被阻断");
         }
-        if (isLocalManagementPipe(path)) {
-            return FileVerdict.block(
-                    path, writeLike ? "写入本地容器/运行时管理命名管道被阻断" : "访问本地容器/运行时管理命名管道被阻断");
+        if (writeLike && isLocalManagementPipe(path)) {
+            return FileVerdict.block(path, "写入本地容器/运行时管理命名管道被阻断");
         }
         return FileVerdict.allow();
     }
