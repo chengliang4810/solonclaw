@@ -294,6 +294,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             textBatchExecutor.shutdownNow();
             textBatchExecutor = null;
         }
+        if (typingHeartbeatExecutor != null) {
+            typingHeartbeatExecutor.shutdownNow();
+            typingHeartbeatExecutor = null;
+        }
         pendingTextBatches.clear();
         pendingTextBatchTasks.clear();
         // 关闭控制命令并发执行器，避免断开连接后线程泄漏
