@@ -43,6 +43,7 @@ public final class CommandRegistry {
         register(core("status", "session", "查看当前会话状态"));
         register(core("usage", "session", "查看当前会话运行信息"));
         register(core("goal", "agent", "设置跨轮长目标并由 judge 驱动自动继续"));
+        register(core("subgoal", "agent", "管理当前目标的补充准则"));
         register(core("busy", "runtime", "查看或切换运行中输入策略"));
         register(core("queue", "runtime", "将提示排到当前任务之后执行").alias("q"));
         register(core("steer", "runtime", "向运行中任务注入修正；空闲时按普通提示执行"));

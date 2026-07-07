@@ -1924,6 +1924,26 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     /**
+     * 查询某会话是否有待处理的真实用户消息（非 heartbeat、非 goal 续轮）。
+     *
+     * <p>用于 goal 续轮抢占判定：若用户在续轮调度期间发送了真实消息，则跳过本轮续轮，
+     * 让真实消息接手对话。
+     *
+     * <p><b>降级说明：</b>当前 busy 队列持久化在 {@code QueuedRunMessage.messageJson} 中，
+     * 而 {@code GatewayMessage.goalContinuation} 是 transient 字段（不参与序列化），队列经
+     * 序列化/反序列化后无法可靠区分「goal 续轮合成消息」与「真实用户消息」。因此这里先返回
+     * false，抢占功能降级为：依赖现有 interrupt/steer/queue 策略兜底，保证用户始终能发起对话。
+     * 后续若将 goalContinuation 持久化到 messageJson，可在此扫描队列实现真实抢占。
+     *
+     * @param sourceKey 会话来源键。
+     * @return 有真实待处理消息返回 true；当前实现固定返回 false（降级）。
+     */
+    // TODO: 持久化 goalContinuation 标志后，扫描该 sourceKey 的队列实现真实抢占
+    public boolean hasPendingRealMessage(String sourceKey) {
+        return false;
+    }
+
+    /**
      * 加入队列消息。
      *
      * @param sourceKey 渠道来源键。

@@ -680,7 +680,47 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.commandService.handle(message, "/help");
         assertThat(help.getContent())
-                .contains("/goal [status|pause|resume|clear|<目标> --max-turns N|--max N]");
+                .contains(
+                        "/goal [status|show|pause|resume|clear|stop|done|wait <pid>|unwait|<目标> --max-turns N|--max N]")
+                .contains("/subgoal [<text>|remove <n>|clear]");
+    }
+
+    @Test
+    void shouldSupportSubgoalCommand() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "sg-chat", "sg-user", "/goal 完成测试 --max 5");
+        env.commandService.handle(message, "/goal 完成测试 --max 5");
+
+        GatewayReply add = env.commandService.handle(message, "/subgoal 覆盖 goal 包");
+        assertThat(add.getContent()).contains("覆盖 goal 包");
+
+        GatewayReply list = env.commandService.handle(message, "/subgoal");
+        assertThat(list.getContent()).contains("覆盖 goal 包");
+
+        GatewayReply remove = env.commandService.handle(message, "/subgoal remove 1");
+        assertThat(remove.getContent()).containsAnyOf("removed", "cleared", "No subgoal");
+
+        GatewayReply clear = env.commandService.handle(message, "/subgoal clear");
+        assertThat(clear.getContent()).containsAnyOf("cleared", "No subgoal");
+    }
+
+    @Test
+    void shouldSupportGoalShowAndStopDoneAliases() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "g2-chat", "g2-user", "/goal 目标A --max 3");
+        env.commandService.handle(message, "/goal 目标A --max 3");
+
+        GatewayReply show = env.commandService.handle(message, "/goal show");
+        assertThat(show.getContent()).contains("目标A");
+
+        GatewayReply stop = env.commandService.handle(message, "/goal stop");
+        assertThat(stop.getContent()).contains("cleared");
+
+        GatewayReply doneAlias = env.commandService.handle(message, "/goal done");
+        // 已 cleared 再 done 也应返回 No active goal，不报错
+        assertThat(doneAlias.getContent()).containsAnyOf("No active goal", "cleared");
     }
 
     @Test
@@ -1794,7 +1834,6 @@ public class CommandEnhancementTest {
 
         assertThat(env.commandService.supports("footer")).isFalse();
         assertThat(env.commandService.supports("handoff")).isFalse();
-        assertThat(env.commandService.supports("subgoal")).isFalse();
     }
 
     private void bootstrapAdmin(TestEnvironment env) throws Exception {
