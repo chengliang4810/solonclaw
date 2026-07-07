@@ -2187,7 +2187,7 @@ public class TerminalUiRpcService {
         appendLocalSlashCompletion(items, query, "voice", "查看或切换语音能力");
         appendLocalSlashCompletion(items, query, "skin", "切换界面皮肤");
         appendLocalSlashCompletion(items, query, "indicator", "切换忙碌指示器");
-        appendLocalSlashCompletion(items, query, "yolo", "显示审批策略提示");
+        appendLocalSlashCompletion(items, query, "yolo", "切换会话级跳过危险命令审批");
         appendLocalSlashCompletion(items, query, "reasoning", "查看或设置推理展示");
         appendLocalSlashCompletion(items, query, "fast", "查看或切换快速模式");
         appendLocalSlashCompletion(items, query, "busy", "设置忙碌输入模式");

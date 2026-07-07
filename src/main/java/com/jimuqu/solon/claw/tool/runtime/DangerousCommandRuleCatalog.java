@@ -2520,7 +2520,21 @@ final class DangerousCommandRuleCatalog {
                                     "js_fs_remove",
                                     "Node file delete",
                                     pattern("\\bfs\\.(rm|rmSync|unlink|unlinkSync)\\s*\\("),
-                                    ToolNameConstants.EXECUTE_JS)));
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "docker_compose_lifecycle",
+                                    "docker compose restart/stop/kill/down (container lifecycle)",
+                                    pattern(
+                                            SHELL_COMMAND_START
+                                                    + "docker\\s+compose\\s+(?:.*\\s+)?(restart|stop|kill|down)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "docker_container_lifecycle",
+                                    "docker restart/stop/kill (container lifecycle)",
+                                    pattern(
+                                            SHELL_COMMAND_START
+                                                    + "docker\\s+(?:.*\\s+)?(restart|stop|kill)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL)));
 
     /** HARDLINERULES的统一常量值。 */
     static final List<DangerRule> HARDLINE_RULES =

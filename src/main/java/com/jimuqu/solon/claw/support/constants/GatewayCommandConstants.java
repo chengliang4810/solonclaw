@@ -236,6 +236,9 @@ public interface GatewayCommandConstants {
     /** 命令DENY的统一常量值。 */
     String COMMAND_DENY = "deny";
 
+    /** 命令YOLO的统一常量值，切换会话级跳过危险命令审批。 */
+    String COMMAND_YOLO = "yolo";
+
     /** 命令CANCEL的统一常量值。 */
     String COMMAND_CANCEL = "cancel";
 

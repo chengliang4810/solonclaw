@@ -552,6 +552,9 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "approvals.mcpReloadConfirm", "boolean", "security", "MCP reload 需要确认"));
+        addField(
+                new FieldDefinition(
+                        "approvals.deny", "list", "security", "用户自定义不可绕过的命令 deny 列表"));
         addField(new FieldDefinition("terminal.credentialFiles", "list", "security", "终端凭据文件挂载清单"));
         addField(
                 new FieldDefinition(

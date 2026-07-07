@@ -109,6 +109,10 @@ approvals:
   # /reload-mcp 会让下一轮模型请求重新发送完整工具 schema，默认需要确认。
   # 设为 false 后，/reload-mcp 将直接执行。
   mcpReloadConfirm: true
+  # 用户自定义不可绕过的命令 deny 列表，支持 glob 通配（* 和 ?）。
+  # 即使 guardrailMode 设为 bypass 也不放过，用于补充内置 hardline 规则。
+  # 例如：禁止 git push --force 和 docker 容器停止。
+  deny: []
 
 solonclaw:
   # Dashboard 与 API 访问配置。

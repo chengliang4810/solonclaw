@@ -129,6 +129,7 @@ public class RuntimeSettingsService {
                     "approvals.timeoutSeconds",
                     "approvals.gatewayTimeoutSeconds",
                     "approvals.mcpReloadConfirm",
+                    "approvals.deny",
                     "solonclaw.terminal.credentialFiles",
                     "solonclaw.terminal.envPassthrough",
                     "solonclaw.terminal.sudoPassword",

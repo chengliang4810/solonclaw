@@ -1720,6 +1720,16 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
+        String denyReason = matchUserDenyRule(code);
+        if (denyReason != null) {
+            trace.setFinalAnswer(
+                    "BLOCKED: 命令匹配用户配置的不可绕过 deny 规则: " + denyReason
+                            + "。如需修改请调整 approvals.deny 配置。");
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
         if ("bypass".equals(guardrailMode)) {
             persistTraceSnapshot(trace);
             return null;
@@ -2446,6 +2456,55 @@ public class DangerousCommandApprovalService {
                 appConfig == null || appConfig.getSecurity() == null
                         ? ""
                         : appConfig.getSecurity().getGuardrailMode());
+    }
+
+    /**
+     * 匹配用户配置的不可绕过 deny 规则，对齐外部对标仓库的 approvals.deny。
+     *
+     * <p>使用 fnmatch glob 大小写不敏感匹配，在 bypass/yolo 模式之前触发，不可绕过。
+     *
+     * @param code 待检查的命令文本。
+     * @return 命中时返回匹配的 deny 规则，未命中返回 null。
+     */
+    private String matchUserDenyRule(String code) {
+        if (appConfig == null
+                || appConfig.getApprovals() == null
+                || appConfig.getApprovals().getDeny() == null) {
+            return null;
+        }
+        String normalized = StrUtil.nullToEmpty(code).trim();
+        if (normalized.length() == 0) {
+            return null;
+        }
+        for (String pattern : appConfig.getApprovals().getDeny()) {
+            String trimmedPattern = StrUtil.nullToEmpty(pattern).trim();
+            if (trimmedPattern.length() == 0) {
+                continue;
+            }
+            if (cn.hutool.core.text.CharSequenceUtil.containsIgnoreCase(
+                    normalized, trimmedPattern)
+                    || matchesGlobIgnoreCase(normalized, trimmedPattern)) {
+                return trimmedPattern;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 简单的 glob 匹配，对齐外部对标仓库 fnmatch 的 {@code *} 通配。
+     *
+     * @param text 待匹配的命令文本。
+     * @param pattern glob 模式。
+     * @return 匹配返回 true。
+     */
+    private boolean matchesGlobIgnoreCase(String text, String pattern) {
+        String lowerText = text.toLowerCase(Locale.ROOT);
+        String lowerPattern = pattern.toLowerCase(Locale.ROOT);
+        String regex = lowerPattern
+                .replace(".", "\\.")
+                .replace("*", ".*")
+                .replace("?", ".");
+        return lowerText.matches(".*" + regex + ".*");
     }
 
     /**

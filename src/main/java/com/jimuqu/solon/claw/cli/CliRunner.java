@@ -132,7 +132,8 @@ public class CliRunner {
             return "当前是一次性 CLI 模式，没有可展示的 TUI 虚拟历史。请在交互式 TUI 中使用 /transcript。";
         }
         if (input.equals("/yolo") || input.startsWith("/yolo ")) {
-            return "本项目未提供 yolo 模式。请使用 /security status 查看安全策略，或用 /approve auto status 查看会话审批设置。";
+            return "当前是一次性 CLI 模式，/yolo 会话切换请在交互式 TUI 中使用。"
+                    + "如需跳过所有审批，请在配置中设置 security.guardrailMode: bypass。";
         }
         if (input.equals("/attachments") || input.startsWith("/attachments ")) {
             String text =
