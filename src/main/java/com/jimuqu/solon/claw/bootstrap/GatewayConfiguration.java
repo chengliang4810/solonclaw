@@ -226,14 +226,16 @@ public class GatewayConfiguration {
      * @param sessionRepository 会话仓储依赖。
      * @param llmGateway LLM 网关，供 LLM 裁决器发起 auxiliary 调用。
      * @param appConfig 应用运行配置，提供 goal 子配置。
+     * @param llmProviderService provider 解析服务，供裁决器解析 judgeProvider 覆盖。
      * @return 返回goal服务结果。
      */
     @Bean
     public GoalService goalService(
             SessionRepository sessionRepository,
             LlmGateway llmGateway,
-            AppConfig appConfig) {
-        LlmGoalJudge llmJudge = new LlmGoalJudge(llmGateway, appConfig.getGoal());
+            AppConfig appConfig,
+            LlmProviderService llmProviderService) {
+        LlmGoalJudge llmJudge = new LlmGoalJudge(llmGateway, appConfig, llmProviderService);
         return new GoalService(sessionRepository, llmJudge, appConfig.getGoal());
     }
 

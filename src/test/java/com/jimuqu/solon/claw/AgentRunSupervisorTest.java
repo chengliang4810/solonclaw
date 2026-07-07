@@ -640,6 +640,58 @@ public class AgentRunSupervisorTest {
                 .contains("run.queue.start", "run.queue.success");
     }
 
+    @Test
+    void hasPendingRealMessageReturnsFalseWhenQueueEmpty() throws Exception {
+        // 队列为空 → 没有待处理真实消息
+        Fixture fixture = fixture();
+        RecordingGateway gateway = new RecordingGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        assertThat(supervisor.hasPendingRealMessage("MEMORY:empty:u")).isFalse();
+    }
+
+    @Test
+    void hasPendingRealMessageReturnsTrueForRealQueuedMessage() throws Exception {
+        // 真实用户消息入队 → 抢占成立返回 true
+        Fixture fixture = fixture();
+        RecordingGateway gateway = new RecordingGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        String sourceKey = "MEMORY:real:u";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        GatewayMessage message =
+                new GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY, "real", "u", "真实用户输入");
+        supervisor.queueIncoming(sourceKey, session.getSessionId(), message);
+
+        assertThat(supervisor.hasPendingRealMessage(sourceKey)).isTrue();
+    }
+
+    @Test
+    void hasPendingRealMessageReturnsFalseForGoalContinuation() throws Exception {
+        // goal 续轮合成消息（goalContinuation=true）入队 → 不算真实消息，抢占不成立
+        Fixture fixture = fixture();
+        RecordingGateway gateway = new RecordingGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        String sourceKey = "MEMORY:cont:u";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        GatewayMessage message =
+                new GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "cont",
+                        "u",
+                        "续轮提示");
+        message.setGoalContinuation(true);
+        supervisor.queueIncoming(sourceKey, session.getSessionId(), message);
+
+        // 序列化/反序列化后 goalContinuation 标志应存活（不再因 transient 丢失）
+        QueuedRunMessage reloaded =
+                fixture.agentRunRepository.findNextQueuedMessageBySourceKey(sourceKey);
+        assertThat(reloaded).isNotNull();
+        assertThat(supervisor.hasPendingRealMessage(sourceKey)).isFalse();
+    }
+
     private static AgentRunSupervisor supervisor(
             Fixture fixture,
             LlmGateway gateway,
