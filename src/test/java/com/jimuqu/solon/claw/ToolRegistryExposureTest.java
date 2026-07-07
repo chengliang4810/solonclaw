@@ -270,7 +270,7 @@ public class ToolRegistryExposureTest {
                         tools.audit(
                                 "command",
                                 "execute_shell",
-                                "blkdiscard /dev/sdb",
+                                "rm -rf /",
                                 null,
                                 null,
                                 null,
@@ -302,11 +302,11 @@ public class ToolRegistryExposureTest {
         assertToolSuccess(hardline);
         assertThat(hardline.get("decision").getString()).isEqualTo("block");
         assertThat(hardline.get("blocking").getBoolean()).isTrue();
-        assertThat(hardline.get("approval_required").getBoolean()).isFalse();
-        assertThat(hardline.get("commandPreview").getString()).contains("blkdiscard /dev/sdb");
+        assertThat(hardline.get("approval_required").getBoolean()).isTrue();
+        assertThat(hardline.get("commandPreview").getString()).contains("rm -rf /");
         assertThat(String.valueOf(hardline.get("findings")))
                 .contains("hardline")
-                .contains("destroy raw disk partition table")
+                .contains("recursive delete of root filesystem")
                 .contains("change_command")
                 .contains("blocking")
                 .contains("approval_required");

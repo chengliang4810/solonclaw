@@ -3,10 +3,8 @@ package com.jimuqu.solon.claw.tool.runtime;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.BARE_HOST_FETCH_CONTEXT_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.BARE_HOST_TOKEN_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.BLOCKED_DEVICE_PATHS;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_DIR_SEGMENTS;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_FILE_NAMES;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_PATH_OPTION_NAMES;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_PATH_SUFFIXES;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.DIRECT_NETWORK_ENDPOINT_PREFIX_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.IPV4_CIDR_TOKEN_PATTERN;
@@ -14,10 +12,6 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.IPV6_
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.LOCAL_MANAGEMENT_PIPE_PATHS;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.LOCAL_MANAGEMENT_SOCKET_PATHS;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.NETWORK_CREDENTIAL_SHORT_OPTIONS;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.NETWORK_UPLOAD_FILE_OPTIONS;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.NETWORK_UPLOAD_FILE_SHORT_OPTIONS;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_LOCAL_MANAGEMENT_ENV_ASSIGNMENT_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_PROXY_ENV_ASSIGNMENT_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_REGISTRY_PROXY_PROPERTY_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_REGISTRY_PROXY_VALUE_PATTERN;
@@ -31,12 +25,10 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SENSI
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SHELL_CREDENTIAL_TOKEN_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SHELL_PATH_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SSH_FILE_CONFIG_OPTION_NAMES;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.URLISH_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.cleanUrlToken;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.looksLikeUrlKey;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.shellLikeTokens;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.stripOptionalQuote;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.redactSample;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.sample;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsPatchIntentSamples;
@@ -1042,11 +1034,6 @@ public class SecurityPolicyService {
      * @return 返回命令Paths Candidate结果。
      */
     private FileVerdict checkCommandPathsCandidate(String code) {
-        List<String> approvedOutputPaths = new ArrayList<String>();
-        FileVerdict compactOutputVerdict = checkCompactOutputOptionCredentialPaths(code, approvedOutputPaths);
-        if (!compactOutputVerdict.allowed) {
-            return compactOutputVerdict;
-        }
         Matcher quotedWindowsMatcher = QUOTED_WINDOWS_PATH_PATTERN.matcher(code);
         while (quotedWindowsMatcher.find()) {
             FileVerdict verdict =
@@ -1086,9 +1073,6 @@ public class SecurityPolicyService {
                 continue;
             }
             if (isSlashStyleCommandOption(path)) {
-                continue;
-            }
-            if (approvedOutputPaths.contains(policyApprovalTarget(path))) {
                 continue;
             }
             FileVerdict verdict =
@@ -1382,219 +1366,6 @@ public class SecurityPolicyService {
     }
 
     /**
-     * 检查凭据路径Options。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回凭据路径Options结果。
-     */
-    private FileVerdict checkCredentialPathOptions(String command) {
-        List<String> tokens = shellLikeTokens(command, 200);
-        boolean networkCredentialMode = false;
-        for (int i = 0; i < tokens.size(); i++) {
-            String token = cleanUrlToken(tokens.get(i));
-            if (isNetworkToolToken(token)) {
-                networkCredentialMode = true;
-                continue;
-            }
-            String path = credentialPathOptionValue(token);
-            if (StrUtil.isBlank(path) && networkCredentialMode) {
-                path = networkUploadFileOptionValue(token);
-                if (StrUtil.isBlank(path)
-                        && isDetachedNetworkUploadFileOption(token)
-                        && i + 1 < tokens.size()) {
-                    path = cleanUrlToken(tokens.get(++i));
-                }
-                if (StrUtil.isNotBlank(path)) {
-                    path = cleanCredentialPathToken(path);
-                    FileVerdict verdict = checkPath(path, false);
-                    if (!verdict.allowed) {
-                        return verdict;
-                    }
-                    continue;
-                }
-            }
-            if (StrUtil.isBlank(path) && networkCredentialMode) {
-                path = networkCredentialShortOptionValue(token);
-                if (StrUtil.isNotBlank(path)) {
-                    // 保留此处实现约束，避免后续维护时破坏既有行为。
-                } else if (isDetachedNetworkCredentialShortOption(token) && i + 1 < tokens.size()) {
-                    path = cleanUrlToken(tokens.get(++i));
-                }
-            }
-            if (StrUtil.isBlank(path) && "-o".equals(token) && i + 1 < tokens.size()) {
-                path = sshFileConfigOptionValue(cleanUrlToken(tokens.get(++i)));
-            }
-            if (StrUtil.isBlank(path) && isCredentialPathOption(token) && i + 1 < tokens.size()) {
-                path = cleanUrlToken(tokens.get(++i));
-            }
-            if (StrUtil.isBlank(path)) {
-                continue;
-            }
-            path = cleanCredentialPathToken(path);
-            return FileVerdict.block(path, "凭据用途参数引用的文件被阻断");
-        }
-        return FileVerdict.allow();
-    }
-
-    /**
-     * 执行凭据路径选项值相关逻辑。
-     *
-     * @param token token 参数。
-     * @return 返回凭据路径Option Value结果。
-     */
-    private String credentialPathOptionValue(String token) {
-        for (String option : CREDENTIAL_PATH_OPTION_NAMES) {
-            if (token.startsWith(option + "=")) {
-                return token.substring(option.length() + 1);
-            }
-        }
-        for (String option : COMPACT_CREDENTIAL_PATH_OPTION_PREFIXES) {
-            if (startsWithCompactShortOptionValue(token, option)) {
-                return token.substring(option.length());
-            }
-        }
-        String sshFileConfigPath = sshCompactFileConfigOptionValue(token);
-        if (StrUtil.isNotBlank(sshFileConfigPath)) {
-            return sshFileConfigPath;
-        }
-        return "";
-    }
-
-    /**
-     * 判断是否凭据路径Option。
-     *
-     * @param token token 参数。
-     * @return 如果凭据路径Option满足条件则返回 true，否则返回 false。
-     */
-    private boolean isCredentialPathOption(String token) {
-        return CREDENTIAL_PATH_OPTION_NAMES.contains(token);
-    }
-
-    /**
-     * 执行SSH紧凑文件配置选项值相关逻辑。
-     *
-     * @param token token 参数。
-     * @return 返回ssh Compact文件配置Option Value结果。
-     */
-    private String sshCompactFileConfigOptionValue(String token) {
-        if (!token.startsWith("-o") || token.length() <= 2) {
-            return "";
-        }
-        return sshFileConfigOptionValue(token.substring(2));
-    }
-
-    /**
-     * 执行SSH文件配置选项值相关逻辑。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回ssh文件配置Option Value结果。
-     */
-    private String sshFileConfigOptionValue(String value) {
-        if (StrUtil.isBlank(value)) {
-            return "";
-        }
-        String normalized = value.trim();
-        for (String option : SSH_FILE_CONFIG_OPTION_NAMES) {
-            String prefix = option + "=";
-            if (normalized.regionMatches(true, 0, prefix, 0, prefix.length())) {
-                return normalized.substring(prefix.length());
-            }
-        }
-        return "";
-    }
-
-    /**
-     * 判断是否Network工具token。
-     *
-     * @param token token 参数。
-     * @return 如果Network工具token满足条件则返回 true，否则返回 false。
-     */
-    private boolean isNetworkToolToken(String token) {
-        return "curl".equalsIgnoreCase(token)
-                || "wget".equalsIgnoreCase(token)
-                || "aria2c".equalsIgnoreCase(token)
-                || "curlie".equalsIgnoreCase(token)
-                || "http".equalsIgnoreCase(token)
-                || "https".equalsIgnoreCase(token)
-                || "httpie".equalsIgnoreCase(token)
-                || "xh".equalsIgnoreCase(token);
-    }
-
-    /**
-     * 执行网络Upload文件选项值相关逻辑。
-     *
-     * @param token token 参数。
-     * @return 返回network Upload文件Option Value结果。
-     */
-    private String networkUploadFileOptionValue(String token) {
-        if (StrUtil.isBlank(token)) {
-            return "";
-        }
-        for (String option : NETWORK_UPLOAD_FILE_OPTIONS) {
-            if (token.startsWith(option + "=")) {
-                return token.substring(option.length() + 1);
-            }
-        }
-        for (String option : NETWORK_UPLOAD_FILE_SHORT_OPTIONS) {
-            if (startsWithCompactShortOptionValue(token, option)) {
-                return token.substring(option.length());
-            }
-        }
-        if (token.startsWith("@") && token.length() > 1) {
-            return token.substring(1);
-        }
-        int upload = token.indexOf('@');
-        if (upload > 0 && upload + 1 < token.length()) {
-            return token.substring(upload + 1);
-        }
-        return "";
-    }
-
-    /**
-     * 判断是否Detached Network Upload文件Option。
-     *
-     * @param token token 参数。
-     * @return 如果Detached Network Upload文件Option满足条件则返回 true，否则返回 false。
-     */
-    private boolean isDetachedNetworkUploadFileOption(String token) {
-        return NETWORK_UPLOAD_FILE_OPTIONS.contains(token)
-                || NETWORK_UPLOAD_FILE_SHORT_OPTIONS.contains(token);
-    }
-
-    /**
-     * 执行网络凭据短选项值相关逻辑。
-     *
-     * @param token token 参数。
-     * @return 返回network凭据Short Option Value结果。
-     */
-    private String networkCredentialShortOptionValue(String token) {
-        if (StrUtil.isBlank(token)) {
-            return "";
-        }
-        for (String option : NETWORK_CREDENTIAL_SHORT_OPTIONS) {
-            if (startsWithCompactShortOptionValue(token, option)) {
-                return token.substring(option.length());
-            }
-        }
-        return "";
-    }
-
-    /**
-     * 判断是否以紧凑短选项值开头。
-     *
-     * @param token token 参数。
-     * @param option 选项参数。
-     * @return 返回starts With Compact Short Option Value结果。
-     */
-    private boolean startsWithCompactShortOptionValue(String token, String option) {
-        if (!token.startsWith(option) || token.length() <= option.length() + 1) {
-            return false;
-        }
-        char next = token.charAt(option.length());
-        return next != '-' && next != ':' && next != '=';
-    }
-
-    /**
      * 清理凭据路径token。
      *
      * @param raw 原始输入值。
@@ -1614,48 +1385,6 @@ public class SecurityPolicyService {
             }
         }
         return value.startsWith("@") && value.length() > 1 ? value.substring(1) : value;
-    }
-
-    /**
-     * 判断是否Detached Network凭据Short Option。
-     *
-     * @param token token 参数。
-     * @return 如果Detached Network凭据Short Option满足条件则返回 true，否则返回 false。
-     */
-    private boolean isDetachedNetworkCredentialShortOption(String token) {
-        return NETWORK_CREDENTIAL_SHORT_OPTIONS.contains(token);
-    }
-
-    /**
-     * 检查Compact输出Option凭据Paths。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回Compact输出Option凭据Paths结果。
-     */
-    private FileVerdict checkCompactOutputOptionCredentialPaths(
-            String command, List<String> approvedOutputPaths) {
-        List<String> tokens = shellLikeTokens(command, 200);
-        for (int i = 0; i < tokens.size(); i++) {
-            String token = tokens.get(i);
-            String path = compactOutputOptionPath(token);
-            if (StrUtil.isBlank(path) && isDetachedOutputOption(token) && i + 1 < tokens.size()) {
-                path = cleanUrlToken(tokens.get(++i));
-            }
-            if (StrUtil.isBlank(path)) {
-                continue;
-            }
-            if (isEscapedWindowsDriveToken(command, path)) {
-                continue;
-            }
-            FileVerdict verdict = checkPath(path, true);
-            if (!verdict.allowed) {
-                return verdict;
-            }
-            if (approvedOutputPaths != null) {
-                approvedOutputPaths.add(policyApprovalTarget(path));
-            }
-        }
-        return FileVerdict.allow();
     }
 
     /** 生成当前命令检查内部去重用的文件策略目标。 */
@@ -1768,10 +1497,6 @@ public class SecurityPolicyService {
      * @return 返回命令Urls结果。
      */
     public UrlVerdict checkCommandUrls(String command) {
-        UrlVerdict socketVerdict = checkCommandLocalManagementSockets(command);
-        if (!socketVerdict.allowed) {
-            return socketVerdict;
-        }
         List<String> urls = new ArrayList<String>();
         extractCommandUrlishFromText(command, urls);
         for (String url : urls) {
@@ -1798,167 +1523,6 @@ public class SecurityPolicyService {
     }
 
     /**
-     * 检查命令本地Management Sockets。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回命令本地Management Sockets结果。
-     */
-    private UrlVerdict checkCommandLocalManagementSockets(String command) {
-        UrlVerdict powershellEnvVerdict = checkPowerShellLocalManagementEnvironment(command);
-        if (!powershellEnvVerdict.allowed) {
-            return powershellEnvVerdict;
-        }
-        List<String> tokens = shellLikeTokens(command, 200);
-        for (int i = 0; i < tokens.size(); i++) {
-            String token = cleanUrlToken(tokens.get(i));
-            String path = null;
-            if ("--unix-socket".equals(token) || "--abstract-unix-socket".equals(token)) {
-                if (i + 1 < tokens.size()) {
-                    path = cleanUrlToken(tokens.get(++i));
-                }
-            } else if (token.startsWith("--unix-socket=")) {
-                path = cleanUrlToken(token.substring("--unix-socket=".length()));
-            } else if (token.startsWith("--abstract-unix-socket=")) {
-                path = cleanUrlToken(token.substring("--abstract-unix-socket=".length()));
-            }
-            if (StrUtil.isBlank(path)) {
-                path = localManagementSocketEnvironmentValue(token);
-            }
-            if (StrUtil.isBlank(path)) {
-                path = localManagementHostOptionValue(token);
-                if (StrUtil.isBlank(path)
-                        && isDetachedLocalManagementHostOption(token)
-                        && i + 1 < tokens.size()) {
-                    path = localManagementSocketEnvironmentPath(tokens.get(++i));
-                }
-            }
-            if (StrUtil.isNotBlank(path)) {
-                if (isLocalManagementSocket(path)) {
-                    return UrlVerdict.block(
-                            path, "阻断本地容器/运行时管理套接字访问：" + localManagementReference(path));
-                }
-                String endpointPipe = localManagementPipeToken(path);
-                if (StrUtil.isNotBlank(endpointPipe)) {
-                    return UrlVerdict.block(
-                            endpointPipe,
-                            "阻断本地容器/运行时管理命名管道访问：" + localManagementReference(endpointPipe));
-                }
-            }
-            String pipe = localManagementPipeToken(token);
-            if (StrUtil.isNotBlank(pipe)) {
-                return UrlVerdict.block(
-                        pipe, "阻断本地容器/运行时管理命名管道访问：" + localManagementReference(pipe));
-            }
-        }
-        return UrlVerdict.allow();
-    }
-
-    /**
-     * 检查Power Shell本地Management Environment。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回Power Shell本地Management Environment结果。
-     */
-    private UrlVerdict checkPowerShellLocalManagementEnvironment(String command) {
-        Matcher matcher =
-                POWERSHELL_LOCAL_MANAGEMENT_ENV_ASSIGNMENT_PATTERN.matcher(
-                        StrUtil.nullToEmpty(command));
-        while (matcher.find()) {
-            String value = matcher.group(2);
-            if (StrUtil.isBlank(value)) {
-                value = matcher.group(4);
-            }
-            String path = localManagementSocketEnvironmentPath(value);
-            if (isLocalManagementSocket(path)) {
-                return UrlVerdict.block(
-                        path, "阻断本地容器/运行时管理套接字访问：" + localManagementReference(path));
-            }
-            String pipe = localManagementPipeToken(path);
-            if (StrUtil.isNotBlank(pipe)) {
-                return UrlVerdict.block(
-                        pipe, "阻断本地容器/运行时管理命名管道访问：" + localManagementReference(pipe));
-            }
-        }
-        return UrlVerdict.allow();
-    }
-
-    /**
-     * 执行本地Management引用相关逻辑。
-     *
-     * @param value 待规范化或校验的原始值。
-     * @return 返回本地Management Reference结果。
-     */
-    private String localManagementReference(String value) {
-        String text = SecretRedactor.stripDisplayControls(StrUtil.nullToEmpty(value)).trim();
-        text = SecretRedactor.redact(text, 400);
-        return StrUtil.blankToDefault(text, "[REDACTED_PATH]");
-    }
-
-    /**
-     * 执行本地Management套接字Environment值相关逻辑。
-     *
-     * @param token token 参数。
-     * @return 返回本地Management Socket Environment Value结果。
-     */
-    private String localManagementSocketEnvironmentValue(String token) {
-        int assignment = StrUtil.nullToEmpty(token).indexOf('=');
-        if (assignment <= 0 || assignment + 1 >= token.length()) {
-            return "";
-        }
-        String name = token.substring(0, assignment).trim();
-        if (!"DOCKER_HOST".equalsIgnoreCase(name)
-                && !"CONTAINER_HOST".equalsIgnoreCase(name)
-                && !"PODMAN_HOST".equalsIgnoreCase(name)) {
-            return "";
-        }
-        return localManagementSocketEnvironmentPath(token.substring(assignment + 1));
-    }
-
-    /**
-     * 执行本地Management套接字Environment路径相关逻辑。
-     *
-     * @param rawValue 原始值参数。
-     * @return 返回本地Management Socket Environment路径。
-     */
-    private String localManagementSocketEnvironmentPath(String rawValue) {
-        String value = cleanUrlToken(stripOptionalQuote(rawValue));
-        if (value.regionMatches(true, 0, "unix://", 0, "unix://".length())) {
-            return value.substring("unix://".length());
-        }
-        return value;
-    }
-
-    /**
-     * 执行本地Management主机选项值相关逻辑。
-     *
-     * @param token token 参数。
-     * @return 返回本地Management Host Option Value结果。
-     */
-    private String localManagementHostOptionValue(String token) {
-        String value = StrUtil.nullToEmpty(token).trim();
-        if (value.regionMatches(true, 0, "--host=", 0, "--host=".length())) {
-            return localManagementSocketEnvironmentPath(value.substring("--host=".length()));
-        }
-        if (value.regionMatches(true, 0, "-H=", 0, "-H=".length())) {
-            return localManagementSocketEnvironmentPath(value.substring("-H=".length()));
-        }
-        if (value.length() > 2 && value.regionMatches(true, 0, "-H", 0, 2)) {
-            return localManagementSocketEnvironmentPath(value.substring(2));
-        }
-        return "";
-    }
-
-    /**
-     * 判断是否Detached本地Management Host Option。
-     *
-     * @param token token 参数。
-     * @return 如果Detached本地Management Host Option满足条件则返回 true，否则返回 false。
-     */
-    private boolean isDetachedLocalManagementHostOption(String token) {
-        return "-H".equalsIgnoreCase(token) || "--host".equalsIgnoreCase(token);
-    }
-
-    /**
      * 判断是否本地Management Socket。
      *
      * @param rawPath 文件或目录路径参数。
@@ -1975,26 +1539,6 @@ public class SecurityPolicyService {
             }
         }
         return false;
-    }
-
-    /**
-     * 执行本地ManagementPipetoken相关逻辑。
-     *
-     * @param token token 参数。
-     * @return 返回本地Management Pipe token结果。
-     */
-    private String localManagementPipeToken(String token) {
-        if (isLocalManagementPipe(token)) {
-            return token;
-        }
-        int assignment = token.indexOf('=');
-        if (assignment > 0 && assignment + 1 < token.length()) {
-            String value = token.substring(assignment + 1);
-            if (isLocalManagementPipe(value)) {
-                return value;
-            }
-        }
-        return "";
     }
 
     /**

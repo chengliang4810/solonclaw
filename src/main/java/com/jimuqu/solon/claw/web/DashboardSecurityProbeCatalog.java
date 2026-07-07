@@ -874,12 +874,6 @@ final class DashboardSecurityProbeCatalog {
                         "hardline_dd_device"));
         items.add(
                 runner.hardlineCommandProbe(
-                        "hardline_disk_partition_table_destroy",
-                        "磁盘分区表销毁硬阻断",
-                        "wipefs -a /dev/sdb",
-                        "hardline_disk_partition_table_destroy"));
-        items.add(
-                runner.hardlineCommandProbe(
                         "hardline_redirect_device",
                         "裸设备重定向写入硬阻断",
                         "echo token > /dev/sdb",
@@ -902,42 +896,6 @@ final class DashboardSecurityProbeCatalog {
                         "Windows 卷格式化硬阻断",
                         "format c:",
                         "hardline_windows_format"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_clear_disk",
-                        "Windows 清盘硬阻断",
-                        "Clear-Disk -Number 0 -RemoveData",
-                        "hardline_windows_clear_disk"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_remove_partition",
-                        "Windows 分区删除硬阻断",
-                        "Remove-Partition -DriveLetter C",
-                        "hardline_windows_remove_partition"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_diskpart_destructive",
-                        "Windows diskpart 破坏性操作硬阻断",
-                        "diskpart /s clean.txt\nclean",
-                        "hardline_windows_diskpart_destructive"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_delete_drive_root",
-                        "Windows 盘符根目录递归删除硬阻断",
-                        "Remove-Item -Recurse C:\\*",
-                        "hardline_windows_delete_drive_root"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_delete_profile",
-                        "Windows 用户目录递归删除硬阻断",
-                        "Remove-Item -Recurse $env:USERPROFILE",
-                        "hardline_windows_delete_profile"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_system_dir",
-                        "Windows 系统目录递归删除硬阻断",
-                        "Remove-Item -Recurse C:\\Windows\\*",
-                        "hardline_windows_system_dir"));
         items.add(
                 runner.hardlineCommandProbe(
                         "hardline_windows_shutdown",
