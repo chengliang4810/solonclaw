@@ -704,6 +704,32 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     }
 
     /**
+     * 仅按来源键查找Next Queued消息（不限会话），用于 goal 续轮抢占判定。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回该来源键下最早的 queued 消息；无待处理消息返回 null。
+     */
+    @Override
+    public QueuedRunMessage findNextQueuedMessageBySourceKey(String sourceKey) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from queued_run_messages where source_key = ? and status = 'queued' order by created_at asc limit 1");
+            statement.setString(1, sourceKey);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? mapQueuedMessage(resultSet) : null;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    /**
      * 执行次数排队Messages相关逻辑。
      *
      * @param sourceKey 渠道来源键。

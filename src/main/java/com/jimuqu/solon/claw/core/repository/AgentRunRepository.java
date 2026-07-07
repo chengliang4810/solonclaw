@@ -212,6 +212,19 @@ public interface AgentRunRepository {
     QueuedRunMessage findNextQueuedMessage(String sourceKey, String sessionId) throws Exception;
 
     /**
+     * 仅按来源键查找Next Queued消息（不限会话），用于 goal 续轮抢占判定。
+     *
+     * <p>抢占检查只持有 sourceKey（如 {@code MEMORY:room:user}），而真实用户消息可能跨会话排队。
+     * 本方法忽略 sessionId，返回该来源键下最早入队的一条 queued 消息。
+     *
+     * @param sourceKey 渠道来源键。
+     * @return 返回该来源键下最早的 queued 消息；无待处理消息返回 null。
+     */
+    default QueuedRunMessage findNextQueuedMessageBySourceKey(String sourceKey) throws Exception {
+        return null;
+    }
+
+    /**
      * 执行次数排队Messages相关逻辑。
      *
      * @param sourceKey 渠道来源键。
