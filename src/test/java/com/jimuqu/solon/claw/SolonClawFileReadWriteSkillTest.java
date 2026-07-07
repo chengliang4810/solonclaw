@@ -1,7 +1,6 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import static com.jimuqu.solon.claw.support.TestToolSupport.guardedFileSkill;
 import static com.jimuqu.solon.claw.support.TestToolSupport.readUtf8;
@@ -18,18 +17,8 @@ import org.junit.jupiter.api.condition.OS;
 import org.noear.snack4.ONode;
 
 public class SolonClawFileReadWriteSkillTest {
-    @Test
-    void shouldBlockRuntimeCredentialCacheRead() throws Exception {
-        Path dir = tempDir("file-read-safety");
-        Files.createDirectories(dir.resolve("cache"));
-        writeUtf8(dir.resolve("cache/bws_cache.json"), "secret");
-        SolonClawFileReadWriteSkill skill = guardedFileSkill(dir);
-
-        assertThatThrownBy(() -> skill.read("cache/bws_cache.json"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("读取敏感系统/凭据文件被阻断")
-                .hasMessageNotContaining("secret");
-    }
+    // shouldBlockRuntimeCredentialCacheRead 已删除：凭据文件读已放宽（对齐 hermes"读非安全边界"），
+    // 读 bws_cache.json 现在放行，写仍阻断。
 
     /** 验证默认 workspace 工作区下的脚本写入不会落到嵌套 workspace 目录。 */
     @Test

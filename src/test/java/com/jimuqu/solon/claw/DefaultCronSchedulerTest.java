@@ -2814,23 +2814,8 @@ public class DefaultCronSchedulerTest {
         FileUtil.mkdir(tokenDir);
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
-        Map<String, Object> unsafeCreate = new LinkedHashMap<String, Object>();
-        unsafeCreate.put("name", "unsafe-workdir");
-        unsafeCreate.put("schedule", "30m");
-        unsafeCreate.put("prompt", "inspect");
-        unsafeCreate.put("workdir", sshDir.getAbsolutePath());
-
-        assertThatThrownBy(
-                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
-                            @Override
-                            public void call() throws Throwable {
-                                service.create("MEMORY:cron:user", unsafeCreate);
-                            }
-                        })
-                .hasMessageContaining("workdir blocked by security policy")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining(sshDir.getAbsolutePath())
-                .hasMessageNotContaining(".ssh");
+        // unsafeCreate 使用 .ssh 作为 workdir 走 checkPath(.., false) 读路径，凭据目录读已放宽
+        // （对齐 hermes"读非安全边界"），原 workdir 读阻断断言已移除。下方元字符 workdir/安全 workdir 断言保留。
 
         Map<String, Object> metacharCreate = new LinkedHashMap<String, Object>();
         metacharCreate.put("name", "metachar-workdir");
@@ -2856,19 +2841,7 @@ public class DefaultCronSchedulerTest {
         safeCreate.put("workdir", projectDir.getAbsolutePath());
         CronJobRecord job = service.create("MEMORY:cron:user", safeCreate);
 
-        Map<String, Object> unsafeUpdate = new LinkedHashMap<String, Object>();
-        unsafeUpdate.put("workdir", sshDir.getAbsolutePath());
-        assertThatThrownBy(
-                        new org.assertj.core.api.ThrowableAssert.ThrowingCallable() {
-                            @Override
-                            public void call() throws Throwable {
-                                service.update(job.getJobId(), unsafeUpdate);
-                            }
-                        })
-                .hasMessageContaining("workdir blocked by security policy")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining(sshDir.getAbsolutePath())
-                .hasMessageNotContaining(".ssh");
+        // unsafeUpdate 使用 .ssh 作为 workdir 同样走读路径，读已放宽，原 workdir 读阻断断言已移除。
 
         Map<String, Object> tokenUpdate = new LinkedHashMap<String, Object>();
         tokenUpdate.put("workdir", tokenDir.getAbsolutePath() + "; rm -rf runtime");

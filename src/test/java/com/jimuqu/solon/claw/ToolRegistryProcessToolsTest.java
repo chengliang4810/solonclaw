@@ -885,33 +885,8 @@ class ToolRegistryProcessToolsTest {
         assertThat(result.get("error").getString()).doesNotContain("ghp_processcwd12345");
     }
 
-    @Test
-    void shouldRejectManagedProcessCredentialCwd() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools = processTools(env);
-        File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
-        File credentialDir = new File(workspaceHome, ".ssh");
-        assertThat(credentialDir.mkdirs() || credentialDir.isDirectory()).isTrue();
-
-        ONode result =
-                ONode.ofJson(
-                        tools.process(
-                                "start",
-                                shortEchoCommand(),
-                                null,
-                                credentialDir.getAbsolutePath(),
-                                null,
-                                Integer.valueOf(1),
-                                null,
-                                null));
-
-        assertToolError(result);
-        assertThat(result.get("error").getString())
-                .contains("workdir path")
-                .contains("敏感系统/凭据文件")
-                .doesNotContain(".ssh")
-                .doesNotContain(workspaceHome.getAbsolutePath());
-    }
+    // shouldRejectManagedProcessCredentialCwd 已删除：进程 cwd 走 checkPath(value, false) 读路径，
+    // 凭据目录读已放宽（对齐 hermes"读非安全边界"），现在放行。
 
     /** 构造使用测试环境默认注册表和安全策略的进程工具。 */
     private ProcessTools processTools(TestEnvironment env) {

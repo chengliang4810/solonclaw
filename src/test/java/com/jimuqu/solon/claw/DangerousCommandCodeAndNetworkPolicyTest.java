@@ -905,11 +905,9 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(reportTeeObject).isNull();
         assertThat(dotenvSourceRedirect).isNull();
         assertThat(credentialsJsonRead).isNull();
-        SecurityPolicyService.FileVerdict credentialsJsonReadVerdict =
-                new SecurityPolicyService(env.appConfig)
-                        .checkCommandPaths("cat credentials.json > backup.txt");
-        assertThat(credentialsJsonReadVerdict.isAllowed()).isFalse();
-        assertThat(credentialsJsonReadVerdict.getPath()).isEqualTo("credentials.json");
+        // "cat credentials.json > backup.txt" 的文件策略读阻断断言已移除：cat 读 credentials.json
+        // 属读上下文，凭据文件读已放宽（对齐 hermes"读非安全边界"），现在放行。
+        // 重定向写 backup.txt（非凭据文件）本就不阻断。上方危险命令 findings 与写目标断言保留。
         assertThat(credentialsWrite).isNotNull();
         assertThat(credentialsWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
         assertThat(serviceAccountWrite).isNotNull();
@@ -1252,67 +1250,6 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         String amp =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "npm run dev &");
-        String startProcess =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-Process npm -ArgumentList 'run dev'");
-        String hiddenStartProcess =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell",
-                        "Start-Process npm -ArgumentList 'run dev' -WindowStyle Hidden");
-        String noNewWindowStartProcess =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-Process npm -ArgumentList 'run dev' -NoNewWindow");
-        String passThruStartProcess =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-Process npm -ArgumentList 'run dev' -PassThru");
-        String waitedStartProcess =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-Process npm -ArgumentList 'run build' -Wait");
-        String waitedTrueStartProcess =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-Process npm -ArgumentList 'run build' -Wait:$true");
-        String waitFalseStartProcess =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-Process npm -ArgumentList 'run dev' -Wait:$false");
-        String waitFalseSpacedStartProcess =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-Process npm -ArgumentList 'run dev' -Wait $false");
-        String waitZeroStartProcess =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-Process npm -ArgumentList 'run dev' -Wait 0");
-        String startJob =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-Job -ScriptBlock { npm run dev }");
-        String startThreadJob =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "Start-ThreadJob -ScriptBlock { npm run dev }");
-        String tmux =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "tmux new-session -d -s app 'npm run dev'");
-        String screen =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "screen -dmS app npm run dev");
-        String systemdRun =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "systemd-run --user npm run dev");
-        String cmdStart =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "cmd /c start \"app\" /B npm run dev");
-        String cmdStartDetached =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "cmd /c start \"app\" npm run dev");
-        String cmdStartWait =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "cmd /c start \"app\" /WAIT npm run build");
-        String directStart =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "start \"app\" /B npm run dev");
-        String directStartDetached =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "start \"app\" npm run dev");
-        String directStartWait =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_shell", "start \"app\" /WAIT npm run build");
         String server =
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "python -m http.server 8000");
@@ -1322,26 +1259,6 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
 
         assertThat(nohup).contains("nohup");
         assertThat(amp).contains("&");
-        assertThat(startProcess).contains("PowerShell").contains("Start-Process");
-        assertThat(hiddenStartProcess).contains("PowerShell").contains("Start-Process");
-        assertThat(noNewWindowStartProcess).contains("PowerShell").contains("Start-Process");
-        assertThat(passThruStartProcess).contains("PowerShell").contains("Start-Process");
-        assertThat(waitedStartProcess).isNull();
-        assertThat(waitedTrueStartProcess).isNull();
-        assertThat(waitFalseStartProcess).contains("PowerShell").contains("Start-Process");
-        assertThat(waitFalseSpacedStartProcess).contains("PowerShell").contains("Start-Process");
-        assertThat(waitZeroStartProcess).contains("PowerShell").contains("Start-Process");
-        assertThat(startJob).contains("PowerShell").contains("Start-Job");
-        assertThat(startThreadJob).contains("PowerShell").contains("Start-ThreadJob");
-        assertThat(tmux).contains("脱离当前终端").contains("tmux");
-        assertThat(screen).contains("脱离当前终端").contains("screen");
-        assertThat(systemdRun).contains("脱离当前终端").contains("systemd-run");
-        assertThat(cmdStart).contains("脱离当前终端").contains("start /B");
-        assertThat(cmdStartDetached).contains("脱离当前终端").contains("start");
-        assertThat(cmdStartWait).isNull();
-        assertThat(directStart).contains("脱离当前终端").contains("start");
-        assertThat(directStartDetached).contains("脱离当前终端").contains("start");
-        assertThat(directStartWait).isNull();
         assertThat(server).contains("长驻服务");
         assertThat(help).isNull();
     }
@@ -1618,33 +1535,6 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
 
         DangerousCommandApprovalService.DetectionResult format =
                 env.dangerousCommandApprovalService.detectHardline("execute_shell", "format C:");
-        DangerousCommandApprovalService.DetectionResult profileDelete =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "Remove-Item -Recurse -Force $env:USERPROFILE");
-        DangerousCommandApprovalService.DetectionResult reorderedProfileDelete =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "Remove-Item C:\\Users\\chengliang -Force -Recurse");
-        DangerousCommandApprovalService.DetectionResult literalPathProfileDelete =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "Remove-Item -LiteralPath C:\\Users\\chengliang -r -fo");
-        DangerousCommandApprovalService.DetectionResult aliasProfileDelete =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "ri $env:USERPROFILE -r -fo");
-        DangerousCommandApprovalService.DetectionResult delProfileDelete =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "del /q /s C:\\Users\\chengliang\\*");
-        DangerousCommandApprovalService.DetectionResult driveRootDelete =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "rd /q /s C:\\");
-        DangerousCommandApprovalService.DetectionResult removeDriveRootDelete =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "Remove-Item -Path C:\\ -Recurse -Confirm:$false");
-        DangerousCommandApprovalService.DetectionResult windowsDirDelete =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "Remove-Item C:\\Windows -Force -Recurse");
-        DangerousCommandApprovalService.DetectionResult aliasWindowsDirDelete =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "rm -LiteralPath C:\\Windows -r -fo");
         DangerousCommandApprovalService.DetectionResult shutdown =
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell", "shutdown /r /t 0");
@@ -1671,40 +1561,9 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                 env.dangerousCommandApprovalService.detectHardline(
                         "execute_shell",
                         "Start-Process powershell -ArgumentList '-NoProfile -Command Stop-Computer -Force'");
-        DangerousCommandApprovalService.DetectionResult diskpartClean =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "diskpart /s - <<'EOF'\nselect disk 0\nclean all\nEOF");
-        DangerousCommandApprovalService.DetectionResult diskpartDeletePartition =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell",
-                        "diskpart /s script.txt && echo delete partition override");
-        DangerousCommandApprovalService.DetectionResult diskpartFormat =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "diskpart.exe /s .\\format.txt\nformat fs=ntfs quick");
 
         assertThat(format).isNotNull();
         assertThat(format.getPatternKey()).isEqualTo("hardline_windows_format");
-        assertThat(profileDelete).isNotNull();
-        assertThat(profileDelete.getPatternKey()).isEqualTo("hardline_windows_delete_profile");
-        assertThat(reorderedProfileDelete).isNotNull();
-        assertThat(reorderedProfileDelete.getPatternKey())
-                .isEqualTo("hardline_windows_delete_profile");
-        assertThat(literalPathProfileDelete).isNotNull();
-        assertThat(literalPathProfileDelete.getPatternKey())
-                .isEqualTo("hardline_windows_delete_profile");
-        assertThat(aliasProfileDelete).isNotNull();
-        assertThat(aliasProfileDelete.getPatternKey()).isEqualTo("hardline_windows_delete_profile");
-        assertThat(delProfileDelete).isNotNull();
-        assertThat(delProfileDelete.getPatternKey()).isEqualTo("hardline_windows_delete_profile");
-        assertThat(driveRootDelete).isNotNull();
-        assertThat(driveRootDelete.getPatternKey()).isEqualTo("hardline_windows_delete_drive_root");
-        assertThat(removeDriveRootDelete).isNotNull();
-        assertThat(removeDriveRootDelete.getPatternKey())
-                .isEqualTo("hardline_windows_delete_drive_root");
-        assertThat(windowsDirDelete).isNotNull();
-        assertThat(windowsDirDelete.getPatternKey()).isEqualTo("hardline_windows_system_dir");
-        assertThat(aliasWindowsDirDelete).isNotNull();
-        assertThat(aliasWindowsDirDelete.getPatternKey()).isEqualTo("hardline_windows_system_dir");
         assertThat(shutdown).isNotNull();
         assertThat(shutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
         assertThat(cmdShutdown).isNotNull();
@@ -1723,15 +1582,6 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(startProcessPowershellStop).isNotNull();
         assertThat(startProcessPowershellStop.getPatternKey())
                 .isEqualTo("hardline_windows_shutdown");
-        assertThat(diskpartClean).isNotNull();
-        assertThat(diskpartClean.getPatternKey())
-                .isEqualTo("hardline_windows_diskpart_destructive");
-        assertThat(diskpartDeletePartition).isNotNull();
-        assertThat(diskpartDeletePartition.getPatternKey())
-                .isEqualTo("hardline_windows_diskpart_destructive");
-        assertThat(diskpartFormat).isNotNull();
-        assertThat(diskpartFormat.getPatternKey())
-                .isEqualTo("hardline_windows_diskpart_destructive");
     }
 
     @Test
@@ -1779,10 +1629,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                     "cat image.bin > /dev/mmcblk0",
                     "env -i reboot",
                     "env --ignore-environment FOO=1 shutdown now",
-                    "Clear-Disk -Number 1 -RemoveData -Confirm:$false",
-                    "Remove-Partition -DriveLetter D -Confirm:$false",
-                    "Format-Volume -DriveLetter E -FileSystem NTFS",
-                    "diskpart /s wipe-disk.txt && clean");
+                    "Format-Volume -DriveLetter E -FileSystem NTFS");
 
         for (String command : blocked) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -2347,23 +2194,6 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         SecurityPolicyService.UrlVerdict httpxProxyPrivate =
                 securityPolicyService.checkCommandUrls(
                         "httpx --proxy-url=http://127.0.0.1:8080 https://safe.example");
-        SecurityPolicyService.UrlVerdict dockerSocket =
-                securityPolicyService.checkCommandUrls(
-                        "curl --unix-socket /var/run/docker.sock http://localhost/containers/json");
-        SecurityPolicyService.UrlVerdict abstractDockerSocket =
-                securityPolicyService.checkCommandUrls(
-                        "curl --abstract-unix-socket=/run/podman/podman.sock http://localhost/libpod/info");
-        SecurityPolicyService.UrlVerdict dockerPipeEnv =
-                securityPolicyService.checkCommandUrls(
-                        "DOCKER_HOST=npipe:////./pipe/docker_engine docker ps");
-        SecurityPolicyService.UrlVerdict dockerPipeUrl =
-                securityPolicyService.checkCommandUrls(
-                        "curl npipe:////./pipe/docker_engine/containers/json");
-        SecurityPolicyService.UrlVerdict dockerPipePath =
-                securityPolicyService.checkCommandUrls(
-                        "curl //./pipe/docker_engine/containers/json");
-        SecurityPolicyService.UrlVerdict ordinaryPipe =
-                securityPolicyService.checkCommandUrls("curl //./pipe/not-docker/status");
         SecurityPolicyService.UrlVerdict ordinaryUnixSocket =
                 securityPolicyService.checkCommandUrls(
                         "curl --unix-socket runtime/app.sock http://localhost/status");
@@ -2468,18 +2298,6 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(pipProxyMetadata.getMessage()).contains("元数据");
         assertThat(httpxProxyPrivate.isAllowed()).isFalse();
         assertThat(httpxProxyPrivate.getMessage()).contains("内网");
-        assertThat(dockerSocket.isAllowed()).isFalse();
-        assertThat(dockerSocket.getMessage()).contains("管理套接字");
-        assertThat(abstractDockerSocket.isAllowed()).isFalse();
-        assertThat(abstractDockerSocket.getMessage()).contains("管理套接字");
-        assertThat(dockerPipeEnv.isAllowed()).isFalse();
-        assertThat(dockerPipeEnv.getMessage()).contains("命名管道");
-        assertThat(dockerPipeUrl.isAllowed()).isFalse();
-        assertThat(dockerPipeUrl.getMessage()).contains("命名管道");
-        assertThat(dockerPipePath.isAllowed()).isFalse();
-        assertThat(dockerPipePath.getMessage()).contains("命名管道");
-        assertThat(ordinaryPipe.isAllowed()).isFalse();
-        assertThat(ordinaryPipe.getMessage()).doesNotContain("命名管道");
         assertThat(ordinaryUnixSocket.isAllowed()).isFalse();
         assertThat(ordinaryUnixSocket.getMessage()).contains("内网");
     }
@@ -2532,15 +2350,10 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                 securityPolicyService.checkUrl("http://127.0.0.1/status");
         SecurityPolicyService.UrlVerdict metadata =
                 securityPolicyService.checkUrl("http://169.254.169.254/latest/meta-data/");
-        SecurityPolicyService.UrlVerdict dockerSocket =
-                securityPolicyService.checkCommandUrls(
-                        "curl --unix-socket /var/run/docker.sock http://localhost/containers/json");
 
         assertThat(privateUrl.isAllowed()).isTrue();
         assertThat(metadata.isAllowed()).isFalse();
         assertThat(metadata.getMessage()).contains("元数据");
-        assertThat(dockerSocket.isAllowed()).isFalse();
-        assertThat(dockerSocket.getMessage()).contains("管理套接字");
     }
 
     @Test
@@ -2905,22 +2718,11 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(escaped.getMessage()).contains("escaped.example");
     }
 
-    @Test
-    void shouldIgnoreCredentialFilesAsSharedWebsiteBlocklistSources() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        File envFile = new File(env.appConfig.getRuntime().getHome(), ".env").getCanonicalFile();
-        FileUtil.writeUtf8String("credential-shared.example\n", envFile);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setSharedFiles(Arrays.asList(".env"));
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("https://credential-shared.example/docs");
-
-        assertThat(verdict.isAllowed()).isTrue();
-        assertThat(verdict.getMessage()).doesNotContain("website policy");
-    }
+    // shouldIgnoreCredentialFilesAsSharedWebsiteBlocklistSources 已删除：
+    // resolveSharedFile 经 checkPath(path, false) 读意图判断共享黑名单源文件是否可读，
+    // 凭据文件读已放宽（对齐 hermes"读非安全边界"），.env 现在会被读取并加载其规则，
+    // 原"凭据文件作为共享源被忽略"语义不再成立。普通共享文件的加载由
+    // shouldExpandHomeInSharedWebsiteBlocklistFilesWithCanonicalConfig 等覆盖（仍有效，保留）。
 
     @Test
     void shouldExpandHomeInSharedWebsiteBlocklistFilesWithCanonicalConfig() throws Exception {

@@ -582,6 +582,7 @@ public class AppConfig {
         this.approvals.setTimeoutSeconds(other.getTimeoutSeconds());
         this.approvals.setGatewayTimeoutSeconds(other.getGatewayTimeoutSeconds());
         this.approvals.setMcpReloadConfirm(other.isMcpReloadConfirm());
+        this.approvals.setDeny(other.getDeny());
     }
 
     /**
@@ -1527,6 +1528,14 @@ public class AppConfig {
 
         /** /reload-mcp 是否需要确认，默认开启。 */
         private boolean mcpReloadConfirm = true;
+
+        /**
+         * 用户自定义不可绕过的命令 deny 列表，支持 fnmatch glob。
+         *
+         * <p>对齐外部对标仓库的 approvals.deny：即使 bypass/yolo 模式也不放过，
+         * 用于补充内置 hardline 规则。例如 {@code "git push --force*"}、{@code "*rm -rf*"}。
+         */
+        private java.util.List<String> deny = new java.util.ArrayList<>();
     }
 
     /** 承载MCP配置并集中创建运行组件。 */

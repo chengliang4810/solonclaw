@@ -1581,6 +1581,10 @@ final class AppConfigLoader {
                 .setMcpReloadConfirm(
                         resolveBoolean(
                                 readBoolean(props, overrides, "approvals.mcpReloadConfirm", true)));
+        config.getApprovals()
+                .setDeny(
+                        resolveList(
+                                readRaw(props, overrides, "approvals.deny", "")));
         config.getMcp()
                 .setEnabled(
                         resolveBoolean(

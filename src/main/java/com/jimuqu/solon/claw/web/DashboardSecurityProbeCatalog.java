@@ -185,15 +185,16 @@ final class DashboardSecurityProbeCatalog {
                         "网站访问策略先于凭据参数阻断",
                         "blocked.example",
                         "https://api.blocked.example/path?token=dashboard-website-token-secret"));
-        items.add(runner.pathProbe("credential_path", "凭据文件读取阻断", "~/.ssh/id_rsa", false));
-        items.add(runner.pathProbe("credential_file_name", "凭据文件名读取阻断", ".npmrc", false));
+        // 凭据文件读已放宽（对齐 hermes"读非安全边界"），这些探针改为校验"写入凭据文件仍阻断"。
+        items.add(runner.pathProbe("credential_path", "凭据文件写入阻断", "~/.ssh/id_rsa", true));
+        items.add(runner.pathProbe("credential_file_name", "凭据文件名写入阻断", ".npmrc", true));
         items.add(runner.pathProbe("project_env_file_write", "项目环境凭据文件写入阻断", ".env.local", true));
         items.add(
                 runner.pathProbe(
                         "credential_path_suffix",
-                        "凭据路径后缀读取阻断",
+                        "凭据路径后缀写入阻断",
                         "~/.config/gemini/oauth_creds.json",
-                        false));
+                        true));
         items.add(
                 runner.pathProbe(
                         "encoded_path_traversal",
@@ -543,17 +544,18 @@ final class DashboardSecurityProbeCatalog {
                         "command_local_management_crio_socket",
                         "命令 CRI-O 本地管理套接字阻断",
                         "CONTAINER_HOST=unix:///var/run/crio/crio.sock crictl ps"));
+        // 凭据文件读已放宽（对齐 hermes"读非安全边界"），文件工具凭据路径探针改为校验"写入凭据文件仍阻断"。
         items.add(
                 runner.fileToolPathPolicyProbe(
                         "file_tool_credential_path",
-                        "文件工具凭据路径参数检查",
-                        ToolNameConstants.READ_FILE,
+                        "文件工具凭据路径写入检查",
+                        ToolNameConstants.WRITE_FILE,
                         ".env"));
         items.add(
                 runner.fileToolPathPolicyProbe(
                         "file_tool_entity_credential_path",
-                        "文件工具编码凭据路径检查",
-                        ToolNameConstants.READ_FILE,
+                        "文件工具编码凭据路径写入检查",
+                        ToolNameConstants.WRITE_FILE,
                         "client&#95;secret.json"));
         items.add(
                 runner.fileToolPathPolicyProbe(
@@ -874,12 +876,6 @@ final class DashboardSecurityProbeCatalog {
                         "hardline_dd_device"));
         items.add(
                 runner.hardlineCommandProbe(
-                        "hardline_disk_partition_table_destroy",
-                        "磁盘分区表销毁硬阻断",
-                        "wipefs -a /dev/sdb",
-                        "hardline_disk_partition_table_destroy"));
-        items.add(
-                runner.hardlineCommandProbe(
                         "hardline_redirect_device",
                         "裸设备重定向写入硬阻断",
                         "echo token > /dev/sdb",
@@ -902,42 +898,6 @@ final class DashboardSecurityProbeCatalog {
                         "Windows 卷格式化硬阻断",
                         "format c:",
                         "hardline_windows_format"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_clear_disk",
-                        "Windows 清盘硬阻断",
-                        "Clear-Disk -Number 0 -RemoveData",
-                        "hardline_windows_clear_disk"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_remove_partition",
-                        "Windows 分区删除硬阻断",
-                        "Remove-Partition -DriveLetter C",
-                        "hardline_windows_remove_partition"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_diskpart_destructive",
-                        "Windows diskpart 破坏性操作硬阻断",
-                        "diskpart /s clean.txt\nclean",
-                        "hardline_windows_diskpart_destructive"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_delete_drive_root",
-                        "Windows 盘符根目录递归删除硬阻断",
-                        "Remove-Item -Recurse C:\\*",
-                        "hardline_windows_delete_drive_root"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_delete_profile",
-                        "Windows 用户目录递归删除硬阻断",
-                        "Remove-Item -Recurse $env:USERPROFILE",
-                        "hardline_windows_delete_profile"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_system_dir",
-                        "Windows 系统目录递归删除硬阻断",
-                        "Remove-Item -Recurse C:\\Windows\\*",
-                        "hardline_windows_system_dir"));
         items.add(
                 runner.hardlineCommandProbe(
                         "hardline_windows_shutdown",

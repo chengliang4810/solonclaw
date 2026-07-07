@@ -771,18 +771,12 @@ class ToolRegistryWebAndCodeToolsTest {
         env.appConfig.getSecurity().setUrlGuardrailMode("strict");
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
 
-        SolonClawCodeExecutionSkills.SafePythonSkill python =
-                new SolonClawCodeExecutionSkills.SafePythonSkill(
-                        env.appConfig.getRuntime().getHome(), "python", policy);
         SolonClawCodeExecutionSkills.SafeNodejsSkill nodejs =
                 new SolonClawCodeExecutionSkills.SafeNodejsSkill(
                         env.appConfig.getRuntime().getHome(), policy);
 
-        assertThatThrownBy(() -> python.execute("open('.env').read()", Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining(".env");
+        // python 读取 .env 的读阻断断言已移除：凭据文件读已放宽（对齐 hermes"读非安全边界"），
+        // open('.env').read() 现在放行。下方 URL/危险命令阻断断言保留。
         assertThatThrownBy(
                         () ->
                                 nodejs.execute(
@@ -917,50 +911,10 @@ class ToolRegistryWebAndCodeToolsTest {
                 .hasMessageNotContaining("after");
     }
 
-    @Test
-    void shouldReturnErrorWhenExecuteCodeReadsCredentialFilesBeforeRunning() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        Path workspace = new File(env.appConfig.getRuntime().getHome()).toPath();
-        Files.write(
-                workspace.resolve(".env"), Arrays.asList("TOKEN=secret"), StandardCharsets.UTF_8);
-        Files.write(
-                workspace.resolve("credentials.json"),
-                Arrays.asList("{\"token\":\"secret\"}"),
-                StandardCharsets.UTF_8);
-        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig);
-
-        ONode envResult =
-                ONode.ofJson(
-                        executeCode.executeCode(
-                                "print(open('.env').read())\nprint('after')\n",
-                                Integer.valueOf(5)));
-        ONode credentialsResult =
-                ONode.ofJson(
-                        executeCode.executeCode(
-                                "from pathlib import Path\nprint(Path('credentials.json').read_text())\nprint('after')\n",
-                                Integer.valueOf(5)));
-
-        assertThat(envResult.get("status").getString()).isEqualTo("error");
-        assertThat(envResult.get("error").getString())
-                .contains("文件安全策略")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".env")
-                .doesNotContain("TOKEN=secret");
-        assertThat(envResult.get("output").getString()).doesNotContain("after");
-        assertThat(credentialsResult.get("status").getString()).isEqualTo("error");
-        assertThat(credentialsResult.get("error").getString())
-                .contains("文件安全策略")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("credentials.json")
-                .doesNotContain("secret");
-        assertThat(credentialsResult.get("output").getString()).doesNotContain("after");
-    }
+    // shouldReturnErrorWhenExecuteCodeReadsCredentialFilesBeforeRunning 已删除：该测试断言
+    // execute_code 读取 .env/credentials.json 命中"文件安全策略"读阻断；凭据文件读已放宽
+    // （对齐 hermes"读非安全边界"），文件安全策略不再阻断此类读。同类 home ssh 密钥阻断由
+    // shouldReturnErrorWhenExecuteCodeTouchesHomeSshKeyBeforeRunning 覆盖（仍有效，保留）。
 
     @Test
     void shouldReturnErrorWhenExecuteCodeTouchesHomeSshKeyBeforeRunning() throws Exception {
@@ -1129,31 +1083,9 @@ class ToolRegistryWebAndCodeToolsTest {
                 .contains("BLOCKED");
     }
 
-    @Test
-    void shouldReturnExecuteCodeRpcToolErrorsWithoutBypassingSafety() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig);
-
-        ONode result =
-                ONode.ofJson(
-                        executeCode.executeCode(
-                                "from solonclaw_tools import read_file\n"
-                                        + "print(read_file('.env')['error'])\n",
-                                Integer.valueOf(10)));
-
-        assertThat(result.get("status").getString()).isEqualTo("success");
-        assertThat(result.get("tool_calls_made").getInt()).isEqualTo(1);
-        assertThat(result.get("output").getString())
-                .contains("文件安全策略")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".env");
-    }
+    // shouldReturnExecuteCodeRpcToolErrorsWithoutBypassingSafety 已删除：该测试断言 execute_code
+    // 通过 RPC 调用 read_file('.env') 命中"文件安全策略"读阻断；凭据文件读已放宽
+    // （对齐 hermes"读非安全边界"），read_file('.env') 现在放行（返回文件不存在），原读阻断语义不再成立。
 
     @Test
     void shouldLetApprovedExecuteCodeScriptPassToolFallbackOnce() throws Exception {
@@ -1301,16 +1233,8 @@ class ToolRegistryWebAndCodeToolsTest {
         SolonClawFileReadWriteSkill fileSkill =
                 new SolonClawFileReadWriteSkill(env.appConfig.getRuntime().getHome(), policy);
 
-        assertThatThrownBy(() -> fileSkill.read(".env"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining(".env");
-        assertThatThrownBy(() -> fileSkill.read("credentials.json"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining("credentials.json");
+        // 凭据文件读已放宽（对齐 hermes"读非安全边界"）：read(".env")、read("credentials.json")、
+        // list("~/.ssh") 的读阻断断言已移除。下方写/删除/路径遍历/Skills Hub 缓存阻断断言保留。
         assertThatThrownBy(() -> fileSkill.write("credentials", "token=secret"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
@@ -1325,11 +1249,6 @@ class ToolRegistryWebAndCodeToolsTest {
                 .hasMessageContaining("[REDACTED_PATH]")
                 .hasMessageNotContaining(".ssh")
                 .hasMessageNotContaining("id_rsa");
-        assertThatThrownBy(() -> fileSkill.list("~/.ssh"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining(".ssh");
         assertThatThrownBy(() -> fileSkill.list("skills/.hub/index-cache"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("文件安全策略")
@@ -1555,36 +1474,9 @@ class ToolRegistryWebAndCodeToolsTest {
                 .doesNotContain("config/readme.txt");
     }
 
-    @Test
-    void shouldNotSuggestSensitiveFilesWhenFileReadPathIsMissing() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
-        Files.write(
-                workspace.resolve("config.yml"),
-                Arrays.asList("public: true"),
-                StandardCharsets.UTF_8);
-        Files.write(
-                workspace.resolve("credentials.json"),
-                Arrays.asList("TOKEN=secret"),
-                StandardCharsets.UTF_8);
-        SolonClawFileReadWriteSkill fileSkill =
-                new SolonClawFileReadWriteSkill(
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
-
-        ONode result = ONode.ofJson(fileSkill.read("config.json", 1, 5));
-        Object suggestionsData = result.get("similar_files").toData();
-        String suggestions = String.valueOf(suggestionsData);
-
-        assertToolError(result);
-        assertThat(suggestions)
-                .contains("config.yml")
-                .doesNotContain("credentials.json")
-                .doesNotContain("TOKEN=secret");
-        assertThat(result.toJson())
-                .doesNotContain("credentials.json")
-                .doesNotContain("TOKEN=secret");
-    }
+    // shouldNotSuggestSensitiveFilesWhenFileReadPathIsMissing 已删除：相似文件建议走读路径
+    // （checkFileToolArgs(READ_FILE, ...)），凭据文件读已放宽（对齐 hermes"读非安全边界"），
+    // credentials.json 现在可出现在建议中，原"读阻断"语义不再成立。
 
     @Test
     void shouldHideUtf8BomOnFileReadAndPreserveItAcrossEdits() throws Exception {
@@ -1786,11 +1678,8 @@ class ToolRegistryWebAndCodeToolsTest {
                                 Boolean.FALSE,
                                 null));
 
-        assertThatThrownBy(() -> fileSkill.read("credentials/oauth.json"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("凭据")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining("credentials/oauth.json");
+        // fileSkill.read 读阻断断言已移除：凭据文件读已放宽（对齐 hermes"读非安全边界"），
+        // 读 credentials/oauth.json 现在放行。下方写/patch 写阻断断言保留。
         assertThatThrownBy(() -> fileSkill.write("credentials/oauth.json", "{\"token\":\"new\"}"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("凭据")

@@ -165,24 +165,6 @@ final class DangerousCommandRuleCatalog {
     /** 终端级别BACKGROUND的统一常量值。 */
     static final Pattern SHELL_LEVEL_BACKGROUND = pattern("\\b(?:nohup|disown|setsid)\\b");
 
-    /** DETACHED终端会话的统一常量值。 */
-    static final Pattern DETACHED_TERMINAL_SESSION =
-            pattern(
-                    "\\b(?:tmux\\s+new-session\\b(?=[^\\n]*(?:\\s-d\\b|\\s--detach\\b))|screen\\s+(?:-[^\\s]*d[^\\s]*m[^\\s]*|-[^\\s]*m[^\\s]*d[^\\s]*)\\b|systemd-run\\b|cmd(?:\\.exe)?\\s+/c\\s+start\\b(?![^\\n]*\\s/(?:wait|w)\\b)|(?:^|[;&|\\n])\\s*start(?:\\.exe)?\\s+(?![^\\n]*\\s/(?:wait|w)\\b))");
-
-    /** PowerShellBACKGROUND任务的统一常量值。 */
-    static final Pattern POWERSHELL_BACKGROUND_JOB =
-            pattern("\\b(?:start-process|start-job|start-threadjob)\\b");
-
-    /** PowerShellWAITTRUEFLAG的统一常量值。 */
-    static final Pattern POWERSHELL_WAIT_TRUE_FLAG =
-            pattern("\\s-wait(?:\\s|$|:(?:\\$?true|1)\\b|=(?:\\$?true|1)\\b)");
-
-    /** PowerShellWAITFALSEFLAG的统一常量值。 */
-    static final Pattern POWERSHELL_WAIT_FALSE_FLAG =
-            pattern(
-                    "\\s-wait(?:\\s*:(?:\\$?false|0)\\b|\\s*=(?:\\$?false|0)\\b|\\s+(?:\\$?false|0)\\b)");
-
     /** 内联BACKGROUNDAMP的统一常量值。 */
     static final Pattern INLINE_BACKGROUND_AMP = pattern("\\s&\\s");
 
@@ -2538,7 +2520,21 @@ final class DangerousCommandRuleCatalog {
                                     "js_fs_remove",
                                     "Node file delete",
                                     pattern("\\bfs\\.(rm|rmSync|unlink|unlinkSync)\\s*\\("),
-                                    ToolNameConstants.EXECUTE_JS)));
+                                    ToolNameConstants.EXECUTE_JS),
+                            new DangerRule(
+                                    "docker_compose_lifecycle",
+                                    "docker compose restart/stop/kill/down (container lifecycle)",
+                                    pattern(
+                                            SHELL_COMMAND_START
+                                                    + "docker\\s+compose\\s+(?:.*\\s+)?(restart|stop|kill|down)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL),
+                            new DangerRule(
+                                    "docker_container_lifecycle",
+                                    "docker restart/stop/kill (container lifecycle)",
+                                    pattern(
+                                            SHELL_COMMAND_START
+                                                    + "docker\\s+(?:.*\\s+)?(restart|stop|kill)\\b"),
+                                    ToolNameConstants.EXECUTE_SHELL)));
 
     /** HARDLINERULES的统一常量值。 */
     static final List<DangerRule> HARDLINE_RULES =
@@ -2577,13 +2573,6 @@ final class DangerousCommandRuleCatalog {
                                             "\\bdd\\b[^\\n]*\\bof=[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
-                                    "hardline_disk_partition_table_destroy",
-                                    "destroy raw disk partition table or signatures",
-                                    pattern(
-                                            HARDLINE_COMMAND_POSITION
-                                                    + "(?=(?:[^\\n]*[\"']?/dev/(?:sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*))(?:wipefs\\b(?=[^\\n]*(?:-a\\b|--all\\b))|blkdiscard\\b|sgdisk\\b(?=[^\\n]*(?:--zap-all\\b|-Z\\b|--clear\\b|\\s-o\\b))|sfdisk\\b(?=[^\\n]*(?:--delete\\b|--wipe\\s+always\\b|--wipe-partitions\\s+always\\b))|parted\\b(?=[^\\n]*\\bmklabel\\b))"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
                                     "hardline_redirect_device",
                                     "redirect to raw block device",
                                     pattern(
@@ -2612,40 +2601,6 @@ final class DangerousCommandRuleCatalog {
                                     "format Windows volume",
                                     pattern(
                                             "\\b(?:format\\s+[a-z]:|Format-Volume\\b)(\\s|$|[^\\n]*\\b(?:-DriveLetter|-Partition|-FileSystem)\\b)"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "hardline_windows_clear_disk",
-                                    "clear Windows disk",
-                                    pattern("\\bClear-Disk\\b"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "hardline_windows_remove_partition",
-                                    "remove Windows partition",
-                                    pattern("\\bRemove-Partition\\b"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "hardline_windows_diskpart_destructive",
-                                    "destructive Windows diskpart operation",
-                                    pattern(
-                                            "\\bdiskpart(?:\\.exe)?\\b(?=[\\s\\S]*\\b(?:clean(?:\\s+all)?|delete\\s+partition|delete\\s+volume|format\\s+fs=|convert\\s+(?:gpt|mbr))\\b)"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "hardline_windows_delete_drive_root",
-                                    "recursive delete of Windows drive root",
-                                    pattern(
-                                            "\\b(Remove-Item|ri|rm|rmdir|rd|del|erase)\\b(?=[^\\n]*(?:-Recurse\\b|-r\\b|/s\\b))[^\\n]*\\b[a-z]:\\\\(?:\\*|\\.)?(?:\\s|$)"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "hardline_windows_delete_profile",
-                                    "recursive delete of Windows user profile",
-                                    pattern(
-                                            "\\b(Remove-Item|ri|rm|rmdir|rd|del|erase)\\b(?=[^\\n]*(?:-Recurse\\b|-r\\b|/s\\b))[^\\n]*(?:\\$env:USERPROFILE|%USERPROFILE%|C:\\\\Users(?:\\\\\\*|\\\\[^\\s'\"`|;&<>]+)?)(?:\\\\\\*)?(?:\\s|$)"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "hardline_windows_system_dir",
-                                    "recursive delete of Windows system directory",
-                                    pattern(
-                                            "\\b(Remove-Item|ri|rm|rmdir|rd|del|erase)\\b(?=[^\\n]*(?:-Recurse\\b|-r\\b|/s\\b))[^\\n]*(?:C:\\\\Windows|C:\\\\Program Files|C:\\\\Program Files \\(x86\\)|C:\\\\ProgramData)(?:\\\\\\*)?(?:\\s|$)"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_windows_shutdown",

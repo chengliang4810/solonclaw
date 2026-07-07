@@ -79,6 +79,7 @@ public final class CommandRegistry {
         register(core("pairing", "gateway", "管理渠道配对与管理员授权"));
         register(core("approve", "security", "批准待审批危险命令"));
         register(core("deny", "security", "拒绝待审批危险命令"));
+        register(core("yolo", "security", "切换会话级跳过危险命令审批（hardline 和 deny 仍生效）"));
         register(core("cancel", "security", "取消当前待确认 slash 命令"));
         register(core("platforms", "gateway", "查看平台连接与授权状态").alias("gateway"));
         register(core("platform", "gateway", "查看平台连接与授权状态"));

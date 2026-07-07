@@ -674,6 +674,10 @@ public class DefaultCommandService implements CommandService {
                     : handleDangerousDeny(message, args);
         }
 
+        if (GatewayCommandConstants.COMMAND_YOLO.equals(command)) {
+            return handleYolo(message, args);
+        }
+
         if (GatewayCommandConstants.COMMAND_CANCEL.equals(command)) {
             if (hasPendingDangerousApproval(message)) {
                 return handleDangerousDeny(message, args);
@@ -1015,6 +1019,47 @@ public class DefaultCommandService implements CommandService {
                         enabled
                                 ? "会话自动审批已开启：当前会话会自动批准可恢复的危险命令；硬阻断命令仍会被拒绝。"
                                 : "会话自动审批已关闭：当前会话恢复危险命令审批。");
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        return reply;
+    }
+
+    /**
+     * 处理 /yolo 命令，切换会话级跳过危险命令审批，对齐外部对标仓库的 /yolo 便捷入口。
+     *
+     * <p>等价于 /approve auto on/off 的快捷切换，hardline 和用户 deny 规则仍生效。
+     *
+     * @param message 平台消息或错误消息。
+     * @param args 命令参数（可选 status/on/off）。
+     * @return 返回切换结果。
+     * @throws Exception 处理过程中发生的异常。
+     */
+    private GatewayReply handleYolo(GatewayMessage message, String args) throws Exception {
+        SessionRecord session = requireSession(message.sourceKey());
+        SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+        String action = StrUtil.nullToEmpty(args).trim().toLowerCase(java.util.Locale.ROOT);
+        boolean enabled;
+        if (StrUtil.isBlank(action)) {
+            enabled = dangerousCommandApprovalService.toggleSessionAutoApproval(agentSession);
+        } else if ("status".equals(action) || "state".equals(action)) {
+            enabled = dangerousCommandApprovalService.isSessionAutoApprovalEnabled(agentSession);
+        } else if ("on".equals(action) || "enable".equals(action)) {
+            dangerousCommandApprovalService.enableSessionAutoApproval(agentSession);
+            enabled = true;
+        } else if ("off".equals(action) || "disable".equals(action)) {
+            dangerousCommandApprovalService.disableSessionAutoApproval(agentSession);
+            enabled = false;
+        } else {
+            GatewayReply reply = GatewayReply.error("用法：/yolo [status|on|off]");
+            reply.setSessionId(session.getSessionId());
+            reply.setBranchName(session.getBranchName());
+            return reply;
+        }
+        GatewayReply reply =
+                GatewayReply.ok(
+                        enabled
+                                ? "YOLO 已开启：当前会话跳过可审批危险命令（hardline 和 deny 规则仍生效）。"
+                                : "YOLO 已关闭：当前会话恢复危险命令审批。");
         reply.setSessionId(session.getSessionId());
         reply.setBranchName(session.getBranchName());
         return reply;

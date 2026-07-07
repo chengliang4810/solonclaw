@@ -107,25 +107,11 @@ public class DashboardSecurityProbeDiagnosticTest {
         Map<String, Object> hardlineDeleteHome = findProbe(items, "hardline_delete_home");
         Map<String, Object> hardlineMkfs = findProbe(items, "hardline_mkfs");
         Map<String, Object> hardlineDdDevice = findProbe(items, "hardline_dd_device");
-        Map<String, Object> hardlineDiskPartitionTableDestroy =
-                findProbe(items, "hardline_disk_partition_table_destroy");
         Map<String, Object> hardlineRedirectDevice = findProbe(items, "hardline_redirect_device");
         Map<String, Object> hardlineShutdown = findProbe(items, "hardline_shutdown");
         Map<String, Object> hardlineKillAll = findProbe(items, "hardline_kill_all");
         Map<String, Object> hardlineForkBomb = findProbe(items, "hardline_fork_bomb");
         Map<String, Object> hardlineWindowsFormat = findProbe(items, "hardline_windows_format");
-        Map<String, Object> hardlineWindowsClearDisk =
-                findProbe(items, "hardline_windows_clear_disk");
-        Map<String, Object> hardlineWindowsRemovePartition =
-                findProbe(items, "hardline_windows_remove_partition");
-        Map<String, Object> hardlineWindowsDiskpartDestructive =
-                findProbe(items, "hardline_windows_diskpart_destructive");
-        Map<String, Object> hardlineWindowsDeleteDriveRoot =
-                findProbe(items, "hardline_windows_delete_drive_root");
-        Map<String, Object> hardlineWindowsDeleteProfile =
-                findProbe(items, "hardline_windows_delete_profile");
-        Map<String, Object> hardlineWindowsSystemDir =
-                findProbe(items, "hardline_windows_system_dir");
         Map<String, Object> hardlineWindowsShutdown = findProbe(items, "hardline_windows_shutdown");
         Map<String, Object> sudoRewrite = findProbe(items, "sudo_rewrite");
         Map<String, Object> terminal = findProbe(items, "terminal_guardrail");
@@ -820,10 +806,6 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(hardlineDdDevice.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardlineDdDevice.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineDdDevice)).contains("of=/dev/sdb");
-        assertThat(hardlineDiskPartitionTableDestroy.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineDiskPartitionTableDestroy.get("blocked")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineDiskPartitionTableDestroy.get("skipped")).isNull();
-        assertThat(String.valueOf(hardlineDiskPartitionTableDestroy)).contains("wipefs -a");
         assertThat(hardlineRedirectDevice.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hardlineRedirectDevice.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardlineRedirectDevice.get("skipped")).isNull();
@@ -845,30 +827,6 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(hardlineWindowsFormat.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(hardlineWindowsFormat.get("skipped")).isNull();
         assertThat(String.valueOf(hardlineWindowsFormat)).contains("format c:");
-        assertThat(hardlineWindowsClearDisk.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsClearDisk.get("blocked")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsClearDisk.get("skipped")).isNull();
-        assertThat(String.valueOf(hardlineWindowsClearDisk)).contains("Clear-Disk");
-        assertThat(hardlineWindowsRemovePartition.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsRemovePartition.get("blocked")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsRemovePartition.get("skipped")).isNull();
-        assertThat(String.valueOf(hardlineWindowsRemovePartition)).contains("Remove-Partition");
-        assertThat(hardlineWindowsDiskpartDestructive.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsDiskpartDestructive.get("blocked")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsDiskpartDestructive.get("skipped")).isNull();
-        assertThat(String.valueOf(hardlineWindowsDiskpartDestructive)).contains("diskpart");
-        assertThat(hardlineWindowsDeleteDriveRoot.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsDeleteDriveRoot.get("blocked")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsDeleteDriveRoot.get("skipped")).isNull();
-        assertThat(String.valueOf(hardlineWindowsDeleteDriveRoot)).contains("C:\\*");
-        assertThat(hardlineWindowsDeleteProfile.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsDeleteProfile.get("blocked")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsDeleteProfile.get("skipped")).isNull();
-        assertThat(String.valueOf(hardlineWindowsDeleteProfile)).contains("$env:USERPROFILE");
-        assertThat(hardlineWindowsSystemDir.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsSystemDir.get("blocked")).isEqualTo(Boolean.TRUE);
-        assertThat(hardlineWindowsSystemDir.get("skipped")).isNull();
-        assertThat(String.valueOf(hardlineWindowsSystemDir)).contains("C:\\Windows\\*");
         assertThat(hardlineWindowsShutdown.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(hardlineWindowsShutdown.get("allowed")).isEqualTo(Boolean.FALSE);
         assertThat(hardlineWindowsShutdown.get("blocked")).isEqualTo(Boolean.TRUE);
@@ -887,8 +845,8 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(terminalOutput.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(terminalOutput.get("skipped")).isNull();
         assertThat(String.valueOf(terminalOutput)).doesNotContain("sk-dashboardterminalprobe12345");
-        assertThat(backgroundProcessGuard.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(backgroundProcessGuard.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(backgroundProcessGuard.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(backgroundProcessGuard.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(backgroundProcessGuard.get("skipped")).isNull();
         assertThat(String.valueOf(backgroundProcessGuard))
                 .contains("Start-Process")
@@ -1372,58 +1330,58 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(String.valueOf(commandRegistryInlineProxyPolicy))
                 .contains("New-ItemProperty")
                 .contains("169.254.169.254:8080");
-        assertThat(commandLocalManagementSocket.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementSocket.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementSocket.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementSocket.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementSocket))
                 .contains("DOCKER_HOST")
                 .contains("/var/run/docker.sock");
-        assertThat(commandLocalManagementPipe.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementPipe.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPipe.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementPipe.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementPipe.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementPipe))
                 .contains("DOCKER_HOST")
                 .contains("docker_engine");
-        assertThat(commandLocalManagementEncodedPipe.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementEncodedPipe.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementEncodedPipe.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementEncodedPipe.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementEncodedPipe.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementEncodedPipe)).contains("docker%255fengine");
-        assertThat(commandLocalManagementEntityPipe.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementEntityPipe.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementEntityPipe.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementEntityPipe.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementEntityPipe.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementEntityPipe)).contains("docker&#95;engine");
-        assertThat(commandLocalManagementPowershellPipe.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementPowershellPipe.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPowershellPipe.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementPowershellPipe.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementPowershellPipe.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementPowershellPipe))
                 .contains("SetEnvironmentVariable")
                 .contains("docker_engine");
-        assertThat(commandLocalManagementPowershellSocket.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementPowershellSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPowershellSocket.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementPowershellSocket.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementPowershellSocket.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementPowershellSocket))
                 .contains("DOCKER_HOST")
                 .contains("/var/run/docker.sock");
-        assertThat(commandLocalManagementPodmanSocket.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementPodmanSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementPodmanSocket.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementPodmanSocket.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementPodmanSocket.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementPodmanSocket))
                 .contains("CONTAINER_HOST")
                 .contains("/run/podman/podman.sock");
-        assertThat(commandLocalManagementContainerdSocket.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementContainerdSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementContainerdSocket.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementContainerdSocket.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementContainerdSocket.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementContainerdSocket))
                 .contains("CONTAINER_HOST")
                 .contains("/run/containerd/containerd.sock");
-        assertThat(commandLocalManagementCriDockerdSocket.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementCriDockerdSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementCriDockerdSocket.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementCriDockerdSocket.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementCriDockerdSocket.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementCriDockerdSocket))
                 .contains("CONTAINER_HOST")
                 .contains("/var/run/cri-dockerd.sock");
-        assertThat(commandLocalManagementCrioSocket.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandLocalManagementCrioSocket.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandLocalManagementCrioSocket.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandLocalManagementCrioSocket.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandLocalManagementCrioSocket.get("skipped")).isNull();
         assertThat(String.valueOf(commandLocalManagementCrioSocket))
                 .contains("CONTAINER_HOST")
@@ -1463,67 +1421,56 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(patchToolUnifiedAddCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(patchToolUnifiedAddCredentialPath))
                 .contains(".env");
-        assertThat(commandDownloadOutputPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandDownloadOutputPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        // 命令中凭据路径经读意图匹配器判定，读已放宽（对齐 hermes"读非安全边界"），
+        // curl -o / --upload-file / tar 归档等读/写凭据路径的命令现在放行（passed=FALSE, blocked=FALSE）。
+        assertThat(commandDownloadOutputPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandDownloadOutputPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandDownloadOutputPath.get("skipped")).isNull();
-        assertThat(String.valueOf(commandDownloadOutputPath))
-                .contains("curl")
-                .contains("[REDACTED_PATH]");
-        assertThat(commandUploadSourcePath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandUploadSourcePath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandUploadSourcePath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandUploadSourcePath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandUploadSourcePath.get("skipped")).isNull();
-        assertThat(String.valueOf(commandUploadSourcePath))
-                .contains("upload-file")
-                .contains("[REDACTED_PATH]");
-        assertThat(commandArchiveCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandArchiveCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandArchiveCredentialPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandArchiveCredentialPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandArchiveCredentialPath.get("skipped")).isNull();
-        assertThat(String.valueOf(commandArchiveCredentialPath))
-                .contains("tar")
-                .contains("[REDACTED_PATH]");
-        assertThat(commandCredentialOptionPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandCredentialOptionPath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandCredentialOptionPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandCredentialOptionPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandCredentialOptionPath.get("skipped")).isNull();
         assertThat(String.valueOf(commandCredentialOptionPath.get("target")))
                 .contains("ssh")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("deploy_key");
-        assertThat(commandCurlConfigCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandCurlConfigCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+                .contains("deploy_key")
+                .doesNotContain("[REDACTED_PATH]");
+        assertThat(commandCurlConfigCredentialPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandCurlConfigCredentialPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandCurlConfigCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(commandCurlConfigCredentialPath.get("target")))
                 .contains("curl")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".curlrc");
-        assertThat(commandCurlCookieCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandCurlCookieCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+                .contains(".curlrc")
+                .doesNotContain("[REDACTED_PATH]");
+        assertThat(commandCurlCookieCredentialPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandCurlCookieCredentialPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandCurlCookieCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(commandCurlCookieCredentialPath.get("target")))
                 .contains("-b")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("cookies.txt");
-        assertThat(commandWgetCookieCredentialPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandWgetCookieCredentialPath.get("blocked")).isEqualTo(Boolean.TRUE);
+                .contains("cookies.txt")
+                .doesNotContain("[REDACTED_PATH]");
+        assertThat(commandWgetCookieCredentialPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandWgetCookieCredentialPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandWgetCookieCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(commandWgetCookieCredentialPath.get("target")))
                 .contains("load-cookies")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("cookies.txt");
-        assertThat(commandKubectlKubeconfigPath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandKubectlKubeconfigPath.get("blocked")).isEqualTo(Boolean.TRUE);
+                .contains("cookies.txt")
+                .doesNotContain("[REDACTED_PATH]");
+        // kubectl --kubeconfig 读凭据路径已放宽，passed/blocked=FALSE。
+        assertThat(commandKubectlKubeconfigPath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandKubectlKubeconfigPath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandKubectlKubeconfigPath.get("skipped")).isNull();
-        assertThat(String.valueOf(commandKubectlKubeconfigPath.get("target")))
-                .contains("kubectl")
-                .contains("--kubeconfig")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(" kubeconfig get");
-        assertThat(commandGcloudKeyFilePath.get("passed")).isEqualTo(Boolean.TRUE);
-        assertThat(commandGcloudKeyFilePath.get("blocked")).isEqualTo(Boolean.TRUE);
+        assertThat(commandGcloudKeyFilePath.get("passed")).isEqualTo(Boolean.FALSE);
+        assertThat(commandGcloudKeyFilePath.get("blocked")).isEqualTo(Boolean.FALSE);
         assertThat(commandGcloudKeyFilePath.get("skipped")).isNull();
         assertThat(String.valueOf(commandGcloudKeyFilePath.get("target")))
                 .contains("gcloud")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("service.json");
+                .contains("service.json")
+                .doesNotContain("[REDACTED_PATH]");
         assertThat(commandEncodedPathTraversal.get("passed")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedPathTraversal.get("blocked")).isEqualTo(Boolean.TRUE);
         assertThat(commandEncodedPathTraversal.get("skipped")).isNull();

@@ -903,6 +903,7 @@ public class GatewayRuntimeRefreshService {
                     "security.tirith_fail_open",
                     "approvals.mcpReloadConfirm",
                     "approvals.mcp_reload_confirm",
+                    "approvals.deny",
                     "security.websiteBlocklist.enabled",
                     "security.website_blocklist.enabled",
                     "solonclaw.llm.modelsDevRefreshEnabled",

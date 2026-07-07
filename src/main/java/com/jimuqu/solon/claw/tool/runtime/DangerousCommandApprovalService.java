@@ -1,20 +1,15 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.COMMAND_ARGUMENT_KEYS;
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.DETACHED_TERMINAL_SESSION;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.HARDLINE_METADATA_URL_RULE_KEY;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.HARDLINE_RULES;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.INLINE_BACKGROUND_AMP;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.LONG_LIVED_FOREGROUND_PATTERNS;
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.POWERSHELL_BACKGROUND_JOB;
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.POWERSHELL_WAIT_FALSE_FLAG;
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.POWERSHELL_WAIT_TRUE_FLAG;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.PYTHON_SHELL_EXEC_CALL;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.RULES;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.SHELL_LEVEL_BACKGROUND;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.TRAILING_BACKGROUND_AMP;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.hardlineRuleSamples;
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.pattern;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.ruleSamples;
 
 import cn.hutool.core.util.StrUtil;
@@ -832,12 +827,6 @@ public class DangerousCommandApprovalService {
         if (SHELL_LEVEL_BACKGROUND.matcher(normalized).find()) {
             return "BLOCKED: 前台命令使用了 shell 级后台包装（nohup/disown/setsid）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出，然后再单独执行就绪检查或测试。";
         }
-        if (DETACHED_TERMINAL_SESSION.matcher(normalized).find()) {
-            return "BLOCKED: 前台命令使用了脱离当前终端的会话启动器（tmux/screen/systemd-run/start /B）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出。";
-        }
-        if (isPowerShellBackgroundLaunch(normalized)) {
-            return "BLOCKED: 前台命令使用了 PowerShell 后台启动命令（Start-Process/Start-Job/Start-ThreadJob）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出，然后再单独执行就绪检查或测试。";
-        }
         if (INLINE_BACKGROUND_AMP.matcher(normalized).find()
                 || TRAILING_BACKGROUND_AMP.matcher(normalized).find()) {
             return "BLOCKED: 前台命令使用了 '&' 后台执行。请使用受管的后台进程能力启动长驻进程，然后在后续命令中执行健康检查或测试。";
@@ -848,23 +837,6 @@ public class DangerousCommandApprovalService {
             }
         }
         return null;
-    }
-
-    /**
-     * 判断是否Power Shell Background Launch。
-     *
-     * @param normalized normalized 参数。
-     * @return 如果Power Shell Background Launch满足条件则返回 true，否则返回 false。
-     */
-    private boolean isPowerShellBackgroundLaunch(String normalized) {
-        if (!POWERSHELL_BACKGROUND_JOB.matcher(normalized).find()) {
-            return false;
-        }
-        if (!pattern("\\bstart-process\\b").matcher(normalized).find()) {
-            return true;
-        }
-        return POWERSHELL_WAIT_FALSE_FLAG.matcher(normalized).find()
-                || !POWERSHELL_WAIT_TRUE_FLAG.matcher(normalized).find();
     }
 
     /**
@@ -1748,6 +1720,16 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
+        String denyReason = matchUserDenyRule(code);
+        if (denyReason != null) {
+            trace.setFinalAnswer(
+                    "BLOCKED: 命令匹配用户配置的不可绕过 deny 规则: " + denyReason
+                            + "。如需修改请调整 approvals.deny 配置。");
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
         if ("bypass".equals(guardrailMode)) {
             persistTraceSnapshot(trace);
             return null;
@@ -2474,6 +2456,55 @@ public class DangerousCommandApprovalService {
                 appConfig == null || appConfig.getSecurity() == null
                         ? ""
                         : appConfig.getSecurity().getGuardrailMode());
+    }
+
+    /**
+     * 匹配用户配置的不可绕过 deny 规则，对齐外部对标仓库的 approvals.deny。
+     *
+     * <p>使用 fnmatch glob 大小写不敏感匹配，在 bypass/yolo 模式之前触发，不可绕过。
+     *
+     * @param code 待检查的命令文本。
+     * @return 命中时返回匹配的 deny 规则，未命中返回 null。
+     */
+    private String matchUserDenyRule(String code) {
+        if (appConfig == null
+                || appConfig.getApprovals() == null
+                || appConfig.getApprovals().getDeny() == null) {
+            return null;
+        }
+        String normalized = StrUtil.nullToEmpty(code).trim();
+        if (normalized.length() == 0) {
+            return null;
+        }
+        for (String pattern : appConfig.getApprovals().getDeny()) {
+            String trimmedPattern = StrUtil.nullToEmpty(pattern).trim();
+            if (trimmedPattern.length() == 0) {
+                continue;
+            }
+            if (cn.hutool.core.text.CharSequenceUtil.containsIgnoreCase(
+                    normalized, trimmedPattern)
+                    || matchesGlobIgnoreCase(normalized, trimmedPattern)) {
+                return trimmedPattern;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 简单的 glob 匹配，对齐外部对标仓库 fnmatch 的 {@code *} 通配。
+     *
+     * @param text 待匹配的命令文本。
+     * @param pattern glob 模式。
+     * @return 匹配返回 true。
+     */
+    private boolean matchesGlobIgnoreCase(String text, String pattern) {
+        String lowerText = text.toLowerCase(Locale.ROOT);
+        String lowerPattern = pattern.toLowerCase(Locale.ROOT);
+        String regex = lowerPattern
+                .replace(".", "\\.")
+                .replace("*", ".*")
+                .replace("?", ".");
+        return lowerText.matches(".*" + regex + ".*");
     }
 
     /**
