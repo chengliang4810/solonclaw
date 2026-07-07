@@ -213,6 +213,8 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         ChannelConnectionSupport.disconnect(webSocket, callbackExecutor);
         webSocket = null;
         callbackExecutor = null;
+        // 关闭控制命令并发执行器，避免断开连接后线程泄漏
+        shutdownControlExecutor();
         setConnected(false);
         setDetail("disconnected");
     }
@@ -366,15 +368,30 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (callbackExecutor == null || inboundMessageHandler() == null) {
             return;
         }
+        // 先解析入站消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞而错过取消时机
+        final GatewayMessage message;
+        try {
+            message = toGatewayMessage(payload);
+        } catch (Exception e) {
+            log.warn(
+                    "[WECOM] inbound parse failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
+            return;
+        }
+        if (message == null) {
+            return;
+        }
+        if (isControlCommand(message.getText())) {
+            dispatchInboundControl(message);
+            return;
+        }
         callbackExecutor.submit(
                 new Runnable() {
                     /** 执行异步任务主体。 */
                     public void run() {
                         try {
-                            GatewayMessage message = toGatewayMessage(payload);
-                            if (message != null) {
-                                inboundMessageHandler().handle(message);
-                            }
+                            inboundMessageHandler().handle(message);
                         } catch (Exception e) {
                             log.warn(
                                     "[WECOM] inbound dispatch failed: errorType={}, error={}",
