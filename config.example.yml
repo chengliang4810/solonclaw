@@ -127,8 +127,14 @@ solonclaw:
     temperature: 0.2
     # 单次回复最大输出 token 数。
     maxTokens: 4096
-    # 模型上下文窗口 token 估算值。
-    contextWindowTokens: 128000
+    # 模型上下文窗口 token。设为 0（默认）时按模型自动识别：
+    # 先查 models.dev/OpenRouter 在线目录，再查内置模型族目录，最后用 contextFallbackTokens 兜底。
+    # 设为大于 0 的值时作为全局强制覆盖。
+    contextWindowTokens: 0
+    # 自动识别失败时的兜底上下文窗口 token，对齐外部对标仓库默认 256K。
+    contextFallbackTokens: 256000
+    # 是否启用 models.dev/OpenRouter 在线目录刷新，用于自动识别模型上下文长度。
+    modelsDevRefreshEnabled: true
     # 提示词缓存配置；当前仅声明本地策略与用量统计承载，具体 provider 支持由协议适配决定。
     promptCache:
       enabled: false
@@ -219,6 +225,15 @@ solonclaw:
     toolCallThreshold: 5
     # 自动学习分类/技能总结等辅助模型调用的总超时，单位秒。
     auxiliaryTimeoutSeconds: 60
+
+  # goal 目标循环配置：跨轮长目标 + judge 驱动自动续轮
+  goal:
+    maxTurns: 20              # 默认轮次预算上限，超过自动暂停
+    judgeTimeoutSeconds: 30   # judge 辅助模型调用超时（秒）
+    judgeMaxTokens: 4096      # judge 最大 token
+    judgeProvider: ""         # judge 使用的 provider，留空用会话默认
+    judgeModel: ""            # judge 使用的 model，留空用会话默认
+    maxConsecutiveParseFailures: 3  # 连续 JSON 解析失败上限，超过自动暂停
 
   # 技能后台维护配置。
   skills:

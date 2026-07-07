@@ -396,9 +396,10 @@ public class TerminalSetupCommands {
     private String renderSetupAgent() {
         return "Agent 初始化\n"
                 + "1. /agent - 查看或切换当前会话 Agent\n"
-                + "2. /goal [status|pause|resume|clear|目标 --max N] - 管理跨轮长目标\n"
-                + "3. /new、/resume、/branch、/rollback - 管理会话生命周期\n"
-                + "4. solonclaw config set solonclaw.agent.defaultProfile <profile> - 写入默认 Agent 配置";
+                + "2. /goal [status|show|pause|resume|clear|stop|done|wait <pid>|unwait|目标 --max N] - 管理跨轮长目标\n"
+                + "3. /subgoal [<text>|remove <n>|clear] - 管理当前目标的补充准则\n"
+                + "4. /new、/resume、/branch、/rollback - 管理会话生命周期\n"
+                + "5. solonclaw config set solonclaw.agent.defaultProfile <profile> - 写入默认 Agent 配置";
     }
 
     /** 渲染语音初始化分节；当前保留 TTS/STT 服务配置但不提供语音模式入口。 */

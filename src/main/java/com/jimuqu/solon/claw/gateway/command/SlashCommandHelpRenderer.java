@@ -61,7 +61,11 @@ final class SlashCommandHelpRenderer {
         put(usages, "commands", "/commands [page]");
         put(usages, "debug", "/debug [status]");
         put(usages, "title", "/title [clear|新标题]");
-        put(usages, "goal", "/goal [status|pause|resume|clear|<目标> --max-turns N|--max N]");
+        put(
+                usages,
+                "goal",
+                "/goal [status|show|pause|resume|clear|stop|done|wait <pid>|unwait|<目标> --max-turns N|--max N]");
+        put(usages, "subgoal", "/subgoal [<text>|remove <n>|clear]");
         put(usages, "busy", "/busy [status|queue|steer|interrupt|reject]");
         put(usages, "queue", "/queue <prompt>");
         put(usages, "steer", "/steer <prompt>");

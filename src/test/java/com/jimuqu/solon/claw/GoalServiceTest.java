@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.goal.GoalDecision;
+import com.jimuqu.solon.claw.goal.GoalJudgeRequest;
+import com.jimuqu.solon.claw.goal.GoalJudgeResult;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.goal.GoalVerdict;
@@ -47,7 +49,7 @@ public class GoalServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-        "'', 'done', skipped",
+        "'', 'done', done",
         "'修复问题', '', continue",
         "'修复问题', 'The goal complete path is verified', done",
         "'修复问题', '整个目标已完成，等待归档', done",
@@ -58,11 +60,12 @@ public class GoalServiceTest {
             String goal, String response, String expectedVerdict) {
         HeuristicGoalJudge judge = new HeuristicGoalJudge();
 
-        GoalVerdict verdict = judge.judge(goal, response);
+        GoalJudgeResult result =
+                judge.judge(new GoalJudgeRequest(goal, response, null, null));
 
-        assertThat(verdict.getVerdict()).isEqualTo(expectedVerdict);
+        assertThat(result.getVerdict()).isEqualTo(expectedVerdict);
         if (GoalVerdict.CONTINUE.equals(expectedVerdict)) {
-            assertThat(verdict.getReason()).isNotBlank();
+            assertThat(result.getReason()).isNotBlank();
         }
     }
 

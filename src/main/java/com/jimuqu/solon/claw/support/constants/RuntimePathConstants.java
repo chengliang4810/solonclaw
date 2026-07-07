@@ -71,8 +71,8 @@ public interface RuntimePathConstants {
     /** 默认推理EFFORT的统一常量值。 */
     String DEFAULT_REASONING_EFFORT = "medium";
 
-    /** 默认上下文窗口token的统一常量值。 */
-    int DEFAULT_CONTEXT_WINDOW_TOKENS = 128000;
+    /** 默认上下文窗口 token，0 表示按模型自动识别（在线目录 → 硬编码 → 兜底 256K）。 */
+    int DEFAULT_CONTEXT_WINDOW_TOKENS = 0;
 
     /** 默认调度器TICKSECONDS的统一常量值。 */
     int DEFAULT_SCHEDULER_TICK_SECONDS = 60;

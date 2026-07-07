@@ -110,6 +110,7 @@ public class ProactiveCommandTest {
                 null,
                 null,
                 null,
+                null,
                 env.gatewayRestartCoordinator,
                 env.slashConfirmService,
                 null,

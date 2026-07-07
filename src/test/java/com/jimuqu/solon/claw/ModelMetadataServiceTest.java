@@ -97,7 +97,7 @@ public class ModelMetadataServiceTest {
 
         ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
 
-        assertThat(metadata.getContextWindow()).isEqualTo(64000);
+        assertThat(metadata.getContextWindow()).isEqualTo(256000);
     }
 
     @Test

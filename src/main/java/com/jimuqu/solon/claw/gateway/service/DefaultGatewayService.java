@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.GatewayMediaDeliverySupport;
@@ -61,6 +62,12 @@ public class DefaultGatewayService {
 
     /** 回复文本中的 MEDIA: 指令解析器。 */
     private final GatewayMediaDeliverySupport mediaDeliverySupport;
+
+    /**
+     * Agent 运行监督器，用于 goal 续轮抢占检查（查询是否有待处理真实用户消息）。
+     * 可选依赖：未注入时抢占检查降级跳过，由现有 interrupt 策略兜底。
+     */
+    private AgentRunSupervisor agentRunSupervisor;
 
     /** 进程内最近已处理的消息键，用于抑制渠道重复投递。 */
     private final ConcurrentMap<String, Long> recentMessageKeys =
@@ -197,6 +204,15 @@ public class DefaultGatewayService {
                 attachmentCacheService == null
                         ? null
                         : new GatewayMediaDeliverySupport(attachmentCacheService);
+    }
+
+    /**
+     * 注入 Agent 运行监督器，启用 goal 续轮抢占检查。
+     *
+     * @param agentRunSupervisor Agent 运行监督器，可为 null（抢占检查降级跳过）。
+     */
+    public void setAgentRunSupervisor(AgentRunSupervisor agentRunSupervisor) {
+        this.agentRunSupervisor = agentRunSupervisor;
     }
 
     /**
@@ -341,6 +357,7 @@ public class DefaultGatewayService {
                                     kickoffMessage.setChatName(message.getChatName());
                                     kickoffMessage.setUserName(message.getUserName());
                                     kickoffMessage.setSourceKeyOverride(message.sourceKey());
+                                    kickoffMessage.setGoalContinuation(true); // 标记为合成续轮
                                     GatewayReply next =
                                             conversationOrchestrator.runScheduled(kickoffMessage);
                                     if (next != null) {
@@ -386,6 +403,15 @@ public class DefaultGatewayService {
                             @Override
                             public void run() {
                                 try {
+                                    // 抢占检查：若有待处理真实用户消息，跳过本轮续轮，让真实消息接手
+                                    if (agentRunSupervisor != null
+                                            && agentRunSupervisor.hasPendingRealMessage(
+                                                    message.sourceKey())) {
+                                        log.debug(
+                                                "goal continuation skipped: real user message pending for {}",
+                                                message.sourceKey());
+                                        return;
+                                    }
                                     GatewayMessage continuation =
                                             new GatewayMessage(
                                                     message.getPlatform(),
@@ -397,6 +423,7 @@ public class DefaultGatewayService {
                                     continuation.setChatName(message.getChatName());
                                     continuation.setUserName(message.getUserName());
                                     continuation.setSourceKeyOverride(message.sourceKey());
+                                    continuation.setGoalContinuation(true); // 标记为合成续轮
                                     GatewayReply next =
                                             conversationOrchestrator.runScheduled(continuation);
                                     if (next != null) {

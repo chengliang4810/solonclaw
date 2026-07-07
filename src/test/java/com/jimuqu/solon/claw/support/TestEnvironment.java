@@ -55,7 +55,9 @@ import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.goal.GoalContractDrafter;
 import com.jimuqu.solon.claw.goal.GoalService;
+import com.jimuqu.solon.claw.goal.HeuristicGoalJudge;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -246,7 +248,8 @@ public class TestEnvironment {
                         globalSettingRepository,
                         personaWorkspaceService);
         ContextCompressionService contextCompressionService =
-                new DefaultContextCompressionService(config);
+                new DefaultContextCompressionService(
+                        config, new com.jimuqu.solon.claw.goal.GoalMigrationSupport(sessionRepository));
         MemoryChannelAdapter memoryAdapter = new MemoryChannelAdapter();
         Map<PlatformType, ChannelAdapter> adapters =
                 new LinkedHashMap<PlatformType, ChannelAdapter>();
@@ -421,7 +424,8 @@ public class TestEnvironment {
                         contextBudgetService,
                         llmGateway,
                         llmProviderService);
-        GoalService goalService = new GoalService(sessionRepository);
+        GoalService goalService =
+                new GoalService(sessionRepository, new HeuristicGoalJudge(), config.getGoal());
         ConversationOrchestrator orchestrator =
                 new DefaultConversationOrchestrator(
                         sessionRepository,
@@ -483,6 +487,7 @@ public class TestEnvironment {
                         agentRunRepository,
                         dashboardMcpService,
                         goalService,
+                        new GoalContractDrafter(llmGateway, config.getGoal()),
                         new SessionArtifactService(config),
                         null,
                         gatewayRestartCoordinator,

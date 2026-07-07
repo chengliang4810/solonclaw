@@ -85,7 +85,7 @@ public class DashboardProviderService {
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService,
             LlmProviderService llmProviderService) {
-        this(appConfig, gatewayRuntimeRefreshService, llmProviderService, null);
+        this(appConfig, gatewayRuntimeRefreshService, llmProviderService, null, null);
     }
 
     /**
@@ -102,10 +102,30 @@ public class DashboardProviderService {
                     gatewayRuntimeRefreshService,
             LlmProviderService llmProviderService,
             SecurityPolicyService securityPolicyService) {
+        this(appConfig, gatewayRuntimeRefreshService, llmProviderService, securityPolicyService, null);
+    }
+
+    /**
+     * 创建控制台提供方服务实例，并注入运行所需依赖。
+     *
+     * @param appConfig 应用运行配置。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param llmProviderService LLM提供方Service标识或键值。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param modelMetadataService 模型元数据服务依赖，null 时内部创建。
+     */
+    public DashboardProviderService(
+            AppConfig appConfig,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            LlmProviderService llmProviderService,
+            SecurityPolicyService securityPolicyService,
+            ModelMetadataService modelMetadataService) {
         this.appConfig = appConfig;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.llmProviderService = llmProviderService;
-        this.modelMetadataService = new ModelMetadataService(appConfig);
+        this.modelMetadataService =
+                modelMetadataService != null ? modelMetadataService : new ModelMetadataService(appConfig);
         this.providerProfileService = new ProviderProfileService(appConfig, llmProviderService);
         this.securityPolicyService =
                 securityPolicyService == null

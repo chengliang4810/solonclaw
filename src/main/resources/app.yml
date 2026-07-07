@@ -37,7 +37,9 @@ solonclaw.llm.stream: true
 solonclaw.llm.reasoningEffort: medium
 solonclaw.llm.temperature: 0.2
 solonclaw.llm.maxTokens: 4096
-solonclaw.llm.contextWindowTokens: 128000
+solonclaw.llm.contextWindowTokens: 0
+solonclaw.llm.contextFallbackTokens: 256000
+solonclaw.llm.modelsDevRefreshEnabled: true
 solonclaw.llm.promptCache.enabled: false
 solonclaw.llm.promptCache.ttl: 5m
 solonclaw.llm.promptCache.layout: system_and_3

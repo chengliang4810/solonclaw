@@ -15,6 +15,9 @@ public class GoalVerdict {
     /** SKIPPED的统一常量值。 */
     public static final String SKIPPED = "skipped";
 
+    /** WAIT 的统一常量值。 */
+    public static final String WAIT = "wait";
+
     /** 记录目标判定中的判定。 */
     private final String verdict;
 
@@ -63,11 +66,30 @@ public class GoalVerdict {
     }
 
     /**
+     * 执行waiting相关逻辑。
+     *
+     * @param reason 原因参数。
+     * @return 返回waiting结果。
+     */
+    public static GoalVerdict waiting(String reason) {
+        return new GoalVerdict(WAIT, reason);
+    }
+
+    /**
      * 判断是否Done。
      *
      * @return 如果Done满足条件则返回 true，否则返回 false。
      */
     public boolean isDone() {
         return DONE.equals(verdict);
+    }
+
+    /**
+     * 判断是否Waiting。
+     *
+     * @return verdict 为 wait 时返回 true。
+     */
+    public boolean isWait() {
+        return WAIT.equals(verdict);
     }
 }

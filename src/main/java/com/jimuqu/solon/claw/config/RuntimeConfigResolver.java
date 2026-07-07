@@ -928,6 +928,8 @@ public class RuntimeConfigResolver {
                 "solonclaw.llm.temperature",
                 "solonclaw.llm.maxTokens",
                 "solonclaw.llm.contextWindowTokens",
+                "solonclaw.llm.contextFallbackTokens",
+                "solonclaw.llm.modelsDevRefreshEnabled",
                 "solonclaw.scheduler.enabled",
                 "solonclaw.scheduler.tickSeconds",
                 "solonclaw.scheduler.wrapResponse",

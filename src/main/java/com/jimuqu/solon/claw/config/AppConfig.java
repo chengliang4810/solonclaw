@@ -56,6 +56,9 @@ public class AppConfig {
     /** 任务后自动学习配置。 */
     private LearningConfig learning = new LearningConfig();
 
+    /** goal 目标循环配置。 */
+    private GoalConfig goal = new GoalConfig();
+
     /** 技能后台维护配置。 */
     private CuratorConfig curator = new CuratorConfig();
 
@@ -167,6 +170,7 @@ public class AppConfig {
         copyScheduler(other.getScheduler());
         copyCompression(other.getCompression());
         copyLearning(other.getLearning());
+        copyGoal(other.getGoal());
         copyCurator(other.getCurator());
         copySkills(other.getSkills());
         copyRollback(other.getRollback());
@@ -249,6 +253,8 @@ public class AppConfig {
         this.llm.setTemperature(other.getTemperature());
         this.llm.setMaxTokens(other.getMaxTokens());
         this.llm.setContextWindowTokens(other.getContextWindowTokens());
+        this.llm.setContextFallbackTokens(other.getContextFallbackTokens());
+        this.llm.setModelsDevRefreshEnabled(other.isModelsDevRefreshEnabled());
         this.llm.getPromptCache().setEnabled(other.getPromptCache().isEnabled());
         this.llm.getPromptCache().setTtl(other.getPromptCache().getTtl());
         this.llm.getPromptCache().setLayout(other.getPromptCache().getLayout());
@@ -365,6 +371,20 @@ public class AppConfig {
         this.learning.setEnabled(other.isEnabled());
         this.learning.setToolCallThreshold(other.getToolCallThreshold());
         this.learning.setAuxiliaryTimeoutSeconds(other.getAuxiliaryTimeoutSeconds());
+    }
+
+    /**
+     * 复制 goal 配置。
+     *
+     * @param other 源配置。
+     */
+    private void copyGoal(GoalConfig other) {
+        this.goal.setMaxTurns(other.getMaxTurns());
+        this.goal.setJudgeTimeoutSeconds(other.getJudgeTimeoutSeconds());
+        this.goal.setJudgeMaxTokens(other.getJudgeMaxTokens());
+        this.goal.setJudgeProvider(other.getJudgeProvider());
+        this.goal.setJudgeModel(other.getJudgeModel());
+        this.goal.setMaxConsecutiveParseFailures(other.getMaxConsecutiveParseFailures());
     }
 
     /**
@@ -813,8 +833,23 @@ public class AppConfig {
         /** 最大输出 token。 */
         private int maxTokens;
 
-        /** 模型上下文窗口大小，用于自动压缩阈值计算。 */
+        /**
+         * 模型上下文窗口大小，用于自动压缩阈值计算。
+         *
+         * <p>设为 0（默认）时按模型自动识别（在线目录 → 硬编码目录 → 兜底）；
+         * 设为大于 0 的值时作为全局强制覆盖，对齐外部对标仓库的显式配置覆盖语义。
+         */
         private int contextWindowTokens;
+
+        /**
+         * 自动识别失败时的兜底上下文窗口大小。
+         *
+         * <p>对齐外部对标仓库的 DEFAULT_FALLBACK_CONTEXT，默认 256000。
+         */
+        private int contextFallbackTokens = 256000;
+
+        /** 是否启用 models.dev/OpenRouter 在线目录刷新，用于自动识别模型上下文长度。 */
+        private boolean modelsDevRefreshEnabled = true;
 
         /** 提示词缓存配置。 */
         private PromptCacheConfig promptCache = new PromptCacheConfig();
@@ -971,6 +1006,30 @@ public class AppConfig {
 
         /** 辅助模型分类/总结调用总超时，单位秒。 */
         private int auxiliaryTimeoutSeconds = 60;
+    }
+
+    /** goal 目标循环相关配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class GoalConfig {
+        /** 默认轮次预算上限。 */
+        private int maxTurns = 20;
+
+        /** judge 辅助调用超时秒数。 */
+        private int judgeTimeoutSeconds = 30;
+
+        /** judge 最大 token 数。 */
+        private int judgeMaxTokens = 4096;
+
+        /** judge 使用的 provider，留空则用会话默认。 */
+        private String judgeProvider = "";
+
+        /** judge 使用的 model，留空则用会话默认。 */
+        private String judgeModel = "";
+
+        /** 连续 JSON 解析失败上限，超过自动暂停。 */
+        private int maxConsecutiveParseFailures = 3;
     }
 
     /** 技能后台维护配置。 */

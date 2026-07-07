@@ -42,6 +42,8 @@ public class RuntimeSettingsService {
                     "llm.temperature",
                     "llm.maxTokens",
                     "llm.contextWindowTokens",
+                    "llm.contextFallbackTokens",
+                    "llm.modelsDevRefreshEnabled",
                     "display.toolProgress",
                     "display.showReasoning",
                     "display.toolPreviewLength",
@@ -598,6 +600,7 @@ public class RuntimeSettingsService {
                 || "display.progressThrottleMs".equals(key)
                 || "llm.maxTokens".equals(key)
                 || "llm.contextWindowTokens".equals(key)
+                || "llm.contextFallbackTokens".equals(key)
                 || "gateway.injectionMaxBodyBytes".equals(key)
                 || "gateway.injectionReplayWindowSeconds".equals(key)
                 || "security.tirithTimeoutSeconds".equals(key)

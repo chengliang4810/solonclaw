@@ -128,6 +128,22 @@ final class AppConfigLoader {
                                         "solonclaw.llm.contextWindowTokens",
                                         RuntimePathConstants.DEFAULT_CONTEXT_WINDOW_TOKENS)));
         config.getLlm()
+                .setContextFallbackTokens(
+                        resolveInt(
+                                readInt(
+                                        props,
+                                        overrides,
+                                        "solonclaw.llm.contextFallbackTokens",
+                                        256000)));
+        config.getLlm()
+                .setModelsDevRefreshEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.llm.modelsDevRefreshEnabled",
+                                        true)));
+        config.getLlm()
                 .getPromptCache()
                 .setEnabled(
                         resolveBoolean(
