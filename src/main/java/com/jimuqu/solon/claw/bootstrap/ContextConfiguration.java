@@ -31,7 +31,6 @@ import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.engine.DefaultContextBudgetService;
 import com.jimuqu.solon.claw.engine.DefaultContextCompressionService;
 import com.jimuqu.solon.claw.engine.DefaultSessionSearchService;
-import com.jimuqu.solon.claw.goal.GoalMigrationSupport;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillGuardService;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillHubService;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillImportService;
@@ -300,13 +299,11 @@ public class ContextConfiguration {
      * 执行上下文压缩服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
-     * @param sessionRepository 会话仓储依赖。
      * @return 返回上下文压缩服务结果。
      */
     @Bean
-    public ContextCompressionService contextCompressionService(
-            AppConfig appConfig, SessionRepository sessionRepository) {
-        return new DefaultContextCompressionService(appConfig, new GoalMigrationSupport(sessionRepository));
+    public ContextCompressionService contextCompressionService(AppConfig appConfig) {
+        return new DefaultContextCompressionService(appConfig);
     }
 
     /**

@@ -248,8 +248,7 @@ public class TestEnvironment {
                         globalSettingRepository,
                         personaWorkspaceService);
         ContextCompressionService contextCompressionService =
-                new DefaultContextCompressionService(
-                        config, new com.jimuqu.solon.claw.goal.GoalMigrationSupport(sessionRepository));
+                new DefaultContextCompressionService(config);
         MemoryChannelAdapter memoryAdapter = new MemoryChannelAdapter();
         Map<PlatformType, ChannelAdapter> adapters =
                 new LinkedHashMap<PlatformType, ChannelAdapter>();

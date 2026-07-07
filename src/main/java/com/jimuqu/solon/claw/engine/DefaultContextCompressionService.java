@@ -5,7 +5,6 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
-import com.jimuqu.solon.claw.goal.GoalMigrationSupport;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -31,25 +30,15 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     private final AppConfig appConfig;
 
     /**
-     * 目标迁移支持，仅在上下文压缩触发 session_id 轮转时调用；当前实现为原地压缩（不轮转 session_id），
-     * 该字段保留为可空，供未来引入轮转分支时启用（对标仓库 migrate_goal_to_session）。
-     */
-    private final GoalMigrationSupport goalMigrationSupport;
-
-    /** 创建上下文压缩服务，仅注入应用配置（目标迁移支持为 null）。 */
-    public DefaultContextCompressionService(AppConfig appConfig) {
-        this(appConfig, null);
-    }
-
-    /**
-     * 创建上下文压缩服务，注入应用配置与可选的目标迁移支持。
+     * 创建上下文压缩服务，注入应用配置。
+     *
+     * <p>本服务为原地压缩：直接改写同一会话的 ndjson/summary，不轮转 session_id。
+     * 因此目标状态按 session_id 存储后始终与当前会话绑定，无需在压缩边界迁移。
      *
      * @param appConfig 应用运行配置。
-     * @param goalMigrationSupport 目标迁移支持，可为 null（无 goal 场景）。
      */
-    public DefaultContextCompressionService(AppConfig appConfig, GoalMigrationSupport goalMigrationSupport) {
+    public DefaultContextCompressionService(AppConfig appConfig) {
         this.appConfig = appConfig;
-        this.goalMigrationSupport = goalMigrationSupport;
     }
 
     /**
@@ -230,31 +219,6 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             outcome.setThresholdTokens(thresholdTokens);
         }
         return outcome;
-    }
-
-    /**
-     * 上下文压缩轮转 session_id 时迁移目标：子会话继承 active 目标，父会话归档为 cleared。
-     *
-     * <p>实现说明：当前 {@link DefaultContextCompressionService} 为原地压缩（直接改写同一 session 的
-     * ndjson/summary，不轮转 session_id），因此本方法暂不被压缩主流程调用。该方法作为集成点保留，
-     * 供未来引入 session_id 轮转分支时启用（对标仓库 conversation_compression.py:820 的
-     * migrate_goal_to_session）。传入的 oldSessionId 与 newSessionId 不同时才迁移；原地压缩不调用。
-     *
-     * @param oldSessionId 父会话 id。
-     * @param newSessionId 子会话 id。
-     */
-    private void migrateGoalOnRotation(String oldSessionId, String newSessionId) {
-        if (goalMigrationSupport == null
-                || StrUtil.isBlank(oldSessionId)
-                || StrUtil.isBlank(newSessionId)
-                || oldSessionId.equals(newSessionId)) {
-            return;
-        }
-        try {
-            goalMigrationSupport.migrate(oldSessionId, newSessionId, "compression");
-        } catch (Exception e) {
-            log.warn("goal migration on compression failed: {}", e.getMessage());
-        }
     }
 
     /** 对较早的工具结果做预裁剪。 */
