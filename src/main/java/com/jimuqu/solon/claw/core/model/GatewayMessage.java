@@ -65,7 +65,12 @@ public class GatewayMessage {
     /** 是否为 heartbeat 触发的合成消息。 */
     private boolean heartbeat;
 
-    /** 标记本消息是 goal 续轮/kickoff 合成消息（非真实用户输入），用于抢占判定，不参与序列化。 */
+    /**
+     * 标记本消息是 goal 续轮/kickoff 合成消息（非真实用户输入），用于续轮抢占判定。
+     *
+     * <p>该标志经 {@code AgentRunSupervisor.serializeMessage} 持久化到队列消息的 messageJson，
+     * 反序列化后恢复，从而在续轮调度前能区分队列中的合成消息与真实用户消息。
+     */
     private transient boolean goalContinuation;
 
     /** 入站附件列表。 */

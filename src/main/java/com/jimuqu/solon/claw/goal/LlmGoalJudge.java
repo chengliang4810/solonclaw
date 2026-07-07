@@ -2,10 +2,12 @@ package com.jimuqu.solon.claw.goal;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -36,8 +38,14 @@ public class LlmGoalJudge implements GoalJudge {
     /** LLM 网关。 */
     private final LlmGateway llmGateway;
 
+    /** 应用配置（提供 goal 子配置与 llm 基线，用于裁决器 provider 覆盖）。 */
+    private final AppConfig appConfig;
+
     /** goal 配置（超时/token/provider）。 */
     private final AppConfig.GoalConfig config;
+
+    /** provider 解析服务，用于把 judgeProvider/judgeModel 解析为已解析配置。 */
+    private final LlmProviderService llmProviderService;
 
     /** auxiliary 调用用的有界线程池（对标技能学习服务的 auxiliary 线程池）。 */
     private final ExecutorService executor =
@@ -47,11 +55,15 @@ public class LlmGoalJudge implements GoalJudge {
      * 构造 judge。
      *
      * @param llmGateway LLM 网关，发起非流式 auxiliary 聊天。
-     * @param config goal 配置，提供超时秒数等。
+     * @param appConfig 应用配置，提供 goal 子配置与 llm 基线。
+     * @param llmProviderService provider 解析服务，把 judgeProvider/judgeModel 解析为已解析配置。
      */
-    public LlmGoalJudge(LlmGateway llmGateway, AppConfig.GoalConfig config) {
+    public LlmGoalJudge(
+            LlmGateway llmGateway, AppConfig appConfig, LlmProviderService llmProviderService) {
         this.llmGateway = llmGateway;
-        this.config = config == null ? new AppConfig.GoalConfig() : config;
+        this.appConfig = appConfig == null ? new AppConfig() : appConfig;
+        this.config = this.appConfig.getGoal() == null ? new AppConfig.GoalConfig() : this.appConfig.getGoal();
+        this.llmProviderService = llmProviderService;
     }
 
     /**
@@ -73,6 +85,20 @@ public class LlmGoalJudge implements GoalJudge {
                             // judge 不绑定真实会话历史，用空 SessionRecord 避免污染
                             SessionRecord judgeSession = new SessionRecord();
                             judgeSession.setSessionId("goal-judge");
+                            // 配置了 judgeProvider 时走已解析的廉价模型；否则按主模型兜底走 chat。
+                            AppConfig.LlmConfig resolved = resolveJudgeLlmConfig();
+                            if (resolved != null) {
+                                return llmGateway.executeOnce(
+                                        judgeSession,
+                                        systemPrompt,
+                                        userMessage,
+                                        Collections.emptyList(),
+                                        null,
+                                        null,
+                                        false,
+                                        resolved,
+                                        null);
+                            }
                             return llmGateway.chat(
                                     judgeSession, systemPrompt, userMessage, Collections.emptyList());
                         });
@@ -159,6 +185,68 @@ public class LlmGoalJudge implements GoalJudge {
     private int resolveTimeoutSeconds() {
         int configured = config.getJudgeTimeoutSeconds();
         return configured > 0 ? configured : DEFAULT_TIMEOUT_SECONDS;
+    }
+
+    /**
+     * 解析裁决器使用的 LLM 配置：当 {@code judgeProvider} 非空时，解析为已解析配置（廉价模型），
+     * 否则返回 {@code null} 表示按主模型兜底走 {@code chat(...)}。
+     *
+     * <p>解析逻辑对标 {@code AgentRunSupervisor.toLlmConfig}：以 {@code appConfig.getLlm()} 为基线，
+     * 覆盖 provider/dialect/apiUrl/apiKey/model；再设置裁决器专属的非流式与 maxTokens。
+     * provider 解析失败时 fail-open 返回 {@code null}（仅记录警告，不中断 goal 循环）。
+     *
+     * @return 已解析的裁决器 LLM 配置；judgeProvider 留空或解析失败时返回 null。
+     */
+    private AppConfig.LlmConfig resolveJudgeLlmConfig() {
+        String providerKey = StrUtil.nullToEmpty(config.getJudgeProvider()).trim();
+        if (StrUtil.isBlank(providerKey) || llmProviderService == null) {
+            return null;
+        }
+        try {
+            LlmProviderService.ResolvedProvider resolved =
+                    llmProviderService.resolveProvider(providerKey, config.getJudgeModel());
+            AppConfig.LlmConfig llmConfig = copyLlmConfig(appConfig.getLlm());
+            llmConfig.setProvider(StrUtil.nullToEmpty(resolved.getProviderKey()).trim());
+            llmConfig.setDialect(StrUtil.nullToEmpty(resolved.getDialect()).trim());
+            llmConfig.setApiUrl(StrUtil.nullToEmpty(resolved.getApiUrl()).trim());
+            llmConfig.setApiKey(resolved.getApiKey());
+            llmConfig.setModel(StrUtil.nullToEmpty(resolved.getModel()).trim());
+            // 裁决器为非流式调用；maxTokens 来自 goal 配置
+            llmConfig.setStream(false);
+            llmConfig.setMaxTokens(config.getJudgeMaxTokens());
+            return llmConfig;
+        } catch (IllegalStateException e) {
+            // provider 键未配置：fail-open 继续走 chat 兜底，避免坏的裁决器配置中断 goal 循环
+            log.warn(
+                    "goal judge provider '{}' not resolved, fail-open to default chat: {}",
+                    providerKey,
+                    e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 复制大模型基线配置，避免污染全局 appConfig.getLlm()。
+     *
+     * @param source 来源大模型配置。
+     * @return 返回复制后的大模型配置。
+     */
+    private AppConfig.LlmConfig copyLlmConfig(AppConfig.LlmConfig source) {
+        AppConfig.LlmConfig copy = new AppConfig.LlmConfig();
+        if (source == null) {
+            return copy;
+        }
+        copy.setProvider(source.getProvider());
+        copy.setDialect(source.getDialect());
+        copy.setApiUrl(source.getApiUrl());
+        copy.setApiKey(source.getApiKey());
+        copy.setModel(source.getModel());
+        copy.setStream(source.isStream());
+        copy.setReasoningEffort(source.getReasoningEffort());
+        copy.setTemperature(source.getTemperature());
+        copy.setMaxTokens(source.getMaxTokens());
+        copy.setContextWindowTokens(source.getContextWindowTokens());
+        return copy;
     }
 
     /**

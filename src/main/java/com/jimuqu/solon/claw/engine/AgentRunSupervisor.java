@@ -1924,23 +1924,42 @@ public class AgentRunSupervisor implements AgentRunControlService {
     }
 
     /**
-     * 查询某会话是否有待处理的真实用户消息（非 heartbeat、非 goal 续轮）。
+     * 查询某来源键是否有待处理的真实用户消息（非 heartbeat、非 goal 续轮）。
      *
      * <p>用于 goal 续轮抢占判定：若用户在续轮调度期间发送了真实消息，则跳过本轮续轮，
      * 让真实消息接手对话。
      *
-     * <p><b>降级说明：</b>当前 busy 队列持久化在 {@code QueuedRunMessage.messageJson} 中，
-     * 而 {@code GatewayMessage.goalContinuation} 是 transient 字段（不参与序列化），队列经
-     * 序列化/反序列化后无法可靠区分「goal 续轮合成消息」与「真实用户消息」。因此这里先返回
-     * false，抢占功能降级为：依赖现有 interrupt/steer/queue 策略兜底，保证用户始终能发起对话。
-     * 后续若将 goalContinuation 持久化到 messageJson，可在此扫描队列实现真实抢占。
+     * <p>实现：仅按 sourceKey 查询最早的 queued 消息（不限会话），反序列化其 messageJson，
+     * 读取已持久化的 {@code goalContinuation} 与 {@code heartbeat} 标志。当该消息既非 heartbeat
+     * 又非 goal 续轮合成消息时，视为真实用户消息返回 true。该检查在续轮消息入队之前执行，
+     * 因此此刻队列中只会是真实用户消息或 heartbeat，不会是尚未入队的续轮合成消息。
      *
      * @param sourceKey 会话来源键。
-     * @return 有真实待处理消息返回 true；当前实现固定返回 false（降级）。
+     * @return 有真实待处理消息返回 true；无待处理消息或仅有合成消息返回 false。
      */
-    // TODO: 持久化 goalContinuation 标志后，扫描该 sourceKey 的队列实现真实抢占
     public boolean hasPendingRealMessage(String sourceKey) {
-        return false;
+        if (StrUtil.isBlank(sourceKey)) {
+            return false;
+        }
+        try {
+            QueuedRunMessage queued = agentRunRepository.findNextQueuedMessageBySourceKey(sourceKey);
+            if (queued == null) {
+                return false;
+            }
+            GatewayMessage message = deserializeMessage(queued);
+            // heartbeat 与 goal 续轮合成消息都不算真实用户消息
+            if (message.isHeartbeat() || message.isGoalContinuation()) {
+                return false;
+            }
+            return true;
+        } catch (Exception e) {
+            // 查询/反序列化失败时 fail-safe 返回 false，避免误判抢占而吞掉续轮
+            log.warn(
+                    "hasPendingRealMessage query failed, fail-safe to false: sourceKey={}, error={}",
+                    sourceKey,
+                    safeError(e));
+            return false;
+        }
     }
 
     /**
@@ -2007,6 +2026,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         map.put("threadId", message.getThreadId());
         map.put("sourceKeyOverride", message.getSourceKeyOverride());
         map.put("heartbeat", message.isHeartbeat());
+        map.put("goalContinuation", message.isGoalContinuation());
         map.put("timestamp", message.getTimestamp());
         return org.noear.snack4.ONode.serialize(map);
     }
@@ -2036,6 +2056,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 message.setThreadId(stringValue(map.get("threadId")));
                 message.setSourceKeyOverride(stringValue(map.get("sourceKeyOverride")));
                 message.setHeartbeat(Boolean.parseBoolean(stringValue(map.get("heartbeat"))));
+                message.setGoalContinuation(Boolean.TRUE.equals(map.get("goalContinuation")));
                 Object timestamp = map.get("timestamp");
                 if (timestamp instanceof Number) {
                     message.setTimestamp(((Number) timestamp).longValue());
