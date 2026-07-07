@@ -226,14 +226,26 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                                     || inboundExecutor == null) {
                                                 return;
                                             }
+                                            final P2MessageReceiveV1Data data = event.getEvent();
+                                            // 控制命令（/stop、/cancel）在提交串行入站队列之前判定，
+                                            // 直接走并发执行器，避免被运行中的长任务阻塞而错过取消时机
+                                            GatewayMessage controlMessage =
+                                                    toGatewayMessage(
+                                                            data == null ? null : data.getMessage(),
+                                                            data == null ? null : data.getSender());
+                                            if (controlMessage != null
+                                                    && inboundMessageHandler() != null
+                                                    && isControlCommand(controlMessage.getText())) {
+                                                dispatchInboundControl(controlMessage);
+                                                return;
+                                            }
                                             inboundExecutor.submit(
                                                     new Runnable() {
                                                         /** 执行异步任务主体。 */
                                                         @Override
                                                         public void run() {
                                                             try {
-                                                                handleWebsocketEvent(
-                                                                        event.getEvent());
+                                                                handleWebsocketEvent(data);
                                                             } catch (Exception e) {
                                                                 log.warn(
                                                                         "[FEISHU] websocket inbound dispatch failed: errorType={}, error={}",
@@ -331,6 +343,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             inboundExecutor.shutdownNow();
             inboundExecutor = null;
         }
+        // 关闭控制命令并发执行器，避免断开连接后线程泄漏
+        shutdownControlExecutor();
         setConnected(false);
         setDetail("disconnected");
     }
@@ -380,6 +394,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         event == null ? null : event.getMessage(),
                         event == null ? null : event.getSender());
         if (message != null && inboundMessageHandler() != null) {
+            // 控制命令已在 handle(P2MessageReceiveV1) 提交串行队列前分流到并发执行器，
+            // 这里只处理普通消息；保留防御性判定以防外部直接调用本方法时仍能正确分流。
+            if (isControlCommand(message.getText())) {
+                dispatchInboundControl(message);
+                return;
+            }
             try {
                 inboundMessageHandler().handle(message);
             } catch (Exception e) {
@@ -506,6 +526,15 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (!config.isCommentEnabled() || inboundMessageHandler() == null) {
             return;
         }
+        // 先解析评论消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞
+        GatewayMessage message = toCommentGatewayMessage(req);
+        if (message == null) {
+            return;
+        }
+        if (isControlCommand(message.getText())) {
+            dispatchInboundControl(message);
+            return;
+        }
         if (inboundExecutor == null) {
             inboundExecutor = Executors.newSingleThreadExecutor();
         }
@@ -515,10 +544,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                     @Override
                     public void run() {
                         try {
-                            GatewayMessage message = toCommentGatewayMessage(req);
-                            if (message != null) {
-                                inboundMessageHandler().handle(message);
-                            }
+                            inboundMessageHandler().handle(message);
                         } catch (Exception e) {
                             log.warn(
                                     "[FEISHU-COMMENT] dispatch failed: errorType={}, error={}",
