@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.plugin.ToolRegistration;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
+import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
@@ -189,6 +190,9 @@ public class DefaultToolRegistry implements ToolRegistry {
 
     /** 插件注册工具。 */
     private final List<ToolRegistration> pluginTools;
+
+    /** Web 搜索插件提供方，用于按配置接管内置 websearch 后端。 */
+    private List<WebSearchProvider> webSearchProviders = Collections.emptyList();
 
     /** Dashboard 运行服务，用于给 Agent 暴露一等运行管理工具。 */
     private final DashboardRunService dashboardRunService;
@@ -1065,6 +1069,83 @@ public class DefaultToolRegistry implements ToolRegistry {
     }
 
     /**
+     * 创建默认工具注册表实例，并额外注入 Web 搜索插件提供方。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService Agent profile 服务依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     * @param pluginTools 插件工具列表。
+     * @param webSearchProviders Web 搜索插件提供方列表。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService,
+            List<ToolRegistration> pluginTools,
+            List<WebSearchProvider> webSearchProviders) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                processRegistry,
+                mcpRuntimeService,
+                browserRuntimeService,
+                imageGenerationService,
+                speechService,
+                pluginTools);
+        setWebSearchProviders(webSearchProviders);
+    }
+
+    /**
      * 创建默认工具注册表实例，并注入运行所需依赖。
      *
      * @param appConfig 应用运行配置。
@@ -1152,6 +1233,143 @@ public class DefaultToolRegistry implements ToolRegistry {
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
             List<ToolRegistration> pluginTools) {
+        this(
+                appConfig,
+                preferenceStore,
+                sessionRepository,
+                agentProfileService,
+                cronJobService,
+                deliveryService,
+                memoryService,
+                sessionSearchService,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                delegationService,
+                attachmentCacheService,
+                runtimeSettingsService,
+                gatewayRuntimeRefreshService,
+                securityPolicyService,
+                approvalService,
+                processRegistry,
+                mcpRuntimeService,
+                dashboardMcpService,
+                dashboardCuratorService,
+                dashboardPlatformToolsetsService,
+                dashboardProviderService,
+                dashboardStatusService,
+                dashboardGatewayDoctorService,
+                dashboardInsightsService,
+                dashboardApprovalEventsService,
+                dashboardDiagnosticsService,
+                dashboardWorkspaceService,
+                dashboardConfigService,
+                dashboardRuntimeConfigService,
+                weixinQrSetupService,
+                domesticQrSetupService,
+                browserRuntimeService,
+                imageGenerationService,
+                speechService,
+                dashboardRunService,
+                sqliteDatabase,
+                agentRunRepository,
+                cronJobRepository,
+                usageEventRepository,
+                pluginTools,
+                null);
+    }
+
+    /**
+     * 创建默认工具注册表实例，并注入完整运行依赖与 Web 搜索插件提供方。
+     *
+     * @param appConfig 应用运行配置。
+     * @param preferenceStore 本地偏好存储依赖。
+     * @param sessionRepository 会话仓储依赖。
+     * @param agentProfileService Agent profile 服务依赖。
+     * @param cronJobService 定时任务Job服务依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param memoryService 记忆服务依赖。
+     * @param sessionSearchService 会话搜索服务依赖。
+     * @param localSkillService 本地技能服务依赖。
+     * @param skillHubService 技能Hub服务依赖。
+     * @param checkpointService checkpoint服务依赖。
+     * @param delegationService delegation服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param runtimeSettingsService 运行时Settings服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param approvalService 审批服务依赖。
+     * @param processRegistry 进程注册表依赖组件。
+     * @param mcpRuntimeService MCP运行时服务依赖。
+     * @param dashboardMcpService Dashboard MCP服务依赖。
+     * @param dashboardCuratorService Dashboard 技能维护服务依赖。
+     * @param dashboardPlatformToolsetsService Dashboard 平台工具集服务依赖。
+     * @param dashboardProviderService Dashboard provider 服务依赖。
+     * @param dashboardStatusService Dashboard 状态服务依赖。
+     * @param dashboardGatewayDoctorService Dashboard Doctor 服务依赖。
+     * @param dashboardInsightsService Dashboard 洞察服务依赖。
+     * @param dashboardApprovalEventsService Dashboard 审批事件服务依赖。
+     * @param dashboardDiagnosticsService Dashboard 诊断服务供应器。
+     * @param dashboardWorkspaceService Dashboard 工作区服务依赖。
+     * @param dashboardConfigService Dashboard 配置服务依赖。
+     * @param dashboardRuntimeConfigService Dashboard 工作区配置服务依赖。
+     * @param weixinQrSetupService 微信二维码 setup 服务依赖。
+     * @param domesticQrSetupService 国内二维码 setup 服务依赖。
+     * @param browserRuntimeService 浏览器运行时服务依赖。
+     * @param imageGenerationService 图片Generation服务依赖。
+     * @param speechService 语音服务依赖。
+     * @param dashboardRunService Dashboard运行服务依赖。
+     * @param sqliteDatabase SQLite数据库依赖。
+     * @param agentRunRepository Agent运行仓储依赖。
+     * @param cronJobRepository 定时任务仓储依赖。
+     * @param usageEventRepository 用量事件仓储依赖。
+     * @param pluginTools 插件工具列表。
+     * @param webSearchProviders Web 搜索插件提供方列表。
+     */
+    public DefaultToolRegistry(
+            AppConfig appConfig,
+            SqlitePreferenceStore preferenceStore,
+            SessionRepository sessionRepository,
+            AgentProfileService agentProfileService,
+            CronJobService cronJobService,
+            DeliveryService deliveryService,
+            MemoryService memoryService,
+            SessionSearchService sessionSearchService,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DelegationService delegationService,
+            AttachmentCacheService attachmentCacheService,
+            RuntimeSettingsService runtimeSettingsService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            SecurityPolicyService securityPolicyService,
+            DangerousCommandApprovalService approvalService,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            DashboardMcpService dashboardMcpService,
+            DashboardCuratorService dashboardCuratorService,
+            DashboardPlatformToolsetsService dashboardPlatformToolsetsService,
+            DashboardProviderService dashboardProviderService,
+            DashboardStatusService dashboardStatusService,
+            DashboardGatewayDoctorService dashboardGatewayDoctorService,
+            DashboardInsightsService dashboardInsightsService,
+            DashboardApprovalEventsService dashboardApprovalEventsService,
+            Supplier<DashboardDiagnosticsService> dashboardDiagnosticsService,
+            DashboardWorkspaceService dashboardWorkspaceService,
+            DashboardConfigService dashboardConfigService,
+            DashboardRuntimeConfigService dashboardRuntimeConfigService,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService,
+            BrowserRuntimeService browserRuntimeService,
+            ImageGenerationService imageGenerationService,
+            SpeechService speechService,
+            DashboardRunService dashboardRunService,
+            SqliteDatabase sqliteDatabase,
+            AgentRunRepository agentRunRepository,
+            CronJobRepository cronJobRepository,
+            UsageEventRepository usageEventRepository,
+            List<ToolRegistration> pluginTools,
+            List<WebSearchProvider> webSearchProviders) {
         this.appConfig = appConfig;
         this.preferenceStore = preferenceStore;
         this.sessionRepository = sessionRepository;
@@ -1206,6 +1424,17 @@ public class DefaultToolRegistry implements ToolRegistry {
                 pluginTools == null
                         ? Collections.<ToolRegistration>emptyList()
                         : new ArrayList<ToolRegistration>(pluginTools);
+        setWebSearchProviders(webSearchProviders);
+    }
+
+    /**
+     * 设置 Web 搜索插件提供方，保留插件配置中的线程安全列表引用以支持启动期动态注册。
+     *
+     * @param providers Web 搜索插件提供方列表。
+     */
+    private void setWebSearchProviders(List<WebSearchProvider> providers) {
+        this.webSearchProviders =
+                providers == null ? Collections.<WebSearchProvider>emptyList() : providers;
     }
 
     /**
@@ -1344,10 +1573,8 @@ public class DefaultToolRegistry implements ToolRegistry {
                         sysWorkDir, defaultPythonCommand(), securityPolicyService, appConfig);
         SystemClockTalent systemClockSkill = new SystemClockTalent();
         SolonClawWebTools.SafeWebsearchTool websearchTool =
-                new SolonClawWebTools.SafeWebsearchTool(
-                        securityPolicyService,
-                        new org.noear.solon.ai.talents.web.WebsearchTalent(),
-                        appConfig);
+                new SolonClawWebTools.SafeWebsearchTool(securityPolicyService, null, appConfig);
+        websearchTool.setWebSearchProviders(webSearchProviders);
         SolonClawWebTools.SafeWebfetchTool webfetchTool =
                 new SolonClawWebTools.SafeWebfetchTool(securityPolicyService);
         SolonClawWebTools.SafeCodeSearchTool codeSearchTool =

@@ -296,8 +296,8 @@ public class SolonClawWebTools {
         /** 注入安全策略服务，用于调用对应业务能力。 */
         private final SecurityPolicyService securityPolicyService;
 
-        /** 记录安全Websearch中的委托。 */
-        private final WebsearchTalent delegate;
+        /** 记录安全Websearch中的委托；为空时按需延迟创建 Solon AI 后端，避免非 Solon AI 后端提前初始化 MCP。 */
+        private WebsearchTalent delegate;
 
         /** 注入应用配置，用于安全Websearch。 */
         private final AppConfig appConfig;
@@ -311,7 +311,7 @@ public class SolonClawWebTools {
          * @param securityPolicyService 安全策略服务依赖。
          */
         public SafeWebsearchTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, new WebsearchTalent(), null);
+            this(securityPolicyService, null, null);
         }
 
         /**
@@ -348,7 +348,40 @@ public class SolonClawWebTools {
          */
         public void setWebSearchProviders(
                 List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider> providers) {
-            this.webSearchProviders = providers;
+            this.webSearchProviders =
+                    providers == null
+                            ? Collections
+                                    .<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider>
+                                            emptyList()
+                            : providers;
+        }
+
+        /**
+         * 创建 Solon AI websearch 委托，集中封装延迟初始化边界，便于插件后端绕过 MCP/Jackson 初始化。
+         *
+         * @return 返回 Solon AI websearch 委托。
+         */
+        protected WebsearchTalent createSolonAiWebsearchTalent() {
+            return new WebsearchTalent();
+        }
+
+        /**
+         * 读取或创建 Solon AI websearch 委托，初始化失败时转换为低敏业务错误。
+         *
+         * @return 返回可调用的 Solon AI websearch 委托。
+         */
+        private WebsearchTalent solonAiDelegate() {
+            if (delegate != null) {
+                return delegate;
+            }
+            try {
+                delegate = createSolonAiWebsearchTalent();
+                return delegate;
+            } catch (Throwable e) {
+                throw new IllegalStateException(
+                        "Solon AI websearch backend is unavailable; configure searchBackend=exa, brave-free, or ddgs, then retry.",
+                        e);
+            }
         }
 
         /**
@@ -409,13 +442,28 @@ public class SolonClawWebTools {
                 checkReturnedUrls(securityPolicyService, document);
                 return safeDocument(document);
             }
-            Document document =
-                    documentFromTalent(
-                            delegate.websearch(
-                                    query, numResults, livecrawl, type, contextMaxCharacters),
-                            "Web search: " + query);
-            checkReturnedUrls(securityPolicyService, document);
-            return safeDocument(document);
+            try {
+                Document document =
+                        documentFromTalent(
+                                solonAiDelegate()
+                                        .websearch(
+                                                query,
+                                                numResults,
+                                                livecrawl,
+                                                type,
+                                                contextMaxCharacters),
+                                "Web search: " + query);
+                checkReturnedUrls(securityPolicyService, document);
+                return safeDocument(document);
+            } catch (IllegalStateException e) {
+                throw e;
+            } catch (IllegalArgumentException e) {
+                throw e;
+            } catch (Throwable e) {
+                throw new IllegalStateException(
+                        "Solon AI websearch backend is unavailable; configure searchBackend=exa, brave-free, or ddgs, then retry.",
+                        e);
+            }
         }
 
         /**

@@ -21,3 +21,6 @@ Thumbs.db
 # Python bytecode
 __pycache__/
 *.pyc
+
+# 本地隔离 worktree 目录，避免将并行开发工作区纳入版本控制。
+.worktrees/

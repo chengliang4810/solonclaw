@@ -294,7 +294,7 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService.FileVerdict sameNameOutsideCacheCommand =
                 policy.checkCommandPaths("cat tmp/bws_cache.json");
 
-        // bws_cache.json 等凭据/密钥缓存文件读已放宽（对齐 hermes"读非安全边界"），
+        // bws_cache.json 等凭据/密钥缓存文件读已放宽（对齐 外部对标仓库"读非安全边界"），
         // fileTool/relative/command 的读阻断断言已移除。下方"普通缓存文件与同名外部文件不误伤"断言保留。
         assertThat(ordinaryCache.isAllowed()).isTrue();
         assertThat(sameNameOutsideCache.isAllowed()).isTrue();
@@ -1265,14 +1265,14 @@ public class SecurityPolicyServiceTest {
     }
 
     // shouldDenyCommandReadsFromEnvrcCredentialFile 已删除：cat .envrc 属读上下文
-    // （checkCommandPaths 经 isCommandWritePathContext 判定为读），凭据文件读已放宽（对齐 hermes"读非安全边界"）。
+    // （checkCommandPaths 经 isCommandWritePathContext 判定为读），凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"）。
 
     @Test
     void shouldDenyCommandCredentialFilesWithRelativeAndVariablePrefixes() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 
         // 命令中凭据路径由 SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN / SHELL_CREDENTIAL_TOKEN_PATTERN
-        // 等匹配器以 checkPath(.., false) 读意图检查，凭据文件读已放宽（对齐 hermes"读非安全边界"），
+        // 等匹配器以 checkPath(.., false) 读意图检查，凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），
         // 读/重定向类凭据路径现在均放行，assertCommandPathDenied 断言已移除。
         // .env.example 读仍放行断言保留。
         assertThat(policy.checkCommandPaths("cat .env.example").isAllowed()).isTrue();
@@ -1293,7 +1293,7 @@ public class SecurityPolicyServiceTest {
 
     // shouldDenyCredentialPathsWithDisplayControlsAndEntities 已删除：该方法全部走读路径
     // （checkPath(.., false) / checkFileToolArgs("read_file") / cat 读命令），凭据文件读已放宽
-    // （对齐 hermes"读非安全边界"）。同区的控制字符/路径遍历阻断由其它测试覆盖。
+    // （对齐 外部对标仓库"读非安全边界"）。同区的控制字符/路径遍历阻断由其它测试覆盖。
 
     @Test
     void shouldDenyRawControlCharactersInPaths() {
@@ -1339,7 +1339,7 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 
         // 归档/上传类命令（tar/zip/scp/rsync/curl -F/--upload-file/@file 等）读取凭据文件属读上下文，
-        // 凭据文件读已放宽（对齐 hermes"读非安全边界"），assertCommandPathDenied 读阻断断言已移除。
+        // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），assertCommandPathDenied 读阻断断言已移除。
         // 下方"非凭据文件归档/上传放行"断言保留。
         assertThat(policy.checkCommandPaths("tar czf backup.tgz README.md").isAllowed()).isTrue();
         assertThat(policy.checkCommandPaths("zip backup.zip .env.example").isAllowed()).isTrue();
@@ -1369,6 +1369,20 @@ public class SecurityPolicyServiceTest {
     }
 
     @Test
+    void shouldAllowConfiguredCredentialCommandReadsButBlockWrites() {
+        AppConfig config = new AppConfig();
+        config.getTerminal().setCredentialFiles(Arrays.asList("credentials/oauth.json"));
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+
+        assertThat(policy.checkCommandPaths("cat credentials/oauth.json").isAllowed()).isTrue();
+        assertThat(policy.checkCommandPaths("ssh -i credentials/oauth.json host.example").isAllowed())
+                .isTrue();
+        assertThat(policy.checkCommandPaths("echo x > credentials/oauth.json").isAllowed())
+                .isFalse();
+        assertThat(policy.checkPath("credentials/oauth.json", true).isAllowed()).isFalse();
+    }
+
+    @Test
     void shouldExposeCredentialPolicySummaryWithoutLeakingConfiguredPaths() {
         AppConfig config = new AppConfig();
         config.getTerminal()
@@ -1393,12 +1407,12 @@ public class SecurityPolicyServiceTest {
                 .contains("secret-sk-***")
                 .doesNotContain("1234567890abcdef");
         assertThat(summary.get("envExampleFilesAllowed")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("projectEnvFileReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("projectEnvFileReadBlocked")).isEqualTo(Boolean.FALSE);
         assertThat(summary.get("projectEnvFileWriteBlocked")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("credentialPathReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialPathReadBlocked")).isEqualTo(Boolean.FALSE);
         assertThat(summary.get("credentialPathWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("writePolicySharesCredentialClassifier")).isEqualTo(Boolean.TRUE);
-        // 凭据文件读已放宽（对齐 hermes"读非安全边界"），写仍阻断。
+        // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），写仍阻断。
         assertThat(policy.checkPath(".env", false).isAllowed()).isTrue();
         assertThat(policy.checkPath(".env.local", true).isAllowed()).isFalse();
         assertThat(policy.checkPath(".env.example", false).isAllowed()).isTrue();
@@ -1417,7 +1431,7 @@ public class SecurityPolicyServiceTest {
         assertThat(summary.get("normalizedControlCharactersBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("devicePathBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("rawBlockDeviceWriteBlocked")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("credentialPathReadBlocked")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("credentialPathReadBlocked")).isEqualTo(Boolean.FALSE);
         assertThat(summary.get("credentialPathWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("projectEnvFileWriteBlocked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("skillsHubInternalReadBlocked")).isEqualTo(Boolean.TRUE);

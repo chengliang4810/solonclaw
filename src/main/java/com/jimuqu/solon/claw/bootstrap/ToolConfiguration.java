@@ -39,6 +39,7 @@ import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
+import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
 import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -319,6 +320,7 @@ public class ToolConfiguration {
      * @param cronJobRepository 定时任务仓储依赖。
      * @param usageEventRepository 用量事件仓储依赖。
      * @param pluginTools 插件Tools参数。
+     * @param webSearchProviders Web 搜索插件提供方列表。
      * @return 返回工具注册表结果。
      */
     @Bean
@@ -363,7 +365,8 @@ public class ToolConfiguration {
             AgentRunRepository agentRunRepository,
             CronJobRepository cronJobRepository,
             UsageEventRepository usageEventRepository,
-            List<ToolRegistration> pluginTools) {
+            List<ToolRegistration> pluginTools,
+            List<WebSearchProvider> webSearchProviders) {
         return new DefaultToolRegistry(
                 appConfig,
                 preferenceStore,
@@ -406,7 +409,8 @@ public class ToolConfiguration {
                 agentRunRepository,
                 cronJobRepository,
                 usageEventRepository,
-                pluginTools);
+                pluginTools,
+                webSearchProviders);
     }
 
     /**

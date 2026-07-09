@@ -77,6 +77,11 @@ public class SolonClawCodeExecutionSkills {
     private static final Pattern PYTHON_ESCAPED_CONTROL_SEQUENCE =
             Pattern.compile("\\\\(?:u001[bB]|x1[bB]|033)");
 
+    /** 代码执行脚本中直接触碰用户 SSH 私钥的路径字面量，仍作为执行边界防御性阻断。 */
+    private static final Pattern EXECUTE_CODE_HOME_SSH_PRIVATE_KEY =
+            Pattern.compile(
+                    "(?i)(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|\\$env:USERPROFILE)[/\\\\]\\.ssh[/\\\\]id_(?:rsa|dsa|ecdsa(?:_sk)?|ed25519(?:_sk)?|rsa_sk)");
+
     /** 创建Solon项目Code Execution技能实例。 */
     private SolonClawCodeExecutionSkills() {}
 
@@ -1590,6 +1595,13 @@ public class SolonClawCodeExecutionSkills {
         if (securityPolicyService != null) {
             AppConfig appConfig = appConfigFrom(securityPolicyService);
             if (isFileGuardrailEnabled(appConfig)) {
+                SecurityPolicyService.FileVerdict executeCodeCredentialVerdict =
+                        checkExecuteCodeHomeSshPrivateKey(scriptForPreflight);
+                if (!executeCodeCredentialVerdict.isAllowed()) {
+                    throw new IllegalArgumentException(
+                            blockedFileMessage(
+                                    ToolNameConstants.EXECUTE_CODE, executeCodeCredentialVerdict));
+                }
                 SecurityPolicyService.FileVerdict fileVerdict =
                         securityPolicyService.checkCommandPaths(scriptForPreflight);
                 if (!fileVerdict.isAllowed()) {
@@ -1637,10 +1649,25 @@ public class SolonClawCodeExecutionSkills {
     }
 
     /**
+     * 检查代码执行脚本是否直接触碰用户 SSH 私钥路径。
+     *
+     * @param code 待执行脚本文本。
+     * @return 返回文件策略判定结果。
+     */
+    private static SecurityPolicyService.FileVerdict checkExecuteCodeHomeSshPrivateKey(
+            String code) {
+        Matcher matcher = EXECUTE_CODE_HOME_SSH_PRIVATE_KEY.matcher(StrUtil.nullToEmpty(code));
+        if (!matcher.find()) {
+            return SecurityPolicyService.FileVerdict.allow();
+        }
+        return SecurityPolicyService.FileVerdict.block(matcher.group(), "读取敏感系统/凭据文件被阻断");
+    }
+
+    /**
      * 剥离Managed文件工具路径Literals。
      *
      * @param code code 参数。
-     * @return 返回strip Managed文件工具路径Literals结果。
+     * @return 返回strip Managed文件工具Literals结果。
      */
     private static String stripManagedFileToolPathLiterals(String code) {
         String value = StrUtil.nullToEmpty(code);

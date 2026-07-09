@@ -141,7 +141,7 @@ public class DangerousCommandGatewayApprovalTest {
         service.buildInterceptor()
                 .onAction(archiveCredentialTrace, exchange("call_tool", gatewayArchiveCredential));
 
-        // tar czf backup.tgz .env 读 .env 已放宽（对齐 hermes"读非安全边界"），归档读凭据不再阻断，
+        // tar czf backup.tgz .env 读 .env 已放宽（对齐 外部对标仓库"读非安全边界"），归档读凭据不再阻断，
         // 原"文件安全策略/凭据"读阻断断言已移除。下方 patch/write_file 写凭据阻断断言保留。
 
         Map<String, Object> patchArgs = new LinkedHashMap<String, Object>();
@@ -171,7 +171,7 @@ public class DangerousCommandGatewayApprovalTest {
         assertThat(patchApplyTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(patchApplyTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
 
-        // read_file .env 读已放宽（对齐 hermes"读非安全边界"），原"文件安全策略/凭据"读阻断断言已移除。
+        // read_file .env 读已放宽（对齐 外部对标仓库"读非安全边界"），原"文件安全策略/凭据"读阻断断言已移除。
         // 下方 write_file 写 .env.local 阻断断言保留。
 
         Map<String, Object> writeFileArgs = new LinkedHashMap<String, Object>();
@@ -206,7 +206,7 @@ public class DangerousCommandGatewayApprovalTest {
         assertThat(nestedFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
         assertThat(service.getPendingApproval(nestedFileTrace.session)).isNull();
 
-        // read_file /var/run/docker.sock 读管理套接字已放宽（对齐 hermes"读非安全边界"，
+        // read_file /var/run/docker.sock 读管理套接字已放宽（对齐 外部对标仓库"读非安全边界"，
         // isLocalManagementSocket 仅在写时阻断），原读阻断断言已移除。下方 write_file 写命名管道断言保留。
 
         Map<String, Object> pipeWriteArgs = new LinkedHashMap<String, Object>();

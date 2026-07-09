@@ -227,7 +227,7 @@ public class ProcessRegistryTest {
 
     // shouldFilterSensitiveExplicitShellInitFilesWithPolicyLikeJimuqu 已删除：
     // resolveShellInitFiles 经 isSafeConfiguredShellInit -> checkPath(path, false) 读路径过滤，
-    // 凭据文件读已放宽（对齐 hermes"读非安全边界"），.env/credentials.json/id_rsa 不再被过滤。
+    // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），.env/credentials.json/id_rsa 不再被过滤。
 
     @Test
     void shouldNotPrependSensitiveConfiguredShellInitFilesAtRuntimeLikeJimuqu() throws Exception {

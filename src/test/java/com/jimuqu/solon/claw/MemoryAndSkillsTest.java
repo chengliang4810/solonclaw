@@ -940,7 +940,7 @@ public class MemoryAndSkillsTest {
                         null);
 
         // writeEnv 写 .env、patchKey/removeKey 写 id_rsa 仍阻断（写阻断保留）。
-        // viewEnv 读 references/.env 已放宽（对齐 hermes"读非安全边界"），读阻断断言已移除。
+        // viewEnv 读 references/.env 已放宽（对齐 外部对标仓库"读非安全边界"），读阻断断言已移除。
         assertThat(writeEnv).contains("\"status\":\"error\"").contains("security policy");
         assertThat(patchKey).contains("\"status\":\"error\"").contains("security policy");
         assertThat(removeKey).contains("\"status\":\"error\"").contains("security policy");

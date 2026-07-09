@@ -295,7 +295,7 @@ public class SolonClawShellSkillTest {
     }
 
     // shouldRejectForegroundAndBackgroundCredentialWorkdirs 已删除：终端 workdir 解析走 checkPath(value, false)
-    // 读路径，凭据目录读已放宽（对齐 hermes"读非安全边界"），现在放行。
+    // 读路径，凭据目录读已放宽（对齐 外部对标仓库"读非安全边界"），现在放行。
 
     @Test
     void shouldStripEightBitAnsiFromTerminalOutputLikeJimuqu() throws Exception {

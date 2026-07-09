@@ -2815,7 +2815,7 @@ public class DefaultCronSchedulerTest {
         CronJobService service = new CronJobService(env.appConfig, env.cronJobRepository);
 
         // unsafeCreate 使用 .ssh 作为 workdir 走 checkPath(.., false) 读路径，凭据目录读已放宽
-        // （对齐 hermes"读非安全边界"），原 workdir 读阻断断言已移除。下方元字符 workdir/安全 workdir 断言保留。
+        // （对齐 外部对标仓库"读非安全边界"），原 workdir 读阻断断言已移除。下方元字符 workdir/安全 workdir 断言保留。
 
         Map<String, Object> metacharCreate = new LinkedHashMap<String, Object>();
         metacharCreate.put("name", "metachar-workdir");

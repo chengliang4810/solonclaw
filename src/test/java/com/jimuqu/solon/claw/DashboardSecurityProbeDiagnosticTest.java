@@ -1421,7 +1421,7 @@ public class DashboardSecurityProbeDiagnosticTest {
         assertThat(patchToolUnifiedAddCredentialPath.get("skipped")).isNull();
         assertThat(String.valueOf(patchToolUnifiedAddCredentialPath))
                 .contains(".env");
-        // 命令中凭据路径经读意图匹配器判定，读已放宽（对齐 hermes"读非安全边界"），
+        // 命令中凭据路径经读意图匹配器判定，读已放宽（对齐 外部对标仓库"读非安全边界"），
         // curl -o / --upload-file / tar 归档等读/写凭据路径的命令现在放行（passed=FALSE, blocked=FALSE）。
         assertThat(commandDownloadOutputPath.get("passed")).isEqualTo(Boolean.FALSE);
         assertThat(commandDownloadOutputPath.get("blocked")).isEqualTo(Boolean.FALSE);

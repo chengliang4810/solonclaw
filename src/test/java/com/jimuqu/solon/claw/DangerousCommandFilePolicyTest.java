@@ -40,14 +40,14 @@ public class DangerousCommandFilePolicyTest {
     }
 
     // shouldBlockCredentialFilePathsForFileTools 已删除：file_read 读凭据文件已放宽
-    // （对齐 hermes"读非安全边界"），读 .ssh/id_ed25519 现在放行。写阻断由 assertWriteDenied 系列覆盖。
+    // （对齐 外部对标仓库"读非安全边界"），读 .ssh/id_ed25519 现在放行。写阻断由 assertWriteDenied 系列覆盖。
 
     @Test
     void shouldBlockJimuquCliCredentialFilePathsForFileTools() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
-        // assertFileReadDenied（file_read 读凭据）断言已移除：读已放宽（对齐 hermes"读非安全边界"）。
+        // assertFileReadDenied（file_read 读凭据）断言已移除：读已放宽（对齐 外部对标仓库"读非安全边界"）。
         // 下方"非凭据说明文件读放行"断言保留。
         Map<String, Object> authNotes = new LinkedHashMap<String, Object>();
         authNotes.put("fileName", "docs/auth.md");
@@ -77,7 +77,7 @@ public class DangerousCommandFilePolicyTest {
         Map<String, Object> siblingArgs = new LinkedHashMap<String, Object>();
         siblingArgs.put("fileName", "credentials/oauth-notes.md");
 
-        // file_read 读凭据文件（relative/nested）已放宽（对齐 hermes"读非安全边界"），断言已移除。
+        // file_read 读凭据文件（relative/nested）已放宽（对齐 外部对标仓库"读非安全边界"），断言已移除。
         // file_write 写凭据文件仍阻断（absolute），sibling 非凭据读放行，均保留。
         SecurityPolicyService.FileVerdict absolute =
                 securityPolicyService.checkFileToolArgs("file_write", absoluteArgs);
@@ -212,7 +212,7 @@ public class DangerousCommandFilePolicyTest {
     }
 
     // shouldBlockLocalManagementEndpointReadsForFileTools 已删除：管理套接字/命名管道读已放宽
-    // （对齐 hermes"读非安全边界"，isLocalManagementSocket/isLocalManagementPipe 仅在写时阻断）。
+    // （对齐 外部对标仓库"读非安全边界"，isLocalManagementSocket/isLocalManagementPipe 仅在写时阻断）。
     // 写阻断由 shouldBlockJimuquWriteDeniedSystemPathsForFileTools 覆盖（assertWriteDenied）。
 
     @Test
@@ -449,7 +449,7 @@ public class DangerousCommandFilePolicyTest {
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
         // mcp_remote_tool 为非 write-like 工具，嵌套/数组读凭据路径（.env.local、~/.ssh/id_ed25519）
-        // 已放宽（对齐 hermes"读非安全边界"），nested/array 读阻断断言已移除。
+        // 已放宽（对齐 外部对标仓库"读非安全边界"），nested/array 读阻断断言已移除。
         // 下方嵌套 patch 写凭据文件（.env）仍阻断，保留。
         Map<String, Object> nestedPatchCall = new LinkedHashMap<String, Object>();
         nestedPatchCall.put("tool_name", "patch");
@@ -557,14 +557,14 @@ public class DangerousCommandFilePolicyTest {
     }
 
     // shouldBlockCredentialPathsInsideShellCommands 已删除：命令中凭据路径经读意图匹配器
-    // （checkPath(.., false)）判定，读已放宽（对齐 hermes"读非安全边界"），cat ~/.aws/credentials 现在放行。
+    // （checkPath(.., false)）判定，读已放宽（对齐 外部对标仓库"读非安全边界"），cat ~/.aws/credentials 现在放行。
 
     @Test
     void shouldBlockJimuquCliCredentialPathsInsideShellCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
-        // 命令中凭据路径读已放宽（对齐 hermes"读非安全边界"），cat/type/Get-Content 读凭据的阻断
+        // 命令中凭据路径读已放宽（对齐 外部对标仓库"读非安全边界"），cat/type/Get-Content 读凭据的阻断
         // 断言已移除。下方"非凭据说明文件读放行"断言保留。
         SecurityPolicyService.FileVerdict safeAuthDoc =
                 securityPolicyService.checkCommandPaths("cat docs/auth.md");
@@ -580,7 +580,7 @@ public class DangerousCommandFilePolicyTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
-        // 命令中凭据文件名读已放宽（对齐 hermes"读非安全边界"），cat/type/grep/openssl -in 等读凭据的
+        // 命令中凭据文件名读已放宽（对齐 外部对标仓库"读非安全边界"），cat/type/grep/openssl -in 等读凭据的
         // 阻断断言已移除。下方"非凭据文件读放行"断言保留。
         SecurityPolicyService.FileVerdict safe =
                 securityPolicyService.checkCommandPaths("cat config.example.yml > backup.yml");
@@ -597,7 +597,7 @@ public class DangerousCommandFilePolicyTest {
         env.appConfig.getTerminal().setCredentialFiles(Arrays.asList("credentials/oauth.json"));
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
-        // 命令中配置的凭据文件读已放宽（对齐 hermes"读非安全边界"），cat/type/curl --upload-file/
+        // 命令中配置的凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），cat/type/curl --upload-file/
         // @file/--identity-file/--ssh-key-file 等读凭据的阻断断言已移除。下方"凭据文件 .example 读放行"保留。
         SecurityPolicyService.FileVerdict safe =
                 securityPolicyService.checkCommandPaths("cat docs/credentials/oauth.json.example");
@@ -606,14 +606,14 @@ public class DangerousCommandFilePolicyTest {
     }
 
     // shouldBlockWindowsCredentialPathsInsideShellCommands 已删除：命令中 Windows 凭据路径经读意图
-    // 匹配器判定，读已放宽（对齐 hermes"读非安全边界"），type 读 ssh key/hosts.yml 现在放行。
+    // 匹配器判定，读已放宽（对齐 外部对标仓库"读非安全边界"），type 读 ssh key/hosts.yml 现在放行。
 
     @Test
     void shouldBlockRelativeCredentialDirectoryPathsInsideShellCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
 
-        // 命令中相对凭据目录读已放宽（对齐 hermes"读非安全边界"），cat/type/Get-Content 读
+        // 命令中相对凭据目录读已放宽（对齐 外部对标仓库"读非安全边界"），cat/type/Get-Content 读
         // .ssh/.aws/.docker/gcloud 等的阻断断言已移除。下方"非凭据 .config 说明读放行"保留。
         SecurityPolicyService.FileVerdict ghNotes =
                 securityPolicyService.checkCommandPaths("cat docs/.config/gh-notes.md");

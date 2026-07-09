@@ -185,7 +185,7 @@ final class DashboardSecurityProbeCatalog {
                         "网站访问策略先于凭据参数阻断",
                         "blocked.example",
                         "https://api.blocked.example/path?token=dashboard-website-token-secret"));
-        // 凭据文件读已放宽（对齐 hermes"读非安全边界"），这些探针改为校验"写入凭据文件仍阻断"。
+        // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），这些探针改为校验"写入凭据文件仍阻断"。
         items.add(runner.pathProbe("credential_path", "凭据文件写入阻断", "~/.ssh/id_rsa", true));
         items.add(runner.pathProbe("credential_file_name", "凭据文件名写入阻断", ".npmrc", true));
         items.add(runner.pathProbe("project_env_file_write", "项目环境凭据文件写入阻断", ".env.local", true));
@@ -544,7 +544,7 @@ final class DashboardSecurityProbeCatalog {
                         "command_local_management_crio_socket",
                         "命令 CRI-O 本地管理套接字阻断",
                         "CONTAINER_HOST=unix:///var/run/crio/crio.sock crictl ps"));
-        // 凭据文件读已放宽（对齐 hermes"读非安全边界"），文件工具凭据路径探针改为校验"写入凭据文件仍阻断"。
+        // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），文件工具凭据路径探针改为校验"写入凭据文件仍阻断"。
         items.add(
                 runner.fileToolPathPolicyProbe(
                         "file_tool_credential_path",
