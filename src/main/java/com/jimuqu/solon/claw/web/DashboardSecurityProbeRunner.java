@@ -1334,7 +1334,7 @@ final class DashboardSecurityProbeRunner {
                     resolved.getAttachments().size() == 1
                             && StrUtil.contains(resolved.getText(), "[附件: diagram space.png]")
                             && !StrUtil.contains(resolved.getText(), safeFile.getAbsolutePath());
-            // 凭据文件读已放宽（对齐 hermes"读非安全边界"），.ssh 私钥粘贴预览不再被"blocked"，
+            // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），.ssh 私钥粘贴预览不再被"blocked"，
             // 但 missing 文件仍以 missing 呈现且 secret 被脱敏；此处校验 missing 提示与 secret 脱敏。
             boolean unsafePreviewRedacted =
                     StrUtil.contains(preview, "missing")
@@ -1903,7 +1903,7 @@ final class DashboardSecurityProbeRunner {
                     new SolonClawCodeExecutionSkills.SafeNodejsSkill(
                             workspaceHome.getAbsolutePath(), policy);
             String secret = "sk-dashboardcodesandboxprobe12345";
-            // 凭据文件读已放宽（对齐 hermes"读非安全边界"）；用户主目录下 ssh 私钥仍受保护，
+            // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"）；用户主目录下 ssh 私钥仍受保护，
             // 沙箱文件策略探针改为校验"读取 ~/.ssh/id_rsa 私钥仍阻断"。
             boolean fileBlocked =
                     rejectsCode(python, "open('~/.ssh/id_rsa').read()", "文件安全策略", "id_rsa", secret);

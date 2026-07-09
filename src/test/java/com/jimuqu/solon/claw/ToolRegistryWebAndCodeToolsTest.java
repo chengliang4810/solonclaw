@@ -6,8 +6,11 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import static com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink;
 
+import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
@@ -398,6 +401,110 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
+    void shouldUsePluginWebSearchProviderFromRegistryWhenConfigured() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getWeb().setSearchBackend("exa");
+        java.util.List<WebSearchProvider> providers =
+                new java.util.concurrent.CopyOnWriteArrayList<WebSearchProvider>();
+        WebSearchProvider exaProvider =
+                new WebSearchProvider() {
+                    @Override
+                    public String name() {
+                        return "exa";
+                    }
+
+                    @Override
+                    public boolean isAvailable() {
+                        return true;
+                    }
+
+                    @Override
+                    public List<SearchResult> search(String query, int limit) {
+                        assertThat(query).isEqualTo("solon ai");
+                        assertThat(limit).isEqualTo(2);
+                        return Arrays.asList(
+                                new SearchResult(
+                                        "Exa Result",
+                                        "https://example.com/exa",
+                                        "插件搜索结果"));
+                    }
+                };
+        DefaultToolRegistry registry =
+                new DefaultToolRegistry(
+                        env.appConfig,
+                        new SqlitePreferenceStore(env.sqliteDatabase),
+                        env.sessionRepository,
+                        env.agentProfileService,
+                        null,
+                        env.deliveryService,
+                        env.memoryService,
+                        env.sessionSearchService,
+                        env.localSkillService,
+                        env.skillHubService,
+                        env.checkpointService,
+                        env.delegationService,
+                        null,
+                        env.runtimeSettingsService,
+                        env.gatewayRuntimeRefreshService,
+                        new SecurityPolicyService(env.appConfig),
+                        env.processRegistry,
+                        null,
+                        null,
+                        null,
+                        null,
+                        java.util.Collections.emptyList(),
+                        providers);
+        providers.add(exaProvider);
+
+        SolonClawWebTools.SafeWebsearchTool websearch = null;
+        for (Object tool : registry.resolveEnabledTools("MEMORY:room-1:user-1")) {
+            if (tool instanceof SolonClawWebTools.SafeWebsearchTool) {
+                websearch = (SolonClawWebTools.SafeWebsearchTool) tool;
+                break;
+            }
+        }
+
+        assertThat(websearch).isNotNull();
+        Document document =
+                websearch.websearch(
+                        "solon ai", Integer.valueOf(2), "fallback", "auto", Integer.valueOf(1000));
+        ONode result = ONode.ofJson(document.getContent());
+
+        assertThat(result.get("provider").getString()).isEqualTo("exa");
+        assertThat(result.get("data").get("web").get(0).get("url").getString())
+                .isEqualTo("https://example.com/exa");
+    }
+
+    @Test
+    void shouldReportSolonAiWebsearchInitializationFailureWithoutRawObjectMapperCrash()
+            throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getWeb().setSearchBackend("solon-ai");
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        new SecurityPolicyService(env.appConfig), null, env.appConfig) {
+                    @Override
+                    protected WebsearchTalent createSolonAiWebsearchTalent() {
+                        throw new NoClassDefFoundError(
+                                "Could not initialize class com.fasterxml.jackson.databind.ObjectMapper");
+                    }
+                };
+
+        assertThatThrownBy(
+                        () ->
+                                websearch.websearch(
+                                        "solon ai",
+                                        Integer.valueOf(2),
+                                        "fallback",
+                                        "auto",
+                                        Integer.valueOf(1000)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Solon AI websearch backend")
+                .hasMessageNotContaining("ObjectMapper")
+                .hasRootCauseInstanceOf(NoClassDefFoundError.class);
+    }
+
+    @Test
     void shouldUseBraveFreeSearchBackendWhenConfigured() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("brave-free");
@@ -775,7 +882,7 @@ class ToolRegistryWebAndCodeToolsTest {
                 new SolonClawCodeExecutionSkills.SafeNodejsSkill(
                         env.appConfig.getRuntime().getHome(), policy);
 
-        // python 读取 .env 的读阻断断言已移除：凭据文件读已放宽（对齐 hermes"读非安全边界"），
+        // python 读取 .env 的读阻断断言已移除：凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），
         // open('.env').read() 现在放行。下方 URL/危险命令阻断断言保留。
         assertThatThrownBy(
                         () ->
@@ -913,7 +1020,7 @@ class ToolRegistryWebAndCodeToolsTest {
 
     // shouldReturnErrorWhenExecuteCodeReadsCredentialFilesBeforeRunning 已删除：该测试断言
     // execute_code 读取 .env/credentials.json 命中"文件安全策略"读阻断；凭据文件读已放宽
-    // （对齐 hermes"读非安全边界"），文件安全策略不再阻断此类读。同类 home ssh 密钥阻断由
+    // （对齐 外部对标仓库"读非安全边界"），文件安全策略不再阻断此类读。同类 home ssh 密钥阻断由
     // shouldReturnErrorWhenExecuteCodeTouchesHomeSshKeyBeforeRunning 覆盖（仍有效，保留）。
 
     @Test
@@ -1085,7 +1192,7 @@ class ToolRegistryWebAndCodeToolsTest {
 
     // shouldReturnExecuteCodeRpcToolErrorsWithoutBypassingSafety 已删除：该测试断言 execute_code
     // 通过 RPC 调用 read_file('.env') 命中"文件安全策略"读阻断；凭据文件读已放宽
-    // （对齐 hermes"读非安全边界"），read_file('.env') 现在放行（返回文件不存在），原读阻断语义不再成立。
+    // （对齐 外部对标仓库"读非安全边界"），read_file('.env') 现在放行（返回文件不存在），原读阻断语义不再成立。
 
     @Test
     void shouldLetApprovedExecuteCodeScriptPassToolFallbackOnce() throws Exception {
@@ -1233,7 +1340,7 @@ class ToolRegistryWebAndCodeToolsTest {
         SolonClawFileReadWriteSkill fileSkill =
                 new SolonClawFileReadWriteSkill(env.appConfig.getRuntime().getHome(), policy);
 
-        // 凭据文件读已放宽（对齐 hermes"读非安全边界"）：read(".env")、read("credentials.json")、
+        // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"）：read(".env")、read("credentials.json")、
         // list("~/.ssh") 的读阻断断言已移除。下方写/删除/路径遍历/Skills Hub 缓存阻断断言保留。
         assertThatThrownBy(() -> fileSkill.write("credentials", "token=secret"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -1475,7 +1582,7 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     // shouldNotSuggestSensitiveFilesWhenFileReadPathIsMissing 已删除：相似文件建议走读路径
-    // （checkFileToolArgs(READ_FILE, ...)），凭据文件读已放宽（对齐 hermes"读非安全边界"），
+    // （checkFileToolArgs(READ_FILE, ...)），凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），
     // credentials.json 现在可出现在建议中，原"读阻断"语义不再成立。
 
     @Test
@@ -1678,7 +1785,7 @@ class ToolRegistryWebAndCodeToolsTest {
                                 Boolean.FALSE,
                                 null));
 
-        // fileSkill.read 读阻断断言已移除：凭据文件读已放宽（对齐 hermes"读非安全边界"），
+        // fileSkill.read 读阻断断言已移除：凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），
         // 读 credentials/oauth.json 现在放行。下方写/patch 写阻断断言保留。
         assertThatThrownBy(() -> fileSkill.write("credentials/oauth.json", "{\"token\":\"new\"}"))
                 .isInstanceOf(IllegalArgumentException.class)

@@ -17,7 +17,7 @@ import org.junit.jupiter.api.condition.OS;
 import org.noear.snack4.ONode;
 
 public class SolonClawFileReadWriteSkillTest {
-    // shouldBlockRuntimeCredentialCacheRead 已删除：凭据文件读已放宽（对齐 hermes"读非安全边界"），
+    // shouldBlockRuntimeCredentialCacheRead 已删除：凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），
     // 读 bws_cache.json 现在放行，写仍阻断。
 
     /** 验证默认 workspace 工作区下的脚本写入不会落到嵌套 workspace 目录。 */

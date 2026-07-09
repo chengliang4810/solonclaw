@@ -174,7 +174,7 @@ Common workspace settings:
 | `solonclaw.skills.templateVars` | `true` | Enables SKILL.md template variable replacement |
 | `solonclaw.gateway.filterSilenceNarration` | `true` | Drops short silence narration before channel delivery |
 | `solonclaw.mcp.enabled` | `false` | Enables MCP tool adapters |
-| `solonclaw.web.searchBackend` | `solon-ai` | Web search backend: `solon-ai`, `brave-free`, `ddgs` |
+| `solonclaw.web.searchBackend` | `solon-ai` | Web search backend: `solon-ai`, `exa`, `brave-free`, `ddgs`; `exa` is provided by the plugin and reads `EXA_API_KEY` |
 | `solonclaw.pricing.prices` | empty | Model pricing configuration; empty means token-only usage without cost calculation |
 | `solonclaw.plugins.enabled` / `disabled` | empty | Plugin allow/deny lists |
 

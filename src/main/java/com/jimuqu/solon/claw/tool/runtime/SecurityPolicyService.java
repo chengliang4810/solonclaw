@@ -691,14 +691,14 @@ public class SecurityPolicyService {
         summary.put(
                 "configuredCredentialFileSamples", redactSample(configuredCredentialFiles(), 6));
         summary.put("envExampleFilesAllowed", Boolean.TRUE);
-        summary.put("projectEnvFileReadBlocked", Boolean.TRUE);
+        summary.put("projectEnvFileReadBlocked", Boolean.FALSE);
         summary.put("projectEnvFileWriteBlocked", Boolean.TRUE);
-        summary.put("credentialPathReadBlocked", Boolean.TRUE);
+        summary.put("credentialPathReadBlocked", Boolean.FALSE);
         summary.put("credentialPathWriteBlocked", Boolean.TRUE);
         summary.put("writePolicySharesCredentialClassifier", Boolean.TRUE);
         summary.put(
                 "description",
-                "Credential paths are blocked for file tools, patch targets, command reads, writes, archives, uploads, and compact output paths.");
+                "Credential paths are readable in non-write contexts; file writes, patches, redirections, and other write-like targets remain blocked.");
         return summary;
     }
 
@@ -872,7 +872,7 @@ public class SecurityPolicyService {
         summary.put("normalizedControlCharactersBlocked", Boolean.TRUE);
         summary.put("devicePathBlocked", Boolean.TRUE);
         summary.put("rawBlockDeviceWriteBlocked", Boolean.TRUE);
-        summary.put("credentialPathReadBlocked", Boolean.TRUE);
+        summary.put("credentialPathReadBlocked", Boolean.FALSE);
         summary.put("credentialPathWriteBlocked", Boolean.TRUE);
         summary.put("projectEnvFileWriteBlocked", Boolean.TRUE);
         summary.put("skillsHubInternalReadBlocked", Boolean.TRUE);
@@ -1075,10 +1075,11 @@ public class SecurityPolicyService {
             if (isSlashStyleCommandOption(path)) {
                 continue;
             }
-            FileVerdict verdict =
-                    checkPath(
-                            path,
-                            isCommandWritePathContext(code, matcher.start(1), matcher.end(1)));
+            boolean writeContext = isCommandWritePathContext(code, matcher.start(1), matcher.end(1));
+            FileVerdict verdict = checkConfiguredCredentialPath(path, writeContext);
+            if (verdict.allowed) {
+                verdict = checkPath(path, writeContext);
+            }
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -1129,10 +1130,11 @@ public class SecurityPolicyService {
                     || approvedOutputPaths.contains(policyApprovalTarget(path))) {
                 continue;
             }
-            FileVerdict verdict =
-                    checkPath(
-                            path,
-                            isCommandWritePathContext(code, matcher.start(1), matcher.end(1)));
+            boolean writeContext = isCommandWritePathContext(code, matcher.start(1), matcher.end(1));
+            FileVerdict verdict = checkConfiguredCredentialPath(path, writeContext);
+            if (verdict.allowed) {
+                verdict = checkPath(path, writeContext);
+            }
             addDeniedCommandPathTarget(deniedPaths, path, verdict);
         }
     }
@@ -1261,11 +1263,14 @@ public class SecurityPolicyService {
         if (isDetachedOutputOption(previousToken) || isWriteCommandToken(previousToken)) {
             return true;
         }
+        if (isCommandStartedByWriteCommand(before)) {
+            return true;
+        }
         String previousPreviousToken = previousShellToken(removeTrailingToken(before));
         if (isWriteCommandToken(previousPreviousToken) && isPowerShellPathOption(previousToken)) {
             return true;
         }
-        return startsWithWriteCommandRemainder(after);
+        return false;
     }
 
     /**
@@ -1286,7 +1291,11 @@ public class SecurityPolicyService {
      * @return 返回最近 token。
      */
     private String previousShellToken(String text) {
-        List<String> tokens = shellLikeTokens(StrUtil.nullToEmpty(text), 200);
+        String value = StrUtil.nullToEmpty(text).trim();
+        if (value.endsWith("\"") || value.endsWith("'")) {
+            value = value.substring(0, value.length() - 1).trim();
+        }
+        List<String> tokens = shellLikeTokens(value, 200);
         return tokens.isEmpty() ? "" : cleanUrlToken(tokens.get(tokens.size() - 1));
     }
 
@@ -1327,6 +1336,21 @@ public class SecurityPolicyService {
                 || "cp".equals(value)
                 || "mv".equals(value)
                 || "install".equals(value);
+    }
+
+    /**
+     * 判断当前路径前的命令是否以写入命令开头，用于 PowerShell Set-Content path value 等语法。
+     *
+     * @param before 路径之前的命令片段。
+     * @return 如果命令起始 token 为写入命令则返回 true。
+     */
+    private boolean isCommandStartedByWriteCommand(String before) {
+        List<String> tokens = shellLikeTokens(StrUtil.nullToEmpty(before), 20);
+        if (tokens.isEmpty()) {
+            return false;
+        }
+        String first = cleanUrlToken(tokens.get(0));
+        return tokens.size() == 1 && isWriteCommandToken(first);
     }
 
     /**
@@ -1687,6 +1711,12 @@ public class SecurityPolicyService {
                     writeLike
                             ? "写入 Skills Hub 内部缓存文件被阻断，请使用技能管理能力维护技能"
                             : "读取 Skills Hub 内部缓存文件被阻断，请使用 skills_list 或 skill_view 工具");
+        }
+        if (writeLike) {
+            FileVerdict configuredCredentialVerdict = checkConfiguredCredentialPath(path, true);
+            if (!configuredCredentialVerdict.allowed) {
+                return configuredCredentialVerdict;
+            }
         }
         if (writeLike && matchesCredentialPath(normalized)) {
             return FileVerdict.block(path, "写入敏感系统/凭据文件被阻断");
@@ -2347,27 +2377,52 @@ public class SecurityPolicyService {
      * @return 返回Configured凭据References结果。
      */
     private FileVerdict checkConfiguredCredentialReferences(String command) {
-        if (appConfig == null || appConfig.getTerminal() == null) {
-            return FileVerdict.allow();
-        }
-        List<String> credentialFiles = appConfig.getTerminal().getCredentialFiles();
-        if (credentialFiles == null || credentialFiles.isEmpty()) {
-            return FileVerdict.allow();
-        }
         String normalizedCommand = normalizePathText(command);
-        for (String configured : credentialFiles) {
+        for (String configured : configuredCredentialFiles()) {
             String configuredPath = normalizeConfiguredCredentialPath(configured);
             if (StrUtil.isBlank(configuredPath)) {
                 continue;
             }
-            if (containsPathToken(normalizedCommand, configuredPath)) {
-                return FileVerdict.block(configured, "读取敏感系统/凭据文件被阻断");
+            FileVerdict verdict = checkConfiguredCredentialReference(normalizedCommand, configuredPath);
+            if (!verdict.allowed) {
+                return verdict;
             }
             String runtimePath = normalizeRuntimeFilePath(configuredPath);
-            if (StrUtil.isNotBlank(runtimePath)
-                    && containsPathToken(normalizedCommand, runtimePath)) {
-                return FileVerdict.block(configured, "读取敏感系统/凭据文件被阻断");
+            if (StrUtil.isNotBlank(runtimePath)) {
+                verdict = checkConfiguredCredentialReference(normalizedCommand, runtimePath);
+                if (!verdict.allowed) {
+                    return verdict;
+                }
             }
+        }
+        return FileVerdict.allow();
+    }
+
+    /**
+     * 检查单个配置凭据路径在命令中的引用，仅写入上下文阻断。
+     *
+     * @param normalizedCommand 已规范化命令文本。
+     * @param configuredPath 已规范化配置凭据路径。
+     * @return 返回配置凭据引用判定结果。
+     */
+    private FileVerdict checkConfiguredCredentialReference(
+            String normalizedCommand, String configuredPath) {
+        if (StrUtil.isBlank(normalizedCommand) || StrUtil.isBlank(configuredPath)) {
+            return FileVerdict.allow();
+        }
+        int from = 0;
+        while (from < normalizedCommand.length()) {
+            int index = normalizedCommand.indexOf(configuredPath, from);
+            if (index < 0) {
+                return FileVerdict.allow();
+            }
+            int end = index + configuredPath.length();
+            if (isPathBoundary(normalizedCommand, index - 1)
+                    && isPathBoundary(normalizedCommand, end)
+                    && isCommandWritePathContext(normalizedCommand, index, end)) {
+                return FileVerdict.block(configuredPath, "写入敏感系统/凭据文件被阻断");
+            }
+            from = index + 1;
         }
         return FileVerdict.allow();
     }
@@ -2504,6 +2559,41 @@ public class SecurityPolicyService {
         }
         List<String> values = appConfig.getTerminal().getCredentialFiles();
         return values == null ? Collections.<String>emptyList() : values;
+    }
+
+    /**
+     * 检查配置凭据路径，仅在写入上下文阻断，读上下文交给审批与审计链路提示。
+     *
+     * @param rawPath 命令中识别到的路径。
+     * @param writeLike 是否处于写入上下文。
+     * @return 返回配置凭据路径判定结果。
+     */
+    private FileVerdict checkConfiguredCredentialPath(String rawPath, boolean writeLike) {
+        if (!writeLike || StrUtil.isBlank(rawPath)) {
+            return FileVerdict.allow();
+        }
+        String normalizedPath = normalizePathText(rawPath);
+        for (String configured : configuredCredentialFiles()) {
+            String configuredPath = normalizeConfiguredCredentialPath(configured);
+            if (StrUtil.isBlank(configuredPath)) {
+                continue;
+            }
+            if (pathEquals(normalizedPath, configuredPath)) {
+                return FileVerdict.block(rawPath, "写入敏感系统/凭据文件被阻断");
+            }
+            String runtimePath = normalizeRuntimeFilePath(configuredPath);
+            if (StrUtil.isNotBlank(runtimePath) && pathEquals(normalizedPath, runtimePath)) {
+                return FileVerdict.block(rawPath, "写入敏感系统/凭据文件被阻断");
+            }
+        }
+        return FileVerdict.allow();
+    }
+
+    /** 判断两个规范化路径文本是否指向同一配置凭据路径。 */
+    private boolean pathEquals(String left, String right) {
+        String normalizedLeft = stripKnownPrefix(normalizePathText(left));
+        String normalizedRight = stripKnownPrefix(normalizePathText(right));
+        return StrUtil.isNotBlank(normalizedLeft) && normalizedLeft.equals(normalizedRight);
     }
 
     /**

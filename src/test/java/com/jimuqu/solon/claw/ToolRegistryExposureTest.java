@@ -277,7 +277,7 @@ public class ToolRegistryExposureTest {
                                 null));
         ONode path =
                 ONode.ofJson(tools.audit("path", null, null, null, ".env", Boolean.FALSE, null));
-        // 注意：.env 读路径审计已放宽（writeLike=false，对齐 hermes"读非安全边界"），
+        // 注意：.env 读路径审计已放宽（writeLike=false，对齐 外部对标仓库"读非安全边界"），
         // 其下方原本断言 path decision=block 的语句已移除；其余（hardline/外部路径/路径遍历）断言保留。
         String externalPath =
                 new java.io.File(
@@ -313,7 +313,7 @@ public class ToolRegistryExposureTest {
                 .contains("blocking")
                 .contains("approval_required");
         // .env 读路径审计（writeLike=false）现已放行：path.get("decision") 不再为 "block"，
-        // 相关读阻断断言已移除（对齐 hermes"读非安全边界"）。
+        // 相关读阻断断言已移除（对齐 外部对标仓库"读非安全边界"）。
         assertThat(externalPathAudit.get("path").getString())
                 .startsWith("path://")
                 .contains(new java.io.File(externalPath).getParentFile().getAbsolutePath())
@@ -2183,7 +2183,7 @@ public class ToolRegistryExposureTest {
     }
 
     // shouldAuditToolArgWorkingDirectoriesAsPaths 已删除：terminal/process 的 workdir/cwd 走读路径
-    // 审计（非 write-like 工具），凭据目录读已放宽（对齐 hermes"读非安全边界"），现在放行。
+    // 审计（非 write-like 工具），凭据目录读已放宽（对齐 外部对标仓库"读非安全边界"），现在放行。
 
     @Test
     void shouldAuditNestedAndArrayCommandToolArgs() throws Exception {

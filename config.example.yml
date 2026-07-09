@@ -201,9 +201,9 @@ solonclaw:
     enabled: []
     disabled: []
 
-  # Web 工具配置。默认复用 Solon AI 内置 websearch/webfetch；可选 brave-free 或 ddgs。
+  # Web 工具配置。默认复用 Solon AI 内置 websearch/webfetch；可选 exa、brave-free 或 ddgs。
   web:
-    # 搜索后端：solon-ai / brave-free / ddgs。
+    # 搜索后端：solon-ai / exa / brave-free / ddgs；exa 由插件提供并读取 EXA_API_KEY。
     searchBackend: solon-ai
     # Brave Search API key；也可通过环境变量 BRAVE_SEARCH_API_KEY 提供。
     braveSearchApiKey: ""

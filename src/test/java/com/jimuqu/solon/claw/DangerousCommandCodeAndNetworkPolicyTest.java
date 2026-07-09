@@ -906,7 +906,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(dotenvSourceRedirect).isNull();
         assertThat(credentialsJsonRead).isNull();
         // "cat credentials.json > backup.txt" 的文件策略读阻断断言已移除：cat 读 credentials.json
-        // 属读上下文，凭据文件读已放宽（对齐 hermes"读非安全边界"），现在放行。
+        // 属读上下文，凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），现在放行。
         // 重定向写 backup.txt（非凭据文件）本就不阻断。上方危险命令 findings 与写目标断言保留。
         assertThat(credentialsWrite).isNotNull();
         assertThat(credentialsWrite.getPatternKey()).isEqualTo("project_sensitive_redirection");
@@ -2720,7 +2720,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
 
     // shouldIgnoreCredentialFilesAsSharedWebsiteBlocklistSources 已删除：
     // resolveSharedFile 经 checkPath(path, false) 读意图判断共享黑名单源文件是否可读，
-    // 凭据文件读已放宽（对齐 hermes"读非安全边界"），.env 现在会被读取并加载其规则，
+    // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），.env 现在会被读取并加载其规则，
     // 原"凭据文件作为共享源被忽略"语义不再成立。普通共享文件的加载由
     // shouldExpandHomeInSharedWebsiteBlocklistFilesWithCanonicalConfig 等覆盖（仍有效，保留）。
 

@@ -886,7 +886,7 @@ class ToolRegistryProcessToolsTest {
     }
 
     // shouldRejectManagedProcessCredentialCwd 已删除：进程 cwd 走 checkPath(value, false) 读路径，
-    // 凭据目录读已放宽（对齐 hermes"读非安全边界"），现在放行。
+    // 凭据目录读已放宽（对齐 外部对标仓库"读非安全边界"），现在放行。
 
     /** 构造使用测试环境默认注册表和安全策略的进程工具。 */
     private ProcessTools processTools(TestEnvironment env) {
