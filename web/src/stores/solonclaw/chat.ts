@@ -66,6 +66,17 @@ function uid(): string {
   return `${Date.now().toString(36)}-${chatUidCounter.toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+/** 拆分旧缓存或异常接口中混入正文的思考标签，避免思考内容重复展示。 */
+function splitLegacyThinkContent(content?: string | null): { content: string; reasoning?: string } {
+  const value = content || ''
+  const match = value.match(/^\s*<think>([\s\S]*?)<\/think>\s*/i)
+  if (!match) return { content: value.replace(/^\s*<\/think>\s*/i, '') }
+  return {
+    content: value.slice(match[0].length),
+    reasoning: match[1].trim() || undefined,
+  }
+}
+
 function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
   // Build lookups from assistant messages with tool_calls
   const toolNameMap = new Map<string, string>()
@@ -137,11 +148,14 @@ function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
     }
 
     // Normal user/assistant messages
+    const normalized = msg.role === 'assistant'
+      ? splitLegacyThinkContent(msg.content)
+      : { content: msg.content || '', reasoning: undefined }
     result.push({
       id: String(msg.id),
       role: msg.role,
-      content: msg.content || '',
-      reasoning: msg.reasoning || undefined,
+      content: normalized.content,
+      reasoning: msg.reasoning || normalized.reasoning,
       timestamp: Math.round(msg.timestamp * 1000),
     })
   }
@@ -202,6 +216,19 @@ function loadJson<T>(key: string): T | null {
   } catch {
     return null
   }
+}
+
+/** 清洗旧浏览器缓存中的思考标签，避免脏缓存阻止服务端干净消息覆盖。 */
+function normalizeCachedMessages(messages: Message[]): Message[] {
+  return messages.map(message => {
+    if (message.role !== 'assistant') return message
+    const normalized = splitLegacyThinkContent(message.content)
+    return {
+      ...message,
+      content: normalized.content,
+      reasoning: message.reasoning || normalized.reasoning,
+    }
+  })
 }
 
 function isQuotaExceededError(error: unknown): boolean {
@@ -491,7 +518,7 @@ export const useChatStore = defineStore('chat', () => {
           const cachedActive = cachedSessions.find(s => s.key === savedKey) || null
           if (cachedActive) {
             const cachedMsgs = loadJson<Message[]>(msgsCacheKey(savedKey))
-            if (cachedMsgs) cachedActive.messages = cachedMsgs
+            if (cachedMsgs) cachedActive.messages = normalizeCachedMessages(cachedMsgs)
             activeSession.value = cachedActive
             activeSessionKey.value = savedKey
           }
@@ -618,7 +645,7 @@ export const useChatStore = defineStore('chat', () => {
     if (!hasLocalMessages) {
       const cachedMsgs = loadJson<Message[]>(msgsCacheKey(sessionKey))
       if (cachedMsgs?.length) {
-        target.messages = cachedMsgs
+        target.messages = normalizeCachedMessages(cachedMsgs)
       }
     }
 
@@ -1062,7 +1089,7 @@ export const useChatStore = defineStore('chat', () => {
                   target.lastTotalTokens = evt.usage.total_tokens
                 }
               }
-              if (evt.reasoning) {
+              if (evt.reasoning && !msgs.some(m => m.role === 'assistant' && m.reasoning?.trim())) {
                 const assistant = [...msgs].reverse().find(m => m.role === 'assistant')
                 if (assistant && !assistant.reasoning) {
                   assistant.reasoning = evt.reasoning

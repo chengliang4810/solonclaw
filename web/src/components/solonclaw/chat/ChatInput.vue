@@ -432,8 +432,10 @@ function isImage(type: string): boolean {
 
 .input-textarea {
   flex: 1;
-  background: none;
-  border: none;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
   outline: none;
   color: $text-primary;
   font-family: $font-ui;
@@ -443,6 +445,13 @@ function isImage(type: string): boolean {
   max-height: 100px;
   min-height: 20px;
   overflow-y: auto;
+
+  &:hover,
+  &:focus,
+  &:focus-within {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
 
   &::placeholder {
     color: $text-muted;

@@ -101,6 +101,8 @@ import reactor.core.publisher.Flux;
 
 /** SolonAiLlmGateway 实现。 */
 public class SolonAiLlmGateway implements LlmGateway {
+    /** 单次模型流最长等待时间，防止提供方不发送完成事件时会话永久卡住。 */
+    private static final Duration MODEL_STREAM_TIMEOUT = Duration.ofMinutes(5);
     /** LLM 网关日志器。 */
     private static final Logger log = LoggerFactory.getLogger(SolonAiLlmGateway.class);
 
@@ -888,7 +890,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                                             feedbackSink,
                                             finalResponse,
                                             memoryScrubber))
-                    .blockLast();
+                    .blockLast(MODEL_STREAM_TIMEOUT);
         } catch (Throwable e) {
             if (e instanceof Exception) {
                 throw (Exception) e;
