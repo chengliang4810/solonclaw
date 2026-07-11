@@ -1,14 +1,13 @@
 package com.jimuqu.solon.claw.web;
 
-import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.diagnosticFailureSummary;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.approvalAuditItem;
+import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.diagnosticFailureSummary;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedCommandPathTarget;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedCommandPathTargets;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safeAuditPreview;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safePathProbeTarget;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
@@ -19,6 +18,7 @@ import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -101,7 +101,8 @@ final class DashboardSecurityProbeRunner {
      * @return 返回安全策略Probes结果。
      */
     Map<String, Object> securityPolicyProbes() {
-        return new DashboardSecurityProbeCatalog(this, securityPolicyService).securityPolicyProbes();
+        return new DashboardSecurityProbeCatalog(this, securityPolicyService)
+                .securityPolicyProbes();
     }
 
     /**
@@ -187,18 +188,14 @@ final class DashboardSecurityProbeRunner {
             return skippedPolicyProbeItem(key, label, "website_policy", "", "网站访问策略未启用，跳过规则阻断探针。");
         }
         String rule = firstConfiguredWebsiteRule(blocklist);
-        if (StrUtil.isBlank(rule)) {
-            return skippedPolicyProbeItem(
-                    key, label, "website_policy", "", "网站访问策略未配置可探测规则，跳过规则阻断探针。");
-        }
         String url = websiteProbeUrl(rule);
-        if (StrUtil.isBlank(url)) {
+        if (StrUtil.isBlank(rule) || StrUtil.isBlank(url)) {
             return skippedPolicyProbeItem(
                     key,
                     label,
                     "website_policy",
                     safeAuditPreview(rule, 400),
-                    "网站访问策略规则无法构造安全探测 URL，跳过规则阻断探针。");
+                    "网站访问策略未配置可安全探测的规则，跳过规则阻断探针。");
         }
         return websitePolicyProbe(key, label, rule, url);
     }
@@ -212,27 +209,21 @@ final class DashboardSecurityProbeRunner {
      * @param url 待校验或访问的 URL。
      * @return 返回website策略Probe结果。
      */
-    Map<String, Object> websitePolicyProbe(
-            String key, String label, String rule, String url) {
+    Map<String, Object> websitePolicyProbe(String key, String label, String rule, String url) {
         AppConfig.WebsiteBlocklistConfig blocklist =
                 appConfig == null || appConfig.getSecurity() == null
                         ? null
                         : appConfig.getSecurity().getWebsiteBlocklist();
-        if (blocklist == null || !blocklist.isEnabled()) {
-            return skippedPolicyProbeItem(
-                    key,
-                    label,
-                    "website_policy",
-                    SecretRedactor.maskUrl(url),
-                    "网站访问策略未启用，跳过规则阻断探针。");
-        }
-        if (StrUtil.isBlank(rule) || StrUtil.isBlank(url)) {
+        if (blocklist == null
+                || !blocklist.isEnabled()
+                || StrUtil.isBlank(rule)
+                || StrUtil.isBlank(url)) {
             return skippedPolicyProbeItem(
                     key,
                     label,
                     "website_policy",
                     safeAuditPreview(rule, 400),
-                    "网站访问策略规则无法构造安全探测 URL，跳过规则阻断探针。");
+                    "网站访问策略未启用或规则不可探测，跳过规则阻断探针。");
         }
         SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
         return policyProbeItem(
@@ -245,12 +236,7 @@ final class DashboardSecurityProbeRunner {
                 verdict.getMessage());
     }
 
-    /**
-     * 执行first已配置网站Rule相关逻辑。
-     *
-     * @param blocklist blocklist 参数。
-     * @return 返回first Configured Website Rule结果。
-     */
+    /** 选择首个可探测的网站阻断规则。 */
     private String firstConfiguredWebsiteRule(AppConfig.WebsiteBlocklistConfig blocklist) {
         String direct = firstText(blocklist.getDomains());
         if (StrUtil.isNotBlank(direct)) {
@@ -259,10 +245,9 @@ final class DashboardSecurityProbeRunner {
         try {
             Map<String, Object> summary = securityPolicyService.websitePolicySummary();
             Number sharedRuleCount = numberValue(summary.get("sharedRuleCount"));
-            if (sharedRuleCount == null || sharedRuleCount.intValue() <= 0) {
-                return "";
-            }
-            return firstTextValue(summary.get("sharedRuleSamples"));
+            return sharedRuleCount != null && sharedRuleCount.intValue() > 0
+                    ? firstTextValue(summary.get("sharedRuleSamples"))
+                    : "";
         } catch (Exception e) {
             log.warn(
                     "Dashboard website policy summary failed; skipping shared website rule probe: {}",
@@ -388,8 +373,7 @@ final class DashboardSecurityProbeRunner {
      * @param writeLike 写入Like参数。
      * @return 返回路径Probe结果。
      */
-    Map<String, Object> pathProbe(
-            String key, String label, String path, boolean writeLike) {
+    Map<String, Object> pathProbe(String key, String label, String path, boolean writeLike) {
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkPath(path, writeLike);
         return policyProbeItem(
@@ -500,8 +484,7 @@ final class DashboardSecurityProbeRunner {
      * @param command 待执行或解析的命令文本。
      * @return 返回私有 URL命令策略Probe结果。
      */
-    Map<String, Object> privateUrlCommandPolicyProbe(
-            String key, String label, String command) {
+    Map<String, Object> privateUrlCommandPolicyProbe(String key, String label, String command) {
         if (privateUrlsAllowedByPolicy()) {
             return skippedPolicyProbeItem(
                     key,
@@ -550,8 +533,7 @@ final class DashboardSecurityProbeRunner {
      * @param command 待执行或解析的命令文本。
      * @return 返回命令Always 块ed URL Probe结果。
      */
-    Map<String, Object> commandAlwaysBlockedUrlProbe(
-            String key, String label, String command) {
+    Map<String, Object> commandAlwaysBlockedUrlProbe(String key, String label, String command) {
         SecurityPolicyService.UrlVerdict verdict =
                 securityPolicyService.checkCommandAlwaysBlockedUrls(command);
         return policyProbeItem(
@@ -690,7 +672,7 @@ final class DashboardSecurityProbeRunner {
     Map<String, Object> mcpPackageSecurityProbe(String key, String label) {
         try {
             String secret = "sk-dashboardmcppackageprobe12345";
-            SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+            SecurityPolicyService policy = new SecurityPolicyService(appConfig);
             McpPackageSecurityService unsafeEndpointService =
                     new McpPackageSecurityService(
                             null, "http://169.254.169.254/osv?token=" + secret, policy);
@@ -716,7 +698,8 @@ final class DashboardSecurityProbeRunner {
             boolean unknownLauncherIgnored =
                     unknownVerdict.isAllowed() && "allow".equals(unknownVerdict.getReason());
             boolean policyAdvertised =
-                    Boolean.TRUE.equals(summary.get("unsafeEndpointBlocksBeforeNetwork"))
+                    Boolean.TRUE.equals(summary.get("requestFailureFailsClosed"))
+                            && Boolean.TRUE.equals(summary.get("unsafeEndpointBlocksBeforeNetwork"))
                             && Boolean.TRUE.equals(summary.get("scopedNpmPackageParsed"))
                             && Boolean.TRUE.equals(summary.get("pypiExtrasIgnored"))
                             && Boolean.TRUE.equals(summary.get("jsonArgsSupported"));
@@ -735,8 +718,8 @@ final class DashboardSecurityProbeRunner {
                     endpointBlocked && unknownLauncherIgnored && policyAdvertised && secretHidden;
             String message =
                     passed
-                            ? "MCP stdio 包安全检查已在联网前阻断不安全 OSV 端点，并覆盖 npm/PyPI 参数解析。"
-                            : "MCP 包安全端点阻断、launcher 解析或脱敏检查未通过。";
+                            ? "MCP stdio 包安全检查会在联网前阻断不安全 OSV 端点，并在扫描失败时失败关闭。"
+                            : "MCP 包安全的端点阻断、失败关闭、launcher 解析或脱敏检查未通过。";
             return policyProbeItem(
                     key,
                     label,
@@ -888,8 +871,10 @@ final class DashboardSecurityProbeRunner {
                     "mcp_runtime_argument_policy",
                     true,
                     passed,
-                    "remote endpoint, tool args, resource uri",
-                    passed ? "MCP 远程 endpoint、工具参数、resource URI 与脱敏策略已启用。" : "MCP 运行时参数安全策略检查未通过。");
+                    "remote endpoint, guarded tool args, guarded resource uri",
+                    passed
+                            ? "MCP 远程 endpoint、工具参数和 resource URI 的本地安全边界已启用。"
+                            : "MCP 运行时参数安全策略检查未通过。");
         } catch (Exception e) {
             return policyProbeItem(
                     key,
@@ -1225,7 +1210,9 @@ final class DashboardSecurityProbeRunner {
             workspaceHome = Files.createTempDirectory("dashboard-media-cache-probe").toFile();
             AppConfig probeConfig = new AppConfig();
             probeConfig.getRuntime().setHome(workspaceHome.getAbsolutePath());
-            probeConfig.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+            probeConfig
+                    .getRuntime()
+                    .setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
             AttachmentCacheService cacheService = new AttachmentCacheService(probeConfig);
             String secret = "sk-dashboardattachmentprobe12345";
             MessageAttachment attachment =
@@ -1302,7 +1289,9 @@ final class DashboardSecurityProbeRunner {
             workspaceHome = Files.createTempDirectory("dashboard-terminal-paste-probe").toFile();
             AppConfig probeConfig = new AppConfig();
             probeConfig.getRuntime().setHome(workspaceHome.getAbsolutePath());
-            probeConfig.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
+            probeConfig
+                    .getRuntime()
+                    .setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
             probeConfig
                     .getRuntime()
                     .setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
@@ -1884,71 +1873,38 @@ final class DashboardSecurityProbeRunner {
      * @return 返回code Execution Sandbox Probe结果。
      */
     Map<String, Object> codeExecutionSandboxProbe(String key, String label) {
-        File workspaceHome = null;
         try {
-            workspaceHome = Files.createTempDirectory("dashboard-code-sandbox-probe").toFile();
-            AppConfig probeConfig = new AppConfig();
-            probeConfig.getRuntime().setHome(workspaceHome.getAbsolutePath());
-            probeConfig.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
-            probeConfig.getSecurity().setFileGuardrailMode("strict");
-            probeConfig.getSecurity().setUrlGuardrailMode("strict");
-            probeConfig.getSecurity().setGuardrailMode("strict");
-            SecurityPolicyService policy = new SecurityPolicyService(probeConfig);
-            SolonClawCodeExecutionSkills.SafePythonSkill python =
-                    new SolonClawCodeExecutionSkills.SafePythonSkill(
-                            workspaceHome.getAbsolutePath(),
-                            SolonClawCodeExecutionSkills.defaultPythonCommand(),
-                            policy);
-            SolonClawCodeExecutionSkills.SafeNodejsSkill nodejs =
-                    new SolonClawCodeExecutionSkills.SafeNodejsSkill(
-                            workspaceHome.getAbsolutePath(), policy);
-            String secret = "sk-dashboardcodesandboxprobe12345";
-            // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"）；用户主目录下 ssh 私钥仍受保护，
-            // 沙箱文件策略探针改为校验"读取 ~/.ssh/id_rsa 私钥仍阻断"。
-            boolean fileBlocked =
-                    rejectsCode(python, "open('~/.ssh/id_rsa').read()", "文件安全策略", "id_rsa", secret);
-            boolean urlBlocked =
-                    rejectsCode(
-                            nodejs,
-                            "fetch('http://169.254.169.254/latest/meta-data/?token="
-                                    + secret
-                                    + "')",
-                            "URL 安全策略",
-                            null,
-                            secret);
-            boolean shellBlocked =
-                    rejectsCode(
-                            nodejs,
-                            "require('child_process').execSync('whoami')",
-                            "危险命令安全规则",
-                            null,
-                            secret);
             Map<String, Object> summary =
-                    SolonClawCodeExecutionSkills.codeExecutionPolicySummary(probeConfig);
-            boolean policyAdvertised =
+                    SolonClawCodeExecutionSkills.codeExecutionPolicySummary(appConfig);
+            boolean staticPreflightEnabled =
                     Boolean.TRUE.equals(summary.get("scriptPreflightPathPolicy"))
                             && Boolean.TRUE.equals(summary.get("scriptPreflightUrlPolicy"))
+                            && Boolean.TRUE.equals(summary.get("scriptPreflightMetadataUrlPolicy"))
                             && Boolean.TRUE.equals(summary.get("dangerousCommandRulesApplied"))
-                            && Boolean.TRUE.equals(summary.get("sandboxEnvironmentSanitized"));
-            boolean passed = fileBlocked && urlBlocked && shellBlocked && policyAdvertised;
+                            && Boolean.TRUE.equals(summary.get("hardlineRulesApplied"));
+            boolean agentApprovalRequired =
+                    Boolean.TRUE.equals(summary.get("agentApprovalInterceptorRequired"));
+            boolean sandboxAdvertised =
+                    Boolean.TRUE.equals(summary.get("stagingDirectoryPerRun"))
+                            && Boolean.TRUE.equals(summary.get("sandboxEnvironmentSanitized"))
+                            && Boolean.TRUE.equals(summary.get("timeoutKillsProcess"));
+            boolean passed = staticPreflightEnabled && agentApprovalRequired && sandboxAdvertised;
             String message =
                     passed
-                            ? "代码执行入口已在执行前复用文件、URL、危险命令和沙箱环境安全策略。"
-                            : "代码执行预检、危险命令或沙箱环境策略检查未通过：fileBlocked="
-                                    + fileBlocked
-                                    + ", urlBlocked="
-                                    + urlBlocked
-                                    + ", shellBlocked="
-                                    + shellBlocked
-                                    + ", policyAdvertised="
-                                    + policyAdvertised;
+                            ? "代码执行入口已启用路径、URL、危险命令和 hardline 预检，并保留整段脚本审批、沙箱与超时边界。"
+                            : "代码执行审批或沙箱策略摘要检查未通过：staticPreflightEnabled="
+                                    + staticPreflightEnabled
+                                    + ", agentApprovalRequired="
+                                    + agentApprovalRequired
+                                    + ", sandboxAdvertised="
+                                    + sandboxAdvertised;
             return policyProbeItem(
                     key,
                     label,
                     "code_execution_sandbox",
                     true,
                     passed,
-                    "execute_python, execute_js, .env, private URL, child_process",
+                    "execute_code whole-script approval, sandbox, timeout",
                     message);
         } catch (Exception e) {
             return policyProbeItem(
@@ -1957,77 +1913,10 @@ final class DashboardSecurityProbeRunner {
                     "code_execution_sandbox",
                     true,
                     false,
-                    "execute_python, execute_js, .env, private URL, child_process",
+                    "execute_code whole-script approval, sandbox, timeout",
                     "代码执行沙箱探针失败："
                             + StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()));
-        } finally {
-            deleteProbeDirectory(workspaceHome == null ? null : workspaceHome.toPath());
         }
-    }
-
-    /**
-     * 执行rejectsCode相关逻辑。
-     *
-     * @param skill 技能参数。
-     * @param code code 参数。
-     * @param expected expected 参数。
-     * @param forbidden forbidden标识或键值。
-     * @param secret 签名使用的共享密钥。
-     * @return 返回rejects Code结果。
-     */
-    private boolean rejectsCode(
-            SolonClawCodeExecutionSkills.SafePythonSkill skill,
-            String code,
-            String expected,
-            String forbidden,
-            String secret) {
-        try {
-            skill.execute(code, Integer.valueOf(1000));
-            return false;
-        } catch (IllegalArgumentException e) {
-            return rejectedMessageSafe(e, expected, forbidden, secret);
-        }
-    }
-
-    /**
-     * 执行rejectsCode相关逻辑。
-     *
-     * @param skill 技能参数。
-     * @param code code 参数。
-     * @param expected expected 参数。
-     * @param forbidden forbidden标识或键值。
-     * @param secret 签名使用的共享密钥。
-     * @return 返回rejects Code结果。
-     */
-    private boolean rejectsCode(
-            SolonClawCodeExecutionSkills.SafeNodejsSkill skill,
-            String code,
-            String expected,
-            String forbidden,
-            String secret) {
-        try {
-            skill.execute(code, Integer.valueOf(1000));
-            return false;
-        } catch (IllegalArgumentException e) {
-            return rejectedMessageSafe(e, expected, forbidden, secret);
-        }
-    }
-
-    /**
-     * 执行拒绝消息安全相关逻辑。
-     *
-     * @param e 捕获到的异常。
-     * @param expected expected 参数。
-     * @param forbidden forbidden标识或键值。
-     * @param secret 签名使用的共享密钥。
-     * @return 返回拒绝消息Safe结果。
-     */
-    private boolean rejectedMessageSafe(
-            Exception e, String expected, String forbidden, String secret) {
-        String message = StrUtil.nullToEmpty(e.getMessage());
-        return StrUtil.contains(message, expected)
-                && (StrUtil.isBlank(forbidden) || !StrUtil.contains(message, forbidden))
-                && (StrUtil.isBlank(secret) || !StrUtil.contains(message, secret));
     }
 
     /**
@@ -2356,5 +2245,4 @@ final class DashboardSecurityProbeRunner {
         }
         return true;
     }
-
 }

@@ -37,28 +37,42 @@ function requestedSessionId(): string | null {
   return typeof raw === 'string' && raw.trim() ? raw.trim() : null
 }
 
+function requestedProfile(): string | undefined {
+  const raw = route.query.profile
+  if (Array.isArray(raw)) return raw[0]?.trim() || undefined
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : undefined
+}
+
 onMounted(async () => {
   appStore.loadModels()
   const sessionId = requestedSessionId()
+  const profile = requestedProfile()
   if (!chatStore.sessionsLoaded) {
-    await chatStore.loadSessions(sessionId)
-  } else if (sessionId && sessionId !== chatStore.activeSessionId) {
-    await chatStore.switchSession(sessionId)
+    await chatStore.loadSessions(sessionId, profile)
+  } else if (sessionId && (
+    sessionId !== chatStore.activeSessionId
+    || (profile && profile !== chatStore.activeSession?.profile)
+  )) {
+    await chatStore.switchSession(sessionId, null, profile)
   } else if (!chatStore.isRunActive) {
     chatStore.refreshActiveSession()
   }
 })
 
 watch(
-  () => [route.query.sessionId, route.query.session_id],
+  () => [route.query.sessionId, route.query.session_id, route.query.profile],
   async () => {
     const sessionId = requestedSessionId()
-    if (!sessionId || sessionId === chatStore.activeSessionId) return
+    const profile = requestedProfile()
+    if (!sessionId || (
+      sessionId === chatStore.activeSessionId
+      && (!profile || profile === chatStore.activeSession?.profile)
+    )) return
     if (!chatStore.sessionsLoaded) {
-      await chatStore.loadSessions(sessionId)
+      await chatStore.loadSessions(sessionId, profile)
       return
     }
-    await chatStore.switchSession(sessionId)
+    await chatStore.switchSession(sessionId, null, profile)
   },
 )
 </script>

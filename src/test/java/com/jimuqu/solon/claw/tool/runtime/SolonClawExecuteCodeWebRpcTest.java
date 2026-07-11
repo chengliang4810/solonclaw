@@ -3,7 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.config.AppConfig;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -13,22 +13,21 @@ import org.noear.solon.ai.rag.Document;
 public class SolonClawExecuteCodeWebRpcTest {
     @Test
     void shouldExposeCodeExecutionPolicySummaryWithoutSecrets() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getTerminal().setEnvPassthrough(java.util.Arrays.asList("TENOR_API_KEY"));
-        env.appConfig.getSecurity().setFileGuardrailMode("strict");
-        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
+        AppConfig config = testConfig();
+        config.getTerminal().setEnvPassthrough(java.util.Arrays.asList("TENOR_API_KEY"));
 
         Map<String, Object> summary =
-                SolonClawCodeExecutionSkills.codeExecutionPolicySummary(env.appConfig);
+                SolonClawCodeExecutionSkills.codeExecutionPolicySummary(config);
 
         assertThat(summary.get("executeCodeSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("executePythonSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("executeJsSupported")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("scriptPreflightPathPolicy")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("scriptPreflightUrlPolicy")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("scriptPreflightMetadataUrlPolicy")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("dangerousCommandRulesApplied")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("managedFileToolPathLiteralsIgnoredForPreflight"))
-                .isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("hardlineRulesApplied")).isEqualTo(Boolean.TRUE);
+        assertThat(summary.get("agentApprovalInterceptorRequired")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("stagingDirectoryPerRun")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("sandboxEnvironmentSanitized")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("pythonPathPrependsStaging")).isEqualTo(Boolean.TRUE);
@@ -37,7 +36,7 @@ public class SolonClawExecuteCodeWebRpcTest {
         assertThat(summary.get("rpcToolBridgeEnabled")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("defaultTimeoutSeconds")).isEqualTo(Integer.valueOf(300));
         assertThat(summary.get("stdoutLimitChars"))
-                .isEqualTo(Integer.valueOf(env.appConfig.getTask().getToolOutputInlineLimit()));
+                .isEqualTo(Integer.valueOf(config.getTask().getToolOutputInlineLimit()));
         assertThat(summary.get("stderrLimitChars")).isEqualTo(Integer.valueOf(10000));
         assertThat(summary.get("timeoutKillsProcess")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("stagingCleanup")).isEqualTo(Boolean.TRUE);
@@ -56,14 +55,15 @@ public class SolonClawExecuteCodeWebRpcTest {
 
     @Test
     void shouldExposeJimuquWebSearchAndFetchInsideExecuteCode() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
+        AppConfig config = testConfig();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig,
+                        config.getRuntime().getHome(),
+                        pythonCommand,
+                        new SecurityPolicyService(config),
+                        config,
                         new FakeWebsearchTool(),
                         new FakeWebfetchTool());
 
@@ -90,20 +90,20 @@ public class SolonClawExecuteCodeWebRpcTest {
 
     @Test
     void shouldExposeCurrentHelpersInsideExecuteCode() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        java.nio.file.Path workspace =
-                new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
+        AppConfig config = testConfig();
+        java.nio.file.Path workspace = new java.io.File(config.getRuntime().getHome()).toPath();
         java.nio.file.Files.write(
                 workspace.resolve("current-helper-source.txt"),
                 java.util.Arrays.asList("current helper input"),
                 java.nio.charset.StandardCharsets.UTF_8);
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig,
+                        config.getRuntime().getHome(),
+                        pythonCommand,
+                        new SecurityPolicyService(config),
+                        config,
                         new FakeWebsearchTool(),
                         new FakeWebfetchTool());
 
@@ -128,14 +128,15 @@ public class SolonClawExecuteCodeWebRpcTest {
 
     @Test
     void shouldReturnWebfetchErrors() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
+        AppConfig config = testConfig();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig,
+                        config.getRuntime().getHome(),
+                        pythonCommand,
+                        new SecurityPolicyService(config),
+                        config,
                         new FakeWebsearchTool(),
                         new FakeWebfetchTool());
 
@@ -157,16 +158,15 @@ public class SolonClawExecuteCodeWebRpcTest {
 
     @Test
     void shouldBlockReturnedWebfetchContentUrlsInsideExecuteCode() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
+        AppConfig config = testConfig();
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getSecurity()
                 .getWebsiteBlocklist()
-                .setDomains(java.util.Arrays.asList("blocked.example"));
+                .setDomains(java.util.Collections.singletonList("blocked.example"));
         SecurityPolicyService policy =
-                new SecurityPolicyService(env.appConfig) {
+                new SecurityPolicyService(config) {
                     @Override
                     protected java.net.InetAddress[] resolveHost(String host) throws Exception {
                         return new java.net.InetAddress[] {
@@ -176,10 +176,10 @@ public class SolonClawExecuteCodeWebRpcTest {
                 };
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
+                        config.getRuntime().getHome(),
+                        pythonCommand,
                         policy,
-                        env.appConfig,
+                        config,
                         new FakeWebsearchTool(),
                         new SolonClawWebTools.SafeWebfetchTool(
                                 policy, new UnsafeReturnedContentWebfetchTool()));
@@ -203,14 +203,15 @@ public class SolonClawExecuteCodeWebRpcTest {
 
     @Test
     void shouldRedactExecuteCodeRpcToolErrors() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
+        AppConfig config = testConfig();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig,
+                        config.getRuntime().getHome(),
+                        pythonCommand,
+                        new SecurityPolicyService(config),
+                        config,
                         new FakeWebsearchTool(),
                         new FakeWebfetchTool());
 
@@ -237,16 +238,17 @@ public class SolonClawExecuteCodeWebRpcTest {
 
     @Test
     void shouldRedactExecuteCodeRpcSearchPathErrors() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
+        AppConfig config = testConfig();
         java.io.File workspaceHome =
-                new java.io.File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
+                new java.io.File(config.getRuntime().getHome()).getCanonicalFile();
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig,
+                        config.getRuntime().getHome(),
+                        pythonCommand,
+                        new SecurityPolicyService(config),
+                        config,
                         new FakeWebsearchTool(),
                         new FakeWebfetchTool());
 
@@ -270,20 +272,20 @@ public class SolonClawExecuteCodeWebRpcTest {
 
     @Test
     void shouldRedactExecuteCodeRpcToolSuccessResults() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        java.nio.file.Path workspace =
-                new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
+        String pythonCommand = SolonClawCodeExecutionSkills.defaultPythonCommand();
+        assumeTrue(commandExists(pythonCommand));
+        AppConfig config = testConfig();
+        java.nio.file.Path workspace = new java.io.File(config.getRuntime().getHome()).toPath();
         java.nio.file.Files.write(
                 workspace.resolve("rpc-ghp_filepath12345.txt"),
                 java.util.Arrays.asList("line token=ghp_rpcfile12345"),
                 java.nio.charset.StandardCharsets.UTF_8);
         SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
                 new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig,
+                        config.getRuntime().getHome(),
+                        pythonCommand,
+                        new SecurityPolicyService(config),
+                        config,
                         new SecretWebsearchTool(),
                         new SecretWebfetchTool());
 
@@ -331,6 +333,18 @@ public class SolonClawExecuteCodeWebRpcTest {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /** 创建仅包含代码执行所需路径的隔离配置，避免依赖完整应用测试夹具。 */
+    private static AppConfig testConfig() throws Exception {
+        java.nio.file.Path home = java.nio.file.Files.createTempDirectory("solonclaw-code-rpc");
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(home.toString());
+        config.getRuntime().setContextDir(home.resolve("context").toString());
+        config.getRuntime().setSkillsDir(home.resolve("skills").toString());
+        config.getRuntime().setCacheDir(home.resolve("cache").toString());
+        config.getRuntime().setStateDb(home.resolve("data/state.db").toString());
+        return config;
     }
 
     private static class FakeWebsearchTool extends SolonClawWebTools.SafeWebsearchTool {

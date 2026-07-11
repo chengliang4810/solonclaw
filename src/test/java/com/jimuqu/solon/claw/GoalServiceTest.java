@@ -60,8 +60,7 @@ public class GoalServiceTest {
             String goal, String response, String expectedVerdict) {
         HeuristicGoalJudge judge = new HeuristicGoalJudge();
 
-        GoalJudgeResult result =
-                judge.judge(new GoalJudgeRequest(goal, response, null, null));
+        GoalJudgeResult result = judge.judge(new GoalJudgeRequest(goal, response, null, null));
 
         assertThat(result.getVerdict()).isEqualTo(expectedVerdict);
         if (GoalVerdict.CONTINUE.equals(expectedVerdict)) {
@@ -137,7 +136,8 @@ public class GoalServiceTest {
 
     /** 测试内使用的最小会话仓储，只覆盖目标状态持久化所需接口。 */
     private static class InMemorySessionRepository implements SessionRepository {
-        private final Map<String, SessionRecord> sessions = new LinkedHashMap<String, SessionRecord>();
+        private final Map<String, SessionRecord> sessions =
+                new LinkedHashMap<String, SessionRecord>();
 
         @Override
         public SessionRecord getBoundSession(String sourceKey) {
@@ -153,7 +153,8 @@ public class GoalServiceTest {
         public void bindSource(String sourceKey, String sessionId) {}
 
         @Override
-        public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName) {
+        public SessionRecord cloneSession(
+                String sourceKey, String sourceSessionId, String branchName) {
             throw unsupported();
         }
 

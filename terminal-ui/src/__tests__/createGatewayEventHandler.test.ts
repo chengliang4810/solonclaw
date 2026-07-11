@@ -1276,7 +1276,12 @@ describe('createGatewayEventHandler', () => {
     const onEvent = createGatewayEventHandler(buildCtx(appended))
 
     patchOverlayState({
-      clarify: { choices: ['Scope A', 'Scope B'], question: 'How do you want to scope?', requestId: 'req-1' }
+      clarify: {
+        choices: ['Scope A', 'Scope B'],
+        question: 'How do you want to scope?',
+        requestId: 'req-1',
+        sessionId: 's1'
+      }
     })
 
     onEvent({ payload: { name: 'clarify', tool_id: 'clar-1' }, type: 'tool.complete' } as any)
@@ -1288,12 +1293,53 @@ describe('createGatewayEventHandler', () => {
     expect(getOverlayState().clarify).toBeNull()
   })
 
+  it('normalizes clarify choices to four items and records the event session', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    patchUiState({ sid: 'owner-session' })
+    onEvent({
+      payload: {
+        choices: [' A ', '', 'B', 'C', 'D', 'E'],
+        question: ' Pick one? ',
+        request_id: ' req-choices '
+      },
+      session_id: 'owner-session',
+      type: 'clarify.request'
+    } as any)
+
+    expect(getOverlayState().clarify).toEqual({
+      choices: ['A', 'B', 'C', 'D'],
+      question: 'Pick one?',
+      requestId: 'req-choices',
+      sessionId: 'owner-session'
+    })
+  })
+
+  it('treats missing clarify choices as an open-ended question', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    patchUiState({ sid: 'open-session' })
+    onEvent({
+      payload: { question: 'What should change?', request_id: 'req-open' },
+      type: 'clarify.request'
+    } as any)
+
+    expect(getOverlayState().clarify).toEqual({
+      choices: null,
+      question: 'What should change?',
+      requestId: 'req-open',
+      sessionId: 'open-session'
+    })
+  })
+
   it('does not persist the same abandoned clarify twice', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))
 
     patchOverlayState({
-      clarify: { choices: ['A'], question: 'Pick?', requestId: 'req-2' }
+      clarify: { choices: ['A'], question: 'Pick?', requestId: 'req-2', sessionId: 's1' }
     })
 
     onEvent({ payload: { name: 'clarify', tool_id: 'clar-1' }, type: 'tool.complete' } as any)

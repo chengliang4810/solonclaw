@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.llm.dialect;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.llm.PromptCachePolicy;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.Date;
@@ -115,7 +116,14 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
     @Override
     public ONode buildRequestJson(
             ChatConfig config, ChatOptions options, List<ChatMessage> messages, boolean isStream) {
-        return delegate.buildRequestJson(config, options, messages, isStream);
+        ONode request = delegate.buildRequestJson(config, options, messages, isStream);
+        if ("anthropic".equals(dialectName) && options != null) {
+            Object policy = options.toolContext().get(PromptCachePolicy.TOOL_CONTEXT_KEY);
+            if (policy instanceof PromptCachePolicy) {
+                ((PromptCachePolicy) policy).applyToAnthropicRequest(request);
+            }
+        }
+        return request;
     }
 
     /**

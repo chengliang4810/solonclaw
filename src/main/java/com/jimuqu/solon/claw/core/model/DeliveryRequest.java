@@ -16,6 +16,9 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DeliveryRequest {
+    /** 投递目标所属 Profile；用于 multiplex 回复、通知和状态反馈保持原路由。 */
+    private String profile;
+
     /** 目标平台。 */
     private PlatformType platform;
 

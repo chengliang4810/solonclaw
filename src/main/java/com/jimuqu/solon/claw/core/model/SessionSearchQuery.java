@@ -30,6 +30,18 @@ public class SessionSearchQuery {
     /** 记录会话搜索查询中的around消息标识。 */
     private String aroundMessageId;
 
+    /** discovery 模式的时间排序：newest 或 oldest。 */
+    private String sort;
+
+    /** scroll 模式锚点两侧各返回的消息数量。 */
+    private int window = 5;
+
+    /** discovery 模式允许命中的消息角色，使用逗号分隔。 */
+    private String roleFilter;
+
+    /** 目标 Profile 名称；空值表示当前 Profile。 */
+    private String profile;
+
     /** 记录会话搜索查询中的时间From。 */
     private long timeFrom;
 

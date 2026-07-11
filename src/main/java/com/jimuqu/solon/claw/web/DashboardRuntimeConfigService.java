@@ -4,6 +4,8 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileConfigFile;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -22,6 +24,9 @@ public class DashboardRuntimeConfigService {
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
 
+    /** 解析 Dashboard 显式选择的 Profile；为空时保留当前构造行为。 */
+    private final DashboardProfileContext profileContext;
+
     /**
      * 创建控制台工作区配置服务实例，并注入运行所需依赖。
      *
@@ -32,8 +37,24 @@ public class DashboardRuntimeConfigService {
             AppConfig appConfig,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService) {
+        this(appConfig, gatewayRuntimeRefreshService, null);
+    }
+
+    /**
+     * 创建支持 Profile 作用域的工作区配置服务。
+     *
+     * @param appConfig 当前 JVM 配置。
+     * @param gatewayRuntimeRefreshService 当前 JVM 网关刷新服务。
+     * @param profileContext Dashboard Profile 请求上下文。
+     */
+    public DashboardRuntimeConfigService(
+            AppConfig appConfig,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            DashboardProfileContext profileContext) {
         this.configResolver = RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome());
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
+        this.profileContext = profileContext;
         this.definitions =
                 Arrays.asList(
                         item(
@@ -500,9 +521,23 @@ public class DashboardRuntimeConfigService {
      * @return 返回读取到的配置Items。
      */
     public Map<String, Object> getConfigItems() {
+        return getConfigItems(null);
+    }
+
+    /**
+     * 读取指定 Profile 的工作区配置项。
+     *
+     * @param profile Profile 名。
+     * @return 已脱敏配置项。
+     */
+    public Map<String, Object> getConfigItems(String profile) {
+        DashboardProfileContext.Scope scope = detachedScope(profile);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         for (ConfigItemDefinition definition : definitions) {
-            String value = configResolver.get(definition.key);
+            String value =
+                    scope == null
+                            ? configResolver.get(definition.key)
+                            : detachedResolver(scope).get(definition.key);
 
             Map<String, Object> item = new LinkedHashMap<String, Object>();
             item.put("is_set", StrUtil.isNotBlank(value));
@@ -525,11 +560,23 @@ public class DashboardRuntimeConfigService {
      * @return 返回reveal结果。
      */
     public Map<String, Object> reveal(String key) {
+        return reveal(key, null);
+    }
+
+    /**
+     * 读取指定 Profile 的单个密钥明文。
+     *
+     * @param key 配置键。
+     * @param profile Profile 名。
+     * @return 明文值。
+     */
+    public Map<String, Object> reveal(String key, String profile) {
         ConfigItemDefinition definition = requireSupported(key);
         if (!definition.password) {
             throw new IllegalStateException("Runtime config item is not revealable: " + key);
         }
-        String value = configResolver.get(key);
+        DashboardProfileContext.Scope scope = detachedScope(profile);
+        String value = scope == null ? configResolver.get(key) : detachedResolver(scope).get(key);
         if (StrUtil.isBlank(value)) {
             throw new IllegalStateException("Runtime config item not set: " + key);
         }
@@ -551,6 +598,18 @@ public class DashboardRuntimeConfigService {
     }
 
     /**
+     * 写入指定 Profile 的配置值。
+     *
+     * @param key 配置键。
+     * @param value 配置值。
+     * @param profile Profile 名。
+     * @return 保存结果。
+     */
+    public Map<String, Object> set(String key, String value, String profile) {
+        return set(key, value, true, profile);
+    }
+
+    /**
      * 执行set相关逻辑。
      *
      * @param key 配置键或映射键。
@@ -559,11 +618,25 @@ public class DashboardRuntimeConfigService {
      * @return 返回set结果。
      */
     public Map<String, Object> set(String key, String value, boolean reconnectChannels) {
+        return set(key, value, reconnectChannels, null);
+    }
+
+    /**
+     * 写入指定 Profile 的配置值并控制当前 JVM 是否重连渠道。
+     *
+     * @param key 配置键。
+     * @param value 配置值。
+     * @param reconnectChannels 是否重连当前 JVM 渠道。
+     * @param profile Profile 名。
+     * @return 保存结果。
+     */
+    public Map<String, Object> set(
+            String key, String value, boolean reconnectChannels, String profile) {
         ConfigItemDefinition definition = requireSupported(key);
         if (definition.password) {
-            return updateSecret(key, value, reconnectChannels);
+            return updateSecret(key, value, reconnectChannels, profile);
         }
-        return writeNonSecret(key, value, reconnectChannels);
+        return writeNonSecret(key, value, reconnectChannels, profile);
     }
 
     /**
@@ -575,11 +648,17 @@ public class DashboardRuntimeConfigService {
      * @return 返回Non密钥结果。
      */
     public Map<String, Object> writeNonSecret(String key, String value, boolean reconnectChannels) {
+        return writeNonSecret(key, value, reconnectChannels, null);
+    }
+
+    /** 写入指定 Profile 的非密钥配置。 */
+    private Map<String, Object> writeNonSecret(
+            String key, String value, boolean reconnectChannels, String profile) {
         ConfigItemDefinition definition = requireSupported(key);
         if (definition.password) {
             throw new IllegalArgumentException(key + " 是密钥配置，请使用 secret update/reveal 流程。");
         }
-        persist(key, value, reconnectChannels);
+        persist(key, value, reconnectChannels, profile);
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
@@ -592,6 +671,12 @@ public class DashboardRuntimeConfigService {
      * @return 返回密钥结果。
      */
     public Map<String, Object> updateSecret(String key, String value, boolean reconnectChannels) {
+        return updateSecret(key, value, reconnectChannels, null);
+    }
+
+    /** 写入指定 Profile 的密钥配置。 */
+    private Map<String, Object> updateSecret(
+            String key, String value, boolean reconnectChannels, String profile) {
         ConfigItemDefinition definition = requireSupported(key);
         if (!definition.password) {
             throw new IllegalArgumentException(key + " 不是密钥配置，请使用普通配置写入流程。");
@@ -599,7 +684,7 @@ public class DashboardRuntimeConfigService {
         if (SecretValueGuard.isPlaceholderSecret(value)) {
             throw new IllegalArgumentException(key + " 不能使用示例或占位符密钥。");
         }
-        persist(key, value, reconnectChannels);
+        persist(key, value, reconnectChannels, profile);
         return Collections.<String, Object>singletonMap("ok", true);
     }
 
@@ -610,8 +695,15 @@ public class DashboardRuntimeConfigService {
      * @param value 待规范化或校验的原始值。
      * @param reconnectChannels reconnectChannels 参数。
      */
-    private void persist(String key, String value, boolean reconnectChannels) {
-        configResolver.setFileValue(key, value);
+    private void persist(String key, String value, boolean reconnectChannels, String profile) {
+        DashboardProfileContext.Scope scope = detachedScope(profile);
+        RuntimeConfigResolver resolver = scope == null ? configResolver : detachedResolver(scope);
+        synchronized (DashboardProfileConfigFile.lockFor(resolver.configFile().toPath())) {
+            resolver.setFileValue(key, value);
+        }
+        if (scope != null) {
+            return;
+        }
         if (reconnectChannels) {
             gatewayRuntimeRefreshService.refreshNow();
         } else {
@@ -630,6 +722,17 @@ public class DashboardRuntimeConfigService {
     }
 
     /**
+     * 删除指定 Profile 的配置值。
+     *
+     * @param key 配置键。
+     * @param profile Profile 名。
+     * @return 删除结果。
+     */
+    public Map<String, Object> remove(String key, String profile) {
+        return remove(key, true, profile);
+    }
+
+    /**
      * 执行remove相关逻辑。
      *
      * @param key 配置键或映射键。
@@ -637,14 +740,40 @@ public class DashboardRuntimeConfigService {
      * @return 返回remove结果。
      */
     public Map<String, Object> remove(String key, boolean reconnectChannels) {
+        return remove(key, reconnectChannels, null);
+    }
+
+    /** 删除指定 Profile 的配置值并控制当前 JVM 刷新。 */
+    private Map<String, Object> remove(String key, boolean reconnectChannels, String profile) {
         ensureSupported(key);
-        configResolver.removeFileValue(key);
+        DashboardProfileContext.Scope scope = detachedScope(profile);
+        RuntimeConfigResolver resolver = scope == null ? configResolver : detachedResolver(scope);
+        synchronized (DashboardProfileConfigFile.lockFor(resolver.configFile().toPath())) {
+            resolver.removeFileValue(key);
+        }
+        if (scope != null) {
+            return Collections.<String, Object>singletonMap("ok", true);
+        }
         if (reconnectChannels) {
             gatewayRuntimeRefreshService.refreshNow();
         } else {
             gatewayRuntimeRefreshService.refreshConfigOnly();
         }
         return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    /** 只在请求明确选择非当前 Profile 时返回独立 Scope。 */
+    private DashboardProfileContext.Scope detachedScope(String profile) {
+        if (profileContext == null) {
+            return null;
+        }
+        DashboardProfileContext.Scope scope = profileContext.resolve(profile);
+        return scope.isCurrent() ? null : scope;
+    }
+
+    /** 为非当前 Profile 打开不注册为全局实例的配置解析器。 */
+    private RuntimeConfigResolver detachedResolver(DashboardProfileContext.Scope scope) {
+        return RuntimeConfigResolver.open(scope.getHome().toString());
     }
 
     /**

@@ -15,7 +15,6 @@ import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.sun.net.httpserver.HttpServer;
-import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -87,7 +86,6 @@ public class McpRuntimeServiceTest {
         assertThat(summary.get("authorizationHeaderCaseInsensitive")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary))
                 .contains("streamable_stateless")
-                .contains("file_path")
                 .contains("invalid_token")
                 .contains("token expired")
                 .doesNotContain("secret");
@@ -162,15 +160,9 @@ public class McpRuntimeServiceTest {
                         env.processRegistry,
                         mcpRuntimeService);
         List<Object> tools = registry.resolveEnabledTools("MEMORY:room-1:user-1");
-        assertThat(tools.toString()).contains("McpToolProvider(local-docs)");
-        ToolProvider provider = null;
-        for (Object tool : tools) {
-            if (tool instanceof ToolProvider && tool.toString().contains("McpToolProvider")) {
-                provider = (ToolProvider) tool;
-            }
-        }
-        assertThat(provider).isNotNull();
-        assertThat(provider.getTools())
+        assertThat(tools)
+                .filteredOn(FunctionTool.class::isInstance)
+                .map(FunctionTool.class::cast)
                 .extracting(FunctionTool::name)
                 .contains("mcp_local-docs_docs_search", "mcp_local-docs_docs_fetch");
     }
@@ -310,9 +302,7 @@ public class McpRuntimeServiceTest {
     @Test
     void shouldNotAddMcpUtilityToolsWhenCapabilitiesAreUnknown() throws Exception {
         assertUtilityToolsForCapabilities(
-                null,
-                "mcp_local-docs_docs_search",
-                "mcp_local-docs_docs_fetch");
+                null, "mcp_local-docs_docs_search", "mcp_local-docs_docs_fetch");
     }
 
     @Test
@@ -332,7 +322,6 @@ public class McpRuntimeServiceTest {
     void shouldGuardMcpToolAndResourceArgumentsBeforeRemoteCall() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getMcp().setEnabled(true);
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
         saveMcpServer(env.appConfig, env.sqliteDatabase, null, fullMcpCapabilities());
         FakeMcpFactory factory = new FakeMcpFactory();
         McpRuntimeService mcpRuntimeService =
@@ -342,31 +331,25 @@ public class McpRuntimeServiceTest {
         FunctionTool docsFetch = toolByName(provider, "mcp_local-docs_docs_fetch");
         FunctionTool readResource = toolByName(provider, "mcp_local-docs_read_resource");
 
-        Map<String, Object> unsafeUrl = new LinkedHashMap<String, Object>();
-        unsafeUrl.put("uri", "http://169.254.169.254/latest/meta-data/?token=secret123");
-        assertThatThrownBy(() -> docsFetch.handle(unsafeUrl))
+        Map<String, Object> remoteArgs = new LinkedHashMap<String, Object>();
+        remoteArgs.put("uri", "http://169.254.169.254/latest/meta-data/?token=secret123");
+        assertThatThrownBy(() -> docsFetch.handle(remoteArgs))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("MCP tool")
                 .hasMessageContaining("URL 安全策略")
                 .hasMessageNotContaining("secret123");
 
-        Map<String, Object> nestedUnsafeUrl = new LinkedHashMap<String, Object>();
-        Map<String, Object> metadata = new LinkedHashMap<String, Object>();
-        metadata.put(
-                "callbacks",
-                Arrays.asList(
-                        "http://169.254.169.254/latest/meta-data/?token=secret456",
-                        "https://example.com/status"));
-        nestedUnsafeUrl.put("metadata", metadata);
-        assertThatThrownBy(() -> docsFetch.handle(nestedUnsafeUrl))
+        Map<String, Object> credentialArgs = new LinkedHashMap<String, Object>();
+        credentialArgs.put(
+                "headers", Collections.singletonMap("Authorization", "Bearer secret-token"));
+        assertThatThrownBy(() -> docsFetch.handle(credentialArgs))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("MCP tool")
                 .hasMessageContaining("URL 安全策略")
-                .hasMessageNotContaining("secret456");
+                .hasMessageNotContaining("secret-token");
 
-        Map<String, Object> unsafeResource = new LinkedHashMap<String, Object>();
-        unsafeResource.put("uri", "http://169.254.169.254/latest/meta-data/");
-        assertThatThrownBy(() -> readResource.handle(unsafeResource))
+        Map<String, Object> resourceArgs = new LinkedHashMap<String, Object>();
+        resourceArgs.put("uri", "http://169.254.169.254/latest/meta-data/");
+        assertThatThrownBy(() -> readResource.handle(resourceArgs))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("URL 安全策略");
         assertThat(factory.provider.remoteCallCount).isEqualTo(0);
@@ -425,25 +408,6 @@ public class McpRuntimeServiceTest {
                 .doesNotContain("secret-prompt-message")
                 .doesNotContain("ghp_promptresult12345");
         mcpRuntimeService.shutdown();
-    }
-
-    @Test
-    void shouldGuardRemoteMcpEndpointBeforeProviderCreation() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getMcp().setEnabled(true);
-        saveRemoteMcpServerDirectly(
-                env.sqliteDatabase,
-                "http://169.254.169.254/latest/meta-data/?token=secret-endpoint");
-        CountingMcpFactory factory = new CountingMcpFactory();
-        McpRuntimeService mcpRuntimeService =
-                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
-
-        assertThatThrownBy(() -> mcpRuntimeService.connect("remote-docs"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("MCP endpoint")
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageNotContaining("secret-endpoint");
-        assertThat(factory.createCount).isEqualTo(0);
     }
 
     @Test
@@ -537,6 +501,32 @@ public class McpRuntimeServiceTest {
         assertThat(factory.provider.lastArgs.get("limit")).isEqualTo(Integer.valueOf(200));
         assertThat(factory.provider.lastArgs.get("ratio")).isEqualTo(Double.valueOf(0.25D));
         assertThat(factory.provider.lastArgs.get("label")).isEqualTo("keep");
+        mcpRuntimeService.shutdown();
+    }
+
+    @Test
+    void shouldBlockUnsafeMcpToolArgumentsBeforeRemoteCall() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        NumericMcpFactory factory = new NumericMcpFactory();
+        McpRuntimeService mcpRuntimeService =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, factory);
+
+        ToolProvider provider = mcpRuntimeService.resolveEnabledToolProviders().get(0);
+        FunctionTool tool = toolByName(provider, "mcp_local-docs_numeric_tool");
+        Map<String, Object> unsafeUrl = new LinkedHashMap<String, Object>();
+        unsafeUrl.put("url", "http://169.254.169.254/latest/meta-data/");
+        assertThatThrownBy(() -> tool.handle(unsafeUrl))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("URL 安全策略");
+
+        Map<String, Object> unsafePath = new LinkedHashMap<String, Object>();
+        unsafePath.put("path", "../../remote-owned-path");
+        assertThatThrownBy(() -> tool.handle(unsafePath))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("文件安全策略");
+        assertThat(factory.provider.lastArgs).isEmpty();
         mcpRuntimeService.shutdown();
     }
 

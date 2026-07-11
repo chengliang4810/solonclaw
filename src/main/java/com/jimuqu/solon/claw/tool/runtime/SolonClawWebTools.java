@@ -5,6 +5,8 @@ import cn.hutool.http.HtmlUtil;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -61,12 +63,7 @@ public class SolonClawWebTools {
             Pattern.compile(
                     "(?is)<a\\b[^>]*class\\s*=\\s*['\"][^'\"]*result__snippet[^'\"]*['\"][^>]*>(.*?)</a>|<div\\b[^>]*class\\s*=\\s*['\"][^'\"]*result__snippet[^'\"]*['\"][^>]*>(.*?)</div>");
 
-    /**
-     * 执行阻断消息相关逻辑。
-     *
-     * @param verdict 判定参数。
-     * @return 返回blocked消息结果。
-     */
+    /** 构建不会泄露敏感查询参数的 URL 阻断消息。 */
     private static String blockedMessage(SecurityPolicyService.UrlVerdict verdict) {
         return "BLOCKED: URL 安全策略阻止访问："
                 + verdict.getMessage()
@@ -288,7 +285,160 @@ public class SolonClawWebTools {
             checkReturnedUrls(securityPolicyService, document);
             return safeDocument(document);
         }
+    }
 
+    /** 提供批量网页提取能力，复用单页 webfetch 的安全检查与后端实现。 */
+    public static class SafeWebExtractTool {
+        /** 单页网页提取工具。 */
+        private final SafeWebfetchTool webfetchTool;
+
+        /**
+         * 创建批量网页提取工具。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         */
+        public SafeWebExtractTool(SecurityPolicyService securityPolicyService) {
+            this(securityPolicyService, new WebfetchTalent());
+        }
+
+        /**
+         * 创建可注入网页后端的批量提取工具，便于复用和定向测试。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         * @param delegate 单页网页提取后端。
+         */
+        public SafeWebExtractTool(
+                SecurityPolicyService securityPolicyService, WebfetchTalent delegate) {
+            this.webfetchTool = new SafeWebfetchTool(securityPolicyService, delegate);
+        }
+
+        /**
+         * 按输入顺序提取最多五个网页，并为每个输入独立返回成功或错误结果。
+         *
+         * @param urls URL 字符串或包含 url/href 的搜索结果对象。
+         * @param format 返回格式。
+         * @param charLimit 每页最大返回字符数。
+         * @return 返回包含 results 数组的 JSON 文本。
+         */
+        @ToolMapping(
+                name = "web_extract",
+                description =
+                        "Extract up to five web pages in one call. Each item may be a URL string or an object containing url/href; results preserve input order and report per-item errors.")
+        public String webExtract(
+                @Param(
+                                name = "urls",
+                                description =
+                                        "URL list, maximum five items. Items may be strings or objects with url/href.")
+                        List<Object> urls,
+                @Param(
+                                name = "format",
+                                required = false,
+                                defaultValue = "markdown",
+                                description = "markdown, text, or html")
+                        String format,
+                @Param(
+                                name = "char_limit",
+                                required = false,
+                                defaultValue = "15000",
+                                description = "Per-page character budget, minimum 2000.")
+                        Integer charLimit) {
+            if (urls == null || urls.isEmpty()) {
+                return ToolResultEnvelope.error("urls is required").toJson();
+            }
+            if (urls.size() > 5) {
+                return ToolResultEnvelope.error("urls accepts at most 5 items").toJson();
+            }
+            String safeFormat =
+                    StrUtil.blankToDefault(format, "markdown").trim().toLowerCase(Locale.ROOT);
+            if (!"markdown".equals(safeFormat)
+                    && !"text".equals(safeFormat)
+                    && !"html".equals(safeFormat)) {
+                return ToolResultEnvelope.error("format must be markdown, text, or html").toJson();
+            }
+            int safeCharLimit = charLimit == null ? 15000 : charLimit.intValue();
+            if (safeCharLimit < 2000) {
+                return ToolResultEnvelope.error("char_limit must be at least 2000").toJson();
+            }
+            List<Map<String, Object>> results = new ArrayList<Map<String, Object>>();
+            for (int i = 0; i < urls.size(); i++) {
+                Object item = urls.get(i);
+                String url = extractUrl(item);
+                Map<String, Object> result = new LinkedHashMap<String, Object>();
+                result.put("url", SecretRedactor.maskUrl(url));
+                result.put("title", "");
+                result.put("content", "");
+                if (StrUtil.isBlank(url)) {
+                    result.put("error", "url is required");
+                    results.add(result);
+                    continue;
+                }
+                try {
+                    Document document = webfetchTool.webfetch(url, safeFormat, null);
+                    String content =
+                            document == null ? "" : StrUtil.nullToEmpty(document.getContent());
+                    result.put(
+                            "title",
+                            SecretRedactor.redact(
+                                    document == null ? "" : document.getTitle(), 500));
+                    if (StrUtil.isBlank(content)) {
+                        result.put("error", "Content was inaccessible or not found");
+                    } else {
+                        result.put("content", truncateExtractContent(content, safeCharLimit));
+                        result.put("error", null);
+                    }
+                } catch (Exception e) {
+                    result.put(
+                            "error",
+                            SecretRedactor.redact(
+                                    StrUtil.blankToDefault(
+                                            e.getMessage(), e.getClass().getSimpleName()),
+                                    1000));
+                }
+                results.add(result);
+            }
+            Map<String, Object> response = new LinkedHashMap<String, Object>();
+            response.put("results", results);
+            return ONode.serialize(response);
+        }
+
+        /**
+         * 从字符串或搜索结果对象中读取 URL。
+         *
+         * @param item URL 输入项。
+         * @return URL 文本，不可识别时返回空串。
+         */
+        private static String extractUrl(Object item) {
+            if (item instanceof CharSequence) {
+                return item.toString().trim();
+            }
+            if (item instanceof Map) {
+                Object value = ((Map<?, ?>) item).get("url");
+                if (value == null) {
+                    value = ((Map<?, ?>) item).get("href");
+                }
+                return value == null ? "" : String.valueOf(value).trim();
+            }
+            return "";
+        }
+
+        /**
+         * 按三比一保留页首与页尾，保证单页返回不超过模型指定字符预算。
+         *
+         * @param content 网页正文。
+         * @param charLimit 字符预算。
+         * @return 完整或截断后的正文。
+         */
+        private static String truncateExtractContent(String content, int charLimit) {
+            String safe = SecretRedactor.redact(StrUtil.nullToEmpty(content));
+            if (safe.length() <= charLimit) {
+                return safe;
+            }
+            String marker = "\n\n[content truncated]\n\n";
+            int payload = Math.max(0, charLimit - marker.length());
+            int head = payload * 3 / 4;
+            int tail = payload - head;
+            return safe.substring(0, head) + marker + safe.substring(safe.length() - tail);
+        }
     }
 
     /** 提供Safe Websearch工具能力，供 Agent 运行时按安全策略调用。 */
@@ -795,7 +945,8 @@ public class SolonClawWebTools {
                     appConfig == null || appConfig.getWeb() == null
                             ? ""
                             : appConfig.getWeb().getBraveSearchApiKey();
-            return StrUtil.blankToDefault(configured, System.getenv("BRAVE_SEARCH_API_KEY"));
+            return StrUtil.blankToDefault(
+                    configured, ProfileRuntimeScope.environmentValue("BRAVE_SEARCH_API_KEY"));
         }
     }
 

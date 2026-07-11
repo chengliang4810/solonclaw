@@ -206,5 +206,4 @@ public class AgentRunStopCommandTest {
         message.setChatType("group");
         return message;
     }
-
 }

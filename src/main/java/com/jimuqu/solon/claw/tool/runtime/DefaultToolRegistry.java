@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.core.service.SessionSearchService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
@@ -20,13 +21,16 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
+import com.jimuqu.solon.claw.media.VisionAnalysisService;
 import com.jimuqu.solon.claw.plugin.ToolRegistration;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
@@ -40,8 +44,8 @@ import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardLogsService;
-import com.jimuqu.solon.claw.web.DashboardMediaService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
+import com.jimuqu.solon.claw.web.DashboardMediaService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
@@ -54,6 +58,7 @@ import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -64,11 +69,11 @@ import org.noear.solon.ai.chat.prompt.Prompt;
 import org.noear.solon.ai.chat.talent.Talent;
 import org.noear.solon.ai.chat.tool.FunctionTool;
 import org.noear.solon.ai.chat.tool.FunctionToolDesc;
+import org.noear.solon.ai.chat.tool.MethodToolProvider;
 import org.noear.solon.ai.chat.tool.ToolProvider;
+import org.noear.solon.ai.talents.gateway.ToolGatewayTalent;
 import org.noear.solon.ai.talents.sys.ShellTalent;
 import org.noear.solon.ai.talents.sys.SystemClockTalent;
-import org.noear.solon.ai.talents.gateway.ToolGatewayTalent;
-import org.noear.solon.Solon;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -1520,7 +1525,6 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new MessagingTools(deliveryService, sourceKey, attachmentCacheService, appConfig);
         CronjobTools cronjobTools = new CronjobTools(cronJobService, sourceKey);
         TodoTools todoTools = new TodoTools(appConfig, sourceKey);
-        AgentTools agentTools = new AgentTools(agentProfileService, sessionRepository, sourceKey);
         RunTools runTools = new RunTools(dashboardRunService);
         McpManageTools mcpManageTools = new McpManageTools(dashboardMcpService);
         CuratorManageTools curatorManageTools = new CuratorManageTools(dashboardCuratorService);
@@ -1532,8 +1536,7 @@ public class DefaultToolRegistry implements ToolRegistry {
                 new DiagnosticsManageTools(dashboardDiagnosticsService);
         DoctorManageTools doctorManageTools = new DoctorManageTools(dashboardGatewayDoctorService);
         TuiRuntimeManageTools tuiRuntimeManageTools =
-                new TuiRuntimeManageTools(
-                        appConfig, weixinQrSetupService, domesticQrSetupService);
+                new TuiRuntimeManageTools(appConfig, weixinQrSetupService, domesticQrSetupService);
         InsightsManageTools insightsManageTools = new InsightsManageTools(dashboardInsightsService);
         ApprovalEventsManageTools approvalEventsManageTools =
                 new ApprovalEventsManageTools(dashboardApprovalEventsService);
@@ -1577,6 +1580,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         websearchTool.setWebSearchProviders(webSearchProviders);
         SolonClawWebTools.SafeWebfetchTool webfetchTool =
                 new SolonClawWebTools.SafeWebfetchTool(securityPolicyService);
+        SolonClawWebTools.SafeWebExtractTool webExtractTool =
+                new SolonClawWebTools.SafeWebExtractTool(securityPolicyService);
         SolonClawWebTools.SafeCodeSearchTool codeSearchTool =
                 new SolonClawWebTools.SafeCodeSearchTool(securityPolicyService);
         BrowserTools browserTools = new BrowserTools(browserRuntimeService);
@@ -1590,21 +1595,49 @@ public class DefaultToolRegistry implements ToolRegistry {
                 imageGenerationService == null || speechService == null
                         ? null
                         : new MediaSpeechTools(imageGenerationService, speechService);
+        VisionAnalyzeTools visionAnalyzeTools =
+                new VisionAnalyzeTools(
+                        new VisionAnalysisService(
+                                appConfig,
+                                attachmentCacheService,
+                                securityPolicyService,
+                                new LlmProviderService(appConfig),
+                                () -> ProfileBeanResolver.getBean(LlmGateway.class)));
         boolean fileSkillAdded = false;
         boolean shellSkillAdded = false;
         boolean clockSkillAdded = false;
         boolean websearchToolAdded = false;
         boolean webfetchToolAdded = false;
+        boolean webExtractToolAdded = false;
+        boolean mediaSpeechToolsAdded = false;
+        List<FunctionTool> dynamicTools = new ArrayList<FunctionTool>();
         List<Object> gatewayCandidates = new ArrayList<Object>();
+        List<String> enabledToolNames = new ArrayList<String>();
+        LinkedHashSet<String> enabledFileFunctionNames = new LinkedHashSet<String>();
+        LinkedHashSet<String> enabledShellFunctionNames = new LinkedHashSet<String>();
+        LinkedHashSet<String> enabledMediaFunctionNames = new LinkedHashSet<String>();
 
         for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
             if (!isEnabled(sourceKey, toolName)) {
                 continue;
             }
+            enabledToolNames.add(toolName);
+            if (ToolNameConstants.isFileTool(toolName)) {
+                enabledFileFunctionNames.add(toolName);
+            } else if (ToolNameConstants.EXECUTE_SHELL.equals(toolName)
+                    || ToolNameConstants.TERMINAL.equals(toolName)) {
+                enabledShellFunctionNames.add(toolName);
+            } else if (ToolNameConstants.IMAGE_GENERATE.equals(toolName)
+                    || ToolNameConstants.TEXT_TO_SPEECH.equals(toolName)
+                    || ToolNameConstants.SPEECH_TRANSCRIBE.equals(toolName)) {
+                enabledMediaFunctionNames.add(toolName);
+            }
+        }
 
+        for (String toolName : enabledToolNames) {
             if (ToolNameConstants.isFileTool(toolName)) {
                 if (!fileSkillAdded) {
-                    tools.add(fileSkill);
+                    tools.add(filteredTalent(fileSkill, enabledFileFunctionNames));
                     fileSkillAdded = true;
                 }
             } else if (ToolNameConstants.PATCH.equals(toolName)) {
@@ -1612,7 +1645,7 @@ public class DefaultToolRegistry implements ToolRegistry {
             } else if (ToolNameConstants.EXECUTE_SHELL.equals(toolName)
                     || ToolNameConstants.TERMINAL.equals(toolName)) {
                 if (!shellSkillAdded) {
-                    tools.add(shellSkill);
+                    tools.add(filteredTalent(shellSkill, enabledShellFunctionNames));
                     shellSkillAdded = true;
                 }
             } else if (ToolNameConstants.PROCESS.equals(toolName)) {
@@ -1640,7 +1673,14 @@ public class DefaultToolRegistry implements ToolRegistry {
                 // 在直接工具收集完成后再加入，避免递归包装自身。
             } else if (ToolNameConstants.MCP.equals(toolName)) {
                 if (mcpRuntimeService != null) {
-                    tools.addAll(mcpRuntimeService.resolveEnabledToolProviders());
+                    for (ToolProvider provider : mcpRuntimeService.resolveEnabledToolProviders()) {
+                        if (provider != null) {
+                            java.util.Collection<FunctionTool> providedTools = provider.getTools();
+                            if (providedTools != null) {
+                                dynamicTools.addAll(providedTools);
+                            }
+                        }
+                    }
                 }
             } else if (ToolNameConstants.MCP_MANAGE.equals(toolName)) {
                 tools.add(mcpManageTools);
@@ -1721,7 +1761,6 @@ public class DefaultToolRegistry implements ToolRegistry {
             } else if (ToolNameConstants.TODO.equals(toolName)) {
                 tools.add(todoTools);
             } else if (ToolNameConstants.AGENT_MANAGE.equals(toolName)) {
-                tools.add(agentTools);
             } else if (ToolNameConstants.RUN_MANAGE.equals(toolName)) {
                 tools.add(runTools);
             } else if (ToolNameConstants.DELEGATE_TASK.equals(toolName)) {
@@ -1736,14 +1775,24 @@ public class DefaultToolRegistry implements ToolRegistry {
                     tools.add(webfetchTool);
                     webfetchToolAdded = true;
                 }
+            } else if (ToolNameConstants.WEB_EXTRACT.equals(toolName)) {
+                if (!webExtractToolAdded) {
+                    tools.add(webExtractTool);
+                    webExtractToolAdded = true;
+                }
             } else if (ToolNameConstants.CODESEARCH.equals(toolName)) {
                 tools.add(codeSearchTool);
             } else if (ToolNameConstants.IMAGE_GENERATE.equals(toolName)
                     || ToolNameConstants.TEXT_TO_SPEECH.equals(toolName)
                     || ToolNameConstants.SPEECH_TRANSCRIBE.equals(toolName)) {
-                if (mediaSpeechTools != null && !tools.contains(mediaSpeechTools)) {
-                    tools.add(mediaSpeechTools);
+                if (mediaSpeechTools != null && !mediaSpeechToolsAdded) {
+                    tools.add(
+                            filteredMethodToolProvider(
+                                    mediaSpeechTools, enabledMediaFunctionNames));
+                    mediaSpeechToolsAdded = true;
                 }
+            } else if (ToolNameConstants.VISION_ANALYZE.equals(toolName)) {
+                tools.add(visionAnalyzeTools);
             } else if (ToolNameConstants.BROWSER.equals(toolName)) {
                 tools.add(browserTools);
             } else if (ToolNameConstants.SECURITY_AUDIT.equals(toolName)) {
@@ -1752,9 +1801,12 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(new ClarifyTools());
             }
         }
-        for (FunctionTool pluginTool : resolvePluginTools(sourceKey, agentScope)) {
-            tools.add(pluginTool);
-        }
+        LinkedHashSet<String> occupiedToolNames = collectFunctionToolNames(tools);
+        occupiedToolNames.add("call_tool");
+        occupiedToolNames.add("search_tools");
+        occupiedToolNames.add("get_tool_detail");
+        addUniqueDynamicTools(tools, dynamicTools, occupiedToolNames);
+        addUniqueDynamicTools(tools, resolvePluginTools(sourceKey, agentScope), occupiedToolNames);
         if (isGatewayEnabled(sourceKey, agentScope)) {
             gatewayCandidates.addAll(tools);
             ToolGatewayTalent gatewaySkill = buildToolGateway(gatewayCandidates);
@@ -1763,6 +1815,302 @@ public class DefaultToolRegistry implements ToolRegistry {
             }
         }
         return tools;
+    }
+
+    /**
+     * 保留 Talent 的指令、支持判断和生命周期，只按选择器过滤模型可见函数。
+     *
+     * @param delegate 原始 Talent。
+     * @param allowedToolNames 本轮明确启用的函数名。
+     * @return 仅暴露允许函数的 Talent 包装。
+     */
+    static Talent filteredTalent(Talent delegate, Iterable<String> allowedToolNames) {
+        return new FilteredTalent(delegate, normalizedToolNames(allowedToolNames));
+    }
+
+    /**
+     * 将普通多函数 Bean 展开后按选择器过滤，避免启用一个函数时连带暴露同 Bean 其他函数。
+     *
+     * @param bean 包含 ToolMapping 方法的 Bean。
+     * @param allowedToolNames 本轮明确启用的函数名。
+     * @return 仅返回允许函数的工具提供器。
+     */
+    static ToolProvider filteredMethodToolProvider(Object bean, Iterable<String> allowedToolNames) {
+        LinkedHashSet<String> allowedNames = normalizedToolNames(allowedToolNames);
+        Collection<FunctionTool> candidates =
+                bean instanceof ToolProvider
+                        ? ((ToolProvider) bean).getTools()
+                        : new MethodToolProvider(bean).getTools();
+        List<FunctionTool> filteredTools = filterFunctionTools(candidates, allowedNames);
+        return new FilteredMethodToolProvider(bean, filteredTools);
+    }
+
+    /**
+     * 规范化选择器函数名，工具名匹配不区分大小写。
+     *
+     * @param toolNames 原始函数名集合。
+     * @return 去空白、转小写且保持顺序的名称集合。
+     */
+    private static LinkedHashSet<String> normalizedToolNames(Iterable<String> toolNames) {
+        LinkedHashSet<String> names = new LinkedHashSet<String>();
+        if (toolNames == null) {
+            return names;
+        }
+        for (String toolName : toolNames) {
+            addNormalizedToolName(names, toolName);
+        }
+        return names;
+    }
+
+    /**
+     * 从候选函数中保留选择器明确允许的函数。
+     *
+     * @param tools 候选函数集合。
+     * @param allowedNames 已规范化的允许名称。
+     * @return 不可变且保持原声明顺序的函数列表。
+     */
+    private static List<FunctionTool> filterFunctionTools(
+            Iterable<FunctionTool> tools, Set<String> allowedNames) {
+        List<FunctionTool> filtered = new ArrayList<FunctionTool>();
+        if (tools != null && allowedNames != null) {
+            for (FunctionTool tool : tools) {
+                String name = tool == null ? null : tool.name();
+                if (StrUtil.isNotBlank(name)
+                        && allowedNames.contains(name.trim().toLowerCase(Locale.ROOT))) {
+                    filtered.add(tool);
+                }
+            }
+        }
+        return Collections.unmodifiableList(filtered);
+    }
+
+    /** 保留 Talent 行为、仅过滤其模型函数集合的包装器。 */
+    private static final class FilteredTalent implements Talent {
+        /** 原始 Talent，负责真实指令、支持判断和工具执行。 */
+        private final Talent delegate;
+
+        /** 当前选择器允许暴露的规范化函数名。 */
+        private final Set<String> allowedToolNames;
+
+        /**
+         * 创建 Talent 过滤包装。
+         *
+         * @param delegate 原始 Talent。
+         * @param allowedToolNames 允许暴露的规范化函数名。
+         */
+        private FilteredTalent(Talent delegate, Set<String> allowedToolNames) {
+            this.delegate = delegate;
+            this.allowedToolNames = allowedToolNames;
+        }
+
+        /**
+         * @return 返回原始 Talent 的启用状态。
+         */
+        @Override
+        public boolean isEnabled() {
+            return delegate.isEnabled();
+        }
+
+        /**
+         * @param enabled 设置原始 Talent 的启用状态。
+         */
+        @Override
+        public void setEnabled(Boolean enabled) {
+            delegate.setEnabled(enabled);
+        }
+
+        /**
+         * @return 返回原始 Talent 名称。
+         */
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        /**
+         * @return 返回原始 Talent 描述。
+         */
+        @Override
+        public String description() {
+            return delegate.description();
+        }
+
+        /**
+         * @return 返回原始 Talent 元数据。
+         */
+        @Override
+        public org.noear.solon.ai.chat.talent.TalentMetadata metadata() {
+            return delegate.metadata();
+        }
+
+        /**
+         * @param prompt 当前提示词。
+         * @return 返回原始 Talent 的支持判断。
+         */
+        @Override
+        public boolean isSupported(Prompt prompt) {
+            return delegate.isSupported(prompt);
+        }
+
+        /**
+         * @param prompt 当前提示词。
+         */
+        @Override
+        public void onAttach(Prompt prompt) {
+            delegate.onAttach(prompt);
+        }
+
+        /**
+         * @param prompt 当前提示词。
+         * @return 返回原始 Talent 指令。
+         */
+        @Override
+        public String getInstruction(Prompt prompt) {
+            return delegate.getInstruction(prompt);
+        }
+
+        /**
+         * @param prompt 当前提示词。
+         * @return 仅包含选择器明确启用函数的集合。
+         */
+        @Override
+        public Collection<FunctionTool> getTools(Prompt prompt) {
+            return filterFunctionTools(delegate.getTools(prompt), allowedToolNames);
+        }
+
+        /**
+         * @return 返回原始 Talent 的诊断文本。
+         */
+        @Override
+        public String toString() {
+            return delegate.toString();
+        }
+    }
+
+    /** 普通 Bean 展开后的不可变函数过滤提供器。 */
+    private static final class FilteredMethodToolProvider implements ToolProvider {
+        /** 原始 Bean，仅用于保留诊断可读性。 */
+        private final Object bean;
+
+        /** 已按选择器过滤的不可变函数列表。 */
+        private final List<FunctionTool> tools;
+
+        /**
+         * 创建普通 Bean 工具过滤提供器。
+         *
+         * @param bean 原始 Bean。
+         * @param tools 已过滤函数列表。
+         */
+        private FilteredMethodToolProvider(Object bean, List<FunctionTool> tools) {
+            this.bean = bean;
+            this.tools = tools;
+        }
+
+        /**
+         * @return 返回已过滤的模型函数集合。
+         */
+        @Override
+        public Collection<FunctionTool> getTools() {
+            return tools;
+        }
+
+        /**
+         * @return 返回原始 Bean 的诊断文本。
+         */
+        @Override
+        public String toString() {
+            return bean.toString();
+        }
+    }
+
+    /**
+     * 收集已注册对象实际暴露给模型的函数名，用于阻止动态工具覆盖内置实现。
+     *
+     * @param toolObjects 已注册工具对象。
+     * @return 返回小写规范化且保持声明顺序的函数名集合。
+     */
+    private static LinkedHashSet<String> collectFunctionToolNames(List<Object> toolObjects) {
+        LinkedHashSet<String> names = new LinkedHashSet<String>();
+        for (Object toolObject : toolObjects) {
+            if (toolObject == null) {
+                continue;
+            }
+            if (toolObject instanceof FunctionTool) {
+                addNormalizedToolName(names, ((FunctionTool) toolObject).name());
+            } else if (toolObject instanceof ToolProvider) {
+                addFunctionToolNames(names, ((ToolProvider) toolObject).getTools());
+            } else if (toolObject instanceof Talent) {
+                addFunctionToolNames(names, ((Talent) toolObject).getTools(Prompt.of("")));
+            } else {
+                addFunctionToolNames(names, new MethodToolProvider(toolObject).getTools());
+            }
+        }
+        return names;
+    }
+
+    /**
+     * 将一组函数工具名加入占名集合。
+     *
+     * @param names 已占用的规范化名称。
+     * @param tools 函数工具集合。
+     */
+    private static void addFunctionToolNames(Set<String> names, Iterable<FunctionTool> tools) {
+        if (tools == null) {
+            return;
+        }
+        for (FunctionTool tool : tools) {
+            if (tool != null) {
+                addNormalizedToolName(names, tool.name());
+            }
+        }
+    }
+
+    /**
+     * 规范化并记录一个模型函数名。
+     *
+     * @param names 已占用名称集合。
+     * @param name 原始函数名。
+     */
+    private static void addNormalizedToolName(Set<String> names, String name) {
+        if (StrUtil.isNotBlank(name)) {
+            names.add(name.trim().toLowerCase(Locale.ROOT));
+        }
+    }
+
+    /**
+     * 按声明顺序加入动态工具；名称大小写等价时保留首次注册实现并记录告警。
+     *
+     * @param target 最终工具对象列表。
+     * @param dynamicTools 待加入的 MCP 或插件函数工具。
+     * @param occupiedNames 已被内置工具或先前动态工具占用的名称集合。
+     */
+    static void addUniqueDynamicTools(
+            List<Object> target,
+            List<? extends FunctionTool> dynamicTools,
+            LinkedHashSet<String> occupiedNames) {
+        if (target == null || dynamicTools == null || occupiedNames == null) {
+            return;
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<String>();
+        for (String occupiedName : occupiedNames) {
+            addNormalizedToolName(normalized, occupiedName);
+        }
+        occupiedNames.clear();
+        occupiedNames.addAll(normalized);
+        for (FunctionTool tool : dynamicTools) {
+            String name = tool == null ? null : tool.name();
+            String normalizedName =
+                    StrUtil.isBlank(name) ? null : name.trim().toLowerCase(Locale.ROOT);
+            if (normalizedName == null) {
+                log.warn("跳过名称为空的动态工具注册");
+                continue;
+            }
+            if (!occupiedNames.add(normalizedName)) {
+                log.warn("跳过名称冲突的动态工具注册: {}", name);
+                continue;
+            }
+            target.add(tool);
+        }
     }
 
     /**
@@ -1934,7 +2282,8 @@ public class DefaultToolRegistry implements ToolRegistry {
         try {
             preferenceStore.setToolEnabled(sourceKey, toolName, enabled);
         } catch (SQLException e) {
-            log.warn("工具启用偏好写入失败 source={} tool={} enabled={} error={}",
+            log.warn(
+                    "工具启用偏好写入失败 source={} tool={} enabled={} error={}",
                     SecretRedactor.redact(sourceKey, 120),
                     SecretRedactor.redact(toolName, 120),
                     Boolean.valueOf(enabled),
@@ -2069,11 +2418,7 @@ public class DefaultToolRegistry implements ToolRegistry {
      * @return 返回 Dashboard 诊断服务，容器尚未就绪时返回 null。
      */
     private DashboardDiagnosticsService resolveDashboardDiagnosticsService() {
-        try {
-            return Solon.context().getBean(DashboardDiagnosticsService.class);
-        } catch (RuntimeException e) {
-            return null;
-        }
+        return ProfileBeanResolver.getBean(DashboardDiagnosticsService.class);
     }
 
     /**

@@ -10,10 +10,7 @@ import org.junit.jupiter.api.Test;
 public class WorkspacePackageLayoutTest {
     @Test
     void shouldBuildTerminalUiAndCopyWorkspaceLauncherLayoutFromMavenPackage() throws Exception {
-        String pom =
-                new String(
-                        Files.readAllBytes(Paths.get("pom.xml")),
-                        StandardCharsets.UTF_8);
+        String pom = new String(Files.readAllBytes(Paths.get("pom.xml")), StandardCharsets.UTF_8);
 
         assertThat(pom)
                 .contains("<id>terminal-ui-npm-install</id>")
@@ -28,9 +25,7 @@ public class WorkspacePackageLayoutTest {
     @Test
     void shouldLetLauncherRunFromWorkspacePackageLayoutAndDevelopmentTree() throws Exception {
         String launcher =
-                new String(
-                        Files.readAllBytes(Paths.get("bin/solonclaw")),
-                        StandardCharsets.UTF_8);
+                new String(Files.readAllBytes(Paths.get("bin/solonclaw")), StandardCharsets.UTF_8);
 
         assertThat(launcher)
                 .contains("SOLONCLAW_WORKSPACE")

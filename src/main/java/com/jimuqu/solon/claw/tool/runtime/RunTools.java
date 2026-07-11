@@ -54,7 +54,10 @@ public class RunTools {
                             required = false,
                             description = "Subagent id for control_subagent")
                     String subagentId,
-            @Param(name = "session_id", required = false, description = "Session id for session_runs")
+            @Param(
+                            name = "session_id",
+                            required = false,
+                            description = "Session id for session_runs")
                     String sessionId,
             @Param(
                             name = "payload_json",
@@ -132,8 +135,7 @@ public class RunTools {
         }
         if ("session_runs".equals(normalized) || "session-runs".equals(normalized)) {
             return dashboardRunService.sessionRuns(
-                    sessionId(sessionId, payloadJson),
-                    limit == null ? 20 : limit.intValue());
+                    sessionId(sessionId, payloadJson), limit == null ? 20 : limit.intValue());
         }
         if ("recoverable".equals(normalized)) {
             return dashboardRunService.recoverable(limit == null ? 20 : limit.intValue());

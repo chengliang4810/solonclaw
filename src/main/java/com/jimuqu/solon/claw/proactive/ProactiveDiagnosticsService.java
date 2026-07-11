@@ -39,7 +39,8 @@ public class ProactiveDiagnosticsService {
      * @param appConfig 应用配置快照。
      * @param proactiveRepository 主动协作仓储。
      */
-    public ProactiveDiagnosticsService(AppConfig appConfig, ProactiveRepository proactiveRepository) {
+    public ProactiveDiagnosticsService(
+            AppConfig appConfig, ProactiveRepository proactiveRepository) {
         this(appConfig, proactiveRepository, null);
     }
 
@@ -90,8 +91,7 @@ public class ProactiveDiagnosticsService {
         boolean cooldownBlocked =
                 snapshot.lastSentAt != null
                         && config().getCooldownMinutes() > 0
-                        && snapshot.lastSentAt.longValue()
-                                + config().getCooldownMinutes() * 60_000L
+                        && snapshot.lastSentAt.longValue() + config().getCooldownMinutes() * 60_000L
                                 > System.currentTimeMillis();
         boolean dailyCapBlocked =
                 config().getDailyMaxContacts() > 0
@@ -99,17 +99,14 @@ public class ProactiveDiagnosticsService {
         boolean deliveryFailed = snapshot.lastDeliveryFailed;
         String whyNoneSent =
                 explainWhyNoneSent(
-                        snapshot,
-                        quietHours,
-                        cooldownBlocked,
-                        dailyCapBlocked,
-                        deliveryFailed);
+                        snapshot, quietHours, cooldownBlocked, dailyCapBlocked, deliveryFailed);
 
         Map<String, Object> diagnostics = new LinkedHashMap<String, Object>();
         diagnostics.put("enabled", Boolean.valueOf(config().isEnabled()));
         diagnostics.put("scheduler_ran", Boolean.valueOf(snapshot.schedulerRan));
         diagnostics.put("last_tick_at", millisOrNull(snapshot.lastTickAt));
-        diagnostics.put("candidates_generated", Boolean.valueOf(snapshot.pendingCandidateCount > 0));
+        diagnostics.put(
+                "candidates_generated", Boolean.valueOf(snapshot.pendingCandidateCount > 0));
         diagnostics.put("pending_candidate_count", Integer.valueOf(snapshot.pendingCandidateCount));
         diagnostics.put("why_none_sent", safeText(whyNoneSent, 800));
         diagnostics.put("missing_home_channel", Boolean.valueOf(!snapshot.homeChannelReady));
@@ -143,8 +140,15 @@ public class ProactiveDiagnosticsService {
         Snapshot snapshot = loadSnapshot();
         String state = config().isEnabled() ? "已启用" : "已暂停";
         String home = snapshot.homeChannelReady ? "home channel 已配置" : "缺少 home channel";
-        return "主动协作" + state + "，待处理候选 " + snapshot.pendingCandidateCount + " 个，今日已联系 "
-                + snapshot.sentToday + " 次，" + home + "。";
+        return "主动协作"
+                + state
+                + "，待处理候选 "
+                + snapshot.pendingCandidateCount
+                + " 个，今日已联系 "
+                + snapshot.sentToday
+                + " 次，"
+                + home
+                + "。";
     }
 
     /**
@@ -277,7 +281,8 @@ public class ProactiveDiagnosticsService {
      */
     private boolean isQuietHour(long nowMillis) {
         int hour = Instant.ofEpochMilli(nowMillis).atZone(ZoneId.systemDefault()).getHour();
-        return ProactiveSupport.isQuietHour(config().getQuietStartHour(), config().getQuietEndHour(), hour);
+        return ProactiveSupport.isQuietHour(
+                config().getQuietStartHour(), config().getQuietEndHour(), hour);
     }
 
     /**

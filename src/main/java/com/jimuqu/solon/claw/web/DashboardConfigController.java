@@ -1,6 +1,8 @@
 package com.jimuqu.solon.claw.web;
 
 import com.jimuqu.solon.claw.support.DashboardRequestBodies;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileNotFoundException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.snack4.ONode;
@@ -27,11 +29,14 @@ public class DashboardConfigController {
     /**
      * 执行配置相关逻辑。
      *
+     * @param context 当前请求或运行上下文。
      * @return 返回配置。
      */
     @Mapping(value = "/api/config", method = MethodType.GET)
-    public Map<String, Object> config() {
-        return DashboardResponse.ok(configService.getConfig());
+    public Map<String, Object> config(Context context) {
+        return safeConfig(
+                context,
+                () -> configService.getConfig(DashboardProfileContext.requestedProfile(context)));
     }
 
     /**
@@ -57,21 +62,27 @@ public class DashboardConfigController {
     /**
      * 执行原始相关逻辑。
      *
+     * @param context 当前请求或运行上下文。
      * @return 返回原始结果。
      */
     @Mapping(value = "/api/config/raw", method = MethodType.GET)
-    public Map<String, Object> raw() {
-        return DashboardResponse.ok(configService.getRaw());
+    public Map<String, Object> raw(Context context) {
+        return safeConfig(
+                context,
+                () -> configService.getRaw(DashboardProfileContext.requestedProfile(context)));
     }
 
     /**
      * 执行诊断相关逻辑。
      *
+     * @param context 当前请求或运行上下文。
      * @return 返回诊断结果。
      */
     @Mapping(value = "/api/config/diagnostics", method = MethodType.GET)
-    public Map<String, Object> diagnostics() {
-        return DashboardResponse.ok(configService.diagnostics());
+    public Map<String, Object> diagnostics(Context context) {
+        return safeConfig(
+                context,
+                () -> configService.diagnostics(DashboardProfileContext.requestedProfile(context)));
     }
 
     /**
@@ -92,12 +103,11 @@ public class DashboardConfigController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
+                        Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
                         return configService.saveConfig(
                                 ONode.deserialize(
-                                        DashboardRequestBodies.jsonObject(context)
-                                                .get("config")
-                                                .toJson(),
-                                        LinkedHashMap.class));
+                                        ONode.serialize(body.get("config")), LinkedHashMap.class),
+                                DashboardProfileContext.requestedProfile(context, body));
                     }
                 });
     }
@@ -120,10 +130,12 @@ public class DashboardConfigController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
+                        Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
                         return configService.saveRaw(
-                                DashboardRequestBodies.jsonObject(context)
-                                        .get("yaml_text")
-                                        .getString());
+                                body.get("yaml_text") == null
+                                        ? ""
+                                        : String.valueOf(body.get("yaml_text")),
+                                DashboardProfileContext.requestedProfile(context, body));
                     }
                 });
     }
@@ -138,6 +150,8 @@ public class DashboardConfigController {
     private Map<String, Object> safeConfig(Context context, ConfigAction action) {
         try {
             return DashboardResponse.ok(action.run());
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "CONFIG_BAD_REQUEST", e);
         } catch (IllegalStateException e) {

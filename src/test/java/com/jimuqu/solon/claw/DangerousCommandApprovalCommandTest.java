@@ -3,9 +3,9 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
-import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -742,22 +742,29 @@ public class DangerousCommandApprovalCommandTest {
     @Test
     void shouldToggleSessionAutoApprovalOnlyForCurrentSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.gatewayService.handle(env.message("room-auto-approval-a", "user-auto-approval", "hello"));
-        env.gatewayService.handle(env.message("room-auto-approval-b", "user-auto-approval", "hello"));
+        env.gatewayService.handle(
+                env.message("room-auto-approval-a", "user-auto-approval", "hello"));
+        env.gatewayService.handle(
+                env.message("room-auto-approval-b", "user-auto-approval", "hello"));
         env.gatewayAuthorizationService.claimAdmin(
                 env.message("room-auto-approval-a", "user-auto-approval", "/pairing claim-admin"));
 
         SessionRecord sessionA =
-                env.sessionRepository.bindNewSession("MEMORY:room-auto-approval-a:user-auto-approval");
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:room-auto-approval-a:user-auto-approval");
         SessionRecord sessionB =
-                env.sessionRepository.bindNewSession("MEMORY:room-auto-approval-b:user-auto-approval");
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:room-auto-approval-b:user-auto-approval");
 
-        GatewayReply enabled = env.send("room-auto-approval-a", "user-auto-approval", "/approve auto");
+        GatewayReply enabled =
+                env.send("room-auto-approval-a", "user-auto-approval", "/approve auto");
 
         SessionRecord updatedA =
-                env.sessionRepository.getBoundSession("MEMORY:room-auto-approval-a:user-auto-approval");
+                env.sessionRepository.getBoundSession(
+                        "MEMORY:room-auto-approval-a:user-auto-approval");
         SessionRecord updatedB =
-                env.sessionRepository.getBoundSession("MEMORY:room-auto-approval-b:user-auto-approval");
+                env.sessionRepository.getBoundSession(
+                        "MEMORY:room-auto-approval-b:user-auto-approval");
         SqliteAgentSession agentSessionA = new SqliteAgentSession(updatedA, env.sessionRepository);
         SqliteAgentSession agentSessionB = new SqliteAgentSession(updatedB, env.sessionRepository);
 
@@ -769,9 +776,11 @@ public class DangerousCommandApprovalCommandTest {
         assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(agentSessionB))
                 .isFalse();
 
-        GatewayReply disabled = env.send("room-auto-approval-a", "user-auto-approval", "/approve auto");
+        GatewayReply disabled =
+                env.send("room-auto-approval-a", "user-auto-approval", "/approve auto");
         SessionRecord disabledA =
-                env.sessionRepository.getBoundSession("MEMORY:room-auto-approval-a:user-auto-approval");
+                env.sessionRepository.getBoundSession(
+                        "MEMORY:room-auto-approval-a:user-auto-approval");
         assertThat(disabled.getContent()).contains("会话自动审批已关闭");
         assertThat(
                         env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(
@@ -814,8 +823,7 @@ public class DangerousCommandApprovalCommandTest {
         assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(agentSessionB))
                 .isFalse();
 
-        GatewayReply status =
-                env.send("room-auto-explicit-a", "user-auto", "/approve auto status");
+        GatewayReply status = env.send("room-auto-explicit-a", "user-auto", "/approve auto status");
         assertThat(status.getContent()).contains("会话自动审批已开启");
         assertThat(
                         env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(
@@ -834,8 +842,7 @@ public class DangerousCommandApprovalCommandTest {
         assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(agentSessionB))
                 .isFalse();
 
-        GatewayReply invalid =
-                env.send("room-auto-explicit-a", "user-auto", "/approve auto maybe");
+        GatewayReply invalid = env.send("room-auto-explicit-a", "user-auto", "/approve auto maybe");
         assertThat(invalid.isError()).isTrue();
         assertThat(invalid.getContent()).contains("用法：/approve auto [status|on|off]");
     }
@@ -851,6 +858,7 @@ public class DangerousCommandApprovalCommandTest {
     private static class RecordingEventSink implements ConversationEventSink {
         /** 恢复完成时收到的会话编号。 */
         private String completedSessionId;
+
         /** 恢复完成时收到的最终文本。 */
         private String completedText;
 

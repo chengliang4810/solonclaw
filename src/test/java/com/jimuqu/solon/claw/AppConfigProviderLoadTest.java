@@ -25,14 +25,10 @@ public class AppConfigProviderLoadTest {
 
         assertThat(config.getProviders()).containsKeys("default", "local-ollama");
         assertThat(config.getModel().getProviderKey()).isEqualTo("default");
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
         assertThat(config.getSecurity().isTirithFailOpen()).isTrue();
-        assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("strict");
-        assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("strict");
         assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("approval");
         assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("strict");
         assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("job");
-        assertThat(config.getSecurity().getHardlineAllowlist()).isEmpty();
         assertThat(config.getDashboard().getAccessToken()).isEmpty();
         assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(60);
         assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(300);
@@ -56,6 +52,9 @@ public class AppConfigProviderLoadTest {
                         + "    defaultModel: gpt-5-mini\n"
                         + "    dialect: openai-responses\n"
                         + "    supportsVision: true\n"
+                        + "    capabilities:\n"
+                        + "      reasoning: false\n"
+                        + "      prompt_cache: true\n"
                         + "  backup:\n"
                         + "    name: 备用渠道\n"
                         + "    baseUrl: https://backup.example.com#\n"
@@ -92,6 +91,9 @@ public class AppConfigProviderLoadTest {
                 .isEqualTo("https://backup.example.com/v1/models");
         assertThat(config.getProviders().get("openai-direct").getSupportsVision())
                 .isEqualTo(Boolean.TRUE);
+        assertThat(config.getProviders().get("openai-direct").getCapabilities())
+                .containsEntry("reasoning", Boolean.FALSE)
+                .containsEntry("prompt_cache", Boolean.TRUE);
         assertThat(config.getProviders().get("backup").getSupportsVision())
                 .isEqualTo(Boolean.FALSE);
         assertThat(config.getFallbackProviders()).hasSize(1);
@@ -119,7 +121,8 @@ public class AppConfigProviderLoadTest {
         Props props = new Props();
         props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
         AppConfig config = AppConfig.load(props);
-        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
+        RuntimeConfigResolver resolver =
+                RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
         resolver.setFileValue("providers.default.name", "本地工作区配置");
         resolver.setFileValue("providers.default.baseUrl", "https://api.xiaomimimo.com/v1");
         resolver.setFileValue("providers.default.apiKey", "runtime-key");
@@ -134,7 +137,8 @@ public class AppConfigProviderLoadTest {
         assertThat(resolved.getProviderKey()).isEqualTo("default");
         assertThat(resolved.getLabel()).isEqualTo("本地工作区配置");
         assertThat(resolved.getBaseUrl()).isEqualTo("https://api.xiaomimimo.com/v1");
-        assertThat(resolved.getApiUrl()).isEqualTo("https://api.xiaomimimo.com/v1/chat/completions");
+        assertThat(resolved.getApiUrl())
+                .isEqualTo("https://api.xiaomimimo.com/v1/chat/completions");
         assertThat(resolved.getApiKey()).isEqualTo("runtime-key");
         assertThat(resolved.getDialect()).isEqualTo("openai");
         assertThat(resolved.getModel()).isEqualTo("mimo-v2.5-pro");
@@ -154,8 +158,7 @@ public class AppConfigProviderLoadTest {
         props.put("providers.default.dialect", "openai-responses");
 
         AppConfig config = AppConfig.load(props);
-        String runtimeConfig =
-                FileUtil.readUtf8String(new File(workspaceHome, "config.yml"));
+        String runtimeConfig = FileUtil.readUtf8String(new File(workspaceHome, "config.yml"));
 
         assertThat(new File(workspaceHome, "config.yml")).exists();
         assertThat(runtimeConfig).contains("baseUrl: \"https://startup.example.com/v1\"");

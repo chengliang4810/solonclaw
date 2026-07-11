@@ -78,13 +78,18 @@ public class ModelMetadataService {
         metadata.setMaxOutput(appConfig.getLlm().getMaxTokens());
         metadata.setApiUrl(resolveApiUrl(provider, dialect));
         metadata.setModelListUrl(resolveModelListUrl(providerKey, provider, dialect));
-        metadata.setSupportsTools(resolveSupportsTools(dialect));
+        metadata.setSupportsTools(resolveSupportsTools(dialect, provider));
         boolean supportsVision = resolveSupportsVision(dialect, normalizedModel, provider);
-        boolean supportsAudio = resolveSupportsAudio(dialect, normalizedModel);
-        boolean supportsPdf = resolveSupportsPdf(dialect, normalizedModel);
+        boolean supportsAudio = resolveSupportsAudio(dialect, normalizedModel, provider);
+        boolean supportsPdf = resolveSupportsPdf(dialect, normalizedModel, provider);
         boolean supportsAttachment =
                 resolveSupportsAttachment(
-                        dialect, normalizedModel, supportsVision, supportsAudio, supportsPdf);
+                        dialect,
+                        normalizedModel,
+                        supportsVision,
+                        supportsAudio,
+                        supportsPdf,
+                        provider);
         metadata.setSupportsVision(supportsVision);
         metadata.setSupportsAudio(supportsAudio);
         metadata.setSupportsAttachment(supportsAttachment);
@@ -96,13 +101,15 @@ public class ModelMetadataService {
                         dialect, supportsVision, supportsAudio, supportsPdf, supportsAttachment));
         metadata.setOutputModalities(
                 resolveOutputModalities(dialect, normalizedModel, supportsAudio));
-        metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, normalizedModel));
+        metadata.setSupportsReasoning(resolveSupportsReasoning(dialect, normalizedModel, provider));
         metadata.setSupportsStructuredOutput(
-                resolveSupportsStructuredOutput(dialect, normalizedModel));
-        metadata.setSupportsOpenWeights(resolveSupportsOpenWeights(dialect, normalizedModel));
-        metadata.setSupportsInterleaved(resolveSupportsInterleaved(dialect, normalizedModel));
-        metadata.setSupportsPromptCache(resolveSupportsPromptCache(dialect));
-        metadata.setSupportsStreaming(true);
+                resolveSupportsStructuredOutput(dialect, normalizedModel, provider));
+        metadata.setSupportsOpenWeights(
+                resolveSupportsOpenWeights(dialect, normalizedModel, provider));
+        metadata.setSupportsInterleaved(
+                resolveSupportsInterleaved(dialect, normalizedModel, provider));
+        metadata.setSupportsPromptCache(resolveSupportsPromptCache(dialect, provider));
+        metadata.setSupportsStreaming(resolveCapability(provider, "streaming", true));
         metadata.setSource(resolveSource(provider, normalizedModel));
         metadata.setProvenance(resolveProvenance(provider, normalizedModel));
         metadata.setDefaultModel(
@@ -221,7 +228,8 @@ public class ModelMetadataService {
      * @param model 已规范化的模型名。
      * @return 返回解析后的上下文窗口 token 数。
      */
-    private int resolveContextWindow(String providerKey, String dialect, String baseUrl, String model) {
+    private int resolveContextWindow(
+            String providerKey, String dialect, String baseUrl, String model) {
         // Step 1: 用户配置覆盖
         int configured = appConfig.getLlm().getContextWindowTokens();
         if (configured > 0) {
@@ -246,7 +254,9 @@ public class ModelMetadataService {
                             dialect, providerKey, normalizedBaseUrl, normalizedModel);
             if (online.isPresent()) {
                 int length = online.getAsInt();
-                if (cacheStore != null && StrUtil.isNotBlank(normalizedBaseUrl) && length >= 64000) {
+                if (cacheStore != null
+                        && StrUtil.isNotBlank(normalizedBaseUrl)
+                        && length >= 64000) {
                     cacheStore.save(normalizedModel, normalizedBaseUrl, length);
                 }
                 return length;
@@ -361,8 +371,9 @@ public class ModelMetadataService {
      * @param dialect dialect 参数。
      * @return 返回解析后的Supports工具。
      */
-    private boolean resolveSupportsTools(String dialect) {
-        return LlmProviderSupport.isSupportedDialect(dialect);
+    private boolean resolveSupportsTools(String dialect, AppConfig.ProviderConfig provider) {
+        return resolveCapability(
+                provider, "tool_calling", LlmProviderSupport.isSupportedDialect(dialect));
     }
 
     /**
@@ -375,8 +386,12 @@ public class ModelMetadataService {
      */
     private boolean resolveSupportsVision(
             String dialect, String model, AppConfig.ProviderConfig provider) {
-        if (provider != null && provider.getSupportsVision() != null) {
-            return provider.getSupportsVision().booleanValue();
+        Boolean configured = configuredCapability(provider, "vision");
+        if (configured == null && provider != null) {
+            configured = provider.getSupportsVision();
+        }
+        if (configured != null) {
+            return configured.booleanValue();
         }
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
@@ -407,7 +422,12 @@ public class ModelMetadataService {
      * @param model 模型名称。
      * @return 返回解析后的Supports Audio。
      */
-    private boolean resolveSupportsAudio(String dialect, String model) {
+    private boolean resolveSupportsAudio(
+            String dialect, String model, AppConfig.ProviderConfig provider) {
+        Boolean configured = configuredCapability(provider, "audio");
+        if (configured != null) {
+            return configured.booleanValue();
+        }
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
         }
@@ -430,7 +450,12 @@ public class ModelMetadataService {
      * @param model 模型名称。
      * @return 返回解析后的Supports Pdf。
      */
-    private boolean resolveSupportsPdf(String dialect, String model) {
+    private boolean resolveSupportsPdf(
+            String dialect, String model, AppConfig.ProviderConfig provider) {
+        Boolean configured = configuredCapability(provider, "pdf");
+        if (configured != null) {
+            return configured.booleanValue();
+        }
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
         }
@@ -462,7 +487,12 @@ public class ModelMetadataService {
             String model,
             boolean supportsVision,
             boolean supportsAudio,
-            boolean supportsPdf) {
+            boolean supportsPdf,
+            AppConfig.ProviderConfig provider) {
+        Boolean configured = configuredCapability(provider, "attachment");
+        if (configured != null) {
+            return configured.booleanValue();
+        }
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
         }
@@ -572,7 +602,9 @@ public class ModelMetadataService {
      * @return 返回解析后的来源。
      */
     private String resolveSource(AppConfig.ProviderConfig provider, String model) {
-        if (provider != null && StrUtil.isNotBlank(provider.getBaseUrl())) {
+        if (provider != null
+                && (StrUtil.isNotBlank(provider.getBaseUrl())
+                        || hasConfiguredCapabilities(provider))) {
             return "provider_config";
         }
         if (StrUtil.isNotBlank(model)) {
@@ -589,8 +621,13 @@ public class ModelMetadataService {
      * @return 返回解析后的来源追踪。
      */
     private String resolveProvenance(AppConfig.ProviderConfig provider, String model) {
+        if (hasConfiguredCapabilities(provider) && StrUtil.isBlank(provider.getBaseUrl())) {
+            return "provider_config:capabilities_with_static_fallback";
+        }
         if (provider != null && StrUtil.isNotBlank(provider.getBaseUrl())) {
-            return "provider_config:base_url";
+            return hasConfiguredCapabilities(provider)
+                    ? "provider_config:base_url_and_capabilities_with_static_fallback"
+                    : "provider_config:base_url";
         }
         if (StrUtil.isNotBlank(model)) {
             return "static_inference:model_family";
@@ -605,7 +642,12 @@ public class ModelMetadataService {
      * @param model 模型名称。
      * @return 返回解析后的Supports Reasoning。
      */
-    private boolean resolveSupportsReasoning(String dialect, String model) {
+    private boolean resolveSupportsReasoning(
+            String dialect, String model, AppConfig.ProviderConfig provider) {
+        Boolean configured = configuredCapability(provider, "reasoning");
+        if (configured != null) {
+            return configured.booleanValue();
+        }
         String lower = StrUtil.nullToEmpty(model).toLowerCase();
         return LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
                 || LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)
@@ -629,7 +671,12 @@ public class ModelMetadataService {
      * @param model 模型名称。
      * @return 返回解析后的Supports Structured输出。
      */
-    private boolean resolveSupportsStructuredOutput(String dialect, String model) {
+    private boolean resolveSupportsStructuredOutput(
+            String dialect, String model, AppConfig.ProviderConfig provider) {
+        Boolean configured = configuredCapability(provider, "structured_output");
+        if (configured != null) {
+            return configured.booleanValue();
+        }
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
         }
@@ -658,7 +705,12 @@ public class ModelMetadataService {
      * @param model 模型名称。
      * @return 返回解析后的Supports Open Weights。
      */
-    private boolean resolveSupportsOpenWeights(String dialect, String model) {
+    private boolean resolveSupportsOpenWeights(
+            String dialect, String model, AppConfig.ProviderConfig provider) {
+        Boolean configured = configuredCapability(provider, "open_weights");
+        if (configured != null) {
+            return configured.booleanValue();
+        }
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
         }
@@ -684,7 +736,12 @@ public class ModelMetadataService {
      * @param model 模型名称。
      * @return 返回解析后的Supports Interleaved。
      */
-    private boolean resolveSupportsInterleaved(String dialect, String model) {
+    private boolean resolveSupportsInterleaved(
+            String dialect, String model, AppConfig.ProviderConfig provider) {
+        Boolean configured = configuredCapability(provider, "interleaved");
+        if (configured != null) {
+            return configured.booleanValue();
+        }
         if (!LlmProviderSupport.isSupportedDialect(dialect)) {
             return false;
         }
@@ -699,9 +756,53 @@ public class ModelMetadataService {
      * @param dialect dialect 参数。
      * @return 返回解析后的Supports提示词缓存。
      */
-    private boolean resolveSupportsPromptCache(String dialect) {
-        return LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
-                || LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)
-                || LlmConstants.PROVIDER_GEMINI.equals(dialect);
+    private boolean resolveSupportsPromptCache(String dialect, AppConfig.ProviderConfig provider) {
+        return resolveCapability(
+                provider,
+                "prompt_cache",
+                LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
+                        || LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)
+                        || LlmConstants.PROVIDER_GEMINI.equals(dialect));
+    }
+
+    /**
+     * 读取显式 provider 能力；没有配置时使用可信协议或静态目录回退值。
+     *
+     * @param provider provider 配置。
+     * @param key 能力键。
+     * @param fallback 未配置时的回退值。
+     * @return 返回最终能力值。
+     */
+    private boolean resolveCapability(
+            AppConfig.ProviderConfig provider, String key, boolean fallback) {
+        Boolean configured = configuredCapability(provider, key);
+        return configured == null ? fallback : configured.booleanValue();
+    }
+
+    /**
+     * 读取 provider 中显式声明的能力值。
+     *
+     * @param provider provider 配置。
+     * @param key 能力键。
+     * @return 返回显式能力值；未配置时返回 null。
+     */
+    private Boolean configuredCapability(AppConfig.ProviderConfig provider, String key) {
+        if (provider == null || provider.getCapabilities() == null) {
+            return null;
+        }
+        return provider.getCapabilities().get(key);
+    }
+
+    /**
+     * 判断 provider 是否携带显式能力元数据。
+     *
+     * @param provider provider 配置。
+     * @return 存在显式能力元数据时返回 true。
+     */
+    private boolean hasConfiguredCapabilities(AppConfig.ProviderConfig provider) {
+        return provider != null
+                && (provider.getSupportsVision() != null
+                        || (provider.getCapabilities() != null
+                                && !provider.getCapabilities().isEmpty()));
     }
 }

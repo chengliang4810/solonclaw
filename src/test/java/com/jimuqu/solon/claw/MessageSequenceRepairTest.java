@@ -93,8 +93,7 @@ public class MessageSequenceRepairTest {
                 new ArrayList<ChatMessage>(
                         Arrays.asList(
                                 ChatMessage.ofUser("run"),
-                                assistantWithToolCalls(
-                                        "<think>有效工具计划</think>\n\n", "call_1"),
+                                assistantWithToolCalls("<think>有效工具计划</think>\n\n", "call_1"),
                                 duplicate,
                                 ChatMessage.ofTool("done", "todo", "call_1"),
                                 ChatMessage.ofUser("continue")));
@@ -105,9 +104,14 @@ public class MessageSequenceRepairTest {
         assertThat(messages)
                 .extracting(ChatMessage::getRole)
                 .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL, ChatRole.USER);
-        assertThat(messages).noneMatch(message -> message instanceof AssistantMessage
-                && ((AssistantMessage) message).getToolCalls() == null
-                && ((AssistantMessage) message).getResultContent().isEmpty());
+        assertThat(messages)
+                .noneMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && ((AssistantMessage) message).getToolCalls() == null
+                                        && ((AssistantMessage) message)
+                                                .getResultContent()
+                                                .isEmpty());
     }
 
     @Test
@@ -214,16 +218,14 @@ public class MessageSequenceRepairTest {
     @Test
     void shouldDropPureThinkingAssistantAfterToolCallPrune() {
         AssistantMessage duplicateToolCall =
-                assistantWithToolCalls(
-                        "<think>\n\n只记录工具调用计划。</think>\n\n", "call_duplicated");
+                assistantWithToolCalls("<think>\n\n只记录工具调用计划。</think>\n\n", "call_duplicated");
         List<ChatMessage> messages =
                 new ArrayList<ChatMessage>(
                         Arrays.asList(
                                 ChatMessage.ofUser("run"),
                                 duplicateToolCall,
                                 assistantWithToolCalls(
-                                        "<think>\n\n只记录工具调用计划。</think>\n\n",
-                                        "call_duplicated"),
+                                        "<think>\n\n只记录工具调用计划。</think>\n\n", "call_duplicated"),
                                 ChatMessage.ofTool("done", "session_search", "call_duplicated"),
                                 ChatMessage.ofUser("continue")));
 
@@ -245,11 +247,9 @@ public class MessageSequenceRepairTest {
                         Arrays.asList(
                                 ChatMessage.ofUser("read status"),
                                 assistantWithToolCalls(
-                                        "<think>\n\n调用 session_search。</think>\n\n",
-                                        "call_search"),
+                                        "<think>\n\n调用 session_search。</think>\n\n", "call_search"),
                                 assistantWithToolCalls(
-                                        "<think>\n\n调用 session_search。</think>\n\n",
-                                        "call_search"),
+                                        "<think>\n\n调用 session_search。</think>\n\n", "call_search"),
                                 ChatMessage.ofTool("found", "session_search", "call_search"),
                                 ChatMessage.ofAssistant("done")));
 
@@ -272,11 +272,9 @@ public class MessageSequenceRepairTest {
                         Arrays.asList(
                                 ChatMessage.ofUser("read twice"),
                                 assistantWithToolCalls(
-                                        "<think>\n\n第一次读取。</think>\n\n",
-                                        "call_first"),
+                                        "<think>\n\n第一次读取。</think>\n\n", "call_first"),
                                 assistantWithToolCalls(
-                                        "<think>\n\n第二次读取。</think>\n\n",
-                                        "call_second")));
+                                        "<think>\n\n第二次读取。</think>\n\n", "call_second")));
 
         int repairs = MessageSupport.repairMessageSequence(messages, true);
 

@@ -2,10 +2,12 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.media.VisionAnalysisService;
 import com.jimuqu.solon.claw.plugin.provider.BrowserProvider;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.net.URI;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +32,18 @@ public class BrowserRuntimeService {
     /** 默认超时时间秒数的统一常量值。 */
     private static final int DEFAULT_TIMEOUT_SECONDS = 60;
 
+    /** 浏览器快照和正文返回给模型的最大字符数。 */
+    private static final int MAX_BROWSER_CONTENT_CHARS = 8000;
+
+    /** 普通浏览器详情字符串返回给模型的最大字符数。 */
+    private static final int MAX_BROWSER_DETAIL_CHARS = 500;
+
+    /** 单个浏览器详情集合允许返回的最大元素数。 */
+    private static final int MAX_BROWSER_DETAIL_ITEMS = 500;
+
+    /** 浏览器详情递归清理允许进入的最大层级。 */
+    private static final int MAX_BROWSER_DETAIL_DEPTH = 8;
+
     /** 注入应用配置，用于浏览器运行时。 */
     private final AppConfig appConfig;
 
@@ -38,6 +52,9 @@ public class BrowserRuntimeService {
 
     /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 浏览器截图视觉分析器；未注入时只返回截图能力状态。 */
+    private final BrowserVisionAnalyzer visionAnalyzer;
 
     /** 记录浏览器运行时中的maxConcurrency。 */
     private final int maxConcurrency;
@@ -56,7 +73,7 @@ public class BrowserRuntimeService {
             AppConfig appConfig,
             List<BrowserProvider> providers,
             SecurityPolicyService securityPolicyService) {
-        this(appConfig, providers, securityPolicyService, DEFAULT_MAX_CONCURRENCY);
+        this(appConfig, providers, securityPolicyService, null, DEFAULT_MAX_CONCURRENCY);
     }
 
     /**
@@ -72,12 +89,47 @@ public class BrowserRuntimeService {
             List<BrowserProvider> providers,
             SecurityPolicyService securityPolicyService,
             int maxConcurrency) {
+        this(appConfig, providers, securityPolicyService, null, maxConcurrency);
+    }
+
+    /**
+     * 创建带图片理解能力的浏览器运行时服务。
+     *
+     * @param appConfig 应用运行配置。
+     * @param providers 能力提供方列表。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param visionAnalyzer 浏览器截图视觉分析器。
+     */
+    public BrowserRuntimeService(
+            AppConfig appConfig,
+            List<BrowserProvider> providers,
+            SecurityPolicyService securityPolicyService,
+            BrowserVisionAnalyzer visionAnalyzer) {
+        this(appConfig, providers, securityPolicyService, visionAnalyzer, DEFAULT_MAX_CONCURRENCY);
+    }
+
+    /**
+     * 创建带图片理解能力且可配置并发上限的浏览器运行时服务。
+     *
+     * @param appConfig 应用运行配置。
+     * @param providers 能力提供方列表。
+     * @param securityPolicyService 安全策略服务依赖。
+     * @param visionAnalyzer 浏览器截图视觉分析器。
+     * @param maxConcurrency 浏览器会话最大并发数。
+     */
+    public BrowserRuntimeService(
+            AppConfig appConfig,
+            List<BrowserProvider> providers,
+            SecurityPolicyService securityPolicyService,
+            BrowserVisionAnalyzer visionAnalyzer,
+            int maxConcurrency) {
         this.appConfig = appConfig;
         this.providers =
                 providers == null
                         ? Collections.<BrowserProvider>emptyList()
                         : new ArrayList<BrowserProvider>(providers);
         this.securityPolicyService = securityPolicyService;
+        this.visionAnalyzer = visionAnalyzer;
         this.maxConcurrency = Math.max(0, maxConcurrency);
     }
 
@@ -218,13 +270,22 @@ public class BrowserRuntimeService {
             close(sessionId);
             return BrowserResult.error("session_expired", "Browser session timed out");
         }
+        String screenshotPath = resolveScreenshotPath(path);
+        SecurityPolicyService.FileVerdict pathVerdict = checkScreenshotPath(screenshotPath);
+        if (!pathVerdict.isAllowed()) {
+            return BrowserResult.error(
+                    "security_blocked",
+                    pathVerdict.getMessage(),
+                    Collections.<String, Object>singletonMap(
+                            "path", ToolWorkspacePathSupport.safePath(pathVerdict.getPath())));
+        }
         try {
             BrowserProvider.BrowserActionResult actionResult =
                     lease.provider.screenshot(
                             lease.providerSession.getSessionId(),
-                            path,
+                            screenshotPath,
                             fullPage != null && fullPage.booleanValue());
-            return toBrowserResult(lease, actionResult, "screenshot", "path", path);
+            return toBrowserResult(lease, actionResult, "screenshot", "path", screenshotPath);
         } catch (Exception e) {
             return BrowserResult.error(
                     "provider_error", SecretRedactor.redact(e.getMessage(), 500));
@@ -259,6 +320,254 @@ public class BrowserRuntimeService {
             return BrowserResult.error(
                     "provider_error", SecretRedactor.redact(e.getMessage(), 500));
         }
+    }
+
+    /**
+     * 获取页面文本快照和交互元素 ref。
+     *
+     * @param sessionId 当前会话标识。
+     * @param full 是否包含完整页面正文。
+     * @return 页面快照结果。
+     */
+    public BrowserResult snapshot(String sessionId, Boolean full) {
+        return providerAction(
+                sessionId,
+                "snapshot",
+                lease ->
+                        lease.provider.snapshot(
+                                lease.providerSession.getSessionId(),
+                                full != null && full.booleanValue()));
+    }
+
+    /**
+     * 滚动当前页面。
+     *
+     * @param sessionId 当前会话标识。
+     * @param direction up 或 down。
+     * @param pixels 可选滚动像素数。
+     * @return 页面滚动结果。
+     */
+    public BrowserResult scroll(String sessionId, String direction, Integer pixels) {
+        int distance =
+                pixels == null ? 500 : Math.max(1, Math.min(Math.abs(pixels.intValue()), 5000));
+        return providerAction(
+                sessionId,
+                "scrolled",
+                lease ->
+                        lease.provider.scroll(
+                                lease.providerSession.getSessionId(), direction, distance));
+    }
+
+    /**
+     * 返回浏览器历史中的上一页。
+     *
+     * @param sessionId 当前会话标识。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 历史导航结果。
+     */
+    public BrowserResult back(String sessionId, Integer timeoutSeconds) {
+        return providerAction(
+                sessionId,
+                "back",
+                lease ->
+                        lease.provider.back(
+                                lease.providerSession.getSessionId(),
+                                normalizeTimeout(timeoutSeconds)));
+    }
+
+    /**
+     * 向当前页面派发键盘按键。
+     *
+     * @param sessionId 当前会话标识。
+     * @param key 按键名称。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 按键动作结果。
+     */
+    public BrowserResult press(String sessionId, String key, Integer timeoutSeconds) {
+        return providerAction(
+                sessionId,
+                "pressed",
+                lease ->
+                        lease.provider.press(
+                                lease.providerSession.getSessionId(),
+                                key,
+                                normalizeTimeout(timeoutSeconds)));
+    }
+
+    /**
+     * 枚举当前页面图片。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 图片列表结果。
+     */
+    public BrowserResult getImages(String sessionId) {
+        return providerAction(
+                sessionId,
+                "images",
+                lease -> lease.provider.getImages(lease.providerSession.getSessionId()));
+    }
+
+    /**
+     * 截图并如实返回视觉分析能力状态。
+     *
+     * @param sessionId 当前会话标识。
+     * @param question 视觉问题。
+     * @param annotate 是否请求标注交互元素。
+     * @param path 可选截图输出路径。
+     * @return 截图和视觉能力状态。
+     */
+    public BrowserResult vision(String sessionId, String question, Boolean annotate, String path) {
+        if (StrUtil.isBlank(question)) {
+            return BrowserResult.error("invalid_question", "Browser vision question is required");
+        }
+        String screenshotPath = resolveScreenshotPath(path);
+        BrowserResult captured = screenshot(sessionId, screenshotPath, Boolean.TRUE);
+        if (!captured.isSuccess()) {
+            return captured;
+        }
+        Map<String, Object> details = captured.getDetails();
+        details.put("questionLength", Integer.valueOf(question.length()));
+        details.put("annotateRequested", Boolean.valueOf(Boolean.TRUE.equals(annotate)));
+        details.put("annotated", Boolean.FALSE);
+        if (visionAnalyzer == null) {
+            details.put("analysisAvailable", Boolean.FALSE);
+            details.put("capability", "capture_only");
+            details.put(
+                    "message",
+                    "Screenshot captured; no visual analysis model is attached to the browser runtime");
+            return BrowserResult.success(sessionId, "vision_capture_ready", details);
+        }
+
+        VisionAnalysisService.VisionAnalysisOutcome outcome;
+        try {
+            outcome = visionAnalyzer.analyze(screenshotPath, question.trim());
+        } catch (Exception e) {
+            logRecoverableBrowserFailure("vision_analysis", e);
+            outcome = VisionAnalysisService.VisionAnalysisOutcome.fail("Vision analysis failed");
+        }
+        details.put("analysisAvailable", Boolean.TRUE);
+        details.put("capability", "vision_analysis");
+        if (outcome == null || !outcome.isSuccess()) {
+            String error =
+                    outcome == null
+                            ? "Vision analysis returned no result"
+                            : StrUtil.blankToDefault(outcome.getError(), "Vision analysis failed");
+            return BrowserResult.error("vision_analysis_failed", error, details);
+        }
+        details.put("answer", outcome.getAnswer());
+        details.put("provider", outcome.getProvider());
+        details.put("model", outcome.getModel());
+        details.put("usage", outcome.getUsage());
+        return BrowserResult.success(sessionId, "vision_analyzed", details);
+    }
+
+    /**
+     * 读取控制台消息或执行受控 JavaScript 表达式。
+     *
+     * @param sessionId 当前会话标识。
+     * @param clear 读取后是否清空消息缓冲。
+     * @param expression 可选 JavaScript 表达式。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 控制台结果。
+     */
+    public BrowserResult console(
+            String sessionId, Boolean clear, String expression, Integer timeoutSeconds) {
+        BrowserResult expressionVerdict = checkBrowserExpression(expression);
+        if (expressionVerdict != null) {
+            return expressionVerdict;
+        }
+        return providerAction(
+                sessionId,
+                "console",
+                lease ->
+                        lease.provider.console(
+                                lease.providerSession.getSessionId(),
+                                Boolean.TRUE.equals(clear),
+                                expression,
+                                normalizeTimeout(timeoutSeconds)));
+    }
+
+    /**
+     * 发送通过安全校验的原始 CDP 命令。
+     *
+     * @param sessionId 当前会话标识。
+     * @param method CDP 方法名。
+     * @param params CDP 参数。
+     * @param targetId 可选 Target 标识。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 原始 CDP 结果。
+     */
+    public BrowserResult cdp(
+            String sessionId,
+            String method,
+            Map<String, Object> params,
+            String targetId,
+            Integer timeoutSeconds) {
+        String normalizedMethod = StrUtil.nullToEmpty(method).trim();
+        if (!normalizedMethod.matches("[A-Za-z][A-Za-z0-9]*\\.[A-Za-z][A-Za-z0-9]*")) {
+            return BrowserResult.error("invalid_cdp_method", "CDP method name is invalid");
+        }
+        if (isSensitiveCdpMethod(normalizedMethod)) {
+            return BrowserResult.error(
+                    "security_blocked", "CDP method can expose browser credentials or storage");
+        }
+        Map<String, Object> safeParams =
+                params == null
+                        ? Collections.<String, Object>emptyMap()
+                        : new LinkedHashMap<String, Object>(params);
+        SecurityPolicyService.UrlVerdict verdict = checkToolArgs(safeParams);
+        if (!verdict.isAllowed()) {
+            return BrowserResult.error(
+                    "security_blocked",
+                    verdict.getMessage(),
+                    Collections.<String, Object>singletonMap(
+                            "url", SecretRedactor.maskUrl(verdict.getUrl())));
+        }
+        if ("Runtime.evaluate".equals(normalizedMethod)) {
+            BrowserResult expressionVerdict =
+                    checkBrowserExpression(String.valueOf(safeParams.get("expression")));
+            if (expressionVerdict != null) {
+                return expressionVerdict;
+            }
+        }
+        return providerAction(
+                sessionId,
+                "cdp",
+                lease ->
+                        lease.provider.cdp(
+                                lease.providerSession.getSessionId(),
+                                normalizedMethod,
+                                safeParams,
+                                targetId,
+                                normalizeTimeout(timeoutSeconds)));
+    }
+
+    /**
+     * 响应当前页面阻塞中的原生 JavaScript 对话框。
+     *
+     * @param sessionId 当前会话标识。
+     * @param action accept 或 dismiss。
+     * @param promptText prompt 输入文本。
+     * @param dialogId 可选对话框标识。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 对话框处理结果。
+     */
+    public BrowserResult dialog(
+            String sessionId,
+            String action,
+            String promptText,
+            String dialogId,
+            Integer timeoutSeconds) {
+        return providerAction(
+                sessionId,
+                "dialog",
+                lease ->
+                        lease.provider.dialog(
+                                lease.providerSession.getSessionId(),
+                                action,
+                                promptText,
+                                dialogId,
+                                normalizeTimeout(timeoutSeconds)));
     }
 
     /**
@@ -381,7 +690,8 @@ public class BrowserRuntimeService {
     private void purgeExpiredLeases() {
         List<Lease> expired = new ArrayList<Lease>();
         synchronized (leases) {
-            for (Map.Entry<String, Lease> entry : new ArrayList<Map.Entry<String, Lease>>(leases.entrySet())) {
+            for (Map.Entry<String, Lease> entry :
+                    new ArrayList<Map.Entry<String, Lease>>(leases.entrySet())) {
                 Lease lease = entry.getValue();
                 if (lease == null || !isExpired(lease)) {
                     continue;
@@ -433,6 +743,161 @@ public class BrowserRuntimeService {
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("url", url);
         return securityPolicyService.checkToolArgs(ToolNameConstants.BROWSER, args);
+    }
+
+    /**
+     * 检查结构化浏览器参数中的 URL 和凭据字段。
+     *
+     * @param args 浏览器参数。
+     * @return URL 判定结果。
+     */
+    private SecurityPolicyService.UrlVerdict checkToolArgs(Map<String, Object> args) {
+        if (securityPolicyService == null) {
+            return SecurityPolicyService.UrlVerdict.allow();
+        }
+        return securityPolicyService.checkToolArgs(ToolNameConstants.BROWSER, args);
+    }
+
+    /**
+     * 阻断会读取浏览器凭据、存储或主动联网的高风险表达式。
+     *
+     * @param expression JavaScript 表达式。
+     * @return 阻断结果；允许时返回 null。
+     */
+    private BrowserResult checkBrowserExpression(String expression) {
+        if (StrUtil.isBlank(expression)) {
+            return null;
+        }
+        String normalized = expression.toLowerCase(java.util.Locale.ROOT);
+        String[] blocked = {
+            "document.cookie",
+            "localstorage",
+            "sessionstorage",
+            "indexeddb",
+            "xmlhttprequest",
+            "fetch(",
+            "websocket(",
+            "navigator.credentials",
+            ".password",
+            "input[type=password]"
+        };
+        for (String token : blocked) {
+            if (normalized.contains(token)) {
+                return BrowserResult.error(
+                        "security_blocked",
+                        "Browser JavaScript expression uses a sensitive primitive");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 判断原始 CDP 方法是否直接读取浏览器凭据或持久化存储。
+     *
+     * @param method CDP 方法名。
+     * @return 敏感方法返回 true。
+     */
+    private boolean isSensitiveCdpMethod(String method) {
+        return "Network.getAllCookies".equals(method)
+                || "Network.getCookies".equals(method)
+                || "Storage.getCookies".equals(method)
+                || "Storage.getTrustTokens".equals(method)
+                || "Storage.getSharedStorageMetadata".equals(method)
+                || "Storage.getSharedStorageEntries".equals(method)
+                || "DOMStorage.getDOMStorageItems".equals(method);
+    }
+
+    /**
+     * 在统一租约、超时和跳转后 URL 复核边界内执行 Provider 动作。
+     *
+     * @param sessionId 当前会话标识。
+     * @param defaultStatus 默认成功状态。
+     * @param action Provider 动作。
+     * @return 浏览器动作结果。
+     */
+    private BrowserResult providerAction(
+            String sessionId, String defaultStatus, LeaseAction action) {
+        Lease lease = findLease(sessionId);
+        if (lease == null) {
+            return BrowserResult.error("session_not_found", "Browser session not found");
+        }
+        if (isExpired(lease)) {
+            close(sessionId);
+            return BrowserResult.error("session_expired", "Browser session timed out");
+        }
+        try {
+            return toBrowserResult(lease, action.execute(lease), defaultStatus, null, null);
+        } catch (Exception e) {
+            return BrowserResult.error(
+                    "provider_error", SecretRedactor.redact(e.getMessage(), 500));
+        }
+    }
+
+    /** 在已校验的浏览器租约上执行单个 Provider 动作。 */
+    private interface LeaseAction {
+        /**
+         * 执行浏览器 Provider 动作。
+         *
+         * @param lease 已通过存在性和过期检查的浏览器租约。
+         * @return Provider 动作结果。
+         * @throws Exception Provider 调用失败时抛出。
+         */
+        BrowserProvider.BrowserActionResult execute(Lease lease) throws Exception;
+    }
+
+    /** 把浏览器截图交给图片理解服务，便于测试和运行时按需注入。 */
+    @FunctionalInterface
+    public interface BrowserVisionAnalyzer {
+        /**
+         * 分析本地缓存中的浏览器截图。
+         *
+         * @param imagePath 已通过截图路径策略的本地图片路径。
+         * @param question 用户针对截图提出的问题。
+         * @return 图片理解服务结果。
+         */
+        VisionAnalysisService.VisionAnalysisOutcome analyze(String imagePath, String question);
+    }
+
+    /**
+     * 校验截图输出路径的写入安全策略。
+     *
+     * @param path 截图输出路径。
+     * @return 文件路径判定结果。
+     */
+    private SecurityPolicyService.FileVerdict checkScreenshotPath(String path) {
+        if (securityPolicyService == null) {
+            return SecurityPolicyService.FileVerdict.allow();
+        }
+        return securityPolicyService.checkPath(path, true);
+    }
+
+    /**
+     * 为未指定路径的截图生成工作区缓存路径。
+     *
+     * @param path 调用方提供的可选路径。
+     * @return 实际截图输出路径。
+     */
+    private String resolveScreenshotPath(String path) {
+        if (StrUtil.isNotBlank(path)) {
+            return path.trim();
+        }
+        String cacheDir =
+                appConfig == null || appConfig.getRuntime() == null
+                        ? ""
+                        : appConfig.getRuntime().getCacheDir();
+        if (StrUtil.isBlank(cacheDir)) {
+            String workspaceDir =
+                    appConfig == null || appConfig.getWorkspace() == null
+                            ? "workspace"
+                            : StrUtil.blankToDefault(
+                                    appConfig.getWorkspace().getDir(), "workspace");
+            cacheDir = Paths.get(workspaceDir, "cache").toString();
+        }
+        return Paths.get(
+                        cacheDir,
+                        "browser-screenshots",
+                        "browser-" + UUID.randomUUID().toString() + ".png")
+                .toString();
     }
 
     /**
@@ -528,16 +993,161 @@ public class BrowserRuntimeService {
                 details.put(
                         key + "Length",
                         Integer.valueOf(StrUtil.nullToEmpty(String.valueOf(value)).length()));
-            } else if (value instanceof String
-                    && key.toLowerCase(java.util.Locale.ROOT).contains("url")) {
-                details.put(key, SecretRedactor.maskUrl(String.valueOf(value)));
-            } else if (value instanceof String) {
-                details.put(key, safe(String.valueOf(value)));
             } else {
-                details.put(key, value);
+                details.put(key, sanitizeDetailValue(key, value, 0));
             }
         }
         return details;
+    }
+
+    /**
+     * 递归清理 Provider 返回的 Map、List、数组和标量，避免原始 CDP 或页面对象绕过脱敏边界。
+     *
+     * @param key 当前值对应的字段名。
+     * @param value Provider 返回值。
+     * @param depth 当前递归深度。
+     * @return 可安全返回给模型的有界值。
+     */
+    private Object sanitizeDetailValue(String key, Object value, int depth) {
+        if (value == null || value instanceof Number || value instanceof Boolean) {
+            return value;
+        }
+        if (depth >= MAX_BROWSER_DETAIL_DEPTH) {
+            return "[truncated: maximum nesting depth reached]";
+        }
+        String normalizedKey = StrUtil.nullToEmpty(key).trim().toLowerCase(java.util.Locale.ROOT);
+        if (isSensitiveDetailKey(normalizedKey)) {
+            return "[redacted]";
+        }
+        if (value instanceof Map) {
+            return sanitizeDetailMap((Map<?, ?>) value, depth + 1);
+        }
+        if (value instanceof Iterable) {
+            return sanitizeDetailIterable((Iterable<?>) value, depth + 1);
+        }
+        if (value.getClass().isArray()) {
+            return sanitizeDetailArray(value, depth + 1);
+        }
+        String text = String.valueOf(value);
+        int limit =
+                isLongBrowserContentKey(normalizedKey)
+                        ? MAX_BROWSER_CONTENT_CHARS
+                        : MAX_BROWSER_DETAIL_CHARS;
+        if (isUrlDetailKey(normalizedKey)) {
+            text = SecretRedactor.maskUrl(text);
+        }
+        return SecretRedactor.redact(text, limit);
+    }
+
+    /**
+     * 递归清理浏览器详情 Map，并限制单次返回的键数量。
+     *
+     * @param rawMap Provider 返回的原始 Map。
+     * @param depth 当前递归深度。
+     * @return 清理后的有序 Map。
+     */
+    private Map<String, Object> sanitizeDetailMap(Map<?, ?> rawMap, int depth) {
+        Map<String, Object> sanitized = new LinkedHashMap<String, Object>();
+        int count = 0;
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            if (entry.getKey() == null) {
+                continue;
+            }
+            if (count >= MAX_BROWSER_DETAIL_ITEMS) {
+                sanitized.put(
+                        "_truncatedEntries",
+                        Integer.valueOf(Math.max(0, rawMap.size() - MAX_BROWSER_DETAIL_ITEMS)));
+                break;
+            }
+            String childKey = SecretRedactor.redact(String.valueOf(entry.getKey()), 200);
+            sanitized.put(childKey, sanitizeDetailValue(childKey, entry.getValue(), depth));
+            count++;
+        }
+        return sanitized;
+    }
+
+    /**
+     * 递归清理浏览器详情集合，并限制单次返回的元素数量。
+     *
+     * @param values Provider 返回的可迭代集合。
+     * @param depth 当前递归深度。
+     * @return 清理后的有界列表。
+     */
+    private List<Object> sanitizeDetailIterable(Iterable<?> values, int depth) {
+        List<Object> sanitized = new ArrayList<Object>();
+        int count = 0;
+        for (Object value : values) {
+            if (count >= MAX_BROWSER_DETAIL_ITEMS) {
+                sanitized.add("[truncated: additional items omitted]");
+                break;
+            }
+            sanitized.add(sanitizeDetailValue("", value, depth));
+            count++;
+        }
+        return sanitized;
+    }
+
+    /**
+     * 递归清理浏览器详情数组，并限制单次返回的元素数量。
+     *
+     * @param values Provider 返回的数组。
+     * @param depth 当前递归深度。
+     * @return 清理后的有界列表。
+     */
+    private List<Object> sanitizeDetailArray(Object values, int depth) {
+        List<Object> sanitized = new ArrayList<Object>();
+        int length = java.lang.reflect.Array.getLength(values);
+        int limit = Math.min(length, MAX_BROWSER_DETAIL_ITEMS);
+        for (int i = 0; i < limit; i++) {
+            sanitized.add(sanitizeDetailValue("", java.lang.reflect.Array.get(values, i), depth));
+        }
+        if (length > limit) {
+            sanitized.add("[truncated: " + (length - limit) + " additional items omitted]");
+        }
+        return sanitized;
+    }
+
+    /**
+     * 判断字段是否携带凭据、输入文本或其他不应回显的敏感值。
+     *
+     * @param normalizedKey 已转换为小写的字段名。
+     * @return 敏感字段返回 true。
+     */
+    private boolean isSensitiveDetailKey(String normalizedKey) {
+        return "input".equals(normalizedKey)
+                || "prompttext".equals(normalizedKey)
+                || normalizedKey.contains("password")
+                || normalizedKey.contains("passwd")
+                || normalizedKey.contains("secret")
+                || normalizedKey.contains("credential")
+                || normalizedKey.contains("authorization")
+                || normalizedKey.contains("cookie")
+                || normalizedKey.contains("api_key")
+                || normalizedKey.contains("apikey")
+                || normalizedKey.equals("token")
+                || normalizedKey.endsWith("token");
+    }
+
+    /**
+     * 判断字段是否表示 URL，需要隐藏查询凭据和用户信息。
+     *
+     * @param normalizedKey 已转换为小写的字段名。
+     * @return URL 字段返回 true。
+     */
+    private boolean isUrlDetailKey(String normalizedKey) {
+        return normalizedKey.contains("url")
+                || "src".equals(normalizedKey)
+                || "href".equals(normalizedKey);
+    }
+
+    /**
+     * 判断字段是否允许返回较长的页面正文内容。
+     *
+     * @param normalizedKey 已转换为小写的字段名。
+     * @return 页面快照或提取正文返回 true。
+     */
+    private boolean isLongBrowserContentKey(String normalizedKey) {
+        return "snapshot".equals(normalizedKey) || "content".equals(normalizedKey);
     }
 
     /**

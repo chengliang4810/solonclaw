@@ -1,20 +1,11 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.BARE_HOST_FETCH_CONTEXT_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.BARE_HOST_TOKEN_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.BLOCKED_DEVICE_PATHS;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_DIR_SEGMENTS;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_FILE_NAMES;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.CREDENTIAL_PATH_SUFFIXES;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.DIRECT_NETWORK_ENDPOINT_PREFIX_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.IPV4_CIDR_TOKEN_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.IPV6_CIDR_TOKEN_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.JAVA_PROXY_OPTIONS_ASSIGNMENT_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.LOCAL_MANAGEMENT_PIPE_PATHS;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.LOCAL_MANAGEMENT_SOCKET_PATHS;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_PROXY_ENV_ASSIGNMENT_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_REGISTRY_PROXY_PROPERTY_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.POWERSHELL_REGISTRY_PROXY_VALUE_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.PROC_STDIO_FD_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.QUOTED_WINDOWS_PATH_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.RAW_BLOCK_DEVICE_PATTERN;
@@ -25,10 +16,11 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SENSI
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SHELL_CREDENTIAL_TOKEN_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SHELL_PATH_PATTERN;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.SHELL_RELATIVE_CREDENTIAL_PATH_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.URLISH_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.cleanUrlToken;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.looksLikeUrlKey;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.shellLikeTokens;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WORKDIR_SAFE_PATTERN;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_EXACT_PATHS;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_HOME_FILE_NAMES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_PREFIXES;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_WINDOWS_PREFIXES;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.redactSample;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.sample;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsPatchIntentSamples;
@@ -37,7 +29,9 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.to
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsUrlKeySamples;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsWriteIntentSamples;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicySummarySupport.toolArgsWriteLikeToolSamples;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.containsSensitiveParameterName;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.cleanUrlToken;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.looksLikeUrlKey;
+import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlExtractionSupport.shellLikeTokens;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.extractSchemelessHost;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.extractUriHost;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.isStrongSensitiveUrlParameterName;
@@ -46,20 +40,15 @@ import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.normaliz
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.normalizeSensitiveParameterName;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.normalizeUrlText;
 import static com.jimuqu.solon.claw.tool.runtime.SecurityUrlTextSupport.parseUri;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WORKDIR_SAFE_PATTERN;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_EXACT_PATHS;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_HOME_FILE_NAMES;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_PREFIXES;
-import static com.jimuqu.solon.claw.tool.runtime.SecurityPolicyRuleCatalog.WRITE_DENIED_WINDOWS_PREFIXES;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HtmlUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.FilePathSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
-import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.File;
 import java.net.InetAddress;
 import java.net.URI;
@@ -94,8 +83,7 @@ public class SecurityPolicyService {
             new ThreadLocal<Collection<String>>();
 
     /** 当前线程是否只预览策略审批命中而不消费审批。 */
-    private static final ThreadLocal<Boolean> POLICY_APPROVAL_PREVIEW =
-            new ThreadLocal<Boolean>();
+    private static final ThreadLocal<Boolean> POLICY_APPROVAL_PREVIEW = new ThreadLocal<Boolean>();
 
     /**
      * 创建安全策略服务实例，并注入运行所需依赖。
@@ -192,18 +180,15 @@ public class SecurityPolicyService {
             return hostVerdict;
         }
         try {
-            InetAddress[] addresses = resolveHost(host);
-            for (InetAddress address : addresses) {
+            for (InetAddress address : resolveHost(host)) {
                 String ip = address.getHostAddress();
-                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip) || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)) {
+                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip)
+                        || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)) {
                     return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
                 }
             }
         } catch (Exception e) {
-            log.warn(
-                    "URL 硬安全边界解析失败，按 fail-closed 阻断: host={}, error={}",
-                    host,
-                    e.toString());
+            log.warn("URL 硬安全边界解析失败，按 fail-closed 阻断: host={}, error={}", host, e.toString());
             return UrlVerdict.block(raw, "DNS 解析失败，无法确认是否触达云元数据或链路本地地址：" + host);
         }
         return UrlVerdict.allow();
@@ -221,7 +206,6 @@ public class SecurityPolicyService {
         if (raw.length() == 0) {
             return UrlVerdict.block(raw, "URL 缺少内容");
         }
-
         if (raw.startsWith("//")) {
             return checkUrlSafety("http:" + raw, allowPrivateOverride);
         }
@@ -232,12 +216,10 @@ public class SecurityPolicyService {
             }
             return checkSchemelessHostAccess(raw, schemelessHost, allowPrivateOverride);
         }
-
         URI uri = parseUri(raw);
         if (uri == null) {
             return UrlVerdict.block(raw, "URL 解析失败");
         }
-
         String scheme = StrUtil.nullToEmpty(uri.getScheme()).toLowerCase(Locale.ROOT);
         if (!"http".equals(scheme)
                 && !"https".equals(scheme)
@@ -245,12 +227,10 @@ public class SecurityPolicyService {
                 && !"wss".equals(scheme)) {
             return UrlVerdict.block(raw, "仅允许 http/https/ws/wss URL");
         }
-
         String host = extractUriHost(uri);
         if (StrUtil.isBlank(host)) {
             return UrlVerdict.block(raw, "URL 缺少主机名");
         }
-
         UrlVerdict staticHostVerdict = checkStaticHostPolicy(raw, host);
         if (!staticHostVerdict.allowed) {
             return staticHostVerdict;
@@ -316,11 +296,13 @@ public class SecurityPolicyService {
         // 先检查字面量 IP，避免 DNS 解析绕过云元数据和内网地址拦截。
         if (hostIpv4 != null) {
             String ip = SecurityAddressPolicySupport.formatIpv4(hostIpv4);
-            if (SecurityAddressPolicySupport.isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+            if (SecurityAddressPolicySupport.isAlwaysBlockedIpv4(
+                    hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
                 return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
             }
             if (!allowPrivate
-                    && SecurityAddressPolicySupport.isBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+                    && SecurityAddressPolicySupport.isBlockedIpv4(
+                            hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
                 return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
             }
         }
@@ -329,13 +311,16 @@ public class SecurityPolicyService {
             InetAddress[] addresses = resolveHost(host);
             for (InetAddress address : addresses) {
                 String ip = address.getHostAddress();
-                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip) || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)) {
+                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip)
+                        || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)) {
                     return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
                 }
                 if (!allowPrivate
                         && SecurityAddressPolicySupport.isPrivateOrInternal(address, ip)
-                        && !(trustedPrivateHost && SecurityAddressPolicySupport.isTrustedPrivateAddress(address))
-                        && !(hostIpv4 == null && SecurityAddressPolicySupport.isProxyFakeIpAddress(address))) {
+                        && !(trustedPrivateHost
+                                && SecurityAddressPolicySupport.isTrustedPrivateAddress(address))
+                        && !(hostIpv4 == null
+                                && SecurityAddressPolicySupport.isProxyFakeIpAddress(address))) {
                     return UrlVerdict.block(raw, "阻断内网/私有地址：" + host + " -> " + ip);
                 }
             }
@@ -387,14 +372,21 @@ public class SecurityPolicyService {
             return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host);
         }
         InetAddress literalAddress = parseAddressLiteral(host);
-        if (literalAddress != null && SecurityAddressPolicySupport.isAlwaysBlockedAddress(literalAddress)) {
+        if (literalAddress != null
+                && SecurityAddressPolicySupport.isAlwaysBlockedAddress(literalAddress)) {
             return UrlVerdict.block(
                     raw, "阻断云元数据/链路本地地址：" + host + " -> " + literalAddress.getHostAddress());
         }
         int[] hostIpv4 = SecurityAddressPolicySupport.parseObfuscatedIpv4(host);
         if (hostIpv4 != null
-                && SecurityAddressPolicySupport.isAlwaysBlockedIpv4(hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
-            return UrlVerdict.block(raw, "阻断云元数据/链路本地地址：" + host + " -> " + SecurityAddressPolicySupport.formatIpv4(hostIpv4));
+                && SecurityAddressPolicySupport.isAlwaysBlockedIpv4(
+                        hostIpv4[0], hostIpv4[1], hostIpv4[2], hostIpv4[3])) {
+            return UrlVerdict.block(
+                    raw,
+                    "阻断云元数据/链路本地地址："
+                            + host
+                            + " -> "
+                            + SecurityAddressPolicySupport.formatIpv4(hostIpv4));
         }
         return UrlVerdict.allow();
     }
@@ -428,6 +420,10 @@ public class SecurityPolicyService {
      * @return 返回工具参数结果。
      */
     public UrlVerdict checkToolArgs(String toolName, java.util.Map<String, Object> args) {
+        ToolArgCredentialVerdict credentialVerdict = checkStructuredCredentialToolArgs(args);
+        if (!credentialVerdict.allowed) {
+            return UrlVerdict.block(credentialVerdict.reference, "结构化请求参数包含凭据字段，禁止转发给动态工具");
+        }
         List<String> urls = extractUrls(toolName, args);
         List<String> normalizedUrls = new ArrayList<String>();
         for (String url : urls) {
@@ -460,7 +456,7 @@ public class SecurityPolicyService {
      * @return 返回读取到的Environment。
      */
     protected String readEnvironment(String name) {
-        return System.getenv(name);
+        return ProfileRuntimeScope.environmentValue(name);
     }
 
     /**
@@ -911,7 +907,7 @@ public class SecurityPolicyService {
         summary.put("workdirSafePattern", WORKDIR_SAFE_PATTERN.pattern());
         summary.put(
                 "description",
-                "Path safety blocks traversal, control characters, device files, sensitive system writes, local management endpoints, internal skill hub access, and writes outside the configured safe root.");
+                "Path safety blocks traversal, control characters, device files, sensitive system writes, local management endpoints, and internal skill hub access.");
         return summary;
     }
 
@@ -1075,7 +1071,8 @@ public class SecurityPolicyService {
             if (isSlashStyleCommandOption(path)) {
                 continue;
             }
-            boolean writeContext = isCommandWritePathContext(code, matcher.start(1), matcher.end(1));
+            boolean writeContext =
+                    isCommandWritePathContext(code, matcher.start(1), matcher.end(1));
             FileVerdict verdict = checkConfiguredCredentialPath(path, writeContext);
             if (verdict.allowed) {
                 verdict = checkPath(path, writeContext);
@@ -1130,7 +1127,8 @@ public class SecurityPolicyService {
                     || approvedOutputPaths.contains(policyApprovalTarget(path))) {
                 continue;
             }
-            boolean writeContext = isCommandWritePathContext(code, matcher.start(1), matcher.end(1));
+            boolean writeContext =
+                    isCommandWritePathContext(code, matcher.start(1), matcher.end(1));
             FileVerdict verdict = checkConfiguredCredentialPath(path, writeContext);
             if (verdict.allowed) {
                 verdict = checkPath(path, writeContext);
@@ -1624,8 +1622,7 @@ public class SecurityPolicyService {
         List<String> urls = new ArrayList<String>();
         extractUrlishFromText(command, urls);
         for (String url : urls) {
-            String value = cleanUrlToken(url);
-            UrlVerdict verdict = checkCommandAlwaysBlockedUrlToken(value);
+            UrlVerdict verdict = checkCommandAlwaysBlockedUrlToken(cleanUrlToken(url));
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -1664,15 +1661,13 @@ public class SecurityPolicyService {
         try {
             for (InetAddress address : resolveHost(host)) {
                 String ip = address.getHostAddress();
-                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip) || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)) {
+                if (SecurityAddressPolicySupport.isAlwaysBlockedIp(ip)
+                        || SecurityAddressPolicySupport.isAlwaysBlockedAddress(address)) {
                     return UrlVerdict.block(value, "阻断云元数据/链路本地地址：" + host + " -> " + ip);
                 }
             }
         } catch (Exception e) {
-            log.debug(
-                    "命令硬阻断 URL 候选解析失败，交给后续 URL/文件策略处理: host={}, error={}",
-                    host,
-                    e.toString());
+            log.debug("命令硬阻断 URL 候选解析失败，交给后续 URL/文件策略处理: host={}, error={}", host, e.toString());
         }
         return UrlVerdict.allow();
     }
@@ -1712,6 +1707,9 @@ public class SecurityPolicyService {
                             ? "写入 Skills Hub 内部缓存文件被阻断，请使用技能管理能力维护技能"
                             : "读取 Skills Hub 内部缓存文件被阻断，请使用 skills_list 或 skill_view 工具");
         }
+        if (matchesSshPrivateKeyPath(normalized)) {
+            return FileVerdict.block(path, "读取或写入敏感 SSH 私钥被阻断");
+        }
         if (writeLike) {
             FileVerdict configuredCredentialVerdict = checkConfiguredCredentialPath(path, true);
             if (!configuredCredentialVerdict.allowed) {
@@ -1733,6 +1731,17 @@ public class SecurityPolicyService {
         return FileVerdict.allow();
     }
 
+    /** 识别用户 SSH 目录中的私钥文件，同时允许 known_hosts 和公钥文件。 */
+    private boolean matchesSshPrivateKeyPath(String normalized) {
+        String value = StrUtil.nullToEmpty(normalized).replace('\\', '/').toLowerCase(Locale.ROOT);
+        String fileName = lastPathPart(value);
+        return (value.contains("/.ssh/")
+                        || value.startsWith(".ssh/")
+                        || value.startsWith("~/.ssh/"))
+                && fileName.startsWith("id_")
+                && !fileName.endsWith(".pub");
+    }
+
     /**
      * 记录当前线程已通过审批的文件策略键。
      *
@@ -1752,9 +1761,7 @@ public class SecurityPolicyService {
         approveFilePolicyForCurrentThread(policyApprovalToken(policyKey, target));
     }
 
-    /**
-     * 清理当前线程的一次性策略审批，避免审批泄漏到后续工具调用。
-     */
+    /** 清理当前线程的一次性策略审批，避免审批泄漏到后续工具调用。 */
     public static void clearCurrentThreadPolicyApprovals() {
         APPROVED_FILE_POLICY_KEYS.remove();
     }
@@ -1848,7 +1855,8 @@ public class SecurityPolicyService {
      * @param policyKey 策略键。
      * @return 如果命中返回 true。
      */
-    private boolean isPolicyApprovedWithoutConsuming(ThreadLocal<Collection<String>> holder, String policyKey) {
+    private boolean isPolicyApprovedWithoutConsuming(
+            ThreadLocal<Collection<String>> holder, String policyKey) {
         if (StrUtil.isBlank(policyKey)) {
             return false;
         }
@@ -1897,10 +1905,7 @@ public class SecurityPolicyService {
             }
             return true;
         } catch (Exception e) {
-            log.debug(
-                    "无协议网络目标解析失败，按外部网络访问处理: host={}, error={}",
-                    host,
-                    e.toString());
+            log.debug("无协议网络目标解析失败，按外部网络访问处理: host={}, error={}", host, e.toString());
             return true;
         }
     }
@@ -2078,7 +2083,6 @@ public class SecurityPolicyService {
     private List<String> extractPaths(String toolName, Map<String, Object> args) {
         return SecurityPathExtractionSupport.create().extractPaths(toolName, args);
     }
-
 
     /**
      * 判断工具名称是否代表文件写入类操作。
@@ -2383,7 +2387,8 @@ public class SecurityPolicyService {
             if (StrUtil.isBlank(configuredPath)) {
                 continue;
             }
-            FileVerdict verdict = checkConfiguredCredentialReference(normalizedCommand, configuredPath);
+            FileVerdict verdict =
+                    checkConfiguredCredentialReference(normalizedCommand, configuredPath);
             if (!verdict.allowed) {
                 return verdict;
             }
@@ -2793,7 +2798,8 @@ public class SecurityPolicyService {
                                     .toAbsolutePath()
                                     .normalize();
             if (workspaceHome != null) {
-                String runtime = workspaceHome.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
+                String runtime =
+                        workspaceHome.toString().replace('\\', '/').toLowerCase(Locale.ROOT);
                 if (value.startsWith(runtime + "/")) {
                     return value.substring(runtime.length() + 1);
                 }
@@ -2850,42 +2856,30 @@ public class SecurityPolicyService {
      * @return 返回Website策略结果。
      */
     SecurityWebsiteRule checkWebsitePolicy(String rawUrl, String host) {
-        if (appConfig == null
-                || appConfig.getSecurity() == null
-                || appConfig.getSecurity().getWebsiteBlocklist() == null
-                || !appConfig.getSecurity().getWebsiteBlocklist().isEnabled()) {
+        AppConfig.WebsiteBlocklistConfig blocklist = websiteBlocklistConfig();
+        if (blocklist == null || !blocklist.isEnabled()) {
             return null;
         }
-        List<String> domains = appConfig.getSecurity().getWebsiteBlocklist().getDomains();
-        if (domains == null) {
-            domains = Collections.emptyList();
-        }
+        List<String> domains =
+                blocklist.getDomains() == null
+                        ? Collections.<String>emptyList()
+                        : blocklist.getDomains();
         for (String rawRule : domains) {
             String rule = normalizeRule(rawRule);
-            if (StrUtil.isBlank(rule)) {
-                continue;
-            }
-            if (matchHost(host, rule)) {
+            if (StrUtil.isNotBlank(rule) && matchHost(host, rule)) {
                 return new SecurityWebsiteRule(rawUrl, rule);
             }
         }
         for (String rawRule : sharedSecurityWebsiteRules()) {
             String rule = normalizeRule(rawRule);
-            if (StrUtil.isBlank(rule)) {
-                continue;
-            }
-            if (matchHost(host, rule)) {
+            if (StrUtil.isNotBlank(rule) && matchHost(host, rule)) {
                 return new SecurityWebsiteRule(rawUrl, rule);
             }
         }
         return null;
     }
 
-    /**
-     * 执行网站块list配置相关逻辑。
-     *
-     * @return 返回website 块list配置。
-     */
+    /** 读取当前网站阻断配置。 */
     private AppConfig.WebsiteBlocklistConfig websiteBlocklistConfig() {
         if (appConfig == null || appConfig.getSecurity() == null) {
             return null;
@@ -2909,16 +2903,11 @@ public class SecurityPolicyService {
      */
     private SharedSecurityWebsiteRuleSummary sharedSecurityWebsiteRuleSummary() {
         SharedSecurityWebsiteRuleSummary summary = new SharedSecurityWebsiteRuleSummary();
-        if (appConfig == null
-                || appConfig.getSecurity() == null
-                || appConfig.getSecurity().getWebsiteBlocklist() == null) {
+        AppConfig.WebsiteBlocklistConfig blocklist = websiteBlocklistConfig();
+        if (blocklist == null || blocklist.getSharedFiles() == null) {
             return summary;
         }
-        List<String> sharedFiles = appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles();
-        if (sharedFiles == null || sharedFiles.isEmpty()) {
-            return summary;
-        }
-        for (String rawPath : sharedFiles) {
+        for (String rawPath : blocklist.getSharedFiles()) {
             File file = resolveSharedFile(rawPath);
             if (file == null || !file.isFile()) {
                 summary.skippedFileCount++;
@@ -2926,9 +2915,7 @@ public class SecurityPolicyService {
             }
             try {
                 String text = cn.hutool.core.io.FileUtil.readString(file, StandardCharsets.UTF_8);
-                String[] lines = text.split("\\r?\\n");
-                summary.loadedFileCount++;
-                for (String line : lines) {
+                for (String line : text.split("\\r?\\n")) {
                     String value = StrUtil.nullToEmpty(line).trim();
                     if (value.length() == 0 || value.startsWith("#")) {
                         continue;
@@ -2939,6 +2926,7 @@ public class SecurityPolicyService {
                         summary.ruleSamples.add(value);
                     }
                 }
+                summary.loadedFileCount++;
             } catch (Exception e) {
                 log.debug(
                         "Shared rule file loading failed; skipping unreadable rule file: {}",
@@ -3020,7 +3008,6 @@ public class SecurityPolicyService {
         }
         return host.equals(rule) || host.endsWith("." + rule);
     }
-
 
     /**
      * 解析Allow私聊Urls。
@@ -3143,8 +3130,7 @@ public class SecurityPolicyService {
          * @param message 平台消息或错误消息。
          * @return 返回approval required结果。
          */
-        public static UrlVerdict approvalRequired(
-                String url, String policyKey, String message) {
+        public static UrlVerdict approvalRequired(String url, String policyKey, String message) {
             return new UrlVerdict(false, url, message, true, policyKey);
         }
 
@@ -3281,8 +3267,7 @@ public class SecurityPolicyService {
          * @param message 平台消息或错误消息。
          * @return 返回approval required结果。
          */
-        public static FileVerdict approvalRequired(
-                String path, String policyKey, String message) {
+        public static FileVerdict approvalRequired(String path, String policyKey, String message) {
             return new FileVerdict(false, path, message, true, policyKey);
         }
 
@@ -3340,6 +3325,4 @@ public class SecurityPolicyService {
             return policyApprovalToken(policyKey, path);
         }
     }
-
-
 }

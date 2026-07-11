@@ -172,7 +172,8 @@ public class ProactiveScheduler {
         List<ProactiveObservationRecord> observations = observationService.collectAll(context);
         List<ProactiveCandidateRecord> generated = candidateService.generate(context, observations);
         List<ProactiveCandidateRecord> candidates = candidatesForDecision(context, generated);
-        List<ProactiveDecision> decisions = decisionService.decide(context, candidates, observations);
+        List<ProactiveDecision> decisions =
+                decisionService.decide(context, candidates, observations);
         for (ProactiveDecision decision : decisions) {
             if (decision == null
                     || !"SEND".equalsIgnoreCase(StrUtil.nullToEmpty(decision.getDecision()))) {
@@ -224,11 +225,16 @@ public class ProactiveScheduler {
         for (PlatformType platform : PlatformType.DOMESTIC_PLATFORMS) {
             try {
                 HomeChannelRecord home = gatewayPolicyRepository.getHomeChannel(platform);
-                if (home != null && home.getPlatform() != null && StrUtil.isNotBlank(home.getChatId())) {
+                if (home != null
+                        && home.getPlatform() != null
+                        && StrUtil.isNotBlank(home.getChatId())) {
                     homes.add(home);
                 }
             } catch (Exception e) {
-                log.debug("Proactive home channel unavailable: platform={}, error={}", platform, safeError(e));
+                log.debug(
+                        "Proactive home channel unavailable: platform={}, error={}",
+                        platform,
+                        safeError(e));
             }
         }
         return homes;
@@ -243,7 +249,8 @@ public class ProactiveScheduler {
      * @throws Exception 仓储查询失败时抛出异常。
      */
     private List<ProactiveCandidateRecord> candidatesForDecision(
-            ProactiveTickContext context, List<ProactiveCandidateRecord> generated) throws Exception {
+            ProactiveTickContext context, List<ProactiveCandidateRecord> generated)
+            throws Exception {
         if (generated != null && !generated.isEmpty()) {
             return generated;
         }

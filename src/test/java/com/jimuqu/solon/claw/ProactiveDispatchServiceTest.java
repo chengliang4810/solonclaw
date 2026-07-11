@@ -38,7 +38,8 @@ public class ProactiveDispatchServiceTest {
         ProactiveDecision decision = decision("WEIXIN:source-room:user");
 
         ProactiveDecisionRecord record =
-                new ProactiveDispatchService(gatewayRepository, deliveryService, proactiveRepository)
+                new ProactiveDispatchService(
+                                gatewayRepository, deliveryService, proactiveRepository)
                         .dispatch(decision, "主动协作：要不要我看一下？");
 
         assertThat(deliveryService.requests).hasSize(1);
@@ -48,7 +49,8 @@ public class ProactiveDispatchServiceTest {
         assertThat(request.getThreadId()).isEqualTo("wx-thread");
         assertThat(record.getDeliveryStatus()).isEqualTo("SENT");
         assertThat(record.getDeliveryPlatform()).isEqualTo("WEIXIN");
-        assertThat(proactiveRepository.savedDecisions).extracting(ProactiveDecisionRecord::getMessage)
+        assertThat(proactiveRepository.savedDecisions)
+                .extracting(ProactiveDecisionRecord::getMessage)
                 .containsExactly("主动协作：要不要我看一下？");
     }
 
@@ -79,12 +81,14 @@ public class ProactiveDispatchServiceTest {
         InMemoryProactiveRepository proactiveRepository = new InMemoryProactiveRepository();
 
         ProactiveDecisionRecord record =
-                new ProactiveDispatchService(gatewayRepository, deliveryService, proactiveRepository)
+                new ProactiveDispatchService(
+                                gatewayRepository, deliveryService, proactiveRepository)
                         .dispatch(decision("WEIXIN:source-room:user"), "主动协作：要不要继续？");
 
         assertThat(record.getDeliveryStatus()).isEqualTo("FAILED");
         assertThat(record.getDeliveryError()).contains("boom");
-        assertThat(proactiveRepository.savedDecisions).extracting(ProactiveDecisionRecord::getDeliveryStatus)
+        assertThat(proactiveRepository.savedDecisions)
+                .extracting(ProactiveDecisionRecord::getDeliveryStatus)
                 .containsExactly("FAILED");
     }
 
@@ -212,7 +216,8 @@ public class ProactiveDispatchServiceTest {
         }
 
         @Override
-        public PairingRequestRecord getLatestUserPairingRequest(PlatformType platform, String userId) {
+        public PairingRequestRecord getLatestUserPairingRequest(
+                PlatformType platform, String userId) {
             return null;
         }
 

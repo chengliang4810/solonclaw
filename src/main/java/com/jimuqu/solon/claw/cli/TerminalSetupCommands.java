@@ -6,8 +6,8 @@ import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.ChannelConfigSupport;
-import com.jimuqu.solon.claw.support.RuntimeProviderSetupSpec;
 import com.jimuqu.solon.claw.support.RuntimeConfigResolverSupport;
+import com.jimuqu.solon.claw.support.RuntimeProviderSetupSpec;
 import com.jimuqu.solon.claw.support.RuntimeSetupService;
 import com.jimuqu.solon.claw.support.RuntimeSetupSpec;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -21,8 +21,7 @@ import java.util.Map;
 /** 终端 setup/config 命令渲染服务，保证 CLI 与 TUI 复用同一套配置展示逻辑。 */
 public class TerminalSetupCommands {
     /** 国内渠道顺序，和本项目已确认保留的渠道范围保持一致。 */
-    private static final List<String> DOMESTIC_CHANNELS =
-            RuntimeSetupSpec.domesticChannels();
+    private static final List<String> DOMESTIC_CHANNELS = RuntimeSetupSpec.domesticChannels();
 
     /** 保存应用配置依赖，用于读取当前生效模型、渠道与运行时路径。 */
     private final AppConfig appConfig;
@@ -136,7 +135,9 @@ public class TerminalSetupCommands {
         if ("pairing".equals(value) || value.startsWith("pairing ")) {
             return renderPairingGuidance(rawValue);
         }
-        if ("gateway".equals(value) || "gateway status".equals(value) || value.startsWith("gateway status ")) {
+        if ("gateway".equals(value)
+                || "gateway status".equals(value)
+                || value.startsWith("gateway status ")) {
             return renderGatewayStatus(rawValue);
         }
         if ("gateway list".equals(value)) {
@@ -363,9 +364,7 @@ public class TerminalSetupCommands {
         boolean deleted = !file.exists() || file.delete();
         resolver.reload();
         if (!deleted) {
-            return "workspace/config.yml 重置失败："
-                    + file.getPath()
-                    + "\n请检查文件权限后重试。";
+            return "workspace/config.yml 重置失败：" + file.getPath() + "\n请检查文件权限后重试。";
         }
         return "workspace/config.yml 已重置\n"
                 + "path="
@@ -395,7 +394,6 @@ public class TerminalSetupCommands {
     /** 渲染 Agent 初始化分节，说明会话、目标和 Agent 切换入口。 */
     private String renderSetupAgent() {
         return "Agent 初始化\n"
-                + "1. /agent - 查看或切换当前会话 Agent\n"
                 + "2. /goal [status|show|pause|resume|clear|stop|done|wait <pid>|unwait|目标 --max N] - 管理跨轮长目标\n"
                 + "3. /subgoal [<text>|remove <n>|clear] - 管理当前目标的补充准则\n"
                 + "4. /new、/resume、/branch、/rollback - 管理会话生命周期\n"
@@ -480,7 +478,8 @@ public class TerminalSetupCommands {
             buffer.append(RuntimeProviderSetupSpec.providers().get(i).getSlug());
         }
         buffer.append('\n').append("provider.templates:\n");
-        for (RuntimeProviderSetupSpec.ProviderTemplate template : RuntimeProviderSetupSpec.providers()) {
+        for (RuntimeProviderSetupSpec.ProviderTemplate template :
+                RuntimeProviderSetupSpec.providers()) {
             buffer.append("- ")
                     .append(template.getSlug())
                     .append(": baseUrl=")
@@ -564,7 +563,8 @@ public class TerminalSetupCommands {
                     .append('\n');
         }
         buffer.append("使用：solonclaw setup gateway <channel> --enabled true ...\n")
-                .append("示例：solonclaw setup gateway feishu --app-id <app-id> --app-secret <secret>");
+                .append(
+                        "示例：solonclaw setup gateway feishu --app-id <app-id> --app-secret <secret>");
         return buffer.toString();
     }
 
@@ -593,10 +593,7 @@ public class TerminalSetupCommands {
                     + availableKeys;
         }
         if (!DOMESTIC_CHANNELS.contains(request.channel)) {
-            return "不支持的渠道："
-                    + request.channel
-                    + "\n可用渠道："
-                    + String.join(",", DOMESTIC_CHANNELS);
+            return "不支持的渠道：" + request.channel + "\n可用渠道：" + String.join(",", DOMESTIC_CHANNELS);
         }
         if (request.values.isEmpty()) {
             return gatewaySetUsage();
@@ -604,14 +601,8 @@ public class TerminalSetupCommands {
         List<String> allowedKeys = RuntimeSetupSpec.allowedChannelKeys(request.channel);
         for (String key : request.values.keySet()) {
             if (allowedKeys == null || !allowedKeys.contains(key)) {
-                String availableKeys =
-                        allowedKeys == null ? "" : String.join(",", allowedKeys);
-                return "渠道 "
-                        + request.channel
-                        + " 不支持配置项："
-                        + key
-                        + "\n可用配置项："
-                        + availableKeys;
+                String availableKeys = allowedKeys == null ? "" : String.join(",", allowedKeys);
+                return "渠道 " + request.channel + " 不支持配置项：" + key + "\n可用配置项：" + availableKeys;
             }
         }
         RuntimeSetupService.SetupResult result =
@@ -620,9 +611,7 @@ public class TerminalSetupCommands {
             return "渠道配置写入失败：" + result.getMessage();
         }
         StringBuilder buffer = new StringBuilder();
-        buffer.append("渠道配置已写入 workspace/config.yml：\n")
-                .append("channel=")
-                .append(request.channel);
+        buffer.append("渠道配置已写入 workspace/config.yml：\n").append("channel=").append(request.channel);
         for (Map.Entry<String, String> entry : request.values.entrySet()) {
             buffer.append('\n')
                     .append(entry.getKey())
@@ -653,7 +642,9 @@ public class TerminalSetupCommands {
         RuntimeConfigResolver resolver = configResolver();
         Map<String, String> snapshot = resolver.fileValues();
         StringBuilder buffer = new StringBuilder();
-        buffer.append("workspace/config.yml: ").append(resolver.configFile().getPath()).append('\n');
+        buffer.append("workspace/config.yml: ")
+                .append(resolver.configFile().getPath())
+                .append('\n');
         if (snapshot.isEmpty()) {
             buffer.append("当前 workspace/config.yml 还没有覆盖项。");
             return buffer.toString();
@@ -689,7 +680,8 @@ public class TerminalSetupCommands {
         boolean apiKeyConfigured = providerApiKeyConfigured(providerKey);
         String configuredChannels = configuredChannels();
         String missingChannels = missingEnabledChannels();
-        String next = doctorNextStep(diagnostics, providerKey, model, apiKeyConfigured, missingChannels);
+        String next =
+                doctorNextStep(diagnostics, providerKey, model, apiKeyConfigured, missingChannels);
         return "Solon Claw Doctor\n"
                 + "workspace.config="
                 + resolver.configFile().getPath()
@@ -738,9 +730,7 @@ public class TerminalSetupCommands {
     private String renderDoctorFix() {
         configResolver().reload();
         String doctor = renderDoctor();
-        return "Doctor 自动修复\n"
-                + "已刷新 workspace/config.yml 视图；涉及模型密钥和渠道凭据的项目需要用户确认后写入。\n"
-                + doctor;
+        return "Doctor 自动修复\n" + "已刷新 workspace/config.yml 视图；涉及模型密钥和渠道凭据的项目需要用户确认后写入。\n" + doctor;
     }
 
     /**
@@ -908,7 +898,8 @@ public class TerminalSetupCommands {
                     .append(StrUtil.blankToDefault(providerDialect(provider), "(not set)"))
                     .append('\n');
         }
-        buffer.append("写入：solonclaw auth add <provider> --api-key <api-key> --base-url <url> --model <model> --dialect <dialect>");
+        buffer.append(
+                "写入：solonclaw auth add <provider> --api-key <api-key> --base-url <url> --model <model> --dialect <dialect>");
         return buffer.toString();
     }
 
@@ -919,7 +910,8 @@ public class TerminalSetupCommands {
      * @return provider 认证状态摘要。
      */
     private String renderAuthStatus(String provider) {
-        String key = StrUtil.blankToDefault(StrUtil.nullToEmpty(provider).trim(), activeProviderKey());
+        String key =
+                StrUtil.blankToDefault(StrUtil.nullToEmpty(provider).trim(), activeProviderKey());
         if (StrUtil.isBlank(key)) {
             return "认证状态\nprovider=(missing)\napi_key=missing";
         }
@@ -972,7 +964,8 @@ public class TerminalSetupCommands {
             setupRequest.setApiKey(request.apiKey);
             setupRequest.setModel(request.model);
             setupRequest.setDialect(dialect);
-            RuntimeSetupService.SetupResult result = runtimeSetupService().configureModel(setupRequest);
+            RuntimeSetupService.SetupResult result =
+                    runtimeSetupService().configureModel(setupRequest);
             if (!result.isSuccess()) {
                 return "认证凭据写入失败：" + result.getMessage();
             }
@@ -1040,16 +1033,14 @@ public class TerminalSetupCommands {
      * @return 清理结果。
      */
     private String removeAuthProvider(String provider) {
-        String key = StrUtil.blankToDefault(StrUtil.nullToEmpty(provider).trim(), activeProviderKey());
+        String key =
+                StrUtil.blankToDefault(StrUtil.nullToEmpty(provider).trim(), activeProviderKey());
         if (StrUtil.isBlank(key)) {
             return "用法：solonclaw auth logout <provider>";
         }
         RuntimeConfigResolver resolver = configResolver();
         resolver.removeFileValue("providers." + key + ".apiKey");
-        return "认证凭据已清理：\nprovider="
-                + key
-                + "\napi_key=missing\nnext=solonclaw auth status "
-                + key;
+        return "认证凭据已清理：\nprovider=" + key + "\napi_key=missing\nnext=solonclaw auth status " + key;
     }
 
     /**
@@ -1060,7 +1051,8 @@ public class TerminalSetupCommands {
      */
     private String renderFallbackCommand(String rawValue) {
         List<String> tokens = shellTokens(rawValue);
-        String action = tokens.size() >= 2 ? tokens.get(1).toLowerCase(java.util.Locale.ROOT) : "list";
+        String action =
+                tokens.size() >= 2 ? tokens.get(1).toLowerCase(java.util.Locale.ROOT) : "list";
         if ("list".equals(action) || "ls".equals(action)) {
             return renderFallbackList();
         }
@@ -1092,7 +1084,8 @@ public class TerminalSetupCommands {
         }
         if (chain.isEmpty()) {
             buffer.append("No fallback providers configured.\n")
-                    .append("Add one with: solonclaw fallback add --provider <provider> --model <model>");
+                    .append(
+                            "Add one with: solonclaw fallback add --provider <provider> --model <model>");
             return buffer.toString();
         }
         buffer.append("Fallback chain (")
@@ -1200,10 +1193,7 @@ public class TerminalSetupCommands {
             removed = chain.remove(matchedIndex);
         }
         writeFallbackChain(chain);
-        return "Removed fallback:\n"
-                + removed.display()
-                + "\nchain_size="
-                + chain.size();
+        return "Removed fallback:\n" + removed.display() + "\nchain_size=" + chain.size();
     }
 
     /** 清空 fallback 链路。 */
@@ -1458,17 +1448,17 @@ public class TerminalSetupCommands {
                 .append(configResolver().configFile().getPath())
                 .append('\n')
                 .append("dashboard.port=")
-                .append(appConfig == null || appConfig.getDashboard() == null
-                        ? "(unknown)"
-                        : String.valueOf(appConfig.getDashboard().getBindPort()))
+                .append(
+                        appConfig == null || appConfig.getDashboard() == null
+                                ? "(unknown)"
+                                : String.valueOf(appConfig.getDashboard().getBindPort()))
                 .append('\n');
         for (String channel : DOMESTIC_CHANNELS) {
             AppConfig.ChannelConfig config = channelConfig(channel);
             buffer.append(channelStatusLine(channel, config)).append('\n');
         }
         if (shellTokens(rawValue).contains("--deep")) {
-            buffer.append("deep=已展示国内渠道关键配置完整性；不会扫描未确认渠道或系统服务。")
-                    .append('\n');
+            buffer.append("deep=已展示国内渠道关键配置完整性；不会扫描未确认渠道或系统服务。").append('\n');
         }
         buffer.append("next=solonclaw setup gateway");
         return buffer.toString();
@@ -1551,7 +1541,9 @@ public class TerminalSetupCommands {
         try {
             configResolver().setFileValue(key, value);
         } catch (IllegalStateException e) {
-            return "不支持的配置键：" + key + "\n"
+            return "不支持的配置键："
+                    + key
+                    + "\n"
                     + "请使用已登记的 workspace/config.yml 键名；fallback provider 链路请使用 "
                     + "solonclaw fallback add/remove/clear 管理，避免写坏 YAML 列表结构。";
         }
@@ -1616,7 +1608,11 @@ public class TerminalSetupCommands {
     private String configuredChannels() {
         java.util.ArrayList<String> values = new java.util.ArrayList<String>();
         for (String channel : DOMESTIC_CHANNELS) {
-            if ("configured".equals(channelStatus(channelConfig(channel), RuntimeSetupSpec.requiredChannelKeys(channel)))) {
+            if ("configured"
+                    .equals(
+                            channelStatus(
+                                    channelConfig(channel),
+                                    RuntimeSetupSpec.requiredChannelKeys(channel)))) {
                 values.add(channel);
             }
         }
@@ -1789,7 +1785,8 @@ public class TerminalSetupCommands {
         applyProviderTemplateDefaults(request);
         request.providerName =
                 StrUtil.blankToDefault(
-                                StrUtil.nullToEmpty(request.providerName).trim(), request.providerKey)
+                                StrUtil.nullToEmpty(request.providerName).trim(),
+                                request.providerKey)
                         .trim();
         request.baseUrl = StrUtil.nullToEmpty(request.baseUrl).trim();
         request.apiKey = StrUtil.nullToEmpty(request.apiKey).trim();
@@ -1907,9 +1904,10 @@ public class TerminalSetupCommands {
             return null;
         }
         GatewaySetRequest request = new GatewaySetRequest();
-        request.channel = StrUtil.nullToEmpty(tokens.get(channelIndex))
-                .trim()
-                .toLowerCase(java.util.Locale.ROOT);
+        request.channel =
+                StrUtil.nullToEmpty(tokens.get(channelIndex))
+                        .trim()
+                        .toLowerCase(java.util.Locale.ROOT);
         for (int i = channelIndex + 1; i < tokens.size(); i++) {
             String token = tokens.get(i);
             if (!token.startsWith("--")) {
@@ -2077,8 +2075,7 @@ public class TerminalSetupCommands {
                 }
                 Map<Object, Object> map = (Map<Object, Object>) item;
                 FallbackEntry entry =
-                        new FallbackEntry(
-                                readMapText(map, "provider"), readMapText(map, "model"));
+                        new FallbackEntry(readMapText(map, "provider"), readMapText(map, "model"));
                 if (StrUtil.isNotBlank(entry.provider)) {
                     values.add(entry);
                 }
@@ -2136,8 +2133,7 @@ public class TerminalSetupCommands {
                 if (entry == null || StrUtil.isBlank(entry.provider)) {
                     continue;
                 }
-                AppConfig.FallbackProviderConfig config =
-                        new AppConfig.FallbackProviderConfig();
+                AppConfig.FallbackProviderConfig config = new AppConfig.FallbackProviderConfig();
                 config.setProvider(entry.provider);
                 config.setModel(entry.model);
                 values.add(config);
@@ -2249,7 +2245,8 @@ public class TerminalSetupCommands {
                 }
             }
         }
-        for (RuntimeProviderSetupSpec.ProviderTemplate template : RuntimeProviderSetupSpec.providers()) {
+        for (RuntimeProviderSetupSpec.ProviderTemplate template :
+                RuntimeProviderSetupSpec.providers()) {
             providers.add(template.getSlug());
         }
         return providers;

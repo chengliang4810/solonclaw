@@ -16,8 +16,8 @@ import org.noear.snack4.ONode;
 /**
  * 模型上下文长度持久化缓存，按 {@code model@baseUrl} 键存储在线探测或解析得到的具体值。
  *
- * <p>对齐外部对标仓库的 {@code context_length_cache.yaml} 机制：同一模型在不同提供方下可能有不同的上下文上限，
- * 因此缓存键同时绑定模型名和 baseUrl。只在内存维护一份读写索引，首次访问时懒加载磁盘文件，写入时原子替换。
+ * <p>对齐外部对标仓库的 {@code context_length_cache.yaml} 机制：同一模型在不同提供方下可能有不同的上下文上限， 因此缓存键同时绑定模型名和
+ * baseUrl。只在内存维护一份读写索引，首次访问时懒加载磁盘文件，写入时原子替换。
  */
 public class ModelContextCacheStore {
     /** 日志记录器。 */

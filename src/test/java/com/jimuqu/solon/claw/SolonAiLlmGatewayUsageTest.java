@@ -2,8 +2,8 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
@@ -20,9 +20,12 @@ public class SolonAiLlmGatewayUsageTest {
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
         AssistantMessage message = ChatMessage.ofAssistant("<think>内部推理</think>\n\n最终答复");
 
-        Method extractText = SolonAiLlmGateway.class.getDeclaredMethod("extractText", AssistantMessage.class);
+        Method extractText =
+                SolonAiLlmGateway.class.getDeclaredMethod("extractText", AssistantMessage.class);
         extractText.setAccessible(true);
-        Method extractReasoning = SolonAiLlmGateway.class.getDeclaredMethod("extractReasoning", AssistantMessage.class);
+        Method extractReasoning =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "extractReasoning", AssistantMessage.class);
         extractReasoning.setAccessible(true);
 
         assertThat((String) extractText.invoke(gateway, message)).isEqualTo("最终答复");

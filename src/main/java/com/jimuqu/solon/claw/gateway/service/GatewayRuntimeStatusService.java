@@ -4,16 +4,20 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.io.IoUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import com.jimuqu.solon.claw.support.RuntimeProcessSupport;
 import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.noear.snack4.ONode;
@@ -44,6 +48,18 @@ public class GatewayRuntimeStatusService {
     /** 注入应用配置，用于消息网关运行时状态。 */
     private final AppConfig appConfig;
 
+    /** 当前状态文件所属 Profile 名。 */
+    private final String profileName;
+
+    /** 当前状态文件所属工作区绝对路径。 */
+    private final String workspace;
+
+    /** 当前 Dashboard/API 监听端口。 */
+    private final int port;
+
+    /** 当前进程复用承载的 Profile；单 Profile 模式为空且不会写入状态文件。 */
+    private volatile List<String> servedProfiles;
+
     /** 记录消息网关运行时状态中的started时间。 */
     private volatile long startedAt;
 
@@ -53,10 +69,24 @@ public class GatewayRuntimeStatusService {
      * @param appConfig 应用运行配置。
      */
     public GatewayRuntimeStatusService(AppConfig appConfig) {
+        this(appConfig, ProfileRuntimeIdentity.resolve(appConfig));
+    }
+
+    /**
+     * 创建可校验指定 Profile 运行状态的服务实例。
+     *
+     * @param appConfig 应用运行配置。
+     * @param profileName Profile 名。
+     */
+    public GatewayRuntimeStatusService(AppConfig appConfig, String profileName) {
         this.appConfig = appConfig;
         File home = new File(appConfig.getRuntime().getHome());
         this.pidFile = new File(home, "gateway.pid");
         this.stateFile = new File(home, "gateway_state.json");
+        this.profileName = normalizeProfileName(profileName);
+        this.workspace = normalizePath(home.getAbsolutePath());
+        this.port =
+                appConfig.getDashboard() == null ? 8080 : appConfig.getDashboard().getBindPort();
         this.startedAt = System.currentTimeMillis();
     }
 
@@ -101,11 +131,23 @@ public class GatewayRuntimeStatusService {
             if (StrUtil.isNotBlank(detail)) {
                 state.put("detail", detail);
             }
+            if (servedProfiles != null && !servedProfiles.isEmpty()) {
+                state.put("served_profiles", new java.util.ArrayList<String>(servedProfiles));
+            }
             FileUtil.mkParentDirs(stateFile);
             FileUtil.writeString(ONode.serialize(state), stateFile, UTF_8);
         } catch (Exception e) {
             log.warn("消息网关状态文件写入失败，Dashboard 状态可能短暂不准确: error={}", exceptionSummary(e));
         }
+    }
+
+    /**
+     * 设置单进程复用承载的 Profile 列表；为空时保持旧版单 Profile 状态结构。
+     *
+     * @param profiles default 在首位、命名 Profile 稳定排序的名称列表。
+     */
+    public void setServedProfiles(List<String> profiles) {
+        this.servedProfiles = profiles == null ? null : new java.util.ArrayList<String>(profiles);
     }
 
     /**
@@ -178,7 +220,11 @@ public class GatewayRuntimeStatusService {
         record.put("startTime", Long.valueOf(startTime));
         record.put("startInstant", Instant.ofEpochMilli(startTime).toString());
         record.put("command", safeCommandName());
+        record.put("command_hash", commandHash(currentCommandIdentity()));
         record.put("name", GATEWAY_KIND);
+        record.put("profile", profileName);
+        record.put("workspace", workspace);
+        record.put("port", Integer.valueOf(port));
         return record;
     }
 
@@ -219,6 +265,9 @@ public class GatewayRuntimeStatusService {
         if (!GATEWAY_KIND.equals(kind)) {
             return false;
         }
+        if (!matchesRuntimeScope(record)) {
+            return false;
+        }
 
         long currentPid = RuntimeProcessSupport.currentPidOrUnknown();
         if (pid.longValue() == currentPid) {
@@ -243,7 +292,10 @@ public class GatewayRuntimeStatusService {
                 && recordedStartTime.longValue() != getCurrentJvmStartTime()) {
             return false;
         }
-        return GATEWAY_KIND.equals(safeText(record.get("kind")));
+        return GATEWAY_KIND.equals(safeText(record.get("kind")))
+                && matchesRuntimeScope(record)
+                && commandHash(currentCommandIdentity())
+                        .equals(safeText(record.get("command_hash")));
     }
 
     /**
@@ -264,9 +316,40 @@ public class GatewayRuntimeStatusService {
 
         String liveCommand = readProcessCommand(pid);
         if (StrUtil.isNotBlank(liveCommand)) {
-            return looksLikeGatewayCommand(liveCommand);
+            if (!looksLikeGatewayCommand(liveCommand)) {
+                return false;
+            }
+            if (!commandHash(commandIdentity(liveCommand))
+                    .equals(safeText(record.get("command_hash")))) {
+                return false;
+            }
+            if (!"default".equals(profileName)
+                    && !normalizeCommand(liveCommand)
+                            .contains("-dsolonclaw.profile.name=" + profileName)) {
+                return false;
+            }
+            int recordedPort = asInt(record.get("port"), -1);
+            if (recordedPort != 8080
+                    && !normalizeCommand(liveCommand).contains("--server.port=" + recordedPort)) {
+                return false;
+            }
+            return true;
         }
-        return looksLikeGatewayCommand(safeText(record.get("command")));
+        return false;
+    }
+
+    /** 校验 PID 记录确实属于当前读取目标的 Profile、工作区和有效端口。 */
+    private boolean matchesRuntimeScope(Map<String, Object> record) {
+        if (!profileName.equals(recordProfileName(record.get("profile")))) {
+            return false;
+        }
+        if (!workspace.equals(normalizePath(safeText(record.get("workspace"))))) {
+            return false;
+        }
+        int recordedPort = asInt(record.get("port"), -1);
+        return recordedPort >= 1
+                && recordedPort <= 65535
+                && StrUtil.isNotBlank(safeText(record.get("command_hash")));
     }
 
     /**
@@ -324,6 +407,78 @@ public class GatewayRuntimeStatusService {
         return normalized.contains("solonclaw")
                 || normalized.contains("com.jimuqu.solon.claw")
                 || normalized.contains("gateway");
+    }
+
+    /** 返回当前 sun.java.command 对应的稳定代码身份。 */
+    private String currentCommandIdentity() {
+        return commandIdentity(System.getProperty("sun.java.command", "java"));
+    }
+
+    /** 从 JVM 命令中提取主类或 jar 身份，避免 Java 路径和 VM 参数造成指纹漂移。 */
+    private String commandIdentity(String command) {
+        String normalized = normalizeCommand(command);
+        String[] tokens = normalized.split("\\s+");
+        for (String token : tokens) {
+            String cleaned = token.replace("\"", "").replace("'", "");
+            if (cleaned.contains("com.jimuqu.solon.claw.solonclawapp")) {
+                return "com.jimuqu.solon.claw.SolonClawApp";
+            }
+            if (cleaned.endsWith(".jar") && cleaned.contains("solonclaw")) {
+                return new File(cleaned).getName().toLowerCase(Locale.ROOT);
+            }
+        }
+        if (tokens.length > 0) {
+            String first = tokens[0].replace("\"", "").replace("'", "");
+            return StrUtil.blankToDefault(new File(first).getName(), first)
+                    .toLowerCase(Locale.ROOT);
+        }
+        return "java";
+    }
+
+    /** 计算命令身份的 SHA-256 十六进制指纹。 */
+    private String commandHash(String identity) {
+        try {
+            byte[] digest =
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(StrUtil.nullToEmpty(identity).getBytes(UTF_8));
+            StringBuilder result = new StringBuilder(digest.length * 2);
+            for (byte value : digest) {
+                result.append(String.format(Locale.ROOT, "%02x", Integer.valueOf(value & 0xff)));
+            }
+            return result.toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
+
+    /** 规范化用于匹配的进程命令文本。 */
+    private String normalizeCommand(String command) {
+        return StrUtil.nullToEmpty(command).replace('\\', '/').trim().toLowerCase(Locale.ROOT);
+    }
+
+    /** 规范化 Profile 名，空值使用 default。 */
+    private String normalizeProfileName(String value) {
+        String normalized =
+                StrUtil.blankToDefault(value, "default").trim().toLowerCase(Locale.ROOT);
+        return normalized.matches("[a-z0-9][a-z0-9_-]{0,63}") ? normalized : "default";
+    }
+
+    /** 严格读取 PID 记录中的 Profile 名，非法值不回退 default。 */
+    private String recordProfileName(Object value) {
+        String normalized = safeText(value).toLowerCase(Locale.ROOT);
+        return normalized.matches("[a-z0-9][a-z0-9_-]{0,63}") ? normalized : "";
+    }
+
+    /** 规范化工作区路径；损坏记录返回空串。 */
+    private String normalizePath(String value) {
+        if (StrUtil.isBlank(value)) {
+            return "";
+        }
+        try {
+            return Paths.get(StrUtil.nullToEmpty(value)).toAbsolutePath().normalize().toString();
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     /**
@@ -405,6 +560,15 @@ public class GatewayRuntimeStatusService {
         } catch (Exception e) {
             log.debug("消息网关状态长整型字段解析失败，忽略该字段: {}", exceptionSummary(e));
             return null;
+        }
+    }
+
+    /** 将运行状态字段转换为整数。 */
+    private int asInt(Object value, int fallback) {
+        try {
+            return Integer.parseInt(safeText(value));
+        } catch (Exception e) {
+            return fallback;
         }
     }
 

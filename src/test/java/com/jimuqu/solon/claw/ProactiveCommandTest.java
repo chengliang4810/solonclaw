@@ -22,7 +22,8 @@ public class ProactiveCommandTest {
         DefaultCommandService commandService = commandService(env);
 
         GatewayReply reply =
-                commandService.handle(env.message("room", "user", "/proactive status"), "/proactive status");
+                commandService.handle(
+                        env.message("room", "user", "/proactive status"), "/proactive status");
 
         assertThat(commandService.supports("proactive")).isTrue();
         assertThat(reply.getContent()).contains("主动协作").contains("待处理候选");

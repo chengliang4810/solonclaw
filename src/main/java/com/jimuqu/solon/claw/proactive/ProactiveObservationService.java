@@ -63,7 +63,8 @@ public class ProactiveObservationService {
      * @return 返回已保存的观测记录，顺序与采集顺序一致。
      * @throws Exception 仓储写入失败时抛出异常。
      */
-    public List<ProactiveObservationRecord> collectAll(ProactiveTickContext context) throws Exception {
+    public List<ProactiveObservationRecord> collectAll(ProactiveTickContext context)
+            throws Exception {
         List<ProactiveObservationRecord> saved = new ArrayList<ProactiveObservationRecord>();
         if (context == null) {
             return saved;

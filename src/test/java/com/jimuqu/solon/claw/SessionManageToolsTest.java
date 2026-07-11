@@ -18,7 +18,8 @@ public class SessionManageToolsTest {
         RecordingSessionService service = new RecordingSessionService();
         SessionManageTools tools = new SessionManageTools(service);
 
-        for (String action : new String[] {"rollback_checkpoint", "checkpoint_rollback", "rollback"}) {
+        for (String action :
+                new String[] {"rollback_checkpoint", "checkpoint_rollback", "rollback"}) {
             String json =
                     tools.sessionManage(
                             action, null, "checkpoint-a", null, Boolean.FALSE, 20, 0, 20);

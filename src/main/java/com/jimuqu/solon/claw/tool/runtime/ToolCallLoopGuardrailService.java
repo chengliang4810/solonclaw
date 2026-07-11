@@ -211,7 +211,8 @@ public class ToolCallLoopGuardrailService {
             String original = ReActToolObservationSupport.get(trace, exchanger);
             Decision decision = state.afterCall(toolName, signature, original, config);
             if (decision.shouldWarn()) {
-                ReActToolObservationSupport.set(trace, exchanger, appendGuidance(original, decision));
+                ReActToolObservationSupport.set(
+                        trace, exchanger, appendGuidance(original, decision));
             }
             if (decision.shouldHalt()) {
                 String rewritten = appendGuidance(original, decision);
@@ -835,7 +836,10 @@ public class ToolCallLoopGuardrailService {
      */
     private static void logRecoverableFailure(String stage, Exception error) {
         if (log.isDebugEnabled()) {
-            log.debug("tool loop guardrail fallback. stage={} error={}", stage, exceptionSummary(error));
+            log.debug(
+                    "tool loop guardrail fallback. stage={} error={}",
+                    stage,
+                    exceptionSummary(error));
         }
     }
 

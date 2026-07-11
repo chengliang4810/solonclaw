@@ -275,7 +275,8 @@ public class ToolCallLoopGuardrailServiceTest {
 
     @Test
     void shouldClearOtherToolCallEpochWhenAgentEnds() {
-        ReActInterceptor interceptor = new ToolCallLoopGuardrailService(new AppConfig()).buildInterceptor();
+        ReActInterceptor interceptor =
+                new ToolCallLoopGuardrailService(new AppConfig()).buildInterceptor();
 
         ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool("terminal");
         assertThat(ToolCallLoopGuardrailService.otherToolCallEpoch()).isGreaterThan(0);

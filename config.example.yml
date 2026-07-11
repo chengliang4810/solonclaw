@@ -20,7 +20,20 @@ providers:
     # 该提供方默认使用的模型。
     defaultModel: gpt-5.4
     # 协议类型，可选 openai、openai-responses、ollama、gemini、anthropic。
-    dialect: openai
+    dialect: openai-responses
+    # 显式模型能力元数据；未填写的字段才会回退到协议或模型家族推断。
+    capabilities:
+      tool_calling: true
+      vision: true
+      audio: false
+      attachment: true
+      pdf: true
+      reasoning: true
+      structured_output: true
+      open_weights: false
+      interleaved: false
+      prompt_cache: true
+      streaming: true
   # 本地 Ollama 示例提供方。
   local-ollama:
     # 提供方显示名称。
@@ -50,19 +63,17 @@ fallbackProviders: []
 #     # 备用模型名；留空时使用该提供方 defaultModel。
 #     model: qwen3
 
-# 安全策略配置。包含 URL、网站阻断、命令扫描、审批模式与 hardline 白名单。
+# 安全策略配置。包含 URL、网站阻断、命令扫描与审批模式。
 security:
-  # 是否允许 URL 工具访问内网/私有地址，默认关闭，避免工具被诱导访问内网资源。
-  # 云元数据地址默认始终阻断，不会因本开关放行。
-  # 仅在可信内网调试场景显式设为 true。
+  # 是否允许 URL 工具访问内网/私有地址；默认关闭，云元数据地址始终阻断。
   allowPrivateUrls: false
-  # URL 工具的网站阻断策略，用于 webfetch/websearch/codesearch 中出现的 URL。
+  # URL 工具的网站阻断策略。
   websiteBlocklist:
     # 是否启用域名阻断。
     enabled: false
     # 阻断域名列表，支持 example.com 和 *.example.com。
     domains: []
-    # 共享阻断列表文件；相对路径按 workspace 目录解析。每行一个域名规则，支持注释和空行。
+    # 共享阻断列表文件；相对路径按 workspace 目录解析。
     sharedFiles: []
   # 是否启用 Tirith 命令内容安全扫描；对齐对标行为 security.tirith_enabled。
   tirithEnabled: true
@@ -72,35 +83,28 @@ security:
   tirithTimeoutSeconds: 5
   # Tirith 不可用、超时或返回未知退出码时是否放行；默认 true 表示 fail-open 放行，对齐外部对标仓库行为。
   tirithFailOpen: true
-  # 文件路径安全预检模式：
-  # strict 默认值，会对 execute_code/终端/进程命令阻断敏感系统或凭据路径。
-  # bypass 仅适合完全可信的本机临时联调环境。
+  # 文件路径安全预检模式：strict 默认阻断，bypass 仅跳过该类软预检。
   fileGuardrailMode: strict
-  # URL 安全预检模式：
-  # strict 默认值，会对 execute_code/终端/进程命令阻断 metadata 和私有/内网地址（SSRF 防护）。
-  # bypass 仅适合完全可信的本机临时联调环境。
+  # URL 安全预检模式：strict 默认阻断，bypass 仅跳过该类软预检。
   urlGuardrailMode: strict
   # Agent 工具安全策略模式：
-  # approval 默认值，可审批危险行为会生成待审批项，非白名单 hardline 仍直接阻断。
-  # bypass 最自由，会跳过可审批危险行为检查；文件/URL 预检由 fileGuardrailMode/urlGuardrailMode 单独控制。
-  # strict 最严格，可审批危险行为也直接阻断。
+  # approval 默认值，可审批危险行为会生成待审批项，hardline 仍直接阻断。
+  # bypass 最自由，会跳过可审批危险行为检查。
   # smart 先由辅助模型判定低风险行为，无法确认时回到人工审批。
   guardrailMode: approval
   # 定时任务安全策略模式：
-  # strict 默认值，直接阻断可审批危险行为，避免无人值守任务自动放行。
-  # approval 可审批危险行为会暂停任务并请求会话审批。
+  # strict 默认值，无人值守任务命中可审批危险行为时直接阻断。
+  # approval 会暂停任务并请求原会话审批。
   # bypass 会跳过软策略；approve 会自动批准可审批危险行为。
   guardrailCronMode: strict
   # 定时任务审批记忆范围：job 同一任务相同行为审批一次；session 按会话；global 全局。
   guardrailCronScope: job
-  # 允许跳过 hardline 硬阻断的类别；* 表示放行所有 hardline 类别。
-  # 默认空列表，关机/重启、metadata URL 等 hardline 类别均直接阻断。
+  # 可显式放行的 hardline 类别；默认空列表，不放行任何类别。
   hardlineAllowlist: []
 
 # 审批/确认策略配置。危险命令策略以 security.guardrailMode 和 security.guardrailCronMode 为准。
 approvals:
-  # 子 Agent 遇到危险命令时默认自动拒绝，避免等待父本地交互/stdin 审批导致卡死。
-  # 设为 true 后，子 Agent 会自动批准一次；仅建议可信批处理使用。
+  # 子 Agent 遇到可审批危险命令时是否自动批准一次；默认拒绝。
   subagentAutoApprove: false
   # 本地/直接审批超时秒数；超时后 /approve 不再放行过期命令。
   timeoutSeconds: 60
@@ -183,18 +187,17 @@ solonclaw:
       # OAuth 请求的 scope，多个 scope 用空格分隔。
       scope: ""
 
-  # 模型价格配置。单位为每 token 的 micros；留空表示只统计 token，不计算价格。
+  # 模型价格配置。默认 gpt-5.4 没有内置价格，prices 为空时明确记录为 unknown 和 unpriced token。
   pricing:
     prices: []
     # prices:
-    #   - provider: default
-    #     model: gpt-5.4
+    #   - provider: your-provider
+    #     model: your-model
     #     currency: USD
-    #     input_micros_per_token: 0
-    #     output_micros_per_token: 0
-    #     cache_read_micros_per_token: 0
-    #     cache_write_micros_per_token: 0
-    #     reasoning_micros_per_token: 0
+    #     # 以下仅展示配置格式；请替换为该模型官方每百万 token 价格。
+    #     input_cost_per_million: "1.00"
+    #     output_cost_per_million: "4.00"
+    #     cache_read_cost_per_million: "0.50"
 
   # 插件启停配置。enabled 允许指定插件加载；disabled 无条件跳过指定插件。
   plugins:
@@ -207,6 +210,43 @@ solonclaw:
     searchBackend: solon-ai
     # Brave Search API key；也可通过环境变量 BRAVE_SEARCH_API_KEY 提供。
     braveSearchApiKey: ""
+
+  # TTS 与独立 STT 配置；均使用 OpenAI 兼容 HTTP 协议，可分别指向不同服务。
+  speech:
+    # 文本转语音 Provider；默认关闭，避免未配置时对外虚报可用。
+    tts:
+      # 是否启用内置 TTS Provider。
+      enabled: false
+      # 完整的 /audio/speech 请求地址。
+      endpoint: https://api.openai.com/v1/audio/speech
+      # 服务密钥；本地免鉴权兼容服务可留空。
+      apiKey: ""
+      # 默认语音合成模型。
+      model: gpt-4o-mini-tts
+      # 默认音色。
+      voice: alloy
+      # 输出格式：mp3、opus、aac、flac、wav、pcm。
+      responseFormat: mp3
+      # 默认语速，范围 0.25 到 4.0。
+      speed: 1.0
+      # HTTP 请求超时秒数。
+      timeoutSeconds: 120
+    # 独立语音转写 Provider，可使用不同端点、密钥和模型。
+    stt:
+      # 是否启用内置 STT Provider。
+      enabled: false
+      # 完整的 /audio/transcriptions 请求地址。
+      endpoint: https://api.openai.com/v1/audio/transcriptions
+      # 服务密钥；本地免鉴权兼容服务可留空。
+      apiKey: ""
+      # 默认语音转写模型。
+      model: gpt-4o-mini-transcribe
+      # 可选默认语言代码；留空时自动识别。
+      language: ""
+      # 可选转写提示词，用于补充专有名词或语言上下文。
+      prompt: ""
+      # HTTP 请求超时秒数。
+      timeoutSeconds: 120
 
   # 上下文压缩配置。
   compression:
@@ -708,6 +748,9 @@ solonclaw:
 
   # 网关通用授权与注入配置。
   gateway:
+    # 是否让 default Profile 的单个网关进程承载全部 Profile；默认关闭。
+    # 开启后命名 Profile 不再单独启动网关，统一由 default 网关管理生命周期。
+    multiplexProfiles: false
     # 全局允许访问的用户 ID 列表。
     allowedUsers: []
     # 是否全局允许所有用户访问。

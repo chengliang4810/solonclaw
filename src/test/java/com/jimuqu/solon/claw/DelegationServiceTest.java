@@ -3,13 +3,18 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.DeliveryRequest;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
+import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
+import com.jimuqu.solon.claw.engine.DefaultDelegationService;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
@@ -19,6 +24,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
@@ -79,6 +88,27 @@ public class DelegationServiceTest {
                 .contains(result.getSubagentId());
         assertThat(env.sessionRepository.findById(result.getSessionId()).getParentSessionId())
                 .isEqualTo(parent.getSessionId());
+    }
+
+    /** 验证子代理继承父会话当前生效的模型、推理和快速模式覆盖。 */
+    @Test
+    void shouldInheritParentModelRequestOverrides() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String parentSourceKey = "MEMORY:room-a:user-a";
+        SessionRecord parent = env.sessionRepository.bindNewSession(parentSourceKey);
+        parent.setModelOverride("gpt-5.4");
+        parent.setServiceTierOverride("priority");
+        parent.setReasoningEffortOverride("high");
+        env.sessionRepository.save(parent);
+
+        DelegationResult result =
+                env.delegationService.delegateSingle(parentSourceKey, "sub task", "ctx");
+
+        SessionRecord child = env.sessionRepository.findById(result.getSessionId());
+        assertThat(child.getParentSessionId()).isEqualTo(parent.getSessionId());
+        assertThat(child.getModelOverride()).isEqualTo("gpt-5.4");
+        assertThat(child.getServiceTierOverride()).isEqualTo("priority");
+        assertThat(child.getReasoningEffortOverride()).isEqualTo("high");
     }
 
     @Test
@@ -167,55 +197,227 @@ public class DelegationServiceTest {
         DelegationResult result = env.delegationService.delegateSingle(parentSourceKey, task);
 
         assertThat(result.isError()).isFalse();
-        assertThat(gateway.lastToolObjects).hasSize(2);
+        assertThat(gateway.lastToolObjects).hasSize(3);
         assertThat(gateway.lastToolObjects.toString())
-                .contains("SafeCodeSearchTool", "SafeWebsearchTool");
+                .contains("SafeCodeSearchTool", "SafeWebsearchTool", "SafeWebExtractTool");
         assertThat(env.toolRegistry.resolveEnabledToolNames(result.getSourceKey()))
-                .containsExactly("codesearch", "websearch");
+                .containsExactly("codesearch", "websearch", "web_extract");
     }
 
     @Test
-    void delegateToolShouldParseToolsetsForSingleAndBatchTasks() throws Exception {
+    void delegateToolShouldMapSingleAndBatchTasks() throws Exception {
         RecordingDelegationService service = new RecordingDelegationService();
         DelegateTools tools = new DelegateTools(service, "MEMORY:room-a:user-a");
+        DelegateTools.DelegateTaskInput first =
+                delegationInput("batch goal", "batch context", "orchestrator");
+        DelegateTools.DelegateTaskInput second = delegationInput("default role", null, null);
 
-        tools.delegateTask("single", "single goal", null, null, null, "web, terminal", null, null);
-        tools.delegateTask(
-                "batch",
-                null,
-                "[{\"prompt\":\"batch goal\",\"toolsets\":[\"web\",\"file\"]},{\"prompt\":\"default tools\"}]",
-                null,
-                null,
-                "ignored",
-                null,
-                null);
+        tools.delegateTask("single goal", "single context", null, "leaf", "reviewer", Boolean.FALSE);
+        first.setProfile("backend");
+        tools.delegateTask(null, "shared context", Arrays.asList(first, second), "leaf", null, null);
 
-        assertThat(service.singleTask.getToolsets()).containsExactly("web", "terminal");
-        assertThat(service.batchTasks.get(0).getToolsets()).containsExactly("web", "file");
-        assertThat(service.batchTasks.get(1).getToolsets()).isEmpty();
-        assertThat(service.batchTasks.get(1).getAllowedTools()).isEmpty();
+        assertThat(service.singleTask.getPrompt()).isEqualTo("single goal");
+        assertThat(service.singleTask.getContext()).isEqualTo("single context");
+        assertThat(service.singleTask.getRole()).isEqualTo("leaf");
+        assertThat(service.singleTask.getProfile()).isEqualTo("reviewer");
+        assertThat(service.batchTasks.get(0).getContext()).isEqualTo("batch context");
+        assertThat(service.batchTasks.get(0).getRole()).isEqualTo("orchestrator");
+        assertThat(service.batchTasks.get(0).getProfile()).isEqualTo("backend");
+        assertThat(service.batchTasks.get(1).getContext()).isEqualTo("shared context");
+        assertThat(service.batchTasks.get(1).getRole()).isEqualTo("leaf");
+    }
+
+    /** 顶层 delegate_task 必须立即返回后台句柄，并在子任务完成后回流父会话。 */
+    @Test
+    void delegateToolShouldReturnHandleAndReenterParentConversation() throws Exception {
+        CountDownLatch releaseChild = new CountDownLatch(1);
+        CountDownLatch completionDelivered = new CountDownLatch(1);
+        AtomicReference<String> completionText = new AtomicReference<String>();
+        ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
+        holder.set(
+                new ConversationOrchestrator() {
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply handleIncoming(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        if (message.getText().startsWith("[后台委派完成]")) {
+                            completionText.set(message.getText());
+                            completionDelivered.countDown();
+                        }
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("continued");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply resumePending(
+                            String sourceKey) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("resumed");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply runScheduled(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage syntheticMessage) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("scheduled");
+                    }
+                });
+        DefaultDelegationService service =
+                new DefaultDelegationService(holder, null, null) {
+                    @Override
+                    public List<DelegationResult> delegateBatch(
+                            String sourceKey, List<DelegationTask> tasks) throws Exception {
+                        releaseChild.await(5, TimeUnit.SECONDS);
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("child summary");
+                        return Arrays.asList(result);
+                    }
+                };
+        DelegateTools tools = new DelegateTools(service, "MEMORY:room-a:user-a");
+        AgentRunContext parent =
+                new AgentRunContext(null, "parent-run", "parent-session", "MEMORY:room-a:user-a");
+        parent.setRunKind("conversation");
+
+        AgentRunContext.setCurrent(parent);
+        String handle;
+        try {
+            handle = tools.delegateTask("slow goal", null, null, null, Boolean.FALSE);
+        } finally {
+            AgentRunContext.setCurrent(null);
+        }
+
+        assertThat(handle)
+                .contains("\"status\":\"dispatched\"")
+                .contains("\"mode\":\"background\"");
+        assertThat(completionDelivered.getCount()).isEqualTo(1L);
+        releaseChild.countDown();
+        assertThat(completionDelivered.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(completionText.get()).contains("[后台委派完成]").contains("child summary");
+    }
+
+    /** 子 Agent 内的 orchestrator 委派必须同步返回，便于在本轮汇总 worker 结果。 */
+    @Test
+    void delegateToolShouldRemainSynchronousInsideSubagent() throws Exception {
+        CountDownLatch batchCalled = new CountDownLatch(1);
+        DefaultDelegationService service =
+                new DefaultDelegationService(new ConversationOrchestratorHolder(), null, null) {
+                    @Override
+                    public List<DelegationResult> delegateBatch(
+                            String sourceKey, List<DelegationTask> tasks) {
+                        batchCalled.countDown();
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("nested result");
+                        return Arrays.asList(result);
+                    }
+                };
+        DelegateTools tools = new DelegateTools(service, "MEMORY:room-a:delegate-1:user-a");
+        AgentRunContext child =
+                new AgentRunContext(
+                        null, "child-run", "child-session", "MEMORY:room-a:delegate-1:user-a");
+        child.setRunKind("subagent");
+
+        AgentRunContext.setCurrent(child);
+        String result;
+        try {
+            DelegateTools.DelegateTaskInput input = delegationInput("worker", null, "leaf");
+            result = tools.delegateTask(null, null, Arrays.asList(input), "orchestrator", true);
+        } finally {
+            AgentRunContext.setCurrent(null);
+        }
+
+        assertThat(batchCalled.getCount()).isZero();
+        assertThat(result).contains("nested result").doesNotContain("\"status\":\"dispatched\"");
+    }
+
+    @Test
+    void shouldCarryProfileScopeIntoParallelDelegationWorkers() throws Exception {
+        List<String> observations = java.util.Collections.synchronizedList(new ArrayList<String>());
+        DefaultDelegationService service =
+                new DefaultDelegationService(new ConversationOrchestratorHolder(), null, null) {
+                    @Override
+                    public DelegationResult delegateSingle(String sourceKey, DelegationTask task) {
+                        ProfileRuntimeScope.Context current = ProfileRuntimeScope.current();
+                        observations.add(
+                                (current == null ? "default" : current.getProfile())
+                                        + ":"
+                                        + ProfileRuntimeScope.environmentValue(
+                                                "PROFILE_ASYNC_MARKER"));
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("done");
+                        return result;
+                    }
+                };
+        DelegationTask task = new DelegationTask();
+        task.setName("worker");
+        task.setPrompt("check scope");
+
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "a",
+                        java.nio.file.Files.createTempDirectory("delegate-profile-a"),
+                        java.util.Collections.singletonMap("PROFILE_ASYNC_MARKER", "env-a"),
+                        null)) {
+            service.delegateBatch("MEMORY:a-room:a-user", Arrays.asList(task));
+        }
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "b",
+                        java.nio.file.Files.createTempDirectory("delegate-profile-b"),
+                        java.util.Collections.singletonMap("PROFILE_ASYNC_MARKER", "env-b"),
+                        null)) {
+            service.delegateBatch("MEMORY:b-room:b-user", Arrays.asList(task));
+        }
+
+        assertThat(observations).containsExactly("a:env-a", "b:env-b");
+    }
+
+    @Test
+    void shouldRestoreProfileScopeWhenBackgroundDelegationPoolIsReused() throws Exception {
+        com.jimuqu.solon.claw.config.AppConfig config =
+                new com.jimuqu.solon.claw.config.AppConfig();
+        config.getTask().setSubagentMaxConcurrency(1);
+        LinkedBlockingQueue<String> observations = new LinkedBlockingQueue<String>();
+        DefaultDelegationService service =
+                new DefaultDelegationService(
+                        new ConversationOrchestratorHolder(),
+                        null,
+                        null,
+                        null,
+                        config,
+                        null,
+                        null) {
+                    @Override
+                    public List<DelegationResult> delegateBatch(
+                            String sourceKey, List<DelegationTask> tasks) {
+                        ProfileRuntimeScope.Context current = ProfileRuntimeScope.current();
+                        observations.add(
+                                (current == null ? "default" : current.getProfile())
+                                        + ":"
+                                        + ProfileRuntimeScope.environmentValue(
+                                                "PROFILE_ASYNC_MARKER"));
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("done");
+                        return Arrays.asList(result);
+                    }
+                };
+        DelegationTask task = new DelegationTask();
+        task.setName("worker");
+        task.setPrompt("background scope");
+
+        dispatchBackground(service, task, "a", "env-a");
+        assertThat(observations.poll(2, TimeUnit.SECONDS)).isEqualTo("a:env-a");
+        dispatchBackground(service, task, "b", "env-b");
+        assertThat(observations.poll(2, TimeUnit.SECONDS)).isEqualTo("b:env-b");
     }
 
     @Test
     void delegateToolShouldRedactErrors() throws Exception {
         DelegateTools missingService = new DelegateTools(null, "MEMORY:room-a:user-a");
         String notReady =
-                missingService.delegateTask(
-                        "single", "ghp_1234567890abcdef", null, null, null, null, null, null);
-        assertThat(notReady).contains("\"status\":\"error\"").doesNotContain("ghp_1234567890abcdef");
+                missingService.delegateTask("ghp_1234567890abcdef", null, null, null, null);
+        assertThat(notReady)
+                .contains("\"status\":\"error\"")
+                .doesNotContain("ghp_1234567890abcdef");
 
         DelegateTools failing =
                 new DelegateTools(new FailingDelegationService(), "MEMORY:room-a:user-a");
-        String failed =
-                failing.delegateTask(
-                        "single",
-                        "prompt-ghp_1234567890abcdef",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+        String failed = failing.delegateTask("prompt-ghp_1234567890abcdef", null, null, null, null);
 
         assertThat(failed)
                 .contains("\"status\":\"error\"")
@@ -231,25 +433,10 @@ public class DelegationServiceTest {
         DelegateTools tools = new DelegateTools(service, "MEMORY:room-a:user-a");
 
         String single =
-                tools.delegateTask(
-                        "single",
-                        "prompt token=ghp_delegateprompt12345",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
-        String batch =
-                tools.delegateTask(
-                        "batch",
-                        null,
-                        "[{\"prompt\":\"batch token=ghp_delegateprompt12345\"}]",
-                        null,
-                        null,
-                        null,
-                        null,
-                        null);
+                tools.delegateTask("prompt token=ghp_delegateprompt12345", null, null, null, null);
+        DelegateTools.DelegateTaskInput batchInput =
+                delegationInput("batch token=ghp_delegateprompt12345", null, null);
+        String batch = tools.delegateTask(null, null, Arrays.asList(batchInput), null, null);
 
         assertThat(single)
                 .contains("Authorization: Bearer ***")
@@ -280,6 +467,38 @@ public class DelegationServiceTest {
         item.setContent(content);
         item.setStatus(status);
         return item;
+    }
+
+    /**
+     * 创建结构化委派任务测试输入。
+     *
+     * @param goal 子任务目标。
+     * @param context 子任务上下文。
+     * @param role 子任务角色。
+     * @return 返回委派工具输入。
+     */
+    private static DelegateTools.DelegateTaskInput delegationInput(
+            String goal, String context, String role) {
+        DelegateTools.DelegateTaskInput input = new DelegateTools.DelegateTaskInput();
+        input.setGoal(goal);
+        input.setContext(context);
+        input.setRole(role);
+        return input;
+    }
+
+    /** 在指定 Profile 下向固定大小为一的后台池提交任务，强制覆盖线程复用路径。 */
+    private void dispatchBackground(
+            DefaultDelegationService service, DelegationTask task, String profile, String marker)
+            throws Exception {
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        profile,
+                        java.nio.file.Files.createTempDirectory("delegate-background-" + profile),
+                        java.util.Collections.singletonMap("PROFILE_ASYNC_MARKER", marker),
+                        null)) {
+            service.delegateInBackground(
+                    "MEMORY:" + profile + "-room:" + profile + "-user", Arrays.asList(task));
+        }
     }
 
     private static class RecordingDelegationService implements DelegationService {

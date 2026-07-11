@@ -206,7 +206,8 @@ public class SchedulerConfiguration {
     public ProactiveDecisionService proactiveDecisionService(
             ProactiveRepository proactiveRepository, LlmGateway llmGateway) {
         return new ProactiveDecisionService(
-                proactiveRepository, new ProactiveDecisionService.GatewayLlmDecisionClient(llmGateway));
+                proactiveRepository,
+                new ProactiveDecisionService.GatewayLlmDecisionClient(llmGateway));
     }
 
     /**

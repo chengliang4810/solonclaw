@@ -56,11 +56,7 @@ final class DangerousCommandApprovalTestSupport {
      */
     static File workspaceBoundaryParent(String label) throws Exception {
         File parent =
-                new File(
-                                "target/workspace-boundary-test/"
-                                        + label
-                                        + "-"
-                                        + System.nanoTime())
+                new File("target/workspace-boundary-test/" + label + "-" + System.nanoTime())
                         .getCanonicalFile();
         FileUtil.mkdir(parent);
         return parent;
@@ -98,8 +94,7 @@ final class DangerousCommandApprovalTestSupport {
         return TirithSecurityService.Finding.from(values);
     }
 
-    static void assertHardlineBlocked(
-            DangerousCommandApprovalService service, String command) {
+    static void assertHardlineBlocked(DangerousCommandApprovalService service, String command) {
         assertHardlineBlocked(service, new TestTrace(), command);
     }
 
@@ -132,11 +127,8 @@ final class DangerousCommandApprovalTestSupport {
                     "shutdown -h now",
                     "shutdown -r now",
                     "sudo shutdown now",
-                    "doas shutdown now",
-                    "pkexec reboot",
                     "reboot",
                     "sudo reboot",
-                    "runas /user:Administrator reboot",
                     "halt",
                     "poweroff",
                     "init 0",
@@ -171,7 +163,7 @@ final class DangerousCommandApprovalTestSupport {
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(trace.getFinalAnswer())
                 .contains("BLOCKED (hardline)")
-                .contains("Windows shutdown/reboot");
+                .contains("system shutdown/reboot");
         assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 

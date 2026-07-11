@@ -9,10 +9,10 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import org.junit.jupiter.api.Test;
 
 /**
- * 连续解析失败自动暂停的集成测试：把一个恒抛 {@link GoalJudgeUnparseableException} 的桩
- * {@link GoalJudge} 接到真实 {@code SessionRepository} 的 {@link GoalService}，跨多轮驱动
- * {@link GoalService#evaluateAfterTurn}，验证计数自增并持久化、未达上限 fail-open 续轮、
- * 达到默认上限 3 次时产出 STATUS_PAUSED 与 pausedReason。
+ * 连续解析失败自动暂停的集成测试：把一个恒抛 {@link GoalJudgeUnparseableException} 的桩 {@link GoalJudge} 接到真实 {@code
+ * SessionRepository} 的 {@link GoalService}，跨多轮驱动 {@link
+ * GoalService#evaluateAfterTurn}，验证计数自增并持久化、未达上限 fail-open 续轮、 达到默认上限 3 次时产出 STATUS_PAUSED 与
+ * pausedReason。
  */
 class GoalServiceParseFailureTest {
 
@@ -33,7 +33,8 @@ class GoalServiceParseFailureTest {
     void consecutiveParseFailuresAutoPauseAfterThreeCalls() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("parsefail-chat");
-        GoalService svc = new GoalService(env.sessionRepository, new UnparseableJudge(), goalConfig());
+        GoalService svc =
+                new GoalService(env.sessionRepository, new UnparseableJudge(), goalConfig());
         svc.set(session, "完成目标", 10);
 
         // 第一次失败：计数 1/3，fail-open 续轮

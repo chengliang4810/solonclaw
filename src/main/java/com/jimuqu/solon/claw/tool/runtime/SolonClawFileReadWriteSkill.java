@@ -8,9 +8,11 @@ import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.io.BufferedReader;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,6 +74,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
 
     /** 记录Solon项目文件Read写入技能中的consecutiveRead次数。 */
     private int consecutiveReadCount;
+
+    /** 记录最近一次搜索的参数与结果摘要，用于识别无变化的重复搜索。 */
+    private String lastSearchSignature;
+
+    /** 记录同一未变化搜索连续执行次数。 */
+    private int consecutiveSearchCount;
 
     /** 记录Solon项目文件Read写入技能中的observedOther工具CallEpoch。 */
     private int observedOtherToolCallEpoch;
@@ -200,14 +208,35 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     @Override
     @ToolMapping(name = "file_write", description = "写入文本到文件。会自动创建不存在的目录。")
     public String write(@Param("fileName") String fileName, @Param("content") String content) {
-        assertSafe(ToolNameConstants.FILE_WRITE, fileName);
+        return writeInternal(ToolNameConstants.FILE_WRITE, fileName, content, false);
+    }
+
+    /**
+     * 执行带跨 Profile 软保护的文件写入。
+     *
+     * @param toolName 当前模型工具名。
+     * @param fileName 文件路径。
+     * @param content 完整文件内容。
+     * @param crossProfile 是否已获用户明确授权修改其他 Profile。
+     * @return 返回结构化写入结果。
+     */
+    private String writeInternal(
+            String toolName, String fileName, String content, boolean crossProfile) {
+        ToolCrossProfilePathSupport.CrossProfileTarget crossTarget =
+                ToolCrossProfilePathSupport.classify(rootPath, fileName);
+        if (crossTarget != null && !crossProfile) {
+            return ToolResultEnvelope.error(ToolCrossProfilePathSupport.warning(crossTarget))
+                    .data("path", safeDisplayPath(fileName))
+                    .toJson();
+        }
+        assertSafe(toolName, fileName);
         assertNotInternalFileStatusContent(content);
         Path target;
         try {
-            target = resolvePath(fileName);
+            target = resolveWritePath(fileName, crossProfile);
         } catch (SecurityException e) {
             throw new IllegalArgumentException(
-                    outsideWorkspaceApprovalRequired(ToolNameConstants.FILE_WRITE, fileName), e);
+                    outsideWorkspaceApprovalRequired(toolName, fileName), e);
         }
         String staleWarning = fileStateTracker.checkStaleness(fileName, target);
         String result;
@@ -246,11 +275,21 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      *
      * @param path 文件路径。
      * @param content 待写入内容。
+     * @param crossProfile 是否显式允许写入其他 Profile 的用户目录。
      * @return 返回write结果。
      */
     @ToolMapping(name = "write_file", description = "Write text content to a workspace file.")
-    public String writeFile(@Param("path") String path, @Param("content") String content) {
-        return write(path, content);
+    public String writeFile(
+            @Param("path") String path,
+            @Param("content") String content,
+            @Param(
+                            name = "cross_profile",
+                            description = "仅在用户明确要求修改其他 Profile 后设为 true",
+                            required = false,
+                            defaultValue = "false")
+                    Boolean crossProfile) {
+        return writeInternal(
+                ToolNameConstants.WRITE_FILE, path, content, Boolean.TRUE.equals(crossProfile));
     }
 
     /**
@@ -303,9 +342,10 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      */
     @ToolMapping(
             name = "read_file",
-            description = "Read a text file with line numbers. offset starts at 1 and limit defaults to 500.")
+            description =
+                    "Read a text file with line numbers. offset starts at 1 and limit defaults to 500.")
     public String readFile(
-            @Param(name = "path", required = false) String path,
+            @Param(name = "path") String path,
             @Param(name = "offset", required = false, defaultValue = "1") Integer offset,
             @Param(name = "limit", required = false, defaultValue = "500") Integer limit) {
         assertSafe(ToolNameConstants.READ_FILE, path);
@@ -318,16 +358,19 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      * @param pattern 搜索模式。
      * @param target 搜索目标：content/files。
      * @param path 搜索目录。
-     * @param fileGlob 文件名包含过滤。
+     * @param fileGlob 文件 glob 过滤。
      * @param limit 最大返回条数。
      * @param offset 跳过条数。
      * @param outputMode 输出模式。
      * @param context 匹配上下文行数。
      * @return 返回搜索结果。
      */
-    @ToolMapping(name = "search_files", description = "Search workspace files by content or file name.")
+    @ToolMapping(
+            name = "search_files",
+            description = "Search workspace files by content or file name.")
     public String searchFiles(
-            @Param(name = "pattern", description = "Text or regex pattern to search.") String pattern,
+            @Param(name = "pattern", description = "Text or regex pattern to search.")
+                    String pattern,
             @Param(name = "target", required = false, defaultValue = "content") String target,
             @Param(name = "path", required = false, defaultValue = ".") String path,
             @Param(name = "file_glob", required = false) String fileGlob,
@@ -344,6 +387,19 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
         int safeLimit = Math.max(1, Math.min(limit == null ? 50 : limit.intValue(), 200));
         int safeOffset = Math.max(0, offset == null ? 0 : offset.intValue());
         int safeContext = Math.max(0, Math.min(context == null ? 0 : context.intValue(), 5));
+        String safeTarget =
+                StrUtil.blankToDefault(target, "content").trim().toLowerCase(Locale.ROOT);
+        if (!"content".equals(safeTarget) && !"files".equals(safeTarget)) {
+            return ToolResultEnvelope.error("target must be content or files").toJson();
+        }
+        String safeOutputMode =
+                StrUtil.blankToDefault(outputMode, "content").trim().toLowerCase(Locale.ROOT);
+        if (!"content".equals(safeOutputMode)
+                && !"files_only".equals(safeOutputMode)
+                && !"count".equals(safeOutputMode)) {
+            return ToolResultEnvelope.error("output_mode must be content, files_only, or count")
+                    .toJson();
+        }
         Path root;
         try {
             root = resolvePath(StrUtil.blankToDefault(path, "."));
@@ -355,32 +411,67 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
                     .data("path", safeDisplayPath(path))
                     .toJson();
         }
-        SearchCollector collector =
-                new SearchCollector(
-                        query,
-                        StrUtil.blankToDefault(target, "content"),
-                        fileGlob,
-                        StrUtil.blankToDefault(outputMode, "content"),
-                        safeLimit,
-                        safeOffset,
-                        safeContext);
+        SearchCollector collector;
+        try {
+            collector =
+                    new SearchCollector(
+                            query,
+                            safeTarget,
+                            fileGlob,
+                            safeOutputMode,
+                            safeLimit,
+                            safeOffset,
+                            safeContext);
+        } catch (PatternSyntaxException e) {
+            return ToolResultEnvelope.error("搜索 glob 无效: " + safeToolError(e)).toJson();
+        }
         try {
             searchFiles(root, collector);
         } catch (Exception e) {
             return ToolResultEnvelope.error("搜索失败: " + safeToolError(e)).toJson();
         }
         String preview = joinSearchMatches(collector.matches);
+        String searchSignature =
+                query
+                        + '\n'
+                        + StrUtil.blankToDefault(target, "content")
+                        + '\n'
+                        + root.toAbsolutePath().normalize()
+                        + '\n'
+                        + StrUtil.nullToEmpty(fileGlob)
+                        + '\n'
+                        + safeOutputMode
+                        + '\n'
+                        + safeContext
+                        + '\n'
+                        + safeOffset
+                        + '\n'
+                        + safeLimit
+                        + '\n'
+                        + collector.matched
+                        + '\n'
+                        + preview;
+        synchronized (this) {
+            if (searchSignature.equals(lastSearchSignature)) {
+                consecutiveSearchCount++;
+            } else {
+                lastSearchSignature = searchSignature;
+                consecutiveSearchCount = 1;
+            }
+            if (consecutiveSearchCount >= 3) {
+                return ToolResultEnvelope.error(
+                                "BLOCKED: 已连续多次搜索同一范围且结果未变化。请使用之前的 search_files 结果继续任务。")
+                        .data("search_count", Integer.valueOf(consecutiveSearchCount))
+                        .toJson();
+            }
+        }
         return ToolResultEnvelope.ok(
-                        "搜索完成："
-                                + collector.returned
-                                + "/"
-                                + collector.matched
-                                + " matches")
+                        "搜索完成：" + collector.returned + "/" + collector.matched + " matches")
                 .data("pattern", SecretRedactor.redact(query, 400))
                 .data("target", collector.target)
                 .data("path", safeDisplayPath(StrUtil.blankToDefault(path, ".")))
                 .data("matches", collector.matches)
-                .data("match_count", Integer.valueOf(collector.matched))
+                .data("match_count", Integer.valueOf(collector.totalMatches()))
                 .data("returned", Integer.valueOf(collector.returned))
                 .data("offset", Integer.valueOf(safeOffset))
                 .data("limit", Integer.valueOf(safeLimit))
@@ -451,11 +542,11 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     }
 
     /**
-     * 执行阻断消息相关逻辑。
+     * 生成文件策略硬阻断消息，并对敏感路径做统一脱敏。
      *
      * @param toolName 工具名称。
-     * @param verdict 判定参数。
-     * @return 返回blocked消息结果。
+     * @param verdict 文件安全策略判定。
+     * @return 返回模型可消费的阻断消息。
      */
     private String blockedMessage(String toolName, SecurityPolicyService.FileVerdict verdict) {
         return "BLOCKED: 文件安全策略阻止访问："
@@ -650,12 +741,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      * @param collector 搜索状态。
      */
     private void searchOneFile(Path file, SearchCollector collector) {
-        if (!allowedSuggestion(file)) {
+        if (!collector.acceptFile(file) || !allowedSuggestion(file)) {
             return;
         }
         String displayPath = displayPathForCandidate(file);
         if (collector.searchFilesOnly()) {
-            if (collector.matchesText(displayPath)) {
+            if (collector.matchesFilePath(displayPath)) {
                 collector.addMatch(searchMatch(displayPath, 0, ""));
             }
             return;
@@ -665,6 +756,22 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
         }
         try {
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            if (collector.filesOnlyOutput() || collector.countOutput()) {
+                int count = 0;
+                for (String line : lines) {
+                    if (collector.matchesText(stripLeadingBom(line))) {
+                        count++;
+                    }
+                }
+                if (count > 0) {
+                    Map<String, Object> match = searchMatch(displayPath, 0, "");
+                    if (collector.countOutput()) {
+                        match.put("count", Integer.valueOf(count));
+                    }
+                    collector.addMatch(match, collector.countOutput() ? count : 1);
+                }
+                return;
+            }
             for (int i = 0; i < lines.size() && !collector.isFull(); i++) {
                 String line = stripLeadingBom(lines.get(i));
                 if (collector.matchesText(line)) {
@@ -971,7 +1078,8 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
         String value = StrUtil.nullToEmpty(content);
         String oldContent =
                 Files.exists(target) && !Files.isDirectory(target)
-                        ? stripLeadingBom(new String(Files.readAllBytes(target), StandardCharsets.UTF_8))
+                        ? stripLeadingBom(
+                                new String(Files.readAllBytes(target), StandardCharsets.UTF_8))
                         : "";
         ConfigSecretWriteGuard.assertNoPlaceholderSecretDowngrade(target, oldContent, value);
         if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
@@ -1001,9 +1109,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
                     && (bytes[2] & 0xFF) == 0xBF;
         } catch (Exception e) {
             log.warn(
-                    "检查文件BOM失败，按无BOM处理 path={} error={}",
-                    safeLogPath(target),
-                    exceptionSummary(e));
+                    "检查文件BOM失败，按无BOM处理 path={} error={}", safeLogPath(target), exceptionSummary(e));
             return false;
         }
     }
@@ -1040,6 +1146,28 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
         }
         ToolWorkspacePathSupport.assertResolvedWithinRoot(path, realRootPath);
         return path;
+    }
+
+    /**
+     * 解析写入目标；显式授权时只额外允许其他 Profile 的受保护用户目录。
+     *
+     * @param name 原始目标路径。
+     * @param crossProfile 是否允许跨 Profile 写入。
+     * @return 通过当前工作区或跨 Profile 边界校验的目标路径。
+     */
+    private Path resolveWritePath(String name, boolean crossProfile) {
+        ToolCrossProfilePathSupport.CrossProfileTarget crossTarget =
+                ToolCrossProfilePathSupport.classify(rootPath, name);
+        if (crossTarget == null) {
+            return resolvePath(name);
+        }
+        if (!crossProfile) {
+            throw new SecurityException(ToolCrossProfilePathSupport.warning(crossTarget));
+        }
+        Path target = crossTarget.target();
+        Path realProfileHome = ToolWorkspacePathSupport.safeRealPath(crossTarget.profileHome());
+        ToolWorkspacePathSupport.assertResolvedWithinRoot(target, realProfileHome);
+        return target;
     }
 
     /**
@@ -1600,6 +1728,12 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
         /** 文件名过滤。 */
         private final String fileGlob;
 
+        /** 文件名过滤对应的系统 glob 匹配器。 */
+        private final PathMatcher fileGlobMatcher;
+
+        /** target=files 时使用的文件名 glob 匹配器。 */
+        private final PathMatcher filePatternMatcher;
+
         /** 输出模式。 */
         private final String outputMode;
 
@@ -1620,6 +1754,9 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
 
         /** 匹配总数。 */
         private int matched;
+
+        /** 输出模式语义下的真实命中数量。 */
+        private int totalMatches;
 
         /** 返回数量。 */
         private int returned;
@@ -1648,13 +1785,16 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
                 int context) {
             this.pattern = StrUtil.nullToEmpty(pattern);
             this.target = StrUtil.blankToDefault(target, "content").trim().toLowerCase(Locale.ROOT);
-            this.fileGlob = StrUtil.nullToEmpty(fileGlob).trim().toLowerCase(Locale.ROOT);
+            this.fileGlob = StrUtil.nullToEmpty(fileGlob).trim();
             this.outputMode =
                     StrUtil.blankToDefault(outputMode, "content").trim().toLowerCase(Locale.ROOT);
             this.limit = limit;
             this.offset = offset;
             this.context = context;
             this.regex = compileRegex(this.pattern);
+            this.fileGlobMatcher = compileGlob(this.fileGlob, false);
+            this.filePatternMatcher =
+                    "files".equals(this.target) ? compileGlob(this.pattern, true) : null;
         }
 
         /**
@@ -1663,7 +1803,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
          * @return 如果只搜索文件名返回true。
          */
         private boolean searchFilesOnly() {
-            return "files".equals(target) || "filename".equals(target) || "file".equals(target);
+            return "files".equals(target);
         }
 
         /**
@@ -1673,14 +1813,36 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
          * @return 如果接受返回true。
          */
         private boolean acceptFile(Path path) {
-            if (StrUtil.isBlank(fileGlob)) {
-                return true;
-            }
-            String name =
-                    path == null || path.getFileName() == null
-                            ? ""
-                            : path.getFileName().toString().toLowerCase(Locale.ROOT);
-            return name.contains(fileGlob.replace("*", ""));
+            return fileGlobMatcher == null || matchesGlob(fileGlobMatcher, path);
+        }
+
+        /**
+         * 判断 target=files 的文件路径是否命中 glob。
+         *
+         * @param displayPath 相对工作区展示路径。
+         * @return 命中时返回 true。
+         */
+        private boolean matchesFilePath(String displayPath) {
+            return filePatternMatcher != null
+                    && matchesGlob(filePatternMatcher, Paths.get(displayPath));
+        }
+
+        /**
+         * 判断是否只返回命中文件路径。
+         *
+         * @return output_mode=files_only 时返回 true。
+         */
+        private boolean filesOnlyOutput() {
+            return "files_only".equals(outputMode);
+        }
+
+        /**
+         * 判断是否按文件返回命中次数。
+         *
+         * @return output_mode=count 时返回 true。
+         */
+        private boolean countOutput() {
+            return "count".equals(outputMode);
         }
 
         /**
@@ -1703,7 +1865,18 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
          * @param match 匹配项。
          */
         private void addMatch(Map<String, Object> match) {
+            addMatch(match, 1);
+        }
+
+        /**
+         * 追加匹配项并记录该结果代表的真实命中数量。
+         *
+         * @param match 匹配项。
+         * @param occurrences 当前结果代表的命中数量。
+         */
+        private void addMatch(Map<String, Object> match, int occurrences) {
             matched++;
+            totalMatches += Math.max(0, occurrences);
             if (matched <= offset) {
                 return;
             }
@@ -1713,6 +1886,15 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
             }
             matches.add(match);
             returned++;
+        }
+
+        /**
+         * 读取当前输出模式对应的真实命中数量。
+         *
+         * @return count 模式返回行命中总数，其它模式返回结果命中数。
+         */
+        private int totalMatches() {
+            return totalMatches;
         }
 
         /**
@@ -1768,6 +1950,55 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
                 log.debug("搜索正则编译失败，按普通文本匹配 error={}", exceptionSummary(e));
                 return null;
             }
+        }
+
+        /**
+         * 编译系统原生 glob；文件搜索的裸文本会自动包成包含匹配。
+         *
+         * @param pattern glob 文本。
+         * @param wrapBare 是否把不含 glob 元字符的文本包成包含匹配。
+         * @return 空文本返回 null，否则返回路径匹配器。
+         */
+        private static PathMatcher compileGlob(String pattern, boolean wrapBare) {
+            String value = StrUtil.nullToEmpty(pattern).trim();
+            if (StrUtil.isBlank(value)) {
+                return null;
+            }
+            if (wrapBare && !containsGlobMeta(value)) {
+                value = "*" + value + "*";
+            }
+            String platformPattern = value.replace('/', File.separatorChar);
+            return FileSystems.getDefault().getPathMatcher("glob:" + platformPattern);
+        }
+
+        /**
+         * 判断 glob 文本是否包含通配或字符组语法。
+         *
+         * @param value glob 文本。
+         * @return 包含 glob 元字符时返回 true。
+         */
+        private static boolean containsGlobMeta(String value) {
+            return value.indexOf('*') >= 0
+                    || value.indexOf('?') >= 0
+                    || value.indexOf('[') >= 0
+                    || value.indexOf('{') >= 0;
+        }
+
+        /**
+         * 同时尝试完整相对路径和文件名，兼容 `src/*.java` 与 `*.java` 两类常用 glob。
+         *
+         * @param matcher glob 匹配器。
+         * @param path 候选路径。
+         * @return 任一形态命中时返回 true。
+         */
+        private static boolean matchesGlob(PathMatcher matcher, Path path) {
+            if (matcher == null || path == null) {
+                return false;
+            }
+            Path normalized = Paths.get(path.toString().replace('/', File.separatorChar));
+            return matcher.matches(normalized)
+                    || (normalized.getFileName() != null
+                            && matcher.matches(normalized.getFileName()));
         }
 
         /**

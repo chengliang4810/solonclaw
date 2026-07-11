@@ -1,22 +1,19 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.COMMAND_ARGUMENT_KEYS;
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.HARDLINE_METADATA_URL_RULE_KEY;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.HARDLINE_RULES;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.INLINE_BACKGROUND_AMP;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.LONG_LIVED_FOREGROUND_PATTERNS;
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.PYTHON_SHELL_EXEC_CALL;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.RULES;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.SHELL_LEVEL_BACKGROUND;
 import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.TRAILING_BACKGROUND_AMP;
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.hardlineRuleSamples;
-import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.ruleSamples;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
@@ -69,8 +66,7 @@ public class DangerousCommandApprovalService {
     public static final String CARD_ACTION_DENY = "dangerous_deny";
 
     /** 上下文待恢复审批队列的统一常量值。 */
-    static final String CONTEXT_PENDING_APPROVAL_QUEUE =
-            "_dangerous_command_pending_queue_";
+    static final String CONTEXT_PENDING_APPROVAL_QUEUE = "_dangerous_command_pending_queue_";
 
     /** 上下文会话APPROVALS的统一常量值。 */
     static final String CONTEXT_SESSION_APPROVALS = "_dangerous_command_session_approvals_";
@@ -96,11 +92,19 @@ public class DangerousCommandApprovalService {
     private static final String POLICY_WORKSPACE_OUTSIDE_WRITE =
             POLICY_PATTERN_PREFIX + "workspace_outside_write";
 
+    /** 云元数据与链路本地 URL 的 hardline 类别键。 */
+    private static final String HARDLINE_METADATA_URL_RULE_KEY = "metadata_url_access";
+
     /** 审批选择器PREFIX最小LENGTH的统一常量值。 */
     static final int APPROVAL_SELECTOR_PREFIX_MIN_LENGTH = 8;
 
     /** 审批选择器token的统一常量值。 */
     static final Pattern APPROVAL_SELECTOR_TOKEN = Pattern.compile("[A-Za-z0-9_.-]{1,128}");
+
+    /** 未配置 sudo 密码时，显式要求从标准输入读取密码的命令位置。 */
+    private static final Pattern SUDO_STDIN_PATTERN =
+            Pattern.compile(
+                    "(?:^|[;&|`\\n]|&&|\\|\\||\\$\\()\\s*sudo\\s+-S\\b", Pattern.CASE_INSENSITIVE);
 
     /** 保存global设置仓储集合，维持调用顺序或去重语义。 */
     private final GlobalSettingRepository globalSettingRepository;
@@ -227,65 +231,82 @@ public class DangerousCommandApprovalService {
     public HITLInterceptor buildInterceptor() {
         HITLInterceptor interceptor =
                 new HITLInterceptor()
-                .onTool(
-                        ToolNameConstants.EXECUTE_SHELL,
-                        (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_SHELL, args))
-                .onTool(
-                        ToolNameConstants.EXECUTE_PYTHON,
-                        (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_PYTHON, args))
-                .onTool(
-                        ToolNameConstants.EXECUTE_JS,
-                        (trace, args) -> evaluate(trace, ToolNameConstants.EXECUTE_JS, args))
-                .onTool(
-                        ToolNameConstants.EXECUTE_CODE,
-                        (trace, args) ->
-                                evaluateCodeCommand(
-                                        trace, ToolNameConstants.EXECUTE_CODE, codeArg(args)))
-                .onTool(
-                        ToolNameConstants.TERMINAL,
-                        (trace, args) -> evaluateTerminalTool(trace, args))
-                .onTool(
-                        ToolNameConstants.PROCESS,
-                        (trace, args) -> evaluateProcessTool(trace, args))
-                .onTool("call_tool", (trace, args) -> evaluateGatewayCallTool(trace, args))
-                .onTool(
-                        ToolNameConstants.FILE_READ,
-                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_READ, args))
-                .onTool(
-                        ToolNameConstants.FILE_WRITE,
-                        (trace, args) ->
-                                evaluateFileTool(trace, ToolNameConstants.FILE_WRITE, args))
-                .onTool(
-                        ToolNameConstants.READ_FILE,
-                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.READ_FILE, args))
-                .onTool(
-                        ToolNameConstants.WRITE_FILE,
-                        (trace, args) ->
-                                evaluateFileTool(trace, ToolNameConstants.WRITE_FILE, args))
-                .onTool(
-                        ToolNameConstants.SEARCH_FILES,
-                        (trace, args) ->
-                                evaluateFileTool(trace, ToolNameConstants.SEARCH_FILES, args))
-                .onTool(
-                        ToolNameConstants.FILE_LIST,
-                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.FILE_LIST, args))
-                .onTool(
-                        ToolNameConstants.FILE_DELETE,
-                        (trace, args) ->
-                                evaluateFileTool(trace, ToolNameConstants.FILE_DELETE, args))
-                .onTool(
-                        ToolNameConstants.PATCH,
-                        (trace, args) -> evaluateFileTool(trace, ToolNameConstants.PATCH, args))
-                .onTool(
-                        ToolNameConstants.WEBFETCH,
-                        (trace, args) -> evaluateUrlTool(trace, ToolNameConstants.WEBFETCH, args))
-                .onTool(
-                        ToolNameConstants.WEBSEARCH,
-                        (trace, args) -> evaluateUrlTool(trace, ToolNameConstants.WEBSEARCH, args))
-                .onTool(
-                        ToolNameConstants.CODESEARCH,
-                        (trace, args) ->
-                                evaluateUrlTool(trace, ToolNameConstants.CODESEARCH, args));
+                        .onTool(
+                                ToolNameConstants.EXECUTE_SHELL,
+                                (trace, args) ->
+                                        evaluate(trace, ToolNameConstants.EXECUTE_SHELL, args))
+                        .onTool(
+                                ToolNameConstants.EXECUTE_PYTHON,
+                                (trace, args) ->
+                                        evaluateCodeCommand(
+                                                trace,
+                                                ToolNameConstants.EXECUTE_PYTHON,
+                                                codeArg(args)))
+                        .onTool(
+                                ToolNameConstants.EXECUTE_JS,
+                                (trace, args) ->
+                                        evaluateCodeCommand(
+                                                trace, ToolNameConstants.EXECUTE_JS, codeArg(args)))
+                        .onTool(
+                                ToolNameConstants.EXECUTE_CODE,
+                                (trace, args) ->
+                                        evaluateCodeCommand(
+                                                trace,
+                                                ToolNameConstants.EXECUTE_CODE,
+                                                codeArg(args)))
+                        .onTool(
+                                ToolNameConstants.TERMINAL,
+                                (trace, args) -> evaluateTerminalTool(trace, args))
+                        .onTool(
+                                ToolNameConstants.PROCESS,
+                                (trace, args) -> evaluateProcessTool(trace, args))
+                        .onTool("call_tool", (trace, args) -> evaluateGatewayCallTool(trace, args))
+                        .onTool(
+                                ToolNameConstants.FILE_READ,
+                                (trace, args) ->
+                                        evaluateFileTool(trace, ToolNameConstants.FILE_READ, args))
+                        .onTool(
+                                ToolNameConstants.FILE_WRITE,
+                                (trace, args) ->
+                                        evaluateFileTool(trace, ToolNameConstants.FILE_WRITE, args))
+                        .onTool(
+                                ToolNameConstants.READ_FILE,
+                                (trace, args) ->
+                                        evaluateFileTool(trace, ToolNameConstants.READ_FILE, args))
+                        .onTool(
+                                ToolNameConstants.WRITE_FILE,
+                                (trace, args) ->
+                                        evaluateFileTool(trace, ToolNameConstants.WRITE_FILE, args))
+                        .onTool(
+                                ToolNameConstants.SEARCH_FILES,
+                                (trace, args) ->
+                                        evaluateFileTool(
+                                                trace, ToolNameConstants.SEARCH_FILES, args))
+                        .onTool(
+                                ToolNameConstants.FILE_LIST,
+                                (trace, args) ->
+                                        evaluateFileTool(trace, ToolNameConstants.FILE_LIST, args))
+                        .onTool(
+                                ToolNameConstants.FILE_DELETE,
+                                (trace, args) ->
+                                        evaluateFileTool(
+                                                trace, ToolNameConstants.FILE_DELETE, args))
+                        .onTool(
+                                ToolNameConstants.PATCH,
+                                (trace, args) ->
+                                        evaluateFileTool(trace, ToolNameConstants.PATCH, args))
+                        .onTool(
+                                ToolNameConstants.WEBFETCH,
+                                (trace, args) ->
+                                        evaluateUrlTool(trace, ToolNameConstants.WEBFETCH, args))
+                        .onTool(
+                                ToolNameConstants.WEBSEARCH,
+                                (trace, args) ->
+                                        evaluateUrlTool(trace, ToolNameConstants.WEBSEARCH, args))
+                        .onTool(
+                                ToolNameConstants.CODESEARCH,
+                                (trace, args) ->
+                                        evaluateUrlTool(trace, ToolNameConstants.CODESEARCH, args));
         return interceptor;
     }
 
@@ -360,7 +381,9 @@ public class DangerousCommandApprovalService {
             Map<?, ?> snapshot = (Map<?, ?>) parsed;
             return filterActivePendingApprovals(pendingQueueFrom(snapshot));
         } catch (Exception e) {
-            log.debug("Pending approval snapshot parsing failed; returning empty approval list: {}", exceptionSummary(e));
+            log.debug(
+                    "Pending approval snapshot parsing failed; returning empty approval list: {}",
+                    exceptionSummary(e));
             return new ArrayList<PendingApproval>();
         }
     }
@@ -608,17 +631,23 @@ public class DangerousCommandApprovalService {
             return null;
         }
 
-        for (DangerRule rule : RULES) {
-            if (!rule.matches(toolName, normalized)) {
-                continue;
-            }
+        List<String> variants =
+                ToolNameConstants.EXECUTE_SHELL.equals(toolName)
+                        ? DangerousCommandTextSupport.detectionVariants(code)
+                        : Collections.singletonList(normalized);
+        for (String variant : variants) {
+            for (DangerRule rule : RULES) {
+                if (!rule.matches(toolName, variant)) {
+                    continue;
+                }
 
-            DetectionResult result = new DetectionResult();
-            result.setPatternKey(rule.getPatternKey());
-            result.setPatternKeys(Collections.singletonList(rule.getPatternKey()));
-            result.setDescription(rule.getDescription());
-            result.setNormalizedCode(normalized);
-            return result;
+                DetectionResult result = new DetectionResult();
+                result.setPatternKey(rule.getPatternKey());
+                result.setPatternKeys(Collections.singletonList(rule.getPatternKey()));
+                result.setDescription(rule.getDescription());
+                result.setNormalizedCode(normalized);
+                return result;
+            }
         }
 
         DetectionResult blockedPath = detectCommandPathForApproval(toolName, normalized);
@@ -681,27 +710,31 @@ public class DangerousCommandApprovalService {
         if (StrUtil.isBlank(normalized)) {
             return null;
         }
-        for (DangerRule rule : HARDLINE_RULES) {
-            if (!rule.matches(toolName, normalized)) {
-                continue;
+        for (String variant : DangerousCommandTextSupport.detectionVariants(code)) {
+            for (DangerRule rule : HARDLINE_RULES) {
+                if (!rule.matches(toolName, variant)) {
+                    continue;
+                }
+                DetectionResult result = new DetectionResult();
+                result.setPatternKey(rule.getPatternKey());
+                result.setPatternKeys(Collections.singletonList(rule.getPatternKey()));
+                result.setDescription(rule.getDescription());
+                result.setNormalizedCode(normalized);
+                result.setHardline(true);
+                if (isHardlineAllowlisted(result)) {
+                    return null;
+                }
+                return result;
             }
-            DetectionResult result = new DetectionResult();
-            result.setPatternKey(rule.getPatternKey());
-            result.setPatternKeys(Collections.singletonList(rule.getPatternKey()));
-            result.setDescription(rule.getDescription());
-            result.setNormalizedCode(normalized);
-            result.setHardline(true);
-            if (isHardlineAllowlisted(result)) {
-                return null;
-            }
-            return result;
         }
         DetectionResult blockedUrl = detectHardlineCommandUrl(toolName, normalized);
         if (blockedUrl != null) {
             return blockedUrl;
         }
-        if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
-            for (String shellCommand : DangerousCommandTextSupport.extractPythonShellCommands(normalized)) {
+        if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)
+                || ToolNameConstants.EXECUTE_CODE.equals(toolName)) {
+            for (String shellCommand :
+                    DangerousCommandTextSupport.extractPythonShellCommands(normalized)) {
                 DetectionResult result =
                         detectHardline(ToolNameConstants.EXECUTE_SHELL, shellCommand);
                 if (result != null) {
@@ -710,10 +743,10 @@ public class DangerousCommandApprovalService {
             }
         }
         if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
-            String childProcessCommand = DangerousCommandTextSupport.extractJavaScriptChildProcessCommand(normalized);
-            if (StrUtil.isNotBlank(childProcessCommand)) {
+            for (String shellCommand :
+                    DangerousCommandTextSupport.extractJavaScriptChildProcessCommands(normalized)) {
                 DetectionResult result =
-                        detectHardline(ToolNameConstants.EXECUTE_SHELL, childProcessCommand);
+                        detectHardline(ToolNameConstants.EXECUTE_SHELL, shellCommand);
                 if (result != null) {
                     return result;
                 }
@@ -722,19 +755,9 @@ public class DangerousCommandApprovalService {
         return null;
     }
 
-    /**
-     * 执行detectHardline命令URL相关逻辑。
-     *
-     * @param toolName 工具名称。
-     * @param normalized normalized 参数。
-     * @return 返回detect Hardline命令URL结果。
-     */
+    /** 检测命令中的云元数据与链路本地 URL hardline。 */
     private DetectionResult detectHardlineCommandUrl(String toolName, String normalized) {
-        if (securityPolicyService == null
-                || (!ToolNameConstants.EXECUTE_SHELL.equals(toolName)
-                        && !ToolNameConstants.EXECUTE_PYTHON.equals(toolName)
-                        && !ToolNameConstants.EXECUTE_JS.equals(toolName)
-                        && !ToolNameConstants.EXECUTE_CODE.equals(toolName))) {
+        if (securityPolicyService == null || !isCommandSecurityTool(toolName)) {
             return null;
         }
         SecurityPolicyService.UrlVerdict verdict =
@@ -748,18 +771,10 @@ public class DangerousCommandApprovalService {
         result.setDescription(verdict.getMessage());
         result.setNormalizedCode(normalized);
         result.setHardline(true);
-        if (isHardlineAllowlisted(result)) {
-            return null;
-        }
-        return result;
+        return isHardlineAllowlisted(result) ? null : result;
     }
 
-    /**
-     * 判断是否Hardline Allowlisted。
-     *
-     * @param result 结果响应或执行结果。
-     * @return 如果Hardline Allowlisted满足条件则返回 true，否则返回 false。
-     */
+    /** 判断 hardline 类别是否被当前配置显式放行。 */
     private boolean isHardlineAllowlisted(DetectionResult result) {
         if (result == null || appConfig == null || appConfig.getSecurity() == null) {
             return false;
@@ -770,10 +785,9 @@ public class DangerousCommandApprovalService {
         }
         Set<String> allowed = new LinkedHashSet<String>();
         for (String item : configured) {
-            if (StrUtil.isBlank(item)) {
-                continue;
+            if (StrUtil.isNotBlank(item)) {
+                allowed.add(item.trim().toLowerCase(Locale.ROOT));
             }
-            allowed.add(item.trim().toLowerCase(Locale.ROOT));
         }
         if (allowed.contains("*")) {
             return true;
@@ -795,29 +809,8 @@ public class DangerousCommandApprovalService {
      */
     public String foregroundBackgroundGuidance(String toolName, String code) {
         String normalized = normalize(code);
-        if (StrUtil.isBlank(normalized) || DangerousCommandTextSupport.looksLikeHelpOrVersionCommand(normalized)) {
-            return null;
-        }
-        if (ToolNameConstants.EXECUTE_PYTHON.equals(toolName)) {
-            for (String shellCommand : DangerousCommandTextSupport.extractPythonShellCommands(normalized)) {
-                String guidance =
-                        foregroundBackgroundGuidance(ToolNameConstants.EXECUTE_SHELL, shellCommand);
-                if (guidance != null) {
-                    return "BLOCKED: Python 脚本中的 shell 调用需要改用受管后台进程能力。\n" + guidance;
-                }
-            }
-            return null;
-        }
-        if (ToolNameConstants.EXECUTE_JS.equals(toolName)) {
-            String childProcessCommand = DangerousCommandTextSupport.extractJavaScriptChildProcessCommand(normalized);
-            if (StrUtil.isNotBlank(childProcessCommand)) {
-                String guidance =
-                        foregroundBackgroundGuidance(
-                                ToolNameConstants.EXECUTE_SHELL, childProcessCommand);
-                if (guidance != null) {
-                    return "BLOCKED: Node 脚本中的 child_process 调用需要改用受管后台进程能力。\n" + guidance;
-                }
-            }
+        if (StrUtil.isBlank(normalized)
+                || DangerousCommandTextSupport.looksLikeHelpOrVersionCommand(normalized)) {
             return null;
         }
         if (!ToolNameConstants.EXECUTE_SHELL.equals(toolName)) {
@@ -825,15 +818,15 @@ public class DangerousCommandApprovalService {
         }
 
         if (SHELL_LEVEL_BACKGROUND.matcher(normalized).find()) {
-            return "BLOCKED: 前台命令使用了 shell 级后台包装（nohup/disown/setsid）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出，然后再单独执行就绪检查或测试。";
+            return "前台命令使用了 shell 级后台包装（nohup/disown/setsid）。请使用受管的后台进程能力，以便 Agent 跟踪生命周期和输出，然后再单独执行就绪检查或测试。";
         }
         if (INLINE_BACKGROUND_AMP.matcher(normalized).find()
                 || TRAILING_BACKGROUND_AMP.matcher(normalized).find()) {
-            return "BLOCKED: 前台命令使用了 '&' 后台执行。请使用受管的后台进程能力启动长驻进程，然后在后续命令中执行健康检查或测试。";
+            return "前台命令使用了 '&' 后台执行。请使用受管的后台进程能力启动长驻进程，然后在后续命令中执行健康检查或测试。";
         }
         for (Pattern pattern : LONG_LIVED_FOREGROUND_PATTERNS) {
             if (pattern.matcher(normalized).find()) {
-                return "BLOCKED: 该前台命令看起来会启动长驻服务或 watch 进程。请改用受管的后台进程能力，等待健康检查或日志信号后，再用单独命令运行测试。";
+                return "该前台命令看起来会启动长驻服务或 watch 进程。请改用受管的后台进程能力，等待健康检查或日志信号后，再用单独命令运行测试。";
             }
         }
         return null;
@@ -906,11 +899,7 @@ public class DangerousCommandApprovalService {
     /** 创建审批策略摘要生成器。 */
     private DangerousCommandApprovalPolicySummaries policySummaries() {
         return new DangerousCommandApprovalPolicySummaries(
-                this,
-                appConfig,
-                tirithSecurityService != null,
-                securityPolicyService != null,
-                approvalObservers.size());
+                this, appConfig, tirithSecurityService != null, approvalObservers.size());
     }
 
     /**
@@ -1125,8 +1114,7 @@ public class DangerousCommandApprovalService {
      * @return 如果会话自动审批启用则返回 true，否则返回 false。
      */
     public boolean isSessionAutoApprovalEnabled(AgentSession session) {
-        return session != null
-                && truthy(session.getContext().get(CONTEXT_SESSION_AUTO_APPROVAL));
+        return session != null && truthy(session.getContext().get(CONTEXT_SESSION_AUTO_APPROVAL));
     }
 
     /** 清理Always Approvals。 */
@@ -1420,8 +1408,8 @@ public class DangerousCommandApprovalService {
         }
         String normalized = canonicalGatewayToolName(toolName);
         GatewayToolArgsResult parsedArgs = gatewayToolArgs(args);
-        if (isGatewaySecurityTool(normalized) && !parsedArgs.isValid()) {
-            blockMalformedGatewayToolArgs(trace, normalized, parsedArgs);
+        if (!parsedArgs.isValid()) {
+            ReActToolObservationSupport.set(trace, null, parsedArgs.getMessage());
             return null;
         }
         Map<String, Object> toolArgs = parsedArgs.getArgs();
@@ -1430,10 +1418,11 @@ public class DangerousCommandApprovalService {
                         && trace.getContext() != null
                         && trace.getContext().getAs(HITL.DECISION_PREFIX + normalized) != null;
         String result;
-        if (ToolNameConstants.EXECUTE_SHELL.equals(normalized)
-                || ToolNameConstants.EXECUTE_PYTHON.equals(normalized)
-                || ToolNameConstants.EXECUTE_JS.equals(normalized)) {
+        if (ToolNameConstants.EXECUTE_SHELL.equals(normalized)) {
             result = evaluate(trace, normalized, toolArgs);
+        } else if (ToolNameConstants.EXECUTE_PYTHON.equals(normalized)
+                || ToolNameConstants.EXECUTE_JS.equals(normalized)) {
+            result = evaluateCodeCommand(trace, normalized, codeArg(toolArgs));
         } else if (ToolNameConstants.EXECUTE_CODE.equals(normalized)) {
             result = evaluateCodeCommand(trace, ToolNameConstants.EXECUTE_CODE, codeArg(toolArgs));
         } else if (ToolNameConstants.TERMINAL.equals(normalized)) {
@@ -1472,6 +1461,15 @@ public class DangerousCommandApprovalService {
                 || "browser_type".equals(lower)
                 || "browser_screenshot".equals(lower)
                 || "browser_extract".equals(lower)
+                || "browser_snapshot".equals(lower)
+                || "browser_scroll".equals(lower)
+                || "browser_back".equals(lower)
+                || "browser_press".equals(lower)
+                || "browser_get_images".equals(lower)
+                || "browser_vision".equals(lower)
+                || "browser_console".equals(lower)
+                || "browser_cdp".equals(lower)
+                || "browser_dialog".equals(lower)
                 || "browser_close".equals(lower)) {
             return ToolNameConstants.BROWSER;
         }
@@ -1533,15 +1531,11 @@ public class DangerousCommandApprovalService {
      * @param args 工具或命令参数。
      * @return 返回消息网关工具参数结果。
      */
-    @SuppressWarnings("unchecked")
     private GatewayToolArgsResult gatewayToolArgs(Map<String, Object> args) {
         if (args == null) {
-            return GatewayToolArgsResult.valid(new LinkedHashMap<String, Object>());
+            return GatewayToolArgsResult.invalid("call_tool.tool_args 必须是 JSON 对象。", "");
         }
         Object raw = args.get("tool_args");
-        if (raw == null) {
-            raw = args.get("args");
-        }
         if (raw instanceof Map) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
@@ -1552,67 +1546,7 @@ public class DangerousCommandApprovalService {
             return GatewayToolArgsResult.valid(result);
         }
         String text = raw == null ? "" : String.valueOf(raw).trim();
-        if (text.length() == 0) {
-            return GatewayToolArgsResult.valid(new LinkedHashMap<String, Object>());
-        }
-        try {
-            Object parsed = ONode.deserialize(text, Object.class);
-            if (parsed instanceof Map) {
-                Map<String, Object> result = new LinkedHashMap<String, Object>();
-                for (Map.Entry<?, ?> entry : ((Map<?, ?>) parsed).entrySet()) {
-                    if (entry.getKey() != null) {
-                        result.put(String.valueOf(entry.getKey()), entry.getValue());
-                    }
-                }
-                return GatewayToolArgsResult.valid(result);
-            }
-            return GatewayToolArgsResult.invalid("tool_args 必须是 JSON 对象。", text);
-        } catch (Exception e) {
-            log.debug("Gateway tool args JSON parsing failed: {}", exceptionSummary(e));
-            return GatewayToolArgsResult.invalid("tool_args 不是合法 JSON。", text);
-        }
-    }
-
-    /**
-     * 判断是否消息网关安全工具。
-     *
-     * @param toolName 工具名称。
-     * @return 如果消息网关安全工具满足条件则返回 true，否则返回 false。
-     */
-    private boolean isGatewaySecurityTool(String toolName) {
-        return ToolNameConstants.EXECUTE_SHELL.equals(toolName)
-                || ToolNameConstants.EXECUTE_PYTHON.equals(toolName)
-                || ToolNameConstants.EXECUTE_JS.equals(toolName)
-                || ToolNameConstants.EXECUTE_CODE.equals(toolName)
-                || ToolNameConstants.TERMINAL.equals(toolName)
-                || ToolNameConstants.PROCESS.equals(toolName)
-                || ToolNameConstants.isFileSecurityTool(toolName)
-                || isUrlSecurityTool(toolName);
-    }
-
-    /**
-     * 执行阻断Malformed消息网关工具参数相关逻辑。
-     *
-     * @param trace trace 参数。
-     * @param toolName 工具名称。
-     * @param parsedArgs parsedArgs 参数。
-     */
-    private void blockMalformedGatewayToolArgs(
-            ReActTrace trace, String toolName, GatewayToolArgsResult parsedArgs) {
-        if (trace == null) {
-            return;
-        }
-        StringBuilder message = new StringBuilder();
-        message.append("BLOCKED: 工具网关参数格式无效，无法安全检查内层工具调用。");
-        message.append("\n工具：").append(messageRenderer.toolLabel(toolName));
-        message.append("\n原因：").append(parsedArgs.getMessage());
-        if (StrUtil.isNotBlank(parsedArgs.getRawText())) {
-            message.append("\n参数预览：").append(SecretRedactor.redact(parsedArgs.getRawText(), 400));
-        }
-        message.append("\n请把 tool_args 改为 JSON 对象后再重试。");
-        trace.setFinalAnswer(message.toString());
-        trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
-        persistTraceSnapshot(trace);
+        return GatewayToolArgsResult.invalid("call_tool.tool_args 必须是 JSON 对象。", text);
     }
 
     /**
@@ -1667,6 +1601,12 @@ public class DangerousCommandApprovalService {
             persistTraceSnapshot(trace);
             return null;
         }
+        if (hasUnconfiguredSudoStdin(ruleToolName, code)) {
+            trace.setFinalAnswer(messageRenderer.buildSudoStdinMessage(approvalToolName, code));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
         return evaluateCommandWithoutHardline(trace, approvalToolName, ruleToolName, code);
     }
 
@@ -1679,7 +1619,11 @@ public class DangerousCommandApprovalService {
      * @return 返回evaluate Code命令结果。
      */
     private String evaluateCodeCommand(ReActTrace trace, String approvalToolName, String code) {
-        DetectionResult hardline = detectHardline(ToolNameConstants.EXECUTE_PYTHON, code);
+        String ruleToolName =
+                ToolNameConstants.EXECUTE_JS.equals(approvalToolName)
+                        ? ToolNameConstants.EXECUTE_JS
+                        : ToolNameConstants.EXECUTE_PYTHON;
+        DetectionResult hardline = detectHardline(ruleToolName, code);
         if (hardline != null) {
             trace.setFinalAnswer(
                     messageRenderer.buildHardlineMessage(approvalToolName, hardline, code));
@@ -1687,8 +1631,28 @@ public class DangerousCommandApprovalService {
             persistTraceSnapshot(trace);
             return null;
         }
-        return evaluateCommandWithoutHardline(
-                trace, approvalToolName, ToolNameConstants.EXECUTE_PYTHON, code);
+
+        String denyReason = matchUserDenyRule(code);
+        if (denyReason != null) {
+            trace.setFinalAnswer(messageRenderer.buildUserDenyMessage(denyReason));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
+        String guardrailMode = guardrailMode();
+        if ("bypass".equals(guardrailMode) || isSessionAutoApprovalEnabled(trace.getSession())) {
+            persistTraceSnapshot(trace);
+            return null;
+        }
+
+        DetectionResult detection = new DetectionResult();
+        detection.setPatternKey(ToolNameConstants.EXECUTE_CODE);
+        detection.setPatternKeys(Collections.singletonList(ToolNameConstants.EXECUTE_CODE));
+        detection.setDescription("整段代码执行可直接启动子进程或修改文件，需要在运行前统一审批");
+        detection.setNormalizedCode(normalize(code));
+        return evaluateDangerousCommandApproval(
+                trace, approvalToolName, code, guardrailMode, detection);
     }
 
     /**
@@ -1704,27 +1668,9 @@ public class DangerousCommandApprovalService {
             ReActTrace trace, String approvalToolName, String ruleToolName, String code) {
         String guardrailMode = guardrailMode();
 
-        SecurityPolicyService.FileVerdict fileVerdict = detectHardBlockedCommandPath(code);
-        if (fileVerdict != null) {
-            trace.setFinalAnswer(messageRenderer.buildFilePolicyMessage(approvalToolName, fileVerdict));
-            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
-            persistTraceSnapshot(trace);
-            return null;
-        }
-
-        SecurityPolicyService.UrlVerdict urlVerdict = detectHardBlockedCommandUrl(code);
-        if (urlVerdict != null) {
-            trace.setFinalAnswer(messageRenderer.buildUrlPolicyMessage(urlVerdict));
-            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
-            persistTraceSnapshot(trace);
-            return null;
-        }
-
         String denyReason = matchUserDenyRule(code);
         if (denyReason != null) {
-            trace.setFinalAnswer(
-                    "BLOCKED: 命令匹配用户配置的不可绕过 deny 规则: " + denyReason
-                            + "。如需修改请调整 approvals.deny 配置。");
+            trace.setFinalAnswer(messageRenderer.buildUserDenyMessage(denyReason));
             trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
             persistTraceSnapshot(trace);
             return null;
@@ -1744,16 +1690,6 @@ public class DangerousCommandApprovalService {
         if (detection != null) {
             return evaluateDangerousCommandApproval(
                     trace, approvalToolName, code, guardrailMode, detection);
-        }
-
-        fileVerdict = detectApprovalRequiredCommandPath(code);
-        if (fileVerdict != null) {
-            return evaluatePolicyApproval(trace, approvalToolName, filePolicyDetection(fileVerdict));
-        }
-
-        urlVerdict = detectApprovalRequiredCommandUrl(code);
-        if (urlVerdict != null) {
-            return evaluatePolicyApproval(trace, approvalToolName, urlPolicyDetection(urlVerdict));
         }
 
         persistTraceSnapshot(trace);
@@ -1776,30 +1712,6 @@ public class DangerousCommandApprovalService {
             String code,
             String guardrailMode,
             DetectionResult detection) {
-        SecurityPolicyService.FileVerdict fileVerdict = detectUnsafeCommandPath(code);
-        if (fileVerdict != null && !fileVerdict.isApprovalRequired()) {
-            trace.setFinalAnswer(messageRenderer.buildFilePolicyMessage(approvalToolName, fileVerdict));
-            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
-            persistTraceSnapshot(trace);
-            return null;
-        }
-
-        SecurityPolicyService.UrlVerdict urlVerdict = detectUnsafeCommandUrl(code);
-        if (urlVerdict != null && !urlVerdict.isApprovalRequired()) {
-            trace.setFinalAnswer(messageRenderer.buildUrlPolicyMessage(urlVerdict));
-            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
-            persistTraceSnapshot(trace);
-            return null;
-        }
-
-        if ("strict".equals(guardrailMode)) {
-            trace.setFinalAnswer(
-                    messageRenderer.buildStrictDeniedMessage(approvalToolName, detection, code));
-            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
-            persistTraceSnapshot(trace);
-            return null;
-        }
-
         String approvalKey = combinedApprovalKey(approvalToolName, detection);
         PendingApproval pending = getPendingApproval(trace.getSession());
         if (trace.getContext().getAs(HITL.DECISION_PREFIX + approvalToolName) != null) {
@@ -1836,24 +1748,25 @@ public class DangerousCommandApprovalService {
             return null;
         }
         if (smartDecision != null && smartDecision.isDenied()) {
-            trace.setFinalAnswer(messageRenderer.buildSmartDeniedMessage(detection, smartDecision));
+            trace.setFinalAnswer(
+                    "BLOCKED: 智能审批拒绝该危险操作："
+                            + StrUtil.blankToDefault(
+                                    detection.getDescription(), detection.getPatternKey()));
             trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
             persistTraceSnapshot(trace);
             return null;
         }
-
         if (isSubagentRun()) {
             if (isSubagentAutoApproveEnabled()) {
                 markCurrentThreadApproval(approvalToolName, code);
                 persistTraceSnapshot(trace);
                 return null;
             }
-            trace.setFinalAnswer(messageRenderer.buildSubagentDeniedMessage(detection));
+            trace.setFinalAnswer(buildSubagentDeniedMessage(detection));
             trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
             persistTraceSnapshot(trace);
             return null;
         }
-
         Map<String, Object> pendingMap = createPendingMap(approvalToolName, detection, code);
         storePendingMap(trace.getSession(), pendingMap);
         trace.getSession().pending(true, "dangerous_command_approval");
@@ -1968,7 +1881,9 @@ public class DangerousCommandApprovalService {
                 return approvals;
             }
         } catch (Exception e) {
-            log.debug("Once approval JSON parsing failed; treating raw text as approval key: {}", exceptionSummary(e));
+            log.debug(
+                    "Once approval JSON parsing failed; treating raw text as approval key: {}",
+                    exceptionSummary(e));
         }
         approvals.add(text);
         return approvals;
@@ -2145,87 +2060,18 @@ public class DangerousCommandApprovalService {
     }
 
     /**
-     * 执行detectUn安全命令路径相关逻辑。
-     *
-     * @param code code 参数。
-     * @return 返回detect Unsafe命令路径。
-     */
-    private SecurityPolicyService.FileVerdict detectUnsafeCommandPath(String code) {
-        if (securityPolicyService == null) {
-            return null;
-        }
-        if (!SolonClawCodeExecutionSkills.isFileGuardrailEnabled(appConfig)) {
-            return null;
-        }
-        SecurityPolicyService.FileVerdict verdict = securityPolicyService.checkCommandPaths(code);
-        return verdict.isAllowed() ? null : verdict;
-    }
-
-    /**
-     * 检测命令中的硬阻断文件策略，不消费一次性策略审批。
-     *
-     * @param code code 参数。
-     * @return 返回硬阻断文件策略。
-     */
-    private SecurityPolicyService.FileVerdict detectHardBlockedCommandPath(String code) {
-        SecurityPolicyService.FileVerdict verdict =
-                SecurityPolicyService.previewPolicyApprovals(
-                        () -> detectUnsafeCommandPath(code));
-        return verdict != null && !verdict.isApprovalRequired() ? verdict : null;
-    }
-
-    /**
-     * 检测命令中需要人工审批的文件策略，不消费线程内策略审批。
-     *
-     * @param code code 参数。
-     * @return 返回需审批文件策略。
-     */
-    private SecurityPolicyService.FileVerdict detectApprovalRequiredCommandPath(String code) {
-        SecurityPolicyService.FileVerdict verdict =
-                SecurityPolicyService.previewPolicyApprovals(
-                        () -> detectUnsafeCommandPath(code));
-        return verdict != null && verdict.isApprovalRequired() ? verdict : null;
-    }
-
-    /**
-     * 执行detectUn安全命令URL相关逻辑。
-     *
-     * @param code code 参数。
-     * @return 返回detect Unsafe命令URL结果。
-     */
-    private SecurityPolicyService.UrlVerdict detectUnsafeCommandUrl(String code) {
-        if (securityPolicyService == null) {
-            return null;
-        }
-        if (!SolonClawCodeExecutionSkills.isUrlGuardrailEnabled(appConfig)) {
-            return null;
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkCommandUrls(code);
-        return verdict.isAllowed() ? null : verdict;
-    }
-
-    /**
-     * 检测命令中的硬阻断 URL 策略，不消费一次性策略审批。
+     * 检测命令中的云元数据与链路本地 URL 永久底线，不受普通 URL 审批策略影响。
      *
      * @param code code 参数。
      * @return 返回硬阻断 URL 策略。
      */
-    private SecurityPolicyService.UrlVerdict detectHardBlockedCommandUrl(String code) {
+    private SecurityPolicyService.UrlVerdict detectAlwaysBlockedCommandUrl(String code) {
+        if (securityPolicyService == null) {
+            return null;
+        }
         SecurityPolicyService.UrlVerdict verdict =
-                SecurityPolicyService.previewPolicyApprovals(() -> detectUnsafeCommandUrl(code));
-        return verdict != null && !verdict.isApprovalRequired() ? verdict : null;
-    }
-
-    /**
-     * 检测命令中需要人工审批的 URL 策略，不消费线程内策略审批。
-     *
-     * @param code code 参数。
-     * @return 返回需审批 URL 策略。
-     */
-    private SecurityPolicyService.UrlVerdict detectApprovalRequiredCommandUrl(String code) {
-        SecurityPolicyService.UrlVerdict verdict =
-                SecurityPolicyService.previewPolicyApprovals(() -> detectUnsafeCommandUrl(code));
-        return verdict != null && verdict.isApprovalRequired() ? verdict : null;
+                securityPolicyService.checkCommandAlwaysBlockedUrls(code);
+        return verdict.isAllowed() ? null : verdict;
     }
 
     /**
@@ -2237,7 +2083,8 @@ public class DangerousCommandApprovalService {
      * @return 返回evaluate文件工具结果。
      */
     private String evaluateFileTool(ReActTrace trace, String toolName, Map<String, Object> args) {
-        if (securityPolicyService == null) {
+        if (securityPolicyService == null
+                || !SolonClawCodeExecutionSkills.isFileGuardrailEnabled(appConfig)) {
             return null;
         }
         SecurityPolicyService.FileVerdict verdict =
@@ -2248,7 +2095,11 @@ public class DangerousCommandApprovalService {
         if (verdict.isApprovalRequired()) {
             return evaluatePolicyApproval(trace, toolName, filePolicyDetection(verdict));
         }
-        trace.setFinalAnswer(messageRenderer.buildFilePolicyMessage(toolName, verdict));
+        trace.setFinalAnswer(
+                "BLOCKED: 文件安全策略阻止访问："
+                        + verdict.getMessage()
+                        + " path="
+                        + SecretRedactor.redact(StrUtil.nullToEmpty(verdict.getPath()), 400));
         trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
         persistTraceSnapshot(trace);
         return null;
@@ -2263,7 +2114,8 @@ public class DangerousCommandApprovalService {
      * @return 返回evaluate URL工具结果。
      */
     private String evaluateUrlTool(ReActTrace trace, String toolName, Map<String, Object> args) {
-        if (securityPolicyService == null) {
+        if (securityPolicyService == null
+                || !SolonClawCodeExecutionSkills.isUrlGuardrailEnabled(appConfig)) {
             return null;
         }
         SecurityPolicyService.UrlVerdict verdict =
@@ -2274,7 +2126,11 @@ public class DangerousCommandApprovalService {
         if (verdict.isApprovalRequired()) {
             return evaluatePolicyApproval(trace, toolName, urlPolicyDetection(verdict));
         }
-        trace.setFinalAnswer(messageRenderer.buildUrlPolicyMessage(verdict));
+        trace.setFinalAnswer(
+                "BLOCKED: URL 安全策略阻止访问："
+                        + verdict.getMessage()
+                        + " url="
+                        + SecretRedactor.maskUrl(verdict.getUrl()));
         trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
         persistTraceSnapshot(trace);
         return null;
@@ -2316,7 +2172,12 @@ public class DangerousCommandApprovalService {
             return null;
         }
         if (isSubagentRun()) {
-            trace.setFinalAnswer(messageRenderer.buildSubagentDeniedMessage(detection));
+            if (isSubagentAutoApproveEnabled()) {
+                markCurrentThreadPolicyApproval(detection);
+                persistTraceSnapshot(trace);
+                return null;
+            }
+            trace.setFinalAnswer(buildSubagentDeniedMessage(detection));
             trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
             persistTraceSnapshot(trace);
             return null;
@@ -2327,7 +2188,8 @@ public class DangerousCommandApprovalService {
         trace.getSession().pending(true, "dangerous_command_approval");
         persistTraceSnapshot(trace);
         notifyApprovalRequest(trace.getSession(), toPendingApproval(pendingMap));
-        return messageRenderer.buildPendingMessage(toolName, detection, detection.getNormalizedCode());
+        return messageRenderer.buildPendingMessage(
+                toolName, detection, detection.getNormalizedCode());
     }
 
     /**
@@ -2401,7 +2263,9 @@ public class DangerousCommandApprovalService {
             try {
                 observer.onApprovalRequest(event);
             } catch (Exception e) {
-                log.debug("Approval request observer failed; continuing other observers: {}", exceptionSummary(e));
+                log.debug(
+                        "Approval request observer failed; continuing other observers: {}",
+                        exceptionSummary(e));
                 // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
@@ -2427,7 +2291,9 @@ public class DangerousCommandApprovalService {
             try {
                 observer.onApprovalResponse(event);
             } catch (Exception e) {
-                log.debug("Approval response observer failed; continuing other observers: {}", exceptionSummary(e));
+                log.debug(
+                        "Approval response observer failed; continuing other observers: {}",
+                        exceptionSummary(e));
                 // 保留此处实现约束，避免后续维护时破坏既有行为。
             }
         }
@@ -2466,14 +2332,14 @@ public class DangerousCommandApprovalService {
      * @param code 待检查的命令文本。
      * @return 命中时返回匹配的 deny 规则，未命中返回 null。
      */
-    private String matchUserDenyRule(String code) {
+    String matchUserDenyRule(String code) {
         if (appConfig == null
                 || appConfig.getApprovals() == null
                 || appConfig.getApprovals().getDeny() == null) {
             return null;
         }
-        String normalized = StrUtil.nullToEmpty(code).trim();
-        if (normalized.length() == 0) {
+        List<String> variants = DangerousCommandTextSupport.detectionVariants(code);
+        if (variants.isEmpty()) {
             return null;
         }
         for (String pattern : appConfig.getApprovals().getDeny()) {
@@ -2481,17 +2347,17 @@ public class DangerousCommandApprovalService {
             if (trimmedPattern.length() == 0) {
                 continue;
             }
-            if (cn.hutool.core.text.CharSequenceUtil.containsIgnoreCase(
-                    normalized, trimmedPattern)
-                    || matchesGlobIgnoreCase(normalized, trimmedPattern)) {
-                return trimmedPattern;
+            for (String variant : variants) {
+                if (matchesGlobIgnoreCase(variant.trim(), trimmedPattern)) {
+                    return trimmedPattern;
+                }
             }
         }
         return null;
     }
 
     /**
-     * 简单的 glob 匹配，对齐外部对标仓库 fnmatch 的 {@code *} 通配。
+     * 全量 glob 匹配，对齐外部对标仓库 fnmatch 的大小写无关语义。
      *
      * @param text 待匹配的命令文本。
      * @param pattern glob 模式。
@@ -2500,11 +2366,28 @@ public class DangerousCommandApprovalService {
     private boolean matchesGlobIgnoreCase(String text, String pattern) {
         String lowerText = text.toLowerCase(Locale.ROOT);
         String lowerPattern = pattern.toLowerCase(Locale.ROOT);
-        String regex = lowerPattern
-                .replace(".", "\\.")
-                .replace("*", ".*")
-                .replace("?", ".");
-        return lowerText.matches(".*" + regex + ".*");
+        StringBuilder regex = new StringBuilder("^");
+        for (int index = 0; index < lowerPattern.length(); index++) {
+            char current = lowerPattern.charAt(index);
+            if (current == '*') {
+                regex.append(".*");
+            } else if (current == '?') {
+                regex.append('.');
+            } else if (current == '[') {
+                int closing = lowerPattern.indexOf(']', index + 1);
+                if (closing > index + 1) {
+                    regex.append(lowerPattern, index, closing + 1);
+                    index = closing;
+                } else {
+                    regex.append("\\[");
+                }
+            } else if ("\\.^$|(){}+".indexOf(current) >= 0) {
+                regex.append('\\').append(current);
+            } else {
+                regex.append(current);
+            }
+        }
+        return lowerText.matches(regex.append('$').toString());
     }
 
     /**
@@ -2515,36 +2398,37 @@ public class DangerousCommandApprovalService {
      */
     private String normalizeGuardrailMode(String raw) {
         String mode = StrUtil.blankToDefault(raw, "approval").trim().toLowerCase(Locale.ROOT);
-        if ("bypass".equals(mode)
-                || "approval".equals(mode)
-                || "strict".equals(mode)
-                || "smart".equals(mode)) {
+        if ("bypass".equals(mode) || "approval".equals(mode) || "smart".equals(mode)) {
             return mode;
         }
         throw new IllegalStateException(
-                "security.guardrailMode 只支持 approval、strict、bypass、smart，当前值：" + raw);
+                "security.guardrailMode 只支持 approval、bypass、smart，当前值：" + raw);
     }
 
-    /**
-     * 判断是否Subagent Auto Approve 启用。
-     *
-     * @return 如果Subagent Auto Approve 启用满足条件则返回 true，否则返回 false。
-     */
-    public boolean isSubagentAutoApproveEnabled() {
-        return appConfig != null
-                && appConfig.getApprovals() != null
-                && appConfig.getApprovals().isSubagentAutoApprove();
-    }
-
-    /**
-     * 判断是否Sudo密码Configured。
-     *
-     * @return 如果Sudo密码Configured满足条件则返回 true，否则返回 false。
-     */
+    /** 判断是否已通过环境变量或运行配置提供受管 sudo 密码。 */
     private boolean isSudoPasswordConfigured() {
-        return appConfig != null
-                && appConfig.getTerminal() != null
-                && StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword());
+        return StrUtil.isNotBlank(ProfileRuntimeScope.environmentValue("SOLONCLAW_SUDO_PASSWORD"))
+                || (appConfig != null
+                        && appConfig.getTerminal() != null
+                        && StrUtil.isNotBlank(appConfig.getTerminal().getSudoPassword()));
+    }
+
+    /**
+     * 检查未配置密码时显式 sudo -S 的猜测路径；配置密码后的内部 stdin 注入不受影响。
+     *
+     * @param toolName 发起命令的工具名称。
+     * @param code 待执行命令或代码文本。
+     * @return 存在不可绕过的 sudo stdin 密码猜测时返回 true。
+     */
+    boolean hasUnconfiguredSudoStdin(String toolName, String code) {
+        if (isSudoPasswordConfigured()) {
+            return false;
+        }
+        String normalized = normalize(code);
+        if (SUDO_STDIN_PATTERN.matcher(normalized).find()) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -2649,8 +2533,7 @@ public class DangerousCommandApprovalService {
      * @param enabled 启用状态开关值。
      * @return 返回会话自动审批结果。
      */
-    private boolean setSessionAutoApproval(AgentSession session, boolean enabled)
-            throws Exception {
+    private boolean setSessionAutoApproval(AgentSession session, boolean enabled) throws Exception {
         if (session == null) {
             return false;
         }
@@ -2704,14 +2587,14 @@ public class DangerousCommandApprovalService {
      */
     private String normalizeCronApprovalMode(String raw) {
         String mode = StrUtil.blankToDefault(raw, "strict").trim().toLowerCase(Locale.ROOT);
-        if ("approval".equals(mode)
-                || "strict".equals(mode)
+        if ("strict".equals(mode)
+                || "approval".equals(mode)
                 || "bypass".equals(mode)
                 || "approve".equals(mode)) {
             return mode;
         }
         throw new IllegalStateException(
-                "security.guardrailCronMode 只支持 approval、strict、bypass、approve，当前值：" + raw);
+                "security.guardrailCronMode 只支持 strict、approval、bypass、approve，当前值：" + raw);
     }
 
     /**
@@ -2723,6 +2606,25 @@ public class DangerousCommandApprovalService {
         AgentRunContext current = AgentRunContext.current();
         return current != null
                 && "subagent".equalsIgnoreCase(StrUtil.nullToEmpty(current.getRunKind()));
+    }
+
+    /** 判断子 Agent 是否允许对可审批危险命令自动批准一次。 */
+    public boolean isSubagentAutoApproveEnabled() {
+        return appConfig != null
+                && appConfig.getApprovals() != null
+                && appConfig.getApprovals().isSubagentAutoApprove();
+    }
+
+    /** 构建子 Agent 默认拒绝危险操作的提示。 */
+    private String buildSubagentDeniedMessage(DetectionResult detection) {
+        String description =
+                detection == null
+                        ? "dangerous command"
+                        : StrUtil.blankToDefault(
+                                detection.getDescription(), detection.getPatternKey());
+        return "BLOCKED: 子 Agent 默认拒绝可审批危险命令："
+                + SecretRedactor.redact(description, 1000)
+                + "。如确实需要在可信批处理里允许，请设置 approvals.subagentAutoApprove=true。";
     }
 
     /**
@@ -2917,7 +2819,9 @@ public class DangerousCommandApprovalService {
                 return pending.get(index - 1);
             }
         } catch (Exception e) {
-            log.debug("Approval selector index parsing failed; trying selector match: {}", exceptionSummary(e));
+            log.debug(
+                    "Approval selector index parsing failed; trying selector match: {}",
+                    exceptionSummary(e));
             // 保留此处实现约束，避免后续维护时破坏既有行为。
         }
         for (PendingApproval item : pending) {
@@ -3083,7 +2987,9 @@ public class DangerousCommandApprovalService {
             try {
                 parsed = ONode.deserialize(String.valueOf(raw), Object.class);
             } catch (Exception e) {
-                log.debug("Pending approval list JSON parsing failed; returning empty list: {}", exceptionSummary(e));
+                log.debug(
+                        "Pending approval list JSON parsing failed; returning empty list: {}",
+                        exceptionSummary(e));
                 parsed = null;
             }
         }
@@ -3237,7 +3143,9 @@ public class DangerousCommandApprovalService {
                     globalSettingRepository.get(
                             AgentSettingConstants.DANGEROUS_COMMAND_ALWAYS_PATTERNS));
         } catch (Exception e) {
-            log.debug("Always approved pattern loading failed; returning empty pattern set: {}", exceptionSummary(e));
+            log.debug(
+                    "Always approved pattern loading failed; returning empty pattern set: {}",
+                    exceptionSummary(e));
             return new LinkedHashSet<String>();
         }
     }
@@ -3281,7 +3189,9 @@ public class DangerousCommandApprovalService {
                     return values;
                 }
             } catch (Exception e) {
-                log.debug("Always approved pattern JSON parsing failed; treating value as plain text: {}", exceptionSummary(e));
+                log.debug(
+                        "Always approved pattern JSON parsing failed; treating value as plain text: {}",
+                        exceptionSummary(e));
                 // 非 JSON 审批值按普通文本处理，避免手写审批参数解析失败。
             }
         }
@@ -3454,7 +3364,9 @@ public class DangerousCommandApprovalService {
             Object parsed = ONode.deserialize(text, Object.class);
             return parsed instanceof Map ? (Map<?, ?>) parsed : null;
         } catch (Exception e) {
-            log.debug("Approval map JSON parsing failed; returning null map: {}", exceptionSummary(e));
+            log.debug(
+                    "Approval map JSON parsing failed; returning null map: {}",
+                    exceptionSummary(e));
             return null;
         }
     }
@@ -3480,7 +3392,9 @@ public class DangerousCommandApprovalService {
             Object parsed = ONode.deserialize(text, Object.class);
             return parsed instanceof Map ? (Map<?, ?>) parsed : null;
         } catch (Exception e) {
-            log.debug("Static approval map JSON parsing failed; returning null map: {}", exceptionSummary(e));
+            log.debug(
+                    "Static approval map JSON parsing failed; returning null map: {}",
+                    exceptionSummary(e));
             return null;
         }
     }
@@ -3744,7 +3658,6 @@ public class DangerousCommandApprovalService {
         }
     }
 
-
     /** 枚举审批范围的可选值，保证状态表达在各模块间一致。 */
     public enum ApprovalScope {
         /** 表示ONCE枚举值。 */
@@ -3771,12 +3684,10 @@ public class DangerousCommandApprovalService {
     }
 
     /** 承载待恢复审批相关状态和辅助逻辑。 */
-    public static class PendingApproval extends DangerousPendingApprovalBase {
-    }
+    public static class PendingApproval extends DangerousPendingApprovalBase {}
 
     /** 表示Detection结果，携带调用方后续判断所需信息。 */
-    public static class DetectionResult extends DangerousDetectionResultBase {
-    }
+    public static class DetectionResult extends DangerousDetectionResultBase {}
 
     /** 定义审批Observer的抽象契约，供不同运行时实现保持一致行为。 */
     public interface ApprovalObserver {
@@ -3811,16 +3722,20 @@ public class DangerousCommandApprovalService {
     /** 承载审批响应事件相关状态和辅助逻辑。 */
     public static class ApprovalResponseEvent extends ApprovalRequestEvent {
         /** OUTCOMEAPPROVED的统一常量值。 */
-        public static final String OUTCOME_APPROVED = DangerousApprovalResponseEventBase.OUTCOME_APPROVED;
+        public static final String OUTCOME_APPROVED =
+                DangerousApprovalResponseEventBase.OUTCOME_APPROVED;
 
         /** OUTCOME拒绝的统一常量值。 */
-        public static final String OUTCOME_DENIED = DangerousApprovalResponseEventBase.OUTCOME_DENIED;
+        public static final String OUTCOME_DENIED =
+                DangerousApprovalResponseEventBase.OUTCOME_DENIED;
 
         /** OUTCOMETIMEDOUT的统一常量值。 */
-        public static final String OUTCOME_TIMED_OUT = DangerousApprovalResponseEventBase.OUTCOME_TIMED_OUT;
+        public static final String OUTCOME_TIMED_OUT =
+                DangerousApprovalResponseEventBase.OUTCOME_TIMED_OUT;
 
         /** OUTCOMEREVOKED的统一常量值。 */
-        public static final String OUTCOME_REVOKED = DangerousApprovalResponseEventBase.OUTCOME_REVOKED;
+        public static final String OUTCOME_REVOKED =
+                DangerousApprovalResponseEventBase.OUTCOME_REVOKED;
 
         /** 响应事件委托对象，复用脱敏和状态计算逻辑。 */
         private final DangerousApprovalResponseEventBase delegate;
@@ -3886,6 +3801,4 @@ public class DangerousCommandApprovalService {
             this.patternKey = patternKey;
         }
     }
-
-
 }

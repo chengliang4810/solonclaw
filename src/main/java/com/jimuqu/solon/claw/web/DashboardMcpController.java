@@ -29,8 +29,8 @@ public class DashboardMcpController {
      * @return 返回list结果。
      */
     @Mapping(value = "/api/mcp", method = MethodType.GET)
-    public Map<String, Object> list() throws Exception {
-        return DashboardResponse.ok(mcpService.list());
+    public Map<String, Object> list(Context context) throws Exception {
+        return safeMcp(context, () -> mcpService.list(context.param("profile")));
     }
 
     /**
@@ -51,7 +51,8 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.save(DashboardRequestBodies.jsonObjectMap(context));
+                        Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
+                        return mcpService.save(profile(context, body), body);
                     }
                 });
     }
@@ -62,8 +63,8 @@ public class DashboardMcpController {
      * @return 返回reload全部结果。
      */
     @Mapping(value = "/api/mcp/reload", method = MethodType.POST)
-    public Map<String, Object> reloadAll() throws Exception {
-        return DashboardResponse.ok(mcpService.reloadAllView());
+    public Map<String, Object> reloadAll(Context context) throws Exception {
+        return safeMcp(context, () -> mcpService.reloadAllView(context.param("profile")));
     }
 
     /**
@@ -72,8 +73,8 @@ public class DashboardMcpController {
      * @return 返回reload全部Async结果。
      */
     @Mapping(value = "/api/mcp/reload/async", method = MethodType.POST)
-    public Map<String, Object> reloadAllAsync() throws Exception {
-        return DashboardResponse.ok(mcpService.reloadAllAsyncView());
+    public Map<String, Object> reloadAllAsync(Context context) throws Exception {
+        return safeMcp(context, () -> mcpService.reloadAllAsyncView(context.param("profile")));
     }
 
     /**
@@ -95,7 +96,7 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.check(serverId);
+                        return mcpService.check(context.param("profile"), serverId);
                     }
                 });
     }
@@ -119,7 +120,7 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.connect(serverId);
+                        return mcpService.connect(context.param("profile"), serverId);
                     }
                 });
     }
@@ -143,7 +144,7 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.reload(serverId);
+                        return mcpService.reload(context.param("profile"), serverId);
                     }
                 });
     }
@@ -167,7 +168,7 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.refreshTools(serverId);
+                        return mcpService.refreshTools(context.param("profile"), serverId);
                     }
                 });
     }
@@ -179,8 +180,8 @@ public class DashboardMcpController {
      * @return 返回oauth状态。
      */
     @Mapping(value = "/api/mcp/{serverId}/oauth/status", method = MethodType.GET)
-    public Map<String, Object> oauthStatus(String serverId) throws Exception {
-        return DashboardResponse.ok(mcpService.oauthStatus(serverId));
+    public Map<String, Object> oauthStatus(String serverId, Context context) throws Exception {
+        return safeMcp(context, () -> mcpService.oauthStatus(context.param("profile"), serverId));
     }
 
     /**
@@ -202,8 +203,8 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.beginOAuth(
-                                serverId, DashboardRequestBodies.jsonObjectMap(context));
+                        Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
+                        return mcpService.beginOAuth(profile(context, body), serverId, body);
                     }
                 });
     }
@@ -231,7 +232,7 @@ public class DashboardMcpController {
                         body.put("code", context.param("code"));
                         body.put("state", context.param("state"));
                         body.put("error", context.param("error"));
-                        return mcpService.completeOAuth(serverId, body);
+                        return mcpService.completeOAuth(context.param("profile"), serverId, body);
                     }
                 });
     }
@@ -255,8 +256,8 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.completeOAuth(
-                                serverId, DashboardRequestBodies.jsonObjectMap(context));
+                        Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
+                        return mcpService.completeOAuth(profile(context, body), serverId, body);
                     }
                 });
     }
@@ -280,7 +281,7 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.refreshOAuth(serverId);
+                        return mcpService.refreshOAuth(context.param("profile"), serverId);
                     }
                 });
     }
@@ -304,7 +305,7 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.handleOAuth401(serverId);
+                        return mcpService.handleOAuth401(context.param("profile"), serverId);
                     }
                 });
     }
@@ -328,7 +329,7 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.clearOAuth(serverId);
+                        return mcpService.clearOAuth(context.param("profile"), serverId);
                     }
                 });
     }
@@ -352,7 +353,7 @@ public class DashboardMcpController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mcpService.delete(serverId);
+                        return mcpService.delete(context.param("profile"), serverId);
                     }
                 });
     }
@@ -367,11 +368,22 @@ public class DashboardMcpController {
     private Map<String, Object> safeMcp(Context context, McpAction action) throws Exception {
         try {
             return DashboardResponse.ok(action.run());
+        } catch (DashboardProfileScope.ProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "MCP_PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "MCP_BAD_REQUEST", e);
         } catch (IllegalStateException e) {
             return DashboardResponse.error(context, 400, "MCP_BAD_REQUEST", e);
         }
+    }
+
+    /** 写请求中请求体 profile 优先，未提供时使用查询参数。 */
+    private String profile(Context context, Map<String, Object> body) {
+        Object bodyProfile = body == null ? null : body.get("profile");
+        if (bodyProfile != null && String.valueOf(bodyProfile).trim().length() > 0) {
+            return String.valueOf(bodyProfile).trim();
+        }
+        return context.param("profile");
     }
 
     /** 定义MCP Action的抽象契约，供不同运行时实现保持一致行为。 */

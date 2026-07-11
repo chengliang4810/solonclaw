@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -24,6 +24,7 @@ import { getUiState } from './uiStore.js'
 
 const PASTE_SNIP_MAX_COUNT = 32
 const PASTE_SNIP_MAX_TOTAL_BYTES = 4 * 1024 * 1024
+const REMOTE_IMAGE_UPLOAD_MAX_BYTES = 25 * 1024 * 1024
 
 const trimSnips = (snips: PasteSnippet[]): PasteSnippet[] => {
   let total = 0
@@ -95,6 +96,31 @@ export function looksLikeDroppedPath(text: string): boolean {
   }
 
   return false
+}
+
+/** 本地路径 attach 失败时把图片字节上传到远程后端，非图片路径不读取也不上传。 */
+export async function attachDroppedImageBytes(
+  filePath: string,
+  sessionId: string,
+  request: <T>(method: string, params: Record<string, unknown>) => Promise<T>
+): Promise<ImageAttachResponse | null> {
+  const localPath = filePath.trim().replace(/^['"]|['"]$/g, '')
+
+  if (!/\.(?:png|jpe?g|gif|webp|bmp)$/i.test(localPath)) {
+    return null
+  }
+
+  if (statSync(localPath).size > REMOTE_IMAGE_UPLOAD_MAX_BYTES) {
+    throw new Error('image exceeds 25 MB upload limit')
+  }
+
+  const bytes = readFileSync(localPath)
+
+  return request<ImageAttachResponse>('image.attach_bytes', {
+    content_base64: bytes.toString('base64'),
+    filename: localPath.split(/[\\/]/).at(-1) ?? 'image',
+    session_id: sessionId
+  })
 }
 
 export function useComposerState({
@@ -175,7 +201,17 @@ export function useComposerState({
             return insertAtCursor(value, cursor, remainder)
           }
         } catch {
-          // Fall back to generic file-drop detection below.
+          try {
+            const attached = await attachDroppedImageBytes(cleanedText, sid, gw.request.bind(gw))
+
+            if (attached?.name) {
+              onImageAttached?.(attached)
+
+              return { cursor, value }
+            }
+          } catch {
+            // Fall back to generic file-drop detection below.
+          }
         }
 
         try {

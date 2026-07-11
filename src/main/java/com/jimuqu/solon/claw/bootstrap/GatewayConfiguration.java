@@ -13,7 +13,6 @@ import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
-import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.CommandService;
@@ -21,11 +20,13 @@ import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
+import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
-import com.jimuqu.solon.claw.core.service.LlmGateway;
+import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.gateway.authorization.GatewayOpenPolicyStartupGuard;
 import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.delivery.AdapterBackedDeliveryService;
@@ -41,6 +42,7 @@ import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartNotificationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.goal.GoalContractDrafter;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.LlmGoalJudge;
@@ -48,6 +50,9 @@ import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.proactive.ProactiveRepository;
+import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
@@ -127,7 +132,9 @@ public class GatewayConfiguration {
         adapters.put(
                 PlatformType.YUANBAO,
                 new YuanbaoChannelAdapter(
-                        appConfig.getChannels().getYuanbao(), securityPolicyService));
+                        appConfig.getChannels().getYuanbao(),
+                        attachmentCacheService,
+                        securityPolicyService));
         return adapters;
     }
 
@@ -418,6 +425,7 @@ public class GatewayConfiguration {
      * @param channelConnectionManager 渠道连接Manager参数。
      * @param gatewayRestartNotificationService 网关RestartNotification服务依赖。
      * @param agentRunSupervisor Agent 运行监督器，启用 goal 续轮抢占检查。
+     * @param appConfig 应用配置，用于解析当前 Profile 身份。
      * @return 返回消息网关服务结果。
      */
     @Bean
@@ -432,7 +440,8 @@ public class GatewayConfiguration {
             Map<PlatformType, ChannelAdapter> channelAdapters,
             ChannelConnectionManager channelConnectionManager,
             GatewayRestartNotificationService gatewayRestartNotificationService,
-            AgentRunSupervisor agentRunSupervisor) {
+            AgentRunSupervisor agentRunSupervisor,
+            AppConfig appConfig) {
         final DefaultGatewayService service =
                 new DefaultGatewayService(
                         commandService,
@@ -442,8 +451,11 @@ public class GatewayConfiguration {
                         gatewayAuthorizationService,
                         skillLearningService,
                         attachmentCacheService,
-                        channelAdapters);
+                        channelAdapters,
+                        appConfig);
         service.setAgentRunSupervisor(agentRunSupervisor);
+
+        final ProfileRuntimeScope.Context profileScope = ProfileRuntimeScope.current();
 
         channelConnectionManager.bindInboundHandler(
                 new InboundMessageHandler() {
@@ -454,14 +466,60 @@ public class GatewayConfiguration {
                      */
                     @Override
                     public void handle(GatewayMessage message) throws Exception {
-                        service.handle(message);
+                        if (message != null
+                                && (message.getProfile() == null
+                                        || message.getProfile().trim().length() == 0)) {
+                            message.setProfile(service.profileName());
+                        }
+                        if (profileScope == null) {
+                            service.handle(message);
+                            return;
+                        }
+                        try (ProfileRuntimeScope.Scope ignored =
+                                ProfileRuntimeScope.open(
+                                        profileScope.getProfile(),
+                                        profileScope.getHome(),
+                                        profileScope.getEnvironment(),
+                                        profileScope.getAppContext())) {
+                            service.handle(message);
+                        }
                     }
                 });
         if (StartupModeContext.shouldStartServerLifecycle()) {
+            GatewayOpenPolicyStartupGuard.requireAllowed(
+                    appConfig, ProfileRuntimeIdentity.resolve(appConfig));
             channelConnectionManager.startAll();
             gatewayRestartNotificationService.deliverPendingRestartOnlineNotification();
         }
         return service;
+    }
+
+    /**
+     * 创建 default 进程内的 Profile 复用运行时；命名 Profile 配置会被强制关闭递归复用。
+     *
+     * @param appConfig 当前 Profile 配置。
+     * @param gatewayService 当前 Profile 网关服务。
+     * @param channelAdapters 当前 Profile 渠道适配器。
+     * @param gatewayRuntimeRefreshService 当前 Profile 配置刷新服务。
+     * @return 当前 Bean 容器对应的 Profile 复用运行时管理器。
+     */
+    @Bean(destroyMethod = "close")
+    public ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager(
+            AppConfig appConfig,
+            DefaultGatewayService gatewayService,
+            Map<PlatformType, ChannelAdapter> channelAdapters,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
+        ProfileMultiplexRuntimeManager manager =
+                new ProfileMultiplexRuntimeManager(
+                        appConfig,
+                        ProfileBeanResolver.currentContext(),
+                        gatewayService,
+                        channelAdapters);
+        gatewayRuntimeRefreshService.setProfileMultiplexRuntimeManager(manager);
+        if (StartupModeContext.shouldStartServerLifecycle()) {
+            manager.start();
+        }
+        return manager;
     }
 
     /**

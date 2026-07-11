@@ -106,9 +106,10 @@ export interface ConfirmReq {
 }
 
 export interface ClarifyReq {
-  choices: string[] | null
+  choices?: string[] | null
   question: string
   requestId: string
+  sessionId: string
 }
 
 export interface Msg {

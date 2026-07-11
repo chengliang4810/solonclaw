@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -206,7 +207,8 @@ public class SolonClawShellSkill extends ShellTalent {
                             required = false,
                             defaultValue = "180000",
                             description =
-                                    "可选前台超时时间，单位为毫秒；显式传入时最大 600000ms，长时间任务请使用 terminal(background=true)。")
+                                    "可选前台超时时间，单位为毫秒；显式传入时最大 600000ms，长时间任务请使用"
+                                            + " terminal(background=true)。")
                     Integer timeout) {
         String commandError = validateCommand(code);
         if (commandError != null) {
@@ -289,7 +291,9 @@ public class SolonClawShellSkill extends ShellTalent {
     @ToolMapping(
             name = "terminal",
             description =
-                    "Terminal tool. Run foreground commands or use background=true for long-running processes; background runs return a process session_id for the process tool.")
+                    "Terminal tool. Run foreground commands or use background=true for long-running"
+                            + " processes; background runs return a process session_id for the process"
+                            + " tool.")
     public String terminal(
             @Param(name = "command", description = "Command to execute") String command,
             @Param(
@@ -303,7 +307,9 @@ public class SolonClawShellSkill extends ShellTalent {
                             required = false,
                             defaultValue = "180",
                             description =
-                                    "Timeout in seconds for foreground commands. Maximum 600 seconds when explicitly set; use background=true for long-running commands.")
+                                    "Timeout in seconds for foreground commands. Maximum 600"
+                                            + " seconds when explicitly set; use background=true for"
+                                            + " long-running commands.")
                     Integer timeoutSeconds,
             @Param(
                             name = "workdir",
@@ -315,7 +321,8 @@ public class SolonClawShellSkill extends ShellTalent {
                             required = false,
                             defaultValue = "false",
                             description =
-                                    "When true and background=true, the process is marked for one completion notification.")
+                                    "When true and background=true, the process is marked for one"
+                                            + " completion notification.")
                     Boolean notifyOnComplete,
             @Param(
                             name = "pty",
@@ -327,7 +334,8 @@ public class SolonClawShellSkill extends ShellTalent {
                             name = "watch_patterns",
                             required = false,
                             description =
-                                    "Strings to watch for in background output. Mutually exclusive with notify_on_complete.")
+                                    "Strings to watch for in background output. Mutually exclusive"
+                                            + " with notify_on_complete.")
                     List<String> watchPatterns) {
         try {
             if (Boolean.TRUE.equals(background)) {
@@ -687,10 +695,14 @@ public class SolonClawShellSkill extends ShellTalent {
         summary.put("missingPasswordHint", Boolean.TRUE);
         summary.put("blankPasswordIgnored", Boolean.TRUE);
         summary.put("requiresExplicitNonBlankSecret", Boolean.TRUE);
-        summary.put("credentialStorageRisk", "Configured sudo passwords can grant privileged command execution and should only be set in trusted local runtimes.");
+        summary.put(
+                "credentialStorageRisk",
+                "Configured sudo passwords can grant privileged command execution and should only"
+                        + " be set in trusted local runtimes.");
         summary.put(
                 "description",
-                "Configured sudo commands are rewritten to use sudo -S -p '' with the password sent through stdin; secrets are never embedded in the visible command.");
+                "Configured sudo commands are rewritten to use sudo -S -p '' with the password sent"
+                        + " through stdin; secrets are never embedded in the visible command.");
         return summary;
     }
 
@@ -733,7 +745,9 @@ public class SolonClawShellSkill extends ShellTalent {
         summary.put("foregroundRetryErrorsInterpreted", Boolean.TRUE);
         summary.put(
                 "description",
-                "Terminal output is ANSI-stripped, secret-redacted, bounded with a head/tail truncation notice, and enriched with timeout, sudo, and exit-code guidance before it is returned.");
+                "Terminal output is ANSI-stripped, secret-redacted, bounded with a head/tail"
+                        + " truncation notice, and enriched with timeout, sudo, and exit-code guidance"
+                        + " before it is returned.");
         return summary;
     }
 
@@ -940,7 +954,7 @@ public class SolonClawShellSkill extends ShellTalent {
         if (isGuardrailBypassMode()) {
             return null;
         }
-        String envValue = System.getenv("SOLONCLAW_SUDO_PASSWORD");
+        String envValue = ProfileRuntimeScope.environmentValue("SOLONCLAW_SUDO_PASSWORD");
         if (StrUtil.isNotBlank(envValue)) {
             return envValue;
         }
@@ -1257,13 +1271,15 @@ public class SolonClawShellSkill extends ShellTalent {
             autoSource = appConfig.getTerminal().isAutoSourceBashrc();
         }
         String home =
-                StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
+                StrUtil.blankToDefault(
+                        ProfileRuntimeScope.environmentValue("HOME"),
+                        System.getProperty("user.home"));
         return resolveShellInitFiles(
                 configured,
                 autoSource,
                 isWindows(),
                 home,
-                System.getenv(),
+                ProfileRuntimeScope.environmentSnapshot(),
                 effectiveSecurityPolicyService());
     }
 
@@ -1424,6 +1440,7 @@ public class SolonClawShellSkill extends ShellTalent {
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(safeDirectory);
             builder.redirectErrorStream(true);
+            ProfileRuntimeScope.replaceProcessEnvironment(builder.environment());
             SubprocessEnvironmentSanitizer.sanitize(builder.environment(), appConfig);
             Process process = builder.start();
             if (stdin == null) {
@@ -1432,13 +1449,14 @@ public class SolonClawShellSkill extends ShellTalent {
             final StringBuilder outputBuffer = new StringBuilder();
             CompletableFuture<Void> outputFuture =
                     CompletableFuture.runAsync(
-                            () -> {
-                                try {
-                                    readOutput(process, outputBuffer);
-                                } catch (Exception e) {
-                                    appendOutput(outputBuffer, "系统失败: " + safeError(e));
-                                }
-                            });
+                            ProfileRuntimeScope.capture(
+                                    () -> {
+                                        try {
+                                            readOutput(process, outputBuffer);
+                                        } catch (Exception e) {
+                                            appendOutput(outputBuffer, "系统失败: " + safeError(e));
+                                        }
+                                    }));
             if (stdin != null) {
                 OutputStreamWriter writer =
                         new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8);
@@ -1565,18 +1583,9 @@ public class SolonClawShellSkill extends ShellTalent {
         SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(value);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
-                    "Blocked: "
+                    "Invalid workdir: "
                             + verdict.getMessage()
                             + ". Use a simple filesystem path without shell metacharacters.");
-        }
-        if (securityPolicyService != null) {
-            SecurityPolicyService.FileVerdict pathVerdict =
-                    securityPolicyService.checkPath(value, false);
-            if (!pathVerdict.isAllowed()) {
-                throw new IllegalArgumentException(
-                        "Blocked: workdir path is not allowed by path safety policy: "
-                                + pathVerdict.getMessage());
-            }
         }
         return resolveSafeCwd(value, workPath.toFile());
     }

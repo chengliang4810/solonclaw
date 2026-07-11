@@ -221,22 +221,13 @@ final class DefaultRuntimeCommandHandler {
             int cooldown =
                     Math.min(
                             24 * 60,
-                            Math.max(
-                                            30,
-                                            appConfig.getProactive().getCooldownMinutes())
-                                    + 60);
+                            Math.max(30, appConfig.getProactive().getCooldownMinutes()) + 60);
             int dailyMax = Math.max(1, appConfig.getProactive().getDailyMaxContacts() - 1);
             setProactiveSetting("proactive.cooldownMinutes", String.valueOf(cooldown));
             setProactiveSetting("proactive.dailyMaxContacts", String.valueOf(dailyMax));
             appConfig.getProactive().setCooldownMinutes(cooldown);
             appConfig.getProactive().setDailyMaxContacts(dailyMax);
-            reply =
-                    GatewayReply.ok(
-                            "已降低主动联系频率：冷却时间 "
-                                    + cooldown
-                                    + " 分钟，每日最多 "
-                                    + dailyMax
-                                    + " 次。");
+            reply = GatewayReply.ok("已降低主动联系频率：冷却时间 " + cooldown + " 分钟，每日最多 " + dailyMax + " 次。");
         } else if ("more".equals(action)) {
             int cooldown = Math.max(15, appConfig.getProactive().getCooldownMinutes() - 60);
             int dailyMax = Math.min(12, appConfig.getProactive().getDailyMaxContacts() + 1);
@@ -244,13 +235,7 @@ final class DefaultRuntimeCommandHandler {
             setProactiveSetting("proactive.dailyMaxContacts", String.valueOf(dailyMax));
             appConfig.getProactive().setCooldownMinutes(cooldown);
             appConfig.getProactive().setDailyMaxContacts(dailyMax);
-            reply =
-                    GatewayReply.ok(
-                            "已提高主动联系频率：冷却时间 "
-                                    + cooldown
-                                    + " 分钟，每日最多 "
-                                    + dailyMax
-                                    + " 次。");
+            reply = GatewayReply.ok("已提高主动联系频率：冷却时间 " + cooldown + " 分钟，每日最多 " + dailyMax + " 次。");
         } else if ("ignore".equals(action)) {
             reply = GatewayReply.ok(ignoreProactiveCandidate(tail));
         } else {
@@ -309,8 +294,7 @@ final class DefaultRuntimeCommandHandler {
             return "暂无主动协作决策记录。可以在 Dashboard 诊断里检查 home channel、免打扰和候选生成状态。";
         }
         StringBuilder buffer = new StringBuilder();
-        buffer.append("最近一次主动协作决策：")
-                .append(StrUtil.blankToDefault(decision.getDecision(), "-"));
+        buffer.append("最近一次主动协作决策：").append(StrUtil.blankToDefault(decision.getDecision(), "-"));
         if (StrUtil.isNotBlank(decision.getReason())) {
             buffer.append("\n原因：").append(SecretRedactor.redact(decision.getReason(), 800));
         }
@@ -318,7 +302,8 @@ final class DefaultRuntimeCommandHandler {
             buffer.append("\n投递状态：").append(decision.getDeliveryStatus());
         }
         if (StrUtil.isNotBlank(decision.getDeliveryError())) {
-            buffer.append("\n投递错误：").append(SecretRedactor.redact(decision.getDeliveryError(), 500));
+            buffer.append("\n投递错误：")
+                    .append(SecretRedactor.redact(decision.getDeliveryError(), 500));
         }
         buffer.append("\n时间：").append(formatTimestamp(decision.getCreatedAt()));
         return buffer.toString();
@@ -362,5 +347,4 @@ final class DefaultRuntimeCommandHandler {
     private String proactiveUsage() {
         return "用法：/proactive status|pause|resume|why|less|more|ignore <candidateId>";
     }
-
 }

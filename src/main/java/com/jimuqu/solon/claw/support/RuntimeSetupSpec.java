@@ -103,7 +103,8 @@ public final class RuntimeSetupSpec {
         result.put("feishu", Collections.unmodifiableList(Arrays.asList("appId", "appSecret")));
         result.put(
                 "dingtalk",
-                Collections.unmodifiableList(Arrays.asList("clientId", "clientSecret", "robotCode")));
+                Collections.unmodifiableList(
+                        Arrays.asList("clientId", "clientSecret", "robotCode")));
         result.put("wecom", Collections.unmodifiableList(Arrays.asList("botId", "secret")));
         result.put("weixin", Collections.unmodifiableList(Arrays.asList("token", "accountId")));
         result.put("qqbot", Collections.unmodifiableList(Arrays.asList("appId", "clientSecret")));
@@ -115,7 +116,8 @@ public final class RuntimeSetupSpec {
 
     /** 构建国内渠道展示元数据列表。 */
     private static List<Map<String, Object>> domesticChannelCatalogEntries() {
-        java.util.ArrayList<Map<String, Object>> result = new java.util.ArrayList<Map<String, Object>>();
+        java.util.ArrayList<Map<String, Object>> result =
+                new java.util.ArrayList<Map<String, Object>>();
         result.add(channelCatalogEntry("feishu", "飞书", "feishu", 10));
         result.add(channelCatalogEntry("dingtalk", "钉钉", "dingtalk", 20));
         result.add(channelCatalogEntry("wecom", "企业微信", "wecom", 30));
@@ -281,7 +283,8 @@ public final class RuntimeSetupSpec {
     }
 
     /** 注册命令参数别名。 */
-    private static void registerFlag(Map<String, String> output, String configKey, String... aliases) {
+    private static void registerFlag(
+            Map<String, String> output, String configKey, String... aliases) {
         output.put(configKey, configKey);
         output.put(configKey.toLowerCase(java.util.Locale.ROOT), configKey);
         for (String alias : aliases) {

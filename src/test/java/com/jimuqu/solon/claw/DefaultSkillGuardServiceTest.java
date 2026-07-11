@@ -18,7 +18,7 @@ public class DefaultSkillGuardServiceTest {
     private final DefaultSkillGuardService service = new DefaultSkillGuardService();
 
     @Test
-    void shouldAllowBuiltinDangerousByPolicyLikeJimuqu() {
+    void shouldAllowBuiltinEvenWhenScannerFindsDangerousContent() {
         InstallDecision decision = service.shouldAllowInstall(scan("builtin", "dangerous"), false);
 
         assertThat(decision.isAllowed()).isTrue();
@@ -26,19 +26,7 @@ public class DefaultSkillGuardServiceTest {
     }
 
     @Test
-    void shouldBlockDangerousTrustedAndCommunityWithoutForceLikeJimuqu() {
-        InstallDecision trusted = service.shouldAllowInstall(scan("trusted", "dangerous"), false);
-        InstallDecision community =
-                service.shouldAllowInstall(scan("community", "dangerous"), false);
-
-        assertThat(trusted.isAllowed()).isFalse();
-        assertThat(trusted.getReason()).contains("dangerous");
-        assertThat(community.isAllowed()).isFalse();
-        assertThat(community.getReason()).contains("dangerous");
-    }
-
-    @Test
-    void shouldKeepDangerousTrustedAndCommunityBlockedEvenWhenForced() {
+    void shouldBlockDangerousTrustedAndCommunitySkillsEvenWhenForced() {
         InstallDecision trusted = service.shouldAllowInstall(scan("trusted", "dangerous"), true);
         InstallDecision community =
                 service.shouldAllowInstall(scan("community", "dangerous"), true);
@@ -53,7 +41,7 @@ public class DefaultSkillGuardServiceTest {
     }
 
     @Test
-    void shouldKeepCommunityCautionConfirmationUnlessForcedLikeJimuqu() {
+    void shouldRequireConfirmationForCommunityCautionUnlessForced() {
         InstallDecision unforced = service.shouldAllowInstall(scan("community", "caution"), false);
         InstallDecision forced = service.shouldAllowInstall(scan("community", "caution"), true);
 
@@ -63,19 +51,9 @@ public class DefaultSkillGuardServiceTest {
     }
 
     @Test
-    void shouldAllowSafeCommunitySkillsLikeJimuqu() {
-        InstallDecision decision = service.shouldAllowInstall(scan("community", "safe"), false);
-
-        assertThat(decision.isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldTreatAgentCreatedDangerousSkillsAsRetryableSecurityErrors() {
+    void shouldRejectDangerousAgentCreatedSkillsAsRetryable() {
         InstallDecision dangerous =
                 service.shouldAllowInstall(scan("agent-created", "dangerous"), true);
-        InstallDecision caution =
-                service.shouldAllowInstall(scan("agent-created", "caution"), false);
-        InstallDecision safe = service.shouldAllowInstall(scan("agent-created", "safe"), false);
 
         assertThat(dangerous.isAllowed()).isFalse();
         assertThat(dangerous.isRequiresConfirmation()).isTrue();
@@ -83,8 +61,13 @@ public class DefaultSkillGuardServiceTest {
                 .contains("Agent-created")
                 .contains("dangerous")
                 .contains("retry");
-        assertThat(caution.isAllowed()).isTrue();
-        assertThat(safe.isAllowed()).isTrue();
+    }
+
+    @Test
+    void shouldAllowSafeCommunitySkillsLikeJimuqu() {
+        InstallDecision decision = service.shouldAllowInstall(scan("community", "safe"), false);
+
+        assertThat(decision.isAllowed()).isTrue();
     }
 
     @Test

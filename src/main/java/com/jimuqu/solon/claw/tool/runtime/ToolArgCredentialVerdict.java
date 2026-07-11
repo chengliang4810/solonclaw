@@ -25,8 +25,7 @@ final class ToolArgCredentialVerdict {
         }
         safeKey = safeKey.replaceAll("\\s+", "_");
         safeKey = SecretRedactor.redact(safeKey, 200);
-        this.reference =
-                safeKey.length() == 0 ? "tool_arg://credential" : "tool_arg://" + safeKey;
+        this.reference = safeKey.length() == 0 ? "tool_arg://credential" : "tool_arg://" + safeKey;
     }
 
     /**

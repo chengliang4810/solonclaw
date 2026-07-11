@@ -20,11 +20,11 @@ class CliModeParserTest {
 
     @Test
     void shouldKeepExplicitCliAndTuiPromptModes() {
-        CliMode cli = CliModeParser.parse(new String[] {"--cli", "-p", "/setup", "model"});
+        CliMode cli = CliModeParser.parse(new String[] {"--cli", "--ask", "/setup", "model"});
         assertThat(cli.getKind()).isEqualTo(CliMode.Kind.CLI);
         assertThat(cli.getInput()).isEqualTo("/setup model");
 
-        CliMode tui = CliModeParser.parse(new String[] {"--tui", "-p", "/setup", "gateway"});
+        CliMode tui = CliModeParser.parse(new String[] {"--tui", "--ask", "/setup", "gateway"});
         assertThat(tui.getKind()).isEqualTo(CliMode.Kind.TUI);
         assertThat(tui.getInput()).isEqualTo("/setup gateway");
     }

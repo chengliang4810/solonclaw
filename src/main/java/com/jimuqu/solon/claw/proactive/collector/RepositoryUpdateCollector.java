@@ -92,7 +92,9 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
         this.proactiveRepository = proactiveRepository;
         this.repositoryProbeService = repositoryProbeService;
         this.referenceExtractor =
-                referenceExtractor == null ? new RepositoryReferenceExtractor() : referenceExtractor;
+                referenceExtractor == null
+                        ? new RepositoryReferenceExtractor()
+                        : referenceExtractor;
         this.sessionRepository = sessionRepository;
         this.memoryService = memoryService;
         this.cronJobRepository = cronJobRepository;
@@ -108,9 +110,7 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
     @Override
     public boolean enabled(AppConfig config) {
         AppConfig.ProactiveConfig proactive = config == null ? null : config.getProactive();
-        return proactive != null
-                && proactive.isEnabled()
-                && proactive.isRepositoryCheckEnabled();
+        return proactive != null && proactive.isEnabled() && proactive.isRepositoryCheckEnabled();
     }
 
     /** 收集仓库引用，按快照判断是否产生项目更新机会观测。 */
@@ -123,7 +123,8 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
                 || repositoryProbeService == null) {
             return observations;
         }
-        List<RepositoryReferenceExtractor.RepositoryReference> references = collectReferences(context);
+        List<RepositoryReferenceExtractor.RepositoryReference> references =
+                collectReferences(context);
         int inspected = 0;
         for (RepositoryReferenceExtractor.RepositoryReference reference : references) {
             if (reference == null || StrUtil.isBlank(reference.getRef())) {
@@ -183,10 +184,13 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
             if (snapshot == null) {
                 return references;
             }
-            references.addAll(referenceExtractor.extract("memory", "MEMORY.md", snapshot.getMemoryText()));
-            references.addAll(referenceExtractor.extract("memory", "USER.md", snapshot.getUserText()));
             references.addAll(
-                    referenceExtractor.extract("memory", "TODAY_MEMORY", snapshot.getDailyMemoryText()));
+                    referenceExtractor.extract("memory", "MEMORY.md", snapshot.getMemoryText()));
+            references.addAll(
+                    referenceExtractor.extract("memory", "USER.md", snapshot.getUserText()));
+            references.addAll(
+                    referenceExtractor.extract(
+                            "memory", "TODAY_MEMORY", snapshot.getDailyMemoryText()));
         } catch (Exception e) {
             logSourceReadFailure("memory", e);
         }
@@ -338,7 +342,9 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
             return;
         }
         for (RepositoryReferenceExtractor.RepositoryReference reference : references) {
-            if (reference != null && StrUtil.isNotBlank(reference.getRef()) && !target.containsKey(reference.getRef())) {
+            if (reference != null
+                    && StrUtil.isNotBlank(reference.getRef())
+                    && !target.containsKey(reference.getRef())) {
                 target.put(reference.getRef(), reference);
             }
         }
@@ -356,7 +362,8 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
         if (previous == null) {
             return false;
         }
-        int intervalMinutes = context.getConfig().getProactive().getRepositoryCheckIntervalMinutes();
+        int intervalMinutes =
+                context.getConfig().getProactive().getRepositoryCheckIntervalMinutes();
         if (intervalMinutes <= 0) {
             return false;
         }
@@ -437,11 +444,15 @@ public class RepositoryUpdateCollector implements ProactiveObservationCollector 
         payload.put("releaseId", CollectorSupport.safe(state.getReleaseId(), 160));
 
         Map<String, Object> evidence = new LinkedHashMap<String, Object>();
-        evidence.put("previousHash", previousHash == null ? null : CollectorSupport.safe(previousHash, 160));
+        evidence.put(
+                "previousHash",
+                previousHash == null ? null : CollectorSupport.safe(previousHash, 160));
         evidence.put("displayName", CollectorSupport.safe(state.getDisplayName(), 160));
         evidence.put("referenceSourceType", CollectorSupport.safe(reference.getSourceType(), 80));
         evidence.put("referenceSourceRef", CollectorSupport.safe(reference.getSourceRef(), 160));
-        evidence.put("referenceEvidence", CollectorSupport.safe(reference.getEvidence(), TEXT_MAX_LENGTH));
+        evidence.put(
+                "referenceEvidence",
+                CollectorSupport.safe(reference.getEvidence(), TEXT_MAX_LENGTH));
         payload.put("evidence", evidence);
 
         ProactiveObservation observation = new ProactiveObservation();

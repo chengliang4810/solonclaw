@@ -184,7 +184,7 @@
 - 第一版不做 OpenAI 兼容 API Server
 - 不做 Webhook
 - 本版需要做插件系统
-- 第一版不做 Profiles / 多配置隔离
+- 本版需要做 Profiles / 多配置隔离，并按外部对标仓库的用户可见行为对齐：支持创建、切换、克隆、重命名、删除、导入、导出和独立运行；每个 Profile 隔离配置、凭据、会话、记忆、技能、MCP、渠道状态与网关运行状态。
 - Setup / Doctor / Auth 流程保留 dashboard-first 版本；不补完整 CLI wizard
 
 ### H. 运行环境与部署
@@ -222,8 +222,7 @@
 - Docker 之外的执行后端
 - 运行时 worktree 执行后端
 - OpenAI 兼容 API Server
-- Profiles / 多配置隔离
-- 多实例 / 多租户 / 多机器人隔离
+- 基于共享业务数据和共享权限模型的多租户能力
 
 ## 当前已确认保留 / 需要做
 
@@ -234,7 +233,7 @@
 - websocket-first 国内渠道接入（微信除外）
 - `java -jar` 部署
 - Docker 部署
-- 单实例架构
+- Profiles / 多配置隔离及每 Profile 独立网关实例
 - 本地 CLI / TUI 交互层
 - MCP 集成
 - Skills Hub / 手动导入兼容 / 在线 source 搜索安装

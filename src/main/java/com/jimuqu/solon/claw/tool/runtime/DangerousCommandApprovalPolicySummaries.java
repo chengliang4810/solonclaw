@@ -13,11 +13,8 @@ import static com.jimuqu.solon.claw.tool.runtime.DangerousCommandRuleCatalog.ter
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -32,9 +29,6 @@ final class DangerousCommandApprovalPolicySummaries {
     /** 是否已配置 Tirith 扫描服务。 */
     private final boolean tirithConfigured;
 
-    /** 是否已配置安全策略服务。 */
-    private final boolean securityPolicyConfigured;
-
     /** 审批观察者数量。 */
     private final int approvalObserverCount;
 
@@ -44,19 +38,16 @@ final class DangerousCommandApprovalPolicySummaries {
      * @param service 审批服务。
      * @param appConfig 应用配置。
      * @param tirithConfigured 是否已配置 Tirith 扫描服务。
-     * @param securityPolicyConfigured 是否已配置安全策略服务。
      * @param approvalObserverCount 审批观察者数量。
      */
     DangerousCommandApprovalPolicySummaries(
             DangerousCommandApprovalService service,
             AppConfig appConfig,
             boolean tirithConfigured,
-            boolean securityPolicyConfigured,
             int approvalObserverCount) {
         this.service = service;
         this.appConfig = appConfig;
         this.tirithConfigured = tirithConfigured;
-        this.securityPolicyConfigured = securityPolicyConfigured;
         this.approvalObserverCount = approvalObserverCount;
     }
 
@@ -70,7 +61,6 @@ final class DangerousCommandApprovalPolicySummaries {
         String guardrailMode = service.guardrailMode();
         summary.put("guardrailMode", guardrailMode);
         summary.put("guardrailCronMode", service.guardrailCronMode());
-        summary.put("subagentAutoApprove", Boolean.valueOf(service.isSubagentAutoApproveEnabled()));
         summary.put("cronApprovalPolicy", cronApprovalPolicySummary());
         summary.put("subagentApprovalPolicy", subagentApprovalPolicySummary());
         summary.put("smartJudgeConfigured", Boolean.valueOf(service.hasSmartApprovalJudge()));
@@ -145,15 +135,14 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("unsafeUrlApprovalBypassAllowed", Boolean.FALSE);
         summary.put("hardlineRuleSamples", hardlineRuleSamples(8));
         summary.put("hardlinePolicy", hardlinePolicySummary());
-        summary.put(
-                "terminalGuardrailCount",
-                Integer.valueOf(terminalGuardrailKeys().size()));
+        summary.put("terminalGuardrailCount", Integer.valueOf(terminalGuardrailKeys().size()));
         summary.put("terminalGuardrails", terminalGuardrailKeys());
         summary.put("sudoRewriteConfigured", Boolean.valueOf(isSudoPasswordConfigured()));
         summary.put("backgroundProcessGuard", Boolean.TRUE);
         summary.put("terminalGuardrailPolicy", terminalGuardrailPolicySummary());
         summary.put("approvalTimeoutSeconds", Integer.valueOf(service.approvalTimeoutSeconds()));
-        summary.put("gatewayTimeoutSeconds", Integer.valueOf(service.approvalGatewayTimeoutSeconds()));
+        summary.put(
+                "gatewayTimeoutSeconds", Integer.valueOf(service.approvalGatewayTimeoutSeconds()));
         summary.put("alwaysApprovalCount", Integer.valueOf(service.listAlwaysApprovals().size()));
         summary.put("slashConfirmPolicy", slashConfirmPolicySummary());
         summary.put("approvalCardPolicy", approvalCardPolicySummary());
@@ -177,14 +166,6 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("ruleSamples", hardlineRuleSamples(12));
         summary.put("coveredTools", hardlineCoveredTools());
         summary.put("blockedCategories", hardlineBlockedCategories());
-        summary.put("metadataUrlBlocked", Boolean.valueOf(securityPolicyConfigured));
-        summary.put("hardlineAllowlist", hardlineAllowlistSummary());
-        summary.put("hardlineAllowlistConfigKey", "security.hardlineAllowlist");
-        summary.put("allowlistWildcardSupported", Boolean.TRUE);
-        summary.put("allowlistedCategoriesCanBypass", Boolean.TRUE);
-        summary.put("codeToolShellExtractionCovered", Boolean.TRUE);
-        summary.put("pythonShellExtractionCovered", Boolean.TRUE);
-        summary.put("javascriptChildProcessExtractionCovered", Boolean.TRUE);
         summary.put("approvalBypassAllowed", Boolean.FALSE);
         summary.put("slashApproveBypassAllowed", Boolean.FALSE);
         summary.put("sessionApprovalBypassAllowed", Boolean.FALSE);
@@ -196,24 +177,8 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("commandPreviewRedacted", Boolean.TRUE);
         summary.put(
                 "description",
-                "Hardline commands are blocked before approval handling unless their category is listed in security.hardlineAllowlist; slash approvals, session approvals, always approvals, smart approval, and session auto approval cannot bypass non-allowlisted hardline categories.");
+                "Hardline commands are blocked before approval handling; slash approvals, session approvals, always approvals, smart approval, and session auto approval cannot bypass them.");
         return summary;
-    }
-
-    /**
-     * 执行hardlineAllowlist摘要相关逻辑。
-     *
-     * @return 返回hardline Allowlist Summary结果。
-     */
-    private List<String> hardlineAllowlistSummary() {
-        if (appConfig == null || appConfig.getSecurity() == null) {
-            return Collections.emptyList();
-        }
-        List<String> configured = appConfig.getSecurity().getHardlineAllowlist();
-        if (configured == null) {
-            return Collections.emptyList();
-        }
-        return new ArrayList<String>(configured);
     }
 
     /**
@@ -259,7 +224,9 @@ final class DangerousCommandApprovalPolicySummaries {
     Map<String, Object> tirithApprovalPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
         summary.put("scannerConfigured", Boolean.valueOf(tirithConfigured));
-        summary.put("scanRunsInApprovalMode", Boolean.valueOf(!"bypass".equals(service.guardrailMode())));
+        summary.put(
+                "scanRunsInApprovalMode",
+                Boolean.valueOf(!"bypass".equals(service.guardrailMode())));
         summary.put("patternKeyPrefix", "tirith:");
         summary.put("emptyFindingsPatternKey", "tirith:security_scan");
         summary.put("findingsBecomePatternKeys", Boolean.TRUE);
@@ -291,14 +258,11 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put(
                 "configKeys",
                 Arrays.asList("security.guardrailCronMode", "security.guardrailCronScope"));
-        summary.put("supportedModes", Arrays.asList("bypass", "approval", "strict", "approve"));
+        summary.put("supportedModes", Arrays.asList("strict", "bypass", "approval", "approve"));
         summary.put("approvalScope", cronApprovalScope());
         summary.put("guardrailApprovalCanPauseCron", Boolean.TRUE);
         summary.put("jobScopeIncludesScriptFingerprint", Boolean.TRUE);
         summary.put("hardlineAlwaysBlocked", Boolean.TRUE);
-        summary.put("hardlineAllowlist", hardlineAllowlistSummary());
-        summary.put("hardlineAllowlistConfigKey", "security.hardlineAllowlist");
-        summary.put("allowlistedHardlineCategoriesCanRun", Boolean.TRUE);
         summary.put("filePolicyPrechecked", Boolean.TRUE);
         summary.put("urlPolicyPrechecked", Boolean.TRUE);
         summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
@@ -306,7 +270,7 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("scriptContentChecked", Boolean.TRUE);
         summary.put(
                 "description",
-                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve auto-approves approvable commands; hardline commands remain blocked unless their category is configured in security.hardlineAllowlist.");
+                "Cron uses guardrailCronMode for approvable dangerous commands: approval pauses the job for channel approval, strict blocks, bypass skips soft guardrails, and approve auto-approves approvable commands; hardline commands remain blocked.");
         return summary;
     }
 
@@ -347,23 +311,15 @@ final class DangerousCommandApprovalPolicySummaries {
      */
     Map<String, Object> subagentApprovalPolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        boolean autoApprove = service.isSubagentAutoApproveEnabled();
-        summary.put("autoApproveDangerousCommands", Boolean.valueOf(autoApprove));
-        summary.put("defaultDecision", autoApprove ? "approve_once" : "deny");
-        summary.put("configKey", "approvals.subagentAutoApprove");
+        summary.put("defaultDecision", "human_approval");
         summary.put("runKind", "subagent");
         summary.put("hardlinePrechecked", Boolean.TRUE);
-        summary.put("filePolicyPrechecked", Boolean.TRUE);
-        summary.put("urlPolicyPrechecked", Boolean.TRUE);
         summary.put("terminalGuardrailPrechecked", Boolean.TRUE);
         summary.put("smartApprovalRunsBeforeSubagentPolicy", Boolean.TRUE);
-        summary.put("humanApprovalPromptSuppressed", Boolean.TRUE);
-        summary.put("currentThreadApprovalWhenAutoApproved", Boolean.TRUE);
-        summary.put("pendingApprovalCreatedWhenDenied", Boolean.FALSE);
-        summary.put("denyMessageIncludesConfigHint", Boolean.TRUE);
+        summary.put("humanApprovalPromptSuppressed", Boolean.FALSE);
         summary.put(
                 "description",
-                "Subagent runs do not wait for human approval: approvable dangerous commands are denied by default or approved once only when approvals.subagentAutoApprove is enabled.");
+                "Subagent dangerous commands use the same human approval flow as other Agent runs.");
         return summary;
     }
 
@@ -396,27 +352,37 @@ final class DangerousCommandApprovalPolicySummaries {
                         "/deny status",
                         "/deny all"));
         summary.put("pendingQueueSupported", Boolean.TRUE);
-        summary.put("pendingQueueContextKey", DangerousCommandApprovalService.CONTEXT_PENDING_APPROVAL_QUEUE);
+        summary.put(
+                "pendingQueueContextKey",
+                DangerousCommandApprovalService.CONTEXT_PENDING_APPROVAL_QUEUE);
         summary.put("pendingListHidesApprovalKey", Boolean.TRUE);
         summary.put("approvalKeySelectorHidden", Boolean.TRUE);
         summary.put("pendingListUsesSafeSelector", Boolean.TRUE);
         summary.put("pendingListShowsPatternKey", Boolean.TRUE);
         summary.put("sessionApprovalListShowsCountOnly", Boolean.TRUE);
         summary.put("alwaysApprovalListShowsCountOnly", Boolean.TRUE);
-        summary.put("approvalCardDeliveryMode", DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
+        summary.put(
+                "approvalCardDeliveryMode",
+                DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
         summary.put(
                 "approvalCardPlatforms",
                 Arrays.asList(PlatformType.FEISHU.name(), PlatformType.QQBOT.name()));
         summary.put("approvalCardActionKey", DangerousCommandApprovalService.CARD_ACTION_KEY);
-        summary.put("approvalCardApproveAction", DangerousCommandApprovalService.CARD_ACTION_APPROVE);
+        summary.put(
+                "approvalCardApproveAction", DangerousCommandApprovalService.CARD_ACTION_APPROVE);
         summary.put("approvalCardDenyAction", DangerousCommandApprovalService.CARD_ACTION_DENY);
         summary.put("approvalCardScopeKey", DangerousCommandApprovalService.CARD_SCOPE_KEY);
-        summary.put("approvalCardApprovalIdKey", DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY);
+        summary.put(
+                "approvalCardApprovalIdKey", DangerousCommandApprovalService.CARD_APPROVAL_ID_KEY);
         summary.put("permanentApprovalAllowedExceptTirith", Boolean.TRUE);
         summary.put("tirithAlwaysDowngradedToSession", Boolean.TRUE);
-        summary.put("selectorTokenPattern", DangerousCommandApprovalService.APPROVAL_SELECTOR_TOKEN.pattern());
         summary.put(
-                "selectorPrefixMinLength", Integer.valueOf(DangerousCommandApprovalService.APPROVAL_SELECTOR_PREFIX_MIN_LENGTH));
+                "selectorTokenPattern",
+                DangerousCommandApprovalService.APPROVAL_SELECTOR_TOKEN.pattern());
+        summary.put(
+                "selectorPrefixMinLength",
+                Integer.valueOf(
+                        DangerousCommandApprovalService.APPROVAL_SELECTOR_PREFIX_MIN_LENGTH));
         summary.put("unsafeSelectorRejected", Boolean.TRUE);
         summary.put("approverRedacted", Boolean.TRUE);
         summary.put("commandPreviewRedacted", Boolean.TRUE);
@@ -424,7 +390,8 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("approvalMetadataRedacted", Boolean.TRUE);
         summary.put("observerEventsRedacted", Boolean.TRUE);
         summary.put("approvalTimeoutSeconds", Integer.valueOf(service.approvalTimeoutSeconds()));
-        summary.put("gatewayTimeoutSeconds", Integer.valueOf(service.approvalGatewayTimeoutSeconds()));
+        summary.put(
+                "gatewayTimeoutSeconds", Integer.valueOf(service.approvalGatewayTimeoutSeconds()));
         summary.put(
                 "description",
                 "Slash approval commands can approve or deny one pending item, all pending items, or an id selector, with once/session/always scopes, hidden approval keys in list output, and redacted approval metadata.");
@@ -451,7 +418,9 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("scopeOptions", Arrays.asList("once", "session", "always"));
         summary.put("defaultScope", "once");
         summary.put("approvalIdSelectorSupported", Boolean.TRUE);
-        summary.put("selectorTokenPattern", DangerousCommandApprovalService.APPROVAL_SELECTOR_TOKEN.pattern());
+        summary.put(
+                "selectorTokenPattern",
+                DangerousCommandApprovalService.APPROVAL_SELECTOR_TOKEN.pattern());
         summary.put("unsafeSelectorRejected", Boolean.TRUE);
         summary.put("outboundApprovalIdSanitized", Boolean.TRUE);
         summary.put("unsafeApprovalIdFallsBackToKeySelector", Boolean.TRUE);
@@ -554,7 +523,9 @@ final class DangerousCommandApprovalPolicySummaries {
      */
     Map<String, Object> approvalLifecyclePolicySummary() {
         Map<String, Object> summary = new LinkedHashMap<String, Object>();
-        summary.put("pendingQueueContextKey", DangerousCommandApprovalService.CONTEXT_PENDING_APPROVAL_QUEUE);
+        summary.put(
+                "pendingQueueContextKey",
+                DangerousCommandApprovalService.CONTEXT_PENDING_APPROVAL_QUEUE);
         summary.put("pendingListPrunedBeforeRead", Boolean.TRUE);
         summary.put("selectorSupported", Boolean.TRUE);
         summary.put("listSupported", Boolean.TRUE);
@@ -564,14 +535,21 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put("clearAlwaysSupported", Boolean.TRUE);
         summary.put("clearAllSupported", Boolean.TRUE);
         summary.put("scopes", Arrays.asList("once", "session", "always"));
-        summary.put("onceScopeStoresContextKey", DangerousCommandApprovalService.CONTEXT_ONCE_APPROVALS);
-        summary.put("sessionScopeStoresContextKey", DangerousCommandApprovalService.CONTEXT_SESSION_APPROVALS);
+        summary.put(
+                "onceScopeStoresContextKey",
+                DangerousCommandApprovalService.CONTEXT_ONCE_APPROVALS);
+        summary.put(
+                "sessionScopeStoresContextKey",
+                DangerousCommandApprovalService.CONTEXT_SESSION_APPROVALS);
         summary.put("alwaysScopeUsesGlobalSettings", Boolean.TRUE);
         summary.put("tirithAlwaysScopeDowngradedToSession", Boolean.TRUE);
         summary.put(
-                "currentThreadApprovalTtlMillis", Long.valueOf(DangerousCommandApprovalService.CURRENT_THREAD_APPROVAL_TTL_MILLIS));
+                "currentThreadApprovalTtlMillis",
+                Long.valueOf(DangerousCommandApprovalService.CURRENT_THREAD_APPROVAL_TTL_MILLIS));
         summary.put("currentThreadApprovalEnabled", Boolean.TRUE);
-        summary.put("selectorTokenPattern", DangerousCommandApprovalService.APPROVAL_SELECTOR_TOKEN.pattern());
+        summary.put(
+                "selectorTokenPattern",
+                DangerousCommandApprovalService.APPROVAL_SELECTOR_TOKEN.pattern());
         summary.put("unsafeSelectorRejected", Boolean.TRUE);
         summary.put("bulkRejectUsesSafeSelector", Boolean.TRUE);
         summary.put("approveRemovesPendingApproval", Boolean.TRUE);
@@ -616,10 +594,6 @@ final class DangerousCommandApprovalPolicySummaries {
         summary.put(
                 "longLivedForegroundSamples",
                 Arrays.asList("npm run dev", "docker compose up", "vite", "python -m http.server"));
-        summary.put("codeToolShellExtractionCovered", Boolean.TRUE);
-        summary.put(
-                "codeToolShellSources",
-                Arrays.asList("execute_code", "execute_python", "execute_js"));
         summary.put("commandPathPrechecked", Boolean.TRUE);
         summary.put("credentialPathPrechecked", Boolean.TRUE);
         summary.put("downloadOutputPathPrechecked", Boolean.TRUE);
@@ -673,5 +647,4 @@ final class DangerousCommandApprovalPolicySummaries {
                 ? 0
                 : appConfig.getTerminal().getForegroundRetryBaseDelaySeconds();
     }
-
 }

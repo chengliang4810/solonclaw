@@ -3,7 +3,6 @@ package com.jimuqu.solon.claw.gateway.platform.base;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
-
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
@@ -15,10 +14,6 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,6 +21,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 可配置渠道适配器基类，负责处理启用状态、连接状态和基础日志。 */
 public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapter {
@@ -68,9 +65,8 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     /**
      * 控制命令专用并发执行器（懒加载）。
      *
-     * <p>国内各渠道的入站消息走单线程串行执行器，整个 Agent 运行（多轮 ReAct 循环）会独占该线程。
-     * 如果用户在运行过程中发送 {@code /stop} 等控制命令，会被排在该串行队列的任务之后，导致取消逻辑
-     * 来不及触发（等任务跑完时 runningRuns 已为空）。这里用一个独立的并发线程池专门投递控制命令，
+     * <p>国内各渠道的入站消息走单线程串行执行器，整个 Agent 运行（多轮 ReAct 循环）会独占该线程。 如果用户在运行过程中发送 {@code /stop}
+     * 等控制命令，会被排在该串行队列的任务之后，导致取消逻辑 来不及触发（等任务跑完时 runningRuns 已为空）。这里用一个独立的并发线程池专门投递控制命令，
      * 使其不被运行中的任务阻塞。其余普通消息仍由各渠道自己的串行执行器处理，保持原有顺序与互斥语义。
      */
     private volatile ExecutorService controlExecutor;
@@ -161,8 +157,8 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     /**
      * 判断文本是否为需要并发投递的控制命令（{@code /stop}、{@code /cancel}）。
      *
-     * <p>取首个空白分隔的 token 做精确匹配（大小写不敏感），避免误匹配 {@code /stopwatch}、
-     * {@code /canceled} 等同样以 {@code /stop} 或 {@code /cancel} 开头的普通文本。
+     * <p>取首个空白分隔的 token 做精确匹配（大小写不敏感），避免误匹配 {@code /stopwatch}、 {@code /canceled} 等同样以 {@code
+     * /stop} 或 {@code /cancel} 开头的普通文本。
      *
      * @param text 入站消息文本，可能为 null。
      * @return 若首个 token 为 {@code /stop} 或 {@code /cancel} 则返回 true。
@@ -196,8 +192,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     }
 
     /**
-     * 将控制命令投递到专用并发执行器，绕过各渠道串行入站执行器，确保 {@code /stop} 等控制命令
-     * 不会被运行中的任务阻塞而错过取消时机。
+     * 将控制命令投递到专用并发执行器，绕过各渠道串行入站执行器，确保 {@code /stop} 等控制命令 不会被运行中的任务阻塞而错过取消时机。
      *
      * @param message 已构造好的网关消息（其文本应为控制命令）。
      */
@@ -233,9 +228,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         }
     }
 
-    /**
-     * 关闭控制命令执行器。供各渠道在 {@link #disconnect()} 中调用，避免线程泄漏。
-     */
+    /** 关闭控制命令执行器。供各渠道在 {@link #disconnect()} 中调用，避免线程泄漏。 */
     protected void shutdownControlExecutor() {
         ExecutorService existing = controlExecutor;
         if (existing != null) {
@@ -267,7 +260,8 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
                      */
                     @Override
                     public Thread newThread(Runnable runnable) {
-                        Thread thread = new Thread(runnable, prefix + "-" + sequence.getAndIncrement());
+                        Thread thread =
+                                new Thread(runnable, prefix + "-" + sequence.getAndIncrement());
                         thread.setDaemon(true);
                         return thread;
                     }

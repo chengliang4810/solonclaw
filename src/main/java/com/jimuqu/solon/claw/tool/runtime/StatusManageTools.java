@@ -31,8 +31,7 @@ public class StatusManageTools {
      */
     @ToolMapping(
             name = "status_manage",
-            description =
-                    "Inspect dashboard runtime status. Actions: status, health, model_info.")
+            description = "Inspect dashboard runtime status. Actions: status, health, model_info.")
     public String statusManage(
             @Param(name = "action", description = "status, health, model_info") String action,
             @Param(

@@ -30,6 +30,22 @@ public interface DelegationService {
     List<DelegationResult> delegateBatch(String sourceKey, List<DelegationTask> tasks)
             throws Exception;
 
+    /** 顶层会话返回 true；子 Agent 内部委派返回 false，以便 orchestrator 同步汇总工作结果。 */
+    default boolean shouldRunInBackground() {
+        return false;
+    }
+
+    /**
+     * 调度顶层后台委派；实现必须立即返回句柄，并在完成后把结果回流父会话。
+     *
+     * @param sourceKey 父会话来源键。
+     * @param tasks 已校验的结构化任务。
+     * @return 后台调度句柄。
+     */
+    default Map<String, Object> delegateInBackground(String sourceKey, List<DelegationTask> tasks) {
+        throw new UnsupportedOperationException("Background delegation unavailable");
+    }
+
     /**
      * 写入Spawn Paused。
      *

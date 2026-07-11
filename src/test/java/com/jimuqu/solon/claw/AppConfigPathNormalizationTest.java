@@ -26,8 +26,7 @@ public class AppConfigPathNormalizationTest {
         String base = new File(System.getProperty("user.dir")).getAbsolutePath();
         File workspace = new File(base, "workspace-live-onboarding");
         assertThat(config.getWorkspace().getDir()).isEqualTo(workspace.getAbsolutePath());
-        assertThat(config.getRuntime().getHome())
-                .isEqualTo(workspace.getAbsolutePath());
+        assertThat(config.getRuntime().getHome()).isEqualTo(workspace.getAbsolutePath());
         assertThat(config.getRuntime().getContextDir())
                 .isEqualTo(new File(workspace, "context").getAbsolutePath());
         assertThat(config.getRuntime().getSkillsDir())
@@ -114,7 +113,9 @@ public class AppConfigPathNormalizationTest {
         String content = FileUtil.readUtf8String(runtimeExample).replace("\r\n", "\n");
         assertThat(content)
                 .contains("\nsecurity:\n")
+                .contains("  guardrailMode: approval")
                 .contains("  allowPrivateUrls: false")
+                .contains("  websiteBlocklist:")
                 .doesNotContain("solonclaw:\n  security:");
     }
 

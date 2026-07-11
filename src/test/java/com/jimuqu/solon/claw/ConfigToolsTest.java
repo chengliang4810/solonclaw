@@ -126,7 +126,8 @@ public class ConfigToolsTest {
                 (String)
                         method.invoke(
                                 configSetSecretTool, "solonclaw.channels.weixin.token", "dummy");
-        assertThat(ONode.ofJson(channelSecretResponse).get("status").getString()).isEqualTo("error");
+        assertThat(ONode.ofJson(channelSecretResponse).get("status").getString())
+                .isEqualTo("error");
         assertThat(ONode.ofJson(channelSecretResponse).get("error").getString()).contains("占位符密钥");
     }
 

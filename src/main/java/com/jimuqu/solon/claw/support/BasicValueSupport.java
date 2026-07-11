@@ -77,9 +77,7 @@ public final class BasicValueSupport {
      * @return 原始 Map 为 null 时返回空 LinkedHashMap，否则按原顺序复制。
      */
     public static <K, V> LinkedHashMap<K, V> mutableLinkedMap(Map<K, V> values) {
-        return values == null
-                ? new LinkedHashMap<K, V>()
-                : new LinkedHashMap<K, V>(values);
+        return values == null ? new LinkedHashMap<K, V>() : new LinkedHashMap<K, V>(values);
     }
 
     /**

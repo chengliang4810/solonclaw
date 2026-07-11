@@ -63,6 +63,56 @@ public class SolonAiLlmGatewayFailoverTest {
                         "backup:claude-sonnet-4");
     }
 
+    /** 验证主代理使用 react.retryMax，而不是固定重试次数。 */
+    @Test
+    void shouldUseConfiguredMainRetryCount() throws Exception {
+        AppConfig config = config();
+        config.getReact().setRetryMax(2);
+        config.getReact().setRetryDelayMs(0);
+        RetryingGateway gateway = new RetryingGateway(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("main-retry");
+
+        gateway.chat(
+                session,
+                "system",
+                "hello",
+                Collections.emptyList(),
+                ConversationFeedbackSink.noop());
+
+        assertThat(gateway.attempts)
+                .containsExactly(
+                        "primary:gpt-5-mini",
+                        "primary:gpt-5-mini",
+                        "primary:gpt-5-mini",
+                        "backup:claude-sonnet-4");
+    }
+
+    /** 验证子代理会话独立使用 delegateRetryMax。 */
+    @Test
+    void shouldUseConfiguredDelegateRetryCount() throws Exception {
+        AppConfig config = config();
+        config.getReact().setRetryMax(4);
+        config.getReact().setRetryDelayMs(0);
+        config.getReact().setDelegateRetryMax(1);
+        config.getReact().setDelegateRetryDelayMs(0);
+        RetryingGateway gateway = new RetryingGateway(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("delegate-retry");
+        session.setParentSessionId("parent-session");
+
+        gateway.chat(
+                session,
+                "system",
+                "hello",
+                Collections.emptyList(),
+                ConversationFeedbackSink.noop());
+
+        assertThat(gateway.attempts)
+                .containsExactly(
+                        "primary:gpt-5-mini", "primary:gpt-5-mini", "backup:claude-sonnet-4");
+    }
+
     private AppConfig config() {
         AppConfig config = new AppConfig();
         isolateRuntime(config, "llm-failover");
@@ -135,6 +185,43 @@ public class SolonAiLlmGatewayFailoverTest {
             attempts.add(resolved.getProvider() + ":" + resolved.getModel());
             if ("primary".equals(resolved.getProvider())) {
                 throw new IllegalStateException("HTTP 401 unauthorized");
+            }
+
+            LlmResult result = new LlmResult();
+            result.setProvider(resolved.getProvider());
+            result.setModel(resolved.getModel());
+            result.setRawResponse("ok");
+            result.setAssistantMessage(new AssistantMessage("done"));
+            return result;
+        }
+    }
+
+    /** 让主提供方持续返回可重试错误，用于校验配置化重试次数。 */
+    private static class RetryingGateway extends SolonAiLlmGateway {
+        /** 记录每次实际执行的提供方和模型。 */
+        private final List<String> attempts = new ArrayList<String>();
+
+        /** 创建配置化重试测试网关。 */
+        private RetryingGateway(AppConfig config) {
+            super(config);
+        }
+
+        /** 模拟主提供方过载，备用提供方成功。 */
+        @Override
+        protected LlmResult executeSingle(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
+                throws Exception {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            if ("primary".equals(resolved.getProvider())) {
+                throw new IllegalStateException("HTTP 503 overloaded");
             }
 
             LlmResult result = new LlmResult();

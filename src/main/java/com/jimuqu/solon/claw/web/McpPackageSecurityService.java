@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -29,7 +30,7 @@ public class McpPackageSecurityService {
     /** 记录MCP包安全中的endpoint。 */
     private final String endpoint;
 
-    /** 注入安全策略服务，用于调用对应业务能力。 */
+    /** 校验 OSV 端点的共享安全策略。 */
     private final SecurityPolicyService securityPolicyService;
 
     /**
@@ -52,10 +53,10 @@ public class McpPackageSecurityService {
     }
 
     /**
-     * 创建MCP Package安全服务实例，并注入运行所需依赖。
+     * 创建使用默认 OSV 端点的包安全服务。
      *
-     * @param httpClient HTTPClient参数。
-     * @param securityPolicyService 安全策略服务依赖。
+     * @param httpClient HTTP 客户端。
+     * @param securityPolicyService 安全策略服务。
      */
     public McpPackageSecurityService(
             SkillHubHttpClient httpClient, SecurityPolicyService securityPolicyService) {
@@ -63,11 +64,11 @@ public class McpPackageSecurityService {
     }
 
     /**
-     * 创建MCP Package安全服务实例，并注入运行所需依赖。
+     * 创建可注入端点和安全策略的包安全服务。
      *
-     * @param httpClient HTTPClient参数。
-     * @param endpoint endpoint 参数。
-     * @param securityPolicyService 安全策略服务依赖。
+     * @param httpClient HTTP 客户端。
+     * @param endpoint OSV 查询端点。
+     * @param securityPolicyService 安全策略服务。
      */
     public McpPackageSecurityService(
             SkillHubHttpClient httpClient,
@@ -152,7 +153,7 @@ public class McpPackageSecurityService {
         summary.put("endpointRedacted", Boolean.TRUE);
         summary.put(
                 "description",
-                "MCP stdio package launchers are checked against OSV malware advisories before save/check; unsafe OSV endpoints are blocked before network access, OSV scan failures fail closed, and advisory messages are redacted.");
+                "MCP stdio package launchers are checked against OSV malware advisories before save/check; unsafe OSV endpoints and failed scans block execution.");
         return summary;
     }
 
@@ -162,7 +163,18 @@ public class McpPackageSecurityService {
      * @return 返回endpoint From Environment结果。
      */
     private static String endpointFromEnvironment() {
-        return System.getenv("SOLONCLAW_OSV_ENDPOINT");
+        return ProfileRuntimeScope.environmentValue("SOLONCLAW_OSV_ENDPOINT");
+    }
+
+    /** 在联网前校验 OSV 端点，避免安全扫描自身成为 SSRF 通道。 */
+    private SecurityVerdict checkEndpoint() {
+        if (securityPolicyService == null) {
+            return SecurityVerdict.allow();
+        }
+        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(endpoint);
+        return verdict.isAllowed()
+                ? SecurityVerdict.allow()
+                : SecurityVerdict.blockEndpoint(verdict.getUrl(), verdict.getMessage());
     }
 
     /**
@@ -388,22 +400,6 @@ public class McpPackageSecurityService {
     }
 
     /**
-     * 检查Endpoint。
-     *
-     * @return 返回Endpoint结果。
-     */
-    private SecurityVerdict checkEndpoint() {
-        if (securityPolicyService == null) {
-            return SecurityVerdict.allow();
-        }
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(endpoint);
-        if (verdict.isAllowed()) {
-            return SecurityVerdict.allow();
-        }
-        return SecurityVerdict.blockEndpoint(verdict.getUrl(), verdict.getMessage());
-    }
-
-    /**
      * 执行版本Or空值相关逻辑。
      *
      * @param version 版本参数。
@@ -560,13 +556,7 @@ public class McpPackageSecurityService {
                     "malware_advisory");
         }
 
-        /**
-         * 执行阻断Endpoint相关逻辑。
-         *
-         * @param endpoint endpoint 参数。
-         * @param reason 原因参数。
-         * @return 返回block Endpoint结果。
-         */
+        /** 构建 OSV 端点被安全策略拒绝的判定。 */
         public static SecurityVerdict blockEndpoint(String endpoint, String reason) {
             return new SecurityVerdict(
                     false,
@@ -578,14 +568,7 @@ public class McpPackageSecurityService {
                     "unsafe_endpoint");
         }
 
-        /**
-         * 构建OSV扫描异常的失败关闭判定，确保包安全探测失败时不会静默放行MCP安装或检查。
-         *
-         * @param packageName MCP启动器解析出的包名。
-         * @param ecosystem OSV查询使用的包生态。
-         * @param error OSV请求或响应解析过程中的异常。
-         * @return 返回阻断安装或检查的扫描异常判定。
-         */
+        /** 构建 OSV 请求或响应异常的失败关闭判定。 */
         public static SecurityVerdict scanError(
                 String packageName, String ecosystem, Exception error) {
             String detail =

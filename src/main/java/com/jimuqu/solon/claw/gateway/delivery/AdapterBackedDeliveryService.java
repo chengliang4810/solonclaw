@@ -2,7 +2,6 @@ package com.jimuqu.solon.claw.gateway.delivery;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
@@ -11,13 +10,12 @@ import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
-
-import lombok.RequiredArgsConstructor;
-
+import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import lombok.RequiredArgsConstructor;
 
 /** 基于渠道适配器集合实现的投递服务。 */
 @RequiredArgsConstructor
@@ -34,6 +32,10 @@ public class AdapterBackedDeliveryService implements DeliveryService {
     /** 发送消息；若请求未指定 chatId，则回退到平台 home channel。 */
     @Override
     public void deliver(DeliveryRequest request) throws Exception {
+        if (request == null) {
+            throw new IllegalArgumentException("Delivery request is required.");
+        }
+        applyProfileBoundary(request);
         if (shouldFilterSilenceNarration(request)) {
             return;
         }
@@ -54,6 +56,30 @@ public class AdapterBackedDeliveryService implements DeliveryService {
         }
 
         adapter.send(request);
+    }
+
+    /**
+     * 把空 Profile 补为当前运行时，并拒绝把命名 Profile 请求误投到另一组渠道凭据。
+     *
+     * @param request 待投递请求。
+     */
+    private void applyProfileBoundary(DeliveryRequest request) {
+        String current = ProfileRuntimeIdentity.resolve(appConfig);
+        String requested =
+                StrUtil.nullToEmpty(request.getProfile()).trim().toLowerCase(Locale.ROOT);
+        if (requested.length() == 0) {
+            request.setProfile(current);
+            return;
+        }
+        if (!current.equals(requested)) {
+            throw new IllegalArgumentException(
+                    "Delivery Profile '"
+                            + requested
+                            + "' does not match runtime Profile '"
+                            + current
+                            + "'.");
+        }
+        request.setProfile(requested);
     }
 
     /**

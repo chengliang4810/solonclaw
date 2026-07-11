@@ -54,15 +54,18 @@ public class CliRuntime {
             CommandService commandService,
             ConversationOrchestrator conversationOrchestrator,
             AgentRunControlService agentRunControlService) {
-        this(commandService, conversationOrchestrator, agentRunControlService, DEFAULT_SOURCE_KEY_PREFIX);
+        this(
+                commandService,
+                conversationOrchestrator,
+                agentRunControlService,
+                DEFAULT_SOURCE_KEY_PREFIX);
     }
 
     /**
      * 创建带自定义来源键前缀的Cli运行时实例。
      *
-     * <p>终端 UI 通过 /ws/tui 发起 prompt.submit 时，必须与自身的会话管理（MEMORY:terminal-ui:*）
-     * 使用同一来源键前缀，否则后端会按 cli 前缀查不到会话而新建，导致回复事件的 session_id 与
-     * 前端当前会话不匹配，被前端按 session_id 过滤丢弃，表现为"一直运行中不回复"。
+     * <p>终端 UI 通过 /ws/tui 发起 prompt.submit 时，必须与自身的会话管理（MEMORY:terminal-ui:*） 使用同一来源键前缀，否则后端会按 cli
+     * 前缀查不到会话而新建，导致回复事件的 session_id 与 前端当前会话不匹配，被前端按 session_id 过滤丢弃，表现为"一直运行中不回复"。
      *
      * @param commandService 命令服务依赖。
      * @param conversationOrchestrator conversationOrchestrator 参数。
@@ -84,8 +87,8 @@ public class CliRuntime {
     /**
      * 派生一个仅替换来源键前缀的 CliRuntime，复用同一套命令服务、对话编排器与运行控制服务。
      *
-     * <p>终端 UI 需要用 terminal-ui 前缀与自身会话管理对齐，但不应改动全局共享的 CLI 运行时，
-     * 因此通过本方法派生独立的实例注入到 TerminalUiWebSocketListener。
+     * <p>终端 UI 需要用 terminal-ui 前缀与自身会话管理对齐，但不应改动全局共享的 CLI 运行时， 因此通过本方法派生独立的实例注入到
+     * TerminalUiWebSocketListener。
      *
      * @param newSourceKeyPrefix 新的来源键前缀。
      * @return 返回使用指定前缀的新 CliRuntime 实例。

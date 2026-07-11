@@ -1,12 +1,11 @@
 package com.jimuqu.solon.claw.support;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import org.junit.jupiter.api.Test;
 
 /** 验证错误文本脱敏应直接复用共享工具，避免各服务保留一行转发包装。 */
 class ErrorTextSupportReuseTest {
@@ -24,8 +23,7 @@ class ErrorTextSupportReuseTest {
                     "src/main/java/com/jimuqu/solon/claw/web/DomesticQrSetupService.java",
                 };
         for (String path : paths) {
-            String source =
-                    new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
+            String source = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
             assertFalse(
                     source.contains("return ErrorTextSupport.safeError("),
                     path + " should call ErrorTextSupport.safeError directly at use sites");

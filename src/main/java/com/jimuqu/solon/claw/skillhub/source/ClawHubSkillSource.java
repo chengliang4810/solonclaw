@@ -592,5 +592,4 @@ public class ClawHubSkillSource implements SkillSource {
     private String urlWithSlug(String template, String slug) throws Exception {
         return String.format(template, URLEncoder.encode(slug, "UTF-8"));
     }
-
 }

@@ -33,7 +33,8 @@ final class ConfigSecretWriteGuard {
      * @param oldContent 写入前的文件内容；新增文件可为空。
      * @param newContent 即将写入的文件内容。
      */
-    static void assertNoPlaceholderSecretDowngrade(Path target, String oldContent, String newContent) {
+    static void assertNoPlaceholderSecretDowngrade(
+            Path target, String oldContent, String newContent) {
         if (!looksLikeConfigFile(target) || StrUtil.equals(oldContent, newContent)) {
             return;
         }

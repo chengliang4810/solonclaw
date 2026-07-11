@@ -1,4 +1,5 @@
 import router from '@/router'
+import { appendManagementProfile } from '@/shared/profileScope'
 import { isDashboardOriginRejected } from './dashboardAuthError.ts'
 export {
   clearApiKey,
@@ -9,6 +10,20 @@ export {
   setServerUrl,
 } from './sessionAuth.ts'
 import { clearApiKey, getApiKey, getBaseUrlValue } from './sessionAuth.ts'
+
+let managementProfile = ''
+
+export function setManagementProfile(profile: string): void {
+  managementProfile = profile.trim()
+}
+
+export function getManagementProfile(): string {
+  return managementProfile
+}
+
+export function profiledApiPath(path: string): string {
+  return appendManagementProfile(path, managementProfile)
+}
 
 export function redirectToLogin() {
   clearApiKey()
@@ -49,7 +64,12 @@ function apiErrorMessage(status: number, statusText: string, body: string): stri
 }
 
 export async function dashboardFetch(input: RequestInfo | URL, options: RequestInit = {}): Promise<Response> {
-  const res = await fetch(input, options)
+  const scopedInput = typeof input === 'string'
+    ? profiledApiPath(input)
+    : input instanceof URL
+      ? new URL(profiledApiPath(input.toString()))
+      : input
+  const res = await fetch(scopedInput, options)
   if (res.ok) {
     return res
   }
@@ -60,7 +80,9 @@ export async function dashboardFetch(input: RequestInfo | URL, options: RequestI
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const base = getBaseUrlValue()
-  const url = `${base}${path}`
+  // `profile` 查询参数是 Dashboard 管理目标的统一契约；写请求可在后端兼容同名 JSON 字段，
+  // 但客户端始终保留查询参数，避免修改各业务请求体结构。
+  const url = `${base}${profiledApiPath(path)}`
   const headers = new Headers(options.headers || {})
 
   if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {

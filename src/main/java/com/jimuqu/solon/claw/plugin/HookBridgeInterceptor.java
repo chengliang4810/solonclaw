@@ -12,9 +12,9 @@ import org.noear.solon.ai.chat.ChatResponse;
 import org.noear.solon.ai.chat.interceptor.CallChain;
 import org.noear.solon.ai.chat.interceptor.StreamChain;
 import org.noear.solon.ai.chat.message.ChatMessage;
-import reactor.core.publisher.Flux;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 
 /** 桥接 Solon AI ReActInterceptor 到 AgentHookRegistry。 */
 public class HookBridgeInterceptor implements ReActInterceptor {
@@ -86,7 +86,8 @@ public class HookBridgeInterceptor implements ReActInterceptor {
      * @return 返回模型响应。
      */
     @Override
-    public ChatResponse interceptCall(ChatRequest request, CallChain chain) throws java.io.IOException {
+    public ChatResponse interceptCall(ChatRequest request, CallChain chain)
+            throws java.io.IOException {
         invokeApiHook(AgentHookName.PRE_API_REQUEST);
         try {
             return chain.doIntercept(request);
@@ -105,7 +106,8 @@ public class HookBridgeInterceptor implements ReActInterceptor {
     @Override
     public Flux<ChatResponse> interceptStream(ChatRequest request, StreamChain chain) {
         invokeApiHook(AgentHookName.PRE_API_REQUEST);
-        return chain.doIntercept(request).doFinally(signal -> invokeApiHook(AgentHookName.POST_API_REQUEST));
+        return chain.doIntercept(request)
+                .doFinally(signal -> invokeApiHook(AgentHookName.POST_API_REQUEST));
     }
 
     /** 触发不依赖 trace 的模型请求钩子。 */

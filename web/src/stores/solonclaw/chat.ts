@@ -1,12 +1,14 @@
 import { cancelRun, startRun, streamRunEvents, uploadChatFiles, type ChatMessage, type RunEvent } from '@/api/solonclaw/chat'
+import { getManagementProfile } from '@/api/client'
 import { fetchRunDetail } from '@/api/solonclaw/runs'
 import { deleteSession as deleteSessionApi, fetchLatestSessionDescendant, fetchSession, fetchSessions, fetchSessionUsageSingle, type SolonClawMessage, type SessionGoalState, type SessionSummary } from '@/api/solonclaw/sessions'
 import { shouldUseServerMessages } from '@/shared/chatMessageMerge'
+import { profileSessionIdentity } from '@/shared/profileScope'
 import { normalizeTimestampMs } from '@/shared/session-display'
-import { selectSessionId } from '@/shared/sessionSelection'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useAppStore } from './app'
+import { useProfilesStore } from './profiles'
 
 export interface Attachment {
   id: string
@@ -33,7 +35,10 @@ export interface Message {
 }
 
 export interface Session {
+  /** 浏览器内部复合标识；服务端原始会话 ID 仍保存在 id。 */
+  key: string
   id: string
+  profile?: string
   title: string
   source?: string
   messages: Message[]
@@ -48,7 +53,6 @@ export interface Session {
   endedAt?: number | null
   lastActiveAt?: number
   isLive?: boolean
-  activeAgentName?: string
   goalState?: SessionGoalState | null
 }
 
@@ -144,9 +148,12 @@ function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
   return result
 }
 
-function mapSolonClawSession(s: SessionSummary): Session {
+function mapSolonClawSession(s: SessionSummary, fallbackProfile: string): Session {
+  const profile = s.profile || fallbackProfile || 'default'
   return {
+    key: profileSessionIdentity(s.id, profile),
     id: s.id,
+    profile,
     title: s.title || '',
     source: s.source || undefined,
     messages: [],
@@ -161,7 +168,6 @@ function mapSolonClawSession(s: SessionSummary): Session {
     endedAt: s.ended_at != null ? normalizeTimestampMs(s.ended_at) : null,
     lastActiveAt: s.last_active != null ? normalizeTimestampMs(s.last_active) : undefined,
     isLive: Boolean(s.is_active),
-    activeAgentName: s.active_agent_name || 'default',
     goalState: s.goal_state || null,
   }
 }
@@ -169,8 +175,8 @@ function mapSolonClawSession(s: SessionSummary): Session {
 // Cache keys for stale-while-revalidate loading of sessions / messages.
 // Rendering from cache on boot avoids the multi-round-trip wait the user sees
 // every time they open the page (esp. noticeable on mobile).
-const STORAGE_KEY = 'solonclaw_active_session'
-const SESSIONS_CACHE_KEY = 'solonclaw_sessions_cache_v1'
+const STORAGE_KEY = 'solonclaw_active_session_v2'
+const SESSIONS_CACHE_KEY = 'solonclaw_sessions_cache_v2'
 const IN_FLIGHT_TTL_MS = 15 * 60 * 1000 // Give up after 15 minutes
 const POLL_INTERVAL_MS = 2000
 const POLL_STABLE_EXITS = 3 // 3 × 2s = 6s of no change → assume run finished
@@ -180,8 +186,8 @@ function readActiveSessionKey(): string | null {
   return localStorage.getItem(storageKey())
 }
 function sessionsCacheKey(): string { return SESSIONS_CACHE_KEY }
-function msgsCacheKey(sid: string): string { return `solonclaw_session_msgs_v1_${sid}_` }
-function inFlightKey(sid: string): string { return `solonclaw_in_flight_v1_${sid}` }
+function msgsCacheKey(sessionKey: string): string { return `solonclaw_session_msgs_v2_${sessionKey}_` }
+function inFlightKey(sessionKey: string): string { return `solonclaw_in_flight_v2_${sessionKey}` }
 
 interface InFlightRun {
   runId: string
@@ -208,8 +214,8 @@ function recoverStorageQuota() {
   try {
     const prefixes = [
       sessionsCacheKey(),
-      'solonclaw_session_msgs_v1_',
-      'solonclaw_in_flight_v1_',
+      'solonclaw_session_msgs_v2_',
+      'solonclaw_in_flight_v2_',
     ]
     const keysToRemove: string[] = []
     for (let i = 0; i < localStorage.length; i++) {
@@ -277,11 +283,11 @@ function isTerminalRunStatus(status?: string): boolean {
 
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref<Session[]>([])
-  const activeSessionId = ref<string | null>(null)
+  const activeSessionKey = ref<string | null>(null)
   const focusMessageId = ref<string | null>(null)
   const streamStates = ref<Map<string, AbortController>>(new Map())
   const runIds = ref<Map<string, string>>(new Map())
-  const isStreaming = computed(() => activeSessionId.value != null && streamStates.value.has(activeSessionId.value))
+  const isStreaming = computed(() => activeSessionKey.value != null && streamStates.value.has(activeSessionKey.value))
   const isLoadingSessions = ref(false)
   const sessionsLoaded = ref(false)
   const isLoadingMessages = ref(false)
@@ -291,18 +297,19 @@ export const useChatStore = defineStore('chat', () => {
   const resumingRuns = ref<Set<string>>(new Set())
   const isRunActive = computed(() =>
     isStreaming.value
-    || (activeSessionId.value != null && resumingRuns.value.has(activeSessionId.value))
+    || (activeSessionKey.value != null && resumingRuns.value.has(activeSessionKey.value))
   )
   const pollTimers = new Map<string, ReturnType<typeof setInterval>>()
   const pollSignatures = new Map<string, { sig: string, stableTicks: number }>()
 
   const activeSession = ref<Session | null>(null)
+  const activeSessionId = computed(() => activeSession.value?.id || null)
   const messages = computed<Message[]>(() => activeSession.value?.messages || [])
 
-  function isSessionLive(sessionId: string): boolean {
-    if (streamStates.value.has(sessionId) || resumingRuns.value.has(sessionId)) return true
+  function isSessionLive(sessionKey: string): boolean {
+    if (streamStates.value.has(sessionKey) || resumingRuns.value.has(sessionKey)) return true
 
-    const session = sessions.value.find(candidate => candidate.id === sessionId)
+    const session = sessions.value.find(candidate => candidate.key === sessionKey)
     return Boolean(session?.isLive)
   }
 
@@ -314,11 +321,9 @@ export const useChatStore = defineStore('chat', () => {
     )
   }
 
-  function persistActiveMessages() {
-    const sid = activeSessionId.value
-    if (!sid) return
-    const s = sessions.value.find(sess => sess.id === sid)
-    if (s) saveJson(msgsCacheKey(sid), sanitizeForCache(s.messages))
+  function persistSessionMessages(sessionKey: string) {
+    const session = sessions.value.find(candidate => candidate.key === sessionKey)
+    if (session) saveJson(msgsCacheKey(sessionKey), sanitizeForCache(session.messages))
   }
 
   function markInFlight(sid: string, runId: string, agentRunId?: string) {
@@ -346,10 +351,31 @@ export const useChatStore = defineStore('chat', () => {
     return rec
   }
 
-  async function resolveLatestDescendantId(sessionId: string): Promise<string> {
-    const latest = await fetchLatestSessionDescendant(sessionId)
-    if (!latest?.session_id) return sessionId
-    return sessions.value.some(s => s.id === latest.session_id) ? latest.session_id : sessionId
+  function sessionForKey(sessionKey: string): Session | undefined {
+    return sessions.value.find(session => session.key === sessionKey)
+  }
+
+  function profileForSession(sessionKey: string): string | undefined {
+    return sessionForKey(sessionKey)?.profile
+  }
+
+  function resolveSessionKey(sessionIdOrKey: string, profile?: string): string | null {
+    if (sessionForKey(sessionIdOrKey)) return sessionIdOrKey
+    if (profile?.trim()) {
+      const explicit = profileSessionIdentity(sessionIdOrKey, profile)
+      if (sessionForKey(explicit)) return explicit
+    }
+    if (activeSession.value?.id === sessionIdOrKey) return activeSession.value.key
+    return sessions.value.find(session => session.id === sessionIdOrKey)?.key || null
+  }
+
+  async function resolveLatestDescendantKey(sessionKey: string): Promise<string> {
+    const session = sessionForKey(sessionKey)
+    if (!session) return sessionKey
+    const latest = await fetchLatestSessionDescendant(session.id, session.profile)
+    if (!latest?.session_id) return sessionKey
+    const latestKey = profileSessionIdentity(latest.session_id, session.profile)
+    return sessionForKey(latestKey) ? latestKey : sessionKey
   }
 
   function stopPolling(sid: string) {
@@ -386,16 +412,18 @@ export const useChatStore = defineStore('chat', () => {
             return
           }
         }
-        const detail = await fetchSession(sid)
+        const session = sessionForKey(sid)
+        if (!session) return
+        const detail = await fetchSession(session.id, session.profile)
         if (!detail) return
         const mapped = mapSolonClawMessages(detail.messages || [])
-        const target = sessions.value.find(s => s.id === sid)
+        const target = sessionForKey(sid)
         if (!target) return
         if (inFlight.agentRunId) {
           target.messages = mapped
           if (detail.title) target.title = detail.title
           target.goalState = detail.goal_state || null
-          if (sid === activeSessionId.value) persistActiveMessages()
+          persistSessionMessages(sid)
           clearInFlight(sid)
           stopPolling(sid)
           return
@@ -414,7 +442,7 @@ export const useChatStore = defineStore('chat', () => {
           target.messages = mapped
           if (detail.title && !target.title) target.title = detail.title
           target.goalState = detail.goal_state || null
-          if (sid === activeSessionId.value) persistActiveMessages()
+          persistSessionMessages(sid)
         }
         // Stability detection ONLY matters when the server has at least as
         // many user turns as we do. Otherwise the server is still catching
@@ -436,7 +464,7 @@ export const useChatStore = defineStore('chat', () => {
               target.messages = mapped
               if (detail.title) target.title = detail.title
               target.goalState = detail.goal_state || null
-              if (sid === activeSessionId.value) persistActiveMessages()
+              persistSessionMessages(sid)
               clearInFlight(sid)
               stopPolling(sid)
             }
@@ -451,53 +479,61 @@ export const useChatStore = defineStore('chat', () => {
     pollTimers.set(sid, timer)
   }
 
-  async function loadSessions(preferredSessionId?: string | null) {
+  async function loadSessions(preferredSessionId?: string | null, preferredProfile?: string) {
     isLoadingSessions.value = true
     try {
       // 从会话维度缓存中恢复，实现 instant render
       const cachedSessions = loadJson<Session[]>(sessionsCacheKey())
       if (sessions.value.length === 0 && cachedSessions?.length) {
         sessions.value = cachedSessions
-        const savedId = readActiveSessionKey()
-        if (savedId) {
-          const cachedActive = cachedSessions.find(s => s.id === savedId) || null
+        const savedKey = readActiveSessionKey()
+        if (savedKey) {
+          const cachedActive = cachedSessions.find(s => s.key === savedKey) || null
           if (cachedActive) {
-            const cachedMsgs = loadJson<Message[]>(msgsCacheKey(savedId))
+            const cachedMsgs = loadJson<Message[]>(msgsCacheKey(savedKey))
             if (cachedMsgs) cachedActive.messages = cachedMsgs
             activeSession.value = cachedActive
-            activeSessionId.value = savedId
+            activeSessionKey.value = savedKey
           }
         }
       }
 
       const list = await fetchSessions()
-      const fresh = list.map(mapSolonClawSession)
-      const freshIds = new Set(fresh.map(s => s.id))
+      const fallbackProfile = useProfilesStore().managedProfileName || 'default'
+      const fresh = list.map(session => mapSolonClawSession(session, fallbackProfile))
+      const freshKeys = new Set(fresh.map(session => session.key))
       // Preserve already-loaded messages for sessions that are still present,
       // so we don't blow away the active session's messages on refresh.
-      const msgsByIdBefore = new Map(sessions.value.map(s => [s.id, s.messages]))
-      for (const s of fresh) {
-        const prev = msgsByIdBefore.get(s.id)
-        if (prev && prev.length) s.messages = prev
+      const msgsByKeyBefore = new Map(sessions.value.map(session => [session.key, session.messages]))
+      for (const session of fresh) {
+        const previous = msgsByKeyBefore.get(session.key)
+        if (previous?.length) session.messages = previous
       }
       // 只保留仍可恢复的本地会话；旧浏览器缓存不能覆盖服务端空列表。
-      const localOnly = sessions.value.filter(s =>
-        !freshIds.has(s.id)
-        && (readInFlight(s.id) || streamStates.value.has(s.id) || resumingRuns.value.has(s.id))
+      const localOnly = sessions.value.filter(session =>
+        !freshKeys.has(session.key)
+        && (readInFlight(session.key) || streamStates.value.has(session.key) || resumingRuns.value.has(session.key))
       )
       sessions.value = [...localOnly, ...fresh]
       persistSessionsList()
 
-      const candidateId = selectSessionId(sessions.value, preferredSessionId, activeSessionId.value)
-      const targetId = candidateId ? await resolveLatestDescendantId(candidateId) : candidateId
-      if (targetId) {
-        if (targetId === activeSessionId.value && activeSession.value && streamStates.value.has(targetId)) {
-          setItemBestEffort(storageKey(), targetId)
+      const preferredKey = preferredSessionId
+        ? resolveSessionKey(preferredSessionId, preferredProfile)
+        : null
+      const savedKey = readActiveSessionKey()
+      const candidateKey = preferredKey
+        || (savedKey && sessionForKey(savedKey) ? savedKey : null)
+        || (activeSessionKey.value && sessionForKey(activeSessionKey.value) ? activeSessionKey.value : null)
+        || sessions.value[0]?.key
+      const targetKey = candidateKey ? await resolveLatestDescendantKey(candidateKey) : candidateKey
+      if (targetKey) {
+        if (targetKey === activeSessionKey.value && activeSession.value && streamStates.value.has(targetKey)) {
+          setItemBestEffort(storageKey(), targetKey)
         } else {
-          await switchSession(targetId)
+          await switchSession(targetKey)
         }
       } else {
-        activeSessionId.value = null
+        activeSessionKey.value = null
         activeSession.value = null
         focusMessageId.value = null
         removeItem(storageKey())
@@ -514,13 +550,12 @@ export const useChatStore = defineStore('chat', () => {
   // SSE drop and on tab-visible events — mobile browsers kill EventSource
   // while backgrounded, but the backend run usually completes anyway.
   async function refreshActiveSession(): Promise<boolean> {
-    const sid = activeSessionId.value
-    if (!sid) return false
+    const sessionKey = activeSessionKey.value
+    const target = sessionKey ? sessionForKey(sessionKey) : undefined
+    if (!sessionKey || !target) return false
     try {
-      const detail = await fetchSession(sid)
+      const detail = await fetchSession(target.id, target.profile)
       if (!detail) return false
-      const target = sessions.value.find(s => s.id === sid)
-      if (!target) return false
       const mapped = mapSolonClawMessages(detail.messages || [])
       // SSE 断开后的主动刷新可能早于后端会话落库完成，不能用旧服务端视图
       // 覆盖本地仍在推进的新用户轮次；统一复用会话切换的内容感知合并规则。
@@ -532,7 +567,7 @@ export const useChatStore = defineStore('chat', () => {
       target.outputTokens = detail.output_tokens
       target.lastTotalTokens = detail.last_total_tokens || undefined
       if (detail.title) target.title = detail.title
-      persistActiveMessages()
+      persistSessionMessages(sessionKey)
       return true
     } catch (err) {
       console.error('Failed to refresh active session:', err)
@@ -542,8 +577,12 @@ export const useChatStore = defineStore('chat', () => {
 
 
   function createSession(): Session {
+    const profile = useProfilesStore().managedProfileName || getManagementProfile() || 'default'
+    const id = uid()
     const session: Session = {
-      id: uid(),
+      key: profileSessionIdentity(id, profile),
+      id,
+      profile,
       title: '',
       source: 'api_server',
       messages: [],
@@ -557,30 +596,37 @@ export const useChatStore = defineStore('chat', () => {
     return session
   }
 
-  async function switchSession(sessionId: string, focusId?: string | null) {
-    activeSessionId.value = sessionId
-    focusMessageId.value = focusId ?? null
-    setItemBestEffort(storageKey(), sessionId)
-    activeSession.value = sessions.value.find(s => s.id === sessionId) || null
+  async function switchSession(
+    sessionIdOrKey: string,
+    focusId?: string | null,
+    profile?: string,
+  ) {
+    const sessionKey = resolveSessionKey(sessionIdOrKey, profile)
+    if (!sessionKey) return
+    const target = sessionForKey(sessionKey)
+    if (!target) return
 
-    if (!activeSession.value) return
+    activeSessionKey.value = sessionKey
+    focusMessageId.value = focusId ?? null
+    setItemBestEffort(storageKey(), sessionKey)
+    activeSession.value = target
 
     // Hydrate messages from localStorage cache first (instant render), then
     // revalidate from server in the background. If no cache exists, show the
     // loading state while we fetch.
-    const hasLocalMessages = activeSession.value.messages.length > 0
+    const hasLocalMessages = target.messages.length > 0
     if (!hasLocalMessages) {
-      const cachedMsgs = loadJson<Message[]>(msgsCacheKey(sessionId))
+      const cachedMsgs = loadJson<Message[]>(msgsCacheKey(sessionKey))
       if (cachedMsgs?.length) {
-        activeSession.value.messages = cachedMsgs
+        target.messages = cachedMsgs
       }
     }
 
-    const needsBlockingLoad = activeSession.value.messages.length === 0
+    const needsBlockingLoad = target.messages.length === 0
     if (needsBlockingLoad) isLoadingMessages.value = true
 
     try {
-      const detail = await fetchSession(sessionId)
+      const detail = await fetchSession(target.id, target.profile)
       if (detail && detail.messages) {
         const mapped = mapSolonClawMessages(detail.messages)
         // Pick whichever view has more information. Simple length comparison
@@ -591,7 +637,7 @@ export const useChatStore = defineStore('chat', () => {
         // message content: if the server's is at least as long, the server
         // is up-to-date (and has the final complete text); otherwise keep
         // local (in-flight window where server hasn't flushed the new turn).
-        const local = activeSession.value.messages
+        const local = target.messages
         // Trust server when:
         //   - it has STRICTLY MORE user turns than we do (new turn landed),
         //     OR
@@ -602,23 +648,23 @@ export const useChatStore = defineStore('chat', () => {
         // across different turns because each turn's last assistant is
         // unrelated to the previous turn's.
         if (shouldUseServerMessages(local, mapped)) {
-          activeSession.value.messages = mapped
+          target.messages = mapped
         }
-        activeSession.value.goalState = detail.goal_state || null
-        activeSession.value.inputTokens = detail.input_tokens
-        activeSession.value.outputTokens = detail.output_tokens
-        activeSession.value.lastTotalTokens = detail.last_total_tokens || undefined
+        target.goalState = detail.goal_state || null
+        target.inputTokens = detail.input_tokens
+        target.outputTokens = detail.output_tokens
+        target.lastTotalTokens = detail.last_total_tokens || undefined
         // Update title: use Jimuqu title, or fallback to first user message
         if (detail.title) {
-          activeSession.value.title = detail.title
-        } else if (!activeSession.value.title) {
-          const firstUser = (activeSession.value.messages).find(m => m.role === 'user')
+          target.title = detail.title
+        } else if (!target.title) {
+          const firstUser = target.messages.find(m => m.role === 'user')
           if (firstUser) {
             const t = firstUser.content.slice(0, 40)
-            activeSession.value.title = t + (firstUser.content.length > 40 ? '...' : '')
+            target.title = t + (firstUser.content.length > 40 ? '...' : '')
           }
         }
-        persistActiveMessages()
+        persistSessionMessages(sessionKey)
       }
     } catch (err) {
       console.error('Failed to load session messages:', err)
@@ -629,17 +675,17 @@ export const useChatStore = defineStore('chat', () => {
     // tmux-like resume: if this session has a recent in-flight run and we're
     // not currently streaming, start polling fetchSession to pick up progress
     // that happened while we were gone. Exits automatically on stability.
-    if (readInFlight(sessionId) && !streamStates.value.has(sessionId)) {
-      startPolling(sessionId)
+    if (readInFlight(sessionKey) && !streamStates.value.has(sessionKey)) {
+      startPolling(sessionKey)
     }
 
     // Fetch token usage for this session from web-ui DB
     try {
-      const usage = await fetchSessionUsageSingle(sessionId)
+      const usage = await fetchSessionUsageSingle(target.id, target.profile)
       if (usage) {
-        activeSession.value.inputTokens = usage.input_tokens
-        activeSession.value.outputTokens = usage.output_tokens
-        activeSession.value.lastTotalTokens = usage.last_total_tokens || undefined
+        target.inputTokens = usage.input_tokens
+        target.outputTokens = usage.output_tokens
+        target.lastTotalTokens = usage.last_total_tokens || undefined
       }
     } catch { /* non-critical */ }
   }
@@ -650,7 +696,7 @@ export const useChatStore = defineStore('chat', () => {
     // Inherit current global model
     const appStore = useAppStore()
     session.model = appStore.selectedModel || undefined
-    switchSession(session.id)
+    void switchSession(session.key)
   }
 
   async function switchSessionModel(modelId: string, provider?: string) {
@@ -663,44 +709,45 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  async function deleteSession(sessionId: string): Promise<boolean> {
-    const ok = await deleteSessionApi(sessionId)
+  async function deleteSession(sessionKey: string): Promise<boolean> {
+    const target = sessionForKey(sessionKey)
+    if (!target) return false
+    const ok = await deleteSessionApi(target.id, target.profile)
     if (!ok) return false
-    sessions.value = sessions.value.filter(s => s.id !== sessionId)
-    removeItem(msgsCacheKey(sessionId))
+    sessions.value = sessions.value.filter(session => session.key !== sessionKey)
+    removeItem(msgsCacheKey(sessionKey))
     persistSessionsList()
-    if (activeSessionId.value === sessionId) {
+    if (activeSessionKey.value === sessionKey) {
       if (sessions.value.length > 0) {
-        await switchSession(sessions.value[0].id)
+        await switchSession(sessions.value[0].key)
       } else {
         const session = createSession()
-        switchSession(session.id)
+        await switchSession(session.key)
       }
     }
     return true
   }
 
-  function getSessionMsgs(sessionId: string): Message[] {
-    const s = sessions.value.find(s => s.id === sessionId)
-    return s?.messages || []
+  function getSessionMsgs(sessionKey: string): Message[] {
+    return sessionForKey(sessionKey)?.messages || []
   }
 
-  function addMessage(sessionId: string, msg: Message) {
-    const s = sessions.value.find(s => s.id === sessionId)
-    if (s) s.messages.push(msg)
+  function addMessage(sessionKey: string, msg: Message) {
+    const session = sessionForKey(sessionKey)
+    if (session) session.messages.push(msg)
   }
 
-  function updateMessage(sessionId: string, id: string, update: Partial<Message>) {
-    const s = sessions.value.find(s => s.id === sessionId)
-    if (!s) return
-    const idx = s.messages.findIndex(m => m.id === id)
+  function updateMessage(sessionKey: string, id: string, update: Partial<Message>) {
+    const session = sessionForKey(sessionKey)
+    if (!session) return
+    const idx = session.messages.findIndex(m => m.id === id)
     if (idx !== -1) {
-      s.messages[idx] = { ...s.messages[idx], ...update }
+      session.messages[idx] = { ...session.messages[idx], ...update }
     }
   }
 
-  function updateSessionTitle(sessionId: string) {
-    const target = sessions.value.find(s => s.id === sessionId)
+  function updateSessionTitle(sessionKey: string) {
+    const target = sessionForKey(sessionKey)
     if (!target) return
     if (!target.title) {
       const firstUser = target.messages.find(m => m.role === 'user')
@@ -714,13 +761,12 @@ export const useChatStore = defineStore('chat', () => {
     target.updatedAt = Date.now()
   }
 
-  function adoptServerSessionId(localSessionId: string, serverSessionId: string): string {
-    if (!serverSessionId || serverSessionId === localSessionId) return localSessionId
+  function adoptServerSessionId(localSessionKey: string, serverSessionId: string): string {
+    const local = sessionForKey(localSessionKey)
+    if (!local || !serverSessionId || serverSessionId === local.id) return localSessionKey
 
-    const local = sessions.value.find(s => s.id === localSessionId)
-    if (!local) return serverSessionId
-
-    const existing = sessions.value.find(s => s.id === serverSessionId)
+    const serverSessionKey = profileSessionIdentity(serverSessionId, local.profile)
+    const existing = sessionForKey(serverSessionKey)
     if (existing && existing !== local) {
       if (existing.messages.length === 0 && local.messages.length > 0) {
         existing.messages = local.messages
@@ -728,38 +774,54 @@ export const useChatStore = defineStore('chat', () => {
       if (!existing.title && local.title) {
         existing.title = local.title
       }
-      sessions.value = sessions.value.filter(s => s.id !== localSessionId)
-      if (activeSessionId.value === localSessionId) {
-        activeSessionId.value = serverSessionId
+      sessions.value = sessions.value.filter(session => session.key !== localSessionKey)
+      if (activeSessionKey.value === localSessionKey) {
+        activeSessionKey.value = serverSessionKey
         activeSession.value = existing
       }
     } else {
       local.id = serverSessionId
-      if (activeSessionId.value === localSessionId) {
-        activeSessionId.value = serverSessionId
+      local.key = serverSessionKey
+      if (activeSessionKey.value === localSessionKey) {
+        activeSessionKey.value = serverSessionKey
         activeSession.value = local
       }
     }
 
-    setItemBestEffort(storageKey(), serverSessionId)
-    removeItem(msgsCacheKey(localSessionId))
-    persistSessionsList()
-    if (activeSessionId.value === serverSessionId) {
-      persistActiveMessages()
+    if (activeSessionKey.value === serverSessionKey) {
+      setItemBestEffort(storageKey(), serverSessionKey)
     }
-    return serverSessionId
+    removeItem(msgsCacheKey(localSessionKey))
+    persistSessionsList()
+    persistSessionMessages(serverSessionKey)
+    return serverSessionKey
   }
 
-  async function sendMessage(content: string, attachments?: Attachment[]) {
-    if ((!content.trim() && !(attachments && attachments.length > 0)) || isStreaming.value) return
+  function chatRouteToken(): string {
+    return `${activeSessionKey.value || ''}|${getManagementProfile()}`
+  }
 
+  async function sendMessage(content: string, attachments?: Attachment[]): Promise<boolean> {
+    if ((!content.trim() && !(attachments && attachments.length > 0)) || isStreaming.value) return false
+
+    let createdSessionKey: string | null = null
     if (!activeSession.value) {
       const session = createSession()
-      switchSession(session.id)
+      createdSessionKey = session.key
+      await switchSession(session.key)
+      if (activeSessionKey.value !== createdSessionKey) return false
     }
 
-    // Capture session ID at send time — all callbacks use this, not activeSessionId
-    const localSid = activeSessionId.value!
+    // 固定完整提交上下文；任何 await 之后都不能重新读取当前选中会话。
+    const startingSessionKey = activeSessionKey.value
+    const startingSession = startingSessionKey ? sessionForKey(startingSessionKey) : undefined
+    if (!startingSessionKey || !startingSession) return false
+    const startingSessionId = startingSession.id
+    const startingProfile = startingSession.profile
+    const startingRouteToken = chatRouteToken()
+    const startingModel = startingSession.model || useAppStore().selectedModel || undefined
+    const previousTitle = startingSession.title
+    const previousUpdatedAt = startingSession.updatedAt
     const isSlashCommand = content.trim().startsWith('/')
 
     const userMsg: Message = {
@@ -769,50 +831,67 @@ export const useChatStore = defineStore('chat', () => {
       timestamp: Date.now(),
       attachments: attachments && attachments.length > 0 ? attachments : undefined,
     }
-    addMessage(localSid, userMsg)
-    updateSessionTitle(localSid)
+    addMessage(startingSessionKey, userMsg)
+    updateSessionTitle(startingSessionKey)
     // Persist immediately so a refresh before the first SSE event (e.g. the
     // user closes the tab right after sending) still has the user's message
     // and session title in the cache.
-    if (localSid === activeSessionId.value) {
-      persistActiveMessages()
-      persistSessionsList()
+    persistSessionMessages(startingSessionKey)
+    persistSessionsList()
+
+    const sessionContextDrifted = () =>
+      activeSessionKey.value !== startingSessionKey || chatRouteToken() !== startingRouteToken
+
+    const abortForSessionSwitch = (): false => {
+      const target = sessionForKey(startingSessionKey)
+      if (target) {
+        target.messages = target.messages.filter(message => message.id !== userMsg.id)
+        target.title = previousTitle
+        target.updatedAt = previousUpdatedAt
+        persistSessionMessages(startingSessionKey)
+        persistSessionsList()
+      }
+      return false
     }
 
     try {
       // Build conversation history from past messages
-      const sessionMsgs = getSessionMsgs(localSid)
+      const sessionMsgs = getSessionMsgs(startingSessionKey)
       const history: ChatMessage[] = sessionMsgs
         .filter(m => m.id !== userMsg.id && (m.role === 'user' || m.role === 'assistant') && m.content.trim())
         .map(m => ({ role: m.role as 'user' | 'assistant' | 'system', content: m.content }))
 
       const uploadedAttachments = attachments && attachments.length > 0
-        ? await uploadChatFiles(attachments.map(att => att.file).filter((file): file is File => !!file))
+          ? await uploadChatFiles(
+            attachments.map(att => att.file).filter((file): file is File => !!file),
+            startingProfile,
+          )
         : []
 
-      const appStore = useAppStore()
-      const sessionModel = activeSession.value?.model || appStore.selectedModel
+      if (sessionContextDrifted()) return abortForSessionSwitch()
+
       const run = await startRun({
         input: content.trim(),
+        profile: startingProfile,
         conversation_history: history,
-        session_id: localSid,
-        model: sessionModel || undefined,
+        session_id: startingSessionId,
+        model: startingModel,
         attachments: uploadedAttachments,
       })
 
       const runId = (run as any).run_id || (run as any).id
       if (!runId) {
-        addMessage(localSid, {
+        addMessage(startingSessionKey, {
           id: uid(),
           role: 'system',
           content: `Error: startRun returned no run ID. Response: ${JSON.stringify(run)}`,
           timestamp: Date.now(),
         })
-        if (localSid === activeSessionId.value) persistActiveMessages()
-        return
+        persistSessionMessages(startingSessionKey)
+        return false
       }
 
-      const sid = adoptServerSessionId(localSid, run.session_id || localSid)
+      const sid = adoptServerSessionId(startingSessionKey, run.session_id || startingSessionId)
 
       // tmux-like resume: persist run_id so refresh/reopen can pick up the
       // working indicator and poll for progress.
@@ -838,10 +917,10 @@ export const useChatStore = defineStore('chat', () => {
       // at most ~1s of unsaved delta on reload.
       let persistTimer: ReturnType<typeof setTimeout> | null = null
       const schedulePersist = () => {
-        if (sid !== activeSessionId.value || persistTimer) return
+        if (persistTimer) return
         persistTimer = setTimeout(() => {
           persistTimer = null
-          persistActiveMessages()
+          persistSessionMessages(sid)
         }, 800)
       }
 
@@ -968,14 +1047,15 @@ export const useChatStore = defineStore('chat', () => {
 
             case 'run.completed': {
               markAgentRunInFlight(sid, evt.agent_run_id)
-              const completedSessionId = evt.session_id || sid
+              const completedSessionId = evt.session_id || sessionForKey(sid)?.id || startingSessionId
+              const completedSessionKey = profileSessionIdentity(completedSessionId, startingProfile)
               const msgs = getSessionMsgs(sid)
               const lastMsg = msgs[msgs.length - 1]
               if (lastMsg?.isStreaming) {
                 updateMessage(sid, lastMsg.id, { isStreaming: false })
               }
               if (evt.usage) {
-                const target = sessions.value.find(s => s.id === completedSessionId)
+                const target = sessionForKey(completedSessionKey) || sessionForKey(sid)
                 if (target) {
                   target.inputTokens = evt.usage.input_tokens
                   target.outputTokens = evt.usage.output_tokens
@@ -995,14 +1075,16 @@ export const useChatStore = defineStore('chat', () => {
               // the next page load to still see in-flight === true (so
               // polling kicks in and recovers) rather than the other way
               // around (cleared in-flight + stale streaming cache = UI stuck).
-              if (sid === activeSessionId.value) persistActiveMessages()
+              persistSessionMessages(sid)
               clearInFlight(sid)
               stopPolling(sid)
-              if (completedSessionId !== sid) {
-                const exists = sessions.value.some(session => session.id === completedSessionId)
+              if (completedSessionKey !== sid) {
+                const exists = sessionForKey(completedSessionKey)
                 if (!exists) {
                   sessions.value.unshift({
+                    key: completedSessionKey,
                     id: completedSessionId,
+                    profile: startingProfile,
                     title: '',
                     source: 'api_server',
                     messages: [],
@@ -1011,8 +1093,10 @@ export const useChatStore = defineStore('chat', () => {
                   })
                   persistSessionsList()
                 }
-                void switchSession(completedSessionId)
-              } else if (isSlashCommand) {
+                if (activeSessionKey.value === sid) {
+                  void switchSession(completedSessionKey)
+                }
+              } else if (isSlashCommand && activeSessionKey.value === sid) {
                 void refreshActiveSession()
               }
               break
@@ -1042,10 +1126,10 @@ export const useChatStore = defineStore('chat', () => {
                 }
               })
               cleanup()
-              if (sid === activeSessionId.value) persistActiveMessages()
+              persistSessionMessages(sid)
               clearInFlight(sid)
               stopPolling(sid)
-              if (isSlashCommand) {
+              if (isSlashCommand && activeSessionKey.value === sid) {
                 void refreshActiveSession()
               }
               break
@@ -1061,6 +1145,7 @@ export const useChatStore = defineStore('chat', () => {
           }
           cleanup()
           updateSessionTitle(sid)
+          persistSessionMessages(sid)
         },
         // onError
         // Mobile browsers drop EventSource when the tab backgrounds / screen
@@ -1084,7 +1169,8 @@ export const useChatStore = defineStore('chat', () => {
             }
           })
           cleanup()
-          if (sid === activeSessionId.value) {
+          persistSessionMessages(sid)
+          if (sid === activeSessionKey.value) {
             void refreshActiveSession()
           }
           // The run might still be going on the server side (SSE drop doesn't
@@ -1094,34 +1180,37 @@ export const useChatStore = defineStore('chat', () => {
             startPolling(sid)
           }
         },
+        startingProfile,
       )
 
       streamStates.value.set(sid, ctrl)
+      return true
     } catch (err: any) {
-      addMessage(localSid, {
+      if (sessionContextDrifted()) return abortForSessionSwitch()
+      addMessage(startingSessionKey, {
         id: uid(),
         role: 'system',
         content: `Error: ${err.message}`,
         timestamp: Date.now(),
       })
-      if (localSid === activeSessionId.value) persistActiveMessages()
+      persistSessionMessages(startingSessionKey)
+      return false
     }
   }
 
   async function sendSlashCommand(command: string) {
     const text = command.trim()
     if (!text.startsWith('/') || isStreaming.value) return false
-    await sendMessage(text)
-    return true
+    return await sendMessage(text)
   }
 
   async function stopStreaming() {
-    const sid = activeSessionId.value
+    const sid = activeSessionKey.value
     if (!sid) return
     const runId = runIds.value.get(sid)
     if (runId) {
       try {
-        await cancelRun(runId)
+        await cancelRun(runId, profileForSession(sid))
       } catch {
         // ignore best-effort cancel failure
       }
@@ -1136,6 +1225,7 @@ export const useChatStore = defineStore('chat', () => {
       }
       streamStates.value.delete(sid)
       runIds.value.delete(sid)
+      persistSessionMessages(sid)
       clearInFlight(sid)
       stopPolling(sid)
     }
@@ -1144,10 +1234,10 @@ export const useChatStore = defineStore('chat', () => {
   // Tab visibility: re-sync when returning to foreground
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && activeSessionId.value && !isStreaming.value) {
+      if (document.visibilityState === 'visible' && activeSessionKey.value && !isStreaming.value) {
         void refreshActiveSession()
-        if (readInFlight(activeSessionId.value)) {
-          startPolling(activeSessionId.value)
+        if (readInFlight(activeSessionKey.value)) {
+          startPolling(activeSessionKey.value)
         }
       }
     })
@@ -1155,6 +1245,7 @@ export const useChatStore = defineStore('chat', () => {
 
   return {
     sessions,
+    activeSessionKey,
     activeSessionId,
     activeSession,
     focusMessageId,

@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
@@ -14,7 +15,11 @@ import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tui.TerminalUiPendingAttachmentService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
 import java.io.File;
 import java.nio.file.Files;
@@ -23,8 +28,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import org.noear.solon.ai.chat.message.ChatMessage;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.message.ChatMessage;
 
 class TerminalUiRpcServiceTest {
     @Test
@@ -46,24 +51,8 @@ class TerminalUiRpcServiceTest {
 
         TerminalUiRpcService service =
                 new TerminalUiRpcService(
-                        config,
-                        sessions,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        runs,
-                        null,
-                        null);
+                        config, sessions, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, runs, null, null);
 
         Map<String, Object> response = service.sessionResume(session.getSessionId());
 
@@ -91,32 +80,22 @@ class TerminalUiRpcServiceTest {
 
         TerminalUiRpcService service =
                 new TerminalUiRpcService(
-                        config,
-                        sessions,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        runs,
-                        null,
-                        null);
+                        config, sessions, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, runs, null, null);
         service.sessionResume("session-a");
         service.sessionResume("session-b");
 
         List<Map<String, Object>> live = activeSessionItems(service.activeSessions("session-a"));
 
-        assertThat(live).extracting(item -> item.get("id")).containsExactly("session-a", "session-b");
-        assertThat(live.get(0)).containsEntry("current", Boolean.TRUE).containsEntry("status", "idle");
-        assertThat(live.get(1)).containsEntry("current", Boolean.FALSE).containsEntry("status", "waiting");
+        assertThat(live)
+                .extracting(item -> item.get("id"))
+                .containsExactly("session-a", "session-b");
+        assertThat(live.get(0))
+                .containsEntry("current", Boolean.TRUE)
+                .containsEntry("status", "idle");
+        assertThat(live.get(1))
+                .containsEntry("current", Boolean.FALSE)
+                .containsEntry("status", "waiting");
 
         service.sessionClose("session-b");
 
@@ -154,7 +133,8 @@ class TerminalUiRpcServiceTest {
                         null,
                         null);
 
-        assertThat(service.sessionUsage(session.getSessionId()).get("active_subagents")).isEqualTo(2);
+        assertThat(service.sessionUsage(session.getSessionId()).get("active_subagents"))
+                .isEqualTo(2);
     }
 
     /** 验证 TUI 用量面板按同一会话的多次模型运行累计 API 调用次数。 */
@@ -164,7 +144,8 @@ class TerminalUiRpcServiceTest {
         SqliteDatabase database = new SqliteDatabase(config);
         SqliteSessionRepository sessions = new SqliteSessionRepository(database);
         SqliteAgentRunRepository runs = new SqliteAgentRunRepository(database);
-        SessionRecord session = session("session-usage-calls", "MEMORY:terminal-ui:session-usage-calls");
+        SessionRecord session =
+                session("session-usage-calls", "MEMORY:terminal-ui:session-usage-calls");
         session.setCumulativeInputTokens(76L);
         session.setCumulativeOutputTokens(12L);
         session.setCumulativeTotalTokens(88L);
@@ -174,24 +155,8 @@ class TerminalUiRpcServiceTest {
 
         TerminalUiRpcService service =
                 new TerminalUiRpcService(
-                        config,
-                        sessions,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        runs,
-                        null,
-                        null);
+                        config, sessions, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, runs, null, null);
 
         Map<String, Object> usage = service.sessionUsage(session.getSessionId());
 
@@ -209,7 +174,9 @@ class TerminalUiRpcServiceTest {
         SqliteSessionRepository sessions = new SqliteSessionRepository(database);
         SqliteAgentRunRepository runs = new SqliteAgentRunRepository(database);
         SessionRecord session =
-                session("session-usage-failed-call", "MEMORY:terminal-ui:session-usage-failed-call");
+                session(
+                        "session-usage-failed-call",
+                        "MEMORY:terminal-ui:session-usage-failed-call");
         sessions.save(session);
         AgentRunRecord failed = new AgentRunRecord();
         failed.setRunId("run-usage-failed-call");
@@ -227,24 +194,8 @@ class TerminalUiRpcServiceTest {
 
         TerminalUiRpcService service =
                 new TerminalUiRpcService(
-                        config,
-                        sessions,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        runs,
-                        null,
-                        null);
+                        config, sessions, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, runs, null, null);
 
         Map<String, Object> usage = service.sessionUsage(session.getSessionId());
 
@@ -322,7 +273,8 @@ class TerminalUiRpcServiceTest {
         assertThat(service.configSet("mouse", "wheel", "").get("value")).isEqualTo("wheel");
         assertThat(service.fullConfig().get("config").toString()).contains("mouse_tracking=wheel");
         assertThat(service.configSet("mouse", "buttons", "").get("value")).isEqualTo("buttons");
-        assertThat(service.fullConfig().get("config").toString()).contains("mouse_tracking=buttons");
+        assertThat(service.fullConfig().get("config").toString())
+                .contains("mouse_tracking=buttons");
         assertThat(service.configSet("mouse", "off", "").get("value")).isEqualTo("off");
         assertThat(service.fullConfig().get("config").toString()).contains("mouse_tracking=off");
     }
@@ -364,7 +316,8 @@ class TerminalUiRpcServiceTest {
         SqliteDatabase database = new SqliteDatabase(config);
         SqliteSessionRepository sessions = new SqliteSessionRepository(database);
         SessionRecord session = session("session-compress", "MEMORY:terminal-ui:session-compress");
-        session.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("需要压缩的发布流程上下文"))));
+        session.setNdjson(
+                MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("需要压缩的发布流程上下文"))));
         sessions.save(session);
         RecordingCompressionService compression = new RecordingCompressionService();
         TerminalUiRpcService service =
@@ -398,7 +351,8 @@ class TerminalUiRpcServiceTest {
         AppConfig config = testConfig();
         SqliteDatabase database = new SqliteDatabase(config);
         SqliteSessionRepository sessions = new SqliteSessionRepository(database);
-        SessionRecord session = session("session-compress-empty", "MEMORY:terminal-ui:session-compress-empty");
+        SessionRecord session =
+                session("session-compress-empty", "MEMORY:terminal-ui:session-compress-empty");
         sessions.save(session);
         RecordingCompressionService compression = new RecordingCompressionService();
         TerminalUiRpcService service =
@@ -462,6 +416,51 @@ class TerminalUiRpcServiceTest {
         assertThat(response).doesNotContainKey("name");
     }
 
+    @Test
+    void imageAttachBytesQueuesOnlyTheOwningSessionAndDrainsOnce() throws Exception {
+        AppConfig config = testConfig();
+        AttachmentCacheService cache = new AttachmentCacheService(config);
+        TerminalUiPendingAttachmentService pending = new TerminalUiPendingAttachmentService();
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        config,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new AttachmentPathResolver(cache, new SecurityPolicyService(config)),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        cache,
+                        pending);
+
+        Map<String, Object> response =
+                service.imageAttachBytes("session-image", "iVBORw0KGgo=", "client.png", "");
+
+        assertThat(response)
+                .containsEntry("attached", Boolean.TRUE)
+                .containsEntry("count", 1)
+                .containsEntry("name", "client.png")
+                .containsEntry("mime_type", "image/png");
+        List<MessageAttachment> attachments = service.drainPendingAttachments("session-image");
+        assertThat(attachments).hasSize(1);
+        assertThat(attachments.get(0).getOriginalName()).isEqualTo("client.png");
+        assertThat(service.drainPendingAttachments("session-image")).isEmpty();
+        assertThat(service.drainPendingAttachments("another-session")).isEmpty();
+    }
+
     private static SessionRecord session(String id, String sourceKey) {
         SessionRecord session = new SessionRecord();
         session.setSessionId(id);
@@ -473,7 +472,8 @@ class TerminalUiRpcServiceTest {
     }
 
     /** 构造带用量的已完成 Agent run，用于模拟 TUI retry 后的多轮模型请求。 */
-    private static AgentRunRecord run(String id, String sessionId, long inputTokens, long outputTokens) {
+    private static AgentRunRecord run(
+            String id, String sessionId, long inputTokens, long outputTokens) {
         AgentRunRecord run = new AgentRunRecord();
         run.setRunId(id);
         run.setSessionId(sessionId);
@@ -491,7 +491,8 @@ class TerminalUiRpcServiceTest {
         File home = Files.createTempDirectory("solonclaw-tui-rpc-test").toFile();
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(home.getAbsolutePath());
-        config.getRuntime().setStateDb(new File(new File(home, "data"), "state.db").getAbsolutePath());
+        config.getRuntime()
+                .setStateDb(new File(new File(home, "data"), "state.db").getAbsolutePath());
         return config;
     }
 

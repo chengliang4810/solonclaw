@@ -27,7 +27,8 @@ public class DingTalkAiCardRoutingTest {
         config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         config.getChannels().getDingtalk().setEnabled(true);
         config.getChannels().getDingtalk().setClientId("ding-client");
         config.getChannels().getDingtalk().setClientSecret("ding-secret");
@@ -52,7 +53,8 @@ public class DingTalkAiCardRoutingTest {
         config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         config.getChannels().getDingtalk().setEnabled(true);
         config.getChannels().getDingtalk().setClientId("app-key");
         config.getChannels().getDingtalk().setClientSecret("app-secret");

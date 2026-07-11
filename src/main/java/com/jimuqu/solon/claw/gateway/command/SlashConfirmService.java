@@ -268,7 +268,9 @@ public class SlashConfirmService {
             }
             return commands;
         } catch (Exception e) {
-            log.debug("Slash confirm always-command state parse failed; using empty fallback: {}", exceptionSummary(e));
+            log.debug(
+                    "Slash confirm always-command state parse failed; using empty fallback: {}",
+                    exceptionSummary(e));
             return new LinkedHashSet<String>();
         }
     }

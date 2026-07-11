@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-import { looksLikeDroppedPath } from '../app/useComposerState.js'
+import { describe, expect, it, vi } from 'vitest'
+
+import { attachDroppedImageBytes, looksLikeDroppedPath } from '../app/useComposerState.js'
 
 describe('looksLikeDroppedPath', () => {
   it('recognizes macOS screenshot temp paths and file URIs', () => {
@@ -55,5 +59,30 @@ describe('looksLikeDroppedPath', () => {
     expect(looksLikeDroppedPath('/usr/bin/test')).toBe(true)
     expect(looksLikeDroppedPath('/tmp/file.txt')).toBe(true)
     expect(looksLikeDroppedPath('/etc/hosts')).toBe(true) // has second /
+  })
+})
+
+describe('attachDroppedImageBytes', () => {
+  it('uploads a local image as base64 for a remote gateway', async () => {
+    const file = join(tmpdir(), `solonclaw-image-${Date.now()}.png`)
+    writeFileSync(file, Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+    const request = vi.fn(async () => ({ attached: true, name: 'uploaded.png' }))
+
+    await expect(attachDroppedImageBytes(file, 'session-image', request)).resolves.toEqual({
+      attached: true,
+      name: 'uploaded.png'
+    })
+    expect(request).toHaveBeenCalledWith('image.attach_bytes', {
+      content_base64: 'iVBORw==',
+      filename: file.split('/').at(-1),
+      session_id: 'session-image'
+    })
+  })
+
+  it('does not upload non-image drops through the image endpoint', async () => {
+    const request = vi.fn()
+
+    await expect(attachDroppedImageBytes('/tmp/report.pdf', 'session-file', request)).resolves.toBeNull()
+    expect(request).not.toHaveBeenCalled()
   })
 })

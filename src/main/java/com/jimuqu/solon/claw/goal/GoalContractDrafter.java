@@ -20,9 +20,8 @@ import org.slf4j.LoggerFactory;
  * 用辅助模型把裸目标起草为 5 字段完成契约（/goal draft），失败返回空契约。
  *
  * <p>调用约定对标 {@link LlmGoalJudge}：提交到有界辅助线程池，用 {@code Future.get(timeout)}
- * 兜底超时，任何异常（网络错误、超时、解析失败）一律返回空契约（不抛异常），让上层以无契约方式
- * 设置目标。空契约经 {@link GoalContract#isEmpty()} 判定为 true，{@code /goal draft} 回复
- * 仍能正常落地，仅缺少结构化完成准则。
+ * 兜底超时，任何异常（网络错误、超时、解析失败）一律返回空契约（不抛异常），让上层以无契约方式 设置目标。空契约经 {@link GoalContract#isEmpty()} 判定为
+ * true，{@code /goal draft} 回复 仍能正常落地，仅缺少结构化完成准则。
  */
 public class GoalContractDrafter {
     /** 日志器。 */

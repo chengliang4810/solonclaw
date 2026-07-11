@@ -102,6 +102,122 @@ public interface BrowserProvider {
                 "unsupported_action", "Browser provider does not support extract");
     }
 
+    /**
+     * 获取页面可访问性快照和交互元素引用。
+     *
+     * @param sessionId 当前会话标识。
+     * @param full 是否返回完整页面文本。
+     * @return 页面快照结果。
+     */
+    default BrowserActionResult snapshot(String sessionId, boolean full) {
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support snapshot");
+    }
+
+    /**
+     * 滚动当前页面。
+     *
+     * @param sessionId 当前会话标识。
+     * @param direction 滚动方向，支持 up/down。
+     * @param pixels 滚动像素数。
+     * @return 页面滚动结果。
+     */
+    default BrowserActionResult scroll(String sessionId, String direction, int pixels) {
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support scroll");
+    }
+
+    /**
+     * 返回浏览器历史中的上一页。
+     *
+     * @param sessionId 当前会话标识。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 历史导航结果。
+     */
+    default BrowserActionResult back(String sessionId, int timeoutSeconds) {
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support back");
+    }
+
+    /**
+     * 向当前页面派发键盘按键。
+     *
+     * @param sessionId 当前会话标识。
+     * @param key 按键名称。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 按键动作结果。
+     */
+    default BrowserActionResult press(String sessionId, String key, int timeoutSeconds) {
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support key input");
+    }
+
+    /**
+     * 枚举当前页面中的图片。
+     *
+     * @param sessionId 当前会话标识。
+     * @return 图片列表结果。
+     */
+    default BrowserActionResult getImages(String sessionId) {
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support image discovery");
+    }
+
+    /**
+     * 读取控制台消息或执行受控 JavaScript 表达式。
+     *
+     * @param sessionId 当前会话标识。
+     * @param clear 读取后是否清空控制台缓冲。
+     * @param expression 可选 JavaScript 表达式。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 控制台或表达式结果。
+     */
+    default BrowserActionResult console(
+            String sessionId, boolean clear, String expression, int timeoutSeconds) {
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support console inspection");
+    }
+
+    /**
+     * 发送原始 Chrome DevTools Protocol 命令。
+     *
+     * @param sessionId 当前会话标识。
+     * @param method CDP 方法名。
+     * @param params CDP 参数。
+     * @param targetId 可选页面 Target 标识；为空时在浏览器级执行。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 原始 CDP 结果。
+     */
+    default BrowserActionResult cdp(
+            String sessionId,
+            String method,
+            Map<String, Object> params,
+            String targetId,
+            int timeoutSeconds) {
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support raw CDP commands");
+    }
+
+    /**
+     * 响应当前页面阻塞中的 JavaScript 对话框。
+     *
+     * @param sessionId 当前会话标识。
+     * @param action accept 或 dismiss。
+     * @param promptText prompt 对话框输入文本。
+     * @param dialogId 可选对话框标识。
+     * @param timeoutSeconds 超时时间，单位秒。
+     * @return 对话框处理结果。
+     */
+    default BrowserActionResult dialog(
+            String sessionId,
+            String action,
+            String promptText,
+            String dialogId,
+            int timeoutSeconds) {
+        return BrowserActionResult.fail(
+                "unsupported_action", "Browser provider does not support dialogs");
+    }
+
     /** 承载浏览器会话相关状态和辅助逻辑。 */
     class BrowserSession {
         /** 记录浏览器会话中的会话标识。 */

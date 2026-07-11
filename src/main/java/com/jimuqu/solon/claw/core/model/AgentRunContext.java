@@ -8,12 +8,12 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,10 +104,7 @@ public class AgentRunContext {
         return CURRENT.get();
     }
 
-    /**
-     * 写入或清理当前线程绑定的 Agent run 上下文。
-     *
-     */
+    /** 写入或清理当前线程绑定的 Agent run 上下文。 */
     public static void setCurrent(AgentRunContext context) {
         if (context == null) {
             CURRENT.remove();
@@ -237,10 +234,7 @@ public class AgentRunContext {
         this.parentRunId = parentRunId;
     }
 
-    /**
-     * 读取用户附件。
-     *
-     */
+    /** 读取用户附件。 */
     public List<MessageAttachment> getUserAttachments() {
         return userAttachments == null
                 ? Collections.<MessageAttachment>emptyList()

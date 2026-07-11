@@ -67,7 +67,8 @@ public class MediaInputBoundaryService {
             cacheDir = appConfig.getRuntime().getCacheDir();
         }
         this.cacheRoot =
-                FileUtil.file(StrUtil.blankToDefault(cacheDir, "workspace/cache")).getAbsoluteFile();
+                FileUtil.file(StrUtil.blankToDefault(cacheDir, "workspace/cache"))
+                        .getAbsoluteFile();
     }
 
     /**
@@ -343,7 +344,8 @@ public class MediaInputBoundaryService {
      */
     private boolean isUnderCacheRoot(File file) {
         try {
-            return FilePathSupport.isUnderPath(file.getCanonicalFile(), cacheRoot.getCanonicalFile());
+            return FilePathSupport.isUnderPath(
+                    file.getCanonicalFile(), cacheRoot.getCanonicalFile());
         } catch (Exception e) {
             log.debug(
                     "媒体缓存路径规范化失败，按绝对路径兜底 path={}, error={}",

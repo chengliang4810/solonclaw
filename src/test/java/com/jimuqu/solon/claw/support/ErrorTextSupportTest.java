@@ -1,16 +1,17 @@
 package com.jimuqu.solon.claw.support;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Test;
 
 /** 验证错误文本摘要的异常类型保留和敏感信息脱敏。 */
 class ErrorTextSupportTest {
     /** 摘要应保留异常类型，便于 debug 日志定位。 */
     @Test
     void shouldIncludeExceptionType() {
-        String summary = ErrorTextSupport.summaryWithType(new IllegalArgumentException("bad value"));
+        String summary =
+                ErrorTextSupport.summaryWithType(new IllegalArgumentException("bad value"));
         assertEquals("IllegalArgumentException: bad value", summary);
     }
 

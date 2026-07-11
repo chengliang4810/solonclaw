@@ -229,8 +229,7 @@ public class GoalState {
     }
 
     /**
-     * 判断是否仍处于等待屏障中（pid 仍存活或未到截止时间）。
-     * pid 屏障惰性自清：pid 不存活时返回 false（视为屏障已解除）。
+     * 判断是否仍处于等待屏障中（pid 仍存活或未到截止时间）。 pid 屏障惰性自清：pid 不存活时返回 false（视为屏障已解除）。
      *
      * @return 仍在等待时返回 true。
      */
@@ -251,9 +250,7 @@ public class GoalState {
         return false;
     }
 
-    /**
-     * 清除所有等待屏障字段。
-     */
+    /** 清除所有等待屏障字段。 */
     public void clearWaitBarrier() {
         this.waitingOnPid = null;
         this.waitingUntil = 0L;
@@ -290,9 +287,7 @@ public class GoalState {
         return true;
     }
 
-    /**
-     * 清空所有子目标。
-     */
+    /** 清空所有子目标。 */
     public void clearSubgoals() {
         if (subgoals != null) {
             subgoals.clear();

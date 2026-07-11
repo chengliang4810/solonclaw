@@ -406,7 +406,8 @@ public class RuntimeSettingsService {
         buffer.append("workspace_home=")
                 .append(StrUtil.nullToEmpty(appConfig.getRuntime().getHome()))
                 .append('\n');
-        buffer.append("workspace_policy=workspace_free: 工作区内读写和普通命令自由；工作区外读取自由，写入与网络等外部操作需要审批，可按本次、当前会话或永久同类操作放行；密钥始终脱敏。\n");
+        buffer.append(
+                "workspace_policy=workspace_free: 工作区内读写和普通命令自由；工作区外读取自由，写入与网络等外部操作需要审批，可按本次、当前会话或永久同类操作放行；密钥始终脱敏。\n");
         appendShellGuidance(buffer, enabledToolNames);
         buffer.append(
                 "Only change your own configuration through /model, config_set, or config_set_secret. Secret keys must use config_set_secret and must never be copied from redacted read_file output. If you edit workspace/config.yml directly for non-secret keys, call config_refresh afterward; it validates YAML first and refuses invalid config. Global changes take effect on the next message.");

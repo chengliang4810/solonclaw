@@ -17,7 +17,8 @@ import org.noear.snack4.ONode;
 public class GatewayRuntimeStatusServiceTest {
     @Test
     void shouldWritePidFileAsGatewayRuntimeMetadata(@TempDir Path workspaceHome) {
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
+        GatewayRuntimeStatusService service =
+                new GatewayRuntimeStatusService(config(workspaceHome), "default");
 
         service.writePidFile();
 
@@ -29,11 +30,16 @@ public class GatewayRuntimeStatusServiceTest {
         assertThat((String) payload.get("startInstant")).isNotBlank();
         assertThat(payload.get("command")).isInstanceOf(String.class);
         assertThat((String) payload.get("command")).isNotBlank();
+        assertThat(payload).containsEntry("profile", "default");
+        assertThat(payload).containsEntry("workspace", workspaceHome.toAbsolutePath().toString());
+        assertThat(asLong(payload.get("port"))).isEqualTo(8080L);
+        assertThat(String.valueOf(payload.get("command_hash"))).hasSize(64);
     }
 
     @Test
     void shouldTreatMatchingJsonPidMetadataAsRunning(@TempDir Path workspaceHome) {
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
+        GatewayRuntimeStatusService service =
+                new GatewayRuntimeStatusService(config(workspaceHome), "default");
         service.writePidFile();
 
         assertThat(service.isRunning()).isTrue();
@@ -43,13 +49,27 @@ public class GatewayRuntimeStatusServiceTest {
     void shouldRejectNumericPidFileWithoutGatewayMetadata(@TempDir Path workspaceHome) {
         File pidFile = workspaceHome.resolve("gateway.pid").toFile();
         FileUtil.writeString(String.valueOf(currentPid()), pidFile, StandardCharsets.UTF_8);
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
+        GatewayRuntimeStatusService service =
+                new GatewayRuntimeStatusService(config(workspaceHome));
 
         assertThat(service.isRunning()).isFalse();
     }
 
     @Test
-    void shouldRejectJsonPidMetadataWhenCurrentJvmStartTimeDoesNotMatch(@TempDir Path workspaceHome) {
+    void shouldRejectPidMetadataFromAnotherProfile(@TempDir Path workspaceHome) {
+        GatewayRuntimeStatusService writer =
+                new GatewayRuntimeStatusService(config(workspaceHome), "alpha");
+        writer.writePidFile();
+
+        GatewayRuntimeStatusService reader =
+                new GatewayRuntimeStatusService(config(workspaceHome), "beta");
+
+        assertThat(reader.isRunning()).isFalse();
+    }
+
+    @Test
+    void shouldRejectJsonPidMetadataWhenCurrentJvmStartTimeDoesNotMatch(
+            @TempDir Path workspaceHome) {
         File pidFile = workspaceHome.resolve("gateway.pid").toFile();
         FileUtil.writeString(
                 "{"
@@ -67,7 +87,8 @@ public class GatewayRuntimeStatusServiceTest {
                         + "}",
                 pidFile,
                 StandardCharsets.UTF_8);
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
+        GatewayRuntimeStatusService service =
+                new GatewayRuntimeStatusService(config(workspaceHome));
 
         assertThat(service.isRunning()).isFalse();
     }
@@ -88,7 +109,8 @@ public class GatewayRuntimeStatusServiceTest {
                         + "}",
                 pidFile,
                 StandardCharsets.UTF_8);
-        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(config(workspaceHome));
+        GatewayRuntimeStatusService service =
+                new GatewayRuntimeStatusService(config(workspaceHome));
 
         service.removePidFile();
 
@@ -123,5 +145,4 @@ public class GatewayRuntimeStatusServiceTest {
         }
         return Long.parseLong(String.valueOf(value));
     }
-
 }

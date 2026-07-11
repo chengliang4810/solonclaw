@@ -55,7 +55,8 @@ public class DefaultRepositoryProbeService implements RepositoryProbeService {
         if (StrUtil.isBlank(commitHash)) {
             return null;
         }
-        String branch = runGit(directory, Arrays.asList("git", "rev-parse", "--abbrev-ref", "HEAD"));
+        String branch =
+                runGit(directory, Arrays.asList("git", "rev-parse", "--abbrev-ref", "HEAD"));
         if ("head".equalsIgnoreCase(StrUtil.nullToEmpty(branch))) {
             branch = "HEAD";
         }
@@ -137,7 +138,8 @@ public class DefaultRepositoryProbeService implements RepositoryProbeService {
             if (process.exitValue() != 0) {
                 return "";
             }
-            return SecretRedactor.redact(output.toString(StandardCharsets.UTF_8.name()), 4000).trim();
+            return SecretRedactor.redact(output.toString(StandardCharsets.UTF_8.name()), 4000)
+                    .trim();
         } catch (Exception e) {
             logRecoverableProbeFailure("run_git_command", e);
             return "";

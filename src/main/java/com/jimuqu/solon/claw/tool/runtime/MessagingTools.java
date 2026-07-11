@@ -7,7 +7,9 @@ import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.FilePathSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import java.io.File;
@@ -53,7 +55,8 @@ public class MessagingTools {
             List<String> mediaPaths,
             String channelExtrasJson)
             throws Exception {
-        return dispatchMessage(null, platform, chatId, threadId, text, mediaPaths, channelExtrasJson);
+        return dispatchMessage(
+                null, platform, chatId, threadId, text, mediaPaths, channelExtrasJson);
     }
 
     /**
@@ -155,15 +158,13 @@ public class MessagingTools {
             @Param(name = "chatId", description = "目标聊天 ID", required = false) String chatId,
             @Param(name = "threadId", description = "目标线程或话题 ID", required = false) String threadId,
             @Param(name = "text", description = "要发送的文本", required = false) String text,
-            @Param(
-                            name = "mediaPaths",
-                            description = "可选本地附件路径数组。",
-                            required = false)
+            @Param(name = "mediaPaths", description = "可选本地附件路径数组。", required = false)
                     List<String> mediaPaths,
             @Param(name = "channelExtrasJson", description = "可选渠道扩展 JSON", required = false)
                     String channelExtrasJson)
             throws Exception {
-        return dispatchMessage(action, platform, chatId, threadId, text, mediaPaths, channelExtrasJson);
+        return dispatchMessage(
+                action, platform, chatId, threadId, text, mediaPaths, channelExtrasJson);
     }
 
     /**
@@ -269,13 +270,21 @@ public class MessagingTools {
      */
     private File resolveAttachmentFile(String rawPath) {
         File direct = new File(rawPath);
-        if (direct.isFile()) {
+        if (direct.isAbsolute() && direct.isFile()) {
             return direct;
         }
 
-        File workspaceFile = new File(System.getProperty("user.dir"), rawPath);
-        if (workspaceFile.isFile()) {
-            return workspaceFile;
+        File workspaceHome = preferredWorkspaceHome();
+        File workspaceFile = null;
+        if (!direct.isAbsolute() && workspaceHome != null) {
+            workspaceFile = resolveInsideWorkspace(workspaceHome, rawPath);
+            if (workspaceFile.isFile()) {
+                return workspaceFile;
+            }
+        }
+
+        if (ProfileRuntimeScope.current() == null && direct.isFile()) {
+            return direct;
         }
 
         String name = direct.getName();
@@ -285,7 +294,13 @@ public class MessagingTools {
             }
         }
 
-        return direct.isAbsolute() ? direct : workspaceFile;
+        if (direct.isAbsolute()) {
+            return direct;
+        }
+        if (workspaceFile != null) {
+            return workspaceFile;
+        }
+        return new File(System.getProperty("user.dir"), rawPath);
     }
 
     /**
@@ -296,15 +311,66 @@ public class MessagingTools {
      */
     private List<File> fallbackCandidates(String fileName) {
         List<File> candidates = new ArrayList<File>();
-        if (appConfig != null && appConfig.getRuntime() != null) {
-            File workspaceHome = new File(appConfig.getRuntime().getHome());
-            File cacheDir = new File(appConfig.getRuntime().getCacheDir());
+        File workspaceHome = preferredWorkspaceHome();
+        if (workspaceHome != null) {
+            File cacheDir = configuredCacheDir(workspaceHome);
             candidates.add(new File(cacheDir, "pdf/" + fileName));
             candidates.add(new File(cacheDir, fileName));
             candidates.add(new File(workspaceHome, fileName));
         }
-        candidates.add(new File(System.getProperty("user.dir"), fileName));
+        if (ProfileRuntimeScope.current() == null) {
+            candidates.add(new File(System.getProperty("user.dir"), fileName));
+        }
         return candidates;
+    }
+
+    /** 返回当前 Profile 优先的附件工作区；未进入作用域时使用注入配置。 */
+    private File preferredWorkspaceHome() {
+        ProfileRuntimeScope.Context scoped = ProfileRuntimeScope.current();
+        if (scoped != null && scoped.getHome() != null) {
+            return scoped.getHome().toFile().getAbsoluteFile();
+        }
+        if (appConfig == null
+                || appConfig.getRuntime() == null
+                || StrUtil.isBlank(appConfig.getRuntime().getHome())) {
+            return null;
+        }
+        return new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
+    }
+
+    /** 解析当前工作区内的相对附件，并拒绝路径遍历或链接越界。 */
+    private File resolveInsideWorkspace(File workspaceHome, String rawPath) {
+        try {
+            File canonicalHome = workspaceHome.getCanonicalFile();
+            File candidate = new File(canonicalHome, rawPath).getCanonicalFile();
+            if (!FilePathSupport.isUnderPath(candidate, canonicalHome)) {
+                throw new IllegalArgumentException(
+                        "Attachment path escapes the current profile workspace");
+            }
+            return candidate;
+        } catch (IllegalArgumentException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Attachment path cannot be resolved", e);
+        }
+    }
+
+    /** 返回与当前工作区匹配的缓存目录，避免 scoped 调用误用其他 Profile 的配置。 */
+    private File configuredCacheDir(File workspaceHome) {
+        if (appConfig != null
+                && appConfig.getRuntime() != null
+                && StrUtil.isNotBlank(appConfig.getRuntime().getHome())
+                && StrUtil.isNotBlank(appConfig.getRuntime().getCacheDir())) {
+            try {
+                File configuredHome = new File(appConfig.getRuntime().getHome()).getCanonicalFile();
+                if (configuredHome.equals(workspaceHome.getCanonicalFile())) {
+                    return new File(appConfig.getRuntime().getCacheDir()).getAbsoluteFile();
+                }
+            } catch (Exception ignored) {
+                // 路径无法规范化时回退当前 Profile 的约定缓存目录。
+            }
+        }
+        return new File(workspaceHome, "cache");
     }
 
     /**

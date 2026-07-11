@@ -1,19 +1,14 @@
 package com.jimuqu.solon.claw.web;
 
-import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.diagnosticFailureSummary;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.approvalAuditItem;
+import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.diagnosticFailureSummary;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedApprovalKey;
-import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedCommandPathTarget;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedIdentifier;
-import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedJsonList;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.redactedTextList;
 import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safeAuditPreview;
-import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safeObjectText;
-import static com.jimuqu.solon.claw.web.DashboardDiagnosticTextFormatter.safePathProbeTarget;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
-import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -21,7 +16,6 @@ import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
-import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
@@ -37,6 +31,7 @@ import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
@@ -57,9 +52,6 @@ import com.jimuqu.solon.claw.tool.runtime.SolonClawToolSchemaSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
-import java.io.File;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -1168,13 +1160,11 @@ public class DashboardDiagnosticsService {
     private Map<String, Object> security() {
         Map<String, Object> map = new LinkedHashMap<String, Object>();
         Map<String, Object> approvals = new LinkedHashMap<String, Object>();
-        approvals.put("guardrail_mode", StrUtil.nullToEmpty(appConfig.getSecurity().getGuardrailMode()));
+        approvals.put(
+                "guardrail_mode", StrUtil.nullToEmpty(appConfig.getSecurity().getGuardrailMode()));
         approvals.put(
                 "guardrail_cron_mode",
                 StrUtil.nullToEmpty(appConfig.getSecurity().getGuardrailCronMode()));
-        approvals.put(
-                "subagent_auto_approve",
-                Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
         approvals.put(
                 "timeout_seconds", Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
         approvals.put(
@@ -1203,9 +1193,6 @@ public class DashboardDiagnosticsService {
         map.put("approvals", approvals);
 
         Map<String, Object> policy = new LinkedHashMap<String, Object>();
-        policy.put(
-                "allow_private_urls",
-                Boolean.valueOf(appConfig.getSecurity().isAllowPrivateUrls()));
         policy.put("tirith_enabled", Boolean.valueOf(appConfig.getSecurity().isTirithEnabled()));
         policy.put(
                 "tirith_configured",
@@ -1214,16 +1201,6 @@ public class DashboardDiagnosticsService {
                 "tirith_timeout_seconds",
                 Integer.valueOf(appConfig.getSecurity().getTirithTimeoutSeconds()));
         policy.put("tirith_fail_open", Boolean.valueOf(appConfig.getSecurity().isTirithFailOpen()));
-        policy.put(
-                "website_blocklist_enabled",
-                Boolean.valueOf(appConfig.getSecurity().getWebsiteBlocklist().isEnabled()));
-        policy.put(
-                "website_blocklist_domain_count",
-                Integer.valueOf(size(appConfig.getSecurity().getWebsiteBlocklist().getDomains())));
-        policy.put(
-                "website_blocklist_shared_file_count",
-                Integer.valueOf(
-                        size(appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())));
         policy.put("url_policy", safeUrlPolicySummary());
         policy.put("private_url_policy", safePrivateUrlPolicySummary());
         policy.put("website_policy", safeWebsitePolicySummary());
@@ -1345,10 +1322,6 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "ruleSamples");
             copyPolicyValue(summary, safe, "coveredTools");
             copyPolicyValue(summary, safe, "blockedCategories");
-            copyPolicyValue(summary, safe, "metadataUrlBlocked");
-            copyPolicyValue(summary, safe, "codeToolShellExtractionCovered");
-            copyPolicyValue(summary, safe, "pythonShellExtractionCovered");
-            copyPolicyValue(summary, safe, "javascriptChildProcessExtractionCovered");
             copyPolicyValue(summary, safe, "approvalBypassAllowed");
             copyPolicyValue(summary, safe, "slashApproveBypassAllowed");
             copyPolicyValue(summary, safe, "sessionApprovalBypassAllowed");
@@ -1388,9 +1361,6 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "guardrailApprovalCanPauseCron");
             copyPolicyValue(summary, safe, "jobScopeIncludesScriptFingerprint");
             copyPolicyValue(summary, safe, "hardlineAlwaysBlocked");
-            copyPolicyValue(summary, safe, "hardlineAllowlist");
-            copyPolicyValue(summary, safe, "hardlineAllowlistConfigKey");
-            copyPolicyValue(summary, safe, "allowlistedHardlineCategoriesCanRun");
             copyPolicyValue(summary, safe, "dangerousPatternCheckedBeforeRun");
             copyPolicyValue(summary, safe, "scriptContentChecked");
             return safe;
@@ -1720,6 +1690,7 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "remoteEndpointAllowsPrivateByPolicy");
             copyPolicyValue(summary, safe, "stdioEndpointSkipped");
             copyPolicyValue(summary, safe, "remoteToolArgumentUrlSafety");
+            copyPolicyValue(summary, safe, "remoteToolStructuredCredentialArgumentBlocked");
             copyPolicyValue(summary, safe, "remoteToolArgumentPathSafety");
             copyPolicyValue(summary, safe, "resourceUriUrlSafety");
             copyPolicyValue(summary, safe, "resourceUriPathSafety");
@@ -1795,13 +1766,13 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "enabledForTransport");
             copyPolicyValue(summary, safe, "checkedLaunchers");
             copyPolicyValue(summary, safe, "supportedEcosystems");
-            copyPolicyValue(summary, safe, "endpointUrlSafetyChecked");
             copyPolicyValue(summary, safe, "endpointOverrideEnvironment");
             copyPolicyValue(summary, safe, "projectEndpointOverrideEnvironment");
             copyPolicyValue(summary, safe, "malwareAdvisoryPrefix");
             copyPolicyValue(summary, safe, "nonMalwareVulnerabilitiesIgnored");
             copyPolicyValue(summary, safe, "malwareBlocksSaveAndCheck");
             copyPolicyValue(summary, safe, "requestFailureFailsOpen");
+            copyPolicyValue(summary, safe, "requestFailureFailsClosed");
             copyPolicyValue(summary, safe, "unsafeEndpointBlocksBeforeNetwork");
             copyPolicyValue(summary, safe, "structuredReasons");
             copyPolicyValue(summary, safe, "persistedListReasonExposed");
@@ -1814,7 +1785,6 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "jsonArgsSupported");
             copyPolicyValue(summary, safe, "advisoryMessageLimit");
             copyPolicyValue(summary, safe, "messageRedacted");
-            copyPolicyValue(summary, safe, "endpointRedacted");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);
@@ -1906,12 +1876,11 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "workdirTextValidated");
             copyPolicyValue(summary, safe, "scriptPreflightPathPolicy");
             copyPolicyValue(summary, safe, "scriptPreflightUrlPolicy");
-            copyPolicyValue(summary, safe, "fileGuardrailMode");
-            copyPolicyValue(summary, safe, "urlGuardrailMode");
+            copyPolicyValue(summary, safe, "scriptPreflightMetadataUrlPolicy");
             copyPolicyValue(summary, safe, "dangerousCommandRulesApplied");
             copyPolicyValue(summary, safe, "hardlineRulesApplied");
             copyPolicyValue(summary, safe, "foregroundBackgroundGuardrail");
-            copyPolicyValue(summary, safe, "managedFileToolPathLiteralsIgnoredForPreflight");
+            copyPolicyValue(summary, safe, "agentApprovalInterceptorRequired");
             copyPolicyValue(summary, safe, "stagingDirectoryPerRun");
             copyPolicyValue(summary, safe, "stagingCleanup");
             copyPolicyValue(summary, safe, "sandboxEnvironmentSanitized");
@@ -2262,16 +2231,6 @@ public class DashboardDiagnosticsService {
      * @return 返回safe Background进程策略Summary结果。
      */
     private Map<String, Object> safeBackgroundProcessPolicySummary() {
-        return safeBackgroundProcessPolicySummary(false);
-    }
-
-    /**
-     * 生成安全展示用的Background进程策略摘要。
-     *
-     * @param includeWrapperFamilies includeWrapperFamilies 参数。
-     * @return 返回safe Background进程策略Summary结果。
-     */
-    private Map<String, Object> safeBackgroundProcessPolicySummary(boolean includeWrapperFamilies) {
         try {
             Map<String, Object> summary = ProcessTools.backgroundProcessPolicySummary(appConfig);
             Map<String, Object> safe = new LinkedHashMap<String, Object>();
@@ -2286,20 +2245,6 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "stdinWriteSubmitCloseSupported");
             copyPolicyValue(summary, safe, "startDangerousCommandChecked");
             copyPolicyValue(summary, safe, "startHardlineBlocked");
-            copyPolicyValue(summary, safe, "startPathPolicyChecked");
-            copyPolicyValue(summary, safe, "startUrlPolicyChecked");
-            copyPolicyValue(summary, safe, "currentThreadApprovalCanBypassStartCheck");
-            copyPolicyValue(summary, safe, "stdinExecutionPayloadChecked");
-            copyPolicyValue(summary, safe, "stdinExecutionTools");
-            copyPolicyValue(summary, safe, "stdinPrivilegeWrapperDetection");
-            if (summary.containsKey("stdinWrapperFamilies")) {
-                safe.put(
-                        "stdinPrivilegeWrapperFamilyCount",
-                        Integer.valueOf(listSize(summary.get("stdinWrapperFamilies"))));
-                if (includeWrapperFamilies) {
-                    copyPolicyValue(summary, safe, "stdinWrapperFamilies");
-                }
-            }
             copyPolicyValue(summary, safe, "waitTimeoutClamped");
             copyPolicyValue(summary, safe, "processWaitTimeoutSeconds");
             copyPolicyValue(summary, safe, "managedBackgroundRequiredForLongRunningCommands");
@@ -2348,8 +2293,6 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "powershellStartProcessRequiresWait");
             copyPolicyValue(summary, safe, "powershellStartProcessNoNewWindowNotEnough");
             copyPolicyValue(summary, safe, "powershellStartProcessPassThruNotEnough");
-            copyPolicyValue(summary, safe, "codeToolShellExtractionCovered");
-            copyPolicyValue(summary, safe, "codeToolShellSources");
             copyPolicyValue(summary, safe, "foregroundMaxTimeoutSeconds");
             copyPolicyValue(summary, safe, "foregroundMaxRetries");
             copyPolicyValue(summary, safe, "foregroundRetryBaseDelaySeconds");
@@ -3014,7 +2957,7 @@ public class DashboardDiagnosticsService {
             safe.put("terminalOutputPolicy", safeTerminalOutputPolicySummary());
         }
         if (coverage.get("backgroundProcessPolicy") instanceof Map) {
-            safe.put("backgroundProcessPolicy", safeBackgroundProcessPolicySummary(true));
+            safe.put("backgroundProcessPolicy", safeBackgroundProcessPolicySummary());
         }
         if (coverage.get("tirithPolicy") instanceof Map) {
             safe.put("tirithPolicy", safeTirithPolicySummary());
@@ -3848,5 +3791,4 @@ public class DashboardDiagnosticsService {
         }
         return Boolean.valueOf(String.valueOf(value));
     }
-
 }

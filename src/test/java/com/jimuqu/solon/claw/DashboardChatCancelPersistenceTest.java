@@ -38,8 +38,7 @@ public class DashboardChatCancelPersistenceTest {
             AppConfig config = testConfig(workspaceHome);
             database = new SqliteDatabase(config);
             SqliteSessionRepository sessionRepository = new SqliteSessionRepository(database);
-            BlockingConversationOrchestrator orchestrator =
-                    new BlockingConversationOrchestrator();
+            BlockingConversationOrchestrator orchestrator = new BlockingConversationOrchestrator();
             service = new DashboardChatService(sessionRepository, orchestrator, null, null);
             String sessionId = "dashboard-cancel-session";
             String input = "取消持久化验证 marker=web-loop-ui-cancel-persistence-test";
@@ -124,6 +123,85 @@ public class DashboardChatCancelPersistenceTest {
         }
     }
 
+    /** 同一 Dashboard 平台、chatId 和 userId 在不同 Profile 中必须写入各自 state.db，不能串用会话正文。 */
+    @Test
+    void shouldIsolateSameDashboardIdentityAcrossProfileDatabases() throws Exception {
+        File defaultHome = Files.createTempDirectory("solonclaw-chat-profile-default").toFile();
+        File workerHome = Files.createTempDirectory("solonclaw-chat-profile-worker").toFile();
+        SqliteDatabase defaultDatabase = null;
+        SqliteDatabase workerDatabase = null;
+        DashboardChatService defaultService = null;
+        DashboardChatService workerService = null;
+        try {
+            defaultDatabase = new SqliteDatabase(testConfig(defaultHome));
+            workerDatabase = new SqliteDatabase(testConfig(workerHome));
+            SqliteSessionRepository defaultRepository =
+                    new SqliteSessionRepository(defaultDatabase);
+            SqliteSessionRepository workerRepository = new SqliteSessionRepository(workerDatabase);
+            defaultService =
+                    new DashboardChatService(
+                            defaultRepository,
+                            new BlockingConversationOrchestrator(),
+                            new StubCommandService(),
+                            null);
+            workerService =
+                    new DashboardChatService(
+                            workerRepository,
+                            new BlockingConversationOrchestrator(),
+                            new StubCommandService(),
+                            null);
+            String sharedSessionId = "same-platform-chat-user";
+
+            Map<String, Object> defaultStart =
+                    defaultService.startRun(
+                            ONode.ofJson(
+                                    "{\"input\":\"/default-profile\",\"session_id\":\""
+                                            + sharedSessionId
+                                            + "\"}"));
+            assertThat(completedEvent(defaultService, String.valueOf(defaultStart.get("run_id"))))
+                    .isEqualTo("run.completed");
+            assertThat(workerRepository.findById(sharedSessionId)).isNull();
+
+            Map<String, Object> workerStart =
+                    workerService.startRun(
+                            ONode.ofJson(
+                                    "{\"input\":\"/worker-profile\",\"session_id\":\""
+                                            + sharedSessionId
+                                            + "\"}"));
+            assertThat(completedEvent(workerService, String.valueOf(workerStart.get("run_id"))))
+                    .isEqualTo("run.completed");
+
+            SessionRecord defaultRecord = defaultRepository.findById(sharedSessionId);
+            SessionRecord workerRecord = workerRepository.findById(sharedSessionId);
+            assertThat(defaultRecord).isNotNull();
+            assertThat(workerRecord).isNotNull();
+            assertThat(defaultRecord.getSourceKey())
+                    .isEqualTo("MEMORY:dashboard:" + sharedSessionId)
+                    .isEqualTo(workerRecord.getSourceKey());
+            assertThat(MessageSupport.loadMessages(defaultRecord.getNdjson()))
+                    .extracting(ChatMessage::getContent)
+                    .containsExactly("/default-profile", "status session=" + sharedSessionId);
+            assertThat(MessageSupport.loadMessages(workerRecord.getNdjson()))
+                    .extracting(ChatMessage::getContent)
+                    .containsExactly("/worker-profile", "status session=" + sharedSessionId);
+        } finally {
+            if (defaultService != null) {
+                defaultService.shutdown();
+            }
+            if (workerService != null) {
+                workerService.shutdown();
+            }
+            if (defaultDatabase != null) {
+                defaultDatabase.shutdown();
+            }
+            if (workerDatabase != null) {
+                workerDatabase.shutdown();
+            }
+            FileUtil.del(defaultHome);
+            FileUtil.del(workerHome);
+        }
+    }
+
     /**
      * 构造最小测试配置，只启用会话仓储所需的工作区目录和 SQLite 路径。
      *
@@ -137,7 +215,8 @@ public class DashboardChatCancelPersistenceTest {
         config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         return config;
     }
 
@@ -153,8 +232,7 @@ public class DashboardChatCancelPersistenceTest {
             throws Exception {
         Field runsField = DashboardChatService.class.getDeclaredField("runs");
         runsField.setAccessible(true);
-        ConcurrentMap<String, Object> runs =
-                (ConcurrentMap<String, Object>) runsField.get(service);
+        ConcurrentMap<String, Object> runs = (ConcurrentMap<String, Object>) runsField.get(service);
         Object state = runs.get(runId);
         assertThat(state).isNotNull();
 

@@ -1,14 +1,14 @@
 package com.jimuqu.solon.claw.mcp;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 /** 验证 MCP 工具清单数量、名称提取和差异计算。 */
 class McpToolListSupportTest {
@@ -33,8 +33,7 @@ class McpToolListSupportTest {
     void shouldCalculateDifference() {
         List<String> diff =
                 McpToolListSupport.difference(
-                        Arrays.asList("a", "b", "", "a", "c"),
-                        Collections.singletonList("b"));
+                        Arrays.asList("a", "b", "", "a", "c"), Collections.singletonList("b"));
         assertEquals(Arrays.asList("a", "c"), diff);
     }
 

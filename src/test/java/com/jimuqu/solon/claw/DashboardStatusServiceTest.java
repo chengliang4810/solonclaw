@@ -1,8 +1,7 @@
 package com.jimuqu.solon.claw;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import static com.jimuqu.solon.claw.DashboardDiagnosticTestSupport.FixedDeliveryService;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
@@ -13,6 +12,8 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.media.SpeechService;
+import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.support.FixedSessionRepository;
 import com.jimuqu.solon.claw.support.LlmProviderService;
@@ -20,6 +21,7 @@ import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import java.io.File;
+import java.nio.file.Files;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -272,6 +274,9 @@ public class DashboardStatusServiceTest {
         config.getLlm().setMaxTokens(2048);
         config.getSecurity().setGuardrailMode("approval");
         config.getSecurity().setGuardrailCronMode("approve");
+        config.getSecurity().setAllowPrivateUrls(true);
+        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
+        config.getApprovals().setSubagentAutoApprove(true);
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("gpt-4o");
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
@@ -315,9 +320,13 @@ public class DashboardStatusServiceTest {
                 .containsEntry("dashboard_editable", Boolean.TRUE)
                 .containsEntry("secret_redaction", Boolean.TRUE);
         assertThat((Map<String, Object>) capabilities.get("multimodal"))
-                .containsEntry("image_generation", Boolean.TRUE)
-                .containsEntry("tts", Boolean.TRUE)
-                .containsEntry("transcription", Boolean.TRUE);
+                .containsEntry("image_generation", Boolean.FALSE)
+                .containsEntry("tts", Boolean.FALSE)
+                .containsEntry("transcription", Boolean.FALSE);
+        assertThat((Map<String, Object>) runtimeStatus.get("multimodal"))
+                .containsEntry("image_generation", Boolean.FALSE)
+                .containsEntry("tts", Boolean.FALSE)
+                .containsEntry("transcription", Boolean.FALSE);
         Map<String, Object> pricingCapabilities = (Map<String, Object>) capabilities.get("pricing");
         assertThat(pricingCapabilities)
                 .containsEntry("cost_calculation", Boolean.TRUE)
@@ -335,6 +344,9 @@ public class DashboardStatusServiceTest {
         assertThat(toolSafetyCapabilities)
                 .containsEntry("guardrail_mode", "approval")
                 .containsEntry("guardrail_cron_mode", "approve")
+                .containsEntry("subagent_auto_approve", Boolean.TRUE)
+                .containsEntry("url_private_access_policy", Boolean.TRUE)
+                .containsEntry("website_blocklist", Boolean.TRUE)
                 .doesNotContainKeys("approval_mode", "cron_approval_mode");
         assertThat(runtimeStatus)
                 .containsEntry("schema_version", Integer.valueOf(1))
@@ -369,6 +381,9 @@ public class DashboardStatusServiceTest {
         assertThat(toolSafetyStatus)
                 .containsEntry("guardrail_mode", "approval")
                 .containsEntry("guardrail_cron_mode", "approve")
+                .containsEntry("subagent_auto_approve", Boolean.TRUE)
+                .containsEntry("allow_private_urls", Boolean.TRUE)
+                .containsEntry("website_blocklist_enabled", Boolean.TRUE)
                 .doesNotContainKeys("approval_mode", "cron_approval_mode");
 
         String json = ONode.serialize(status);
@@ -378,6 +393,110 @@ public class DashboardStatusServiceTest {
                 .doesNotContain("worktree")
                 .doesNotContain("plugins")
                 .doesNotContain("openai_api_server");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldReportConfiguredSpeechProvidersAsAvailable() throws Exception {
+        AppConfig config = new AppConfig();
+        File workspaceHome = Files.createTempDirectory("dashboard-speech-status").toFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        config.getSpeech().getTts().setEnabled(true);
+        config.getSpeech().getTts().setApiKey("tts-test-key");
+        config.getSpeech().getStt().setEnabled(true);
+        config.getSpeech().getStt().setApiKey("stt-test-key");
+        SpeechService speechService =
+                new SpeechService(config, null, Collections.emptyList(), Collections.emptyList());
+        ChannelStatus channelStatus =
+                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled");
+        DashboardStatusService service =
+                new DashboardStatusService(
+                        config,
+                        new EmptySessionRepository(),
+                        new FixedDeliveryService(channelStatus),
+                        null,
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())),
+                        new AppVersionService(config),
+                        new FixedUpdateService(config),
+                        new LlmProviderService(config),
+                        null,
+                        speechService);
+
+        Map<String, Object> status = service.getStatus(true);
+        Map<String, Object> capabilities = (Map<String, Object>) status.get("runtime_capabilities");
+        Map<String, Object> runtimeStatus = (Map<String, Object>) status.get("runtime_status");
+
+        assertThat((Map<String, Object>) capabilities.get("multimodal"))
+                .containsEntry("tts", Boolean.TRUE)
+                .containsEntry("transcription", Boolean.TRUE);
+        assertThat((Map<String, Object>) runtimeStatus.get("multimodal"))
+                .containsEntry("tts", Boolean.TRUE)
+                .containsEntry("transcription", Boolean.TRUE);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldReportImageGenerationOnlyWhenAProviderIsAvailable() throws Exception {
+        AppConfig config = new AppConfig();
+        File workspaceHome = Files.createTempDirectory("dashboard-image-status").toFile();
+        config.getRuntime().setHome(workspaceHome.getAbsolutePath());
+        config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
+        ImageGenProvider broken = imageProvider("broken", true);
+        ImageGenProvider available = imageProvider("available", false);
+        DashboardStatusService service =
+                new DashboardStatusService(
+                        config,
+                        new EmptySessionRepository(),
+                        new FixedDeliveryService(
+                                new ChannelStatus(PlatformType.FEISHU, false, false, "disabled")),
+                        null,
+                        new GatewayRuntimeRefreshService(
+                                config, new ChannelConnectionManager(Collections.emptyMap())),
+                        new AppVersionService(config),
+                        new FixedUpdateService(config),
+                        new LlmProviderService(config),
+                        null,
+                        null,
+                        List.of(broken, available),
+                        null);
+
+        Map<String, Object> status = service.getStatus(true);
+        Map<String, Object> capabilities = (Map<String, Object>) status.get("runtime_capabilities");
+        Map<String, Object> runtimeStatus = (Map<String, Object>) status.get("runtime_status");
+
+        assertThat((Map<String, Object>) capabilities.get("multimodal"))
+                .containsEntry("image_generation", Boolean.TRUE);
+        assertThat((Map<String, Object>) runtimeStatus.get("multimodal"))
+                .containsEntry("image_generation", Boolean.TRUE);
+    }
+
+    /** 构造只用于状态探测的图片 Provider；可选择让探测抛错以验证隔离。 */
+    private static ImageGenProvider imageProvider(String name, boolean failProbe) {
+        return new ImageGenProvider() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public boolean isAvailable() {
+                if (failProbe) {
+                    throw new IllegalStateException("probe failed");
+                }
+                return true;
+            }
+
+            @Override
+            public ImageGenResult generate(
+                    String prompt,
+                    String aspectRatio,
+                    String imageUrl,
+                    List<String> referenceImageUrls) {
+                throw new UnsupportedOperationException("status probe only");
+            }
+        };
     }
 
     @Test

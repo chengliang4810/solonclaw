@@ -1,12 +1,15 @@
 package com.jimuqu.solon.claw;
 
+import com.jimuqu.solon.claw.bootstrap.StartupModeContext;
 import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.CliModeParser;
 import com.jimuqu.solon.claw.cli.CliRunner;
 import com.jimuqu.solon.claw.cli.TerminalModelPicker;
 import com.jimuqu.solon.claw.cli.TerminalSetupCommands;
-import com.jimuqu.solon.claw.bootstrap.StartupModeContext;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeStatusService;
+import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
+import com.jimuqu.solon.claw.profile.ProfileBootstrap;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -20,13 +23,28 @@ public class SolonClawApp {
     /** 记录Solon项目应用中的启动参数。 */
     private static volatile String[] startupArgs = new String[0];
 
+    /** 当前服务端进程的 Profile 网关状态写入器。 */
+    private static volatile GatewayRuntimeStatusService gatewayRuntimeStatusService;
+
+    /** 防止嵌入测试重复注册 JVM 关闭钩子。 */
+    private static volatile boolean gatewayShutdownHookRegistered;
+
     /**
      * 启动 Solon 应用。
      *
      * @param args 启动参数
      */
     public static void main(String[] args) {
-        startupArgs = args == null ? new String[0] : args.clone();
+        ProfileBootstrap.Result profileResult =
+                ProfileBootstrap.prepare(args, System.in, System.out, System.err);
+        if (profileResult.isHandled()) {
+            if (profileResult.getExitCode() != 0) {
+                System.exit(profileResult.getExitCode());
+            }
+            return;
+        }
+        final String[] effectiveArgs = profileResult.getArguments();
+        startupArgs = effectiveArgs.clone();
         final CliMode cliMode = CliModeParser.parse(startupArgs);
         StartupModeContext.set(cliMode);
         configureConsoleLogging(cliMode);
@@ -35,13 +53,16 @@ public class SolonClawApp {
         }
         Solon.start(
                 SolonClawApp.class,
-                args,
+                effectiveArgs,
                 app -> {
                     app.enableWebSocket(cliMode.shouldStartNetworkListeners());
                     if (cliMode.isConsoleMode()) {
                         app.enableHttp(false);
                     }
                 });
+        if (!cliMode.isConsoleMode()) {
+            registerGatewayRuntimeStatus();
+        }
         if (cliMode.isConsoleMode()) {
             int exitCode = 0;
             try {
@@ -58,6 +79,46 @@ public class SolonClawApp {
         }
     }
 
+    /** 在服务端完成监听后写入 PID/状态，并在 JVM 退出时只清理本进程拥有的记录。 */
+    private static synchronized void registerGatewayRuntimeStatus() {
+        AppConfig appConfig = Solon.context().getBean(AppConfig.class);
+        GatewayRuntimeStatusService service = new GatewayRuntimeStatusService(appConfig);
+        if (appConfig.getGateway().isMultiplexProfiles()
+                && "default".equals(System.getProperty("solonclaw.profile.name", "default"))) {
+            ProfileMultiplexRuntimeManager manager =
+                    Solon.context().getBean(ProfileMultiplexRuntimeManager.class);
+            if (manager == null) {
+                throw new IllegalStateException(
+                        "Profile multiplex runtime manager was not initialized.");
+            }
+            manager.bindRuntimeStatusService(service);
+        }
+        service.writePidFile();
+        service.writeState("running", "Profile gateway is ready.");
+        gatewayRuntimeStatusService = service;
+        if (gatewayShutdownHookRegistered) {
+            return;
+        }
+        Runtime.getRuntime()
+                .addShutdownHook(
+                        new Thread(
+                                new Runnable() {
+                                    /** 在 JVM 关闭阶段更新状态并释放 PID 文件。 */
+                                    @Override
+                                    public void run() {
+                                        GatewayRuntimeStatusService current =
+                                                gatewayRuntimeStatusService;
+                                        if (current != null) {
+                                            current.writeState(
+                                                    "stopped", "Profile gateway process exited.");
+                                            current.removePidFile();
+                                        }
+                                    }
+                                },
+                                "solonclaw-gateway-status-shutdown"));
+        gatewayShutdownHookRegistered = true;
+    }
+
     /**
      * 在 Solon 容器启动前处理一次性 setup/config/model 命令，避免为打印本地配置说明初始化 Agent/Gateway 全量组件。
      *
@@ -65,7 +126,9 @@ public class SolonClawApp {
      * @return 已处理并可直接退出时返回 true。
      */
     static boolean runLocalSetupCommand(CliMode cliMode) {
-        if (cliMode == null || !cliMode.isConsoleMode() || cliMode.getKind() == CliMode.Kind.COMPLETION) {
+        if (cliMode == null
+                || !cliMode.isConsoleMode()
+                || cliMode.getKind() == CliMode.Kind.COMPLETION) {
             return false;
         }
         Props props = new Props();
@@ -77,7 +140,8 @@ public class SolonClawApp {
         AppConfig appConfig = AppConfig.load(props);
         LlmProviderService providerService = new LlmProviderService(appConfig);
         TerminalSetupCommands setupCommands =
-                new TerminalSetupCommands(appConfig, new TerminalModelPicker(appConfig, providerService));
+                new TerminalSetupCommands(
+                        appConfig, new TerminalModelPicker(appConfig, providerService));
         if (!setupCommands.isSetupCommand(cliMode.getInput())) {
             return false;
         }

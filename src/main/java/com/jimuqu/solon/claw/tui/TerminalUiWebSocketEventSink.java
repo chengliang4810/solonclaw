@@ -15,26 +15,37 @@ import org.noear.solon.net.websocket.WebSocket;
 public class TerminalUiWebSocketEventSink implements ConversationEventSink {
     /** assistant 增量在终端 UI RPC 模式下的最小合并长度，避免单 token 高频刷新。 */
     private static final int ASSISTANT_DELTA_BATCH_CHARS = 96;
+
     /** reasoning 增量在终端 UI RPC 模式下的最小合并长度，避免思考区被短片段刷屏。 */
     private static final int REASONING_DELTA_BATCH_CHARS = 160;
+
     /** 后端到终端 UI 的 WebSocket 连接。 */
     private final WebSocket socket;
+
     /** 是否使用终端 UI JSON-RPC event 信封。 */
     private final boolean rpcEnvelope;
+
     /** JSON-RPC 模式下待发送的 assistant 小片段缓冲。 */
     private final StringBuilder assistantDeltaBuffer = new StringBuilder();
+
     /** JSON-RPC 模式下待发送的 reasoning 小片段缓冲。 */
     private final StringBuilder reasoningDeltaBuffer = new StringBuilder();
+
     /** JSON-RPC 模式下兜底拆分 assistant delta 中混入的 <think> 内容。 */
     private final ThinkTagSplitter thinkTagSplitter = new ThinkTagSplitter();
+
     /** 是否已经发送过模型增量，用于避免重复输出最终回复。 */
     private boolean assistantDeltaSent;
+
     /** JSON-RPC 模式下当前运行关联的会话 ID，用于为增量事件补齐归属。 */
     private String activeSessionId;
+
     /** JSON-RPC 模式下已经发送过 message.start，避免直接命令回复缺少开始事件。 */
     private boolean messageStarted;
+
     /** 是否已经发送完成事件，用于避免 listener 兜底逻辑在完成后追加尾巴。 */
     private boolean runCompleted;
+
     /** 工具名称到前端工具 ID 的映射，保证 tool.start 与 tool.complete 可以成对闭合。 */
     private final Map<String, String> activeToolIds = new HashMap<String, String>();
 
@@ -66,14 +77,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
     @Override
     public void onAttemptStarted(String runId, int attemptNo, String provider, String model) {
         if (rpcEnvelope) {
-            sendStatus(
-                    "model "
-                            + attemptNo
-                            + ": "
-                            + safe(provider)
-                            + "/"
-                            + safe(model),
-                    "status");
+            sendStatus("model " + attemptNo + ": " + safe(provider) + "/" + safe(model), "status");
         }
     }
 
@@ -88,12 +92,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
             sendStatus("model done", "status");
             return;
         }
-        String text =
-                "attempt "
-                        + attemptNo
-                        + " "
-                        + safe(status)
-                        + detail(reason);
+        String text = "attempt " + attemptNo + " " + safe(status) + detail(reason);
         sendStatus(text, "warn");
     }
 
@@ -131,11 +130,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
     public void onFallback(String runId, String fromProvider, String toProvider, String reason) {
         if (rpcEnvelope) {
             sendStatus(
-                    "fallback "
-                            + safe(fromProvider)
-                            + " -> "
-                            + safe(toProvider)
-                            + detail(reason),
+                    "fallback " + safe(fromProvider) + " -> " + safe(toProvider) + detail(reason),
                     "warn");
         }
     }
@@ -148,9 +143,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         }
         String normalized = safe(status).toLowerCase(java.util.Locale.ROOT);
         String kind =
-                normalized.contains("fail") || normalized.contains("error")
-                        ? "error"
-                        : "status";
+                normalized.contains("fail") || normalized.contains("error") ? "error" : "status";
         sendStatus("delivery " + safe(status) + detail(detail), kind);
     }
 
@@ -243,7 +236,10 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         activeSessionId = sessionId;
         if (rpcEnvelope) {
             flushPendingDeltas();
-            send("error", pair("message", error == null ? "unknown" : error.getMessage()), sessionId);
+            send(
+                    "error",
+                    pair("message", error == null ? "unknown" : error.getMessage()),
+                    sessionId);
             return;
         }
         Map<String, Object> payload = pair("session_id", sessionId);
@@ -386,12 +382,23 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
     /** 将模型用量转换为终端 UI 可识别的 usage 结构。 */
     private Map<String, Object> usage(LlmResult result) {
         Map<String, Object> usage = new LinkedHashMap<String, Object>();
-        usage.put("calls", Long.valueOf(result == null ? 0L : Math.max(0L, result.getRequestCount())));
-        usage.put("input", Long.valueOf(result == null ? 0L : Math.max(0L, result.getInputTokens())));
-        usage.put("output", Long.valueOf(result == null ? 0L : Math.max(0L, result.getOutputTokens())));
-        usage.put("reasoning", Long.valueOf(result == null ? 0L : Math.max(0L, result.getReasoningTokens())));
-        usage.put("cache_read", Long.valueOf(result == null ? 0L : Math.max(0L, result.getCacheReadTokens())));
-        usage.put("cache_write", Long.valueOf(result == null ? 0L : Math.max(0L, result.getCacheWriteTokens())));
+        usage.put(
+                "calls",
+                Long.valueOf(result == null ? 0L : Math.max(0L, result.getRequestCount())));
+        usage.put(
+                "input", Long.valueOf(result == null ? 0L : Math.max(0L, result.getInputTokens())));
+        usage.put(
+                "output",
+                Long.valueOf(result == null ? 0L : Math.max(0L, result.getOutputTokens())));
+        usage.put(
+                "reasoning",
+                Long.valueOf(result == null ? 0L : Math.max(0L, result.getReasoningTokens())));
+        usage.put(
+                "cache_read",
+                Long.valueOf(result == null ? 0L : Math.max(0L, result.getCacheReadTokens())));
+        usage.put(
+                "cache_write",
+                Long.valueOf(result == null ? 0L : Math.max(0L, result.getCacheWriteTokens())));
         long total =
                 result == null
                         ? 0L
@@ -423,10 +430,13 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
     private static class ThinkTagSplitter {
         /** 思考开始标签。 */
         private static final String THINK_OPEN = "<think>";
+
         /** 思考结束标签。 */
         private static final String THINK_CLOSE = "</think>";
+
         /** 等待判定是否为标签的短缓冲。 */
         private final StringBuilder pendingTag = new StringBuilder();
+
         /** 当前是否处于思考块内。 */
         private boolean thinking;
 
@@ -490,6 +500,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         private static class Delta {
             /** 可见文本。 */
             private final String visible;
+
             /** reasoning 文本。 */
             private final String reasoning;
 

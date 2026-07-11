@@ -9,8 +9,11 @@ import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.media.SpeechService;
+import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
+import com.jimuqu.solon.claw.profile.ProfileGatewayStatus;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.RuntimeProcessSupport;
@@ -18,11 +21,13 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.io.File;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +74,15 @@ public class DashboardStatusService {
 
     /** 注入主动协作诊断服务，用于展示主动联系状态。 */
     private final ProactiveDiagnosticsService proactiveDiagnosticsService;
+
+    /** 注入语音运行时服务，用于报告真实可用的 TTS 与独立 STT Provider。 */
+    private final SpeechService speechService;
+
+    /** 注入图像生成 Provider，用于报告真实可用状态。 */
+    private final List<ImageGenProvider> imageGenProviders;
+
+    /** 解析 Dashboard 显式选择的 Profile；为空时保持当前状态聚合行为。 */
+    private final DashboardProfileContext profileContext;
 
     /**
      * 创建控制台状态服务实例，并兼容未接入运行控制服务的测试或轻量调用路径。
@@ -194,6 +208,90 @@ public class DashboardStatusService {
             AppUpdateService appUpdateService,
             LlmProviderService llmProviderService,
             ProactiveDiagnosticsService proactiveDiagnosticsService) {
+        this(
+                appConfig,
+                sessionRepository,
+                deliveryService,
+                agentRunControlService,
+                gatewayRuntimeRefreshService,
+                appVersionService,
+                appUpdateService,
+                llmProviderService,
+                proactiveDiagnosticsService,
+                null);
+    }
+
+    /**
+     * 创建控制台状态服务实例，并注入语音运行时以计算真实可用状态。
+     *
+     * @param appConfig 应用运行配置。
+     * @param sessionRepository 会话仓储依赖。
+     * @param deliveryService 投递服务依赖。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param gatewayRuntimeRefreshService 网关运行时刷新服务依赖。
+     * @param appVersionService 应用版本服务依赖。
+     * @param appUpdateService 应用更新服务依赖。
+     * @param llmProviderService LLM 提供方服务依赖。
+     * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
+     * @param speechService 语音运行时服务依赖。
+     */
+    public DashboardStatusService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DeliveryService deliveryService,
+            AgentRunControlService agentRunControlService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            AppVersionService appVersionService,
+            AppUpdateService appUpdateService,
+            LlmProviderService llmProviderService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService,
+            SpeechService speechService) {
+        this(
+                appConfig,
+                sessionRepository,
+                deliveryService,
+                agentRunControlService,
+                gatewayRuntimeRefreshService,
+                appVersionService,
+                appUpdateService,
+                llmProviderService,
+                proactiveDiagnosticsService,
+                speechService,
+                null,
+                null);
+    }
+
+    /**
+     * 创建支持 Profile 状态作用域的 Dashboard 状态服务。
+     *
+     * @param appConfig 当前 JVM 配置。
+     * @param sessionRepository 当前 JVM 会话仓储。
+     * @param deliveryService 当前 JVM 渠道投递服务。
+     * @param agentRunControlService 当前 JVM Agent 运行控制服务。
+     * @param gatewayRuntimeRefreshService 当前 JVM 网关刷新服务。
+     * @param appVersionService 应用版本服务。
+     * @param appUpdateService 应用更新服务。
+     * @param llmProviderService 当前 JVM Provider 服务。
+     * @param proactiveDiagnosticsService 主动协作诊断服务。
+     * @param speechService 语音运行时服务。
+     * @param imageGenProviders 图像生成 Provider 列表。
+     * @param profileContext Dashboard Profile 请求上下文。
+     */
+    public DashboardStatusService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            DeliveryService deliveryService,
+            AgentRunControlService agentRunControlService,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            AppVersionService appVersionService,
+            AppUpdateService appUpdateService,
+            LlmProviderService llmProviderService,
+            ProactiveDiagnosticsService proactiveDiagnosticsService,
+            SpeechService speechService,
+            List<ImageGenProvider> imageGenProviders,
+            DashboardProfileContext profileContext) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.deliveryService = deliveryService;
@@ -203,6 +301,9 @@ public class DashboardStatusService {
         this.appUpdateService = appUpdateService;
         this.llmProviderService = llmProviderService;
         this.proactiveDiagnosticsService = proactiveDiagnosticsService;
+        this.speechService = speechService;
+        this.imageGenProviders = imageGenProviders;
+        this.profileContext = profileContext;
     }
 
     /**
@@ -239,6 +340,7 @@ public class DashboardStatusService {
         result.put("gateway_running", Boolean.valueOf(snapshot.anyConnected));
         result.put("gateway_state", snapshot.gatewayState);
         result.put("gateway_updated_at", snapshot.updatedAt);
+        appendProfileGatewayTopology(result, detailed);
         if (detailed) {
             result.put("runtime_capabilities", buildRuntimeCapabilitiesSnapshot());
             result.put("runtime_status", buildRuntimeStatusSnapshot(snapshot, true));
@@ -266,6 +368,97 @@ public class DashboardStatusService {
                 "update_error_at",
                 versionStatus.getUpdateErrorAt() > 0 ? versionStatus.getUpdateErrorAt() : null);
         return result;
+    }
+
+    /**
+     * 追加机器级 Profile 与网关拓扑；Profile 名和模式低敏，网关端口仅详细状态返回。
+     *
+     * <p>复用模式以 default 网关状态文件的 {@code served_profiles} 为准，避免仅凭配置误报尚未启动的拓扑。
+     */
+    @SuppressWarnings("unchecked")
+    private void appendProfileGatewayTopology(Map<String, Object> result, boolean detailed) {
+        if (profileContext == null) {
+            return;
+        }
+        List<String> profiles = new ArrayList<String>();
+        List<Map<String, Object>> gateways = new ArrayList<Map<String, Object>>();
+        int runningGatewayCount = 0;
+        boolean multiplex = false;
+        try {
+            for (com.jimuqu.solon.claw.profile.ProfileView view :
+                    profileContext.profileManager().listProfileViews()) {
+                profiles.add(view.getName());
+                ProfileGatewayStatus gateway = view.getGateway();
+                if (gateway == null || !gateway.isRunning()) {
+                    continue;
+                }
+                runningGatewayCount++;
+                Map<String, Object> state = gateway.getState();
+                List<String> served = new ArrayList<String>();
+                Object rawServed = state.get("served_profiles");
+                if (rawServed instanceof Iterable) {
+                    for (Object item : (Iterable<Object>) rawServed) {
+                        String name = item == null ? "" : String.valueOf(item).trim();
+                        if (name.length() > 0) {
+                            served.add(name);
+                        }
+                    }
+                }
+                if ("default".equals(view.getName()) && served.size() > 1) {
+                    multiplex = true;
+                }
+                if (detailed) {
+                    Map<String, Object> item = new LinkedHashMap<String, Object>();
+                    item.put("profile", view.getName());
+                    item.put("port", gateway.getPort());
+                    if (!served.isEmpty()) {
+                        item.put("served_profiles", served);
+                    }
+                    gateways.add(item);
+                }
+            }
+        } catch (Exception e) {
+            log.debug(
+                    "Profile gateway topology enumeration failed: {}",
+                    e.getClass().getSimpleName());
+            result.put("profiles", Collections.emptyList());
+            result.put("gateway_mode", "unknown");
+            if (detailed) {
+                result.put("gateways", Collections.emptyList());
+            }
+            return;
+        }
+        result.put("profiles", profiles);
+        result.put(
+                "gateway_mode",
+                multiplex
+                        ? "multiplex"
+                        : runningGatewayCount > 1
+                                ? "multiple"
+                                : runningGatewayCount == 1 ? "single" : "none");
+        if (detailed) {
+            result.put("gateways", gateways);
+        }
+    }
+
+    /**
+     * 读取指定 Profile 的状态；显式非当前 Profile 从其独立 PID、状态文件和配置生成快照。
+     *
+     * @param detailed 是否包含详细状态。
+     * @param profile Profile 名。
+     * @return Profile 状态。
+     */
+    public Map<String, Object> getStatus(boolean detailed, String profile) throws Exception {
+        if (profileContext == null) {
+            return getStatus(detailed);
+        }
+        DashboardProfileContext.Scope scope = profileContext.resolve(profile);
+        if (scope.isCurrent()) {
+            return getStatus(detailed);
+        }
+        ProfileGatewayStatus gateway = profileContext.gatewayStatus(scope);
+        return detachedService(scope.getConfig())
+                .detachedStatus(scope.getName(), gateway, detailed);
     }
 
     /**
@@ -344,6 +537,169 @@ public class DashboardStatusService {
         capabilities.put("model_family", safeText(resolved.getDialect(), 80));
         result.put("capabilities", capabilities);
         return result;
+    }
+
+    /**
+     * 读取指定 Profile 的模型信息。
+     *
+     * @param detailed 是否包含详细字段。
+     * @param profile Profile 名。
+     * @return 模型元数据。
+     */
+    public Map<String, Object> getModelInfo(boolean detailed, String profile) {
+        if (profileContext == null) {
+            return getModelInfo(detailed);
+        }
+        DashboardProfileContext.Scope scope = profileContext.resolve(profile);
+        if (scope.isCurrent()) {
+            return getModelInfo(detailed);
+        }
+        return detachedService(scope.getConfig()).getModelInfo(detailed);
+    }
+
+    /** 创建只读取目标 Profile 配置、不访问当前 JVM 渠道和仓储的状态服务。 */
+    private DashboardStatusService detachedService(AppConfig scopedConfig) {
+        return new DashboardStatusService(
+                scopedConfig,
+                null,
+                null,
+                null,
+                null,
+                appVersionService,
+                appUpdateService,
+                DashboardProfileContext.snapshotProviderService(scopedConfig),
+                null,
+                null,
+                null,
+                null);
+    }
+
+    /** 构造非当前 Profile 的机器可观测状态。 */
+    private Map<String, Object> detachedStatus(
+            String profile, ProfileGatewayStatus gateway, boolean detailed) {
+        RuntimeStatusSnapshot snapshot = detachedRuntimeSnapshot(gateway, detailed);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("profile", profile);
+        result.put("active_sessions", Integer.valueOf(0));
+        result.put("running_agent_runs", Integer.valueOf(0));
+        if (detailed) {
+            result.put("config_path", runtimeReference(appConfig.getRuntime().getConfigFile()));
+        }
+        result.put("config_version", configVersion());
+        result.put("gateway_exit_reason", snapshot.firstFatalDetail);
+        if (detailed) {
+            result.put("gateway_pid", gateway.getPid());
+            result.put("gateway_port", gateway.getPort());
+        }
+        result.put("gateway_platforms", snapshot.platformStates);
+        result.put("gateway_running", Boolean.valueOf(gateway.isRunning()));
+        result.put("gateway_state", snapshot.gatewayState);
+        result.put("gateway_updated_at", snapshot.updatedAt);
+        if (detailed) {
+            result.put("runtime_capabilities", buildRuntimeCapabilitiesSnapshot());
+            result.put("runtime_status", buildRuntimeStatusSnapshot(snapshot, true));
+            result.put("workspace_config_refresh", runtimeConfigRefreshStatus());
+            result.put("solonclaw_home", runtimeReference(appConfig.getRuntime().getHome()));
+        }
+        result.put("latest_config_version", configVersion());
+        result.put("release_date", RELEASE_DATE_FORMATTER.format(LocalDate.now()));
+        appendVersionStatus(result, detailed);
+        return result;
+    }
+
+    /** 把 Profile 网关状态文件与配置合成为 Dashboard RuntimeStatusSnapshot。 */
+    @SuppressWarnings("unchecked")
+    private RuntimeStatusSnapshot detachedRuntimeSnapshot(
+            ProfileGatewayStatus gateway, boolean detailed) {
+        Map<String, Object> state = gateway.getState();
+        Map<String, Object> platforms = new LinkedHashMap<String, Object>();
+        Object recordedPlatforms = state.get("platforms");
+        if (recordedPlatforms instanceof Map) {
+            platforms.putAll((Map<String, Object>) recordedPlatforms);
+        } else {
+            appendConfiguredChannel(
+                    platforms, "feishu", appConfig.getChannels().getFeishu(), gateway);
+            appendConfiguredChannel(
+                    platforms, "dingtalk", appConfig.getChannels().getDingtalk(), gateway);
+            appendConfiguredChannel(
+                    platforms, "wecom", appConfig.getChannels().getWecom(), gateway);
+            appendConfiguredChannel(
+                    platforms, "weixin", appConfig.getChannels().getWeixin(), gateway);
+            appendConfiguredChannel(
+                    platforms, "qqbot", appConfig.getChannels().getQqbot(), gateway);
+            appendConfiguredChannel(
+                    platforms, "yuanbao", appConfig.getChannels().getYuanbao(), gateway);
+        }
+        RuntimeStatusSnapshot snapshot = new RuntimeStatusSnapshot();
+        snapshot.activeSessions = 0;
+        snapshot.runningAgentRuns = 0;
+        snapshot.anyConnected = gateway.isRunning();
+        snapshot.gatewayState =
+                StrUtil.blankToDefault(
+                        state.get("status") == null ? null : String.valueOf(state.get("status")),
+                        gateway.isRunning() ? "running" : "stopped");
+        snapshot.anyFatal = "startup_failed".equals(snapshot.gatewayState);
+        snapshot.firstFatalDetail =
+                snapshot.anyFatal && state.get("detail") != null
+                        ? redact(String.valueOf(state.get("detail")), 1000)
+                        : null;
+        snapshot.platformStates = platforms;
+        snapshot.updatedAt = detachedUpdatedAt(state);
+        return snapshot;
+    }
+
+    /** 追加未提供实时平台明细时的配置态渠道摘要。 */
+    private void appendConfiguredChannel(
+            Map<String, Object> platforms,
+            String name,
+            AppConfig.ChannelConfig channel,
+            ProfileGatewayStatus gateway) {
+        Map<String, Object> item = new LinkedHashMap<String, Object>();
+        boolean enabled = channel != null && channel.isEnabled();
+        item.put(
+                "state", enabled ? (gateway.isRunning() ? "running" : "disconnected") : "disabled");
+        item.put("updated_at", detachedUpdatedAt(gateway.getState()));
+        item.put(
+                "detail",
+                enabled
+                        ? (gateway.isRunning() ? "gateway_running" : "gateway_stopped")
+                        : "disabled");
+        platforms.put(name, item);
+    }
+
+    /** 读取 Profile 状态更新时间；缺失时使用当前时间。 */
+    private String detachedUpdatedAt(Map<String, Object> state) {
+        Object updatedAt = state == null ? null : state.get("updatedAt");
+        if (updatedAt instanceof Number) {
+            try {
+                return java.time.Instant.ofEpochMilli(((Number) updatedAt).longValue()).toString();
+            } catch (RuntimeException ignored) {
+                return isoNow();
+            }
+        }
+        return updatedAt == null ? isoNow() : safeText(String.valueOf(updatedAt), 120);
+    }
+
+    /** 追加机器级版本状态，Profile 选择不改变已安装版本。 */
+    private void appendVersionStatus(Map<String, Object> result, boolean detailed) {
+        if (appVersionService == null || appUpdateService == null) {
+            return;
+        }
+        AppUpdateService.VersionStatus versionStatus = appUpdateService.getVersionStatus(false);
+        result.put("version", appVersionService.currentVersion());
+        result.put("version_tag", appVersionService.currentTag());
+        result.put("deployment_mode", appVersionService.deploymentMode());
+        result.put("latest_version", versionStatus.getLatestVersion());
+        result.put("latest_tag", versionStatus.getLatestTag());
+        result.put("update_available", versionStatus.isUpdateAvailable());
+        if (detailed) {
+            result.put("release_url", SecretRedactor.maskUrl(versionStatus.getReleaseUrl()));
+            result.put("release_api_url", SecretRedactor.maskUrl(versionStatus.getReleaseApiUrl()));
+            result.put("update_error_message", redact(versionStatus.getUpdateErrorMessage(), 1000));
+        }
+        result.put(
+                "update_error_at",
+                versionStatus.getUpdateErrorAt() > 0 ? versionStatus.getUpdateErrorAt() : null);
     }
 
     /**
@@ -516,7 +872,7 @@ public class DashboardStatusService {
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("workspace_config_file", Boolean.TRUE);
         capabilities.put("dashboard_editable", Boolean.TRUE);
-        capabilities.put("hot_refresh", Boolean.TRUE);
+        capabilities.put("hot_refresh", Boolean.valueOf(gatewayRuntimeRefreshService != null));
         capabilities.put("secret_redaction", Boolean.TRUE);
         capabilities.put("workspace_reference_scheme", "workspace://");
         return capabilities;
@@ -618,9 +974,9 @@ public class DashboardStatusService {
         ModelMetadata metadata = resolved == null ? null : currentModelMetadata(resolved);
         Map<String, Object> capabilities = new LinkedHashMap<String, Object>();
         capabilities.put("model_input", multimodalModelInputCapabilities(metadata));
-        capabilities.put("image_generation", Boolean.TRUE);
-        capabilities.put("tts", Boolean.TRUE);
-        capabilities.put("transcription", Boolean.TRUE);
+        capabilities.put("image_generation", Boolean.valueOf(imageGenerationAvailable()));
+        capabilities.put("tts", Boolean.valueOf(ttsAvailable()));
+        capabilities.put("transcription", Boolean.valueOf(transcriptionAvailable()));
         capabilities.put("attachment_cache", Boolean.TRUE);
         return capabilities;
     }
@@ -709,7 +1065,9 @@ public class DashboardStatusService {
         status.put("gateway_state", snapshot.gatewayState);
         status.put(
                 "runtime_refresh_failed",
-                Boolean.valueOf(gatewayRuntimeRefreshService.lastFailureSnapshot() != null));
+                Boolean.valueOf(
+                        gatewayRuntimeRefreshService != null
+                                && gatewayRuntimeRefreshService.lastFailureSnapshot() != null));
         status.put("updated_at", snapshot.updatedAt);
         return status;
     }
@@ -740,9 +1098,8 @@ public class DashboardStatusService {
      */
     private String guardrailCronMode() {
         return appConfig.getSecurity() == null
-                ? "approval"
-                : StrUtil.blankToDefault(
-                        appConfig.getSecurity().getGuardrailCronMode(), "approval");
+                ? "strict"
+                : StrUtil.blankToDefault(appConfig.getSecurity().getGuardrailCronMode(), "strict");
     }
 
     /**
@@ -848,13 +1205,48 @@ public class DashboardStatusService {
         status.put("model", resolved == null ? "" : safeText(resolved.getModel(), 200));
         status.put("dialect", resolved == null ? "" : safeText(resolved.getDialect(), 80));
         status.put("model_input", multimodalModelInputCapabilities(metadata));
-        status.put("image_generation", Boolean.TRUE);
-        status.put("tts", Boolean.TRUE);
-        status.put("transcription", Boolean.TRUE);
+        status.put("image_generation", Boolean.valueOf(imageGenerationAvailable()));
+        status.put("tts", Boolean.valueOf(ttsAvailable()));
+        status.put("transcription", Boolean.valueOf(transcriptionAvailable()));
         status.put(
                 "media_cache_ttl_hours",
                 Integer.valueOf(appConfig.getTask().getMediaCacheTtlHours()));
         return status;
+    }
+
+    /** 任一已注册图像 Provider 可用时报告图像生成为可用。 */
+    private boolean imageGenerationAvailable() {
+        if (imageGenProviders == null) {
+            return false;
+        }
+        for (ImageGenProvider provider : imageGenProviders) {
+            try {
+                if (provider != null && provider.isAvailable()) {
+                    return true;
+                }
+            } catch (RuntimeException ignored) {
+                // 单个插件异常不能中断 Dashboard 状态接口。
+            }
+        }
+        return false;
+    }
+
+    /** 读取 TTS Provider 真实可用性，插件异常时按不可用处理，避免健康接口失败。 */
+    private boolean ttsAvailable() {
+        try {
+            return speechService != null && speechService.isTtsAvailable();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** 读取独立 STT Provider 真实可用性，插件异常时按不可用处理。 */
+    private boolean transcriptionAvailable() {
+        try {
+            return speechService != null && speechService.isTranscriptionAvailable();
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     /**
@@ -976,6 +1368,10 @@ public class DashboardStatusService {
             effective.setDefaultModel(provider.getDefaultModel());
             effective.setDialect(provider.getDialect());
             effective.setSupportsVision(provider.getSupportsVision());
+            effective.setCapabilities(
+                    provider.getCapabilities() == null
+                            ? new LinkedHashMap<String, Boolean>()
+                            : new LinkedHashMap<String, Boolean>(provider.getCapabilities()));
         }
         effective.setDefaultModel(resolved.getModel());
         effective.setDialect(resolved.getDialect());
@@ -989,7 +1385,11 @@ public class DashboardStatusService {
      */
     private Map<String, Object> runtimeConfigRefreshStatus() {
         Map<String, Object> status = new LinkedHashMap<String, Object>();
-        status.put("last_failure", gatewayRuntimeRefreshService.lastFailureSnapshot());
+        status.put(
+                "last_failure",
+                gatewayRuntimeRefreshService == null
+                        ? null
+                        : gatewayRuntimeRefreshService.lastFailureSnapshot());
         return status;
     }
 

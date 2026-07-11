@@ -1,10 +1,9 @@
 package com.jimuqu.solon.claw.skillhub.support;
 
+import static com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
-import static com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;

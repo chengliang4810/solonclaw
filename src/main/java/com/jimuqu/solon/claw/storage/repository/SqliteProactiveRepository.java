@@ -130,8 +130,8 @@ public class SqliteProactiveRepository implements ProactiveRepository {
     }
 
     @Override
-    public void markCandidateStatus(String candidateId, String status, String decisionId, long updatedAt)
-            throws Exception {
+    public void markCandidateStatus(
+            String candidateId, String status, String decisionId, long updatedAt) throws Exception {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =

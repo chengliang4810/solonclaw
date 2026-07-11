@@ -10,8 +10,11 @@ import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.VideoGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import java.lang.reflect.Field;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.noear.solon.annotation.Bean;
@@ -26,9 +29,6 @@ import org.slf4j.LoggerFactory;
 public class PluginConfiguration implements PluginRegistrationSink {
     /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(PluginConfiguration.class);
-
-    /** 注入应用配置，用于插件。 */
-    @Inject private AppConfig appConfig;
 
     /** 记录插件中的钩子注册表。 */
     private final AgentHookRegistry hookRegistry = new AgentHookRegistry();
@@ -83,10 +83,11 @@ public class PluginConfiguration implements PluginRegistrationSink {
     /**
      * 执行Agent插件管理器相关逻辑。
      *
+     * @param appConfig 当前 Profile 的应用配置。
      * @return 返回Agent插件管理器结果。
      */
     @Bean
-    public AgentPluginManager agentPluginManager() {
+    public AgentPluginManager agentPluginManager(AppConfig appConfig) {
         Set<String> enabled =
                 appConfig == null
                         ? Collections.<String>emptySet()
@@ -95,7 +96,17 @@ public class PluginConfiguration implements PluginRegistrationSink {
                 appConfig == null
                         ? Collections.<String>emptySet()
                         : normalizedSet(appConfig.getPlugins().getDisabled());
-        return new AgentPluginManager(hookRegistry, enabled, disabled);
+        String configuredHome =
+                appConfig == null || appConfig.getRuntime() == null
+                        ? null
+                        : appConfig.getRuntime().getHome();
+        Path profilePlugins =
+                configuredHome == null || configuredHome.trim().length() == 0
+                        ? Paths.get(RuntimePathConstants.WORKSPACE_HOME, "plugins")
+                                .toAbsolutePath()
+                                .normalize()
+                        : Paths.get(configuredHome).toAbsolutePath().normalize().resolve("plugins");
+        return new AgentPluginManager(hookRegistry, enabled, disabled, profilePlugins, true);
     }
 
     /**
@@ -107,7 +118,8 @@ public class PluginConfiguration implements PluginRegistrationSink {
     public void loadPlugins(@Inject AgentPluginManager manager) {
         manager.discoverAndLoad(this);
         log.info(
-                "Plugin providers registered: websearch={}, image_gen={}, video_gen={}, browser={}, memory={}",
+                "Plugin providers registered: websearch={}, image_gen={}, video_gen={}, browser={},"
+                        + " memory={}",
                 webSearchProviders.size(),
                 imageGenProviders.size(),
                 videoGenProviders.size(),

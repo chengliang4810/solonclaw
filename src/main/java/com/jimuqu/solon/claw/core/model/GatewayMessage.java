@@ -14,6 +14,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class GatewayMessage {
+    /** 消息归属的 Profile；default 或空值保持单 Profile 旧会话键。 */
+    private String profile;
+
     /** 消息来源平台。 */
     private PlatformType platform;
 
@@ -97,19 +100,36 @@ public class GatewayMessage {
      * @return 平台:会话[:线程]:用户 组成的来源键
      */
     public String sourceKey() {
+        String key;
         if (StrUtil.isNotBlank(sourceKeyOverride)) {
-            return sourceKeyOverride;
+            key = sourceKeyOverride.trim();
+        } else if (StrUtil.isNotBlank(threadId)) {
+            key =
+                    String.valueOf(platform)
+                            + ":"
+                            + nullToEmpty(chatId)
+                            + ":"
+                            + threadId.trim()
+                            + ":"
+                            + nullToEmpty(userId);
+        } else {
+            key = String.valueOf(platform) + ":" + nullToEmpty(chatId) + ":" + nullToEmpty(userId);
         }
-        if (StrUtil.isNotBlank(threadId)) {
-            return String.valueOf(platform)
-                    + ":"
-                    + nullToEmpty(chatId)
-                    + ":"
-                    + threadId.trim()
-                    + ":"
-                    + nullToEmpty(userId);
+        return profileScopedKey(key);
+    }
+
+    /**
+     * 把命名 Profile 纳入来源键，避免相同平台会话在多个 Profile 中绑定到同一会话。
+     *
+     * <p>default 保持原有键格式，避免单 Profile 部署的既有会话失联；命名 Profile 使用稳定前缀，且会识别已经带前缀的合成消息，防止续轮重复添加。
+     */
+    private String profileScopedKey(String key) {
+        String normalized = StrUtil.nullToEmpty(profile).trim().toLowerCase(java.util.Locale.ROOT);
+        if (normalized.length() == 0 || "default".equals(normalized)) {
+            return key;
         }
-        return String.valueOf(platform) + ":" + nullToEmpty(chatId) + ":" + nullToEmpty(userId);
+        String prefix = "profile:" + normalized + ":";
+        return key.startsWith(prefix) ? key : prefix + key;
     }
 
     /** 将空值转为空字符串，避免来源键出现字面量 null。 */

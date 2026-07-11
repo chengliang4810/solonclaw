@@ -188,7 +188,8 @@ public class RuntimeFooterService {
             }
             return absolute;
         } catch (Exception e) {
-            log.debug("压缩工作区路径展示失败，使用原始脱敏前输入长度 error={} length={}",
+            log.debug(
+                    "压缩工作区路径展示失败，使用原始脱敏前输入长度 error={} length={}",
                     e.getClass().getSimpleName(),
                     Integer.valueOf(value.length()));
             return value;

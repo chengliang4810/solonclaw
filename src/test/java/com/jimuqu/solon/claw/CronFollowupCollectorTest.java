@@ -53,7 +53,12 @@ public class CronFollowupCollectorTest {
         repository.runs.put(
                 "job-delivery",
                 Collections.singletonList(
-                        run("job-delivery", "ok", "已完成", null, "Authorization: Bearer sk-test-secret")));
+                        run(
+                                "job-delivery",
+                                "ok",
+                                "已完成",
+                                null,
+                                "Authorization: Bearer sk-test-secret")));
 
         List<ProactiveObservation> observations =
                 new CronFollowupCollector(repository).collect(context(14));
@@ -85,7 +90,8 @@ public class CronFollowupCollectorTest {
         List<ProactiveObservation> observations =
                 new CronFollowupCollector(repository).collect(context(14));
 
-        assertThat(observations).extracting(item -> item.getPayload().get("type"))
+        assertThat(observations)
+                .extracting(item -> item.getPayload().get("type"))
                 .containsExactly("cron_delivery_error");
     }
 
@@ -108,8 +114,7 @@ public class CronFollowupCollectorTest {
         List<ProactiveObservation> observations =
                 new CronFollowupCollector(repository).collect(context(14));
 
-        ProactiveObservation observation =
-                observationOfType(observations, "cron_repeated_failure");
+        ProactiveObservation observation = observationOfType(observations, "cron_repeated_failure");
         assertThat(observation.getPayload()).containsEntry("jobId", "job-failing");
         assertThat(evidence(observation)).containsEntry("lastError", "脚本失败");
         assertThat(evidence(observation)).containsEntry("failureCount", Integer.valueOf(2));
@@ -151,7 +156,8 @@ public class CronFollowupCollectorTest {
         ProactiveObservation observation = observationOfType(observations, "cron_due_not_run");
         assertThat(observation.getPayload()).containsEntry("jobId", "job-overdue");
         assertThat(evidence(observation)).containsEntry("nextRunAt", Long.valueOf(NOW - 60_000L));
-        assertThat(evidence(observation)).containsEntry("lastRunAt", Long.valueOf(job.getLastRunAt()));
+        assertThat(evidence(observation))
+                .containsEntry("lastRunAt", Long.valueOf(job.getLastRunAt()));
     }
 
     @Test
@@ -200,11 +206,13 @@ public class CronFollowupCollectorTest {
         List<ProactiveObservation> observations =
                 new CronFollowupCollector(repository).collect(context(14));
 
-        ProactiveObservation observation = observationOfType(observations, "cron_paused_visible_reason");
+        ProactiveObservation observation =
+                observationOfType(observations, "cron_paused_visible_reason");
         assertThat(observation.getPayload()).containsEntry("jobId", "job-paused");
         assertThat(observation.getPayload()).hasSizeLessThanOrEqualTo(8);
         @SuppressWarnings("unchecked")
-        Map<String, Object> evidence = (Map<String, Object>) observation.getPayload().get("evidence");
+        Map<String, Object> evidence =
+                (Map<String, Object>) observation.getPayload().get("evidence");
         assertThat(String.valueOf(evidence.get("pausedReason"))).contains("token=***");
         assertThat(String.valueOf(evidence.get("pausedReason")))
                 .doesNotContain("secret-token-1234567890");
@@ -227,7 +235,8 @@ public class CronFollowupCollectorTest {
         List<ProactiveObservation> observations =
                 new CronFollowupCollector(repository).collect(context(14));
 
-        ProactiveObservation observation = observationOfType(observations, "cron_actionable_output");
+        ProactiveObservation observation =
+                observationOfType(observations, "cron_actionable_output");
         assertThat(observation.getPayload()).containsEntry("jobId", "job-actionable");
         assertThat(String.valueOf(evidence(observation).get("lastOutput"))).contains("需要处理");
     }
@@ -406,7 +415,7 @@ public class CronFollowupCollectorTest {
 
         @Override
         public List<CronJobRunRecord> listRuns(String jobId, int limit) {
-        List<CronJobRunRecord> values = runs.get(jobId);
+            List<CronJobRunRecord> values = runs.get(jobId);
             if (throwOnListRuns) {
                 throw new IllegalStateException("执行历史读取失败");
             }

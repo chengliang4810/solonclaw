@@ -61,8 +61,10 @@ public class ProactiveMessageComposer {
      * @return 返回最终可投递文本，无法生成时返回空串。
      * @throws Exception 模型润色调用失败时抛出异常。
      */
-    public String compose(ProactiveTickContext context, ProactiveDecision decision) throws Exception {
-        if (decision == null || !"SEND".equalsIgnoreCase(StrUtil.nullToEmpty(decision.getDecision()))) {
+    public String compose(ProactiveTickContext context, ProactiveDecision decision)
+            throws Exception {
+        if (decision == null
+                || !"SEND".equalsIgnoreCase(StrUtil.nullToEmpty(decision.getDecision()))) {
             return "";
         }
         ProactiveCandidateRecord candidate = decision.getCandidate();
@@ -92,10 +94,13 @@ public class ProactiveMessageComposer {
      * @return 返回模板文案。
      */
     private String fallbackMessage(
-            ProactiveTickContext context, ProactiveDecision decision, ProactiveCandidateRecord candidate) {
+            ProactiveTickContext context,
+            ProactiveDecision decision,
+            ProactiveCandidateRecord candidate) {
         String prefix = previewPrefix(context);
         String title = visible(candidate.getTitle(), 60);
-        String reason = firstNonBlank(candidate.getSummary(), candidate.getReason(), decision.getReason());
+        String reason =
+                firstNonBlank(candidate.getSummary(), candidate.getReason(), decision.getReason());
         String offer = safeOffer(candidate.getActionOffer());
         StringBuilder builder = new StringBuilder();
         builder.append(prefix).append("：");
@@ -154,7 +159,9 @@ public class ProactiveMessageComposer {
      * @return 返回带安全边界的文本。
      */
     private String protectSensitiveValueBoundary(String text) {
-        return SENSITIVE_VALUE_WITH_CN_PUNCT.matcher(StrUtil.nullToEmpty(text)).replaceAll("$1$2$3 $4");
+        return SENSITIVE_VALUE_WITH_CN_PUNCT
+                .matcher(StrUtil.nullToEmpty(text))
+                .replaceAll("$1$2$3 $4");
     }
 
     /**
@@ -180,7 +187,9 @@ public class ProactiveMessageComposer {
      */
     private String ensurePermissionQuestion(String text) {
         if (StrUtil.containsAny(text, "要不要", "是否需要", "需不需要", "可以吗", "方便我")) {
-            return text.endsWith("？") || text.endsWith("?") ? text : trimTerminalPunctuation(text) + "？";
+            return text.endsWith("？") || text.endsWith("?")
+                    ? text
+                    : trimTerminalPunctuation(text) + "？";
         }
         return trimTerminalPunctuation(text) + "。" + DEFAULT_PERMISSION_QUESTION;
     }
@@ -230,16 +239,7 @@ public class ProactiveMessageComposer {
     private boolean hasUnsafeExecutionClaim(String text) {
         String value = StrUtil.nullToEmpty(text);
         return StrUtil.containsAny(
-                value,
-                "我已经",
-                "已经帮你",
-                "我会执行",
-                "让我执行",
-                "直接运行",
-                "直接执行",
-                "自动修改",
-                "自动提交",
-                "自动推送");
+                value, "我已经", "已经帮你", "我会执行", "让我执行", "直接运行", "直接执行", "自动修改", "自动提交", "自动推送");
     }
 
     /**
@@ -353,7 +353,8 @@ public class ProactiveMessageComposer {
         }
 
         @Override
-        public String polish(ProactiveTickContext context, ProactiveDecision decision, String fallback)
+        public String polish(
+                ProactiveTickContext context, ProactiveDecision decision, String fallback)
                 throws Exception {
             if (llmGateway == null) {
                 return fallback;
@@ -388,9 +389,7 @@ public class ProactiveMessageComposer {
             payload.put("summary", candidate == null ? "" : candidate.getSummary());
             payload.put("reason", candidate == null ? "" : candidate.getReason());
             payload.put("actionOffer", candidate == null ? "" : candidate.getActionOffer());
-            return "请把下面主动协作候选润色成一条中文短消息。只输出最终消息文本。\n"
-                    + ONode.serialize(payload);
+            return "请把下面主动协作候选润色成一条中文短消息。只输出最终消息文本。\n" + ONode.serialize(payload);
         }
-
     }
 }

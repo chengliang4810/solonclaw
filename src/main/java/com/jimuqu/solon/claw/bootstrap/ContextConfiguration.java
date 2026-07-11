@@ -323,14 +323,17 @@ public class ContextConfiguration {
      * @param sessionRepository 会话仓储依赖。
      * @param llmGateway LLM网关参数。
      * @param agentRunRepository Agent运行仓储依赖。
+     * @param appConfig 当前逻辑运行时配置。
      * @return 返回会话搜索服务结果。
      */
     @Bean
     public SessionSearchService sessionSearchService(
             SessionRepository sessionRepository,
             LlmGateway llmGateway,
-            AgentRunRepository agentRunRepository) {
-        return new DefaultSessionSearchService(sessionRepository, llmGateway, agentRunRepository);
+            AgentRunRepository agentRunRepository,
+            AppConfig appConfig) {
+        return new DefaultSessionSearchService(
+                sessionRepository, llmGateway, agentRunRepository, appConfig);
     }
 
     /**

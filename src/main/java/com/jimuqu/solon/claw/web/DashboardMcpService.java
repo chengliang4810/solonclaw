@@ -13,7 +13,6 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -28,6 +27,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import org.noear.snack4.ONode;
 import org.slf4j.Logger;
@@ -71,6 +72,18 @@ public class DashboardMcpService {
     /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
 
+    /** 解析 Dashboard 请求的目标 Profile。 */
+    private final DashboardProfileScope profileScope;
+
+    /** 当前服务实例实际绑定的 Profile 名。 */
+    private final String profileName;
+
+    /** 非当前 Profile 的独立 MCP 运行上下文，避免复用当前 Profile 单例状态。 */
+    private final ConcurrentMap<String, ScopedMcpContext> scopedContexts;
+
+    /** 当前实例是否拥有 MCP 运行时资源。 */
+    private final boolean ownsRuntime;
+
     /**
      * 创建控制台MCP服务实例，并注入运行所需依赖。
      *
@@ -108,6 +121,50 @@ public class DashboardMcpService {
             SqliteDatabase database,
             McpPackageSecurityService packageSecurityService,
             McpRuntimeService mcpRuntimeService) {
+        this(
+                appConfig,
+                database,
+                packageSecurityService,
+                mcpRuntimeService,
+                new DashboardProfileScope());
+    }
+
+    /**
+     * 创建使用指定 Profile 解析器的 MCP 服务。
+     *
+     * @param appConfig 当前 Profile 配置。
+     * @param database 当前 Profile 数据库。
+     * @param packageSecurityService MCP 包安全服务。
+     * @param mcpRuntimeService 当前 Profile MCP 运行时；为空时由服务创建。
+     * @param profileScope Profile 请求解析器。
+     */
+    public DashboardMcpService(
+            AppConfig appConfig,
+            SqliteDatabase database,
+            McpPackageSecurityService packageSecurityService,
+            McpRuntimeService mcpRuntimeService,
+            DashboardProfileScope profileScope) {
+        this(
+                appConfig,
+                database,
+                packageSecurityService,
+                mcpRuntimeService,
+                profileScope,
+                null,
+                mcpRuntimeService == null,
+                true);
+    }
+
+    /** 创建绑定单个 Profile 的 MCP 服务或根路由服务。 */
+    private DashboardMcpService(
+            AppConfig appConfig,
+            SqliteDatabase database,
+            McpPackageSecurityService packageSecurityService,
+            McpRuntimeService mcpRuntimeService,
+            DashboardProfileScope profileScope,
+            String profileName,
+            boolean ownsRuntime,
+            boolean routeProfiles) {
         this.appConfig = appConfig;
         this.database = database;
         this.packageSecurityService =
@@ -121,6 +178,104 @@ public class DashboardMcpService {
                         ? new McpRuntimeService(appConfig, database)
                         : mcpRuntimeService;
         this.securityPolicyService = new SecurityPolicyService(appConfig);
+        this.profileScope = profileScope;
+        this.profileName =
+                profileName == null || profileName.trim().length() == 0
+                        ? profileScope.currentProfile()
+                        : profileName;
+        this.ownsRuntime = ownsRuntime;
+        this.scopedContexts =
+                routeProfiles
+                        ? new ConcurrentHashMap<String, ScopedMcpContext>()
+                        : new ConcurrentHashMap<String, ScopedMcpContext>(0);
+    }
+
+    /** 读取指定 Profile 的 MCP 配置与状态。 */
+    public Map<String, Object> list(String profile) throws Exception {
+        return forProfile(profile).list();
+    }
+
+    /** 保存指定 Profile 的 MCP 服务配置。 */
+    public Map<String, Object> save(String profile, Map<String, Object> body) throws Exception {
+        return forProfile(profile).save(body);
+    }
+
+    /** 检查指定 Profile 的 MCP 服务。 */
+    public Map<String, Object> check(String profile, String serverId) throws Exception {
+        return forProfile(profile).check(serverId);
+    }
+
+    /** 连接指定 Profile 的独立 MCP 运行上下文。 */
+    public Map<String, Object> connect(String profile, String serverId) throws Exception {
+        return forProfile(profile).connect(serverId);
+    }
+
+    /** 重载指定 Profile 的 MCP 服务。 */
+    public Map<String, Object> reload(String profile, String serverId) throws Exception {
+        return forProfile(profile).reload(serverId);
+    }
+
+    /** 刷新指定 Profile 的 MCP 工具。 */
+    public Map<String, Object> refreshTools(String profile, String serverId) throws Exception {
+        return forProfile(profile).refreshTools(serverId);
+    }
+
+    /** 读取指定 Profile 的 MCP OAuth 状态。 */
+    public Map<String, Object> oauthStatus(String profile, String serverId) throws Exception {
+        return forProfile(profile).oauthStatus(serverId);
+    }
+
+    /** 清理指定 Profile 的 MCP OAuth 凭据。 */
+    public Map<String, Object> clearOAuth(String profile, String serverId) throws Exception {
+        return forProfile(profile).clearOAuth(serverId);
+    }
+
+    /** 开始指定 Profile 的 MCP OAuth 流程。 */
+    public Map<String, Object> beginOAuth(String profile, String serverId, Map<String, Object> body)
+            throws Exception {
+        return forProfile(profile).beginOAuth(serverId, body);
+    }
+
+    /** 完成指定 Profile 的 MCP OAuth 流程。 */
+    public Map<String, Object> completeOAuth(
+            String profile, String serverId, Map<String, Object> body) throws Exception {
+        return forProfile(profile).completeOAuth(serverId, body);
+    }
+
+    /** 刷新指定 Profile 的 MCP OAuth token。 */
+    public Map<String, Object> refreshOAuth(String profile, String serverId) throws Exception {
+        return forProfile(profile).refreshOAuth(serverId);
+    }
+
+    /** 在指定 Profile 中处理 MCP OAuth 401。 */
+    public Map<String, Object> handleOAuth401(String profile, String serverId) throws Exception {
+        return forProfile(profile).handleOAuth401(serverId);
+    }
+
+    /** 同步重载指定 Profile 的全部 MCP 服务。 */
+    public Map<String, Object> reloadAllView(String profile) throws Exception {
+        return forProfile(profile).reloadAllView();
+    }
+
+    /** 异步重载指定 Profile 的全部 MCP 服务。 */
+    public Map<String, Object> reloadAllAsyncView(String profile) throws Exception {
+        return forProfile(profile).reloadAllAsyncView();
+    }
+
+    /** 删除指定 Profile 的 MCP 服务。 */
+    public Map<String, Object> delete(String profile, String serverId) throws Exception {
+        return forProfile(profile).delete(serverId);
+    }
+
+    /** 关闭 Dashboard 为其他 Profile 创建的独立 MCP 运行上下文。 */
+    public void shutdown() {
+        for (ScopedMcpContext context : scopedContexts.values()) {
+            context.close();
+        }
+        scopedContexts.clear();
+        if (ownsRuntime) {
+            mcpRuntimeService.shutdown();
+        }
     }
 
     /**
@@ -375,7 +530,10 @@ public class DashboardMcpService {
                 appConfig.getMcp().isEnabled()
                         ? mcpRuntimeService.refreshLiveTools(serverId, false)
                         : mcpRuntimeService.refreshPersistedTools(
-                                serverId, false, "disabled", "MCP is disabled in workspace config.");
+                                serverId,
+                                false,
+                                "disabled",
+                                "MCP is disabled in workspace config.");
         return runtimeRefreshMap(state, "refreshed");
     }
 
@@ -486,7 +644,11 @@ public class DashboardMcpService {
             throw new IllegalStateException("client_id is required for MCP OAuth");
         }
         if (StrUtil.isBlank(redirectUri)) {
-            redirectUri = "http://127.0.0.1:8765/api/mcp/" + serverId + "/oauth/callback";
+            redirectUri =
+                    "http://127.0.0.1:8765/api/mcp/"
+                            + serverId
+                            + "/oauth/callback?profile="
+                            + URLEncoder.encode(profileName, StandardCharsets.UTF_8.name());
         }
         String state = randomBase64Url(32);
         String codeVerifier = randomBase64Url(32);
@@ -553,10 +715,12 @@ public class DashboardMcpService {
             throw new IllegalStateException("MCP OAuth state mismatch");
         }
         String tokenEndpoint =
-                McpToolListSupport.firstText(body, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
+                McpToolListSupport.firstText(
+                        body, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
         if (StrUtil.isBlank(tokenEndpoint)) {
             tokenEndpoint =
-                    McpToolListSupport.firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
+                    McpToolListSupport.firstText(
+                            oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
         }
         String clientId = McpToolListSupport.firstText(oauth, "client_id", "clientId");
         String redirectUri = McpToolListSupport.firstText(oauth, "redirect_uri", "redirectUri");
@@ -606,7 +770,8 @@ public class DashboardMcpService {
             throw new IllegalStateException("MCP OAuth is disabled for server: " + serverId);
         }
         String tokenEndpoint =
-                McpToolListSupport.firstText(oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
+                McpToolListSupport.firstText(
+                        oauth, "token_endpoint", "tokenEndpoint", "token_url", "tokenUrl");
         String clientId = McpToolListSupport.firstText(oauth, "client_id", "clientId");
         String refreshToken = string(oauth.get("refresh_token"));
         if (StrUtil.isBlank(tokenEndpoint)) {
@@ -1505,9 +1670,7 @@ public class DashboardMcpService {
             }
             String nextUrl =
                     HttpRedirectSupport.resolveLocation(
-                            url,
-                            location,
-                            "MCP OAuth token_endpoint redirect URL is invalid");
+                            url, location, "MCP OAuth token_endpoint redirect URL is invalid");
             response.close();
             return executeOAuthTokenRequest(nextUrl, form, redirectCount + 1, initialUrl);
         } catch (RuntimeException e) {
@@ -1540,7 +1703,8 @@ public class DashboardMcpService {
                         "expires_at",
                         Long.valueOf(System.currentTimeMillis() + Math.max(0L, seconds) * 1000L));
             } catch (Exception e) {
-                log.debug("MCP OAuth expires_in解析失败，保留显式expires_at优先兜底 error={}",
+                log.debug(
+                        "MCP OAuth expires_in解析失败，保留显式expires_at优先兜底 error={}",
                         e.getClass().getSimpleName());
             }
         }
@@ -1758,8 +1922,7 @@ public class DashboardMcpService {
      * @return 返回expires时间结果。
      */
     private Long expiresAt(Map<String, Object> oauth) {
-        Object value =
-                McpToolListSupport.firstPresent(oauth, "expires_at", "expiresAt", "expires");
+        Object value = McpToolListSupport.firstPresent(oauth, "expires_at", "expiresAt", "expires");
         if (value == null) {
             return null;
         }
@@ -1912,6 +2075,76 @@ public class DashboardMcpService {
      */
     private String string(Object value) {
         return value == null ? "" : String.valueOf(value).trim();
+    }
+
+    /** 返回目标 Profile 的独立 MCP 服务，当前 Profile 继续复用注入的运行时。 */
+    private DashboardMcpService forProfile(String requestedProfile) throws Exception {
+        DashboardProfileScope.Resolved resolved = profileScope.resolve(requestedProfile);
+        if (resolved.isCurrent()) {
+            return this;
+        }
+        ScopedMcpContext existing = scopedContexts.get(resolved.getName());
+        if (existing != null) {
+            return existing.service;
+        }
+        synchronized (scopedContexts) {
+            existing = scopedContexts.get(resolved.getName());
+            if (existing == null) {
+                existing = createScopedContext(resolved);
+                scopedContexts.put(resolved.getName(), existing);
+            }
+            return existing.service;
+        }
+    }
+
+    /** 创建只绑定目标 Profile 配置、数据库和 MCP provider 缓存的运行上下文。 */
+    private ScopedMcpContext createScopedContext(DashboardProfileScope.Resolved resolved)
+            throws Exception {
+        AppConfig config = profileScope.loadConfig(resolved);
+        SqliteDatabase scopedDatabase = new SqliteDatabase(config);
+        SecurityPolicyService scopedSecurity = new SecurityPolicyService(config);
+        McpRuntimeService scopedRuntime =
+                new McpRuntimeService(config, scopedDatabase, null, scopedSecurity);
+        McpPackageSecurityService scopedPackageSecurity =
+                new McpPackageSecurityService(
+                        new DefaultSkillHubHttpClient(scopedSecurity), scopedSecurity);
+        DashboardMcpService service =
+                new DashboardMcpService(
+                        config,
+                        scopedDatabase,
+                        scopedPackageSecurity,
+                        scopedRuntime,
+                        profileScope,
+                        resolved.getName(),
+                        false,
+                        false);
+        return new ScopedMcpContext(service, scopedRuntime, scopedDatabase);
+    }
+
+    /** Dashboard 为非当前 Profile 持有的独立 MCP 资源。 */
+    private static final class ScopedMcpContext {
+        /** 已绑定 Profile 的 MCP 服务。 */
+        private final DashboardMcpService service;
+
+        /** 已绑定 Profile 的 MCP 运行时。 */
+        private final McpRuntimeService runtime;
+
+        /** 已绑定 Profile 的状态数据库。 */
+        private final SqliteDatabase database;
+
+        /** 创建独立 MCP 运行上下文。 */
+        private ScopedMcpContext(
+                DashboardMcpService service, McpRuntimeService runtime, SqliteDatabase database) {
+            this.service = service;
+            this.runtime = runtime;
+            this.database = database;
+        }
+
+        /** 关闭 provider 连接、执行器和数据库。 */
+        private void close() {
+            runtime.shutdown();
+            database.shutdown();
+        }
     }
 
     /** 表示MCPCheck数据，在服务、仓储和接口之间传递。 */

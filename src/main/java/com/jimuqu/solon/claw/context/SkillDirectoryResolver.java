@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.context;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
 import java.io.IOException;
@@ -246,7 +247,7 @@ public class SkillDirectoryResolver {
                 int end = value.indexOf('}', i + 2);
                 if (end > i) {
                     String name = value.substring(i + 2, end);
-                    String replacement = System.getenv(name);
+                    String replacement = ProfileRuntimeScope.environmentValue(name);
                     result.append(replacement == null ? value.substring(i, end + 1) : replacement);
                     i = end + 1;
                     continue;

@@ -2,11 +2,11 @@ package com.jimuqu.solon.claw.config;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
+import com.jimuqu.solon.claw.support.RuntimePathSupport;
 import com.jimuqu.solon.claw.support.constants.CheckpointConstants;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
-import com.jimuqu.solon.claw.support.RuntimePathSupport;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,6 +95,9 @@ public class AppConfig {
     /** 长任务控制配置。 */
     private TaskConfig task = new TaskConfig();
 
+    /** TTS 与独立语音转写配置。 */
+    private SpeechConfig speech = new SpeechConfig();
+
     /** 终端/沙箱执行配置。 */
     private TerminalConfig terminal = new TerminalConfig();
 
@@ -124,6 +127,18 @@ public class AppConfig {
      */
     public static AppConfig load(Props props) {
         return AppConfigLoader.load(props);
+    }
+
+    /**
+     * 从指定 Props 构建独立配置快照，不切换当前进程的运行时配置解析器。
+     *
+     * <p>该入口用于 Dashboard 管理其他 Profile，避免并发请求把全局配置解析器临时指向另一个工作区。
+     *
+     * @param props 包含目标工作区的配置源。
+     * @return 独立 Profile 的标准化配置快照。
+     */
+    public static AppConfig loadDetached(Props props) {
+        return AppConfigLoader.loadDetached(props);
     }
 
     /** 标准化路径：所有工作文件由 Agent 工作区统一承载。 */
@@ -178,6 +193,7 @@ public class AppConfig {
         copyReact(other.getReact());
         copyTrace(other.getTrace());
         copyTask(other.getTask());
+        copySpeech(other.getSpeech());
         copyTerminal(other.getTerminal());
         copySecurity(other.getSecurity());
         copyWeb(other.getWeb());
@@ -201,6 +217,7 @@ public class AppConfig {
         this.gateway.setFilterSilenceNarration(other.getGateway().isFilterSilenceNarration());
         this.gateway.setProcessingReactionsEnabled(
                 other.getGateway().isProcessingReactionsEnabled());
+        this.gateway.setMultiplexProfiles(other.getGateway().isMultiplexProfiles());
         this.gateway.setPlatforms(cloneGatewayPlatforms(other.getGateway().getPlatforms()));
         this.dashboard.setAccessToken(other.getDashboard().getAccessToken());
         this.agent.setPersonalities(clonePersonalities(other.getAgent().getPersonalities()));
@@ -282,6 +299,10 @@ public class AppConfig {
             copy.setDefaultModel(source.getDefaultModel());
             copy.setDialect(source.getDialect());
             copy.setSupportsVision(source.getSupportsVision());
+            copy.setCapabilities(
+                    source.getCapabilities() == null
+                            ? new LinkedHashMap<String, Boolean>()
+                            : new LinkedHashMap<String, Boolean>(source.getCapabilities()));
             copyProviderDisplayFields(source, copy);
             this.providers.put(entry.getKey(), copy);
         }
@@ -496,6 +517,29 @@ public class AppConfig {
     }
 
     /**
+     * 复制语音配置，保证运行时刷新后内置 TTS 与 STT Provider 立即使用新参数。
+     *
+     * @param other 待复制的语音配置。
+     */
+    private void copySpeech(SpeechConfig other) {
+        this.speech.getTts().setEnabled(other.getTts().isEnabled());
+        this.speech.getTts().setEndpoint(other.getTts().getEndpoint());
+        this.speech.getTts().setApiKey(other.getTts().getApiKey());
+        this.speech.getTts().setModel(other.getTts().getModel());
+        this.speech.getTts().setVoice(other.getTts().getVoice());
+        this.speech.getTts().setResponseFormat(other.getTts().getResponseFormat());
+        this.speech.getTts().setSpeed(other.getTts().getSpeed());
+        this.speech.getTts().setTimeoutSeconds(other.getTts().getTimeoutSeconds());
+        this.speech.getStt().setEnabled(other.getStt().isEnabled());
+        this.speech.getStt().setEndpoint(other.getStt().getEndpoint());
+        this.speech.getStt().setApiKey(other.getStt().getApiKey());
+        this.speech.getStt().setModel(other.getStt().getModel());
+        this.speech.getStt().setLanguage(other.getStt().getLanguage());
+        this.speech.getStt().setPrompt(other.getStt().getPrompt());
+        this.speech.getStt().setTimeoutSeconds(other.getStt().getTimeoutSeconds());
+    }
+
+    /**
      * 复制终端。
      *
      * @param other 待比较对象。
@@ -532,7 +576,10 @@ public class AppConfig {
         this.security.setGuardrailMode(other.getGuardrailMode());
         this.security.setGuardrailCronMode(other.getGuardrailCronMode());
         this.security.setGuardrailCronScope(other.getGuardrailCronScope());
-        this.security.setHardlineAllowlist(new ArrayList<String>(other.getHardlineAllowlist()));
+        this.security.setHardlineAllowlist(
+                other.getHardlineAllowlist() == null
+                        ? new ArrayList<String>()
+                        : new ArrayList<String>(other.getHardlineAllowlist()));
         this.security.getWebsiteBlocklist().setEnabled(other.getWebsiteBlocklist().isEnabled());
         this.security
                 .getWebsiteBlocklist()
@@ -837,8 +884,7 @@ public class AppConfig {
         /**
          * 模型上下文窗口大小，用于自动压缩阈值计算。
          *
-         * <p>设为 0（默认）时按模型自动识别（在线目录 → 硬编码目录 → 兜底）；
-         * 设为大于 0 的值时作为全局强制覆盖，对齐外部对标仓库的显式配置覆盖语义。
+         * <p>设为 0（默认）时按模型自动识别（在线目录 → 硬编码目录 → 兜底）； 设为大于 0 的值时作为全局强制覆盖，对齐外部对标仓库的显式配置覆盖语义。
          */
         private int contextWindowTokens;
 
@@ -893,6 +939,21 @@ public class AppConfig {
 
         /** 是否启用supportsVision。 */
         private Boolean supportsVision;
+
+        /** 显式模型能力元数据；未配置的能力才允许回退到协议或模型家族推断。 */
+        private Map<String, Boolean> capabilities = new LinkedHashMap<String, Boolean>();
+
+        /**
+         * 读取图片输入能力；优先兼容现有直接字段，再读取统一能力元数据。
+         *
+         * @return 返回显式图片输入能力，未配置时返回 null。
+         */
+        public Boolean getSupportsVision() {
+            if (supportsVision != null) {
+                return supportsVision;
+            }
+            return capabilities == null ? null : capabilities.get("vision");
+        }
 
         /** 记录提供方中的群组标识。 */
         private String groupId;
@@ -1380,6 +1441,75 @@ public class AppConfig {
         private int mediaCacheTtlHours = 168;
     }
 
+    /** 承载 TTS 与独立语音转写配置，两个 Provider 可分别启停和指向不同服务。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class SpeechConfig {
+        /** OpenAI 兼容文本转语音配置。 */
+        private TtsConfig tts = new TtsConfig();
+
+        /** OpenAI 兼容独立语音转写配置。 */
+        private SttConfig stt = new SttConfig();
+    }
+
+    /** OpenAI 兼容 TTS HTTP Provider 配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class TtsConfig {
+        /** 是否启用内置 TTS Provider；默认关闭，避免未配置时虚报可用。 */
+        private boolean enabled = false;
+
+        /** 完整的 OpenAI 兼容 `/audio/speech` 请求地址。 */
+        private String endpoint = "https://api.openai.com/v1/audio/speech";
+
+        /** TTS 服务密钥；本地免鉴权兼容服务可留空。 */
+        private String apiKey = "";
+
+        /** 默认语音合成模型。 */
+        private String model = "gpt-4o-mini-tts";
+
+        /** 调用方未指定 voice 时使用的默认音色。 */
+        private String voice = "alloy";
+
+        /** 默认输出格式，可选 mp3、opus、aac、flac、wav、pcm。 */
+        private String responseFormat = "mp3";
+
+        /** 默认语速，OpenAI 兼容范围为 0.25 到 4.0。 */
+        private double speed = 1.0d;
+
+        /** 单次 TTS HTTP 请求超时，单位秒。 */
+        private int timeoutSeconds = 120;
+    }
+
+    /** OpenAI 兼容独立 STT HTTP Provider 配置。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class SttConfig {
+        /** 是否启用内置独立 STT Provider；默认关闭，避免未配置时虚报可用。 */
+        private boolean enabled = false;
+
+        /** 完整的 OpenAI 兼容 `/audio/transcriptions` 请求地址。 */
+        private String endpoint = "https://api.openai.com/v1/audio/transcriptions";
+
+        /** STT 服务密钥；本地免鉴权兼容服务可留空。 */
+        private String apiKey = "";
+
+        /** 默认语音转写模型。 */
+        private String model = "gpt-4o-mini-transcribe";
+
+        /** 可选默认语言代码；留空时由服务自动识别。 */
+        private String language = "";
+
+        /** 可选转写提示词，用于补充专有名词或语言上下文。 */
+        private String prompt = "";
+
+        /** 单次 STT HTTP 请求超时，单位秒。 */
+        private int timeoutSeconds = 120;
+    }
+
     /** 承载终端配置并集中创建运行组件。 */
     @Getter
     @Setter
@@ -1442,7 +1572,7 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class SecurityConfig {
-        /** 是否允许 URL 工具访问内网/私有地址；默认关闭，云元数据地址始终阻断。 */
+        /** 是否允许 URL 工具访问内网/私有地址；云元数据地址始终阻断。 */
         private boolean allowPrivateUrls = false;
 
         /** 容器内浏览器访问宿主机服务时，是否改写页面导航里的 loopback 地址。 */
@@ -1463,29 +1593,29 @@ public class AppConfig {
         /** Tirith 不可用或超时时是否放行；默认 fail-open，对齐外部对标仓库在扫描缺失时放行而非阻断的行为。 */
         private boolean tirithFailOpen = true;
 
-        /** 文件路径安全预检模式：strict / bypass。默认 strict，先阻断敏感系统或凭据路径。 */
+        /** 文件路径安全预检模式：strict / bypass；默认 strict。 */
         private String fileGuardrailMode = "strict";
 
-        /** URL 安全预检模式：strict / bypass。默认 strict，先阻断 metadata 与敏感 URL 参数。 */
+        /** URL 安全预检模式：strict / bypass；默认 strict。 */
         private String urlGuardrailMode = "strict";
 
-        /** Agent 工具安全策略模式：approval / strict / bypass / smart。默认 approval，危险行为必须审批。 */
+        /** Agent 工具安全策略模式：approval / bypass / smart。默认 approval，危险行为必须审批。 */
         private String guardrailMode = "approval";
 
-        /** Cron 工具安全策略模式：approval / strict / bypass / approve。默认 strict，避免无人值守自动放行。 */
+        /** Cron 工具安全策略模式：strict / approval / bypass / approve。默认 strict。 */
         private String guardrailCronMode = "strict";
 
         /** Cron 审批记忆范围：job / session / global。 */
         private String guardrailCronScope = "job";
 
-        /** 允许跳过硬阻断的 hardline 类别；* 表示所有类别。 */
+        /** 允许跳过硬阻断的 hardline 类别；默认空列表，不放行任何类别。 */
         private List<String> hardlineAllowlist = new ArrayList<String>();
 
         /** 网站访问阻断策略。 */
         private WebsiteBlocklistConfig websiteBlocklist = new WebsiteBlocklistConfig();
     }
 
-    /** 承载网站块list配置并集中创建运行组件。 */
+    /** 承载网站域名和共享规则文件配置。 */
     @Getter
     @Setter
     @NoArgsConstructor
@@ -1493,10 +1623,10 @@ public class AppConfig {
         /** 是否启用域名阻断策略。 */
         private boolean enabled = false;
 
-        /** 阻断域名列表，支持 example.com 和 *.example.com。 */
+        /** 阻断域名列表，支持精确域名和通配子域名。 */
         private List<String> domains = new ArrayList<String>();
 
-        /** 共享阻断列表文件，支持相对 workspace 或绝对路径。 */
+        /** 共享阻断列表文件，支持 workspace 相对路径或绝对路径。 */
         private List<String> sharedFiles = new ArrayList<String>();
     }
 
@@ -1517,7 +1647,7 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class ApprovalsConfig {
-        /** 子 Agent 遇到危险命令时是否自动批准一次，默认拒绝。 */
+        /** 子 Agent 遇到可审批危险命令时是否自动批准一次；默认拒绝。 */
         private boolean subagentAutoApprove = false;
 
         /** CLI/直接审批超时秒数。 */
@@ -1532,8 +1662,8 @@ public class AppConfig {
         /**
          * 用户自定义不可绕过的命令 deny 列表，支持 fnmatch glob。
          *
-         * <p>对齐外部对标仓库的 approvals.deny：即使 bypass/yolo 模式也不放过，
-         * 用于补充内置 hardline 规则。例如 {@code "git push --force*"}、{@code "*rm -rf*"}。
+         * <p>对齐外部对标仓库的 approvals.deny：即使 bypass/yolo 模式也不放过， 用于补充内置 hardline 规则。例如 {@code "git push
+         * --force*"}、{@code "*rm -rf*"}。
          */
         private java.util.List<String> deny = new java.util.ArrayList<>();
     }
@@ -1796,6 +1926,9 @@ public class AppConfig {
 
         /** 是否启用渠道处理状态表情回应，用于在原消息上标记处理中和完成状态。 */
         private boolean processingReactionsEnabled = true;
+
+        /** 是否由默认 Profile 的单个网关进程承载机器上的全部 Profile；默认关闭。 */
+        private boolean multiplexProfiles;
 
         /** 各平台工具集权限配置，键为平台名称（大写），值为该平台的工具集策略。 */
         private Map<String, PlatformConfig> platforms = new LinkedHashMap<String, PlatformConfig>();

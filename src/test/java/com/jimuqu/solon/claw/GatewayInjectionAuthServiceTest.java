@@ -4,12 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.gateway.service.GatewayInjectionAuthService;
-
-import org.junit.jupiter.api.Test;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Map;
+import org.junit.jupiter.api.Test;
 
 /** 校验外部消息网关注入认证的 nonce 防重放缓存边界。 */
 public class GatewayInjectionAuthServiceTest {
@@ -34,12 +32,15 @@ public class GatewayInjectionAuthServiceTest {
     }
 
     /** 调用私有 markNonce，避免构造完整 HTTP 上下文影响防重放边界断言。 */
-    private static boolean markNonce(GatewayInjectionAuthService service, String nonce, long now, long window)
+    private static boolean markNonce(
+            GatewayInjectionAuthService service, String nonce, long now, long window)
             throws Exception {
         Method method =
-                GatewayInjectionAuthService.class.getDeclaredMethod("markNonce", String.class, long.class, long.class);
+                GatewayInjectionAuthService.class.getDeclaredMethod(
+                        "markNonce", String.class, long.class, long.class);
         method.setAccessible(true);
-        return ((Boolean) method.invoke(service, nonce, Long.valueOf(now), Long.valueOf(window))).booleanValue();
+        return ((Boolean) method.invoke(service, nonce, Long.valueOf(now), Long.valueOf(window)))
+                .booleanValue();
     }
 
     /** 读取 nonce 缓存上限，测试跟随生产常量变化。 */

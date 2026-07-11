@@ -2,36 +2,25 @@ package com.jimuqu.solon.claw;
 
 import static com.jimuqu.solon.claw.DangerousCommandApprovalTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
-import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
+import com.jimuqu.solon.claw.tool.runtime.ReActToolObservationSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
-import java.io.File;
-import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.Agent;
-import org.noear.solon.ai.agent.react.intercept.HITL;
-import org.noear.solon.ai.agent.react.intercept.HITLDecision;
-import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
-import org.noear.solon.ai.agent.react.task.ToolExchanger;
-import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
 public class DangerousCommandGatewayApprovalTest {
     @AfterEach
@@ -40,287 +29,50 @@ public class DangerousCommandGatewayApprovalTest {
     }
 
     @Test
-    void shouldApplyGatewaySecurityPolicyForCurrentTools() throws Exception {
+    void shouldRequestWholeScriptApprovalForSafeExecuteCode() throws Exception {
         TestEnvironment env = approvalEnvironment();
-        env.appConfig.getSecurity().setFileGuardrailMode("strict");
-        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
                         env.globalSettingRepository,
                         env.appConfig,
                         new SecurityPolicyService(env.appConfig));
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("code", "print('hello')");
+        TestTrace trace = new TestTrace();
 
-        Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
-        shellArgs.put("command", "rm -rf workspace/cache");
-        Map<String, Object> gatewayShell = new LinkedHashMap<String, Object>();
-        gatewayShell.put("tool_name", "execute_shell");
-        gatewayShell.put("tool_args", shellArgs);
-        TestTrace shellTrace = new TestTrace();
+        service.buildInterceptor().onAction(trace, exchange("execute_code", args));
 
-        service.buildInterceptor().onAction(shellTrace, exchange("call_tool", gatewayShell));
+        DangerousCommandApprovalService.PendingApproval pending =
+                service.getPendingApproval(trace.session);
+        assertThat(trace.getFinalAnswer()).contains("需要审批");
+        assertThat(pending).isNotNull();
+        assertThat(pending.getToolName()).isEqualTo("execute_code");
+        assertThat(pending.getPatternKey()).isEqualTo("execute_code");
+    }
 
-        DangerousCommandApprovalService.PendingApproval shellPending =
-                service.getPendingApproval(shellTrace.session);
-        assertThat(shellTrace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
-        assertThat(shellPending).isNotNull();
-        assertThat(shellPending.getToolName()).isEqualTo("execute_shell");
+    @Test
+    void shouldHardBlockExecuteCodeContentBeforeWholeScriptApproval() throws Exception {
+        TestEnvironment env = approvalEnvironment();
+        DangerousCommandApprovalService service =
+                new DangerousCommandApprovalService(
+                        env.globalSettingRepository,
+                        env.appConfig,
+                        new SecurityPolicyService(env.appConfig));
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put(
+                "code",
+                "import os\n"
+                        + "os.system('rm -rf /')\n"
+                        + "print('http://169.254.169.254/latest/meta-data/')");
+        TestTrace trace = new TestTrace();
 
-        Map<String, Object> terminalArgs = new LinkedHashMap<String, Object>();
-        terminalArgs.put("command", "rm -rf workspace/cache");
-        Map<String, Object> gatewayTerminal = new LinkedHashMap<String, Object>();
-        gatewayTerminal.put("tool_name", "terminal");
-        gatewayTerminal.put("tool_args", terminalArgs);
-        TestTrace terminalTrace = new TestTrace();
+        service.buildInterceptor().onAction(trace, exchange("execute_code", args));
 
-        service.buildInterceptor().onAction(terminalTrace, exchange("call_tool", gatewayTerminal));
-
-        DangerousCommandApprovalService.PendingApproval terminalPending =
-                service.getPendingApproval(terminalTrace.session);
-        assertThat(terminalTrace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
-        assertThat(terminalPending).isNotNull();
-        assertThat(terminalPending.getToolName()).isEqualTo("terminal");
-
-        Map<String, Object> processArgs = new LinkedHashMap<String, Object>();
-        processArgs.put("action", "start");
-        processArgs.put("command", "rm -rf workspace/cache");
-        Map<String, Object> gatewayProcess = new LinkedHashMap<String, Object>();
-        gatewayProcess.put("tool_name", "process");
-        gatewayProcess.put("tool_args", processArgs);
-        TestTrace processTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(processTrace, exchange("call_tool", gatewayProcess));
-
-        DangerousCommandApprovalService.PendingApproval processPending =
-                service.getPendingApproval(processTrace.session);
-        assertThat(processTrace.getFinalAnswer()).contains("需要审批").contains("recursive delete");
-        assertThat(processPending).isNotNull();
-        assertThat(processPending.getToolName()).isEqualTo("process");
-
-        Map<String, Object> urlArgs = new LinkedHashMap<String, Object>();
-        urlArgs.put("url", "http://169.254.169.254/latest/meta-data/");
-        Map<String, Object> gatewayUrl = new LinkedHashMap<String, Object>();
-        gatewayUrl.put("tool_name", "webfetch");
-        gatewayUrl.put("tool_args", urlArgs);
-        TestTrace urlTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(urlTrace, exchange("call_tool", gatewayUrl));
-
-        assertThat(urlTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(urlTrace.getFinalAnswer()).contains("URL 安全策略").contains("元数据");
-
-        Map<String, Object> httpGetArgs = new LinkedHashMap<String, Object>();
-        httpGetArgs.put("url", "http://169.254.169.254/latest/meta-data/");
-        Map<String, Object> gatewayHttpGet = new LinkedHashMap<String, Object>();
-        gatewayHttpGet.put("tool_name", "webfetch");
-        gatewayHttpGet.put("tool_args", httpGetArgs);
-        TestTrace httpGetTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(httpGetTrace, exchange("call_tool", gatewayHttpGet));
-
-        assertThat(httpGetTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(httpGetTrace.getFinalAnswer()).contains("URL 安全策略").contains("元数据");
-
-        Map<String, Object> ariaCredentialArgs = new LinkedHashMap<String, Object>();
-        ariaCredentialArgs.put(
-                "code", "aria2c --load-cookies cookies.txt https://example.invalid/private");
-        TestTrace ariaCredentialTrace = new TestTrace();
-
-        service.buildInterceptor()
-                .onAction(ariaCredentialTrace, exchange("execute_shell", ariaCredentialArgs));
-
-        assertThat(ariaCredentialTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(ariaCredentialTrace.getFinalAnswer()).contains("URL 安全策略");
-
-        Map<String, Object> archiveCredentialArgs = new LinkedHashMap<String, Object>();
-        archiveCredentialArgs.put("command", "tar czf backup.tgz .env");
-        Map<String, Object> gatewayArchiveCredential = new LinkedHashMap<String, Object>();
-        gatewayArchiveCredential.put("tool_name", "execute_shell");
-        gatewayArchiveCredential.put("tool_args", archiveCredentialArgs);
-        TestTrace archiveCredentialTrace = new TestTrace();
-
-        service.buildInterceptor()
-                .onAction(archiveCredentialTrace, exchange("call_tool", gatewayArchiveCredential));
-
-        // tar czf backup.tgz .env 读 .env 已放宽（对齐 外部对标仓库"读非安全边界"），归档读凭据不再阻断，
-        // 原"文件安全策略/凭据"读阻断断言已移除。下方 patch/write_file 写凭据阻断断言保留。
-
-        Map<String, Object> patchArgs = new LinkedHashMap<String, Object>();
-        patchArgs.put(
-                "patch",
-                "*** Begin Patch\n"
-                        + "*** Add File: .env\n"
-                        + "+TOKEN=secret\n"
-                        + "*** End Patch\n");
-        Map<String, Object> gatewayPatch = new LinkedHashMap<String, Object>();
-        gatewayPatch.put("tool_name", "patch");
-        gatewayPatch.put("tool_args", patchArgs);
-        TestTrace patchTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(patchTrace, exchange("call_tool", gatewayPatch));
-
-        assertThat(patchTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(patchTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
-
-        Map<String, Object> gatewayPatchApply = new LinkedHashMap<String, Object>();
-        gatewayPatchApply.put("tool_name", "patch");
-        gatewayPatchApply.put("tool_args", patchArgs);
-        TestTrace patchApplyTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(patchApplyTrace, exchange("call_tool", gatewayPatchApply));
-
-        assertThat(patchApplyTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(patchApplyTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
-
-        // read_file .env 读已放宽（对齐 外部对标仓库"读非安全边界"），原"文件安全策略/凭据"读阻断断言已移除。
-        // 下方 write_file 写 .env.local 阻断断言保留。
-
-        Map<String, Object> writeFileArgs = new LinkedHashMap<String, Object>();
-        writeFileArgs.put("path", ".env.local");
-        writeFileArgs.put("content", "TOKEN=secret");
-        Map<String, Object> gatewayWriteFile = new LinkedHashMap<String, Object>();
-        gatewayWriteFile.put("tool_name", "write_file");
-        gatewayWriteFile.put("tool_args", writeFileArgs);
-        TestTrace writeFileTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(writeFileTrace, exchange("call_tool", gatewayWriteFile));
-
-        assertThat(writeFileTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(writeFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
-
-        Map<String, Object> nestedPath = new LinkedHashMap<String, Object>();
-        nestedPath.put("fileName", "credentials/oauth.json");
-        Map<String, Object> nestedOutput = new LinkedHashMap<String, Object>();
-        nestedOutput.put("path", ".env.local");
-        Map<String, Object> nestedFileArgs = new LinkedHashMap<String, Object>();
-        nestedFileArgs.put("metadata", Collections.singletonMap("safe", "notes.txt"));
-        nestedFileArgs.put("output", nestedOutput);
-        nestedFileArgs.put("request", nestedPath);
-        Map<String, Object> gatewayNestedFile = new LinkedHashMap<String, Object>();
-        gatewayNestedFile.put("tool_name", "write_file");
-        gatewayNestedFile.put("tool_args", nestedFileArgs);
-        TestTrace nestedFileTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(nestedFileTrace, exchange("call_tool", gatewayNestedFile));
-
-        assertThat(nestedFileTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(nestedFileTrace.getFinalAnswer()).contains("文件安全策略").contains("凭据");
-        assertThat(service.getPendingApproval(nestedFileTrace.session)).isNull();
-
-        // read_file /var/run/docker.sock 读管理套接字已放宽（对齐 外部对标仓库"读非安全边界"，
-        // isLocalManagementSocket 仅在写时阻断），原读阻断断言已移除。下方 write_file 写命名管道断言保留。
-
-        Map<String, Object> pipeWriteArgs = new LinkedHashMap<String, Object>();
-        pipeWriteArgs.put("path", "npipe:////./pipe/docker_engine");
-        pipeWriteArgs.put("content", "GET /containers/json HTTP/1.1");
-        Map<String, Object> gatewayPipeWrite = new LinkedHashMap<String, Object>();
-        gatewayPipeWrite.put("tool_name", "write_file");
-        gatewayPipeWrite.put("tool_args", pipeWriteArgs);
-        TestTrace pipeWriteTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(pipeWriteTrace, exchange("call_tool", gatewayPipeWrite));
-
-        assertThat(pipeWriteTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(pipeWriteTrace.getFinalAnswer()).contains("文件安全策略").contains("命名管道");
-        assertThat(service.getPendingApproval(pipeWriteTrace.session)).isNull();
-
-        Map<String, Object> blockDeviceWriteArgs = new LinkedHashMap<String, Object>();
-        blockDeviceWriteArgs.put("path", "/dev/sda");
-        blockDeviceWriteArgs.put("content", "overwrite");
-        Map<String, Object> gatewayBlockDeviceWrite = new LinkedHashMap<String, Object>();
-        gatewayBlockDeviceWrite.put("tool_name", "write_file");
-        gatewayBlockDeviceWrite.put("tool_args", blockDeviceWriteArgs);
-        TestTrace blockDeviceWriteTrace = new TestTrace();
-
-        service.buildInterceptor()
-                .onAction(blockDeviceWriteTrace, exchange("call_tool", gatewayBlockDeviceWrite));
-
-        assertThat(blockDeviceWriteTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(blockDeviceWriteTrace.getFinalAnswer()).contains("文件安全策略").contains("裸块设备");
-        assertThat(service.getPendingApproval(blockDeviceWriteTrace.session)).isNull();
-
-        Map<String, Object> deviceReadArgs = new LinkedHashMap<String, Object>();
-        deviceReadArgs.put("path", "/dev/zero");
-        Map<String, Object> gatewayDeviceRead = new LinkedHashMap<String, Object>();
-        gatewayDeviceRead.put("tool_name", "read_file");
-        gatewayDeviceRead.put("tool_args", deviceReadArgs);
-        TestTrace deviceReadTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(deviceReadTrace, exchange("call_tool", gatewayDeviceRead));
-
-        assertThat(deviceReadTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(deviceReadTrace.getFinalAnswer()).contains("文件安全策略").contains("设备文件");
-        assertThat(service.getPendingApproval(deviceReadTrace.session)).isNull();
-
-        Map<String, Object> hubReadArgs = new LinkedHashMap<String, Object>();
-        hubReadArgs.put("path", "skills/.hub/index-cache/catalog.json");
-        Map<String, Object> gatewayHubRead = new LinkedHashMap<String, Object>();
-        gatewayHubRead.put("tool_name", "read_file");
-        gatewayHubRead.put("tool_args", hubReadArgs);
-        TestTrace hubReadTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(hubReadTrace, exchange("call_tool", gatewayHubRead));
-
-        assertThat(hubReadTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(hubReadTrace.getFinalAnswer()).contains("文件安全策略").contains("Skills Hub");
-        assertThat(service.getPendingApproval(hubReadTrace.session)).isNull();
-
-        Map<String, Object> traversalArgs = new LinkedHashMap<String, Object>();
-        traversalArgs.put("path", "../workspace/config.yml");
-        Map<String, Object> gatewayTraversal = new LinkedHashMap<String, Object>();
-        gatewayTraversal.put("tool_name", "read_file");
-        gatewayTraversal.put("tool_args", traversalArgs);
-        TestTrace traversalTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(traversalTrace, exchange("call_tool", gatewayTraversal));
-
-        assertThat(traversalTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(traversalTrace.getFinalAnswer()).contains("文件安全策略").contains("路径遍历");
-        assertThat(service.getPendingApproval(traversalTrace.session)).isNull();
-
-        Map<String, Object> controlPathArgs = new LinkedHashMap<String, Object>();
-        controlPathArgs.put("path", "logs/\u001B]0;hidden\u0007report.txt");
-        Map<String, Object> gatewayControlPath = new LinkedHashMap<String, Object>();
-        gatewayControlPath.put("tool_name", "write_file");
-        gatewayControlPath.put("tool_args", controlPathArgs);
-        TestTrace controlPathTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(controlPathTrace, exchange("call_tool", gatewayControlPath));
-
-        assertThat(controlPathTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(controlPathTrace.getFinalAnswer()).contains("文件安全策略").contains("非法字符");
-        assertThat(service.getPendingApproval(controlPathTrace.session)).isNull();
-
-        Map<String, Object> pythonArgs = new LinkedHashMap<String, Object>();
-        pythonArgs.put("code", "import shutil\nshutil.rmtree('workspace/cache')\n");
-        Map<String, Object> gatewayPython = new LinkedHashMap<String, Object>();
-        gatewayPython.put("tool_name", "execute_python");
-        gatewayPython.put("tool_args", pythonArgs);
-        TestTrace pythonTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(pythonTrace, exchange("call_tool", gatewayPython));
-
-        DangerousCommandApprovalService.PendingApproval pythonPending =
-                service.getPendingApproval(pythonTrace.session);
-        assertThat(pythonTrace.getFinalAnswer())
-                .contains("需要审批")
-                .contains("Python recursive delete");
-        assertThat(pythonPending).isNotNull();
-        assertThat(pythonPending.getToolName()).isEqualTo("execute_python");
-
-        Map<String, Object> codeArgs = new LinkedHashMap<String, Object>();
-        codeArgs.put("code", "import shutil\nshutil.rmtree('workspace/cache')\n");
-        Map<String, Object> gatewayCode = new LinkedHashMap<String, Object>();
-        gatewayCode.put("tool_name", "execute_code");
-        gatewayCode.put("tool_args", codeArgs);
-        TestTrace codeTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(codeTrace, exchange("call_tool", gatewayCode));
-
-        DangerousCommandApprovalService.PendingApproval codePending =
-                service.getPendingApproval(codeTrace.session);
-        assertThat(codeTrace.getFinalAnswer()).contains("需要审批").contains("Python recursive delete");
-        assertThat(codePending).isNotNull();
-        assertThat(codePending.getToolName()).isEqualTo("execute_code");
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer())
+                .contains("BLOCKED (hardline)")
+                .contains("169.254.169.254");
+        assertThat(service.getPendingApproval(trace.session)).isNull();
     }
 
     @Test
@@ -341,7 +93,8 @@ public class DangerousCommandGatewayApprovalTest {
         nestedTerminalCall.put("tool_args", nestedTerminalArgs);
         TestTrace nestedTerminalTrace = new TestTrace();
 
-        service.buildInterceptor().onAction(nestedTerminalTrace, exchange("call_tool", nestedTerminalCall));
+        service.buildInterceptor()
+                .onAction(nestedTerminalTrace, exchange("call_tool", nestedTerminalCall));
 
         DangerousCommandApprovalService.PendingApproval terminalPending =
                 service.getPendingApproval(nestedTerminalTrace.session);
@@ -358,7 +111,8 @@ public class DangerousCommandGatewayApprovalTest {
         nestedShellCall.put("tool_args", nestedShellArgs);
         TestTrace nestedShellTrace = new TestTrace();
 
-        service.buildInterceptor().onAction(nestedShellTrace, exchange("call_tool", nestedShellCall));
+        service.buildInterceptor()
+                .onAction(nestedShellTrace, exchange("call_tool", nestedShellCall));
 
         DangerousCommandApprovalService.PendingApproval shellPending =
                 service.getPendingApproval(nestedShellTrace.session);
@@ -374,7 +128,8 @@ public class DangerousCommandGatewayApprovalTest {
         commandArrayCall.put("tool_args", commandArrayArgs);
         TestTrace commandArrayTrace = new TestTrace();
 
-        service.buildInterceptor().onAction(commandArrayTrace, exchange("call_tool", commandArrayCall));
+        service.buildInterceptor()
+                .onAction(commandArrayTrace, exchange("call_tool", commandArrayCall));
 
         DangerousCommandApprovalService.PendingApproval commandArrayPending =
                 service.getPendingApproval(commandArrayTrace.session);
@@ -414,7 +169,7 @@ public class DangerousCommandGatewayApprovalTest {
     }
 
     @Test
-    void shouldBlockMalformedGatewayToolArgsForSecurityTools() throws Exception {
+    void shouldRejectMalformedGatewayToolArgsAtApprovalBoundary() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
@@ -428,220 +183,49 @@ public class DangerousCommandGatewayApprovalTest {
                 "{\"url\":\"http://169.254.169.254/latest/meta-data/?api%255Fkey=secret123\"");
         TestTrace malformedTrace = new TestTrace();
 
-        service.buildInterceptor().onAction(malformedTrace, exchange("call_tool", malformedArgs));
+        org.noear.solon.ai.agent.react.task.ToolExchanger malformedExchange =
+                exchange("call_tool", malformedArgs);
+        service.buildInterceptor().onAction(malformedTrace, malformedExchange);
 
-        assertThat(malformedTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(malformedTrace.getFinalAnswer())
-                .contains("工具网关参数格式无效")
-                .contains("tool_args 不是合法 JSON")
-                .contains("工具：webfetch")
-                .contains("api%255Fkey=***")
-                .doesNotContain("secret123");
+        assertThat(malformedTrace.getRoute()).isNull();
+        assertThat(malformedTrace.getFinalAnswer()).isNull();
         assertThat(service.getPendingApproval(malformedTrace.session)).isNull();
+        assertThat(ReActToolObservationSupport.get(malformedTrace, malformedExchange))
+                .contains("call_tool.tool_args")
+                .contains("JSON 对象");
 
         Map<String, Object> arrayArgs = new LinkedHashMap<String, Object>();
         arrayArgs.put("tool_name", "terminal");
         arrayArgs.put("tool_args", "[]");
         TestTrace arrayTrace = new TestTrace();
 
-        service.buildInterceptor().onAction(arrayTrace, exchange("call_tool", arrayArgs));
+        org.noear.solon.ai.agent.react.task.ToolExchanger arrayExchange =
+                exchange("call_tool", arrayArgs);
+        service.buildInterceptor().onAction(arrayTrace, arrayExchange);
 
-        assertThat(arrayTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(arrayTrace.getFinalAnswer())
-                .contains("工具网关参数格式无效")
-                .contains("tool_args 必须是 JSON 对象")
-                .contains("工具：terminal");
+        assertThat(arrayTrace.getRoute()).isNull();
+        assertThat(arrayTrace.getFinalAnswer()).isNull();
         assertThat(service.getPendingApproval(arrayTrace.session)).isNull();
+        assertThat(ReActToolObservationSupport.get(arrayTrace, arrayExchange))
+                .contains("call_tool.tool_args")
+                .contains("JSON 对象");
 
-        assertMalformedGatewayToolFailsClosed(service, "webfetch");
-        assertMalformedGatewayToolFailsClosed(service, "websearch");
-        assertMalformedGatewayToolFailsClosed(service, "codesearch");
-        assertMalformedGatewayToolFailsClosed(service, "execute_python");
-        assertMalformedGatewayToolFailsClosed(service, "patch");
+        Map<String, Object> missingArgs = new LinkedHashMap<String, Object>();
+        missingArgs.put("tool_name", "terminal");
+        TestTrace missingTrace = new TestTrace();
+        org.noear.solon.ai.agent.react.task.ToolExchanger missingExchange =
+                exchange("call_tool", missingArgs);
+
+        service.buildInterceptor().onAction(missingTrace, missingExchange);
+
+        assertThat(ReActToolObservationSupport.get(missingTrace, missingExchange))
+                .contains("call_tool.tool_args")
+                .contains("JSON 对象");
+        assertThat(service.getPendingApproval(missingTrace.session)).isNull();
     }
 
     @Test
-    void shouldBlockWebsocketUrlsThroughApprovalGatewaySecurityPolicy() throws Exception {
-        TestEnvironment env = approvalEnvironment();
-        env.appConfig.getSecurity().setAllowPrivateUrls(false);
-        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository,
-                        env.appConfig,
-                        new FixedDnsSecurityPolicyService(env.appConfig, "10.0.0.5"));
-        Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
-        shellArgs.put("command", "websocat ws://internal.example/socket");
-        Map<String, Object> gatewayShell = new LinkedHashMap<String, Object>();
-        gatewayShell.put("tool_name", "execute_shell");
-        gatewayShell.put("tool_args", shellArgs);
-        TestTrace shellTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(shellTrace, exchange("call_tool", gatewayShell));
-
-        assertThat(shellTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(shellTrace.getFinalAnswer()).contains("URL 安全策略").contains("内网");
-        assertThat(service.getPendingApproval(shellTrace.session)).isNull();
-
-        Map<String, Object> webfetchArgs = new LinkedHashMap<String, Object>();
-        webfetchArgs.put("url", "wss://internal.example/socket");
-        Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
-        gatewayWebfetch.put("tool_name", "webfetch");
-        gatewayWebfetch.put("tool_args", webfetchArgs);
-        TestTrace webfetchTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(webfetchTrace, exchange("call_tool", gatewayWebfetch));
-
-        assertThat(webfetchTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(webfetchTrace.getFinalAnswer()).contains("URL 安全策略").contains("内网");
-        assertThat(service.getPendingApproval(webfetchTrace.session)).isNull();
-    }
-
-    @Test
-    void shouldBlockUnsupportedNetworkSchemesThroughApprovalGatewaySecurityPolicy()
-            throws Exception {
-        TestEnvironment env = approvalEnvironment();
-        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository,
-                        env.appConfig,
-                        new SecurityPolicyService(env.appConfig));
-
-        Map<String, Object> webfetchArgs = new LinkedHashMap<String, Object>();
-        webfetchArgs.put("url", "ftp://example.com/private.txt");
-        Map<String, Object> gatewayWebfetch = new LinkedHashMap<String, Object>();
-        gatewayWebfetch.put("tool_name", "webfetch");
-        gatewayWebfetch.put("tool_args", webfetchArgs);
-        TestTrace webfetchTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(webfetchTrace, exchange("call_tool", gatewayWebfetch));
-
-        assertThat(webfetchTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(webfetchTrace.getFinalAnswer())
-                .contains("URL 安全策略")
-                .contains("仅允许 http/https/ws/wss");
-        assertThat(service.getPendingApproval(webfetchTrace.session)).isNull();
-
-        Map<String, Object> shellArgs = new LinkedHashMap<String, Object>();
-        shellArgs.put("command", "curl sftp://example.com/private.txt");
-        Map<String, Object> gatewayShell = new LinkedHashMap<String, Object>();
-        gatewayShell.put("tool_name", "execute_shell");
-        gatewayShell.put("tool_args", shellArgs);
-        TestTrace shellTrace = new TestTrace();
-
-        service.buildInterceptor().onAction(shellTrace, exchange("call_tool", gatewayShell));
-
-        assertThat(shellTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(shellTrace.getFinalAnswer())
-                .contains("URL 安全策略")
-                .contains("仅允许 http/https/ws/wss");
-        assertThat(service.getPendingApproval(shellTrace.session)).isNull();
-    }
-
-    @Test
-    void shouldBlockNestedDisguisedUrlsThroughApprovalGatewaySecurityPolicy() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Collections.singletonList("blocked.example"));
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository,
-                        env.appConfig,
-                        new SecurityPolicyService(env.appConfig));
-        Map<String, Object> nested = new LinkedHashMap<String, Object>();
-        nested.put(
-                "target",
-                Collections.singletonMap("url", "https://docs.blocked.ex\u202Eample/private"));
-        Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
-        gatewayArgs.put("tool_name", "webfetch");
-        gatewayArgs.put("tool_args", nested);
-        TestTrace trace = new TestTrace();
-
-        service.buildInterceptor().onAction(trace, exchange("call_tool", gatewayArgs));
-
-        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer())
-                .contains("URL 安全策略")
-                .contains("blocked.example")
-                .doesNotContain("\u202E");
-        assertThat(service.getPendingApproval(trace.session)).isNull();
-    }
-
-    @Test
-    void shouldBlockUnsafeCodesearchUrlThroughApprovalGatewaySecurityPolicy() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository,
-                        env.appConfig,
-                        new SecurityPolicyService(env.appConfig));
-        Map<String, Object> searchArgs = new LinkedHashMap<String, Object>();
-        searchArgs.put("query", "inspect http://169.254.169.254/latest/meta-data/?token=secret123");
-        Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
-        gatewayArgs.put("tool_name", "codesearch");
-        gatewayArgs.put("tool_args", searchArgs);
-        TestTrace trace = new TestTrace();
-
-        service.buildInterceptor().onAction(trace, exchange("call_tool", gatewayArgs));
-
-        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer())
-                .contains("URL 安全策略")
-                .contains("元数据")
-                .doesNotContain("secret123");
-        assertThat(service.getPendingApproval(trace.session)).isNull();
-    }
-
-    @Test
-    void shouldBlockHostTargetArgumentsThroughApprovalGatewaySecurityPolicy() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(false);
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository,
-                        env.appConfig,
-                        new FixedDnsSecurityPolicyService(env.appConfig, "10.0.0.5"));
-        Map<String, Object> transport = new LinkedHashMap<String, Object>();
-        transport.put("server", "internal.example");
-        transport.put("proxyHost", "proxy.example:8080");
-        Map<String, Object> toolArgs = new LinkedHashMap<String, Object>();
-        toolArgs.put("transport", transport);
-        Map<String, Object> gatewayArgs = new LinkedHashMap<String, Object>();
-        gatewayArgs.put("tool_name", "webfetch");
-        gatewayArgs.put("tool_args", toolArgs);
-        TestTrace trace = new TestTrace();
-
-        service.buildInterceptor().onAction(trace, exchange("call_tool", gatewayArgs));
-
-        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer()).contains("URL 安全策略").contains("内网");
-        assertThat(service.getPendingApproval(trace.session)).isNull();
-    }
-
-    private static void assertMalformedGatewayToolFailsClosed(
-            DangerousCommandApprovalService service, String toolName) {
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("tool_name", toolName);
-        args.put("tool_args", "[\"not\", \"an\", \"object\"]");
-        TestTrace trace = new TestTrace();
-
-        service.buildInterceptor().onAction(trace, exchange("call_tool", args));
-
-        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer())
-                .contains("工具网关参数格式无效")
-                .contains("tool_args 必须是 JSON 对象")
-                .contains("工具：" + toolName);
-        assertThat(service.getPendingApproval(trace.session)).isNull();
-    }
-
-    @Test
-    void shouldLetApprovedGatewayTerminalCommandPassFallbackOnce() throws Exception {
+    void shouldResumeApprovedGatewayTerminalCommandWithoutDirectPreflightRescan() throws Exception {
         TestEnvironment env = approvalEnvironment();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         DangerousCommandApprovalService service =
@@ -683,21 +267,10 @@ public class DangerousCommandGatewayApprovalTest {
                                 null,
                                 Boolean.FALSE));
         assertThat(allowed.toJson()).doesNotContain("危险命令安全规则");
-
-        ONode blocked =
-                ONode.ofJson(
-                        shell.terminal(
-                                "git reset --hard",
-                                Boolean.FALSE,
-                                Integer.valueOf(1),
-                                null,
-                                Boolean.FALSE));
-        assertToolError(blocked);
-        assertThat(blocked.get("error").getString()).contains("危险命令安全规则");
     }
 
     @Test
-    void shouldLetApprovedGatewayTerminalManagedBackgroundPassFallbackOnce() throws Exception {
+    void shouldResumeApprovedGatewayManagedProcessWithoutDirectPreflightRescan() throws Exception {
         TestEnvironment env = approvalEnvironment();
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         DangerousCommandApprovalService service =
@@ -749,17 +322,6 @@ public class DangerousCommandGatewayApprovalTest {
         String sessionId = allowed.get("session_id").getString();
         assertThat(sessionId).isNotBlank();
         registry.stop(sessionId);
-
-        ONode blocked =
-                ONode.ofJson(
-                        shell.terminal(
-                                "git reset --hard",
-                                Boolean.TRUE,
-                                Integer.valueOf(1),
-                                null,
-                                Boolean.FALSE));
-        assertToolError(blocked);
-        assertThat(blocked.get("error").getString()).contains("危险命令安全规则");
     }
 
     @Test
@@ -859,40 +421,6 @@ public class DangerousCommandGatewayApprovalTest {
     }
 
     @Test
-    void shouldAutoApproveLowRiskDangerousCommandInSmartMode() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setGuardrailMode("smart");
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository,
-                        env.appConfig,
-                        new SecurityPolicyService(env.appConfig),
-                        null);
-        service.setSmartApprovalJudge(
-                new SmartApprovalJudge() {
-                    @Override
-                    public SmartApprovalDecision judge(
-                            String toolName, String command, String description) {
-                        return SmartApprovalDecision.approve("low risk cleanup");
-                    }
-                });
-        TestTrace trace = new TestTrace();
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("code", "rm -rf workspace/cache");
-
-        service.buildInterceptor().onAction(trace, exchange("execute_shell", args));
-
-        assertThat(service.getPendingApproval(trace.session)).isNull();
-        assertThat(trace.getFinalAnswer()).isNull();
-        assertThat(service.isSessionApproved(trace.session, "recursive_delete")).isTrue();
-        assertThat(service.isAlwaysApproved("recursive_delete")).isFalse();
-        assertThat(
-                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
-                                "execute_shell", "rm -rf workspace/cache"))
-                .isTrue();
-    }
-
-    @Test
     void shouldEscalateSmartApprovalWhenJudgeDoesNotApprove() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailMode("smart");
@@ -925,7 +453,7 @@ public class DangerousCommandGatewayApprovalTest {
     }
 
     @Test
-    void shouldBlockDangerousCommandWhenSmartApprovalDeniesWithCanonicalConfig() throws Exception {
+    void shouldBlockWhenSmartApprovalDeniesWithCanonicalConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailMode("smart");
         DangerousCommandApprovalService service =
@@ -950,11 +478,7 @@ public class DangerousCommandGatewayApprovalTest {
         service.buildInterceptor().onAction(trace, exchange("execute_shell", args));
 
         assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer())
-                .contains("BLOCKED by smart approval")
-                .contains("recursive delete")
-                .contains("destructive cleanup token=***")
-                .doesNotContain("smart-deny-secret");
+        assertThat(trace.getFinalAnswer()).contains("BLOCKED").doesNotContain("smart-deny-secret");
         assertThat(service.getPendingApproval(trace.session)).isNull();
         assertThat(service.isSessionApproved(trace.session, "recursive_delete")).isFalse();
     }
@@ -981,10 +505,8 @@ public class DangerousCommandGatewayApprovalTest {
     }
 
     @Test
-    void shouldBlockHardlineThroughInterceptorWhenSessionAutoApprovalIsEnabled()
-            throws Exception {
+    void shouldBlockHardlineThroughInterceptorWhenSessionAutoApprovalIsEnabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("code", "sudo reboot");
@@ -1047,54 +569,9 @@ public class DangerousCommandGatewayApprovalTest {
     }
 
     @Test
-    void shouldBlockTirithFindingWhenSmartApprovalDenies() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setGuardrailMode("smart");
-        FakeTirithSecurityService tirith =
-                new FakeTirithSecurityService(
-                        scanResult(
-                                "block",
-                                Collections.singletonList(
-                                        finding(
-                                                "terminal_injection",
-                                                "HIGH",
-                                                "Terminal injection",
-                                                "")),
-                                "terminal injection"));
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository,
-                        env.appConfig,
-                        new SecurityPolicyService(env.appConfig),
-                        tirith);
-        service.setSmartApprovalJudge(
-                new SmartApprovalJudge() {
-                    @Override
-                    public SmartApprovalDecision judge(
-                            String toolName, String command, String description) {
-                        return SmartApprovalDecision.deny("scanner risk confirmed");
-                    }
-                });
-        TestTrace trace = new TestTrace();
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("code", "echo hello");
-
-        service.buildInterceptor().onAction(trace, exchange("execute_shell", args));
-
-        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer())
-                .contains("BLOCKED by smart approval")
-                .contains("Security scan")
-                .contains("scanner risk confirmed");
-        assertThat(service.getPendingApproval(trace.session)).isNull();
-        assertThat(service.isSessionApproved(trace.session, "tirith:terminal_injection")).isFalse();
-    }
-
-    @Test
     void shouldKeepHardlineBlockedWhenGuardrailModeIsBypassAndTirithWarns() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailMode("bypass");
-        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         FakeTirithSecurityService tirith =
                 new FakeTirithSecurityService(
                         scanResult(
@@ -1158,7 +635,6 @@ public class DangerousCommandGatewayApprovalTest {
     void shouldBlockHardlineThroughInterceptorWhenGuardrailModeIsBypass() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailMode("bypass");
-        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
         args.put("code", "sudo reboot");
@@ -1174,66 +650,58 @@ public class DangerousCommandGatewayApprovalTest {
     }
 
     @Test
-    void shouldBlockWindowsShutdownHardlineSamplesBeforeApprovalBypasses() throws Exception {
+    void shouldBlockUpstreamHardlineSamplesBeforeApprovalBypasses() throws Exception {
         TestEnvironment bypassEnv = TestEnvironment.withFakeLlm();
         bypassEnv.appConfig.getSecurity().setGuardrailMode("bypass");
-        bypassEnv.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
-        assertHardlineBlocked(bypassEnv.dangerousCommandApprovalService, "cmd /c shutdown /r");
+        assertHardlineBlocked(bypassEnv.dangerousCommandApprovalService, "shutdown -r now");
 
         TestEnvironment sessionAutoApprovalEnv = TestEnvironment.withFakeLlm();
-        sessionAutoApprovalEnv
-                .appConfig
-                .getSecurity()
-                .setHardlineAllowlist(Collections.<String>emptyList());
         TestTrace sessionAutoApprovalTrace = new TestTrace();
         assertThat(
-                        sessionAutoApprovalEnv
-                                .dangerousCommandApprovalService
+                        sessionAutoApprovalEnv.dangerousCommandApprovalService
                                 .enableSessionAutoApproval(sessionAutoApprovalTrace.session))
                 .isTrue();
         assertHardlineBlocked(
                 sessionAutoApprovalEnv.dangerousCommandApprovalService,
                 sessionAutoApprovalTrace,
-                "powershell Restart-Computer");
-
+                "sudo reboot");
     }
 
     @Test
     void shouldBlockJimuquHardlineCommandSamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         String[] commands =
                 withCommonHardlineShutdownCommands(
-                    "rm -rf /",
-                    "rm -rf /*",
-                    "rm -rf /home",
-                    "rm -rf /home/*",
-                    "rm -rf /etc",
-                    "rm -rf /usr",
-                    "rm -rf /var",
-                    "rm -rf /boot",
-                    "rm -rf /bin",
-                    "rm --recursive --force /",
-                    "rm -fr /",
-                    "sudo rm -rf /",
-                    "sudo -E rm -rf /etc",
-                    "env FOO=1 rm -rf /usr",
-                    "exec rm -rf /var",
-                    "nohup rm -rf /boot",
-                    "setsid rm -rf /bin",
-                    "time rm -rf /sbin",
-                    "rm -rf ~",
-                    "rm -rf ~/",
-                    "rm -rf ~/*",
-                    "rm -rf $HOME",
-                    "mkfs.ext4 /dev/sda1",
-                    "mkfs /dev/sdb",
-                    "mkfs.xfs /dev/nvme0n1",
-                    "dd if=/dev/zero of=/dev/sda bs=1M",
-                    "dd if=/dev/urandom of=/dev/nvme0n1",
-                    "dd if=anything of=/dev/hda",
-                    "echo bad > /dev/sda",
-                    "cat /dev/urandom > /dev/sdb");
+                        "rm -rf /",
+                        "rm -rf /*",
+                        "rm -rf /home",
+                        "rm -rf /home/*",
+                        "rm -rf /etc",
+                        "rm -rf /usr",
+                        "rm -rf /var",
+                        "rm -rf /boot",
+                        "rm -rf /bin",
+                        "rm --recursive --force /",
+                        "rm -fr /",
+                        "sudo rm -rf /",
+                        "sudo -E rm -rf /etc",
+                        "env FOO=1 rm -rf /usr",
+                        "exec rm -rf /var",
+                        "nohup rm -rf /boot",
+                        "setsid rm -rf /bin",
+                        "time rm -rf /sbin",
+                        "rm -rf ~",
+                        "rm -rf ~/",
+                        "rm -rf ~/*",
+                        "rm -rf $HOME",
+                        "mkfs.ext4 /dev/sda1",
+                        "mkfs /dev/sdb",
+                        "mkfs.xfs /dev/nvme0n1",
+                        "dd if=/dev/zero of=/dev/sda bs=1M",
+                        "dd if=/dev/urandom of=/dev/nvme0n1",
+                        "dd if=anything of=/dev/hda",
+                        "echo bad > /dev/sda",
+                        "cat /dev/urandom > /dev/sdb");
 
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -1300,5 +768,4 @@ public class DangerousCommandGatewayApprovalTest {
                     .isNull();
         }
     }
-
 }

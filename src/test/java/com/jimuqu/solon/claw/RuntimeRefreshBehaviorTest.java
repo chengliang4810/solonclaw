@@ -15,7 +15,6 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.AllowLocalButBlockMetadataSecurityPolicyService;
-import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.FixedDnsSecurityPolicyService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -25,7 +24,6 @@ import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -78,51 +76,6 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldUpdateCanonicalWebsiteBlocklistRuntimeKeysWithoutReconnectingChannels()
-            throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
-        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
-
-        runtimeSettingsService.setConfigValue("security.websiteBlocklist.enabled", "true");
-        runtimeSettingsService.setConfigValue(
-                "security.websiteBlocklist.domains", "blocked.example, *.tracking.example");
-        runtimeSettingsService.setConfigValue(
-                "security.websiteBlocklist.sharedFiles", "community-blocklist.txt");
-        runtimeSettingsService.setConfigValue("security.tirithEnabled", "false");
-        runtimeSettingsService.setConfigValue("security.tirithTimeoutSeconds", "9");
-        runtimeSettingsService.setConfigValue("security.hardlineAllowlist", "hardline_delete_root");
-
-        assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
-        assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getDomains())
-                .containsExactly("blocked.example", "*.tracking.example");
-        assertThat(env.appConfig.getSecurity().getWebsiteBlocklist().getSharedFiles())
-                .containsExactly("community-blocklist.txt");
-        assertThat(env.appConfig.getSecurity().isTirithEnabled()).isFalse();
-        assertThat(env.appConfig.getSecurity().getTirithTimeoutSeconds()).isEqualTo(9);
-        assertThat(env.appConfig.getSecurity().getHardlineAllowlist())
-                .containsExactly("hardline_delete_root");
-        assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "rm -rf /"))
-                .isNull();
-        assertThat(
-                        env.dangerousCommandApprovalService.detectHardline(
-                                "execute_shell", "curl http://169.254.169.254/latest/meta-data/"))
-                .isNotNull();
-        String config = FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile());
-        assertThat(config)
-                .contains("websiteBlocklist:")
-                .contains("hardlineAllowlist:")
-                .contains("- hardline_delete_root")
-                .contains("blocked.example")
-                .contains("community-blocklist.txt")
-                .contains("tirithEnabled: false")
-                .contains("tirithTimeoutSeconds: 9")
-                .doesNotContain("solonclaw:\n  security:");
-        assertThat(adapter.disconnectCount).isZero();
-        assertThat(adapter.connectCount).isZero();
-    }
-
-    @Test
     void shouldPersistPromptCacheDashboardConfigWithoutReconnectingChannels() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
@@ -151,63 +104,6 @@ public class RuntimeRefreshBehaviorTest {
         assertThat(adapter.connectCount).isZero();
     }
 
-    @Test
-    void shouldApplyDashboardWebsitePolicyUpdatesToUrlChecksWithoutReconnectingChannels()
-            throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
-        Map<PlatformType, ChannelAdapter> adapters =
-                new LinkedHashMap<PlatformType, ChannelAdapter>();
-        adapters.put(adapter.platform(), adapter);
-        GatewayRuntimeRefreshService refreshService =
-                new GatewayRuntimeRefreshService(
-                        env.appConfig,
-                        new com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager(
-                                adapters));
-        DashboardConfigService configService =
-                new DashboardConfigService(env.appConfig, refreshService);
-        SecurityPolicyService policy =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-        Map<String, Object> updates = new LinkedHashMap<String, Object>();
-
-        updates.put("security.allowPrivateUrls", Boolean.TRUE);
-        updates.put("security.websiteBlocklist.enabled", Boolean.TRUE);
-        updates.put(
-                "security.websiteBlocklist.domains",
-                Arrays.asList("blocked.example", "*.tracking.example"));
-        configService.savePartialFlat(updates, false);
-
-        assertThat(policy.checkUrl("http://127.0.0.1:8080/status").isAllowed()).isTrue();
-        SecurityPolicyService.UrlVerdict blocked =
-                policy.checkUrl("https://docs.blocked.example/page?token=secret");
-        assertThat(blocked.isAllowed()).isFalse();
-        assertThat(blocked.getMessage()).contains("blocked.example").doesNotContain("secret");
-        assertThat(policy.checkUrl("https://pixel.tracking.example/p.gif").isAllowed()).isFalse();
-        assertThat(policy.checkUrl("https://tracking.example/p.gif").isAllowed()).isTrue();
-        assertThat(policy.websitePolicySummary().get("enabled")).isEqualTo(Boolean.TRUE);
-        assertThat(policy.websitePolicySummary().get("configuredDomainCount")).isEqualTo(2);
-        assertThat(adapter.disconnectCount).isZero();
-        assertThat(adapter.connectCount).isZero();
-    }
-
-    @Test
-    void shouldUpdateCanonicalAllowPrivateUrlRuntimeKeysWithoutReconnectingChannels()
-            throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        RecordingChannelAdapter adapter = new RecordingChannelAdapter(PlatformType.WEIXIN);
-        RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
-
-        runtimeSettingsService.setConfigValue("security.allowPrivateUrls", "true");
-
-        assertThat(env.appConfig.getSecurity().isAllowPrivateUrls()).isTrue();
-        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
-                .contains("allowPrivateUrls: true")
-                .doesNotContain("allow_private_urls:");
-        assertThat(adapter.disconnectCount).isZero();
-        assertThat(adapter.connectCount).isZero();
-    }
-
-    @Test
     void shouldUpdateBrowserLoopbackRewriteRuntimeKeysWithoutReconnectingChannels()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -356,33 +252,14 @@ public class RuntimeRefreshBehaviorTest {
         RuntimeSettingsService runtimeSettingsService = runtimeSettingsService(env, adapter);
 
         assertThatThrownBy(
-                        () -> runtimeSettingsService.setConfigValue("solonclaw.workspace", "./workspace"))
+                        () ->
+                                runtimeSettingsService.setConfigValue(
+                                        "solonclaw.workspace", "./workspace"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unsupported config key")
                 .hasMessageContaining("solonclaw.workspace");
         assertThat(adapter.disconnectCount).isZero();
         assertThat(adapter.connectCount).isZero();
-    }
-
-    @Test
-    void shouldRejectUnsafeWebsiteBlocklistSharedFilePathsFromDashboardWrites() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        DashboardConfigService configService =
-                new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
-        Map<String, Object> updates = new LinkedHashMap<String, Object>();
-
-        updates.put(
-                "security.websiteBlocklist.sharedFiles",
-                Collections.singletonList("blocklists/sites.txt"));
-        configService.savePartialFlat(updates, false);
-        assertThat(FileUtil.readUtf8String(env.appConfig.getRuntime().getConfigFile()))
-                .contains("sharedFiles:")
-                .contains("blocklists/sites.txt")
-                .doesNotContain("solonclaw:\n  security:");
-
-        assertWebsiteSharedFileRejected(configService, "../blocklists/sites.txt", "path traversal");
-        assertWebsiteSharedFileRejected(configService, "blocklists/\u0000sites.txt", "control");
-        assertWebsiteSharedFileRejected(configService, "~other/sites.txt", "home paths");
     }
 
     @Test
@@ -607,42 +484,6 @@ public class RuntimeRefreshBehaviorTest {
     }
 
     @Test
-    void shouldBlockUnsafeProviderModelListRedirectTarget() throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        try {
-            server.createContext(
-                    "/v1/models",
-                    exchange -> {
-                        exchange.getResponseHeaders()
-                                .add(
-                                        "Location",
-                                        "http://169.254.169.254/latest/meta-data/?token=secret");
-                        exchange.sendResponseHeaders(302, -1);
-                        exchange.close();
-                    });
-            server.start();
-            AppConfig config = new AppConfig();
-            DashboardProviderService providerService =
-                    new DashboardProviderService(
-                            config,
-                            null,
-                            new LlmProviderService(config),
-                            new AllowLocalButBlockMetadataSecurityPolicyService(config));
-            Map<String, Object> body = new LinkedHashMap<String, Object>();
-            body.put("baseUrl", "http://127.0.0.1:" + server.getAddress().getPort());
-            body.put("dialect", "openai");
-
-            assertThatThrownBy(() -> providerService.listRemoteModels(body))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Provider model list URL blocked")
-                    .hasMessageContaining("169.254.169.254")
-                    .hasMessageContaining("token=***");
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
     void shouldAllowProviderModelListPublicUrlWithoutInteractiveApproval() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
@@ -863,9 +704,7 @@ public class RuntimeRefreshBehaviorTest {
             DashboardProviderService providerService = localProviderService(new AppConfig());
             Map<String, Object> body =
                     providerProbe(
-                            "http://127.0.0.1:"
-                                    + server.getAddress().getPort()
-                                    + "/anthropic",
+                            "http://127.0.0.1:" + server.getAddress().getPort() + "/anthropic",
                             "anthropic");
             body.put("apiKey", "sk-provider-anthropic-secret");
             body.put("model", "mimo-v2.5");
@@ -875,8 +714,7 @@ public class RuntimeRefreshBehaviorTest {
             assertThat(result.get("ok")).isEqualTo(Boolean.TRUE);
             assertThat(result.get("reachable")).isEqualTo(Boolean.TRUE);
             assertThat(result.get("status")).isEqualTo("valid");
-            assertThat(String.valueOf(result.get("url")))
-                    .endsWith("/anthropic/v1/messages");
+            assertThat(String.valueOf(result.get("url"))).endsWith("/anthropic/v1/messages");
             assertThat(result.get("models")).asList().containsExactly("mimo-v2.5");
         } finally {
             server.stop(0);
@@ -977,16 +815,6 @@ public class RuntimeRefreshBehaviorTest {
         assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("solonclaw.terminal.envPassthrough")
-                .hasMessageContaining(messagePart);
-    }
-
-    private void assertWebsiteSharedFileRejected(
-            DashboardConfigService configService, String value, String messagePart) {
-        Map<String, Object> updates = new LinkedHashMap<String, Object>();
-        updates.put("security.websiteBlocklist.sharedFiles", Collections.singletonList(value));
-        assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("security.websiteBlocklist.sharedFiles")
                 .hasMessageContaining(messagePart);
     }
 

@@ -2,11 +2,11 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HtmlUtil;
-import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
@@ -177,12 +177,6 @@ public class SecurityAuditTools {
                         smartMode && smartJudgeConfigured && tirithSecurityService != null));
         approvals.put("guardrailCronMode", guardrailCronMode);
         approvals.put("cronAutoApprove", Boolean.valueOf("approve".equals(guardrailCronMode)));
-        approvals.put(
-                "subagentAutoApprove",
-                Boolean.valueOf(appConfig.getApprovals().isSubagentAutoApprove()));
-        approvals.put(
-                "subagentApprovalDefault",
-                appConfig.getApprovals().isSubagentAutoApprove() ? "approve" : "deny");
         approvals.put(
                 "timeoutSeconds", Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
         approvals.put(
@@ -540,40 +534,36 @@ public class SecurityAuditTools {
         }
 
         if (securityPolicyService != null) {
-            if (SolonClawCodeExecutionSkills.isFileGuardrailEnabled(appConfig)) {
-                SecurityPolicyService.FileVerdict fileVerdict =
-                        securityPolicyService.checkCommandPaths(command);
-                if (!fileVerdict.isAllowed()) {
-                    result.addFinding(
-                            "file_policy",
-                            "blocked_path",
-                            "critical",
-                            filePolicyFindingMessage(fileVerdict),
-                            "block",
-                            true,
-                            false,
-                            "change_path");
-                    result.escalate("block");
-                }
+            SecurityPolicyService.FileVerdict fileVerdict =
+                    securityPolicyService.checkCommandPaths(command);
+            if (!fileVerdict.isAllowed()) {
+                result.addFinding(
+                        "file_policy",
+                        "blocked_path",
+                        "critical",
+                        filePolicyFindingMessage(fileVerdict),
+                        "block",
+                        true,
+                        false,
+                        "change_path");
+                result.escalate("block");
             }
 
-            if (SolonClawCodeExecutionSkills.isUrlGuardrailEnabled(appConfig)) {
-                SecurityPolicyService.UrlVerdict urlVerdict =
-                        securityPolicyService.checkCommandUrls(command);
-                if (!urlVerdict.isAllowed()) {
-                    result.addFinding(
-                            "url_policy",
-                            "blocked_url",
-                            "critical",
-                            urlVerdict.getMessage()
-                                    + ": "
-                                    + SecretRedactor.maskUrl(urlVerdict.getUrl()),
-                            "block",
-                            true,
-                            false,
-                            "change_url_or_policy");
-                    result.escalate("block");
-                }
+            SecurityPolicyService.UrlVerdict urlVerdict =
+                    securityPolicyService.checkCommandUrls(command);
+            if (!urlVerdict.isAllowed()) {
+                result.addFinding(
+                        "url_policy",
+                        "blocked_url",
+                        "critical",
+                        urlVerdict.getMessage()
+                                + ": "
+                                + SecretRedactor.maskUrl(urlVerdict.getUrl()),
+                        "block",
+                        true,
+                        false,
+                        "change_url_or_policy");
+                result.escalate("block");
             }
         }
 
@@ -1266,14 +1256,11 @@ public class SecurityAuditTools {
      */
     private static String normalizeGuardrailMode(String value) {
         String mode = StrUtil.blankToDefault(value, "bypass").trim().toLowerCase(Locale.ROOT);
-        if ("bypass".equals(mode)
-                || "approval".equals(mode)
-                || "strict".equals(mode)
-                || "smart".equals(mode)) {
+        if ("bypass".equals(mode) || "approval".equals(mode) || "smart".equals(mode)) {
             return mode;
         }
         throw new IllegalStateException(
-                "security.guardrailMode 只支持 approval、strict、bypass、smart，当前值：" + value);
+                "security.guardrailMode 只支持 approval、bypass、smart，当前值：" + value);
     }
 
     /**
@@ -1283,15 +1270,14 @@ public class SecurityAuditTools {
      * @return 返回定时任务审批模式结果。
      */
     private static String normalizeCronApprovalMode(String value) {
-        String mode = StrUtil.blankToDefault(value, "bypass").trim().toLowerCase(Locale.ROOT);
-        if ("approval".equals(mode)
-                || "strict".equals(mode)
+        String mode = StrUtil.blankToDefault(value, "strict").trim().toLowerCase(Locale.ROOT);
+        if ("strict".equals(mode)
+                || "approval".equals(mode)
                 || "bypass".equals(mode)
                 || "approve".equals(mode)) {
             return mode;
         }
         throw new IllegalStateException(
-                "security.guardrailCronMode 只支持 approval、strict、bypass、approve，当前值：" + value);
+                "security.guardrailCronMode 只支持 strict、approval、bypass、approve，当前值：" + value);
     }
-
 }

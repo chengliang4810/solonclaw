@@ -1,11 +1,11 @@
 package com.jimuqu.solon.claw.support;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Test;
 
 /** 验证 HTTP 重定向状态与 Location 解析的共享规则。 */
 class HttpRedirectSupportTest {
@@ -32,9 +32,7 @@ class HttpRedirectSupportTest {
         assertEquals(
                 "https://cdn.example.com/file",
                 HttpRedirectSupport.resolveLocation(
-                        "https://example.com/api/list",
-                        "https://cdn.example.com/file",
-                        "测试重定向"));
+                        "https://example.com/api/list", "https://cdn.example.com/file", "测试重定向"));
     }
 
     /** 非法 Location 应返回带业务上下文且已脱敏的异常。 */

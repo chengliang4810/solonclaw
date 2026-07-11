@@ -34,8 +34,7 @@ public class PlatformToolsetsManageToolsTest {
     }
 
     /** 记录平台工具集服务调用，避免测试写入真实配置文件。 */
-    private static class RecordingPlatformToolsetsService
-            extends DashboardPlatformToolsetsService {
+    private static class RecordingPlatformToolsetsService extends DashboardPlatformToolsetsService {
         /** 平台工具集保存调用次数。 */
         private int updateCalls;
 

@@ -8,13 +8,13 @@ import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
-import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -105,10 +105,7 @@ class CliRunnerTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CountingOrchestrator orchestrator = new CountingOrchestrator();
         CliRuntime runtime =
-                new CliRuntime(
-                        env.commandService,
-                        orchestrator,
-                        env.agentRunControlService);
+                new CliRuntime(env.commandService, orchestrator, env.agentRunControlService);
         CliRunner runner =
                 new CliRunner(
                         runtime,
@@ -125,9 +122,7 @@ class CliRunnerTest {
             int exitCode =
                     runner.run(
                             new CliMode(
-                                    CliMode.Kind.CLI,
-                                    "/not-a-real-command",
-                                    "cli-runner-unknown"));
+                                    CliMode.Kind.CLI, "/not-a-real-command", "cli-runner-unknown"));
 
             assertThat(exitCode).isEqualTo(1);
             assertThat(err.toString(StandardCharsets.UTF_8.name()))

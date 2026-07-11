@@ -12,8 +12,8 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 import java.util.LinkedList;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.agent.react.ReActTrace;
 import org.noear.solon.ai.chat.ChatRole;
@@ -153,7 +153,8 @@ public class SqliteAgentSessionTest {
     @Test
     void shouldDropHistoricalMojibakeSummaryArtifactsOnLoad() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:summary-artifact:user");
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:summary-artifact:user");
         session.setCompressedSummary("摘要：长期回归 Loop 当前目标是验证会话恢复。");
         session.setNdjson(
                 MessageSupport.toNdjson(
@@ -182,14 +183,14 @@ public class SqliteAgentSessionTest {
     @Test
     void shouldSkipAdjacentDuplicateAssistantToolCallWhenPersisting() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:dedupe-tool-call:user");
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:dedupe-tool-call:user");
         SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
         AssistantMessage first = assistantWithToolCall("call_stream");
         AssistantMessage duplicate = assistantWithToolCall("call_stream");
 
         agentSession.addMessage(Arrays.asList(ChatMessage.ofUser("读取 todo"), first, duplicate));
-        agentSession.addMessage(
-                Arrays.asList(ChatMessage.ofTool("done", "todo", "call_stream")));
+        agentSession.addMessage(Arrays.asList(ChatMessage.ofTool("done", "todo", "call_stream")));
         agentSession.updateSnapshot();
 
         List<ChatMessage> persisted =
@@ -198,9 +199,7 @@ public class SqliteAgentSessionTest {
         assertThat(persisted)
                 .extracting(ChatMessage::getRole)
                 .containsExactly(ChatRole.USER, ChatRole.ASSISTANT, ChatRole.TOOL);
-        assertThat(persisted)
-                .filteredOn(message -> message instanceof AssistantMessage)
-                .hasSize(1);
+        assertThat(persisted).filteredOn(message -> message instanceof AssistantMessage).hasSize(1);
     }
 
     @Test

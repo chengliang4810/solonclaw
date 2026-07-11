@@ -84,7 +84,8 @@ public class ProactiveSchedulerTest {
                         repository)
                 .tickSafe();
 
-        assertThat(repository.savedObservations).extracting(ProactiveObservationRecord::getStatus)
+        assertThat(repository.savedObservations)
+                .extracting(ProactiveObservationRecord::getStatus)
                 .containsExactly("FAILED");
         assertThat(repository.savedObservations.get(0).getError()).contains("boom");
     }
@@ -125,7 +126,8 @@ public class ProactiveSchedulerTest {
         }
 
         @Override
-        public List<ProactiveObservationRecord> collectAll(ProactiveTickContext context) throws Exception {
+        public List<ProactiveObservationRecord> collectAll(ProactiveTickContext context)
+                throws Exception {
             calls++;
             lastContext = context;
             events.add("observe");

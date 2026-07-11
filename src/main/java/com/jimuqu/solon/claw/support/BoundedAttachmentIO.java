@@ -594,8 +594,7 @@ public final class BoundedAttachmentIO {
         }
         return safeHttpError(
                 status,
-                InputStreamPreviewSupport.readUtf8(
-                        response.bodyStream(), ERROR_PREVIEW_MAX_BYTES));
+                InputStreamPreviewSupport.readUtf8(response.bodyStream(), ERROR_PREVIEW_MAX_BYTES));
     }
 
     /**

@@ -14,7 +14,10 @@ class GoalServiceWaitBarrierTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("wait-chat");
         GoalService svc =
-                new GoalService(env.sessionRepository, new HeuristicGoalJudge(), new AppConfig.GoalConfig());
+                new GoalService(
+                        env.sessionRepository,
+                        new HeuristicGoalJudge(),
+                        new AppConfig.GoalConfig());
         svc.set(session, "g", 5);
 
         svc.waitOnPid(session, Integer.MAX_VALUE, "等编译"); // 死 pid 立即解除
@@ -28,7 +31,10 @@ class GoalServiceWaitBarrierTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session = env.sessionRepository.bindNewSession("wait-chat2");
         GoalService svc =
-                new GoalService(env.sessionRepository, new HeuristicGoalJudge(), new AppConfig.GoalConfig());
+                new GoalService(
+                        env.sessionRepository,
+                        new HeuristicGoalJudge(),
+                        new AppConfig.GoalConfig());
         svc.set(session, "g", 5);
         svc.waitOnPid(session, 99999, "等编译");
         svc.stopWaiting(session);

@@ -8,8 +8,10 @@ import com.jimuqu.solon.claw.web.DashboardChatService;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import org.junit.jupiter.api.Test;
@@ -91,6 +93,34 @@ public class DashboardChatServiceEventSinkTest {
     }
 
     @Test
+    void shouldEmitFinalReplyWhenRunCompletesWithoutAssistantDelta() throws Exception {
+        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        Object state = newState("web-run-1", "session-1");
+        ConversationEventSink sink = newEventSink(service, state);
+
+        sink.onReasoningDelta("thinking");
+        sink.onRunCompleted("session-1", "approval required", null);
+
+        List<Object> emitted = drainEventList(state);
+        assertThat(eventNames(emitted))
+                .containsExactly("reasoning.delta", "message.delta", "run.completed");
+        assertThat(eventData(emitted.get(1)).get("delta")).isEqualTo("approval required");
+    }
+
+    @Test
+    void shouldNotDuplicateFinalReplyAfterAssistantDelta() throws Exception {
+        DashboardChatService service = new DashboardChatService(null, null, null, null);
+        Object state = newState("web-run-1", "session-1");
+        ConversationEventSink sink = newEventSink(service, state);
+
+        sink.onAssistantDelta("done");
+        sink.onRunCompleted("session-1", "done", null);
+
+        assertThat(eventNames(drainEventList(state)))
+                .containsExactly("message.delta", "run.completed");
+    }
+
+    @Test
     void shouldClassifySseClientDisconnects() throws Exception {
         DashboardChatService service = new DashboardChatService(null, null, null, null);
 
@@ -138,6 +168,25 @@ public class DashboardChatServiceEventSinkTest {
                 : snapshots;
     }
 
+    /** 依次取出事件，供需要验证同名事件数量与顺序的测试使用。 */
+    private List<Object> drainEventList(Object state) throws Exception {
+        List<Object> snapshots = new ArrayList<Object>();
+        Object event;
+        while ((event = events(state).poll()) != null) {
+            snapshots.add(event);
+        }
+        return snapshots;
+    }
+
+    /** 提取事件名称列表，避免测试依赖事件对象的私有实现细节。 */
+    private List<String> eventNames(List<Object> emitted) throws Exception {
+        List<String> names = new ArrayList<String>();
+        for (Object event : emitted) {
+            names.add(eventName(event));
+        }
+        return names;
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> eventData(Object event) throws Exception {
         Field field = event.getClass().getDeclaredField("data");
@@ -160,8 +209,7 @@ public class DashboardChatServiceEventSinkTest {
     private boolean isClientDisconnected(String message) throws Exception {
         Class<?> disconnectsClass =
                 Class.forName("com.jimuqu.solon.claw.web.DashboardClientDisconnects");
-        Method method =
-                disconnectsClass.getDeclaredMethod("isClientDisconnected", Throwable.class);
+        Method method = disconnectsClass.getDeclaredMethod("isClientDisconnected", Throwable.class);
         method.setAccessible(true);
         return (Boolean) method.invoke(null, new RuntimeException(message));
     }

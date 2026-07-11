@@ -41,7 +41,7 @@ public class DashboardWorkspaceController {
                      */
                     @Override
                     public Map<String, Object> run() {
-                        return workspaceService.getFiles();
+                        return workspaceService.getFiles(context.param("profile"));
                     }
                 });
     }
@@ -65,7 +65,7 @@ public class DashboardWorkspaceController {
                      */
                     @Override
                     public Map<String, Object> run() {
-                        return workspaceService.getFile(key);
+                        return workspaceService.getFile(context.param("profile"), key);
                     }
                 });
     }
@@ -90,7 +90,7 @@ public class DashboardWorkspaceController {
                     @Override
                     public Map<String, Object> run() {
                         String content = content(context);
-                        return workspaceService.saveFile(key, content);
+                        return workspaceService.saveFile(profile(context), key, content);
                     }
                 });
     }
@@ -114,7 +114,7 @@ public class DashboardWorkspaceController {
                      */
                     @Override
                     public Map<String, Object> run() {
-                        return workspaceService.restoreFile(key);
+                        return workspaceService.restoreFile(profile(context), key);
                     }
                 });
     }
@@ -137,7 +137,7 @@ public class DashboardWorkspaceController {
                      */
                     @Override
                     public Map<String, Object> run() {
-                        return workspaceService.listDiaryFiles();
+                        return workspaceService.listDiaryFiles(context.param("profile"));
                     }
                 });
     }
@@ -161,7 +161,8 @@ public class DashboardWorkspaceController {
                      */
                     @Override
                     public Map<String, Object> run() {
-                        return workspaceService.getDiaryFile(relativePath);
+                        return workspaceService.getDiaryFile(
+                                context.param("profile"), relativePath);
                     }
                 });
     }
@@ -176,12 +177,14 @@ public class DashboardWorkspaceController {
     public Object download(Context context) {
         try {
             DashboardWorkspaceService.DownloadContent content =
-                    workspaceService.downloadFile(context.param("path"), context.param("name"));
+                    workspaceService.downloadFile(
+                            context.param("profile"), context.param("path"), context.param("name"));
             return new DownloadedFile(
-                            "text/plain;charset=UTF-8",
-                            content.getBytes(),
-                            content.getFileName())
+                            "text/plain;charset=UTF-8", content.getBytes(), content.getFileName())
                     .asAttachment(true);
+        } catch (DashboardProfileScope.ProfileNotFoundException e) {
+            context.status(404);
+            return DashboardResponse.error("WORKSPACE_PROFILE_NOT_FOUND", workspaceErrorMessage(e));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("WORKSPACE_BAD_REQUEST", workspaceErrorMessage(e));
@@ -198,6 +201,9 @@ public class DashboardWorkspaceController {
     private Map<String, Object> execute(Context context, Callback callback) {
         try {
             return callback.run();
+        } catch (DashboardProfileScope.ProfileNotFoundException e) {
+            context.status(404);
+            return DashboardResponse.error("WORKSPACE_PROFILE_NOT_FOUND", workspaceErrorMessage(e));
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("WORKSPACE_BAD_REQUEST", workspaceErrorMessage(e));
@@ -210,7 +216,7 @@ public class DashboardWorkspaceController {
      * @param e 捕获到的异常。
      * @return 返回工作区Error消息结果。
      */
-    private String workspaceErrorMessage(IllegalArgumentException e) {
+    private String workspaceErrorMessage(RuntimeException e) {
         String message = e.getMessage();
         if (message != null && message.startsWith("Diary file is not available:")) {
             return "Diary file is not available.";
@@ -225,6 +231,23 @@ public class DashboardWorkspaceController {
      * @return 返回content结果。
      */
     private String content(Context context) {
+        Map<String, Object> body = body(context);
+        Object content = body.get("content");
+        return content == null ? "" : String.valueOf(content);
+    }
+
+    /** 写请求中请求体 profile 优先，未提供时使用查询参数。 */
+    private String profile(Context context) {
+        Object bodyProfile = body(context).get("profile");
+        if (bodyProfile != null && String.valueOf(bodyProfile).trim().length() > 0) {
+            return String.valueOf(bodyProfile).trim();
+        }
+        return context.param("profile");
+    }
+
+    /** 读取并校验 JSON 对象请求体，空请求体返回空映射。 */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> body(Context context) {
         String raw;
         try {
             raw = context.body();
@@ -232,12 +255,12 @@ public class DashboardWorkspaceController {
             throw new IllegalArgumentException("请求体读取失败 / Request body read failed");
         }
         if (raw == null || raw.trim().length() == 0) {
-            return "";
+            return java.util.Collections.emptyMap();
         }
         try {
             ONode node = ONode.ofJson(raw);
             if (node.toData() instanceof Map) {
-                return node.get("content").getString();
+                return (Map<String, Object>) node.toData();
             }
             throw new IllegalArgumentException(
                     "请求体必须是 JSON 对象 / Request body must be a JSON object");

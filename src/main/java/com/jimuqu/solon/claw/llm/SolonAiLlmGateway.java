@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.llm;
 
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.SecureUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.context.MemoryContextBoundary;
@@ -62,9 +63,10 @@ import org.noear.solon.ai.agent.react.intercept.ToolRetryInterceptor;
 import org.noear.solon.ai.agent.react.intercept.ToolSanitizerInterceptor;
 import org.noear.solon.ai.agent.react.task.ToolExchanger;
 import org.noear.solon.ai.agent.trace.Metrics;
+import org.noear.solon.ai.chat.CacheControl;
 import org.noear.solon.ai.chat.ChatConfig;
-import org.noear.solon.ai.chat.ChatOptions;
 import org.noear.solon.ai.chat.ChatModel;
+import org.noear.solon.ai.chat.ChatOptions;
 import org.noear.solon.ai.chat.ChatRequest;
 import org.noear.solon.ai.chat.ChatRequestDesc;
 import org.noear.solon.ai.chat.ChatResponse;
@@ -93,9 +95,9 @@ import org.noear.solon.ai.llm.dialect.openai.OpenaiChatDialect;
 import org.noear.solon.ai.llm.dialect.openai.OpenaiResponsesDialect;
 import org.noear.solon.ai.talents.pdf.PdfTalent;
 import org.noear.solon.core.util.RankEntity;
-import reactor.core.publisher.Flux;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 
 /** SolonAiLlmGateway 实现。 */
 public class SolonAiLlmGateway implements LlmGateway {
@@ -495,7 +497,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         boolean primary = true;
 
         for (AppConfig.LlmConfig resolved : candidates) {
-            int maxAttempts = 2;
+            int maxAttempts = configuredRetryMax(session) + 1;
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                 try {
                     LlmResult result =
@@ -519,9 +521,12 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 resolved.getDialect(),
                                 resolved.getModel(),
                                 attempt);
+                        waitBeforeRetry(session);
                         continue;
                     }
                     lastError = new IllegalStateException("LLM returned empty assistant content");
+                } catch (InterruptedException e) {
+                    throw e;
                 } catch (Exception e) {
                     lastError = e;
                     LlmErrorClassifier.ClassifiedError classified = LlmErrorClassifier.classify(e);
@@ -533,6 +538,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 resolved.getModel(),
                                 attempt,
                                 e.getMessage());
+                        waitBeforeRetry(session);
                         continue;
                     }
                 }
@@ -562,6 +568,32 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         throw new IllegalStateException(
                 lastError == null ? "LLM execution failed" : lastError.getMessage(), lastError);
+    }
+
+    /** 返回当前会话实际使用的决策重试次数。 */
+    private int configuredRetryMax(SessionRecord session) {
+        int configured =
+                isDelegateSession(session)
+                        ? appConfig.getReact().getDelegateRetryMax()
+                        : appConfig.getReact().getRetryMax();
+        return Math.max(0, configured);
+    }
+
+    /** 按主代理或子代理配置等待下一次模型决策重试。 */
+    private void waitBeforeRetry(SessionRecord session) throws InterruptedException {
+        int delayMs =
+                isDelegateSession(session)
+                        ? appConfig.getReact().getDelegateRetryDelayMs()
+                        : appConfig.getReact().getRetryDelayMs();
+        if (delayMs <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(delayMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
     }
 
     /**
@@ -640,15 +672,11 @@ public class SolonAiLlmGateway implements LlmGateway {
             AppConfig.LlmConfig resolved,
             AgentRunContext runContext)
             throws Exception {
-        ChatModel chatModel = buildChatModel(resolved);
+        ChatModel chatModel = buildChatModel(resolved, session);
         UsageCollector usageCollector = new UsageCollector();
         ChatOptions options =
                 buildOwnedLoopOptions(
-                        toolObjects,
-                        userMessage,
-                        feedbackSink,
-                        runContext,
-                        usageCollector);
+                        toolObjects, userMessage, feedbackSink, runContext, usageCollector);
         List<ReActInterceptor> interceptors = flatInterceptors(options);
         OwnedReActTrace trace =
                 new OwnedReActTrace(
@@ -678,9 +706,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 trace.nextStep();
                 if (assistantMessage == null) {
                     String effectivePrompt =
-                            resume || step > 1
-                                    ? null
-                                    : userPromptText(userMessage, runContext);
+                            resume || step > 1 ? null : userPromptText(userMessage, runContext);
                     ChatRequestDesc requestDesc =
                             buildOwnedLoopRequest(
                                     chatModel,
@@ -692,7 +718,11 @@ public class SolonAiLlmGateway implements LlmGateway {
                                             : userPrompt(effectivePrompt, runContext, resolved));
                     OwnedModelResponse modelResponse =
                             executeOwnedModelRequest(
-                                    requestDesc, feedbackSink, eventSink, usageCollector);
+                                    requestDesc,
+                                    feedbackSink,
+                                    eventSink,
+                                    usageCollector,
+                                    resolved.isStream());
                     rawResponse = modelResponse.rawResponse;
                     assistantMessage = modelResponse.assistantMessage;
                     streamed = streamed || modelResponse.streamed;
@@ -704,7 +734,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                     }
                     trace.setLastReasonMessage(assistantMessage);
                     for (ReActInterceptor interceptor : interceptors) {
-                        interceptor.onReasonEnd(trace, modelResponse.response, assistantMessage, 0L);
+                        interceptor.onReasonEnd(
+                                trace, modelResponse.response, assistantMessage, 0L);
                     }
                 } else {
                     trace.setLastReasonMessage(assistantMessage);
@@ -814,15 +845,18 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param feedbackSink feedbackSink参数。
      * @param eventSink eventSink参数。
      * @param usageCollector 当前 ReAct 轮次的模型用量收集器。
+     * @param streamConfigured 是否由运行配置明确启用流式请求。
      * @return 返回模型响应。
      */
     private OwnedModelResponse executeOwnedModelRequest(
             ChatRequestDesc requestDesc,
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
-            UsageCollector usageCollector)
+            UsageCollector usageCollector,
+            boolean streamConfigured)
             throws Exception {
-        if (eventSink == null || eventSink == ConversationEventSink.noop()) {
+        boolean hasEventSink = eventSink != null && eventSink != ConversationEventSink.noop();
+        if (!streamConfigured && !hasEventSink) {
             ChatResponse response = requestDesc.call();
             return new OwnedModelResponse(
                     response,
@@ -831,6 +865,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                     false,
                     null);
         }
+        ConversationEventSink effectiveEventSink =
+                eventSink == null ? ConversationEventSink.noop() : eventSink;
 
         final StringBuilder emittedText = new StringBuilder();
         final StringBuilder bufferedVisibleText = new StringBuilder();
@@ -848,7 +884,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                                             emittedText,
                                             bufferedVisibleText,
                                             thinkingSplitter,
-                                            eventSink,
+                                            effectiveEventSink,
                                             feedbackSink,
                                             finalResponse,
                                             memoryScrubber))
@@ -864,7 +900,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                 thinkingSplitter.flushPending(),
                 emittedText,
                 bufferedVisibleText,
-                eventSink,
+                effectiveEventSink,
                 feedbackSink,
                 memoryScrubber);
         String remainingVisible = memoryScrubber.flush();
@@ -906,10 +942,11 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         if (emittedText.length() == 0 && bufferedVisibleText.length() > 0) {
             // 确认本轮不是工具调用后，再把流式可见文本作为用户可见答复发出。
-            String buffered = MemoryContextBoundary.scrubVisibleText(bufferedVisibleText.toString());
+            String buffered =
+                    MemoryContextBoundary.scrubVisibleText(bufferedVisibleText.toString());
             if (StrUtil.isNotBlank(buffered)) {
                 emittedText.append(buffered);
-                eventSink.onAssistantDelta(buffered);
+                effectiveEventSink.onAssistantDelta(buffered);
             }
         }
         String emitted = emittedText.toString();
@@ -917,13 +954,13 @@ public class SolonAiLlmGateway implements LlmGateway {
             String tail =
                     MemoryContextBoundary.scrubVisibleText(finalText.substring(emitted.length()));
             if (StrUtil.isNotBlank(tail)) {
-                eventSink.onAssistantDelta(tail);
+                effectiveEventSink.onAssistantDelta(tail);
             }
         } else if (StrUtil.isBlank(emitted)
                 && StrUtil.isNotBlank(finalText)
                 && !StrUtil.equals(finalText, emitted)) {
             // 只有前面没有发送过可见分片时，才用聚合内容补一次；避免前端收到重复完整回复。
-            eventSink.onAssistantDelta(finalText);
+            effectiveEventSink.onAssistantDelta(finalText);
         }
 
         return new OwnedModelResponse(
@@ -986,7 +1023,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             return null;
         }
         try {
-            return lastUnresolvedAssistantToolCall(MessageSupport.loadMessages(session.getNdjson()));
+            return lastUnresolvedAssistantToolCall(
+                    MessageSupport.loadMessages(session.getNdjson()));
         } catch (Exception e) {
             log.warn(
                     "load raw session messages for owned loop resume failed: sessionId={}, error={}",
@@ -1017,7 +1055,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                 return calls == null || calls.isEmpty() ? null : assistant;
             }
             if (message != null
-                    && "user".equalsIgnoreCase(StrUtil.nullToEmpty(String.valueOf(message.getRole())))) {
+                    && "user"
+                            .equalsIgnoreCase(
+                                    StrUtil.nullToEmpty(String.valueOf(message.getRole())))) {
                 return null;
             }
         }
@@ -1076,7 +1116,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                 return -1;
             }
             if (message != null
-                    && "user".equalsIgnoreCase(StrUtil.nullToEmpty(String.valueOf(message.getRole())))) {
+                    && "user"
+                            .equalsIgnoreCase(
+                                    StrUtil.nullToEmpty(String.valueOf(message.getRole())))) {
                 return -1;
             }
         }
@@ -1100,9 +1142,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             ChatOptions options,
             Prompt prompt) {
         ChatRequestDesc desc =
-                prompt == null
-                        ? chatModel.prompt(Prompt.of())
-                        : chatModel.prompt(prompt);
+                prompt == null ? chatModel.prompt(Prompt.of()) : chatModel.prompt(prompt);
         return desc.session(agentSession)
                 .options(
                         current -> {
@@ -1126,7 +1166,9 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @return 返回可执行工具调用。
      */
     private List<ToolCall> extractOwnedTextActionCalls(
-            SqliteAgentSession agentSession, AssistantMessage assistantMessage, ChatOptions options) {
+            SqliteAgentSession agentSession,
+            AssistantMessage assistantMessage,
+            ChatOptions options) {
         ToolCall call = parseOwnedTextActionCall(assistantMessage, options);
         if (call == null) {
             return Collections.emptyList();
@@ -1152,7 +1194,8 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param options Chat选项。
      * @return 返回工具调用。
      */
-    private ToolCall parseOwnedTextActionCall(AssistantMessage assistantMessage, ChatOptions options) {
+    private ToolCall parseOwnedTextActionCall(
+            AssistantMessage assistantMessage, ChatOptions options) {
         if (assistantMessage == null || options == null) {
             return null;
         }
@@ -1182,7 +1225,10 @@ public class SolonAiLlmGateway implements LlmGateway {
                 parsed.arguments == null
                         ? new LinkedHashMap<String, Object>()
                         : new LinkedHashMap<String, Object>(parsed.arguments);
-        String argumentsJson = ONode.serialize(arguments);
+        String argumentsJson =
+                parsed.argumentsValid
+                        ? ONode.serialize(arguments)
+                        : StrUtil.nullToEmpty(parsed.rawArguments);
         return new ToolCall(
                 "0",
                 "call-text-action-" + IdSupport.newId(),
@@ -1203,7 +1249,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         int index = content.indexOf("Action:");
         while (index >= 0) {
-            if (index == 0 || content.charAt(index - 1) == '\n' || content.charAt(index - 1) == '\r') {
+            if (index == 0
+                    || content.charAt(index - 1) == '\n'
+                    || content.charAt(index - 1) == '\r') {
                 return index;
             }
             index = content.indexOf("Action:", index + 1);
@@ -1229,8 +1277,14 @@ public class SolonAiLlmGateway implements LlmGateway {
             }
             Map<?, ?> map = (Map<?, ?>) parsed;
             String name = textValue(firstPresent(map, "name", "tool", "tool_name"));
-            Map<String, Object> arguments = toArgumentsMap(firstPresent(map, "arguments", "args", "input"));
-            return new ParsedTextAction(name, arguments);
+            Object rawArguments = firstPresent(map, "arguments", "args", "input");
+            Map<String, Object> arguments =
+                    rawArguments == null ? null : toArgumentsMap(rawArguments);
+            return new ParsedTextAction(
+                    name,
+                    arguments,
+                    rawArguments != null && arguments != null,
+                    rawArguments == null ? "" : String.valueOf(rawArguments));
         } catch (Throwable e) {
             return null;
         }
@@ -1249,8 +1303,9 @@ public class SolonAiLlmGateway implements LlmGateway {
             return null;
         }
         String name = stripActionToken(line);
-        Map<String, Object> arguments = parseOwnedActionInput(content);
-        return new ParsedTextAction(name, arguments);
+        ParsedToolArguments arguments = parseOwnedActionInput(content);
+        return new ParsedTextAction(
+                name, arguments.arguments, arguments.valid, arguments.rawArguments);
     }
 
     /**
@@ -1259,7 +1314,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param content 完整内容。
      * @return 返回参数。
      */
-    private Map<String, Object> parseOwnedActionInput(String content) {
+    private ParsedToolArguments parseOwnedActionInput(String content) {
         int inputIndex = content.indexOf("Action Input:");
         int labelLength = "Action Input:".length();
         if (inputIndex < 0) {
@@ -1267,17 +1322,19 @@ public class SolonAiLlmGateway implements LlmGateway {
             labelLength = "ActionInput:".length();
         }
         if (inputIndex < 0) {
-            return new LinkedHashMap<String, Object>();
+            return ParsedToolArguments.invalid("");
         }
         String input = content.substring(inputIndex + labelLength).trim();
-        String json = extractFirstJsonObject(input);
-        if (StrUtil.isBlank(json)) {
-            return new LinkedHashMap<String, Object>();
+        if (StrUtil.isBlank(input)) {
+            return ParsedToolArguments.invalid(input);
         }
         try {
-            return toArgumentsMap(ONode.deserialize(json, Object.class));
+            Map<String, Object> arguments = toArgumentsMap(ONode.deserialize(input, Object.class));
+            return arguments == null
+                    ? ParsedToolArguments.invalid(input)
+                    : ParsedToolArguments.valid(arguments, input);
         } catch (Throwable e) {
-            return new LinkedHashMap<String, Object>();
+            return ParsedToolArguments.invalid(input);
         }
     }
 
@@ -1404,8 +1461,8 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @return 返回参数Map。
      */
     private Map<String, Object> toArgumentsMap(Object value) {
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (value instanceof Map) {
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
             for (Map.Entry<?, ?> entry : ((Map<?, ?>) value).entrySet()) {
                 if (entry.getKey() != null) {
                     result.put(String.valueOf(entry.getKey()), entry.getValue());
@@ -1417,17 +1474,11 @@ public class SolonAiLlmGateway implements LlmGateway {
             try {
                 return toArgumentsMap(ONode.deserialize((String) value, Object.class));
             } catch (RuntimeException e) {
-                log.debug(
-                        "Tool call arguments are not structured JSON; falling back to input field: {}",
-                        safeError(e));
-                result.put("input", value);
-                return result;
+                log.debug("Tool call arguments are not a JSON object: {}", safeError(e));
+                return null;
             }
         }
-        if (value != null) {
-            result.put("input", value);
-        }
-        return result;
+        return null;
     }
 
     /**
@@ -1437,7 +1488,8 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param calls 工具调用。
      * @return 返回复制消息。
      */
-    private AssistantMessage copyAssistantWithToolCalls(AssistantMessage source, List<ToolCall> calls) {
+    private AssistantMessage copyAssistantWithToolCalls(
+            AssistantMessage source, List<ToolCall> calls) {
         AssistantMessage replacement =
                 new AssistantMessage(
                         source == null ? "" : source.getContent(),
@@ -1445,7 +1497,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                         source == null ? null : source.getContentRaw(),
                         Collections.<Map>emptyList(),
                         calls,
-                        source == null ? Collections.<Map>emptyList() : source.getSearchResultsRaw());
+                        source == null
+                                ? Collections.<Map>emptyList()
+                                : source.getSearchResultsRaw());
         if (source != null) {
             replacement.reasoningFieldName(source.getReasoningFieldName());
         }
@@ -1488,13 +1542,15 @@ public class SolonAiLlmGateway implements LlmGateway {
                     new TracingReActInterceptor(
                             runContext,
                             appConfig.getTrace().getToolPreviewLength(),
-                            appConfig.getTask().getToolOutputInlineLimit()));
+                            appConfig.getTask().getToolOutputInlineLimit(),
+                            dangerousCommandApprovalService));
             if (runContext.hasToolPolicy()) {
                 options.interceptorAdd(new ToolPolicyInterceptor(runContext));
             }
         }
         if (feedbackSink != null && feedbackSink != ConversationFeedbackSink.noop()) {
-            options.interceptorAdd(new FeedbackInterceptor(feedbackSink, dangerousCommandApprovalService));
+            options.interceptorAdd(
+                    new FeedbackInterceptor(feedbackSink, dangerousCommandApprovalService));
         }
         if (usageCollector != null) {
             options.interceptorAdd(new UsageCollectingInterceptor(usageCollector));
@@ -1504,10 +1560,16 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         if (toolObjects != null) {
             for (Object toolObject : toolObjects) {
-                addOwnedLoopTool(options, sanitizeToolObject(toolObject), Prompt.of(StrUtil.nullToEmpty(userMessage)));
+                addOwnedLoopTool(
+                        options,
+                        sanitizeToolObject(toolObject),
+                        Prompt.of(StrUtil.nullToEmpty(userMessage)));
             }
         }
-        addOwnedLoopTool(options, sanitizeToolObject(pdfSkill()), Prompt.of(StrUtil.nullToEmpty(userMessage)));
+        addOwnedLoopTool(
+                options,
+                sanitizeToolObject(pdfSkill()),
+                Prompt.of(StrUtil.nullToEmpty(userMessage)));
         return options;
     }
 
@@ -1577,11 +1639,22 @@ public class SolonAiLlmGateway implements LlmGateway {
             List<ReActInterceptor> interceptors)
             throws Exception {
         String toolName = call.getName();
+        String argumentsError = validateToolCallArguments(call);
+        if (argumentsError != null) {
+            appendOwnedToolMessage(trace, argumentsError, toolName, call, false);
+            trace.incrementToolCallCount();
+            if (eventSink != null) {
+                eventSink.onToolCompleted(toolName, argumentsError, 0L);
+            }
+            return;
+        }
         Map<String, Object> args =
                 call.getArguments() == null
                         ? Collections.<String, Object>emptyMap()
                         : call.getArguments();
-        args = normalizeOwnedToolArguments(toolName, args, options == null ? null : options.toolContext());
+        args =
+                normalizeOwnedToolArguments(
+                        toolName, args, options == null ? null : options.toolContext());
         FunctionTool tool = options.tool(toolName);
         long startedAt = System.currentTimeMillis();
         ToolExchanger exchanger = new ToolExchanger(toolName, args);
@@ -1601,7 +1674,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             }
             appendOwnedToolMessage(
                     trace,
-                    StrUtil.blankToDefault(ReActToolObservationSupport.get(trace, exchanger), skipped),
+                    StrUtil.blankToDefault(
+                            ReActToolObservationSupport.get(trace, exchanger), skipped),
                     toolName,
                     call,
                     false);
@@ -1625,21 +1699,46 @@ public class SolonAiLlmGateway implements LlmGateway {
                     new ToolChain<ReActInterceptor>(rankedInterceptors(interceptors), tool);
             toolResult = chain.doIntercept(toolRequest);
         } catch (Throwable e) {
-            toolResult = ToolResult.error("Execution error in tool [" + toolName + "]: " + safeError(e));
+            toolResult =
+                    ToolResult.error("Execution error in tool [" + toolName + "]: " + safeError(e));
         }
         long durationMs = Math.max(0L, System.currentTimeMillis() - startedAt);
         String observation = toolResult == null ? "" : StrUtil.nullToEmpty(toolResult.getContent());
         ReActToolObservationSupport.set(trace, exchanger, observation);
-        ChatMessage toolMessage = ChatMessage.ofTool(toolResult, toolName, call.getId(), tool.returnDirect());
+        ChatMessage toolMessage =
+                ChatMessage.ofTool(toolResult, toolName, call.getId(), tool.returnDirect());
         for (ReActInterceptor interceptor : interceptors) {
             interceptor.onObservation(trace, exchanger, toolMessage, null, durationMs);
         }
         String finalObservation =
-                StrUtil.blankToDefault(ReActToolObservationSupport.get(trace, exchanger), observation);
+                StrUtil.blankToDefault(
+                        ReActToolObservationSupport.get(trace, exchanger), observation);
         appendOwnedToolMessage(trace, finalObservation, toolName, call, tool.returnDirect());
         trace.incrementToolCallCount();
         if (eventSink != null) {
             eventSink.onToolCompleted(toolName, finalObservation, durationMs);
+        }
+    }
+
+    /**
+     * 在任何审批、拦截器或 handler 执行前验证模型原始 arguments 必须是 JSON 对象。
+     *
+     * @param call 模型返回的工具调用。
+     * @return 合法时返回 null；非法时返回可作为工具观察写回模型的错误文本。
+     */
+    private String validateToolCallArguments(ToolCall call) {
+        String raw = call == null ? null : call.getArgumentsStr();
+        if (StrUtil.isBlank(raw)) {
+            return "Tool call arguments must be a non-empty JSON object";
+        }
+        try {
+            ONode node = ONode.ofJson(raw);
+            if (!node.isObject()) {
+                return "Tool call arguments must be a JSON object";
+            }
+            return null;
+        } catch (RuntimeException e) {
+            return "Tool call arguments must be valid JSON object syntax";
         }
     }
 
@@ -1729,7 +1828,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                         ChatMessage.ofTool(
                                 ToolResult.success(StrUtil.nullToEmpty(observation)),
                                 toolName,
-                                StrUtil.blankToDefault(call == null ? null : call.getId(), toolName),
+                                StrUtil.blankToDefault(
+                                        call == null ? null : call.getId(), toolName),
                                 returnDirect));
     }
 
@@ -1783,9 +1883,8 @@ public class SolonAiLlmGateway implements LlmGateway {
     /**
      * 确保原生工具调用轮的 assistant tool_call 消息先进入会话历史。
      *
-     * <p>部分流式协议只在聚合响应里返回 tool_calls，并不会把该 assistant 消息同步写入
-     * AgentSession。若后续先追加 tool 结果，消息修复会因为找不到匹配的 tool_call id 而把真实
-     * 工具结果当作游离 tool 消息删除，最大步数恢复阶段就会丢失已经执行的工具事实。
+     * <p>部分流式协议只在聚合响应里返回 tool_calls，并不会把该 assistant 消息同步写入 AgentSession。若后续先追加 tool
+     * 结果，消息修复会因为找不到匹配的 tool_call id 而把真实 工具结果当作游离 tool 消息删除，最大步数恢复阶段就会丢失已经执行的工具事实。
      *
      * @param agentSession 当前 Agent 会话。
      * @param assistantMessage 本轮模型返回的 assistant 消息。
@@ -1843,7 +1942,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                 return -1;
             }
             if (message != null
-                    && "user".equalsIgnoreCase(StrUtil.nullToEmpty(String.valueOf(message.getRole())))) {
+                    && "user"
+                            .equalsIgnoreCase(
+                                    StrUtil.nullToEmpty(String.valueOf(message.getRole())))) {
                 return -1;
             }
         }
@@ -1867,7 +1968,8 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         for (int i = 0; i < calls.size(); i++) {
             String left = calls.get(i) == null ? "" : StrUtil.nullToEmpty(calls.get(i).getId());
-            String right = existing.get(i) == null ? "" : StrUtil.nullToEmpty(existing.get(i).getId());
+            String right =
+                    existing.get(i) == null ? "" : StrUtil.nullToEmpty(existing.get(i).getId());
             if (!StrUtil.equals(left, right)) {
                 return false;
             }
@@ -1968,7 +2070,8 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param interceptors 拦截器列表。
      * @return 返回排序实体集合。
      */
-    private List<RankEntity<ReActInterceptor>> rankedInterceptors(List<ReActInterceptor> interceptors) {
+    private List<RankEntity<ReActInterceptor>> rankedInterceptors(
+            List<ReActInterceptor> interceptors) {
         List<RankEntity<ReActInterceptor>> result = new ArrayList<RankEntity<ReActInterceptor>>();
         if (interceptors == null) {
             return result;
@@ -2495,30 +2598,230 @@ public class SolonAiLlmGateway implements LlmGateway {
             chatConfig.setApiKey(resolved.getApiKey());
         }
 
-        chatConfig.getModelOptions().temperature(resolved.getTemperature());
-        chatConfig.getModelOptions().max_tokens(resolved.getMaxTokens());
         String reasoningEffort =
                 session != null && StrUtil.isNotBlank(session.getReasoningEffortOverride())
                         ? session.getReasoningEffortOverride().trim()
                         : resolved.getReasoningEffort();
-        if (LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)
-                && StrUtil.isNotBlank(reasoningEffort)
-                && !"none".equalsIgnoreCase(reasoningEffort.trim())) {
-            chatConfig
-                    .getModelOptions()
-                    .optionSet(
-                            "reasoning",
-                            Collections.<String, Object>singletonMap(
-                                    "effort", reasoningEffort.trim()));
-        }
-        if (session != null
-                && "priority"
-                        .equalsIgnoreCase(
-                                StrUtil.nullToEmpty(session.getServiceTierOverride()).trim())) {
-            chatConfig.getModelOptions().optionSet("service_tier", "priority");
-        }
+        applyProviderRequestOptions(chatConfig, resolved, dialect, reasoningEffort);
+        applyFastMode(chatConfig, resolved, dialect, session);
+        applyPromptCache(chatConfig, resolved, dialect, session);
 
         return chatConfig;
+    }
+
+    /** 将通用模型配置转换为各协议实际接受的请求字段。 */
+    private void applyProviderRequestOptions(
+            ChatConfig chatConfig,
+            AppConfig.LlmConfig resolved,
+            String dialect,
+            String reasoningEffort) {
+        String effort = StrUtil.nullToEmpty(reasoningEffort).trim().toLowerCase(Locale.ROOT);
+        boolean reasoningEnabled = StrUtil.isNotBlank(effort) && !"none".equals(effort);
+
+        if (LlmConstants.PROVIDER_GEMINI.equals(dialect)) {
+            Map<String, Object> generationConfig = new LinkedHashMap<String, Object>();
+            generationConfig.put("temperature", resolved.getTemperature());
+            if (resolved.getMaxTokens() > 0) {
+                generationConfig.put("maxOutputTokens", resolved.getMaxTokens());
+            }
+            if (StrUtil.isNotBlank(effort)) {
+                Map<String, Object> thinkingConfig = new LinkedHashMap<String, Object>();
+                thinkingConfig.put("includeThoughts", reasoningEnabled);
+                if (reasoningEnabled
+                        && !resolved.getModel()
+                                .toLowerCase(Locale.ROOT)
+                                .startsWith("gemini-2.5-")) {
+                    if ("minimal".equals(effort) || "low".equals(effort)) {
+                        thinkingConfig.put("thinkingLevel", "LOW");
+                    } else if ("high".equals(effort) || "xhigh".equals(effort)) {
+                        thinkingConfig.put("thinkingLevel", "HIGH");
+                    }
+                }
+                generationConfig.put("thinkingConfig", thinkingConfig);
+            }
+            // Solon AI 4.0.3 的 Gemini Map 转换会丢失嵌套 thinkingConfig；结构化节点可由官方方言原样输出。
+            chatConfig
+                    .getModelOptions()
+                    .optionSet("generationConfig", ONode.ofBean(generationConfig));
+            return;
+        }
+
+        if (LlmConstants.PROVIDER_OLLAMA.equals(dialect)) {
+            Map<String, Object> options = new LinkedHashMap<String, Object>();
+            options.put("temperature", resolved.getTemperature());
+            if (resolved.getMaxTokens() > 0) {
+                options.put("num_predict", resolved.getMaxTokens());
+            }
+            chatConfig.getModelOptions().optionSet("options", options);
+            if (StrUtil.isNotBlank(effort)) {
+                chatConfig.getModelOptions().optionSet("think", reasoningEnabled);
+            }
+            return;
+        }
+
+        if (resolved.getMaxTokens() > 0) {
+            chatConfig.getModelOptions().max_tokens(resolved.getMaxTokens());
+        }
+        if (!reasoningEnabled
+                || (!LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)
+                        && !supportsOpenAiReasoning(resolved.getModel()))) {
+            chatConfig.getModelOptions().temperature(resolved.getTemperature());
+        }
+
+        if (LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect) && reasoningEnabled) {
+            Map<String, Object> reasoning = new LinkedHashMap<String, Object>();
+            reasoning.put("effort", effort);
+            reasoning.put("summary", "auto");
+            chatConfig.getModelOptions().optionSet("reasoning", reasoning);
+        } else if (LlmConstants.PROVIDER_OPENAI.equals(dialect)
+                && reasoningEnabled
+                && supportsOpenAiReasoning(resolved.getModel())) {
+            chatConfig.getModelOptions().optionSet("reasoning_effort", effort);
+        } else if (LlmConstants.PROVIDER_ANTHROPIC.equals(dialect) && reasoningEnabled) {
+            applyAnthropicReasoning(chatConfig, resolved, effort);
+        }
+    }
+
+    /** 将推理强度转换为 Anthropic 自适应或预算式 thinking 参数。 */
+    private void applyAnthropicReasoning(
+            ChatConfig chatConfig, AppConfig.LlmConfig resolved, String effort) {
+        if (usesAdaptiveAnthropicThinking(resolved.getModel())) {
+            Map<String, Object> thinking = new LinkedHashMap<String, Object>();
+            thinking.put("type", "adaptive");
+            chatConfig.getModelOptions().optionSet("thinking", thinking);
+            Map<String, Object> outputConfig = new LinkedHashMap<String, Object>();
+            outputConfig.put("effort", normalizeAnthropicEffort(resolved.getModel(), effort));
+            chatConfig.getModelOptions().optionSet("output_config", outputConfig);
+            return;
+        }
+
+        int maxTokens = resolved.getMaxTokens();
+        if (maxTokens <= 1024) {
+            return;
+        }
+        int requestedBudget;
+        if ("minimal".equals(effort)) {
+            requestedBudget = 1024;
+        } else if ("low".equals(effort)) {
+            requestedBudget = 4000;
+        } else if ("high".equals(effort)) {
+            requestedBudget = 16000;
+        } else if ("xhigh".equals(effort)) {
+            requestedBudget = 32000;
+        } else {
+            requestedBudget = 8000;
+        }
+        Map<String, Object> thinking = new LinkedHashMap<String, Object>();
+        thinking.put("enabled", true);
+        thinking.put("budget_tokens", Math.min(requestedBudget, maxTokens - 1024));
+        chatConfig.getModelOptions().optionSet("thinking", thinking);
+    }
+
+    /** 判断 Claude 模型是否使用 4.6 之后的自适应 thinking 合约。 */
+    private boolean usesAdaptiveAnthropicThinking(String model) {
+        String normalized = StrUtil.nullToEmpty(model).toLowerCase(Locale.ROOT).replace('.', '-');
+        if (!normalized.contains("claude")) {
+            return false;
+        }
+        return !(normalized.contains("claude-3")
+                || normalized.contains("opus-4-0")
+                || normalized.contains("opus-4-1")
+                || normalized.contains("opus-4-5")
+                || normalized.contains("sonnet-4-0")
+                || normalized.contains("sonnet-4-5")
+                || normalized.contains("haiku-4-5"));
+    }
+
+    /** 规范化 Anthropic 自适应 thinking 的 effort 值。 */
+    private String normalizeAnthropicEffort(String model, String effort) {
+        if ("minimal".equals(effort)) {
+            return "low";
+        }
+        String normalizedModel = StrUtil.nullToEmpty(model).toLowerCase(Locale.ROOT);
+        if ("xhigh".equals(effort)
+                && (normalizedModel.contains("4-6") || normalizedModel.contains("4.6"))) {
+            return "max";
+        }
+        return effort;
+    }
+
+    /** 判断 OpenAI 模型是否接受 reasoning effort。 */
+    private boolean supportsOpenAiReasoning(String model) {
+        String normalized = StrUtil.nullToEmpty(model).toLowerCase(Locale.ROOT);
+        int slash = normalized.lastIndexOf('/');
+        if (slash >= 0) {
+            normalized = normalized.substring(slash + 1);
+        }
+        return normalized.startsWith("gpt-5")
+                || normalized.startsWith("o1")
+                || normalized.startsWith("o3")
+                || normalized.startsWith("o4");
+    }
+
+    /** 将会话 /fast 状态转换为提供方原生快速模式参数。 */
+    private void applyFastMode(
+            ChatConfig chatConfig,
+            AppConfig.LlmConfig resolved,
+            String dialect,
+            SessionRecord session) {
+        if (session == null
+                || !"priority"
+                        .equalsIgnoreCase(
+                                StrUtil.nullToEmpty(session.getServiceTierOverride()).trim())) {
+            return;
+        }
+        if ((LlmConstants.PROVIDER_OPENAI.equals(dialect)
+                        || LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect))
+                && LlmProviderSupport.isDirectOpenAiBaseUrl(resolved.getApiUrl())
+                && supportsOpenAiReasoning(resolved.getModel())
+                && !StrUtil.nullToEmpty(resolved.getModel())
+                        .toLowerCase(Locale.ROOT)
+                        .contains("codex")) {
+            chatConfig.getModelOptions().optionSet("service_tier", "priority");
+            return;
+        }
+        if (LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)
+                && LlmProviderSupport.baseUrlHostMatches(resolved.getApiUrl(), "api.anthropic.com")
+                && isAnthropicFastModel(resolved.getModel())) {
+            chatConfig.getModelOptions().optionSet("speed", "fast");
+            chatConfig.setHeader("anthropic-beta", "fast-mode-2026-02-01");
+        }
+    }
+
+    /** 判断模型是否支持 Anthropic Fast Mode。 */
+    private boolean isAnthropicFastModel(String model) {
+        String normalized = StrUtil.nullToEmpty(model).toLowerCase(Locale.ROOT);
+        return normalized.contains("opus-4-6") || normalized.contains("opus-4.6");
+    }
+
+    /** 将提示词缓存配置接入 Solon AI 官方 CacheControl 与协议补充策略。 */
+    private void applyPromptCache(
+            ChatConfig chatConfig,
+            AppConfig.LlmConfig resolved,
+            String dialect,
+            SessionRecord session) {
+        PromptCachePolicy policy = new PromptCachePolicy(resolved.getPromptCache());
+        if (!policy.isEnabled()) {
+            return;
+        }
+        if (LlmConstants.PROVIDER_ANTHROPIC.equals(dialect)) {
+            chatConfig.setCacheControl(CacheControl.ofEphemeral());
+            chatConfig.getModelOptions().toolContextPut(PromptCachePolicy.TOOL_CONTEXT_KEY, policy);
+            return;
+        }
+
+        String seed =
+                StrUtil.nullToEmpty(resolved.getProvider())
+                        + '|'
+                        + StrUtil.nullToEmpty(resolved.getModel())
+                        + '|'
+                        + (session == null ? "" : StrUtil.nullToEmpty(session.getSessionId()));
+        String cacheKey = "solonclaw-" + SecureUtil.sha256(seed).substring(0, 32);
+        if (LlmConstants.PROVIDER_OPENAI.equals(dialect)) {
+            chatConfig.setCacheControl(CacheControl.ofPromptKey(cacheKey));
+        } else if (LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect)) {
+            chatConfig.getModelOptions().optionSet("prompt_cache_key", cacheKey);
+        }
     }
 
     /**
@@ -2528,7 +2831,18 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @return 返回创建好的Chat模型。
      */
     protected ChatModel buildChatModel(AppConfig.LlmConfig resolved) {
-        return buildChatConfig(resolved).toChatModel();
+        return buildChatModel(resolved, null);
+    }
+
+    /**
+     * 使用当前会话覆盖构建 Chat 模型，确保 /reasoning、/fast 与缓存键进入真实请求。
+     *
+     * @param resolved 已解析的大模型配置。
+     * @param session 当前会话。
+     * @return 带会话请求选项的 Chat 模型。
+     */
+    protected ChatModel buildChatModel(AppConfig.LlmConfig resolved, SessionRecord session) {
+        return buildChatConfig(resolved, session).toChatModel();
     }
 
     /**
@@ -2804,6 +3118,15 @@ public class SolonAiLlmGateway implements LlmGateway {
         return false;
     }
 
+    /** 判断持久化会话是否为子代理会话。 */
+    private boolean isDelegateSession(SessionRecord session) {
+        if (session == null) {
+            return false;
+        }
+        return StrUtil.contains(session.getSourceKey(), ":delegate:")
+                || StrUtil.isNotBlank(session.getParentSessionId());
+    }
+
     /** 自有 ReAct 循环使用的轻量 trace，复用 Solon AI 生命周期拦截器。 */
     private static class OwnedReActTrace extends ReActTrace {
         /**
@@ -2838,12 +3161,16 @@ public class SolonAiLlmGateway implements LlmGateway {
     private static class OwnedModelResponse {
         /** 模型原始响应。 */
         private final ChatResponse response;
+
         /** assistant消息。 */
         private final AssistantMessage assistantMessage;
+
         /** 原始响应文本。 */
         private final String rawResponse;
+
         /** 是否流式。 */
         private final boolean streamed;
+
         /** 流式解析出的推理文本。 */
         private final String reasoningText;
 
@@ -2874,8 +3201,15 @@ public class SolonAiLlmGateway implements LlmGateway {
     private static class ParsedTextAction {
         /** 工具名。 */
         private final String name;
+
         /** 工具参数。 */
         private final Map<String, Object> arguments;
+
+        /** 参数是否来自完整 JSON 对象。 */
+        private final boolean argumentsValid;
+
+        /** 模型原始参数文本，非法时保留给执行边界做 fail-closed 判断。 */
+        private final String rawArguments;
 
         /**
          * 创建文本 Action 解析结果。
@@ -2883,9 +3217,46 @@ public class SolonAiLlmGateway implements LlmGateway {
          * @param name 工具名。
          * @param arguments 工具参数。
          */
-        private ParsedTextAction(String name, Map<String, Object> arguments) {
+        private ParsedTextAction(
+                String name,
+                Map<String, Object> arguments,
+                boolean argumentsValid,
+                String rawArguments) {
             this.name = name;
             this.arguments = arguments;
+            this.argumentsValid = argumentsValid;
+            this.rawArguments = rawArguments;
+        }
+    }
+
+    /** 文本 Action 参数解析结果。 */
+    private static class ParsedToolArguments {
+        /** 仅在合法 JSON 对象时有值。 */
+        private final Map<String, Object> arguments;
+
+        /** 是否为完整 JSON 对象。 */
+        private final boolean valid;
+
+        /** 原始参数文本。 */
+        private final String rawArguments;
+
+        /** 创建参数解析结果。 */
+        private ParsedToolArguments(
+                Map<String, Object> arguments, boolean valid, String rawArguments) {
+            this.arguments = arguments;
+            this.valid = valid;
+            this.rawArguments = rawArguments;
+        }
+
+        /** 返回合法参数结果。 */
+        private static ParsedToolArguments valid(
+                Map<String, Object> arguments, String rawArguments) {
+            return new ParsedToolArguments(arguments, true, rawArguments);
+        }
+
+        /** 返回非法参数结果。 */
+        private static ParsedToolArguments invalid(String rawArguments) {
+            return new ParsedToolArguments(null, false, rawArguments);
         }
     }
 
@@ -3065,7 +3436,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                 return SmartApprovalDecision.escalate(reason);
             }
         } catch (Exception e) {
-            log.debug("Smart approval response was not valid JSON; using text fallback: {}", safeError(e));
+            log.debug(
+                    "Smart approval response was not valid JSON; using text fallback: {}",
+                    safeError(e));
         }
         String lower = text.toLowerCase(Locale.ROOT);
         if (lower.contains("\"approve\"") || lower.startsWith("approve")) {
@@ -3149,8 +3522,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             metadata.put("allowed_tools", runContext.getAllowedToolNames());
             metadata.put("max_tool_calls", runContext.getMaxToolCalls());
             metadata.put(
-                    "attempted_tool_calls",
-                    Integer.valueOf(runContext.getAttemptedToolCalls()));
+                    "attempted_tool_calls", Integer.valueOf(runContext.getAttemptedToolCalls()));
             runContext.event("tool.policy.denied", rejection, metadata);
         }
     }
@@ -3196,7 +3568,8 @@ public class SolonAiLlmGateway implements LlmGateway {
          */
         @Override
         public void onAction(ReActTrace trace, ToolExchanger exchanger) {
-            if (trace != null && StrUtil.isNotBlank(ReActToolObservationSupport.get(trace, exchanger))) {
+            if (trace != null
+                    && StrUtil.isNotBlank(ReActToolObservationSupport.get(trace, exchanger))) {
                 return;
             }
             if (trace != null && trace.getSession() != null && trace.getSession().isPending()) {
@@ -3258,7 +3631,8 @@ public class SolonAiLlmGateway implements LlmGateway {
          * @return 返回模型响应。
          */
         @Override
-        public ChatResponse interceptCall(ChatRequest request, CallChain chain) throws java.io.IOException {
+        public ChatResponse interceptCall(ChatRequest request, CallChain chain)
+                throws java.io.IOException {
             ChatResponse resp = chain.doIntercept(request);
             if (resp != null) {
                 usageCollector.add(resp.getUsage());
@@ -3275,11 +3649,13 @@ public class SolonAiLlmGateway implements LlmGateway {
          */
         @Override
         public Flux<ChatResponse> interceptStream(ChatRequest request, StreamChain chain) {
-            return chain.doIntercept(request).doOnNext(resp -> {
-                if (resp != null) {
-                    usageCollector.add(resp.getUsage());
-                }
-            });
+            return chain.doIntercept(request)
+                    .doOnNext(
+                            resp -> {
+                                if (resp != null) {
+                                    usageCollector.add(resp.getUsage());
+                                }
+                            });
         }
     }
 
@@ -3612,6 +3988,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         /** 记录TracingReActInterceptor中的内联限制字节。 */
         private final int inlineLimitBytes;
 
+        /** 危险命令审批服务，用于区分待审批暂停与异常中断。 */
+        private final DangerousCommandApprovalService approvalService;
+
         /** 保存active工具Calls映射，便于按键快速查询。 */
         private final ConcurrentMap<String, ToolCallRecord> activeToolCalls =
                 new ConcurrentHashMap<String, ToolCallRecord>();
@@ -3622,12 +4001,17 @@ public class SolonAiLlmGateway implements LlmGateway {
          * @param runContext 运行上下文。
          * @param previewLength 预览Length参数。
          * @param inlineLimitBytes 内联Limit字节参数。
+         * @param approvalService 危险命令审批服务。
          */
         private TracingReActInterceptor(
-                AgentRunContext runContext, int previewLength, int inlineLimitBytes) {
+                AgentRunContext runContext,
+                int previewLength,
+                int inlineLimitBytes,
+                DangerousCommandApprovalService approvalService) {
             this.runContext = runContext;
             this.previewLength = Math.max(200, previewLength);
             this.inlineLimitBytes = Math.max(256, inlineLimitBytes);
+            this.approvalService = approvalService;
         }
 
         /**
@@ -3638,7 +4022,8 @@ public class SolonAiLlmGateway implements LlmGateway {
          * @return 返回模型响应。
          */
         @Override
-        public ChatResponse interceptCall(ChatRequest request, CallChain chain) throws java.io.IOException {
+        public ChatResponse interceptCall(ChatRequest request, CallChain chain)
+                throws java.io.IOException {
             runContext.setPhase("model");
             runContext.event("model.start", "开始请求模型");
             try {
@@ -3733,11 +4118,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             metadata.put("result_ref", output.getResultRef());
             runContext.event(
                     policyDenied ? "tool.policy.end" : "tool.end",
-                    (policyDenied ? "工具策略拒绝：" : "工具完成：")
-                            + toolName
-                            + "（"
-                            + durationMs
-                            + "ms）",
+                    (policyDenied ? "工具策略拒绝：" : "工具完成：") + toolName + "（" + durationMs + "ms）",
                     metadata);
             ToolCallRecord record = activeToolCalls.remove(toolName);
             if (record == null) {
@@ -3763,6 +4144,46 @@ public class SolonAiLlmGateway implements LlmGateway {
             record.setFinishedAt(System.currentTimeMillis());
             record.setDurationMs(durationMs);
             runContext.saveToolCall(record);
+        }
+
+        /**
+         * Agent 本轮结束时关闭没有 observation 的工具轨迹，避免审批暂停后长期残留 running。
+         *
+         * @param trace 当前 ReAct 运行轨迹。
+         */
+        @Override
+        public void onAgentEnd(ReActTrace trace) {
+            if (activeToolCalls.isEmpty()) {
+                return;
+            }
+            boolean approvalRequired = hasPendingApproval(trace);
+            long finishedAt = System.currentTimeMillis();
+            for (ToolCallRecord record : activeToolCalls.values()) {
+                record.setStatus(approvalRequired ? "approval_required" : "interrupted");
+                record.setError(approvalRequired ? "工具等待人工审批，未在本次运行中执行" : "Agent 本轮结束前未收到工具执行结果");
+                record.setFinishedAt(finishedAt);
+                record.setDurationMs(Math.max(0L, finishedAt - record.getStartedAt()));
+                runContext.saveToolCall(record);
+            }
+            activeToolCalls.clear();
+        }
+
+        /** 判断当前 ReAct 会话是否仍有待处理的人工审批。 */
+        private boolean hasPendingApproval(ReActTrace trace) {
+            if (approvalService == null || trace == null || trace.getSession() == null) {
+                return false;
+            }
+            try {
+                return approvalService.getPendingApproval(trace.getSession()) != null;
+            } catch (RuntimeException e) {
+                log.debug(
+                        "Pending approval lookup failed while closing tool trace: {}",
+                        SecretRedactor.redact(
+                                StrUtil.blankToDefault(
+                                        e.getMessage(), e.getClass().getSimpleName()),
+                                500));
+                return false;
+            }
         }
 
         /**
@@ -3813,7 +4234,9 @@ public class SolonAiLlmGateway implements LlmGateway {
          */
         private boolean isCronjobMutationAction(Object action) {
             String normalized =
-                    action == null ? "list" : String.valueOf(action).trim().toLowerCase(Locale.ROOT);
+                    action == null
+                            ? "list"
+                            : String.valueOf(action).trim().toLowerCase(Locale.ROOT);
             return "create".equals(normalized)
                     || "add".equals(normalized)
                     || "update".equals(normalized)

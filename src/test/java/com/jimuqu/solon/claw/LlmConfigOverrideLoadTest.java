@@ -46,9 +46,7 @@ public class LlmConfigOverrideLoadTest {
     void shouldLoadCanonicalLlmMaxTokensFromRuntimeConfig() throws Exception {
         File workspaceHome = Files.createTempDirectory("solonclaw-llm-max-tokens").toFile();
         File configFile = new File(workspaceHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "solonclaw:\n" + "  llm:\n" + "    maxTokens: 8192\n",
-                configFile);
+        FileUtil.writeUtf8String("solonclaw:\n" + "  llm:\n" + "    maxTokens: 8192\n", configFile);
 
         Props props = new Props();
         props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
@@ -60,5 +58,4 @@ public class LlmConfigOverrideLoadTest {
 
         assertThat(config.getLlm().getMaxTokens()).isEqualTo(8192);
     }
-
 }

@@ -127,6 +127,7 @@ public class SolonClawPatchTools {
      * @param newString new字符串参数。
      * @param replaceAll replaceAll 参数。
      * @param patchText 补丁文本参数。
+     * @param crossProfile 是否显式允许修改其他 Profile 的用户目录。
      * @return 返回patch结果。
      */
     @ToolMapping(
@@ -147,8 +148,15 @@ public class SolonClawPatchTools {
                             required = false)
                     Boolean replaceAll,
             @Param(name = "patch", description = "V4A patch text for patch mode", required = false)
-                    String patchText) {
+                    String patchText,
+            @Param(
+                            name = "cross_profile",
+                            description = "仅在用户明确要求修改其他 Profile 后设为 true",
+                            required = false,
+                            defaultValue = "false")
+                    Boolean crossProfile) {
         String selectedMode = StrUtil.blankToDefault(mode, "replace").trim().toLowerCase();
+        boolean allowCrossProfile = Boolean.TRUE.equals(crossProfile);
         PatchResult result;
         try {
             if ("replace".equals(selectedMode)) {
@@ -157,9 +165,10 @@ public class SolonClawPatchTools {
                                 path,
                                 oldString,
                                 StrUtil.nullToEmpty(newString),
-                                Boolean.TRUE.equals(replaceAll));
+                                Boolean.TRUE.equals(replaceAll),
+                                allowCrossProfile);
             } else if ("patch".equals(selectedMode)) {
-                result = applyV4a(patchText);
+                result = applyV4a(patchText, allowCrossProfile);
             } else {
                 result = PatchResult.error("Unknown mode: " + mode);
             }
@@ -171,16 +180,42 @@ public class SolonClawPatchTools {
     }
 
     /**
+     * 供 Java 内部调用在不跨 Profile 时使用的便捷重载。
+     *
+     * @param mode 补丁模式。
+     * @param path replace 模式目标路径。
+     * @param oldString 待替换文本。
+     * @param newString 替换文本。
+     * @param replaceAll 是否替换全部匹配。
+     * @param patchText V4A 补丁文本。
+     * @return 返回补丁结果。
+     */
+    public synchronized String patch(
+            String mode,
+            String path,
+            String oldString,
+            String newString,
+            Boolean replaceAll,
+            String patchText) {
+        return patch(mode, path, oldString, newString, replaceAll, patchText, null);
+    }
+
+    /**
      * 执行replace相关逻辑。
      *
      * @param filePath 目标文件相对路径或绝对路径。
      * @param oldString old字符串参数。
      * @param newString new字符串参数。
      * @param replaceAll replaceAll 参数。
+     * @param crossProfile 是否允许跨 Profile 写入。
      * @return 返回replace结果。
      */
     private PatchResult replace(
-            String filePath, String oldString, String newString, boolean replaceAll)
+            String filePath,
+            String oldString,
+            String newString,
+            boolean replaceAll,
+            boolean crossProfile)
             throws IOException {
         if (StrUtil.isBlank(filePath)) {
             return PatchResult.error("path required");
@@ -195,11 +230,11 @@ public class SolonClawPatchTools {
             return PatchResult.error("old_string and new_string are identical");
         }
 
-        PatchResult policy = checkPolicy(filePath);
+        PatchResult policy = checkPolicy(filePath, crossProfile);
         if (policy != null) {
             return policy;
         }
-        Path target = resolvePath(filePath);
+        Path target = resolvePath(filePath, crossProfile);
         if (!Files.exists(target) || Files.isDirectory(target)) {
             return PatchResult.error("Cannot read file: " + safePath(filePath));
         }
@@ -235,9 +270,10 @@ public class SolonClawPatchTools {
      * 应用V4a。
      *
      * @param patchText 补丁文本参数。
+     * @param crossProfile 是否允许跨 Profile 写入。
      * @return 返回apply V4a结果。
      */
-    private PatchResult applyV4a(String patchText) throws IOException {
+    private PatchResult applyV4a(String patchText, boolean crossProfile) throws IOException {
         if (StrUtil.isBlank(patchText)) {
             return PatchResult.error("patch content required");
         }
@@ -249,12 +285,12 @@ public class SolonClawPatchTools {
         if (operations.isEmpty()) {
             return PatchResult.error("patch rejected: empty patch");
         }
-        PatchResult policy = checkPolicy(operations);
+        PatchResult policy = checkPolicy(operations, crossProfile);
         if (policy != null) {
             return policy;
         }
 
-        List<String> validationErrors = validateOperations(operations);
+        List<String> validationErrors = validateOperations(operations, crossProfile);
         if (!validationErrors.isEmpty()) {
             return PatchResult.error(
                     "Patch validation failed (no files were modified):\n  "
@@ -264,7 +300,7 @@ public class SolonClawPatchTools {
         PatchResult result = PatchResult.success();
         StringBuilder diff = new StringBuilder();
         for (PatchOperation operation : operations) {
-            applyOperation(operation, result, diff);
+            applyOperation(operation, result, diff, crossProfile);
         }
         result.diff = diff.toString();
         return result;
@@ -407,9 +443,11 @@ public class SolonClawPatchTools {
      * 校验Operations。
      *
      * @param operations operations 参数。
+     * @param crossProfile 是否允许跨 Profile 写入。
      * @return 返回Operations结果。
      */
-    private List<String> validateOperations(List<PatchOperation> operations) throws IOException {
+    private List<String> validateOperations(List<PatchOperation> operations, boolean crossProfile)
+            throws IOException {
         List<String> errors = new ArrayList<String>();
         for (PatchOperation operation : operations) {
             if (StrUtil.isBlank(operation.filePath)) {
@@ -425,7 +463,7 @@ public class SolonClawPatchTools {
                     errors.add("UPDATE " + safePath(operation.filePath) + ": no hunks found");
                     continue;
                 }
-                Path target = resolvePath(operation.filePath);
+                Path target = resolvePath(operation.filePath, crossProfile);
                 if (!Files.exists(target) || Files.isDirectory(target)) {
                     errors.add(safePath(operation.filePath) + ": file not found");
                     continue;
@@ -438,12 +476,12 @@ public class SolonClawPatchTools {
                     Path writeTarget =
                             StrUtil.isBlank(operation.newPath)
                                     ? target
-                                    : resolvePath(operation.newPath);
+                                    : resolvePath(operation.newPath, crossProfile);
                     addPlaceholderSecretDowngradeError(
                             errors, writeTarget, simulated, applied.content);
                 }
                 if (StrUtil.isNotBlank(operation.newPath)) {
-                    Path destination = resolvePath(operation.newPath);
+                    Path destination = resolvePath(operation.newPath, crossProfile);
                     if (Files.exists(destination)) {
                         errors.add(
                                 safePath(operation.newPath)
@@ -451,13 +489,13 @@ public class SolonClawPatchTools {
                     }
                 }
             } else if ("delete".equals(operation.type)) {
-                Path target = resolvePath(operation.filePath);
+                Path target = resolvePath(operation.filePath, crossProfile);
                 if (!Files.exists(target) || Files.isDirectory(target)) {
                     errors.add(safePath(operation.filePath) + ": file not found for deletion");
                 }
             } else if ("move".equals(operation.type)) {
-                Path source = resolvePath(operation.filePath);
-                Path destination = resolvePath(operation.newPath);
+                Path source = resolvePath(operation.filePath, crossProfile);
+                Path destination = resolvePath(operation.newPath, crossProfile);
                 if (!Files.exists(source) || Files.isDirectory(source)) {
                     errors.add(safePath(operation.filePath) + ": source file not found for move");
                 }
@@ -467,7 +505,7 @@ public class SolonClawPatchTools {
                                     + ": destination already exists - move would overwrite");
                 }
             } else if ("add".equals(operation.type)) {
-                Path target = resolvePath(operation.filePath);
+                Path target = resolvePath(operation.filePath, crossProfile);
                 if (Files.exists(target)) {
                     errors.add(
                             safePath(operation.filePath)
@@ -503,19 +541,17 @@ public class SolonClawPatchTools {
      * 检查策略。
      *
      * @param operations operations 参数。
+     * @param crossProfile 是否允许跨 Profile 写入。
      * @return 返回策略结果。
      */
-    private PatchResult checkPolicy(List<PatchOperation> operations) {
-        if (securityPolicyService == null) {
-            return null;
-        }
+    private PatchResult checkPolicy(List<PatchOperation> operations, boolean crossProfile) {
         for (PatchOperation operation : operations) {
-            PatchResult result = checkPolicy(operation.filePath);
+            PatchResult result = checkPolicy(operation.filePath, crossProfile);
             if (result != null) {
                 return result;
             }
             if (StrUtil.isNotBlank(operation.newPath)) {
-                result = checkPolicy(operation.newPath);
+                result = checkPolicy(operation.newPath, crossProfile);
                 if (result != null) {
                     return result;
                 }
@@ -528,34 +564,40 @@ public class SolonClawPatchTools {
      * 检查策略。
      *
      * @param filePath 目标文件相对路径或绝对路径。
+     * @param crossProfile 是否允许跨 Profile 写入。
      * @return 返回策略结果。
      */
-    private PatchResult checkPolicy(String filePath) {
-        if (securityPolicyService == null) {
-            return null;
+    private PatchResult checkPolicy(String filePath, boolean crossProfile) {
+        ToolCrossProfilePathSupport.CrossProfileTarget crossTarget =
+                ToolCrossProfilePathSupport.classify(rootPath, filePath);
+        if (crossTarget != null && !crossProfile) {
+            return PatchResult.error(ToolCrossProfilePathSupport.warning(crossTarget));
         }
-        SecurityPolicyService.FileVerdict verdict = securityPolicyService.checkPath(filePath, true);
-        if (verdict.isAllowed()) {
-            try {
-                resolvePath(filePath);
-                return null;
-            } catch (SecurityException e) {
-                return PatchResult.error(outsideWorkspaceApprovalRequired(filePath));
+        if (securityPolicyService != null) {
+            SecurityPolicyService.FileVerdict verdict =
+                    securityPolicyService.checkPath(filePath, true);
+            if (!verdict.isAllowed()) {
+                if (verdict.isApprovalRequired()) {
+                    return PatchResult.error(
+                            "APPROVAL_REQUIRED: "
+                                    + verdict.getMessage()
+                                    + " path="
+                                    + redactPath(verdict.getPath(), 400)
+                                    + "。请先在对话审批该单次操作。");
+                }
+                return PatchResult.error(
+                        "BLOCKED: 文件安全策略阻止访问："
+                                + verdict.getMessage()
+                                + " path="
+                                + redactPath(verdict.getPath(), 400));
             }
         }
-        if (verdict.isApprovalRequired()) {
-            return PatchResult.error(
-                    "APPROVAL_REQUIRED: "
-                            + verdict.getMessage()
-                            + " path="
-                            + redactPath(verdict.getPath(), 400)
-                            + "。请先在对话审批该单次操作。");
+        try {
+            resolvePath(filePath, crossProfile);
+            return null;
+        } catch (SecurityException e) {
+            return PatchResult.error(outsideWorkspaceApprovalRequired(filePath));
         }
-        return PatchResult.error(
-                "BLOCKED: 文件安全策略阻止访问："
-                        + verdict.getMessage()
-                        + " path="
-                        + redactPath(verdict.getPath(), 400));
     }
 
     /**
@@ -565,9 +607,7 @@ public class SolonClawPatchTools {
      * @return 返回统一的审批提示文本。
      */
     private String outsideWorkspaceApprovalRequired(String filePath) {
-        return "APPROVAL_REQUIRED: 工作区外写入需要审批 path="
-                + redactPath(filePath, 400)
-                + "。请先在对话审批该单次操作。";
+        return "APPROVAL_REQUIRED: 工作区外写入需要审批 path=" + redactPath(filePath, 400) + "。请先在对话审批该单次操作。";
     }
 
     /**
@@ -587,10 +627,12 @@ public class SolonClawPatchTools {
      * @param operation operation 参数。
      * @param result 结果响应或执行结果。
      * @param diff diff 参数。
+     * @param crossProfile 是否允许跨 Profile 写入。
      */
-    private void applyOperation(PatchOperation operation, PatchResult result, StringBuilder diff)
+    private void applyOperation(
+            PatchOperation operation, PatchResult result, StringBuilder diff, boolean crossProfile)
             throws IOException {
-        Path target = resolvePath(operation.filePath);
+        Path target = resolvePath(operation.filePath, crossProfile);
         if ("add".equals(operation.type)) {
             String content = collectAddContent(operation);
             write(target, content);
@@ -610,7 +652,7 @@ public class SolonClawPatchTools {
             diff.append(simpleDiff(normalizePath(operation.filePath), old, ""));
         } else if ("move".equals(operation.type)) {
             result.addWarning(fileStateTracker.checkStaleness(operation.filePath, target));
-            Path destination = resolvePath(operation.newPath);
+            Path destination = resolvePath(operation.newPath, crossProfile);
             if (destination.getParent() != null) {
                 Files.createDirectories(destination.getParent());
             }
@@ -633,7 +675,7 @@ public class SolonClawPatchTools {
                 throw new IOException(applied.error);
             }
             if (StrUtil.isNotBlank(operation.newPath)) {
-                Path destination = resolvePath(operation.newPath);
+                Path destination = resolvePath(operation.newPath, crossProfile);
                 write(destination, applied.content);
                 Files.delete(target);
                 fileStateTracker.recordWrite(target);
@@ -922,12 +964,24 @@ public class SolonClawPatchTools {
      * 解析路径。
      *
      * @param rawPath 文件或目录路径参数。
+     * @param crossProfile 是否允许跨 Profile 写入。
      * @return 返回解析后的路径。
      */
-    private Path resolvePath(String rawPath) {
+    private Path resolvePath(String rawPath, boolean crossProfile) {
         String value = StrUtil.nullToEmpty(rawPath).trim();
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
             throw new IllegalArgumentException("invalid file path: " + rawPath);
+        }
+        ToolCrossProfilePathSupport.CrossProfileTarget crossTarget =
+                ToolCrossProfilePathSupport.classify(rootPath, value);
+        if (crossTarget != null) {
+            if (!crossProfile) {
+                throw new SecurityException(ToolCrossProfilePathSupport.warning(crossTarget));
+            }
+            Path target = crossTarget.target();
+            ToolWorkspacePathSupport.assertResolvedWithinRoot(
+                    target, ToolWorkspacePathSupport.safeRealPath(crossTarget.profileHome()));
+            return target;
         }
         Path target =
                 rootPath.resolve(ToolWorkspacePathSupport.normalizeWorkspacePath(rootPath, value))
@@ -967,8 +1021,7 @@ public class SolonClawPatchTools {
      */
     private void write(Path target, String content) throws IOException {
         String value = StrUtil.nullToEmpty(content);
-        String oldContent =
-                Files.exists(target) && !Files.isDirectory(target) ? read(target) : "";
+        String oldContent = Files.exists(target) && !Files.isDirectory(target) ? read(target) : "";
         ConfigSecretWriteGuard.assertNoPlaceholderSecretDowngrade(target, oldContent, value);
         if (hasLeadingBom(target) && !value.startsWith(UTF8_BOM)) {
             value = UTF8_BOM + value;

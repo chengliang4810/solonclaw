@@ -9,8 +9,8 @@ import java.util.Set;
 import lombok.Getter;
 
 /**
- * 解析用户输入的 inline 完成契约：识别行首 "field: value" 形式，抽取到 GoalContract，
- * 其余行作为目标 headline 返回。对标仓库 parse_contract 的行为复刻。
+ * 解析用户输入的 inline 完成契约：识别行首 "field: value" 形式，抽取到 GoalContract， 其余行作为目标 headline 返回。对标仓库
+ * parse_contract 的行为复刻。
  */
 public final class GoalContractParser {
 
@@ -21,6 +21,7 @@ public final class GoalContractParser {
     public static final class ParseResult {
         /** 目标主标题（非字段行拼接）。 */
         private final String headline;
+
         /** 抽取出的完成契约。 */
         private final GoalContract contract;
 
@@ -32,16 +33,21 @@ public final class GoalContractParser {
     }
 
     /** outcome 字段别名（小写）。 */
-    private static final Set<String> ALIAS_OUTCOME = aliases("outcome", "goal", "done", "done when");
+    private static final Set<String> ALIAS_OUTCOME =
+            aliases("outcome", "goal", "done", "done when");
+
     /** verification 字段别名（小写）。 */
     private static final Set<String> ALIAS_VERIFICATION =
             aliases("verification", "verify", "verified by", "evidence", "proof");
+
     /** constraints 字段别名（小写）。 */
     private static final Set<String> ALIAS_CONSTRAINTS =
             aliases("constraints", "constraint", "preserve", "must not", "do not change");
+
     /** boundaries 字段别名（小写）。 */
     private static final Set<String> ALIAS_BOUNDARIES =
             aliases("boundaries", "boundary", "scope", "allowed", "files");
+
     /** stopWhen 字段别名（小写）。 */
     private static final Set<String> ALIAS_STOP_WHEN =
             aliases("stop when", "stop_when", "blocked", "stop if blocked", "give up when");

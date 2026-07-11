@@ -9,6 +9,8 @@ import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.RuntimeSetupSpec;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileConfigFile;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -47,14 +49,19 @@ public class DashboardConfigService {
     private final com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
             gatewayRuntimeRefreshService;
 
+    /** 解析 Dashboard 显式选择的 Profile；旧构造路径为空时保持当前行为。 */
+    private final DashboardProfileContext profileContext;
+
+    /** 标记当前实例是否只服务一个非当前 Profile 配置快照。 */
+    private final boolean detachedProfile;
+
     /** 保存fields映射，便于按键快速查询。 */
     private final Map<String, FieldDefinition> fields =
             new LinkedHashMap<String, FieldDefinition>();
 
     /** 保存categoryOrder集合，维持调用顺序或去重语义。 */
     private final List<String> categoryOrder =
-            Arrays.asList(
-                    "general", "agent", "compression", "proactive", "security", "messaging");
+            Arrays.asList("general", "agent", "compression", "proactive", "security", "messaging");
 
     /**
      * 创建控制台配置服务实例，并注入运行所需依赖。
@@ -66,8 +73,35 @@ public class DashboardConfigService {
             AppConfig appConfig,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService) {
+        this(appConfig, gatewayRuntimeRefreshService, null, false);
+    }
+
+    /**
+     * 创建支持显式 Profile 选择的控制台配置服务。
+     *
+     * @param appConfig 当前 JVM 应用配置。
+     * @param gatewayRuntimeRefreshService 当前 JVM 网关刷新服务。
+     * @param profileContext Dashboard Profile 请求上下文。
+     */
+    public DashboardConfigService(
+            AppConfig appConfig,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            DashboardProfileContext profileContext) {
+        this(appConfig, gatewayRuntimeRefreshService, profileContext, false);
+    }
+
+    /** 创建单个非当前 Profile 使用的轻量配置服务。 */
+    private DashboardConfigService(
+            AppConfig appConfig,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            DashboardProfileContext profileContext,
+            boolean detachedProfile) {
         this.appConfig = appConfig;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
+        this.profileContext = profileContext;
+        this.detachedProfile = detachedProfile;
         registerFields();
     }
 
@@ -80,6 +114,16 @@ public class DashboardConfigService {
         Map<String, Object> response = toNestedFieldMap(resolveCurrentValues());
         response.put("platform_catalog", RuntimeSetupSpec.domesticChannelCatalog());
         return response;
+    }
+
+    /**
+     * 读取指定 Profile 的配置。
+     *
+     * @param profile Profile 名；空值或 current 表示当前 JVM Profile。
+     * @return 返回目标 Profile 配置。
+     */
+    public Map<String, Object> getConfig(String profile) {
+        return forProfile(profile).getConfig();
     }
 
     /**
@@ -117,13 +161,38 @@ public class DashboardConfigService {
     }
 
     /**
+     * 读取指定 Profile 的原始配置。
+     *
+     * @param profile Profile 名。
+     * @return 返回目标 Profile 的 YAML 展示。
+     */
+    public Map<String, Object> getRaw(String profile) {
+        return forProfile(profile).getRaw();
+    }
+
+    /**
      * 执行诊断相关逻辑。
      *
      * @return 返回诊断结果。
      */
     public Map<String, Object> diagnostics() {
+        if (detachedProfile) {
+            return new DashboardProfileConfigFile(
+                            new File(appConfig.getRuntime().getConfigFile()).toPath())
+                    .diagnostics();
+        }
         return RuntimeConfigResolver.initialize(appConfig.getRuntime().getHome())
                 .diagnostics(appConfig);
+    }
+
+    /**
+     * 读取指定 Profile 的配置诊断。
+     *
+     * @param profile Profile 名。
+     * @return 返回低敏诊断摘要。
+     */
+    public Map<String, Object> diagnostics(String profile) {
+        return forProfile(profile).diagnostics();
     }
 
     /**
@@ -137,8 +206,19 @@ public class DashboardConfigService {
         validateKeys(flat.keySet());
         validateValues(flat);
         writeOverrideFile(flat);
-        gatewayRuntimeRefreshService.refreshNow();
+        refresh(true);
         return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    /**
+     * 保存指定 Profile 的配置。
+     *
+     * @param nestedConfig Dashboard 配置表单。
+     * @param profile Profile 名。
+     * @return 保存结果。
+     */
+    public Map<String, Object> saveConfig(Map<String, Object> nestedConfig, String profile) {
+        return forProfile(profile).saveConfig(nestedConfig);
     }
 
     /**
@@ -152,8 +232,19 @@ public class DashboardConfigService {
         validateKeys(flat.keySet());
         validateValues(flat);
         writeOverrideFile(flat);
-        gatewayRuntimeRefreshService.refreshNow();
+        refresh(true);
         return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    /**
+     * 保存指定 Profile 的原始 YAML。
+     *
+     * @param yamlText YAML 文本。
+     * @param profile Profile 名。
+     * @return 保存结果。
+     */
+    public Map<String, Object> saveRaw(String yamlText, String profile) {
+        return forProfile(profile).saveRaw(yamlText);
     }
 
     /**
@@ -181,12 +272,45 @@ public class DashboardConfigService {
         merged.putAll(normalizedUpdates);
         validateValues(merged);
         writeOverrideFile(merged);
+        refresh(reconnectChannels);
+        return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    /**
+     * 部分更新指定 Profile 的配置。
+     *
+     * @param flatUpdates 扁平配置更新。
+     * @param reconnectChannels 当前 Profile 是否重连渠道。
+     * @param profile Profile 名。
+     * @return 保存结果。
+     */
+    public Map<String, Object> savePartialFlat(
+            Map<String, Object> flatUpdates, boolean reconnectChannels, String profile) {
+        return forProfile(profile).savePartialFlat(flatUpdates, reconnectChannels);
+    }
+
+    /** 仅当前 JVM Profile 执行运行时刷新，其他 Profile 由其独立网关消费文件。 */
+    private void refresh(boolean reconnectChannels) {
+        if (gatewayRuntimeRefreshService == null) {
+            return;
+        }
         if (reconnectChannels) {
             gatewayRuntimeRefreshService.refreshNow();
         } else {
             gatewayRuntimeRefreshService.refreshConfigOnly();
         }
-        return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    /** 返回指定 Profile 的配置服务；非当前 Profile 使用独立快照且不刷新本 JVM。 */
+    private DashboardConfigService forProfile(String profile) {
+        if (profileContext == null) {
+            return this;
+        }
+        DashboardProfileContext.Scope scope = profileContext.resolve(profile);
+        if (scope.isCurrent()) {
+            return this;
+        }
+        return new DashboardConfigService(scope.getConfig(), null, null, true);
     }
 
     /**
@@ -211,8 +335,11 @@ public class DashboardConfigService {
 
     /** 注册Fields。 */
     private void registerFields() {
-        addField(new FieldDefinition("model.providerKey", "string", "general", "当前默认模型 provider 键"));
-        addField(new FieldDefinition("providers.default.name", "string", "general", "默认 provider 名称"));
+        addField(
+                new FieldDefinition("model.providerKey", "string", "general", "当前默认模型 provider 键"));
+        addField(
+                new FieldDefinition(
+                        "providers.default.name", "string", "general", "默认 provider 名称"));
         addField(
                 new FieldDefinition(
                         "providers.default.baseUrl", "string", "general", "默认 provider API 地址"));
@@ -220,7 +347,8 @@ public class DashboardConfigService {
                 new FieldDefinition(
                         "providers.default.defaultModel", "string", "general", "默认 provider 模型名"));
         addField(
-                new FieldDefinition("providers.default.dialect", "select", "general", "默认 provider 协议")
+                new FieldDefinition(
+                                "providers.default.dialect", "select", "general", "默认 provider 协议")
                         .options("openai", "openai-responses", "ollama", "gemini", "anthropic"));
         addField(new FieldDefinition("llm.stream", "boolean", "general", "是否启用流式输出"));
         addField(
@@ -229,7 +357,8 @@ public class DashboardConfigService {
         addField(new FieldDefinition("llm.temperature", "number", "general", "采样温度"));
         addField(new FieldDefinition("llm.maxTokens", "number", "general", "最大输出 token"));
         addField(
-                new FieldDefinition("llm.contextWindowTokens", "number", "general", "上下文窗口 token（0=自动识别）"));
+                new FieldDefinition(
+                        "llm.contextWindowTokens", "number", "general", "上下文窗口 token（0=自动识别）"));
         addField(
                 new FieldDefinition(
                         "llm.contextFallbackTokens", "number", "general", "自动识别失败兜底 token"));
@@ -267,7 +396,10 @@ public class DashboardConfigService {
                         "最终回复 metadata footer 开关"));
         addField(
                 new FieldDefinition(
-                        "display.metadataFooter.fields", "list", "general", "metadata footer 字段列表"));
+                        "display.metadataFooter.fields",
+                        "list",
+                        "general",
+                        "metadata footer 字段列表"));
         addField(
                 new FieldDefinition(
                         "display.platforms.feishu.metadataFooter.enabled",
@@ -536,15 +668,23 @@ public class DashboardConfigService {
                         .options("strict", "bypass"));
         addField(
                 new FieldDefinition("security.guardrailMode", "select", "security", "危险命令审批模式")
-                        .options("approval", "strict", "bypass", "smart"));
+                        .options("approval", "bypass", "smart"));
         addField(
                 new FieldDefinition(
                                 "security.guardrailCronMode", "select", "security", "Cron 危险命令策略")
-                        .options("approval", "strict", "bypass", "approve"));
+                        .options("strict", "approval", "bypass", "approve"));
         addField(
                 new FieldDefinition(
                                 "security.guardrailCronScope", "select", "security", "Cron 审批记忆范围")
                         .options("job", "session", "global"));
+        addField(
+                new FieldDefinition("security.hardlineAllowlist", "list", "security", "硬阻断类别放行清单"));
+        addField(
+                new FieldDefinition(
+                        "approvals.subagentAutoApprove",
+                        "boolean",
+                        "security",
+                        "子 Agent 自动批准危险命令"));
         addField(new FieldDefinition("approvals.timeoutSeconds", "number", "security", "本地审批超时秒数"));
         addField(
                 new FieldDefinition(
@@ -552,9 +692,7 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "approvals.mcpReloadConfirm", "boolean", "security", "MCP reload 需要确认"));
-        addField(
-                new FieldDefinition(
-                        "approvals.deny", "list", "security", "用户自定义不可绕过的命令 deny 列表"));
+        addField(new FieldDefinition("approvals.deny", "list", "security", "用户自定义不可绕过的命令 deny 列表"));
         addField(new FieldDefinition("terminal.credentialFiles", "list", "security", "终端凭据文件挂载清单"));
         addField(
                 new FieldDefinition(
@@ -582,16 +720,10 @@ public class DashboardConfigService {
                         "飞书群聊 allowlist"));
         addField(
                 new FieldDefinition(
-                        "channels.feishu.requireMention",
-                        "boolean",
-                        "messaging",
-                        "飞书群聊是否必须提及机器人"));
+                        "channels.feishu.requireMention", "boolean", "messaging", "飞书群聊是否必须提及机器人"));
         addField(
                 new FieldDefinition(
-                        "channels.feishu.freeResponseChats",
-                        "list",
-                        "messaging",
-                        "飞书免提及响应群聊列表"));
+                        "channels.feishu.freeResponseChats", "list", "messaging", "飞书免提及响应群聊列表"));
         addField(
                 new FieldDefinition(
                         "channels.feishu.botOpenId", "string", "messaging", "飞书 bot Open ID"));
@@ -653,10 +785,7 @@ public class DashboardConfigService {
                         "钉钉群聊是否必须提及机器人"));
         addField(
                 new FieldDefinition(
-                        "channels.dingtalk.freeResponseChats",
-                        "list",
-                        "messaging",
-                        "钉钉免提及响应群聊列表"));
+                        "channels.dingtalk.freeResponseChats", "list", "messaging", "钉钉免提及响应群聊列表"));
         addField(
                 new FieldDefinition(
                         "channels.dingtalk.aiCardStreaming.enabled",
@@ -894,45 +1023,26 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "proactive.cooldownMinutes", "number", "proactive", "两次主动联系之间的冷却分钟数"));
+        addField(new FieldDefinition("proactive.quietStartHour", "number", "proactive", "免打扰开始小时"));
+        addField(new FieldDefinition("proactive.quietEndHour", "number", "proactive", "免打扰结束小时"));
         addField(
                 new FieldDefinition(
-                        "proactive.quietStartHour", "number", "proactive", "免打扰开始小时"));
+                        "proactive.minConfidenceToContact", "number", "proactive", "允许主动联系的最低置信度"));
         addField(
                 new FieldDefinition(
-                        "proactive.quietEndHour", "number", "proactive", "免打扰结束小时"));
-        addField(
-                new FieldDefinition(
-                        "proactive.minConfidenceToContact",
-                        "number",
-                        "proactive",
-                        "允许主动联系的最低置信度"));
-        addField(
-                new FieldDefinition(
-                        "proactive.llmDecisionEnabled",
-                        "boolean",
-                        "proactive",
-                        "启用大模型发送判断"));
+                        "proactive.llmDecisionEnabled", "boolean", "proactive", "启用大模型发送判断"));
         addField(
                 new FieldDefinition(
                         "proactive.llmPolishEnabled", "boolean", "proactive", "启用大模型文案润色"));
         addField(
                 new FieldDefinition(
-                        "proactive.maxCandidatesPerTick",
-                        "number",
-                        "proactive",
-                        "每次检查最多生成候选数"));
+                        "proactive.maxCandidatesPerTick", "number", "proactive", "每次检查最多生成候选数"));
         addField(
                 new FieldDefinition(
-                        "proactive.maxContactsPerTick",
-                        "number",
-                        "proactive",
-                        "每次检查最多主动联系次数"));
+                        "proactive.maxContactsPerTick", "number", "proactive", "每次检查最多主动联系次数"));
         addField(
                 new FieldDefinition(
-                        "proactive.repositoryCheckEnabled",
-                        "boolean",
-                        "proactive",
-                        "启用相关仓库更新观察"));
+                        "proactive.repositoryCheckEnabled", "boolean", "proactive", "启用相关仓库更新观察"));
         addField(
                 new FieldDefinition(
                         "proactive.repositoryCheckIntervalMinutes",
@@ -941,10 +1051,7 @@ public class DashboardConfigService {
                         "同一仓库更新观察间隔（分钟）"));
         addField(
                 new FieldDefinition(
-                        "proactive.careCheckinEnabled",
-                        "boolean",
-                        "proactive",
-                        "启用低频工作关心问候"));
+                        "proactive.careCheckinEnabled", "boolean", "proactive", "启用低频工作关心问候"));
         addField(
                 new FieldDefinition(
                         "proactive.careCheckinAfterIdleHours",
@@ -953,10 +1060,7 @@ public class DashboardConfigService {
                         "低频关心问候所需空闲小时数"));
         addField(
                 new FieldDefinition(
-                        "proactive.deliveryPreviewPrefix",
-                        "string",
-                        "proactive",
-                        "主动协作消息前缀"));
+                        "proactive.deliveryPreviewPrefix", "string", "proactive", "主动协作消息前缀"));
     }
 
     /**
@@ -1242,11 +1346,7 @@ public class DashboardConfigService {
         }
     }
 
-    /**
-     * 校验Website Shared Files。
-     *
-     * @param rawValue 原始值参数。
-     */
+    /** 校验共享网站阻断列表路径，拒绝控制字符和目录穿越。 */
     private void validateWebsiteSharedFiles(Object rawValue) {
         for (String path : normalizePathList(rawValue)) {
             if (StrUtil.isBlank(path)) {
@@ -1422,41 +1522,43 @@ public class DashboardConfigService {
      * @param fieldValues field值s参数。
      */
     private void writeOverrideFile(Map<String, Object> fieldValues) {
-        synchronized (WRITE_LOCK) {
-            Map<String, Object> root = loadRawConfigRoot();
-            Map<String, Object> solonclaw = ensureSolonClawRoot(root);
-            clearManagedFields(solonclaw);
-            clearRootPassthroughFields(root);
-            for (Map.Entry<String, Object> entry : fieldValues.entrySet()) {
-                String key = entry.getKey();
-                if (isRootPassthroughKey(key)) {
-                    setNestedValue(root, entry.getKey(), entry.getValue());
-                } else if (key.startsWith("solonclaw.")) {
-                    setNestedValue(root, key, entry.getValue());
-                } else {
-                    setNestedValue(solonclaw, canonicalFieldKey(key), entry.getValue());
+        File configFile = new File(appConfig.getRuntime().getConfigFile());
+        synchronized (DashboardProfileConfigFile.lockFor(configFile.toPath())) {
+            synchronized (WRITE_LOCK) {
+                Map<String, Object> root = loadRawConfigRoot();
+                Map<String, Object> solonclaw = ensureSolonClawRoot(root);
+                clearManagedFields(solonclaw);
+                clearRootPassthroughFields(root);
+                for (Map.Entry<String, Object> entry : fieldValues.entrySet()) {
+                    String key = entry.getKey();
+                    if (isRootPassthroughKey(key)) {
+                        setNestedValue(root, entry.getKey(), entry.getValue());
+                    } else if (key.startsWith("solonclaw.")) {
+                        setNestedValue(root, key, entry.getValue());
+                    } else {
+                        setNestedValue(solonclaw, canonicalFieldKey(key), entry.getValue());
+                    }
                 }
-            }
 
-            File configFile = new File(appConfig.getRuntime().getConfigFile());
-            FileUtil.mkParentDirs(configFile);
-            File temp = new File(configFile.getParentFile(), configFile.getName() + ".tmp");
-            FileUtil.writeUtf8String(dump(root), temp);
-            try {
+                FileUtil.mkParentDirs(configFile);
+                File temp = new File(configFile.getParentFile(), configFile.getName() + ".tmp");
+                FileUtil.writeUtf8String(dump(root), temp);
                 try {
-                    Files.move(
-                            temp.toPath(),
-                            configFile.toPath(),
-                            StandardCopyOption.REPLACE_EXISTING,
-                            StandardCopyOption.ATOMIC_MOVE);
-                } catch (Exception atomicFailed) {
-                    Files.move(
-                            temp.toPath(),
-                            configFile.toPath(),
-                            StandardCopyOption.REPLACE_EXISTING);
+                    try {
+                        Files.move(
+                                temp.toPath(),
+                                configFile.toPath(),
+                                StandardCopyOption.REPLACE_EXISTING,
+                                StandardCopyOption.ATOMIC_MOVE);
+                    } catch (Exception atomicFailed) {
+                        Files.move(
+                                temp.toPath(),
+                                configFile.toPath(),
+                                StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (Exception e) {
+                    throw new IllegalStateException("Failed to write config file", e);
                 }
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to write config file", e);
             }
         }
     }

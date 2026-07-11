@@ -1,11 +1,11 @@
 package com.jimuqu.solon.claw.cli;
-import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 
 /** 驱动Cli运行流程，连接命令入口与业务服务。 */

@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.VideoGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import java.util.Collections;
 import java.util.Map;
 
@@ -169,7 +170,7 @@ public class DefaultAgentPluginContext implements AgentPluginContext {
      */
     @Override
     public String getEnv(String key) {
-        return System.getenv(key);
+        return ProfileRuntimeScope.environmentValue(key);
     }
 
     /**

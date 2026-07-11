@@ -111,8 +111,7 @@ final class SecurityPolicyRuleCatalog {
                     ".terraform.d/credentials.tfrc.json");
 
     /** 工作区凭据文件路径列表，用于拦截项目工作区内的认证缓存文件。 */
-    static final List<String> RUNTIME_CREDENTIAL_FILE_PATHS =
-            Arrays.asList("cache/bws_cache.json");
+    static final List<String> RUNTIME_CREDENTIAL_FILE_PATHS = Arrays.asList("cache/bws_cache.json");
 
     /** 写入拒绝精确路径列表，用于阻断系统关键文件和容器管理套接字写入。 */
     static final List<String> WRITE_DENIED_EXACT_PATHS =
@@ -198,12 +197,10 @@ final class SecurityPolicyRuleCatalog {
                     Pattern.CASE_INSENSITIVE);
 
     /** 工作目录安全正则，用于限制工作目录文本只包含常见安全路径字符。 */
-    static final Pattern WORKDIR_SAFE_PATTERN =
-            Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
+    static final Pattern WORKDIR_SAFE_PATTERN = Pattern.compile("^[A-Za-z0-9/\\\\:_\\-.~ +@=,]+$");
 
     /** proc 标准输入输出文件描述符正则，用于区分可接受的标准流路径和其他 proc 文件描述符。 */
-    static final Pattern PROC_STDIO_FD_PATTERN =
-            Pattern.compile("^/proc/(?:self|\\d+)/fd/[0-2]$");
+    static final Pattern PROC_STDIO_FD_PATTERN = Pattern.compile("^/proc/(?:self|\\d+)/fd/[0-2]$");
 
     /** 原始块设备正则，用于阻断直接访问磁盘块设备。 */
     static final Pattern RAW_BLOCK_DEVICE_PATTERN =

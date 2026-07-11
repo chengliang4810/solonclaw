@@ -15,6 +15,8 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -27,6 +29,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.AiUsage;
@@ -92,6 +95,76 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(messages).anyMatch(message -> message instanceof ToolMessage);
     }
 
+    /** 非对象原生 arguments 必须写回工具错误，不能调用目标 handler。 */
+    @Test
+    void shouldRejectInvalidNativeToolArgumentsWithoutExecutingHandler() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.INVALID_NATIVE_ARGUMENTS);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-invalid-arguments-session");
+        AtomicInteger handlerCalls = new AtomicInteger();
+        FunctionToolDesc echo = new FunctionToolDesc("echo_tool");
+        echo.doHandle(
+                args -> {
+                    handlerCalls.incrementAndGet();
+                    return "must-not-run";
+                });
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请调用工具",
+                        Collections.singletonList(echo),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(handlerCalls).hasValue(0);
+        assertThat(model.calls).isEqualTo(2);
+        assertThat(result.getAssistantMessage().getResultContent())
+                .contains("Tool call arguments must be a JSON object");
+        ToolMessage observation = lastToolMessage(MessageSupport.loadMessages(result.getNdjson()));
+        assertThat(observation).isNotNull();
+        assertThat(observation.getContent()).contains("arguments must be a JSON object");
+    }
+
+    /** 缺失、截断、数组和标量 arguments 均应 fail-closed，只有 JSON 对象合法。 */
+    @Test
+    void shouldValidateRawToolArgumentsAsJsonObjects() throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config());
+        Method validator =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "validateToolCallArguments", ToolCall.class);
+        validator.setAccessible(true);
+
+        assertThat(validateArguments(validator, gateway, "")).contains("non-empty JSON object");
+        assertThat(validateArguments(validator, gateway, "{\"value\":"))
+                .contains("valid JSON object syntax");
+        assertThat(validateArguments(validator, gateway, "[1,2]"))
+                .contains("must be a JSON object");
+        assertThat(validateArguments(validator, gateway, "7")).contains("must be a JSON object");
+        assertThat(validateArguments(validator, gateway, "{\"value\":7}")).isNull();
+    }
+
+    /** 调用 arguments 根类型校验器。 */
+    private String validateArguments(Method validator, SolonAiLlmGateway gateway, String raw)
+            throws Exception {
+        ToolCall call =
+                new ToolCall(
+                        "0",
+                        "call-validate",
+                        "echo_tool",
+                        raw,
+                        Collections.<String, Object>emptyMap());
+        return (String) validator.invoke(gateway, call);
+    }
+
     @Test
     void shouldPreserveOwnedLoopToolObservationBeyondUpstreamSanitizerDefault() throws Exception {
         AppConfig config = config();
@@ -142,7 +215,8 @@ public class SolonAiOwnedReActLoopTest {
         config.getReact().setMaxSteps(1);
         RecordingSessionRepository repository = new RecordingSessionRepository();
         FakeChatModel model =
-                new FakeChatModel(config.getLlm().getModel(), FakeMode.NATIVE_TOOL_WITHOUT_SESSION_APPEND);
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.NATIVE_TOOL_WITHOUT_SESSION_APPEND);
         TestGateway gateway = new TestGateway(config, repository, model);
         SessionRecord session = session("owned-loop-native-tool-max-steps-session");
 
@@ -183,7 +257,8 @@ public class SolonAiOwnedReActLoopTest {
         AppConfig config = config();
         RecordingSessionRepository repository = new RecordingSessionRepository();
         FakeChatModel model =
-                new FakeChatModel(config.getLlm().getModel(), FakeMode.CRONJOB_MISSING_BOOLEAN_ARGS);
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.CRONJOB_MISSING_BOOLEAN_ARGS);
         TestGateway gateway = new TestGateway(config, repository, model);
         SessionRecord session = session("owned-loop-cronjob-boolean-args-session");
         final List<Map<String, Object>> handledArgs = new ArrayList<Map<String, Object>>();
@@ -425,6 +500,57 @@ public class SolonAiOwnedReActLoopTest {
                 .anyMatch(content -> content.contains("本轮 Web 运行只允许调用工具 [todo]"));
     }
 
+    /** 验证人工审批暂停本轮时，未执行工具的轨迹会收口为待审批状态而非持续 running。 */
+    @Test
+    void shouldClosePendingApprovalToolTraceWhenOwnedLoopEnds() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config), null);
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.PENDING_APPROVAL);
+        TestGateway gateway = new TestGateway(config, repository, model, approvalService);
+        SessionRecord session = session("owned-loop-pending-approval-session");
+        Map<String, ToolCallRecord> records = new LinkedHashMap<String, ToolCallRecord>();
+        AgentRunContext runContext =
+                new AgentRunContext(
+                        recordingRunRepository(records),
+                        "run-pending-approval",
+                        session.getSessionId(),
+                        session.getSourceKey());
+        final int[] terminalCalls = new int[] {0};
+
+        FunctionToolDesc terminal = new FunctionToolDesc("terminal");
+        terminal.description("Execute a shell command.");
+        terminal.doHandle(
+                args -> {
+                    terminalCalls[0]++;
+                    return "unexpected execution";
+                });
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "执行需要审批的测试命令",
+                        Collections.singletonList(terminal),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(result.getAssistantMessage().getResultContent()).contains("需要审批");
+        assertThat(terminalCalls[0]).isZero();
+        assertThat(records.values()).hasSize(1);
+        ToolCallRecord pending = records.values().iterator().next();
+        assertThat(pending.getStatus()).isEqualTo("approval_required");
+        assertThat(pending.getError()).contains("等待人工审批");
+        assertThat(pending.getFinishedAt()).isGreaterThan(0L);
+    }
+
     @Test
     void shouldStreamOwnedLoopDeltasWhenEventSinkIsProvided() throws Exception {
         AppConfig config = config();
@@ -461,6 +587,37 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(result.getReasoningTokens()).isEqualTo(2L);
         assertThat(result.getTotalTokens()).isEqualTo(24L);
         assertThat(result.getRawUsageJson()).contains("prompt_tokens");
+    }
+
+    /** 验证 llm.stream=true 即使没有事件订阅也会走 Solon AI 流式请求。 */
+    @Test
+    void shouldHonorConfiguredStreamWithoutEventSink() throws Exception {
+        AppConfig config = config();
+        config.getLlm().setStream(true);
+        config.getReact().setMaxSteps(1);
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model = new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_FINAL);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-configured-stream-session");
+        session.setReasoningEffortOverride("high");
+        session.setServiceTierOverride("priority");
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请流式回复",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(result.isStreamed()).isTrue();
+        assertThat(result.getAssistantMessage().getResultContent()).isEqualTo("流式答复");
+        assertThat(gateway.capturedSession).isSameAs(session);
     }
 
     @Test
@@ -534,7 +691,8 @@ public class SolonAiOwnedReActLoopTest {
         config.getReact().setMaxSteps(3);
         RecordingSessionRepository repository = new RecordingSessionRepository();
         FakeChatModel model =
-                new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE);
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE);
         TestGateway gateway = new TestGateway(config, repository, model);
         SessionRecord session = session("owned-loop-tool-preamble-session");
         RecordingEventSink eventSink = new RecordingEventSink();
@@ -605,8 +763,7 @@ public class SolonAiOwnedReActLoopTest {
                         null);
 
         assertThat(model.requestContents).hasSize(1);
-        assertThat(model.requestContents.get(0))
-                .contains("上一轮用户说喜欢中文", "上一轮助手已确认", "这轮要记得上次内容");
+        assertThat(model.requestContents.get(0)).contains("上一轮用户说喜欢中文", "上一轮助手已确认", "这轮要记得上次内容");
         assertThat(messageContents(MessageSupport.loadMessages(result.getNdjson())))
                 .contains("上一轮用户说喜欢中文", "上一轮助手已确认", "这轮要记得上次内容", "历史答复");
     }
@@ -620,7 +777,8 @@ public class SolonAiOwnedReActLoopTest {
         TestGateway gateway = new TestGateway(config, repository, model);
         SessionRecord session = session("owned-loop-memory-session");
         AgentRunContext runContext =
-                new AgentRunContext(null, "run-memory", session.getSessionId(), session.getSourceKey());
+                new AgentRunContext(
+                        null, "run-memory", session.getSessionId(), session.getSourceKey());
         runContext.setMemoryPrefetchContext("请调用工具", "召回记忆：称呼用户为亮哥");
 
         FunctionToolDesc echo = new FunctionToolDesc("echo_tool");
@@ -665,11 +823,13 @@ public class SolonAiOwnedReActLoopTest {
         AppConfig config = config();
         RecordingSessionRepository repository = new RecordingSessionRepository();
         FakeChatModel model =
-                new FakeChatModel(config.getLlm().getModel(), FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL);
+                new FakeChatModel(
+                        config.getLlm().getModel(), FakeMode.FAIL_FIRST_THEN_HISTORY_FINAL);
         TestGateway gateway = new TestGateway(config, repository, model);
         SessionRecord session = session("owned-loop-memory-retry-session");
         AgentRunContext runContext =
-                new AgentRunContext(null, "run-memory-retry", session.getSessionId(), session.getSourceKey());
+                new AgentRunContext(
+                        null, "run-memory-retry", session.getSessionId(), session.getSourceKey());
         runContext.setMemoryPrefetchContext("重试问题", "召回记忆：失败后仍要称呼亮哥");
 
         assertThatThrownBy(
@@ -706,10 +866,8 @@ public class SolonAiOwnedReActLoopTest {
                         runContext);
 
         assertThat(model.requestContents).hasSize(2);
-        assertThat(model.requestContents.get(0))
-                .anyMatch(content -> content.contains("失败后仍要称呼亮哥"));
-        assertThat(model.requestContents.get(1))
-                .anyMatch(content -> content.contains("失败后仍要称呼亮哥"));
+        assertThat(model.requestContents.get(0)).anyMatch(content -> content.contains("失败后仍要称呼亮哥"));
+        assertThat(model.requestContents.get(1)).anyMatch(content -> content.contains("失败后仍要称呼亮哥"));
         assertThat(messageContents(MessageSupport.loadMessages(result.getNdjson())))
                 .contains("重试问题", "重试答复")
                 .noneMatch(content -> content.contains("失败后仍要称呼亮哥"));
@@ -724,7 +882,11 @@ public class SolonAiOwnedReActLoopTest {
         TestGateway gateway = new TestGateway(config, repository, model);
         SessionRecord session = session("owned-loop-memory-recovery-session");
         AgentRunContext runContext =
-                new AgentRunContext(null, "run-memory-recovery", session.getSessionId(), session.getSourceKey());
+                new AgentRunContext(
+                        null,
+                        "run-memory-recovery",
+                        session.getSessionId(),
+                        session.getSourceKey());
         runContext.setMemoryPrefetchContext("原始问题", "召回记忆：只应给原始问题使用");
 
         LlmResult result =
@@ -754,10 +916,9 @@ public class SolonAiOwnedReActLoopTest {
         config.getReact().setMaxSteps(4);
         config.getLlm().setProvider("openai");
         config.getLlm().setDialect("openai");
-        config.getLlm().setApiUrl("http://127.0.0.1:8080/v1/chat/completions");
+        config.getLlm().setApiUrl("https://example.com/v1/chat/completions");
         config.getLlm().setApiKey("sk-test-valid-key");
         config.getLlm().setModel("owned-loop-model");
-        config.getSecurity().setAllowPrivateUrls(true);
         return config;
     }
 
@@ -913,8 +1074,7 @@ public class SolonAiOwnedReActLoopTest {
      * @param records 按工具调用标识保存的审计记录。
      * @return 返回运行仓储代理。
      */
-    private static AgentRunRepository recordingRunRepository(
-            Map<String, ToolCallRecord> records) {
+    private static AgentRunRepository recordingRunRepository(Map<String, ToolCallRecord> records) {
         return recordingRunRepository(records, null);
     }
 
@@ -996,12 +1156,24 @@ public class SolonAiOwnedReActLoopTest {
     private static class TestGateway extends SolonAiLlmGateway {
         private final ChatModel model;
 
+        /** 记录真实请求链传入模型构建器的会话。 */
+        private SessionRecord capturedSession;
+
         private TestGateway(
                 AppConfig appConfig, SessionRepository sessionRepository, ChatModel model) {
+            this(appConfig, sessionRepository, model, null);
+        }
+
+        /** 创建可选接入危险命令审批拦截器的测试网关。 */
+        private TestGateway(
+                AppConfig appConfig,
+                SessionRepository sessionRepository,
+                ChatModel model,
+                DangerousCommandApprovalService approvalService) {
             super(
                     appConfig,
                     sessionRepository,
-                    null,
+                    approvalService,
                     null,
                     null,
                     new ToolCallLoopGuardrailService(appConfig),
@@ -1013,6 +1185,12 @@ public class SolonAiOwnedReActLoopTest {
         protected ChatModel buildChatModel(AppConfig.LlmConfig resolved) {
             return model;
         }
+
+        @Override
+        protected ChatModel buildChatModel(AppConfig.LlmConfig resolved, SessionRecord session) {
+            capturedSession = session;
+            return model;
+        }
     }
 
     private enum FakeMode {
@@ -1020,10 +1198,13 @@ public class SolonAiOwnedReActLoopTest {
         LONG_TOOL_OUTPUT,
         /** 模拟协议层只返回 tool_calls 聚合结果但不写入 AgentSession 的场景。 */
         NATIVE_TOOL_WITHOUT_SESSION_APPEND,
+        /** 模拟协议层返回数组根 arguments。 */
+        INVALID_NATIVE_ARGUMENTS,
         CRONJOB_MISSING_BOOLEAN_ARGS,
         TODO_WRITE_THEN_READ,
         CRONJOB_INSPECT_THEN_CREATE,
         THREE_TOOL_CALLS_THEN_FINAL,
+        PENDING_APPROVAL,
         HISTORY_FINAL,
         FAIL_FIRST_THEN_HISTORY_FINAL,
         STREAM_FINAL,
@@ -1123,9 +1304,7 @@ public class SolonAiOwnedReActLoopTest {
                 } else if (toolMessages == 1) {
                     assistant =
                             ChatMessage.ofAssistant(
-                                    "Thought: 需要读回 todo\n"
-                                            + "Action: todo\n"
-                                            + "Action Input: {}");
+                                    "Thought: 需要读回 todo\n" + "Action: todo\n" + "Action Input: {}");
                 } else {
                     assistant = ChatMessage.ofAssistant("todo audit ok");
                 }
@@ -1157,9 +1336,7 @@ public class SolonAiOwnedReActLoopTest {
                 } else if (toolMessages == 1) {
                     assistant =
                             ChatMessage.ofAssistant(
-                                    "Thought: 再读取 todo\n"
-                                            + "Action: todo\n"
-                                            + "Action Input: {}");
+                                    "Thought: 再读取 todo\n" + "Action: todo\n" + "Action Input: {}");
                 } else if (toolMessages == 2) {
                     assistant =
                             ChatMessage.ofAssistant(
@@ -1169,6 +1346,12 @@ public class SolonAiOwnedReActLoopTest {
                 } else {
                     assistant = ChatMessage.ofAssistant("budget final");
                 }
+            } else if (model.mode == FakeMode.PENDING_APPROVAL) {
+                assistant =
+                        ChatMessage.ofAssistant(
+                                "Thought: 需要执行审批测试命令\n"
+                                        + "Action: terminal\n"
+                                        + "Action Input: {\"command\":\"rm -rf /tmp/solonclaw-owned-loop-approval\"}");
             } else if (toolMessage == null) {
                 if (model.mode == FakeMode.CRONJOB_MISSING_BOOLEAN_ARGS) {
                     assistant =
@@ -1183,7 +1366,13 @@ public class SolonAiOwnedReActLoopTest {
                                             + "Action: read_file\n"
                                             + "Action Input: {\"path\":\"workspace/logs/long-observation.json\"}");
                 } else if (model.mode == FakeMode.NATIVE_TOOL_WITHOUT_SESSION_APPEND) {
-                    assistant = assistantWithToolCall("call_native_echo", "echo_tool", "{\"value\":\"native\"}");
+                    assistant =
+                            assistantWithToolCall(
+                                    "call_native_echo", "echo_tool", "{\"value\":\"native\"}");
+                    return new FakeResponse(model, options, assistant, false);
+                } else if (model.mode == FakeMode.INVALID_NATIVE_ARGUMENTS) {
+                    assistant =
+                            assistantWithToolCall("call_invalid_echo", "echo_tool", "[\"bad\"]");
                     return new FakeResponse(model, options, assistant, false);
                 } else {
                     assistant =
@@ -1239,7 +1428,8 @@ public class SolonAiOwnedReActLoopTest {
                                         "{\"path\":\"workspace/logs/page.json\"}");
                         session.addMessage(visible);
                         session.addMessage(aggregation);
-                        return Flux.just(new FakeResponse(model, options, visible, true, aggregation));
+                        return Flux.just(
+                                new FakeResponse(model, options, visible, true, aggregation));
                     }
                     AssistantMessage finalJson = ChatMessage.ofAssistant("{\"pass\":true}");
                     session.addMessage(finalJson);
@@ -1250,7 +1440,8 @@ public class SolonAiOwnedReActLoopTest {
                 session.addMessage(visible);
                 return Flux.just(
                         new FakeResponse(model, options, thinking, true),
-                        new FakeResponse(model, options, visible, true, visible, streamFinalUsage()));
+                        new FakeResponse(
+                                model, options, visible, true, visible, streamFinalUsage()));
             } catch (IOException e) {
                 return Flux.error(e);
             }
@@ -1331,11 +1522,15 @@ public class SolonAiOwnedReActLoopTest {
         private final AssistantMessage message;
         private final boolean stream;
         private final AssistantMessage aggregationMessage;
+
         /** 模拟协议响应携带的模型用量。 */
         private final AiUsage usage;
 
         private FakeResponse(
-                FakeChatModel model, ChatOptions options, AssistantMessage message, boolean stream) {
+                FakeChatModel model,
+                ChatOptions options,
+                AssistantMessage message,
+                boolean stream) {
             this(model, options, message, stream, message);
         }
 
@@ -1469,7 +1664,8 @@ public class SolonAiOwnedReActLoopTest {
         public void bindSource(String sourceKey, String sessionId) {}
 
         @Override
-        public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName) {
+        public SessionRecord cloneSession(
+                String sourceKey, String sourceSessionId, String branchName) {
             return null;
         }
 
@@ -1544,7 +1740,7 @@ public class SolonAiOwnedReActLoopTest {
     private static ChatConfig fakeConfig(String model) {
         ChatConfig config = new ChatConfig();
         config.setProvider("openai");
-        config.setApiUrl("http://127.0.0.1:8080/v1/chat/completions");
+        config.setApiUrl("https://example.com/v1/chat/completions");
         config.setModel(model);
         return config;
     }

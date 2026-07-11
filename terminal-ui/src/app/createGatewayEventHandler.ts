@@ -659,13 +659,27 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         return
       }
 
-      case 'clarify.request':
+      case 'clarify.request': {
+        const choices = Array.isArray(ev.payload.choices)
+          ? ev.payload.choices
+              .filter((choice): choice is string => typeof choice === 'string' && choice.trim().length > 0)
+              .map(choice => choice.trim())
+              .slice(0, 4)
+          : null
+
         patchOverlayState({
-          clarify: { choices: ev.payload.choices, question: ev.payload.question, requestId: ev.payload.request_id }
+          clarify: {
+            choices: choices?.length ? choices : null,
+            question: String(ev.payload.question ?? '').trim(),
+            requestId: String(ev.payload.request_id ?? '').trim(),
+            sessionId: String(ev.session_id ?? getUiState().sid)
+          }
         })
         setStatus('等待输入…')
 
         return
+      }
+
       case 'approval.request': {
         const description = String(ev.payload.description ?? 'dangerous command')
 
@@ -848,6 +862,7 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       }
 
       case 'error':
+
       case 'run.failed':
         turnController.recordError()
 

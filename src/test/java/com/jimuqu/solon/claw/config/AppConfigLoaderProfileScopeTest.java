@@ -1,0 +1,81 @@
+package com.jimuqu.solon.claw.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import org.noear.solon.core.Props;
+
+/** 验证 Profile detached 配置只读取当前作用域内的项目环境开关。 */
+public class AppConfigLoaderProfileScopeTest {
+    @Test
+    void shouldLoadIndependentEnvironmentOverridesForProfilesAAndB() throws Exception {
+        Path root = Files.createTempDirectory("profile-config-loader");
+        Props propsA = props(root.resolve("profiles/a"), false, true);
+        Props propsB = props(root.resolve("profiles/b"), true, false);
+
+        AppConfig configA;
+        Map<String, String> environmentA = new LinkedHashMap<String, String>();
+        environmentA.put("SOLONCLAW_ALLOW_PRIVATE_URLS", "true");
+        environmentA.put("SOLONCLAW_GATEWAY_MULTIPLEX_PROFILES", "false");
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open("a", root.resolve("profiles/a"), environmentA, null)) {
+            configA = AppConfig.loadDetached(propsA);
+        }
+
+        AppConfig configB;
+        Map<String, String> environmentB = new LinkedHashMap<String, String>();
+        environmentB.put("SOLONCLAW_ALLOW_PRIVATE_URLS", "false");
+        environmentB.put("SOLONCLAW_GATEWAY_MULTIPLEX_PROFILES", "true");
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open("b", root.resolve("profiles/b"), environmentB, null)) {
+            configB = AppConfig.loadDetached(propsB);
+        }
+
+        assertThat(configA.getSecurity().isAllowPrivateUrls()).isTrue();
+        assertThat(configA.getGateway().isMultiplexProfiles()).isFalse();
+        assertThat(configB.getSecurity().isAllowPrivateUrls()).isFalse();
+        assertThat(configB.getGateway().isMultiplexProfiles()).isTrue();
+    }
+
+    @Test
+    void shouldKeepUnscopedProcessEnvironmentBehavior() throws Exception {
+        Path home = Files.createTempDirectory("default-config-loader");
+        Props props = props(home, false, true);
+        AppConfig config = AppConfig.loadDetached(props);
+
+        String allowPrivate = System.getenv("SOLONCLAW_ALLOW_PRIVATE_URLS");
+        boolean expectedAllowPrivate =
+                allowPrivate == null || allowPrivate.trim().length() == 0
+                        ? false
+                        : isTrue(allowPrivate);
+        boolean expectedMultiplex =
+                AppConfigLoader.resolveMultiplexProfiles(
+                        System.getenv("SOLONCLAW_GATEWAY_MULTIPLEX_PROFILES"), true);
+
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isEqualTo(expectedAllowPrivate);
+        assertThat(config.getGateway().isMultiplexProfiles()).isEqualTo(expectedMultiplex);
+    }
+
+    /** 创建只声明本测试两个配置开关的独立 Props。 */
+    private Props props(Path home, boolean allowPrivateUrls, boolean multiplexProfiles) {
+        Props props = new Props();
+        props.put("solonclaw.workspace", home.toAbsolutePath().normalize().toString());
+        props.put("security.allowPrivateUrls", String.valueOf(allowPrivateUrls));
+        props.put("solonclaw.gateway.multiplexProfiles", String.valueOf(multiplexProfiles));
+        return props;
+    }
+
+    /** 复现配置加载器认可的 true 令牌，用于计算当前进程环境预期值。 */
+    private boolean isTrue(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        return "true".equalsIgnoreCase(value)
+                || "1".equals(value)
+                || "yes".equalsIgnoreCase(value)
+                || "on".equalsIgnoreCase(value);
+    }
+}

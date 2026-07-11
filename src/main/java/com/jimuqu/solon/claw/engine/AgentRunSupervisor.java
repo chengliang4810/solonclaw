@@ -29,15 +29,16 @@ import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.LlmErrorClassifier;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
-import com.jimuqu.solon.claw.usage.UsageEventCostSupport;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
-import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
+import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
+import com.jimuqu.solon.claw.usage.UsageEventCostSupport;
 import com.jimuqu.solon.claw.usage.UsageEventRecord;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import java.util.ArrayList;
@@ -597,13 +598,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
         Thread thread =
                 new Thread(
-                        () -> {
-                            try {
-                                drainQueue(key, sessionId, runner);
-                            } finally {
-                                draining.set(false);
-                            }
-                        },
+                        ProfileRuntimeScope.capture(
+                                () -> {
+                                    try {
+                                        drainQueue(key, sessionId, runner);
+                                    } finally {
+                                        draining.set(false);
+                                    }
+                                }),
                         "jimuqu-run-queue-" + Math.abs(key.hashCode()));
         thread.setDaemon(true);
         thread.start();
@@ -849,6 +851,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                         systemPrompt,
                                         effectiveUserMessage,
                                         resolved,
+                                        tools,
                                         runContext,
                                         eventSink,
                                         runRecord);
@@ -1056,9 +1059,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
             outcome.setProvider(finalResult.getProvider());
             outcome.setContextEstimateTokens(contextEstimateTokens);
             outcome.setContextWindowTokens(contextWindowTokens);
-            outcome.setCwd(
-                    StrUtil.blankToDefault(
-                            agentScope.getWorkspaceDir(), System.getProperty("user.dir")));
+            outcome.setCwd(resolveOutcomeCwd(agentScope));
             return outcome;
         } catch (AgentRunCancelledException e) {
             runRecord.setStatus("cancelled");
@@ -1081,6 +1082,28 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
     }
 
+    /** 解析运行结果工作区，命名 Profile 不允许回退主进程 user.dir。 */
+    private String resolveOutcomeCwd(AgentRuntimeScope agentScope) {
+        if (agentScope != null && StrUtil.isNotBlank(agentScope.getWorkspaceDir())) {
+            return agentScope.getWorkspaceDir();
+        }
+        ProfileRuntimeScope.Context scoped = ProfileRuntimeScope.current();
+        if (scoped != null && scoped.getHome() != null) {
+            return scoped.getHome().toString();
+        }
+        if (appConfig != null
+                && appConfig.getWorkspace() != null
+                && StrUtil.isNotBlank(appConfig.getWorkspace().getDir())) {
+            return appConfig.getWorkspace().getDir();
+        }
+        if (appConfig != null
+                && appConfig.getRuntime() != null
+                && StrUtil.isNotBlank(appConfig.getRuntime().getHome())) {
+            return appConfig.getRuntime().getHome();
+        }
+        return System.getProperty("user.dir");
+    }
+
     /**
      * 执行压缩BeforeAttempt相关逻辑。
      *
@@ -1088,6 +1111,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param systemPrompt 系统提示词参数。
      * @param userMessage 用户消息参数。
      * @param resolved resolved 参数。
+     * @param tools 本轮实际发送给模型的工具对象。
      * @param runContext 运行上下文。
      * @param eventSink 事件Sink参数。
      * @param runRecord 当前运行记录，压缩次数必须写回同一对象，避免后续保存覆盖。
@@ -1098,13 +1122,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
             String systemPrompt,
             String userMessage,
             AppConfig.LlmConfig resolved,
+            List<Object> tools,
             AgentRunContext runContext,
             ConversationEventSink eventSink,
             AgentRunRecord runRecord)
             throws Exception {
         String runId = runRecord == null ? "" : runRecord.getRunId();
         ContextBudgetDecision decision =
-                contextBudgetService.decide(session, systemPrompt, userMessage, resolved);
+                contextBudgetService.decide(session, systemPrompt, userMessage, resolved, tools);
         if (!decision.isShouldCompress()) {
             runContext.setPhase("compression");
             eventSink.onCompressionDecision(
@@ -1321,7 +1346,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
             return assistantMessage.getContent();
         }
         log.warn(
-                "Assistant message has no visible content in agent run; suppressing message object fallback: role={}, contentRawType={}, toolCalls={}",
+                "Assistant message has no visible content in agent run; suppressing message object"
+                        + " fallback: role={}, contentRawType={}, toolCalls={}",
                 assistantMessage.getRole(),
                 assistantMessage.getContentRaw() == null
                         ? ""
@@ -1382,10 +1408,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         metadata.put("completed_tools", completed);
         metadata.put("missing_tools", missing);
         metadata.put("tool_call_count", Integer.valueOf(calls.size()));
-        String message =
-                "必需工具未真实完成："
-                        + missing
-                        + "；模型不能在未调用工具时报告工具执行结果。";
+        String message = "必需工具未真实完成：" + missing + "；模型不能在未调用工具时报告工具执行结果。";
         if (runContext != null) {
             runContext.event("tool.required.missing", message, metadata);
         }
@@ -1926,12 +1949,10 @@ public class AgentRunSupervisor implements AgentRunControlService {
     /**
      * 查询某来源键是否有待处理的真实用户消息（非 heartbeat、非 goal 续轮）。
      *
-     * <p>用于 goal 续轮抢占判定：若用户在续轮调度期间发送了真实消息，则跳过本轮续轮，
-     * 让真实消息接手对话。
+     * <p>用于 goal 续轮抢占判定：若用户在续轮调度期间发送了真实消息，则跳过本轮续轮， 让真实消息接手对话。
      *
-     * <p>实现：仅按 sourceKey 查询最早的 queued 消息（不限会话），反序列化其 messageJson，
-     * 读取已持久化的 {@code goalContinuation} 与 {@code heartbeat} 标志。当该消息既非 heartbeat
-     * 又非 goal 续轮合成消息时，视为真实用户消息返回 true。该检查在续轮消息入队之前执行，
+     * <p>实现：仅按 sourceKey 查询最早的 queued 消息（不限会话），反序列化其 messageJson， 读取已持久化的 {@code goalContinuation}
+     * 与 {@code heartbeat} 标志。当该消息既非 heartbeat 又非 goal 续轮合成消息时，视为真实用户消息返回 true。该检查在续轮消息入队之前执行，
      * 因此此刻队列中只会是真实用户消息或 heartbeat，不会是尚未入队的续轮合成消息。
      *
      * @param sourceKey 会话来源键。
@@ -1942,7 +1963,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
             return false;
         }
         try {
-            QueuedRunMessage queued = agentRunRepository.findNextQueuedMessageBySourceKey(sourceKey);
+            QueuedRunMessage queued =
+                    agentRunRepository.findNextQueuedMessageBySourceKey(sourceKey);
             if (queued == null) {
                 return false;
             }
@@ -1955,7 +1977,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
         } catch (Exception e) {
             // 查询/反序列化失败时 fail-safe 返回 false，避免误判抢占而吞掉续轮
             log.warn(
-                    "hasPendingRealMessage query failed, fail-safe to false: sourceKey={}, error={}",
+                    "hasPendingRealMessage query failed, fail-safe to false: sourceKey={},"
+                            + " error={}",
                     sourceKey,
                     safeError(e));
             return false;

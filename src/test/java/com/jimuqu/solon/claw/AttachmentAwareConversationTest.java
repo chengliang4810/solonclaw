@@ -198,7 +198,9 @@ public class AttachmentAwareConversationTest {
         AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
         File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File missing =
-                new File(workspaceHome.getParentFile(), "private-token=ghp_missingsecret-report.pdf");
+                new File(
+                        workspaceHome.getParentFile(),
+                        "private-token=ghp_missingsecret-report.pdf");
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () ->
@@ -216,7 +218,9 @@ public class AttachmentAwareConversationTest {
         AttachmentCacheService attachmentCacheService = new AttachmentCacheService(env.appConfig);
         File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File outside =
-                new File(workspaceHome.getParentFile(), "outside-token=ghp_outsidesecret-report.pdf");
+                new File(
+                        workspaceHome.getParentFile(),
+                        "outside-token=ghp_outsidesecret-report.pdf");
         Files.write(outside.toPath(), "secret".getBytes("UTF-8"));
 
         org.assertj.core.api.Assertions.assertThatThrownBy(

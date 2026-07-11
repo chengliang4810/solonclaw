@@ -3,9 +3,10 @@ package com.jimuqu.solon.claw.web;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.support.DashboardRequestBodies;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileNotFoundException;
 import java.util.Collections;
 import java.util.Map;
-import org.noear.snack4.ONode;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
 import org.noear.solon.core.handle.Context;
@@ -35,11 +36,18 @@ public class DashboardRuntimeConfigController {
     /**
      * 执行配置Items相关逻辑。
      *
+     * @param context 当前请求或运行上下文。
      * @return 返回配置Items结果。
      */
     @Mapping(value = "/api/workspace-config", method = MethodType.GET)
-    public Map<String, Object> configItems() {
-        return DashboardResponse.ok(runtimeConfigService.getConfigItems());
+    public Map<String, Object> configItems(Context context) {
+        try {
+            return DashboardResponse.ok(
+                    runtimeConfigService.getConfigItems(
+                            DashboardProfileContext.requestedProfile(context)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        }
     }
 
     /**
@@ -56,23 +64,28 @@ public class DashboardRuntimeConfigController {
         }
         if (StrUtil.isNotBlank(authService.sessionToken())) {
             context.status(409);
-            return DashboardResponse.error("WORKSPACE_CONFIG_BOOTSTRAP_ALREADY_SET", "Dashboard token 已配置");
+            return DashboardResponse.error(
+                    "WORKSPACE_CONFIG_BOOTSTRAP_ALREADY_SET", "Dashboard token 已配置");
         }
         try {
-            String token = DashboardRequestBodies.jsonObject(context).get("accessToken").getString();
+            String token =
+                    DashboardRequestBodies.jsonObject(context).get("accessToken").getString();
             if (!SecretValueGuard.hasUsableSecret(token, 8)) {
                 context.status(400);
                 return DashboardResponse.error(
                         "WORKSPACE_CONFIG_BOOTSTRAP_BAD_TOKEN", "访问令牌至少需要 8 个有效字符");
             }
             runtimeConfigService.set("solonclaw.dashboard.accessToken", token, false);
-            return DashboardResponse.ok(Collections.<String, Object>singletonMap("configured", true));
+            return DashboardResponse.ok(
+                    Collections.<String, Object>singletonMap("configured", true));
         } catch (IllegalArgumentException e) {
             context.status(400);
-            return DashboardResponse.error("WORKSPACE_CONFIG_BOOTSTRAP_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(
+                    "WORKSPACE_CONFIG_BOOTSTRAP_BAD_REQUEST", e.getMessage());
         } catch (IllegalStateException e) {
             context.status(400);
-            return DashboardResponse.error("WORKSPACE_CONFIG_BOOTSTRAP_BAD_REQUEST", e.getMessage());
+            return DashboardResponse.error(
+                    "WORKSPACE_CONFIG_BOOTSTRAP_BAD_REQUEST", e.getMessage());
         }
     }
 
@@ -85,10 +98,14 @@ public class DashboardRuntimeConfigController {
     @Mapping(value = "/api/workspace-config", method = MethodType.PUT)
     public Map<String, Object> set(Context context) throws Exception {
         try {
-            ONode body = DashboardRequestBodies.jsonObject(context);
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
             return DashboardResponse.ok(
                     runtimeConfigService.set(
-                            body.get("key").getString(), body.get("value").getString()));
+                            body.get("key") == null ? "" : String.valueOf(body.get("key")),
+                            body.get("value") == null ? "" : String.valueOf(body.get("value")),
+                            DashboardProfileContext.requestedProfile(context, body)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("WORKSPACE_CONFIG_BAD_REQUEST", e.getMessage());
@@ -107,10 +124,11 @@ public class DashboardRuntimeConfigController {
     @Mapping(value = "/api/workspace-config", method = MethodType.DELETE)
     public Map<String, Object> remove(Context context) throws Exception {
         String key = context.param("key");
+        Map<String, Object> body = Collections.emptyMap();
         try {
             if (StrUtil.isBlank(key) && StrUtil.isNotBlank(context.body())) {
-                ONode body = DashboardRequestBodies.jsonObject(context);
-                key = body.get("key").getString();
+                body = DashboardRequestBodies.jsonObjectMap(context);
+                key = body.get("key") == null ? "" : String.valueOf(body.get("key"));
             }
         } catch (IllegalArgumentException e) {
             context.status(400);
@@ -121,7 +139,11 @@ public class DashboardRuntimeConfigController {
             return DashboardResponse.error("WORKSPACE_CONFIG_BAD_REQUEST", "配置项 key 不能为空");
         }
         try {
-            return DashboardResponse.ok(runtimeConfigService.remove(key));
+            return DashboardResponse.ok(
+                    runtimeConfigService.remove(
+                            key, DashboardProfileContext.requestedProfile(context, body)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("WORKSPACE_CONFIG_BAD_REQUEST", e.getMessage());
@@ -145,8 +167,13 @@ public class DashboardRuntimeConfigController {
                     "WORKSPACE_CONFIG_RATE_LIMITED", "Reveal rate limit exceeded");
         }
         try {
-            ONode body = DashboardRequestBodies.jsonObject(context);
-            return DashboardResponse.ok(runtimeConfigService.reveal(body.get("key").getString()));
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
+            return DashboardResponse.ok(
+                    runtimeConfigService.reveal(
+                            body.get("key") == null ? "" : String.valueOf(body.get("key")),
+                            DashboardProfileContext.requestedProfile(context, body)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             context.status(400);
             return DashboardResponse.error("WORKSPACE_CONFIG_BAD_REQUEST", e.getMessage());

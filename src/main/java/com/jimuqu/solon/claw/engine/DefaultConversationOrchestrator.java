@@ -29,6 +29,7 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.plugin.AgentHookName;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
@@ -701,14 +702,13 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      * @return 返回解析后的Agent范围。
      */
     private AgentRuntimeScope resolveAgentScope(SessionRecord session) throws Exception {
-        if (agentRuntimeService != null) {
-            return agentRuntimeService.resolve(session);
-        }
         AgentRuntimeScope scope = new AgentRuntimeScope();
-        scope.setAgentName(
-                AgentRuntimeScope.normalizeName(
-                        session == null ? null : session.getActiveAgentName()));
-        scope.setWorkspaceDir(System.getProperty("user.dir"));
+        scope.setAgentName("default");
+        ProfileRuntimeScope.Context profileScope = ProfileRuntimeScope.current();
+        scope.setWorkspaceDir(
+                profileScope != null && profileScope.getHome() != null
+                        ? profileScope.getHome().toString()
+                        : System.getProperty("user.dir"));
         return scope;
     }
 
@@ -1186,7 +1186,10 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         try {
             return StrUtil.nullToEmpty(memoryManager.prefetch(sourceKey, userMessage));
         } catch (Exception e) {
-            log.warn("Memory prefetch failed: sourceKey={}, error={}", sourceKey, EngineSupport.safeError(e));
+            log.warn(
+                    "Memory prefetch failed: sourceKey={}, error={}",
+                    sourceKey,
+                    EngineSupport.safeError(e));
             return "";
         }
     }
@@ -1224,7 +1227,10 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             memoryManager.syncTurn(
                     memoryTurnContext(sourceKey, userMessage, finalReply, session, outcome));
         } catch (Exception e) {
-            log.warn("Memory sync failed: sourceKey={}, error={}", sourceKey, EngineSupport.safeError(e));
+            log.warn(
+                    "Memory sync failed: sourceKey={}, error={}",
+                    sourceKey,
+                    EngineSupport.safeError(e));
         }
     }
 
@@ -1424,5 +1430,4 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
     private void mergeUsage(LlmResult base, LlmResult extra) {
         LlmUsageSupport.mergeUsage(base, extra);
     }
-
 }

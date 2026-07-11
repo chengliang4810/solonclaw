@@ -9,7 +9,6 @@ import { useI18n } from 'vue-i18n'
 import { getSourceLabel } from '@/shared/session-display'
 import { goalCommandText, goalStatusLabel, sessionContextMenuItems, type GoalCommandAction } from '@/shared/chatGoalDisplay'
 import { copyToClipboard } from '@/utils/clipboard'
-import AgentSelector from '@/components/layout/AgentSelector.vue'
 import ChatInput from './ChatInput.vue'
 import MessageList from './MessageList.vue'
 import SessionListItem from './SessionListItem.vue'
@@ -61,8 +60,8 @@ function saveCollapsedGroupSources(groups: Set<string>) {
   }
 }
 
-function handleSessionClick(sessionId: string) {
-  chatStore.switchSession(sessionId)
+function handleSessionClick(sessionKey: string) {
+  chatStore.switchSession(sessionKey)
   if (mobileQuery?.matches) showSessions.value = false
 }
 
@@ -96,7 +95,7 @@ onUnmounted(() => {
 })
 const showRenameModal = ref(false)
 const renameValue = ref('')
-const renameSessionId = ref<string | null>(null)
+const renameSessionKey = ref<string | null>(null)
 const renameInputRef = ref<InputRef | null>(null)
 const collapsedGroups = ref<Set<string>>(new Set(loadCollapsedGroupSources()))
 
@@ -109,8 +108,8 @@ function sourceSortKey(source: string): number {
 
 function sortSessionsWithActiveFirst(items: Session[]): Session[] {
   return [...items].sort((a, b) => {
-    const aLive = chatStore.isSessionLive(a.id)
-    const bLive = chatStore.isSessionLive(b.id)
+    const aLive = chatStore.isSessionLive(a.key)
+    const bLive = chatStore.isSessionLive(b.key)
     if (aLive !== bLive) return aLive ? -1 : 1
     return (b.updatedAt || 0) - (a.updatedAt || 0)
   })
@@ -124,21 +123,21 @@ interface SessionGroup {
 }
 
 const pinnedSessions = computed(() =>
-  sortSessionsWithActiveFirst(chatStore.sessions.filter(session => sessionBrowserPrefsStore.isPinned(session.id))),
+  sortSessionsWithActiveFirst(chatStore.sessions.filter(session => sessionBrowserPrefsStore.isPinned(session.key))),
 )
 
 const groupedSessions = computed<SessionGroup[]>(() => {
   const map = new Map<string, Session[]>()
   for (const s of chatStore.sessions) {
-    if (sessionBrowserPrefsStore.isPinned(s.id)) continue
+    if (sessionBrowserPrefsStore.isPinned(s.key)) continue
     const key = s.source || ''
     if (!map.has(key)) map.set(key, [])
     map.get(key)!.push(s)
   }
 
   const keys = [...map.keys()].sort((a, b) => {
-    const aHasLive = map.get(a)?.some(s => chatStore.isSessionLive(s.id)) || false
-    const bHasLive = map.get(b)?.some(s => chatStore.isSessionLive(s.id)) || false
+    const aHasLive = map.get(a)?.some(s => chatStore.isSessionLive(s.key)) || false
+    const bHasLive = map.get(b)?.some(s => chatStore.isSessionLive(s.key)) || false
     if (aHasLive !== bHasLive) return aHasLive ? -1 : 1
     const ka = sourceSortKey(a)
     const kb = sourceSortKey(b)
@@ -163,7 +162,7 @@ function toggleGroup(source: string) {
     )
     const group = groupedSessions.value.find(g => g.source === source)
     if (group?.sessions.length) {
-      chatStore.switchSession(group.sessions[0].id)
+      chatStore.switchSession(group.sessions[0].key)
     }
   }
   saveCollapsedGroupSources(collapsedGroups.value)
@@ -183,7 +182,7 @@ watch(groupedSessions, groups => {
 }, { once: true })
 
 watch(
-  () => [chatStore.sessionsLoaded, ...chatStore.sessions.map(session => session.id)],
+  () => [chatStore.sessionsLoaded, ...chatStore.sessions.map(session => session.key)],
   value => {
     const sessionIds = value.slice(1) as string[]
     if (!value[0] || sessionIds.length === 0) return
@@ -253,8 +252,10 @@ function handleNewChat() {
   chatStore.newChat()
 }
 
-async function copySessionId(id?: string) {
-  const sessionId = id || chatStore.activeSessionId
+async function copySessionId(sessionKey?: string) {
+  const sessionId = sessionKey
+    ? chatStore.sessions.find(session => session.key === sessionKey)?.id
+    : chatStore.activeSessionId
   if (sessionId) {
     const ok = await copyToClipboard(sessionId)
     if (ok) message.success(t('common.copied'))
@@ -272,9 +273,9 @@ async function handleDeleteSession(id: string) {
   message.success(t('chat.sessionDeleted'))
 }
 
-const contextSessionId = ref<string | null>(null)
+const contextSessionKey = ref<string | null>(null)
 const contextSessionPinned = computed(() =>
-  contextSessionId.value ? sessionBrowserPrefsStore.isPinned(contextSessionId.value) : false,
+  contextSessionKey.value ? sessionBrowserPrefsStore.isPinned(contextSessionKey.value) : false,
 )
 
 const contextMenuItems = computed<MenuProps['items']>(() =>
@@ -289,9 +290,9 @@ const contextMenuStyle = computed(() => ({
   top: `${contextMenuY.value}px`,
 }))
 
-function handleContextMenu(e: MouseEvent, sessionId: string) {
+function handleContextMenu(e: MouseEvent, sessionKey: string) {
   e.preventDefault()
-  contextSessionId.value = sessionId
+  contextSessionKey.value = sessionKey
   showContextMenu.value = true
   contextMenuX.value = e.clientX
   contextMenuY.value = e.clientY
@@ -303,16 +304,16 @@ const contextMenuY = ref(0)
 
 function handleContextMenuSelect(key: string) {
   showContextMenu.value = false
-  if (!contextSessionId.value) return
+  if (!contextSessionKey.value) return
   if (key === 'pin') {
-    sessionBrowserPrefsStore.togglePinned(contextSessionId.value)
+    sessionBrowserPrefsStore.togglePinned(contextSessionKey.value)
     return
   }
   if (key === 'copy-id') {
-    copySessionId(contextSessionId.value)
+    copySessionId(contextSessionKey.value)
   } else if (key === 'rename') {
-    const session = chatStore.sessions.find(s => s.id === contextSessionId.value)
-    renameSessionId.value = contextSessionId.value
+    const session = chatStore.sessions.find(s => s.key === contextSessionKey.value)
+    renameSessionKey.value = contextSessionKey.value
     renameValue.value = session?.title || ''
     showRenameModal.value = true
     nextTick(() => {
@@ -330,12 +331,14 @@ function handleContextMenuClick(info: { key: string | number }) {
 }
 
 async function handleRenameConfirm() {
-  if (!renameSessionId.value || !renameValue.value.trim()) return
-  const ok = await renameSession(renameSessionId.value, renameValue.value.trim())
+  if (!renameSessionKey.value || !renameValue.value.trim()) return
+  const target = chatStore.sessions.find(s => s.key === renameSessionKey.value)
+  if (!target) return
+  const ok = await renameSession(target.id, renameValue.value.trim(), target.profile)
   if (ok) {
-    const session = chatStore.sessions.find(s => s.id === renameSessionId.value)
+    const session = chatStore.sessions.find(s => s.key === renameSessionKey.value)
     if (session) session.title = renameValue.value.trim()
-    if (chatStore.activeSession?.id === renameSessionId.value) {
+    if (chatStore.activeSession?.key === renameSessionKey.value) {
       chatStore.activeSession.title = renameValue.value.trim()
     }
     message.success(t('chat.renamed'))
@@ -374,14 +377,14 @@ async function handleRenameConfirm() {
           </div>
           <SessionListItem
             v-for="s in pinnedSessions"
-            :key="`pinned-${s.id}`"
+            :key="`pinned-${s.key}`"
             :session="s"
-            :active="s.id === chatStore.activeSessionId"
+            :active="s.key === chatStore.activeSessionKey"
             :pinned="true"
-            :can-delete="s.id !== chatStore.activeSessionId || chatStore.sessions.length > 1"
-            @select="handleSessionClick(s.id)"
-            @contextmenu="handleContextMenu($event, s.id)"
-            @delete="handleDeleteSession(s.id)"
+            :can-delete="s.key !== chatStore.activeSessionKey || chatStore.sessions.length > 1"
+            @select="handleSessionClick(s.key)"
+            @contextmenu="handleContextMenu($event, s.key)"
+            @delete="handleDeleteSession(s.key)"
           />
         </template>
 
@@ -394,14 +397,14 @@ async function handleRenameConfirm() {
           <template v-if="!collapsedGroups.has(group.source)">
             <SessionListItem
               v-for="s in group.sessions"
-              :key="s.id"
+              :key="s.key"
               :session="s"
-              :active="s.id === chatStore.activeSessionId"
+              :active="s.key === chatStore.activeSessionKey"
               :pinned="false"
-              :can-delete="s.id !== chatStore.activeSessionId || chatStore.sessions.length > 1"
-              @select="handleSessionClick(s.id)"
-              @contextmenu="handleContextMenu($event, s.id)"
-              @delete="handleDeleteSession(s.id)"
+              :can-delete="s.key !== chatStore.activeSessionKey || chatStore.sessions.length > 1"
+              @select="handleSessionClick(s.key)"
+              @contextmenu="handleContextMenu($event, s.key)"
+              @delete="handleDeleteSession(s.key)"
             />
           </template>
         </template>
@@ -485,7 +488,6 @@ async function handleRenameConfirm() {
           </div>
         </div>
         <div class="header-actions">
-          <AgentSelector :session-id="chatStore.activeSessionId" />
           <Tooltip :title="t('chat.copySessionId')" trigger="hover">
             <Button type="text" size="small" @click="copySessionId()" shape="circle">
               <template #icon>

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.gateway.service;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.enums.ProcessingOutcome;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
@@ -14,9 +15,10 @@ import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
-import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.GatewayMediaDeliverySupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -60,13 +62,16 @@ public class DefaultGatewayService {
     /** 应用配置，用于读取消息网关运行时开关。 */
     private final AppConfig appConfig;
 
+    /** 当前网关服务实例所属 Profile。 */
+    private final String profileName;
+
+    /** default 复用网关用于把显式命名 Profile 消息转交给独立运行时。 */
+    private volatile ProfileMessageRouter profileMessageRouter;
+
     /** 回复文本中的 MEDIA: 指令解析器。 */
     private final GatewayMediaDeliverySupport mediaDeliverySupport;
 
-    /**
-     * Agent 运行监督器，用于 goal 续轮抢占检查（查询是否有待处理真实用户消息）。
-     * 可选依赖：未注入时抢占检查降级跳过，由现有 interrupt 策略兜底。
-     */
+    /** Agent 运行监督器，用于 goal 续轮抢占检查（查询是否有待处理真实用户消息）。 可选依赖：未注入时抢占检查降级跳过，由现有 interrupt 策略兜底。 */
     private AgentRunSupervisor agentRunSupervisor;
 
     /** 进程内最近已处理的消息键，用于抑制渠道重复投递。 */
@@ -196,6 +201,8 @@ public class DefaultGatewayService {
         this.gatewayAuthorizationService = gatewayAuthorizationService;
         this.skillLearningService = skillLearningService;
         this.appConfig = appConfig;
+        this.profileName =
+                appConfig == null ? "default" : ProfileRuntimeIdentity.resolve(appConfig);
         this.channelAdapters =
                 channelAdapters == null
                         ? Collections.<PlatformType, ChannelAdapter>emptyMap()
@@ -216,6 +223,22 @@ public class DefaultGatewayService {
     }
 
     /**
+     * 为 default 复用网关注入命名 Profile 路由器。
+     *
+     * @param profileMessageRouter 只接受当前进程已经承载的 Profile。
+     */
+    public void setProfileMessageRouter(ProfileMessageRouter profileMessageRouter) {
+        this.profileMessageRouter = profileMessageRouter;
+    }
+
+    /**
+     * @return 当前网关服务实例所属 Profile。
+     */
+    public String profileName() {
+        return profileName;
+    }
+
+    /**
      * 执行单条统一网关消息相关逻辑。
      *
      * @param message 渠道统一消息
@@ -224,6 +247,15 @@ public class DefaultGatewayService {
     public GatewayReply handle(GatewayMessage message) throws Exception {
         if (message == null) {
             return GatewayReply.error("消息体不能为空。");
+        }
+
+        String targetProfile = targetProfile(message);
+        if (!profileName.equals(targetProfile)) {
+            ProfileMessageRouter router = profileMessageRouter;
+            if (router == null) {
+                return GatewayReply.error("Profile '" + targetProfile + "' is not served here.");
+            }
+            return router.route(targetProfile, message);
         }
 
         pruneDuplicateKeys();
@@ -288,7 +320,8 @@ public class DefaultGatewayService {
                 return cancelledReply;
             }
             log.warn(
-                    "Gateway handle failed: platform={}, chatId={}, userId={}, text={}, errorType={}, error={}",
+                    "Gateway handle failed: platform={}, chatId={}, userId={}, text={},"
+                            + " errorType={}, error={}",
                     message.getPlatform(),
                     message.getChatId(),
                     message.getUserId(),
@@ -341,40 +374,45 @@ public class DefaultGatewayService {
         final String kickoff = textMetadata(reply, "goal_kickoff");
         Thread thread =
                 new Thread(
-                        new Runnable() {
-                            /** 执行异步任务主体。 */
-                            @Override
-                            public void run() {
-                                try {
-                                    GatewayMessage kickoffMessage =
-                                            new GatewayMessage(
-                                                    message.getPlatform(),
-                                                    message.getChatId(),
-                                                    message.getUserId(),
-                                                    kickoff);
-                                    kickoffMessage.setThreadId(message.getThreadId());
-                                    kickoffMessage.setChatType(message.getChatType());
-                                    kickoffMessage.setChatName(message.getChatName());
-                                    kickoffMessage.setUserName(message.getUserName());
-                                    kickoffMessage.setSourceKeyOverride(message.sourceKey());
-                                    kickoffMessage.setGoalContinuation(true); // 标记为合成续轮
-                                    GatewayReply next =
-                                            conversationOrchestrator.runScheduled(kickoffMessage);
-                                    if (next != null) {
-                                        safeDeliver(kickoffMessage, next);
-                                        safeDeliverGoalNotice(kickoffMessage, next);
-                                        safeScheduleLearning(kickoffMessage, next);
-                                        safeScheduleGoalContinuation(kickoffMessage, next);
+                        ProfileRuntimeScope.capture(
+                                new Runnable() {
+                                    /** 执行异步任务主体。 */
+                                    @Override
+                                    public void run() {
+                                        try {
+                                            GatewayMessage kickoffMessage =
+                                                    new GatewayMessage(
+                                                            message.getPlatform(),
+                                                            message.getChatId(),
+                                                            message.getUserId(),
+                                                            kickoff);
+                                            kickoffMessage.setThreadId(message.getThreadId());
+                                            kickoffMessage.setChatType(message.getChatType());
+                                            kickoffMessage.setChatName(message.getChatName());
+                                            kickoffMessage.setUserName(message.getUserName());
+                                            kickoffMessage.setProfile(message.getProfile());
+                                            kickoffMessage.setSourceKeyOverride(
+                                                    message.sourceKey());
+                                            kickoffMessage.setGoalContinuation(true); // 标记为合成续轮
+                                            GatewayReply next =
+                                                    conversationOrchestrator.runScheduled(
+                                                            kickoffMessage);
+                                            if (next != null) {
+                                                safeDeliver(kickoffMessage, next);
+                                                safeDeliverGoalNotice(kickoffMessage, next);
+                                                safeScheduleLearning(kickoffMessage, next);
+                                                safeScheduleGoalContinuation(kickoffMessage, next);
+                                            }
+                                        } catch (Exception e) {
+                                            log.warn(
+                                                    "Goal kickoff dispatch failed: sourceKey={},"
+                                                            + " errorType={}, error={}",
+                                                    message.sourceKey(),
+                                                    errorType(e),
+                                                    safeMessage(e));
+                                        }
                                     }
-                                } catch (Exception e) {
-                                    log.warn(
-                                            "Goal kickoff dispatch failed: sourceKey={}, errorType={}, error={}",
-                                            message.sourceKey(),
-                                            errorType(e),
-                                            safeMessage(e));
-                                }
-                            }
-                        },
+                                }),
                         "jimuqu-goal-kickoff");
         thread.setDaemon(true);
         thread.start();
@@ -398,49 +436,54 @@ public class DefaultGatewayService {
         }
         Thread thread =
                 new Thread(
-                        new Runnable() {
-                            /** 执行异步任务主体。 */
-                            @Override
-                            public void run() {
-                                try {
-                                    // 抢占检查：若有待处理真实用户消息，跳过本轮续轮，让真实消息接手
-                                    if (agentRunSupervisor != null
-                                            && agentRunSupervisor.hasPendingRealMessage(
-                                                    message.sourceKey())) {
-                                        log.debug(
-                                                "goal continuation skipped: real user message pending for {}",
-                                                message.sourceKey());
-                                        return;
+                        ProfileRuntimeScope.capture(
+                                new Runnable() {
+                                    /** 执行异步任务主体。 */
+                                    @Override
+                                    public void run() {
+                                        try {
+                                            // 抢占检查：若有待处理真实用户消息，跳过本轮续轮，让真实消息接手
+                                            if (agentRunSupervisor != null
+                                                    && agentRunSupervisor.hasPendingRealMessage(
+                                                            message.sourceKey())) {
+                                                log.debug(
+                                                        "goal continuation skipped: real user"
+                                                                + " message pending for {}",
+                                                        message.sourceKey());
+                                                return;
+                                            }
+                                            GatewayMessage continuation =
+                                                    new GatewayMessage(
+                                                            message.getPlatform(),
+                                                            message.getChatId(),
+                                                            message.getUserId(),
+                                                            prompt);
+                                            continuation.setThreadId(message.getThreadId());
+                                            continuation.setChatType(message.getChatType());
+                                            continuation.setChatName(message.getChatName());
+                                            continuation.setUserName(message.getUserName());
+                                            continuation.setProfile(message.getProfile());
+                                            continuation.setSourceKeyOverride(message.sourceKey());
+                                            continuation.setGoalContinuation(true); // 标记为合成续轮
+                                            GatewayReply next =
+                                                    conversationOrchestrator.runScheduled(
+                                                            continuation);
+                                            if (next != null) {
+                                                safeDeliver(continuation, next);
+                                                safeDeliverGoalNotice(continuation, next);
+                                                safeScheduleLearning(continuation, next);
+                                                safeScheduleGoalContinuation(continuation, next);
+                                            }
+                                        } catch (Exception e) {
+                                            log.warn(
+                                                    "Goal continuation dispatch failed:"
+                                                            + " sourceKey={}, errorType={}, error={}",
+                                                    message.sourceKey(),
+                                                    errorType(e),
+                                                    safeMessage(e));
+                                        }
                                     }
-                                    GatewayMessage continuation =
-                                            new GatewayMessage(
-                                                    message.getPlatform(),
-                                                    message.getChatId(),
-                                                    message.getUserId(),
-                                                    prompt);
-                                    continuation.setThreadId(message.getThreadId());
-                                    continuation.setChatType(message.getChatType());
-                                    continuation.setChatName(message.getChatName());
-                                    continuation.setUserName(message.getUserName());
-                                    continuation.setSourceKeyOverride(message.sourceKey());
-                                    continuation.setGoalContinuation(true); // 标记为合成续轮
-                                    GatewayReply next =
-                                            conversationOrchestrator.runScheduled(continuation);
-                                    if (next != null) {
-                                        safeDeliver(continuation, next);
-                                        safeDeliverGoalNotice(continuation, next);
-                                        safeScheduleLearning(continuation, next);
-                                        safeScheduleGoalContinuation(continuation, next);
-                                    }
-                                } catch (Exception e) {
-                                    log.warn(
-                                            "Goal continuation dispatch failed: sourceKey={}, errorType={}, error={}",
-                                            message.sourceKey(),
-                                            errorType(e),
-                                            safeMessage(e));
-                                }
-                            }
-                        },
+                                }),
                         "jimuqu-goal-continuation");
         thread.setDaemon(true);
         thread.start();
@@ -483,6 +526,7 @@ public class DefaultGatewayService {
         }
         try {
             DeliveryRequest request = new DeliveryRequest();
+            request.setProfile(profileName);
             request.setPlatform(platform);
             request.setChatId(chatId);
             request.setThreadId(threadId);
@@ -507,6 +551,7 @@ public class DefaultGatewayService {
         }
         try {
             DeliveryRequest request = new DeliveryRequest();
+            request.setProfile(message.getProfile());
             request.setPlatform(message.getPlatform());
             request.setChatId(message.getChatId());
             request.setUserId(message.getUserId());
@@ -527,7 +572,8 @@ public class DefaultGatewayService {
             deliveryService.deliver(request);
         } catch (Exception e) {
             log.warn(
-                    "Gateway delivery failed: platform={}, chatId={}, userId={}, errorType={}, error={}",
+                    "Gateway delivery failed: platform={}, chatId={}, userId={}, errorType={},"
+                            + " error={}",
                     message.getPlatform(),
                     message.getChatId(),
                     message.getUserId(),
@@ -549,7 +595,8 @@ public class DefaultGatewayService {
             adapter.onProcessingStart(message);
         } catch (Exception e) {
             log.warn(
-                    "Processing reaction start failed: platform={}, chatId={}, threadId={}, errorType={}, error={}",
+                    "Processing reaction start failed: platform={}, chatId={}, threadId={},"
+                            + " errorType={}, error={}",
                     message.getPlatform(),
                     message.getChatId(),
                     message.getThreadId(),
@@ -571,7 +618,8 @@ public class DefaultGatewayService {
             adapter.onProcessingComplete(message, outcome);
         } catch (Exception e) {
             log.warn(
-                    "Processing reaction complete failed: platform={}, chatId={}, threadId={}, outcome={}, errorType={}, error={}",
+                    "Processing reaction complete failed: platform={}, chatId={}, threadId={},"
+                            + " outcome={}, errorType={}, error={}",
                     message.getPlatform(),
                     message.getChatId(),
                     message.getThreadId(),
@@ -623,6 +671,8 @@ public class DefaultGatewayService {
         }
         return String.valueOf(message.getPlatform())
                 + ":"
+                + StrUtil.nullToEmpty(message.getProfile())
+                + ":"
                 + StrUtil.nullToEmpty(message.getChatId())
                 + ":"
                 + message.getThreadId().trim()
@@ -657,6 +707,18 @@ public class DefaultGatewayService {
                 recentMessageKeys.remove(entry.getKey(), entry.getValue());
             }
         }
+    }
+
+    /** 规范化目标 Profile，并在适配器未显式标记时补当前运行时身份。 */
+    private String targetProfile(GatewayMessage message) {
+        String raw =
+                StrUtil.nullToEmpty(message.getProfile()).trim().toLowerCase(java.util.Locale.ROOT);
+        String target = raw.length() == 0 ? profileName : raw;
+        if (!target.matches("[a-z0-9][a-z0-9_-]{0,63}")) {
+            throw new IllegalArgumentException("Invalid Profile name: " + raw);
+        }
+        message.setProfile(target);
+        return target;
     }
 
     /** 提炼用户可见错误信息。 */

@@ -45,11 +45,18 @@ public class CuratorManageTools {
                     String action,
             @Param(name = "report_id", required = false, description = "Curator report id")
                     String reportId,
-            @Param(name = "skill_name", required = false, description = "Skill name for apply or ignore")
+            @Param(
+                            name = "skill_name",
+                            required = false,
+                            description = "Skill name for apply or ignore")
                     String skillName,
             @Param(name = "suggestion", required = false, description = "Suggestion text")
                     String suggestion,
-            @Param(name = "force", required = false, defaultValue = "false", description = "Force run")
+            @Param(
+                            name = "force",
+                            required = false,
+                            defaultValue = "false",
+                            description = "Force run")
                     Boolean force,
             @Param(name = "limit", required = false, defaultValue = "20", description = "Max rows")
                     Integer limit) {

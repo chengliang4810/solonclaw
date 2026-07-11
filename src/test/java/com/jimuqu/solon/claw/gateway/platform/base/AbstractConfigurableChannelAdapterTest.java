@@ -61,10 +61,7 @@ public class AbstractConfigurableChannelAdapterTest {
         }
     }
 
-    /**
-     * 控制命令投递不能被持有串行入站执行器的长任务阻塞：模拟一个独占串行线程的任务，再投递控制命令，
-     * 控制命令的处理线程必须不同于串行线程，且能在长任务结束前完成。
-     */
+    /** 控制命令投递不能被持有串行入站执行器的长任务阻塞：模拟一个独占串行线程的任务，再投递控制命令， 控制命令的处理线程必须不同于串行线程，且能在长任务结束前完成。 */
     @Test
     void shouldDispatchControlCommandWithoutWaitingForRunningTask() throws Exception {
         final TestAdapter adapter = newAdapter();
@@ -125,7 +122,8 @@ public class AbstractConfigurableChannelAdapterTest {
                     new Runnable() {
                         @Override
                         public void run() {
-                            adapter.inboundHandle(new GatewayMessage(PlatformType.FEISHU, "c", "u", "hi"));
+                            adapter.inboundHandle(
+                                    new GatewayMessage(PlatformType.FEISHU, "c", "u", "hi"));
                         }
                     });
             // 普通消息不应在长任务释放前被处理

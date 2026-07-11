@@ -11,9 +11,6 @@ final class ContextTokenEstimator {
     /** 图片MARKER的统一常量值。 */
     private static final String IMAGE_MARKER = "[image]";
 
-    /** 图片附件token成本的统一常量值。 */
-    private static final int IMAGE_ATTACHMENT_TOKEN_COST = 256;
-
     /** 创建上下文token Estimator实例。 */
     private ContextTokenEstimator() {}
 
@@ -69,7 +66,8 @@ final class ContextTokenEstimator {
         long estimated =
                 nonAsciiCount
                         + (minimumAsciiToken ? Math.max(1L, asciiTokens) : asciiTokens)
-                        + imageEstimate.imageCount * IMAGE_ATTACHMENT_TOKEN_COST;
+                        + imageEstimate.imageCount
+                                * CompressionConstants.IMAGE_ATTACHMENT_ESTIMATED_TOKENS;
         return estimated > Integer.MAX_VALUE ? Integer.MAX_VALUE : Math.max(1, (int) estimated);
     }
 

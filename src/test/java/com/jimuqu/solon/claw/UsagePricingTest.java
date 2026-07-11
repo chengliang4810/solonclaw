@@ -15,6 +15,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteUsageEventRepository;
 import com.jimuqu.solon.claw.usage.UsageBackfillService;
+import com.jimuqu.solon.claw.usage.UsageEventCostSupport;
 import com.jimuqu.solon.claw.usage.UsageEventRecord;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import java.io.File;
@@ -25,6 +26,49 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class UsagePricingTest {
+    @Test
+    void defaultGpt54UsageStaysUnpricedUntilAnExplicitPriceIsConfigured() {
+        AppConfig config = new AppConfig();
+        UsageEventRecord unknown = usageEvent("default", "gpt-5.4");
+
+        UsageEventCostSupport.apply(
+                unknown,
+                UsageEventCostSupport.calculate(
+                        new UsageCostCalculator(PriceCatalog.forConfig(config)), unknown));
+
+        assertThat(unknown.isPricingAvailable()).isFalse();
+        assertThat(unknown.getCostMicros()).isZero();
+        assertThat(unknown.getUnpricedInputTokens()).isEqualTo(100L);
+        assertThat(unknown.getUnpricedOutputTokens()).isEqualTo(25L);
+        assertThat(unknown.getUnpricedCacheReadTokens()).isEqualTo(40L);
+        assertThat(unknown.getUnpricedCacheWriteTokens()).isEqualTo(10L);
+        assertThat(unknown.getUnpricedReasoningTokens()).isEqualTo(3L);
+
+        ModelPrice configured = new ModelPrice();
+        configured.setProvider("default");
+        configured.setModel("gpt-5.4");
+        configured.setInputCostPerMillion("2.00");
+        configured.setOutputCostPerMillion("10.00");
+        configured.setCacheReadCostPerMillion("1.00");
+        configured.setCacheWriteCostPerMillion("4.00");
+        configured.setReasoningCostPerMillion("20.00");
+        configured.setRequestMicrosPerRequest(30L);
+        configured.setSource("user_config");
+        config.getPricing().getPrices().add(configured);
+        UsageEventRecord priced = usageEvent("default", "gpt-5.4");
+
+        UsageEventCostSupport.apply(
+                priced,
+                UsageEventCostSupport.calculate(
+                        new UsageCostCalculator(PriceCatalog.forConfig(config)), priced));
+
+        assertThat(priced.isPricingAvailable()).isTrue();
+        assertThat(priced.getCostMicros()).isEqualTo(650L);
+        assertThat(priced.getPriceSource()).isEqualTo("user_config");
+        assertThat(priced.getUnpricedInputTokens()).isZero();
+        assertThat(priced.getUnpricedOutputTokens()).isZero();
+    }
+
     @Test
     void builtInPriceCatalogCalculatesCostsWithoutUserConfiguration() {
         PriceCatalog catalog = PriceCatalog.configuredWithDefaults(null);
@@ -551,6 +595,19 @@ public class UsagePricingTest {
         assertThat(fallbackTotals.get("pricing_available")).isEqualTo(Boolean.FALSE);
     }
 
+    private UsageEventRecord usageEvent(String provider, String model) {
+        UsageEventRecord event = new UsageEventRecord();
+        event.setProvider(provider);
+        event.setModel(model);
+        event.setInputTokens(100L);
+        event.setOutputTokens(25L);
+        event.setCacheReadTokens(40L);
+        event.setCacheWriteTokens(10L);
+        event.setReasoningTokens(3L);
+        event.setRequestCount(2L);
+        return event;
+    }
+
     @Test
     void analyticsCountsAllUsageEventsWithoutRepositoryLimitTruncation() throws Exception {
         AppConfig config = testConfig();
@@ -592,7 +649,8 @@ public class UsagePricingTest {
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         return config;
     }
 }

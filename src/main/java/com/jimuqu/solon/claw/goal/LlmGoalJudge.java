@@ -2,7 +2,6 @@ package com.jimuqu.solon.claw.goal;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
@@ -22,10 +21,9 @@ import org.slf4j.LoggerFactory;
 /**
  * LLM-backed goal judge：复用 LlmGateway 的非流式 auxiliary 通道裁决目标完成度。
  *
- * <p>调用约定（对标 {@code AsyncSkillLearningService.callAuxiliaryChat}）：提交到有界线程池，用
- * {@code Future.get(timeout)} 兜底超时，超时则取消任务。任何网络异常/超时一律 fail-open 返回
- * {@code continue}；仅当「模型确实返回了内容、但 JSON 不可解析」时抛出
- * {@link GoalJudgeUnparseableException}，交由上层 {@link GoalService} 累计
+ * <p>调用约定（对标 {@code AsyncSkillLearningService.callAuxiliaryChat}）：提交到有界线程池，用 {@code
+ * Future.get(timeout)} 兜底超时，超时则取消任务。任何网络异常/超时一律 fail-open 返回 {@code continue}；仅当「模型确实返回了内容、但 JSON
+ * 不可解析」时抛出 {@link GoalJudgeUnparseableException}，交由上层 {@link GoalService} 累计
  * consecutiveParseFailures 后自动暂停。
  */
 public class LlmGoalJudge implements GoalJudge {
@@ -62,7 +60,10 @@ public class LlmGoalJudge implements GoalJudge {
             LlmGateway llmGateway, AppConfig appConfig, LlmProviderService llmProviderService) {
         this.llmGateway = llmGateway;
         this.appConfig = appConfig == null ? new AppConfig() : appConfig;
-        this.config = this.appConfig.getGoal() == null ? new AppConfig.GoalConfig() : this.appConfig.getGoal();
+        this.config =
+                this.appConfig.getGoal() == null
+                        ? new AppConfig.GoalConfig()
+                        : this.appConfig.getGoal();
         this.llmProviderService = llmProviderService;
     }
 
@@ -100,7 +101,10 @@ public class LlmGoalJudge implements GoalJudge {
                                         null);
                             }
                             return llmGateway.chat(
-                                    judgeSession, systemPrompt, userMessage, Collections.emptyList());
+                                    judgeSession,
+                                    systemPrompt,
+                                    userMessage,
+                                    Collections.emptyList());
                         });
         LlmResult result;
         try {
@@ -121,12 +125,10 @@ public class LlmGoalJudge implements GoalJudge {
     }
 
     /**
-     * 按优先级（契约 > 子目标 > 裸目标）选择裁决器用户提示，对标
-     * {@code GoalService.nextContinuationPrompt} 的优先级约定。
+     * 按优先级（契约 > 子目标 > 裸目标）选择裁决器用户提示，对标 {@code GoalService.nextContinuationPrompt} 的优先级约定。
      *
-     * <p>契约存在时，若同时携带子目标，则把子目标折叠为「Extra criterion N」追加到契约块，
-     * 让裁决器在同一提示里同时看到契约 Verification 与子目标。子目标列表格式化为编号行
-     * 「- 1. <text>」，与续轮提示一致。
+     * <p>契约存在时，若同时携带子目标，则把子目标折叠为「Extra criterion N」追加到契约块， 让裁决器在同一提示里同时看到契约 Verification
+     * 与子目标。子目标列表格式化为编号行 「- 1. <text>」，与续轮提示一致。
      *
      * @param request 裁决请求。
      * @param goal 目标文本（已空安全）。
@@ -136,7 +138,8 @@ public class LlmGoalJudge implements GoalJudge {
     private String buildJudgeUserMessage(
             GoalJudgeRequest request, String goal, String lastResponse) {
         if (request == null) {
-            return String.format(GoalPromptTemplates.JUDGE_USER_PROMPT_TEMPLATE, goal, lastResponse);
+            return String.format(
+                    GoalPromptTemplates.JUDGE_USER_PROMPT_TEMPLATE, goal, lastResponse);
         }
         GoalContract contract = request.getContract();
         boolean hasContract = contract != null && !contract.isEmpty();
@@ -188,12 +191,12 @@ public class LlmGoalJudge implements GoalJudge {
     }
 
     /**
-     * 解析裁决器使用的 LLM 配置：当 {@code judgeProvider} 非空时，解析为已解析配置（廉价模型），
-     * 否则返回 {@code null} 表示按主模型兜底走 {@code chat(...)}。
+     * 解析裁决器使用的 LLM 配置：当 {@code judgeProvider} 非空时，解析为已解析配置（廉价模型）， 否则返回 {@code null} 表示按主模型兜底走
+     * {@code chat(...)}。
      *
-     * <p>解析逻辑对标 {@code AgentRunSupervisor.toLlmConfig}：以 {@code appConfig.getLlm()} 为基线，
-     * 覆盖 provider/dialect/apiUrl/apiKey/model；再设置裁决器专属的非流式与 maxTokens。
-     * provider 解析失败时 fail-open 返回 {@code null}（仅记录警告，不中断 goal 循环）。
+     * <p>解析逻辑对标 {@code AgentRunSupervisor.toLlmConfig}：以 {@code appConfig.getLlm()} 为基线， 覆盖
+     * provider/dialect/apiUrl/apiKey/model；再设置裁决器专属的非流式与 maxTokens。 provider 解析失败时 fail-open 返回
+     * {@code null}（仅记录警告，不中断 goal 循环）。
      *
      * @return 已解析的裁决器 LLM 配置；judgeProvider 留空或解析失败时返回 null。
      */
@@ -275,8 +278,8 @@ public class LlmGoalJudge implements GoalJudge {
     /**
      * 解析 judge 的 JSON 裁决，剥离 markdown ```json fence。
      *
-     * <p>verdict 取值 done/continue/wait；未知 verdict 一律视为 continue。空响应或非法 JSON 抛
-     * {@link GoalJudgeUnparseableException}。
+     * <p>verdict 取值 done/continue/wait；未知 verdict 一律视为 continue。空响应或非法 JSON 抛 {@link
+     * GoalJudgeUnparseableException}。
      *
      * @param raw 模型原始响应。
      * @return 解析后的裁决结果。

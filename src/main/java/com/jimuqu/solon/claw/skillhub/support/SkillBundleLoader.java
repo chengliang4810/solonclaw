@@ -101,10 +101,7 @@ public class SkillBundleLoader {
         return null;
     }
 
-    /**
-     * 保存技能包清单文件。
-     *
-     */
+    /** 保存技能包清单文件。 */
     public synchronized void saveBundle(SkillBundle bundle) {
         FileUtil.mkdir(bundlesDir);
         String slug = slugify(bundle == null ? null : bundle.getName());

@@ -73,27 +73,23 @@ public class TuiRuntimeManageTools {
             @Param(
                             name = "key",
                             required = false,
-                            description = "Config key for config_get or provider slug for model_save_key")
+                            description =
+                                    "Config key for config_get or provider slug for model_save_key")
                     String key,
-            @Param(
-                            name = "value",
-                            required = false,
-                            description = "API key for model_save_key")
+            @Param(name = "value", required = false, description = "API key for model_save_key")
                     String value,
             @Param(
                             name = "values",
                             required = false,
                             description = "Channel field values for channel_save")
                     Map<String, String> values,
-            @Param(
-                            name = "ticket",
-                            required = false,
-                            description = "QR ticket for channel_qr_get")
+            @Param(name = "ticket", required = false, description = "QR ticket for channel_qr_get")
                     String ticket,
             @Param(name = "sessionId", required = false, description = "Optional session id")
                     String sessionId) {
         try {
-            Map<String, Object> result = run(action, channel, key, value, values, ticket, sessionId);
+            Map<String, Object> result =
+                    run(action, channel, key, value, values, ticket, sessionId);
             return ToolResultEnvelope.ok("TUI 运行时操作完成")
                     .preview(SecretRedactor.redact(ONode.serialize(result), 3000))
                     .data("result", result)

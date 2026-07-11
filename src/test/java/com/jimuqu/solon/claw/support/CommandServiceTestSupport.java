@@ -30,7 +30,9 @@ public final class CommandServiceTestSupport {
 
     /** 使用测试环境的默认依赖组装命令服务，仅替换当前测试关注的依赖。 */
     private static DefaultCommandService commandService(
-            TestEnvironment env, SkillHubService skillHubService, AppUpdateService appUpdateService) {
+            TestEnvironment env,
+            SkillHubService skillHubService,
+            AppUpdateService appUpdateService) {
         return new DefaultCommandService(
                 env.sessionRepository,
                 env.toolRegistry,

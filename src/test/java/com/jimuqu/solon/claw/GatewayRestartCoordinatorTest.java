@@ -7,9 +7,11 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -26,8 +28,11 @@ public class GatewayRestartCoordinatorTest {
         config.getTask().setRestartDrainTimeoutSeconds(1);
         RecordingRunControlService runControlService = new RecordingRunControlService();
         RecordingRestartExitHandler exitHandler = new RecordingRestartExitHandler();
-        GatewayRestartCoordinator coordinator =
-                new GatewayRestartCoordinator(config, runControlService, exitHandler);
+        GatewayRestartCoordinator coordinator;
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open("worker", tempDir, Collections.emptyMap(), null)) {
+            coordinator = new GatewayRestartCoordinator(config, runControlService, exitHandler);
+        }
 
         try {
             GatewayRestartCoordinator.RestartRequest request =
@@ -38,6 +43,7 @@ public class GatewayRestartCoordinatorTest {
             assertThat(runControlService.stopAllCount).isEqualTo(1);
             assertThat(runControlService.resumeReason).isEqualTo("restart_timeout");
             assertThat(exitHandler.timedOut).isTrue();
+            assertThat(exitHandler.observedProfile).isEqualTo("worker");
         } finally {
             coordinator.shutdown();
         }
@@ -111,10 +117,13 @@ public class GatewayRestartCoordinatorTest {
             implements GatewayRestartCoordinator.RestartExitHandler {
         private final CountDownLatch finished = new CountDownLatch(1);
         private volatile boolean timedOut;
+        private volatile String observedProfile;
 
         @Override
         public void restartAfterDrain(boolean timedOut) {
             this.timedOut = timedOut;
+            ProfileRuntimeScope.Context current = ProfileRuntimeScope.current();
+            this.observedProfile = current == null ? null : current.getProfile();
             finished.countDown();
         }
     }

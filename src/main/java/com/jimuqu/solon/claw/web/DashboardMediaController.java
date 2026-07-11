@@ -52,7 +52,8 @@ public class DashboardMediaController {
                      */
                     @Override
                     public Map<String, Object> run() throws Exception {
-                        return mediaService.indexLocal(DashboardRequestBodies.jsonObjectMap(context));
+                        return mediaService.indexLocal(
+                                DashboardRequestBodies.jsonObjectMap(context));
                     }
                 });
     }

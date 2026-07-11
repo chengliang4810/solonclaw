@@ -1683,7 +1683,6 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return HutoolHttpErrorFormatter.guardedBody(purpose, response);
     }
 
-
     /**
      * 解析Markdown标题。
      *

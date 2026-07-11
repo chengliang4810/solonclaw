@@ -1,9 +1,9 @@
 package com.jimuqu.solon.claw.support;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import java.io.File;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** 验证运行时路径解析工具的兜底语义。 */
 class RuntimePathSupportTest {
@@ -11,6 +11,7 @@ class RuntimePathSupportTest {
     @Test
     void shouldFallbackWhenCodeSourceIsDirectory() {
         File fallback = new File(System.getProperty("user.dir")).getAbsoluteFile();
-        assertEquals(fallback, RuntimePathSupport.jarBaseDir(RuntimePathSupportTest.class, fallback));
+        assertEquals(
+                fallback, RuntimePathSupport.jarBaseDir(RuntimePathSupportTest.class, fallback));
     }
 }

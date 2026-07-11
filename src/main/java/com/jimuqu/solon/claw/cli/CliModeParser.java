@@ -61,7 +61,7 @@ public final class CliModeParser {
                 sessionId = arg.substring("--session=".length());
                 continue;
             }
-            if ("--ask".equals(arg) || "-p".equals(arg)) {
+            if ("--ask".equals(arg)) {
                 captureRest = true;
                 continue;
             }
@@ -93,8 +93,7 @@ public final class CliModeParser {
         }
         if ("model".equals(first)) {
             if (args.length > 1
-                    && ("set".equalsIgnoreCase(args[1])
-                            || "configure".equalsIgnoreCase(args[1]))) {
+                    && ("set".equalsIgnoreCase(args[1]) || "configure".equalsIgnoreCase(args[1]))) {
                 return localSlashCommand("/model", args, 1);
             }
             return args.length == 1 ? new CliMode(CliMode.Kind.CLI, "/setup model", null) : null;

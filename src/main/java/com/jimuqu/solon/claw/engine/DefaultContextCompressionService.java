@@ -32,8 +32,8 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     /**
      * 创建上下文压缩服务，注入应用配置。
      *
-     * <p>本服务为原地压缩：直接改写同一会话的 ndjson/summary，不轮转 session_id。
-     * 因此目标状态按 session_id 存储后始终与当前会话绑定，无需在压缩边界迁移。
+     * <p>本服务为原地压缩：直接改写同一会话的 ndjson/summary，不轮转 session_id。 因此目标状态按 session_id
+     * 存储后始终与当前会话绑定，无需在压缩边界迁移。
      *
      * @param appConfig 应用运行配置。
      */
@@ -685,14 +685,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     private int findFirstSectionHeader(String content) {
         int result = -1;
         String[] headers =
-                new String[] {
-                    "Focus",
-                    "Goal",
-                    "Progress",
-                    "Decisions",
-                    "Files",
-                    "Remaining Work"
-                };
+                new String[] {"Focus", "Goal", "Progress", "Decisions", "Files", "Remaining Work"};
         for (String header : headers) {
             int newlineIdx = content.indexOf(header + "\n");
             if (newlineIdx >= 0 && (result < 0 || newlineIdx < result)) {

@@ -7,8 +7,7 @@ final class AgentRecoveryPromptConstants {
             "你刚刚已经完成了工具调用，但没有输出最终答复。请基于当前会话中的最新工具结果，直接用中文给出简洁最终答复，不要再次调用工具。";
 
     /** 空回复恢复仍失败时返回给用户的兜底说明，保持原有交互指引不变。 */
-    static final String EMPTY_REPLY_FALLBACK =
-            "本轮已完成工具调用，但模型没有返回可读结论。请使用 /retry 重试，或继续给出下一步指令。";
+    static final String EMPTY_REPLY_FALLBACK = "本轮已完成工具调用，但模型没有返回可读结论。请使用 /retry 重试，或继续给出下一步指令。";
 
     /** ReAct 步数耗尽后要求模型基于现有轨迹做无工具收敛总结的基础提示。 */
     static final String MAX_STEPS_RECOVERY_PROMPT =

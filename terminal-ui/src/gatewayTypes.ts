@@ -326,6 +326,7 @@ export interface BackgroundStartResponse {
 
 export interface ClarifyRespondResponse {
   ok?: boolean
+  status?: string
 }
 
 export interface ApprovalRespondResponse {
@@ -624,7 +625,7 @@ export type GatewayEvent =
       type: 'tool.complete'
     }
   | {
-      payload: { choices: string[] | null; question: string; request_id: string }
+      payload: { choices?: string[] | null; question: string; request_id: string }
       session_id?: string
       type: 'clarify.request'
     }

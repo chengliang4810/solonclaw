@@ -88,7 +88,9 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.CODESEARCH,
                     ToolNameConstants.WEBSEARCH,
                     ToolNameConstants.WEBFETCH,
+                    ToolNameConstants.WEB_EXTRACT,
                     ToolNameConstants.IMAGE_GENERATE,
+                    ToolNameConstants.VISION_ANALYZE,
                     ToolNameConstants.TEXT_TO_SPEECH,
                     ToolNameConstants.SPEECH_TRANSCRIBE,
                     ToolNameConstants.BROWSER,
@@ -331,6 +333,7 @@ public final class AgentRuntimePolicy {
         if ("web".equals(key) || "search".equals(key)) {
             output.add(ToolNameConstants.WEBSEARCH);
             output.add(ToolNameConstants.WEBFETCH);
+            output.add(ToolNameConstants.WEB_EXTRACT);
             output.add(ToolNameConstants.CODESEARCH);
             return;
         }
@@ -340,12 +343,14 @@ public final class AgentRuntimePolicy {
         }
         if ("media".equals(key) || "multimodal".equals(key)) {
             output.add(ToolNameConstants.IMAGE_GENERATE);
+            output.add(ToolNameConstants.VISION_ANALYZE);
             output.add(ToolNameConstants.TEXT_TO_SPEECH);
             output.add(ToolNameConstants.SPEECH_TRANSCRIBE);
             return;
         }
         if ("image".equals(key) || "images".equals(key) || "vision".equals(key)) {
             output.add(ToolNameConstants.IMAGE_GENERATE);
+            output.add(ToolNameConstants.VISION_ANALYZE);
             return;
         }
         if ("speech".equals(key)

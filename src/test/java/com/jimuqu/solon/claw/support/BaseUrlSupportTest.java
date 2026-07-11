@@ -1,8 +1,8 @@
 package com.jimuqu.solon.claw.support;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import org.junit.jupiter.api.Test;
 
 /** 验证基础 URL 末尾斜杠规范化。 */
 class BaseUrlSupportTest {

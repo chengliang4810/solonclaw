@@ -8,7 +8,6 @@ import cn.hutool.log.Log;
 import cn.hutool.log.LogFactory;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
-import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import java.io.File;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -21,9 +20,8 @@ import org.noear.snack4.ONode;
 /**
  * 模型上下文长度在线目录服务，聚合 models.dev 和 OpenRouter 两个公开数据源。
  *
- * <p>对齐外部对标仓库的在线探测能力：models.dev 覆盖 109 个提供方 4000+ 模型，OpenRouter 作为兜底。
- * 采用三层缓存（内存 1 小时 → 磁盘 1 小时 → 网络失败降级过期磁盘 5 分钟），首次查询时同步拉取，
- * 后续命中内存缓存。查询按 dialect + providerKey + baseUrl 推断对应的在线 provider 标识。
+ * <p>对齐外部对标仓库的在线探测能力：models.dev 覆盖 109 个提供方 4000+ 模型，OpenRouter 作为兜底。 采用三层缓存（内存 1 小时 → 磁盘 1 小时 →
+ * 网络失败降级过期磁盘 5 分钟），首次查询时同步拉取， 后续命中内存缓存。查询按 dialect + providerKey + baseUrl 推断对应的在线 provider 标识。
  */
 public class ModelContextCatalogService {
     /** 日志记录器。 */
@@ -89,7 +87,8 @@ public class ModelContextCatalogService {
         String lowerModel = normalizedModel.toLowerCase();
 
         // 优先查 models.dev（覆盖面更广、更权威）
-        OptionalInt fromModelsDev = lookupModelsDev(dialect, providerKey, baseUrl, normalizedModel, lowerModel);
+        OptionalInt fromModelsDev =
+                lookupModelsDev(dialect, providerKey, baseUrl, normalizedModel, lowerModel);
         if (fromModelsDev.isPresent()) {
             return fromModelsDev;
         }
@@ -276,20 +275,21 @@ public class ModelContextCatalogService {
     /**
      * 获取 models.dev 内存缓存，过期时触发刷新。
      *
-     * <p>首次无缓存时先尝试磁盘（快），磁盘也没有时返回空并触发异步网络加载，不阻塞调用方。
-     * 内存缓存过期时同步刷新（此时说明已有数据，刷新代价可接受）。
+     * <p>首次无缓存时先尝试磁盘（快），磁盘也没有时返回空并触发异步网络加载，不阻塞调用方。 内存缓存过期时同步刷新（此时说明已有数据，刷新代价可接受）。
      *
      * @return 返回 models.dev 目录数据，可能为空（表示尚未加载完成）。
      */
     private Map<String, Map<String, Integer>> getModelsDevCache() {
         long now = System.currentTimeMillis();
-        if (modelsDevCache != null && !modelsDevCache.isEmpty()
+        if (modelsDevCache != null
+                && !modelsDevCache.isEmpty()
                 && (now - modelsDevCacheTime) < CACHE_TTL_MILLIS) {
             return modelsDevCache;
         }
         synchronized (this) {
             // 内存缓存仍有效（双重检查）
-            if (modelsDevCache != null && !modelsDevCache.isEmpty()
+            if (modelsDevCache != null
+                    && !modelsDevCache.isEmpty()
                     && (System.currentTimeMillis() - modelsDevCacheTime) < CACHE_TTL_MILLIS) {
                 return modelsDevCache;
             }
@@ -309,12 +309,14 @@ public class ModelContextCatalogService {
      */
     private Map<String, Integer> getOpenRouterCache() {
         long now = System.currentTimeMillis();
-        if (openRouterCache != null && !openRouterCache.isEmpty()
+        if (openRouterCache != null
+                && !openRouterCache.isEmpty()
                 && (now - openRouterCacheTime) < CACHE_TTL_MILLIS) {
             return openRouterCache;
         }
         synchronized (this) {
-            if (openRouterCache != null && !openRouterCache.isEmpty()
+            if (openRouterCache != null
+                    && !openRouterCache.isEmpty()
                     && (System.currentTimeMillis() - openRouterCacheTime) < CACHE_TTL_MILLIS) {
                 return openRouterCache;
             }
@@ -330,8 +332,7 @@ public class ModelContextCatalogService {
     /**
      * 加载或拉取 models.dev 数据，按三层缓存策略执行。
      *
-     * <p>磁盘缓存有效时直接用磁盘；磁盘过期时用过期磁盘数据并触发异步刷新；
-     * 磁盘不存在时返回空并触发异步首次加载（不阻塞调用方）。
+     * <p>磁盘缓存有效时直接用磁盘；磁盘过期时用过期磁盘数据并触发异步刷新； 磁盘不存在时返回空并触发异步首次加载（不阻塞调用方）。
      *
      * @return 返回 models.dev 目录数据。
      */
@@ -382,9 +383,7 @@ public class ModelContextCatalogService {
     /** 异步刷新执行器，daemon 线程，不阻止 JVM 退出。 */
     private volatile java.util.concurrent.ExecutorService asyncRefreshExecutor;
 
-    /**
-     * 触发异步网络刷新，避免阻塞查询调用方。
-     */
+    /** 触发异步网络刷新，避免阻塞查询调用方。 */
     private void triggerAsyncRefresh() {
         if (!asyncRefreshScheduled.compareAndSet(false, true)) {
             return;
@@ -414,9 +413,7 @@ public class ModelContextCatalogService {
         return asyncRefreshExecutor;
     }
 
-    /**
-     * 执行异步网络刷新，拉取 models.dev 和 OpenRouter 数据并写入缓存。
-     */
+    /** 执行异步网络刷新，拉取 models.dev 和 OpenRouter 数据并写入缓存。 */
     private void performAsyncRefresh() {
         try {
             Map<String, Map<String, Integer>> freshModelsDev = fetchModelsDevFromRemote();
@@ -447,10 +444,11 @@ public class ModelContextCatalogService {
     @SuppressWarnings("unchecked")
     private Map<String, Map<String, Integer>> fetchModelsDevFromRemote() {
         try {
-            HttpResponse response = HttpRequest.get(MODELS_DEV_URL)
-                    .timeout(15000)
-                    .setFollowRedirects(false)
-                    .execute();
+            HttpResponse response =
+                    HttpRequest.get(MODELS_DEV_URL)
+                            .timeout(15000)
+                            .setFollowRedirects(false)
+                            .execute();
             if (response.getStatus() != 200) {
                 log.debug("models.dev 返回非 200 状态: {}", response.getStatus());
                 return Collections.emptyMap();
@@ -462,7 +460,8 @@ public class ModelContextCatalogService {
                 return Collections.emptyMap();
             }
             Map<String, Map<String, Integer>> result = new ConcurrentHashMap<>();
-            for (Map.Entry<String, Object> providerEntry : ((Map<String, Object>) parsed).entrySet()) {
+            for (Map.Entry<String, Object> providerEntry :
+                    ((Map<String, Object>) parsed).entrySet()) {
                 if (!(providerEntry.getValue() instanceof Map)) {
                     continue;
                 }
@@ -472,7 +471,8 @@ public class ModelContextCatalogService {
                     continue;
                 }
                 Map<String, Integer> providerModels = new ConcurrentHashMap<>();
-                for (Map.Entry<String, Object> modelEntry : ((Map<String, Object>) modelsObj).entrySet()) {
+                for (Map.Entry<String, Object> modelEntry :
+                        ((Map<String, Object>) modelsObj).entrySet()) {
                     Integer context = extractModelsDevContext(modelEntry.getValue());
                     if (context != null) {
                         providerModels.put(modelEntry.getKey(), context);
@@ -521,10 +521,11 @@ public class ModelContextCatalogService {
     @SuppressWarnings("unchecked")
     private Map<String, Integer> fetchOpenRouterFromRemote() {
         try {
-            HttpResponse response = HttpRequest.get(OPENROUTER_MODELS_URL)
-                    .timeout(10000)
-                    .setFollowRedirects(false)
-                    .execute();
+            HttpResponse response =
+                    HttpRequest.get(OPENROUTER_MODELS_URL)
+                            .timeout(10000)
+                            .setFollowRedirects(false)
+                            .execute();
             if (response.getStatus() != 200) {
                 log.debug("OpenRouter 返回非 200 状态: {}", response.getStatus());
                 return Collections.emptyMap();
@@ -601,7 +602,8 @@ public class ModelContextCatalogService {
             if (tsObj instanceof Number) {
                 timestamp = ((Number) tsObj).longValue();
             }
-            Map<String, Map<String, Integer>> modelsDev = parseModelsDevSection(root.get("models_dev"));
+            Map<String, Map<String, Integer>> modelsDev =
+                    parseModelsDevSection(root.get("models_dev"));
             Map<String, Integer> openRouter = parseOpenRouterSection(root.get("openrouter"));
             return Optional.of(new DiskCache(timestamp, modelsDev, openRouter));
         } catch (Exception e) {
@@ -627,7 +629,8 @@ public class ModelContextCatalogService {
                 continue;
             }
             Map<String, Integer> providerModels = new ConcurrentHashMap<>();
-            for (Map.Entry<String, Object> modelEntry : ((Map<String, Object>) providerEntry.getValue()).entrySet()) {
+            for (Map.Entry<String, Object> modelEntry :
+                    ((Map<String, Object>) providerEntry.getValue()).entrySet()) {
                 if (modelEntry.getValue() instanceof Number) {
                     int value = ((Number) modelEntry.getValue()).intValue();
                     if (value > 0) {

@@ -91,7 +91,8 @@ public class DingTalkProcessingEmotionTest {
         appConfig.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         appConfig
                 .getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         appConfig.getChannels().getDingtalk().setEnabled(true);
         appConfig.getChannels().getDingtalk().setClientId("app-key");
         appConfig.getChannels().getDingtalk().setClientSecret("app-secret");

@@ -215,21 +215,9 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
         if (snapshot == null) {
             return observations;
         }
-        collectSection(
-                "memory",
-                "MEMORY.md",
-                snapshot.getMemoryText(),
-                observations);
-        collectSection(
-                "user",
-                "USER.md",
-                snapshot.getUserText(),
-                observations);
-        collectSection(
-                "today",
-                "TODAY_MEMORY",
-                snapshot.getDailyMemoryText(),
-                observations);
+        collectSection("memory", "MEMORY.md", snapshot.getMemoryText(), observations);
+        collectSection("user", "USER.md", snapshot.getUserText(), observations);
+        collectSection("today", "TODAY_MEMORY", snapshot.getDailyMemoryText(), observations);
         return observations;
     }
 
@@ -242,7 +230,10 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
      * @param observations 当前 tick 的观测列表。
      */
     private void collectSection(
-            String section, String sourceRef, String text, List<ProactiveObservation> observations) {
+            String section,
+            String sourceRef,
+            String text,
+            List<ProactiveObservation> observations) {
         if (StrUtil.isBlank(text) || observations.size() >= MAX_OBSERVATIONS) {
             return;
         }
@@ -288,11 +279,14 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
      */
     private MemoryHint inspectLine(String section, String sourceRef, String line, int lineNumber) {
         List<String> labels = new ArrayList<String>();
-        boolean subject = CollectorSupport.containsKeyword(line, WORK_SUBJECT_KEYWORDS) || containsPathOrRepoRef(line);
+        boolean subject =
+                CollectorSupport.containsKeyword(line, WORK_SUBJECT_KEYWORDS)
+                        || containsPathOrRepoRef(line);
         boolean followup = CollectorSupport.containsKeyword(line, FOLLOWUP_KEYWORDS);
         boolean responsibility = CollectorSupport.containsKeyword(line, RESPONSIBILITY_KEYWORDS);
         boolean workAction = CollectorSupport.containsKeyword(line, WORK_ACTION_KEYWORDS);
-        boolean explicitFollowup = followup && CollectorSupport.containsKeyword(line, EXPLICIT_FOLLOWUP_KEYWORDS);
+        boolean explicitFollowup =
+                followup && CollectorSupport.containsKeyword(line, EXPLICIT_FOLLOWUP_KEYWORDS);
         boolean workResponsibility = responsibility && workAction;
         if (containsPathOrRepoRef(line)) {
             labels.add("repo_watch");
@@ -366,7 +360,8 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
             boolean followup,
             boolean responsibility,
             boolean workAction) {
-        boolean genericPreference = CollectorSupport.containsKeyword(line, GENERIC_PREFERENCE_KEYWORDS);
+        boolean genericPreference =
+                CollectorSupport.containsKeyword(line, GENERIC_PREFERENCE_KEYWORDS);
         if (!genericPreference) {
             return false;
         }
@@ -443,10 +438,7 @@ public class MemoryFollowupCollector implements ProactiveObservationCollector {
      */
     private String summary(MemoryHint hint) {
         return CollectorSupport.safe(
-                "knowledge_followup: "
-                        + topic(hint.line)
-                        + "，原因 "
-                        + String.join(",", hint.labels),
+                "knowledge_followup: " + topic(hint.line) + "，原因 " + String.join(",", hint.labels),
                 SUMMARY_MAX_LENGTH);
     }
 

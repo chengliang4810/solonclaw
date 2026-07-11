@@ -75,28 +75,28 @@ public class DashboardPluginStatusServiceTest {
         Files.write(
                 pluginDir.resolve("plugin.yaml"),
                 ("name: "
-                        + pluginName
-                        + "\nversion: 1.0.0\nkind: backend\ndescription: Dashboard plugin\n"
-                        + "enabled: "
-                        + enabled
-                        + "\nentry: "
-                        + className
-                        + "\nprovidesTools:\n  - "
-                        + pluginName
-                        + "_tool\n")
+                                + pluginName
+                                + "\nversion: 1.0.0\nkind: backend\ndescription: Dashboard plugin\n"
+                                + "enabled: "
+                                + enabled
+                                + "\nentry: "
+                                + className
+                                + "\nprovidesTools:\n  - "
+                                + pluginName
+                                + "_tool\n")
                         .getBytes(StandardCharsets.UTF_8));
         Files.write(
                 pluginDir.resolve(className + ".java"),
                 ("import com.jimuqu.solon.claw.plugin.*;\n"
-                        + "public class "
-                        + className
-                        + " implements AgentPlugin {\n"
-                        + "  public void register(AgentPluginContext ctx) {\n"
-                        + "    ctx.registerTool(new ToolRegistration(\""
-                        + pluginName
-                        + "_tool\", \"test\", java.util.Collections.emptyMap(), args -> \"ok\"));\n"
-                        + "  }\n"
-                        + "}\n")
+                                + "public class "
+                                + className
+                                + " implements AgentPlugin {\n"
+                                + "  public void register(AgentPluginContext ctx) {\n"
+                                + "    ctx.registerTool(new ToolRegistration(\""
+                                + pluginName
+                                + "_tool\", \"test\", java.util.Collections.emptyMap(), args -> \"ok\"));\n"
+                                + "  }\n"
+                                + "}\n")
                         .getBytes(StandardCharsets.UTF_8));
     }
 

@@ -86,7 +86,7 @@ public class McpRuntimeService implements Closeable {
                             "requires re-auth",
                             "requires reauth"));
 
-    /** 路径类参数键的统一常量值。 */
+    /** 用于诊断展示的路径类参数键，不改写远端 MCP 协议字段。 */
     private static final List<String> PATHISH_ARGUMENT_KEYS =
             Collections.unmodifiableList(
                     java.util.Arrays.asList(
@@ -959,7 +959,8 @@ public class McpRuntimeService implements Closeable {
     @SuppressWarnings("unchecked")
     private McpToolOptions resolveToolOptions(Map<String, Object> auth) {
         McpToolOptions options = new McpToolOptions();
-        Object tools = McpToolListSupport.firstPresent(auth, "tools", "tool_options", "toolOptions");
+        Object tools =
+                McpToolListSupport.firstPresent(auth, "tools", "tool_options", "toolOptions");
         if (tools instanceof Map) {
             Map<String, Object> map = (Map<String, Object>) tools;
             options.setInclude(
@@ -2877,22 +2878,10 @@ public class McpRuntimeService implements Closeable {
         }
 
         /**
-         * 执行firstArg文本相关逻辑。
+         * 在调用远端 MCP 工具前统一检查 URL 与路径参数，避免远端服务成为本地安全边界绕过通道。
          *
-         * @param args 工具或命令参数。
-         * @param key 配置键或映射键。
-         * @return 返回first Arg Text结果。
-         */
-        private String firstArgText(Map<String, Object> args, String key) {
-            Object value = args == null ? null : args.get(key);
-            return value == null ? "" : String.valueOf(value).trim();
-        }
-
-        /**
-         * 执行assert安全Remote工具相关逻辑。
-         *
-         * @param remoteToolName remote工具名称参数。
-         * @param args 工具或命令参数。
+         * @param remoteToolName 远端工具名称。
+         * @param args 已按远端 schema 规范化的参数。
          */
         private void assertSafeRemoteTool(String remoteToolName, Map<String, Object> args) {
             assertSafeUrls(remoteToolName, args);
@@ -2900,9 +2889,9 @@ public class McpRuntimeService implements Closeable {
         }
 
         /**
-         * 执行assert安全资源URI相关逻辑。
+         * 在读取远端资源前按 URL 和路径两种语义检查 URI。
          *
-         * @param uri 待校验或访问的地址参数。
+         * @param uri 待读取的资源 URI。
          */
         private void assertSafeResourceUri(String uri) {
             Map<String, Object> args = new LinkedHashMap<String, Object>();
@@ -2912,14 +2901,9 @@ public class McpRuntimeService implements Closeable {
             assertSafePaths("read_resource", args);
         }
 
-        /**
-         * 执行assert安全Urls相关逻辑。
-         *
-         * @param remoteToolName remote工具名称参数。
-         * @param args 工具或命令参数。
-         */
+        /** 检查远端 MCP 参数中嵌套的 URL。 */
         private void assertSafeUrls(String remoteToolName, Map<String, Object> args) {
-            if (securityPolicyService == null || args == null || args.isEmpty()) {
+            if (args == null || args.isEmpty()) {
                 return;
             }
             SecurityPolicyService.UrlVerdict verdict =
@@ -2933,19 +2917,13 @@ public class McpRuntimeService implements Closeable {
                                 + " URL 安全策略阻止访问："
                                 + verdict.getMessage()
                                 + "\nURL: "
-                                + com.jimuqu.solon.claw.support.SecretRedactor.maskUrl(
-                                        verdict.getUrl()));
+                                + SecretRedactor.maskUrl(verdict.getUrl()));
             }
         }
 
-        /**
-         * 执行assert安全Paths相关逻辑。
-         *
-         * @param remoteToolName remote工具名称参数。
-         * @param args 工具或命令参数。
-         */
+        /** 检查远端 MCP 参数中嵌套的文件路径。 */
         private void assertSafePaths(String remoteToolName, Map<String, Object> args) {
-            if (securityPolicyService == null || args == null || args.isEmpty()) {
+            if (args == null || args.isEmpty()) {
                 return;
             }
             SecurityPolicyService.FileVerdict verdict =
@@ -2961,6 +2939,18 @@ public class McpRuntimeService implements Closeable {
                                 + "\n路径："
                                 + SecretRedactor.redact(verdict.getPath(), 400));
             }
+        }
+
+        /**
+         * 执行firstArg文本相关逻辑。
+         *
+         * @param args 工具或命令参数。
+         * @param key 配置键或映射键。
+         * @return 返回first Arg Text结果。
+         */
+        private String firstArgText(Map<String, Object> args, String key) {
+            Object value = args == null ? null : args.get(key);
+            return value == null ? "" : String.valueOf(value).trim();
         }
 
         /**

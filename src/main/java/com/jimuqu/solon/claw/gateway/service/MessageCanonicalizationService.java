@@ -1,10 +1,8 @@
 package com.jimuqu.solon.claw.gateway.service;
 
 import cn.hutool.core.util.StrUtil;
-
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Pattern;

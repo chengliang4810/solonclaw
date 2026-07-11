@@ -22,6 +22,6 @@ public class ContextTokenEstimatorTest {
                                 + "正文\n"
                                 + "image_url=https://example.test/b.png");
 
-        assertThat(estimated).isGreaterThanOrEqualTo(512);
+        assertThat(estimated).isGreaterThanOrEqualTo(3000);
     }
 }

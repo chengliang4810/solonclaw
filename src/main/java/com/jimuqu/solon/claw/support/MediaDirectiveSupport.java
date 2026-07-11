@@ -1,7 +1,9 @@
 package com.jimuqu.solon.claw.support;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import java.io.File;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -188,9 +190,30 @@ public final class MediaDirectiveSupport {
             path = path.substring(0, path.length() - 1).trim();
         }
         if (path.startsWith("~/")) {
+            // MEDIA 中的 `~` 与普通 shell 一致，表示真实 OS 用户主目录。
             return new File(System.getProperty("user.home"), path.substring(2)).getAbsolutePath();
         }
+        if (isRelativePath(path)) {
+            ProfileRuntimeScope.Context scoped = ProfileRuntimeScope.current();
+            if (scoped != null && scoped.getHome() != null) {
+                Path home = scoped.getHome().toAbsolutePath().normalize();
+                return home.resolve(path).normalize().toString();
+            }
+        }
         return path;
+    }
+
+    /** 判断 MEDIA 路径是否需要相对当前 Profile 工作区解析。 */
+    private static boolean isRelativePath(String path) {
+        if (StrUtil.isBlank(path)) {
+            return false;
+        }
+        File file = new File(path);
+        return !file.isAbsolute()
+                && !Pattern.compile("^[A-Za-z]:[/\\\\].+").matcher(path).matches()
+                && !path.startsWith("\\\\")
+                && !path.startsWith("//")
+                && !path.toLowerCase(java.util.Locale.ROOT).startsWith("file:");
     }
 
     /** 承载Parsed媒体路径相关状态和辅助逻辑。 */

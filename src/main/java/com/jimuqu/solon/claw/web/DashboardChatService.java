@@ -293,8 +293,7 @@ public class DashboardChatService {
                     state == null ? "" : state.runId,
                     state == null ? "" : state.sessionId,
                     SecretRedactor.redact(
-                            StrUtil.blankToDefault(
-                                    e.getMessage(), e.getClass().getSimpleName()),
+                            StrUtil.blankToDefault(e.getMessage(), e.getClass().getSimpleName()),
                             500));
         }
     }
@@ -316,8 +315,7 @@ public class DashboardChatService {
 
         SessionRecord session = prepareSession(request);
         state.sessionId = session.getSessionId();
-        persistVisibleTurn(
-                session.getSessionId(), request, userText, CANCELED_ASSISTANT_TEXT);
+        persistVisibleTurn(session.getSessionId(), request, userText, CANCELED_ASSISTANT_TEXT);
     }
 
     /**
@@ -685,6 +683,9 @@ public class DashboardChatService {
         /** 标记启动事件是否已投递，避免外层运行和模型编排层重复发送同一类事件。 */
         private boolean runStartedEmitted;
 
+        /** 标记本轮是否已发送助手正文增量，供非流式控制回复补发最终文本。 */
+        private boolean assistantDeltaEmitted;
+
         /**
          * 创建控制台运行事件接收端实例，并注入运行所需依赖。
          *
@@ -719,6 +720,7 @@ public class DashboardChatService {
             if (StrUtil.isBlank(delta) || state.completed || state.canceled) {
                 return;
             }
+            assistantDeltaEmitted = true;
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
             payload.put("delta", delta);
             enqueue(state, "message.delta", payload);
@@ -888,6 +890,12 @@ public class DashboardChatService {
         @Override
         public void onRunCompleted(String sessionId, String finalReply, LlmResult result) {
             state.sessionId = StrUtil.blankToDefault(sessionId, state.sessionId);
+            if (!assistantDeltaEmitted && StrUtil.isNotBlank(finalReply) && !state.canceled) {
+                Map<String, Object> finalReplyPayload = new LinkedHashMap<String, Object>();
+                finalReplyPayload.put("delta", finalReply);
+                enqueue(state, "message.delta", finalReplyPayload);
+                assistantDeltaEmitted = true;
+            }
             state.status = "completed";
             state.completed = true;
             state.updatedAt = System.currentTimeMillis();
@@ -985,8 +993,7 @@ public class DashboardChatService {
          * @param delegate 原有事件接收端。
          * @param request 当前聊天运行请求。
          */
-        private DashboardCommandEventSink(
-                ConversationEventSink delegate, ChatRunRequest request) {
+        private DashboardCommandEventSink(ConversationEventSink delegate, ChatRunRequest request) {
             this.delegate = delegate == null ? ConversationEventSink.noop() : delegate;
             this.request = request;
         }
@@ -1387,7 +1394,8 @@ public class DashboardChatService {
                     int value = Integer.parseInt(raw.trim());
                     return value > 0 ? Integer.valueOf(value) : null;
                 } catch (Exception parseError) {
-                    log.debug("Dashboard运行策略正整数解析失败，忽略该次数限制 error={}",
+                    log.debug(
+                            "Dashboard运行策略正整数解析失败，忽略该次数限制 error={}",
                             parseError.getClass().getSimpleName());
                     return null;
                 }

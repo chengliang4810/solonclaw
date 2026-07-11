@@ -659,8 +659,7 @@ public class DashboardGatewayDoctorService {
         item.put("last_reconnect_at", Long.valueOf(status.getLastReconnectAt()));
         item.put("next_reconnect_at", Long.valueOf(status.getNextReconnectAt()));
         item.put(
-                "last_reconnect_error",
-                redactSensitivePaths(status.getLastReconnectError(), 1000));
+                "last_reconnect_error", redactSensitivePaths(status.getLastReconnectError(), 1000));
         item.put("next_step", nextStep(status));
         return item;
     }

@@ -3,10 +3,9 @@ package com.jimuqu.solon.claw.support;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
-import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.File;
@@ -77,9 +76,7 @@ public class TuiRuntimeProtocolService {
                         ? (configured ? "configured" : "missing")
                         : "not_required");
         result.put("workspace_config", configResolver().configFile().getPath());
-        String warning =
-                providerUrlPolicyWarning(
-                        providerKey, provider, template);
+        String warning = providerUrlPolicyWarning(providerKey, provider, template);
         if (StrUtil.isNotBlank(warning)) {
             result.put("warning", warning);
         }
@@ -113,12 +110,12 @@ public class TuiRuntimeProtocolService {
      * @return 保存结果。
      */
     public Map<String, Object> modelSaveKey(String slug, String apiKey, String sessionId) {
-        String providerKey = StrUtil.blankToDefault(StrUtil.nullToEmpty(slug).trim(), activeProviderKey());
+        String providerKey =
+                StrUtil.blankToDefault(StrUtil.nullToEmpty(slug).trim(), activeProviderKey());
         AppConfig.ProviderConfig provider = provider(providerKey);
         RuntimeProviderSetupSpec.ProviderTemplate template =
                 RuntimeProviderSetupSpec.provider(providerKey);
-        RuntimeSetupService.ModelSetupRequest request =
-                new RuntimeSetupService.ModelSetupRequest();
+        RuntimeSetupService.ModelSetupRequest request = new RuntimeSetupService.ModelSetupRequest();
         request.setProviderKey(providerKey);
         request.setProviderName(providerName(providerKey, provider, template));
         request.setBaseUrl(providerBaseUrl(providerKey, provider, template));
@@ -406,7 +403,9 @@ public class TuiRuntimeProtocolService {
         item.put("total_models", Integer.valueOf(models.size()));
         item.put("default_model", model);
         item.put("dialect", providerDialect(provider, template));
-        item.put("base_url", SecretRedactor.maskUrl(providerBaseUrl(providerKey, provider, template)));
+        item.put(
+                "base_url",
+                SecretRedactor.maskUrl(providerBaseUrl(providerKey, provider, template)));
         String urlWarning = providerUrlPolicyWarning(providerKey, provider, template);
         if (StrUtil.isNotBlank(urlWarning)) {
             item.put("warning", urlWarning);
@@ -439,7 +438,9 @@ public class TuiRuntimeProtocolService {
         item.put("allowed_keys", RuntimeSetupSpec.allowedChannelKeys(channel));
         Map<String, Object> required = new LinkedHashMap<String, Object>();
         for (String key : requiredKeys) {
-            required.put(key, Boolean.valueOf(StrUtil.isNotBlank(channelFieldValue(channel, config, key))));
+            required.put(
+                    key,
+                    Boolean.valueOf(StrUtil.isNotBlank(channelFieldValue(channel, config, key))));
         }
         item.put("required_configured", required);
         return item;
@@ -587,7 +588,11 @@ public class TuiRuntimeProtocolService {
         if ("enabled".equals(key)) {
             return "true 表示启用该渠道。";
         }
-        return "Saved to workspace/config.yml under solonclaw.channels." + channel + "." + key + ".";
+        return "Saved to workspace/config.yml under solonclaw.channels."
+                + channel
+                + "."
+                + key
+                + ".";
     }
 
     /**
@@ -670,7 +675,8 @@ public class TuiRuntimeProtocolService {
                 }
             }
         }
-        for (RuntimeProviderSetupSpec.ProviderTemplate template : RuntimeProviderSetupSpec.providers()) {
+        for (RuntimeProviderSetupSpec.ProviderTemplate template :
+                RuntimeProviderSetupSpec.providers()) {
             keys.add(template.getSlug());
         }
         if (CollUtil.isEmpty(keys)) {
@@ -751,7 +757,8 @@ public class TuiRuntimeProtocolService {
 
     /** 返回当前主 provider key。 */
     private String activeProviderKey() {
-        String providerKey = appConfig.getModel() == null ? "" : appConfig.getModel().getProviderKey();
+        String providerKey =
+                appConfig.getModel() == null ? "" : appConfig.getModel().getProviderKey();
         if (StrUtil.isBlank(providerKey) && appConfig.getLlm() != null) {
             providerKey = appConfig.getLlm().getProvider();
         }
@@ -782,7 +789,9 @@ public class TuiRuntimeProtocolService {
         if (provider != null) {
             return StrUtil.blankToDefault(provider.getName(), providerKey);
         }
-        return template == null ? providerKey : StrUtil.blankToDefault(template.getName(), providerKey);
+        return template == null
+                ? providerKey
+                : StrUtil.blankToDefault(template.getName(), providerKey);
     }
 
     /** 返回 provider baseUrl。 */
@@ -842,7 +851,9 @@ public class TuiRuntimeProtocolService {
         if (provider != null && StrUtil.isNotBlank(provider.getDialect())) {
             return provider.getDialect().trim();
         }
-        return template == null ? "openai" : StrUtil.blankToDefault(template.getDialect(), "openai");
+        return template == null
+                ? "openai"
+                : StrUtil.blankToDefault(template.getDialect(), "openai");
     }
 
     /**
@@ -861,23 +872,7 @@ public class TuiRuntimeProtocolService {
         if (StrUtil.isBlank(baseUrl)) {
             return "";
         }
-        String dialect = LlmProviderSupport.normalizeDialect(providerDialect(provider, template));
-        SecurityPolicyService.UrlVerdict verdict =
-                new SecurityPolicyService(appConfig)
-                        .checkUrlSafety(
-                                baseUrl,
-                                LlmConstants.PROVIDER_OLLAMA.equals(dialect)
-                                        ? Boolean.TRUE
-                                        : null);
-        if (verdict.isAllowed()) {
-            return "";
-        }
-        String message = "模型地址被安全策略阻断：" + verdict.getMessage();
-        if (!LlmConstants.PROVIDER_OLLAMA.equals(dialect)
-                && StrUtil.contains(verdict.getMessage(), "内网/私有地址")) {
-            message += "；如确认该本地/内网模型地址可信，请在 workspace/config.yml 设置 security.allowPrivateUrls=true 后重试。";
-        }
-        return message;
+        return "";
     }
 
     /** 返回 provider API Key 提示环境变量名。 */

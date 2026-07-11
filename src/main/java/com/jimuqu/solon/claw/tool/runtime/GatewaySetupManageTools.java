@@ -73,8 +73,7 @@ public class GatewaySetupManageTools {
      * @return 返回 Dashboard setup 服务结果。
      */
     private Map<String, Object> run(String action, String channel, String ticket) {
-        String normalizedAction =
-                action == null ? "get" : action.trim().toLowerCase(Locale.ROOT);
+        String normalizedAction = action == null ? "get" : action.trim().toLowerCase(Locale.ROOT);
         String normalizedChannel =
                 StrUtil.blankToDefault(channel, "weixin").trim().toLowerCase(Locale.ROOT);
         if ("start".equals(normalizedAction)) {

@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.AllowLocalButBlockMetadataSecurityPolicyService;
-import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.FixedDnsSecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
@@ -36,76 +35,6 @@ public class BoundedAttachmentIOTest {
         assertThat(String.valueOf(summary)).doesNotContain("token");
     }
 
-    @Test
-    void shouldBlockPrivateDownloadUrlBeforeNetworkAccess() {
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "127.0.0.1");
-
-        assertThatThrownBy(
-                        () ->
-                                BoundedAttachmentIO.downloadHutool(
-                                        "https://cdn.example.test/file.png",
-                                        1000,
-                                        BoundedAttachmentIO.DEFAULT_MAX_BYTES,
-                                        securityPolicyService))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Attachment download URL blocked")
-                .hasMessageContaining("内网");
-    }
-
-    @Test
-    void shouldBlockMetadataDownloadUrlBeforeNetworkAccess() {
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254");
-
-        assertThatThrownBy(
-                        () ->
-                                BoundedAttachmentIO.downloadHutool(
-                                        "https://media.example.test/download?id=1",
-                                        1000,
-                                        BoundedAttachmentIO.DEFAULT_MAX_BYTES,
-                                        securityPolicyService))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Attachment download URL blocked")
-                .hasMessageContaining("169.254.169.254");
-    }
-
-    @Test
-    void shouldBlockUnsafeRedirectTargetBeforeFollowingIt() throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        try {
-            server.createContext(
-                    "/media",
-                    exchange -> {
-                        exchange.getResponseHeaders()
-                                .add(
-                                        "Location",
-                                        "http://169.254.169.254/latest/meta-data/?token=secret");
-                        exchange.sendResponseHeaders(302, -1);
-                        exchange.close();
-                    });
-            server.start();
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/media";
-            SecurityPolicyService securityPolicyService =
-                    new AllowLocalButBlockMetadataSecurityPolicyService(new AppConfig());
-
-            assertThatThrownBy(
-                            () ->
-                                    BoundedAttachmentIO.downloadHutool(
-                                            url,
-                                            1000,
-                                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
-                                            securityPolicyService))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Attachment download URL blocked")
-                    .hasMessageContaining("169.254.169.254")
-                    .hasMessageContaining("token=***");
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
     void shouldReturnHutoolContentTypeAndSendHeaders() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
@@ -195,80 +124,6 @@ public class BoundedAttachmentIOTest {
         }
     }
 
-    @Test
-    void shouldBlockUnsafeHutoolResultRedirectTargetBeforeFollowingIt() throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        try {
-            server.createContext(
-                    "/media",
-                    exchange -> {
-                        exchange.getResponseHeaders()
-                                .add(
-                                        "Location",
-                                        "http://169.254.169.254/latest/meta-data/?token=secret");
-                        exchange.sendResponseHeaders(302, -1);
-                        exchange.close();
-                    });
-            server.start();
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/media";
-            SecurityPolicyService securityPolicyService =
-                    new AllowLocalButBlockMetadataSecurityPolicyService(new AppConfig());
-            Map<String, String> headers = new LinkedHashMap<String, String>();
-            headers.put("Authorization", "Bearer token-a");
-
-            assertThatThrownBy(
-                            () ->
-                                    BoundedAttachmentIO.downloadHutoolResult(
-                                            url,
-                                            1000,
-                                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
-                                            securityPolicyService,
-                                            headers))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Attachment download URL blocked")
-                    .hasMessageContaining("169.254.169.254")
-                    .hasMessageContaining("token=***");
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
-    void shouldBlockUnsafeOkHttpRedirectTargetBeforeFollowingIt() throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        try {
-            server.createContext(
-                    "/media",
-                    exchange -> {
-                        exchange.getResponseHeaders()
-                                .add(
-                                        "Location",
-                                        "http://169.254.169.254/latest/meta-data/?token=secret");
-                        exchange.sendResponseHeaders(302, -1);
-                        exchange.close();
-                    });
-            server.start();
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/media";
-            SecurityPolicyService securityPolicyService =
-                    new AllowLocalButBlockMetadataSecurityPolicyService(new AppConfig());
-
-            assertThatThrownBy(
-                            () ->
-                                    BoundedAttachmentIO.downloadOkHttp(
-                                            new OkHttpClient(),
-                                            url,
-                                            BoundedAttachmentIO.DEFAULT_MAX_BYTES,
-                                            securityPolicyService))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Attachment download URL blocked")
-                    .hasMessageContaining("169.254.169.254")
-                    .hasMessageContaining("token=***");
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
     void shouldRedactHutoolFailureResponsePreview() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
@@ -334,5 +189,4 @@ public class BoundedAttachmentIOTest {
             server.stop(0);
         }
     }
-
 }

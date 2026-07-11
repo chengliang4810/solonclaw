@@ -9,8 +9,8 @@ import com.jimuqu.solon.claw.core.model.ModelMetadata;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.pricing.PriceCatalog;
-import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.HttpRedirectSupport;
+import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.ProviderDisplayGrouping;
 import com.jimuqu.solon.claw.support.ProviderProfileService;
@@ -19,8 +19,12 @@ import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.UrlOriginSupport;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileConfigFile;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.io.File;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -58,6 +62,9 @@ public class DashboardProviderService {
     /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
 
+    /** 解析 Dashboard 显式选择的 Profile；为空时保留当前行为。 */
+    private final DashboardProfileContext profileContext;
+
     /** 保存模型列表缓存映射，便于按键快速查询。 */
     private final Map<String, ModelListCacheEntry> modelListCache =
             new LinkedHashMap<String, ModelListCacheEntry>(16, 0.75f, true) {
@@ -85,7 +92,7 @@ public class DashboardProviderService {
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService,
             LlmProviderService llmProviderService) {
-        this(appConfig, gatewayRuntimeRefreshService, llmProviderService, null, null);
+        this(appConfig, gatewayRuntimeRefreshService, llmProviderService, null, null, null);
     }
 
     /**
@@ -102,7 +109,13 @@ public class DashboardProviderService {
                     gatewayRuntimeRefreshService,
             LlmProviderService llmProviderService,
             SecurityPolicyService securityPolicyService) {
-        this(appConfig, gatewayRuntimeRefreshService, llmProviderService, securityPolicyService, null);
+        this(
+                appConfig,
+                gatewayRuntimeRefreshService,
+                llmProviderService,
+                securityPolicyService,
+                null,
+                null);
     }
 
     /**
@@ -121,16 +134,46 @@ public class DashboardProviderService {
             LlmProviderService llmProviderService,
             SecurityPolicyService securityPolicyService,
             ModelMetadataService modelMetadataService) {
+        this(
+                appConfig,
+                gatewayRuntimeRefreshService,
+                llmProviderService,
+                securityPolicyService,
+                modelMetadataService,
+                null);
+    }
+
+    /**
+     * 创建支持 Profile 作用域的 Provider 管理服务。
+     *
+     * @param appConfig 当前 JVM 配置。
+     * @param gatewayRuntimeRefreshService 当前 JVM 网关刷新服务。
+     * @param llmProviderService 当前 JVM Provider 服务。
+     * @param securityPolicyService URL 安全策略服务。
+     * @param modelMetadataService 模型元数据服务。
+     * @param profileContext Dashboard Profile 请求上下文。
+     */
+    public DashboardProviderService(
+            AppConfig appConfig,
+            com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
+                    gatewayRuntimeRefreshService,
+            LlmProviderService llmProviderService,
+            SecurityPolicyService securityPolicyService,
+            ModelMetadataService modelMetadataService,
+            DashboardProfileContext profileContext) {
         this.appConfig = appConfig;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
         this.llmProviderService = llmProviderService;
         this.modelMetadataService =
-                modelMetadataService != null ? modelMetadataService : new ModelMetadataService(appConfig);
+                modelMetadataService != null
+                        ? modelMetadataService
+                        : new ModelMetadataService(appConfig);
         this.providerProfileService = new ProviderProfileService(appConfig, llmProviderService);
         this.securityPolicyService =
                 securityPolicyService == null
                         ? new SecurityPolicyService(appConfig)
                         : securityPolicyService;
+        this.profileContext = profileContext;
     }
 
     /**
@@ -152,6 +195,13 @@ public class DashboardProviderService {
         result.put("dialectCatalog", dialectCatalog());
         result.put("providerProfiles", providerProfileService.listProfiles());
         return result;
+    }
+
+    /**
+     * @param profile Profile 名。 @return 目标 Profile 的 Provider 列表。
+     */
+    public Map<String, Object> listProviders(String profile) {
+        return forProfile(profile).listProviders();
     }
 
     /**
@@ -211,6 +261,13 @@ public class DashboardProviderService {
     }
 
     /**
+     * @param profile Profile 名。 @return 目标 Profile 的模型列表。
+     */
+    public Map<String, Object> JimuquModels(String profile) {
+        return forProfile(profile).JimuquModels();
+    }
+
+    /**
      * 执行健康检查相关逻辑。
      *
      * @return 返回健康检查结果。
@@ -228,6 +285,13 @@ public class DashboardProviderService {
         }
         result.put("providers", providers);
         return result;
+    }
+
+    /**
+     * @param profile Profile 名。 @return 目标 Profile 的模型配置健康状态。
+     */
+    public Map<String, Object> health(String profile) {
+        return forProfile(profile).health();
     }
 
     /**
@@ -275,6 +339,7 @@ public class DashboardProviderService {
         map.put("interleaved", Boolean.valueOf(metadata.isSupportsInterleaved()));
         map.put("prompt_cache", Boolean.valueOf(metadata.isSupportsPromptCache()));
         map.put("source", metadata.getSource());
+        map.put("provenance", metadata.getProvenance());
         map.put("default_model", Boolean.valueOf(metadata.isDefaultModel()));
         map.put("supported", Boolean.valueOf(metadata.isSupported()));
         return map;
@@ -287,10 +352,18 @@ public class DashboardProviderService {
      * @param price 价格参数。
      */
     private void appendPricingMetadata(Map<String, Object> model, ModelPrice price) {
-        if (model == null || price == null) {
+        if (model == null) {
             return;
         }
         Map<String, Object> pricing = new LinkedHashMap<String, Object>();
+        if (price == null) {
+            pricing.put("available", Boolean.FALSE);
+            pricing.put("status", "unknown");
+            pricing.put("free", Boolean.FALSE);
+            model.put("pricing", pricing);
+            return;
+        }
+        pricing.put("available", Boolean.TRUE);
         String currency = normalizeCurrency(price.getCurrency());
         pricing.put("currency", currency);
         boolean free = price.isFree();
@@ -310,6 +383,7 @@ public class DashboardProviderService {
             putPriceField(pricing, "reasoning", price.reasoningMicrosPerTokenExact(), currency);
         }
         pricing.put("free", Boolean.valueOf(free));
+        pricing.put("status", free ? "free" : "priced");
         if (StrUtil.isNotBlank(price.getSource())) {
             pricing.put("source", price.getSource());
         }
@@ -373,22 +447,29 @@ public class DashboardProviderService {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> createProvider(Map<String, Object> data) {
-        String providerKey = readString(data, "providerKey");
-        ensureProviderKey(providerKey);
-        Map<String, Object> root = loadRootForMutation();
-        Map<String, Object> providers = getOrCreateMap(root, "providers");
-        if (providers.containsKey(providerKey)) {
-            throw new IllegalArgumentException("Provider 已存在：" + providerKey);
-        }
-        providers.put(providerKey, toProviderNode(data, null));
+        synchronized (configFileLock()) {
+            String providerKey = readString(data, "providerKey");
+            ensureProviderKey(providerKey);
+            Map<String, Object> root = loadRootForMutation();
+            Map<String, Object> providers = getOrCreateMap(root, "providers");
+            if (providers.containsKey(providerKey)) {
+                throw new IllegalArgumentException("Provider 已存在：" + providerKey);
+            }
+            providers.put(providerKey, toProviderNode(data, null));
 
-        Map<String, Object> model = getOrCreateMap(root, "model");
-        if (StrUtil.isBlank(readString(model, "providerKey"))) {
-            model.put("providerKey", providerKey);
-        }
+            Map<String, Object> model = getOrCreateMap(root, "model");
+            if (StrUtil.isBlank(readString(model, "providerKey"))) {
+                model.put("providerKey", providerKey);
+            }
 
-        write(root);
-        return Collections.<String, Object>singletonMap("ok", true);
+            write(root);
+            return Collections.<String, Object>singletonMap("ok", true);
+        }
+    }
+
+    /** 在指定 Profile 创建 Provider。 */
+    public Map<String, Object> createProvider(Map<String, Object> data, String profile) {
+        return forProfile(profile).createProvider(data);
     }
 
     /**
@@ -400,16 +481,24 @@ public class DashboardProviderService {
      */
     @SuppressWarnings("unchecked")
     public Map<String, Object> updateProvider(String providerKey, Map<String, Object> data) {
-        ensureProviderKey(providerKey);
-        Map<String, Object> root = loadRootForMutation();
-        Map<String, Object> providers = getOrCreateMap(root, "providers");
-        Object existing = providers.get(providerKey);
-        if (!(existing instanceof Map)) {
-            throw new IllegalArgumentException("Provider 不存在：" + providerKey);
+        synchronized (configFileLock()) {
+            ensureProviderKey(providerKey);
+            Map<String, Object> root = loadRootForMutation();
+            Map<String, Object> providers = getOrCreateMap(root, "providers");
+            Object existing = providers.get(providerKey);
+            if (!(existing instanceof Map)) {
+                throw new IllegalArgumentException("Provider 不存在：" + providerKey);
+            }
+            providers.put(providerKey, toProviderNode(data, (Map<String, Object>) existing));
+            write(root);
+            return Collections.<String, Object>singletonMap("ok", true);
         }
-        providers.put(providerKey, toProviderNode(data, (Map<String, Object>) existing));
-        write(root);
-        return Collections.<String, Object>singletonMap("ok", true);
+    }
+
+    /** 在指定 Profile 更新 Provider。 */
+    public Map<String, Object> updateProvider(
+            String providerKey, Map<String, Object> data, String profile) {
+        return forProfile(profile).updateProvider(providerKey, data);
     }
 
     /**
@@ -419,21 +508,28 @@ public class DashboardProviderService {
      * @return 返回提供方结果。
      */
     public Map<String, Object> deleteProvider(String providerKey) {
-        ensureProviderKey(providerKey);
-        if (StrUtil.equals(providerKey, appConfig.getModel().getProviderKey())) {
-            throw new IllegalArgumentException("当前默认 provider 不能删除。");
-        }
-        for (AppConfig.FallbackProviderConfig fallback : appConfig.getFallbackProviders()) {
-            if (fallback != null && StrUtil.equals(providerKey, fallback.getProvider())) {
-                throw new IllegalArgumentException("该 provider 正在 fallbackProviders 中使用，不能删除。");
+        synchronized (configFileLock()) {
+            ensureProviderKey(providerKey);
+            if (StrUtil.equals(providerKey, appConfig.getModel().getProviderKey())) {
+                throw new IllegalArgumentException("当前默认 provider 不能删除。");
             }
-        }
+            for (AppConfig.FallbackProviderConfig fallback : appConfig.getFallbackProviders()) {
+                if (fallback != null && StrUtil.equals(providerKey, fallback.getProvider())) {
+                    throw new IllegalArgumentException("该 provider 正在 fallbackProviders 中使用，不能删除。");
+                }
+            }
 
-        Map<String, Object> root = loadRootForMutation();
-        Map<String, Object> providers = getOrCreateMap(root, "providers");
-        providers.remove(providerKey);
-        write(root);
-        return Collections.<String, Object>singletonMap("ok", true);
+            Map<String, Object> root = loadRootForMutation();
+            Map<String, Object> providers = getOrCreateMap(root, "providers");
+            providers.remove(providerKey);
+            write(root);
+            return Collections.<String, Object>singletonMap("ok", true);
+        }
+    }
+
+    /** 从指定 Profile 删除 Provider。 */
+    public Map<String, Object> deleteProvider(String providerKey, String profile) {
+        return forProfile(profile).deleteProvider(providerKey);
     }
 
     /**
@@ -444,20 +540,28 @@ public class DashboardProviderService {
      * @return 返回默认模型结果。
      */
     public Map<String, Object> updateDefaultModel(String providerKey, String model) {
-        String nextProviderKey =
-                StrUtil.isNotBlank(providerKey)
-                        ? providerKey.trim()
-                        : appConfig.getModel().getProviderKey();
-        if (!llmProviderService.hasProvider(nextProviderKey)) {
-            throw new IllegalArgumentException("未找到 provider：" + nextProviderKey);
-        }
+        synchronized (configFileLock()) {
+            String nextProviderKey =
+                    StrUtil.isNotBlank(providerKey)
+                            ? providerKey.trim()
+                            : appConfig.getModel().getProviderKey();
+            if (!llmProviderService.hasProvider(nextProviderKey)) {
+                throw new IllegalArgumentException("未找到 provider：" + nextProviderKey);
+            }
 
-        Map<String, Object> root = loadRootForMutation();
-        Map<String, Object> modelNode = getOrCreateMap(root, "model");
-        modelNode.put("providerKey", nextProviderKey);
-        modelNode.put("default", StrUtil.nullToEmpty(model).trim());
-        write(root);
-        return Collections.<String, Object>singletonMap("ok", true);
+            Map<String, Object> root = loadRootForMutation();
+            Map<String, Object> modelNode = getOrCreateMap(root, "model");
+            modelNode.put("providerKey", nextProviderKey);
+            modelNode.put("default", StrUtil.nullToEmpty(model).trim());
+            write(root);
+            return Collections.<String, Object>singletonMap("ok", true);
+        }
+    }
+
+    /** 更新指定 Profile 的默认模型。 */
+    public Map<String, Object> updateDefaultModel(
+            String providerKey, String model, String profile) {
+        return forProfile(profile).updateDefaultModel(providerKey, model);
     }
 
     /**
@@ -467,31 +571,39 @@ public class DashboardProviderService {
      * @return 返回兜底Providers结果。
      */
     public Map<String, Object> updateFallbackProviders(List<Map<String, Object>> items) {
-        List<Object> next = new ArrayList<Object>();
-        if (items != null) {
-            for (Map<String, Object> item : items) {
-                if (item == null) {
-                    continue;
+        synchronized (configFileLock()) {
+            List<Object> next = new ArrayList<Object>();
+            if (items != null) {
+                for (Map<String, Object> item : items) {
+                    if (item == null) {
+                        continue;
+                    }
+                    String provider = readString(item, "provider");
+                    if (!llmProviderService.hasProvider(provider)) {
+                        throw new IllegalArgumentException(
+                                "fallbackProviders 引用了不存在的 provider：" + provider);
+                    }
+                    Map<String, Object> node = new LinkedHashMap<String, Object>();
+                    node.put("provider", provider);
+                    String model = readString(item, "model");
+                    if (StrUtil.isNotBlank(model)) {
+                        node.put("model", model);
+                    }
+                    next.add(node);
                 }
-                String provider = readString(item, "provider");
-                if (!llmProviderService.hasProvider(provider)) {
-                    throw new IllegalArgumentException(
-                            "fallbackProviders 引用了不存在的 provider：" + provider);
-                }
-                Map<String, Object> node = new LinkedHashMap<String, Object>();
-                node.put("provider", provider);
-                String model = readString(item, "model");
-                if (StrUtil.isNotBlank(model)) {
-                    node.put("model", model);
-                }
-                next.add(node);
             }
-        }
 
-        Map<String, Object> root = loadRootForMutation();
-        root.put("fallbackProviders", next);
-        write(root);
-        return Collections.<String, Object>singletonMap("ok", true);
+            Map<String, Object> root = loadRootForMutation();
+            root.put("fallbackProviders", next);
+            write(root);
+            return Collections.<String, Object>singletonMap("ok", true);
+        }
+    }
+
+    /** 更新指定 Profile 的故障切换链。 */
+    public Map<String, Object> updateFallbackProviders(
+            List<Map<String, Object>> items, String profile) {
+        return forProfile(profile).updateFallbackProviders(items);
     }
 
     /**
@@ -541,6 +653,11 @@ public class DashboardProviderService {
             }
             throw e;
         }
+    }
+
+    /** 使用指定 Profile 的 Provider 配置列出远端模型。 */
+    public Map<String, Object> listRemoteModels(Map<String, Object> data, String profile) {
+        return forProfile(profile).listRemoteModels(data);
     }
 
     /**
@@ -593,6 +710,30 @@ public class DashboardProviderService {
             return providerValidationResult(
                     false, false, "unreachable", validationRuntimeMessage(e), url);
         }
+    }
+
+    /** 使用指定 Profile 的配置校验 Provider。 */
+    public Map<String, Object> validateProvider(Map<String, Object> data, String profile) {
+        return forProfile(profile).validateProvider(data);
+    }
+
+    /** 返回指定 Profile 的服务；非当前 Profile 不触发本 JVM 配置刷新。 */
+    private DashboardProviderService forProfile(String profile) {
+        if (profileContext == null) {
+            return this;
+        }
+        DashboardProfileContext.Scope scope = profileContext.resolve(profile);
+        if (scope.isCurrent()) {
+            return this;
+        }
+        AppConfig scopedConfig = scope.getConfig();
+        return new DashboardProviderService(
+                scopedConfig,
+                null,
+                DashboardProfileContext.snapshotProviderService(scopedConfig),
+                new SecurityPolicyService(scopedConfig),
+                new ModelMetadataService(scopedConfig),
+                null);
     }
 
     /**
@@ -904,8 +1045,7 @@ public class DashboardProviderService {
                     throw new IllegalStateException("获取模型列表重定向缺少 Location。");
                 }
                 String nextUrl =
-                        HttpRedirectSupport.resolveLocation(
-                                url, location, "获取模型列表重定向 URL 无效");
+                        HttpRedirectSupport.resolveLocation(url, location, "获取模型列表重定向 URL 无效");
                 response.close();
                 return executeModelListRequest(
                         initialUrl, nextUrl, apiKey, dialect, redirectCount + 1);
@@ -943,8 +1083,7 @@ public class DashboardProviderService {
      * @return Ollama 允许本地私网模型服务，其他协议沿用全局安全配置。
      */
     private Boolean providerPrivateUrlOverride(String dialect) {
-        return LlmConstants.PROVIDER_OLLAMA.equals(
-                        LlmProviderSupport.normalizeDialect(dialect))
+        return LlmConstants.PROVIDER_OLLAMA.equals(LlmProviderSupport.normalizeDialect(dialect))
                 ? Boolean.TRUE
                 : null;
     }
@@ -1101,6 +1240,10 @@ public class DashboardProviderService {
         if (provider.getSupportsVision() != null) {
             result.put("supportsVision", provider.getSupportsVision());
         }
+        if (provider.getCapabilities() != null && !provider.getCapabilities().isEmpty()) {
+            result.put(
+                    "capabilities", new LinkedHashMap<String, Boolean>(provider.getCapabilities()));
+        }
         putIfNotBlank(result, "groupId", provider.getGroupId());
         putIfNotBlank(result, "groupLabel", provider.getGroupLabel());
         putIfNotBlank(result, "groupDescription", provider.getGroupDescription());
@@ -1161,6 +1304,7 @@ public class DashboardProviderService {
         String defaultModel = readString(source, "defaultModel");
         String dialect = LlmProviderSupport.normalizeDialect(readString(source, "dialect"));
         Boolean supportsVision = readBooleanValue(source, "supportsVision", base, "supportsVision");
+        Map<String, Boolean> capabilities = readCapabilities(source, base);
         String groupId = readString(source, "groupId");
         String groupLabel = readString(source, "groupLabel");
         String groupDescription = readString(source, "groupDescription");
@@ -1189,6 +1333,9 @@ public class DashboardProviderService {
         result.put("dialect", dialect);
         if (supportsVision != null) {
             result.put("supportsVision", supportsVision);
+        }
+        if (!capabilities.isEmpty()) {
+            result.put("capabilities", capabilities);
         }
         putIfNotBlank(result, "groupId", groupId);
         putIfNotBlank(result, "groupLabel", groupLabel);
@@ -1231,6 +1378,46 @@ public class DashboardProviderService {
             return toOptionalBoolean(base.get(baseKey));
         }
         return null;
+    }
+
+    /**
+     * 合并 Dashboard provider 编辑请求中的显式能力元数据。
+     *
+     * @param source 本次提交的 provider 数据。
+     * @param base 已保存的 provider 数据。
+     * @return 返回规范化后的能力映射。
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Boolean> readCapabilities(
+            Map<String, Object> source, Map<String, Object> base) {
+        Map<String, Boolean> result = new LinkedHashMap<String, Boolean>();
+        Object baseValue = base == null ? null : base.get("capabilities");
+        Object sourceValue = source == null ? null : source.get("capabilities");
+        appendCapabilities(result, baseValue);
+        if (source != null && source.containsKey("capabilities")) {
+            result.clear();
+            appendCapabilities(result, sourceValue);
+        }
+        return result;
+    }
+
+    /**
+     * 将原始能力对象中的布尔字段追加到目标映射。
+     *
+     * @param target 目标能力映射。
+     * @param raw 原始能力对象。
+     */
+    private void appendCapabilities(Map<String, Boolean> target, Object raw) {
+        if (!(raw instanceof Map)) {
+            return;
+        }
+        for (Map.Entry<?, ?> entry : ((Map<?, ?>) raw).entrySet()) {
+            String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey()).trim();
+            Boolean value = toOptionalBoolean(entry.getValue());
+            if (StrUtil.isNotBlank(key) && value != null) {
+                target.put(key, value);
+            }
+        }
     }
 
     /**
@@ -1330,9 +1517,36 @@ public class DashboardProviderService {
         options.setIndicatorIndent(1);
 
         File configFile = new File(appConfig.getRuntime().getConfigFile());
-        FileUtil.mkParentDirs(configFile);
-        FileUtil.writeUtf8String(new Yaml(options).dump(root), configFile);
-        gatewayRuntimeRefreshService.refreshConfigOnly();
+        synchronized (DashboardProfileConfigFile.lockFor(configFile.toPath())) {
+            FileUtil.mkParentDirs(configFile);
+            File temp = new File(configFile.getParentFile(), configFile.getName() + ".tmp");
+            FileUtil.writeUtf8String(new Yaml(options).dump(root), temp);
+            try {
+                try {
+                    Files.move(
+                            temp.toPath(),
+                            configFile.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.ATOMIC_MOVE);
+                } catch (Exception atomicMoveFailed) {
+                    Files.move(
+                            temp.toPath(),
+                            configFile.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to write provider config file.", e);
+            }
+        }
+        if (gatewayRuntimeRefreshService != null) {
+            gatewayRuntimeRefreshService.refreshConfigOnly();
+        }
+    }
+
+    /** 返回当前 Provider 配置文件的共享写锁。 */
+    private Object configFileLock() {
+        return DashboardProfileConfigFile.lockFor(
+                new File(appConfig.getRuntime().getConfigFile()).toPath());
     }
 
     /**

@@ -298,8 +298,7 @@ public class CronjobTools {
             }
 
             if ("create".equals(normalized) || "update".equals(normalized)) {
-                if ("update".equals(normalized)
-                        && (jobId == null || jobId.trim().length() == 0)) {
+                if ("update".equals(normalized) && (jobId == null || jobId.trim().length() == 0)) {
                     return ToolResultEnvelope.error(
                                     "action=" + safeText(normalized) + " 需要提供 job_id。")
                             .toJson();
@@ -357,9 +356,7 @@ public class CronjobTools {
                                 .data("deduped", Boolean.TRUE)
                                 .data(
                                         "message",
-                                        "相同定时任务已存在，已复用 '"
-                                                + safeText(duplicate.getName())
-                                                + "'。")
+                                        "相同定时任务已存在，已复用 '" + safeText(duplicate.getName()) + "'。")
                                 .preview(
                                         safeText(
                                                 duplicate.getJobId()
@@ -397,13 +394,17 @@ public class CronjobTools {
                 return ToolResultEnvelope.ok("定时任务操作已完成：" + normalized)
                         .data("job", formattedView(job))
                         .preview(
-                                safeText(job.getJobId() + " " + job.getName() + " " + job.getStatus()))
+                                safeText(
+                                        job.getJobId()
+                                                + " "
+                                                + job.getName()
+                                                + " "
+                                                + job.getStatus()))
                         .toJson();
             }
 
             if (jobId == null || jobId.trim().length() == 0) {
-                return ToolResultEnvelope.error(
-                                "action=" + safeText(normalized) + " 需要提供 job_id。")
+                return ToolResultEnvelope.error("action=" + safeText(normalized) + " 需要提供 job_id。")
                         .toJson();
             }
 
@@ -461,14 +462,11 @@ public class CronjobTools {
                         .data("next_run_at", view.get("next_run_at"))
                         .data(
                                 "trigger_message",
-                                "定时任务 '"
-                                        + safeText(job.getName())
-                                        + "' 将在下一次调度 tick 运行。")
+                                "定时任务 '" + safeText(job.getName()) + "' 将在下一次调度 tick 运行。")
                         .preview(safeText(job.getJobId() + " " + job.getName() + " TRIGGERED"))
                         .toJson();
             } else {
-                return ToolResultEnvelope.error("不支持的 cronjob action：" + safeText(action))
-                        .toJson();
+                return ToolResultEnvelope.error("不支持的 cronjob action：" + safeText(action)).toJson();
             }
             return ToolResultEnvelope.ok("定时任务操作已完成：" + normalized)
                     .data("job", formattedView(job))
@@ -1020,16 +1018,32 @@ public class CronjobTools {
                 reason);
     }
 
-    /**
-     * 转发无状态编辑字段的 cronjob 重载，集中保留旧参数签名到完整工具入口的映射规则。
-     */
+    /** 转发无状态编辑字段的 cronjob 重载，集中保留旧参数签名到完整工具入口的映射规则。 */
     private String cronjobWithStateDefaults(
-            String action, String jobId, String name, String schedule, String prompt,
-            Object deliver, String deliverChatId, String deliverThreadId, Object skill,
-            Object skills, Integer repeat, Boolean includeDisabled, Boolean wrapResponse,
-            String script, String workdir, Boolean noAgent, Object contextFrom,
-            Object dependsOn, Object enabledToolsets, Object model, String provider,
-            String baseUrl, Integer limit, String reason)
+            String action,
+            String jobId,
+            String name,
+            String schedule,
+            String prompt,
+            Object deliver,
+            String deliverChatId,
+            String deliverThreadId,
+            Object skill,
+            Object skills,
+            Integer repeat,
+            Boolean includeDisabled,
+            Boolean wrapResponse,
+            String script,
+            String workdir,
+            Boolean noAgent,
+            Object contextFrom,
+            Object dependsOn,
+            Object enabledToolsets,
+            Object model,
+            String provider,
+            String baseUrl,
+            Integer limit,
+            String reason)
             throws Exception {
         return cronjobWithState(
                 action,
@@ -1062,17 +1076,36 @@ public class CronjobTools {
                 reason);
     }
 
-    /**
-     * 转发无技能增删字段的 cronjob 重载，避免多个公开重载重复维护同一串默认参数。
-     */
+    /** 转发无技能增删字段的 cronjob 重载，避免多个公开重载重复维护同一串默认参数。 */
     private String cronjobWithState(
-            String action, String jobId, String name, String schedule, String prompt,
-            Object deliver, String deliverChatId, String deliverThreadId, Object skill,
-            Object skills, Integer repeat, Boolean includeDisabled, Boolean wrapResponse,
-            String script, String workdir, Boolean noAgent, Object contextFrom,
-            Object dependsOn, Object enabledToolsets, Object model, String provider,
-            String baseUrl, Boolean enabled, String status, String state,
-            String pausedReason, Integer limit, String reason)
+            String action,
+            String jobId,
+            String name,
+            String schedule,
+            String prompt,
+            Object deliver,
+            String deliverChatId,
+            String deliverThreadId,
+            Object skill,
+            Object skills,
+            Integer repeat,
+            Boolean includeDisabled,
+            Boolean wrapResponse,
+            String script,
+            String workdir,
+            Boolean noAgent,
+            Object contextFrom,
+            Object dependsOn,
+            Object enabledToolsets,
+            Object model,
+            String provider,
+            String baseUrl,
+            Boolean enabled,
+            String status,
+            String state,
+            String pausedReason,
+            Integer limit,
+            String reason)
             throws Exception {
         return cronjob(
                 action,
@@ -1607,7 +1640,8 @@ public class CronjobTools {
         if (millis <= 0L) {
             return null;
         }
-        return ISO_TIME_FORMATTER.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()));
+        return ISO_TIME_FORMATTER.format(
+                Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()));
     }
 
     /**

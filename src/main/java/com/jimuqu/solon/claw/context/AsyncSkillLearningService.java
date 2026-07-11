@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.IdSupport;
@@ -123,33 +124,37 @@ public class AsyncSkillLearningService implements SkillLearningService {
         }
 
         executorService.submit(
-                new Runnable() {
-                    /** 执行异步任务主体。 */
-                    @Override
-                    public void run() {
-                        try {
-                            int toolMessages = countToolMessages(session);
-                            boolean hasRecentCheckpoint =
-                                    checkpointService.hasRecentCheckpoint(
-                                            message.sourceKey(),
-                                            Math.max(
-                                                    session.getLastLearningAt(),
-                                                    session.getUpdatedAt() - 60_000L));
+                ProfileRuntimeScope.capture(
+                        new Runnable() {
+                            /** 执行异步任务主体。 */
+                            @Override
+                            public void run() {
+                                try {
+                                    int toolMessages = countToolMessages(session);
+                                    boolean hasRecentCheckpoint =
+                                            checkpointService.hasRecentCheckpoint(
+                                                    message.sourceKey(),
+                                                    Math.max(
+                                                            session.getLastLearningAt(),
+                                                            session.getUpdatedAt() - 60_000L));
 
-                            if (toolMessages < appConfig.getLearning().getToolCallThreshold()
-                                    && !hasRecentCheckpoint) {
-                                return;
+                                    if (toolMessages
+                                                    < appConfig.getLearning().getToolCallThreshold()
+                                            && !hasRecentCheckpoint) {
+                                        return;
+                                    }
+                                    runLearning(
+                                            session, message, toolMessages, hasRecentCheckpoint);
+                                } catch (Exception e) {
+                                    log.warn(
+                                            "Post-reply skill learning failed: sessionId={},"
+                                                    + " sourceKey={}, error={}",
+                                            session == null ? null : session.getSessionId(),
+                                            message == null ? null : message.sourceKey(),
+                                            e.toString());
+                                }
                             }
-                            runLearning(session, message, toolMessages, hasRecentCheckpoint);
-                        } catch (Exception e) {
-                            log.warn(
-                                    "Post-reply skill learning failed: sessionId={}, sourceKey={}, error={}",
-                                    session == null ? null : session.getSessionId(),
-                                    message == null ? null : message.sourceKey(),
-                                    e.toString());
-                        }
-                    }
-                });
+                        }));
     }
 
     /**
@@ -248,7 +253,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             + System.currentTimeMillis());
             rubricSession.setSourceKey(session.getSourceKey());
             String userMessage =
-                    "请从以下类别中选择一个：no_change, new_skill, update_loaded_skill, update_existing_skill, memory_only。\n"
+                    "请从以下类别中选择一个：no_change, new_skill, update_loaded_skill, update_existing_skill,"
+                            + " memory_only。\n"
                             + "用户请求："
                             + StrUtil.blankToDefault(message == null ? "" : message.getText(), "")
                             + "\n工具消息数量满足阈值，checkpoint="
@@ -278,7 +284,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
             }
         } catch (Exception e) {
             log.debug(
-                    "Skill improvement classification failed, using fallback decision: sessionId={}, hasRecentCheckpoint={}, error={}",
+                    "Skill improvement classification failed, using fallback decision:"
+                            + " sessionId={}, hasRecentCheckpoint={}, error={}",
                     session == null ? null : session.getSessionId(),
                     Boolean.valueOf(hasRecentCheckpoint),
                     e.toString());
@@ -303,7 +310,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
             }
         } catch (Exception e) {
             log.debug(
-                    "Failed to count tool messages for learning threshold, using zero: sessionId={}, error={}",
+                    "Failed to count tool messages for learning threshold, using zero:"
+                            + " sessionId={}, error={}",
                     session == null ? null : session.getSessionId(),
                     e.toString());
             return 0;
@@ -571,7 +579,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
             return normalizeModelSkillContent(raw, skillName, description);
         } catch (Exception e) {
             log.debug(
-                    "Model skill summarization failed, using fallback skill content: sessionId={}, error={}",
+                    "Model skill summarization failed, using fallback skill content: sessionId={},"
+                            + " error={}",
                     session == null ? null : session.getSessionId(),
                     e.toString());
             return null;
@@ -591,21 +600,22 @@ public class AsyncSkillLearningService implements SkillLearningService {
             throws Exception {
         Future<LlmResult> future =
                 auxiliaryExecutorService.submit(
-                        new Callable<LlmResult>() {
-                            /**
-                             * 执行回调调用并返回结果。
-                             *
-                             * @return 返回call结果。
-                             */
-                            @Override
-                            public LlmResult call() throws Exception {
-                                return llmGateway.chat(
-                                        session,
-                                        systemPrompt,
-                                        userMessage,
-                                        Collections.emptyList());
-                            }
-                        });
+                        ProfileRuntimeScope.capture(
+                                new Callable<LlmResult>() {
+                                    /**
+                                     * 执行回调调用并返回结果。
+                                     *
+                                     * @return 返回call结果。
+                                     */
+                                    @Override
+                                    public LlmResult call() throws Exception {
+                                        return llmGateway.chat(
+                                                session,
+                                                systemPrompt,
+                                                userMessage,
+                                                Collections.emptyList());
+                                    }
+                                }));
         try {
             return future.get(auxiliaryTimeoutSeconds(), TimeUnit.SECONDS);
         } catch (TimeoutException e) {
@@ -838,7 +848,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
                                     + ".json"));
         } catch (Exception e) {
             log.warn(
-                    "Failed to write skill improvement report: sessionId={}, skillName={}, action={}, error={}",
+                    "Failed to write skill improvement report: sessionId={}, skillName={},"
+                            + " action={}, error={}",
                     session == null ? null : session.getSessionId(),
                     skillName,
                     action,
@@ -860,7 +871,10 @@ public class AsyncSkillLearningService implements SkillLearningService {
             connection = database.openConnection();
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert into skill_improvements (improvement_id, session_id, run_id, skill_name, action, summary, changed_files_json, evidence_json, needs_review, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert into skill_improvements (improvement_id, session_id, run_id,"
+                                    + " skill_name, action, summary, changed_files_json, evidence_json,"
+                                    + " needs_review, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?,"
+                                    + " ?)");
             statement.setString(1, IdSupport.newId());
             statement.setString(2, asString(report.get("sessionId")));
             statement.setString(3, asString(report.get("runId")));
@@ -877,7 +891,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
             statement.close();
         } catch (Exception e) {
             log.warn(
-                    "Failed to save skill improvement report into database: sessionId={}, skillName={}, action={}, error={}",
+                    "Failed to save skill improvement report into database: sessionId={},"
+                            + " skillName={}, action={}, error={}",
                     asString(report.get("sessionId")),
                     asString(report.get("skillName")),
                     asString(report.get("action")),
@@ -888,7 +903,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
                     connection.close();
                 } catch (Exception e) {
                     log.debug(
-                            "Failed to close skill improvement database connection: sessionId={}, error={}",
+                            "Failed to close skill improvement database connection: sessionId={},"
+                                    + " error={}",
                             asString(report.get("sessionId")),
                             e.toString());
                 }
@@ -905,5 +921,4 @@ public class AsyncSkillLearningService implements SkillLearningService {
     private String asString(Object value) {
         return value == null ? null : String.valueOf(value);
     }
-
 }

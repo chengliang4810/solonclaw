@@ -200,8 +200,14 @@ public interface ToolNameConstants {
     /** WEBFETCH的统一常量值。 */
     String WEBFETCH = "webfetch";
 
+    /** 批量网页提取工具名。 */
+    String WEB_EXTRACT = "web_extract";
+
     /** 图片GENERATE的统一常量值。 */
     String IMAGE_GENERATE = "image_generate";
+
+    /** 独立图片理解工具名。 */
+    String VISION_ANALYZE = "vision_analyze";
 
     /** 文本TO语音的统一常量值。 */
     String TEXT_TO_SPEECH = "text_to_speech";

@@ -92,7 +92,12 @@ public class AgentRunSupervisorEngineTest {
         assertThat(updated.getLastResolvedProvider()).isEqualTo("primary");
         assertThat(updated.getLastResolvedModel()).isEqualTo("engine-model");
         assertThat(eventTypes(fixture.agentRunRepository.listEvents(stored.getRunId())))
-                .contains("run.start", "attempt.start", "compression.skip", "attempt.success", "run.success");
+                .contains(
+                        "run.start",
+                        "attempt.start",
+                        "compression.skip",
+                        "attempt.success",
+                        "run.success");
         assertThat(supervisor.hasRunningRuns()).isFalse();
         assertThat(supervisor.lastRunFinishedAt()).isGreaterThan(0L);
     }
@@ -230,7 +235,8 @@ public class AgentRunSupervisorEngineTest {
         AgentRunSupervisor supervisor = supervisor(fixture, new SuccessfulGateway("unused"));
         String sourceKey = "MEMORY:event-fail:user";
         SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
-        GatewayMessage message = new GatewayMessage(PlatformType.MEMORY, "event-fail", "user", "queued");
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "event-fail", "user", "queued");
         Logger logger = (Logger) LoggerFactory.getLogger(AgentRunSupervisor.class);
         Level previousLevel = logger.getLevel();
         ListAppender<ILoggingEvent> appender = new ListAppender<ILoggingEvent>();
@@ -248,7 +254,9 @@ public class AgentRunSupervisorEngineTest {
 
         assertThat(decision.isQueued()).isTrue();
         assertThat(fixture.agentRunRepository.findRun(decision.getRunId())).isNotNull();
-        assertThat(fixture.agentRunRepository.findNextQueuedMessage(sourceKey, session.getSessionId()))
+        assertThat(
+                        fixture.agentRunRepository.findNextQueuedMessage(
+                                sourceKey, session.getSessionId()))
                 .isNotNull();
         assertThat(appender.list)
                 .anySatisfy(
@@ -522,7 +530,8 @@ public class AgentRunSupervisorEngineTest {
          * @return 不返回结果。
          */
         @Override
-        public LlmResult resume(SessionRecord session, String systemPrompt, List<Object> toolObjects) {
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
             throw new UnsupportedOperationException("resume is not used in this test");
         }
     }
@@ -568,7 +577,8 @@ public class AgentRunSupervisorEngineTest {
          * @return 不返回结果。
          */
         @Override
-        public LlmResult resume(SessionRecord session, String systemPrompt, List<Object> toolObjects) {
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
             throw new UnsupportedOperationException("resume is not used in this test");
         }
     }
@@ -617,7 +627,8 @@ public class AgentRunSupervisorEngineTest {
          * @return 不返回结果。
          */
         @Override
-        public LlmResult resume(SessionRecord session, String systemPrompt, List<Object> toolObjects)
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects)
                 throws Exception {
             return chat(session, systemPrompt, null, toolObjects);
         }

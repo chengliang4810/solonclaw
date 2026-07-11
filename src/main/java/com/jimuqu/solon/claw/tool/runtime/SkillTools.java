@@ -297,9 +297,7 @@ public class SkillTools {
                 action, name, category, content, oldText, newText, filePath, fileContent, null);
     }
 
-    /**
-     * 保留旧签名，默认不传 toggle 启用值。
-     */
+    /** 保留旧签名，默认不传 toggle 启用值。 */
     public String skillManage(
             String action,
             String name,
@@ -394,7 +392,8 @@ public class SkillTools {
                     sessionRepository == null ? null : sessionRepository.getBoundSession(sourceKey);
             return session == null ? null : session.getSessionId();
         } catch (Exception e) {
-            log.debug("技能工具读取当前会话失败，使用无会话上下文兜底 source={} error={}",
+            log.debug(
+                    "技能工具读取当前会话失败，使用无会话上下文兜底 source={} error={}",
                     safeError(sourceKey),
                     e.getClass().getSimpleName());
             return null;
@@ -500,7 +499,8 @@ public class SkillTools {
         @ToolMapping(
                 name = "skill_files",
                 description = "List readable files under a skill directory before loading details.")
-        public String skillFiles(@Param(name = "name", description = "技能名或 category/name") String name)
+        public String skillFiles(
+                @Param(name = "name", description = "技能名或 category/name") String name)
                 throws Exception {
             return delegate.skillFiles(name);
         }
@@ -534,7 +534,8 @@ public class SkillTools {
         public String skillManage(
                 @Param(
                                 name = "action",
-                                description = "create、edit、patch、delete、toggle、write_file、remove_file")
+                                description =
+                                        "create、edit、patch、delete、toggle、write_file、remove_file")
                         String action,
                 @Param(name = "name", description = "技能名或 category/name") String name,
                 @Param(name = "category", description = "create 时可选分类", required = false)

@@ -1076,8 +1076,7 @@ public class TirithSecurityService {
                 return "sha256:" + hexPrefix(bytes, 12);
             } catch (NoSuchAlgorithmException e) {
                 log.debug(
-                        "SHA-256 command audit hash algorithm is unavailable: {}",
-                        safeMessage(e));
+                        "SHA-256 command audit hash algorithm is unavailable: {}", safeMessage(e));
                 return "sha256:unavailable";
             }
         }

@@ -11,11 +11,12 @@ import com.jimuqu.solon.claw.config.AppConfig.ProactiveConfig;
 import com.jimuqu.solon.claw.config.AppConfig.ProviderConfig;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import com.jimuqu.solon.claw.support.RuntimePathSupport;
 import com.jimuqu.solon.claw.support.constants.CheckpointConstants;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
-import com.jimuqu.solon.claw.support.RuntimePathSupport;
 import java.io.File;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -37,6 +38,21 @@ final class AppConfigLoader {
     /** 配置加载日志，异常摘要只记录类型，避免把配置值或密钥写入日志。 */
     private static final Logger log = LoggerFactory.getLogger(AppConfigLoader.class);
 
+    /** 默认 provider 可通过扁平 Props 显式声明的模型能力键。 */
+    private static final List<String> PROVIDER_CAPABILITY_KEYS =
+            Arrays.asList(
+                    "tool_calling",
+                    "vision",
+                    "audio",
+                    "attachment",
+                    "pdf",
+                    "reasoning",
+                    "structured_output",
+                    "open_weights",
+                    "interleaved",
+                    "prompt_cache",
+                    "streaming");
+
     private AppConfigLoader() {}
 
     /**
@@ -46,6 +62,21 @@ final class AppConfigLoader {
      * @return 标准化后的配置对象
      */
     public static AppConfig load(Props props) {
+        return load(props, true);
+    }
+
+    /**
+     * 构建不影响当前进程全局配置解析器的独立配置快照。
+     *
+     * @param props 包含目标工作区的配置源。
+     * @return 独立 Profile 的标准化配置快照。
+     */
+    static AppConfig loadDetached(Props props) {
+        return load(props, false);
+    }
+
+    /** 按是否注册全局解析器装配配置，保持普通启动与 Profile 管理共用同一套解析规则。 */
+    private static AppConfig load(Props props, boolean registerGlobalResolver) {
         AppConfig config = new AppConfig();
         File userDir = new File(System.getProperty("user.dir"));
         File workspaceBase = RuntimePathSupport.jarBaseDir(AppConfig.class, userDir);
@@ -58,7 +89,9 @@ final class AppConfigLoader {
         Map<String, Object> structuredOverrides = loadStructuredOverrides(workspaceHome);
         initializeRuntimeConfigIfMissing(workspaceHome, props);
         RuntimeConfigResolver configResolver =
-                RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
+                registerGlobalResolver
+                        ? RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath())
+                        : RuntimeConfigResolver.open(workspaceHome.getAbsolutePath());
 
         config.getRuntime().setHome(resolveConfigString(workspaceHome.getPath()));
         config.getRuntime()
@@ -1043,6 +1076,7 @@ final class AppConfigLoader {
                                         overrides,
                                         "solonclaw.gateway.processingReactionsEnabled",
                                         true)));
+        config.getGateway().setMultiplexProfiles(readMultiplexProfiles(props, overrides));
         config.getGateway()
                 .setPlatforms(loadGatewayPlatforms(props, overrides, structuredOverrides));
         config.getDashboard()
@@ -1444,17 +1478,6 @@ final class AppConfigLoader {
         config.getSecurity()
                 .setAllowPrivateUrls(resolveBoolean(readAllowPrivateUrls(props, overrides)));
         config.getSecurity()
-                .setRewriteBrowserLoopbackUrls(
-                        resolveBoolean(readBrowserLoopbackRewriteEnabled(props, overrides)));
-        config.getSecurity()
-                .setBrowserLoopbackHostAlias(
-                        resolveConfigString(
-                                readString(
-                                        props,
-                                        overrides,
-                                        "solonclaw.browser.loopbackHostAlias",
-                                        "host.docker.internal")));
-        config.getSecurity()
                 .getWebsiteBlocklist()
                 .setEnabled(
                         resolveBoolean(
@@ -1481,6 +1504,133 @@ final class AppConfigLoader {
                                         overrides,
                                         "security.websiteBlocklist.sharedFiles",
                                         "")));
+        config.getSpeech()
+                .getTts()
+                .setEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props, overrides, "solonclaw.speech.tts.enabled", false)));
+        config.getSpeech()
+                .getTts()
+                .setEndpoint(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.speech.tts.endpoint",
+                                        "https://api.openai.com/v1/audio/speech")));
+        config.getSpeech()
+                .getTts()
+                .setApiKey(
+                        resolveConfigString(
+                                readString(props, overrides, "solonclaw.speech.tts.apiKey", "")));
+        config.getSpeech()
+                .getTts()
+                .setModel(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.speech.tts.model",
+                                        "gpt-4o-mini-tts")));
+        config.getSpeech()
+                .getTts()
+                .setVoice(
+                        resolveConfigString(
+                                readString(
+                                        props, overrides, "solonclaw.speech.tts.voice", "alloy")));
+        config.getSpeech()
+                .getTts()
+                .setResponseFormat(
+                        normalizeSpeechOutputFormat(
+                                resolveConfigString(
+                                        readString(
+                                                props,
+                                                overrides,
+                                                "solonclaw.speech.tts.responseFormat",
+                                                "mp3"))));
+        config.getSpeech()
+                .getTts()
+                .setSpeed(
+                        normalizeSpeechSpeed(
+                                resolveDouble(
+                                        readDouble(
+                                                props,
+                                                overrides,
+                                                "solonclaw.speech.tts.speed",
+                                                1.0d))));
+        config.getSpeech()
+                .getTts()
+                .setTimeoutSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.speech.tts.timeoutSeconds",
+                                                120)),
+                                120));
+        config.getSpeech()
+                .getStt()
+                .setEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props, overrides, "solonclaw.speech.stt.enabled", false)));
+        config.getSpeech()
+                .getStt()
+                .setEndpoint(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.speech.stt.endpoint",
+                                        "https://api.openai.com/v1/audio/transcriptions")));
+        config.getSpeech()
+                .getStt()
+                .setApiKey(
+                        resolveConfigString(
+                                readString(props, overrides, "solonclaw.speech.stt.apiKey", "")));
+        config.getSpeech()
+                .getStt()
+                .setModel(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.speech.stt.model",
+                                        "gpt-4o-mini-transcribe")));
+        config.getSpeech()
+                .getStt()
+                .setLanguage(
+                        resolveConfigString(
+                                readString(props, overrides, "solonclaw.speech.stt.language", "")));
+        config.getSpeech()
+                .getStt()
+                .setPrompt(
+                        resolveConfigString(
+                                readString(props, overrides, "solonclaw.speech.stt.prompt", "")));
+        config.getSpeech()
+                .getStt()
+                .setTimeoutSeconds(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.speech.stt.timeoutSeconds",
+                                                120)),
+                                120));
+        config.getSecurity()
+                .setRewriteBrowserLoopbackUrls(
+                        resolveBoolean(readBrowserLoopbackRewriteEnabled(props, overrides)));
+        config.getSecurity()
+                .setBrowserLoopbackHostAlias(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.browser.loopbackHostAlias",
+                                        "host.docker.internal")));
         config.getSecurity()
                 .setTirithEnabled(
                         resolveBoolean(
@@ -1555,7 +1705,7 @@ final class AppConfigLoader {
                                         props,
                                         overrides,
                                         "security.hardlineAllowlist",
-                                        defaultHardlineAllowlist())));
+                                        Collections.emptyList())));
         config.getApprovals()
                 .setSubagentAutoApprove(
                         resolveBoolean(
@@ -1581,10 +1731,7 @@ final class AppConfigLoader {
                 .setMcpReloadConfirm(
                         resolveBoolean(
                                 readBoolean(props, overrides, "approvals.mcpReloadConfirm", true)));
-        config.getApprovals()
-                .setDeny(
-                        resolveList(
-                                readRaw(props, overrides, "approvals.deny", "")));
+        config.getApprovals().setDeny(resolveList(readRaw(props, overrides, "approvals.deny", "")));
         config.getMcp()
                 .setEnabled(
                         resolveBoolean(
@@ -1691,6 +1838,7 @@ final class AppConfigLoader {
                                                 180)),
                                 180));
 
+        validateSpeechConfiguration(config.getSpeech());
         config.normalizePaths();
         syncRuntimeConfigExample(config.getRuntime().getHome());
         return config;
@@ -1855,6 +2003,64 @@ final class AppConfigLoader {
         return value > 0 ? value : defaultValue;
     }
 
+    /** 规范化 OpenAI 兼容 TTS 输出格式，只保留服务端明确支持的音频类型。 */
+    private static String normalizeSpeechOutputFormat(String raw) {
+        String value = StrUtil.blankToDefault(raw, "mp3").trim().toLowerCase();
+        if ("mp3".equals(value)
+                || "opus".equals(value)
+                || "aac".equals(value)
+                || "flac".equals(value)
+                || "wav".equals(value)
+                || "pcm".equals(value)) {
+            return value;
+        }
+        throw new IllegalStateException(
+                "solonclaw.speech.tts.responseFormat 只支持 mp3、opus、aac、flac、wav、pcm，当前值：" + raw);
+    }
+
+    /** 规范化 OpenAI 兼容 TTS 语速，防止无效配置到请求阶段才失败。 */
+    private static double normalizeSpeechSpeed(double value) {
+        if (Double.isFinite(value) && value >= 0.25d && value <= 4.0d) {
+            return value;
+        }
+        throw new IllegalStateException("solonclaw.speech.tts.speed 只支持 0.25 到 4.0，当前值：" + value);
+    }
+
+    /**
+     * 校验启用的语音 Provider 配置，避免把无效端点或空模型报告为可用。
+     *
+     * @param speechConfig 待校验的 TTS 与 STT 配置。
+     */
+    private static void validateSpeechConfiguration(AppConfig.SpeechConfig speechConfig) {
+        if (speechConfig.getTts().isEnabled()) {
+            validateSpeechEndpoint(
+                    "solonclaw.speech.tts",
+                    speechConfig.getTts().getEndpoint(),
+                    speechConfig.getTts().getModel());
+        }
+        if (speechConfig.getStt().isEnabled()) {
+            validateSpeechEndpoint(
+                    "solonclaw.speech.stt",
+                    speechConfig.getStt().getEndpoint(),
+                    speechConfig.getStt().getModel());
+        }
+    }
+
+    /** 校验单个 OpenAI 兼容语音端点与模型。 */
+    private static void validateSpeechEndpoint(String key, String endpoint, String model) {
+        if (StrUtil.isBlank(endpoint)) {
+            throw new IllegalStateException(key + ".endpoint 不能为空。");
+        }
+        if (StrUtil.isBlank(model)) {
+            throw new IllegalStateException(key + ".model 不能为空。");
+        }
+        try {
+            LlmProviderSupport.validateBaseUrl(endpoint);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException(key + ".endpoint 配置无效：" + e.getMessage(), e);
+        }
+    }
+
     /**
      * 执行nonNegativeInt相关逻辑。
      *
@@ -1887,15 +2093,6 @@ final class AppConfigLoader {
         return splitObjectList(fallback);
     }
 
-    /**
-     * 执行默认HardlineAllowlist相关逻辑。
-     *
-     * @return 返回默认Hardline Allowlist结果。
-     */
-    private static List<String> defaultHardlineAllowlist() {
-        return Collections.emptyList();
-    }
-
     /** 统一收敛未授权私聊用户的处理行为。 */
     private static String resolveBehavior(String fallback) {
         String value =
@@ -1916,14 +2113,11 @@ final class AppConfigLoader {
      */
     private static String normalizeGuardrailMode(String raw) {
         String value = StrUtil.blankToDefault(raw, "approval").trim().toLowerCase();
-        if ("approval".equals(value)
-                || "strict".equals(value)
-                || "bypass".equals(value)
-                || "smart".equals(value)) {
+        if ("approval".equals(value) || "bypass".equals(value) || "smart".equals(value)) {
             return value;
         }
         throw new IllegalStateException(
-                "security.guardrailMode 只支持 approval、strict、bypass、smart，当前值：" + raw);
+                "security.guardrailMode 只支持 approval、bypass、smart，当前值：" + raw);
     }
 
     /**
@@ -1934,14 +2128,14 @@ final class AppConfigLoader {
      */
     private static String normalizeGuardrailCronMode(String raw) {
         String value = StrUtil.blankToDefault(raw, "strict").trim().toLowerCase();
-        if ("approval".equals(value)
-                || "strict".equals(value)
+        if ("strict".equals(value)
+                || "approval".equals(value)
                 || "bypass".equals(value)
                 || "approve".equals(value)) {
             return value;
         }
         throw new IllegalStateException(
-                "security.guardrailCronMode 只支持 approval、strict、bypass、approve，当前值：" + raw);
+                "security.guardrailCronMode 只支持 strict、approval、bypass、approve，当前值：" + raw);
     }
 
     /**
@@ -1959,10 +2153,10 @@ final class AppConfigLoader {
                 "security.guardrailCronScope 只支持 job、session、global，当前值：" + raw);
     }
 
-    /** 规范化只有严格和跳过两种结果的安全预检模式，只接受当前配置枚举。 */
+    /** 规范化文件与 URL 的二元预检模式，只接受 strict 和 bypass。 */
     private static String normalizeBinaryGuardrailMode(String raw) {
         String value = StrUtil.blankToDefault(raw, "strict").trim().toLowerCase();
-        if ("bypass".equals(value) || "strict".equals(value)) {
+        if ("strict".equals(value) || "bypass".equals(value)) {
             return value;
         }
         throw new IllegalStateException(
@@ -2590,15 +2784,13 @@ final class AppConfigLoader {
         return props.getBool(key, defaultValue);
     }
 
-    /**
-     * 读取Allow私聊Urls。
-     *
-     * @param props props 参数。
-     * @param overrides overrides标识或键值。
-     * @return 返回读取到的Allow私聊Urls。
-     */
+    /** 读取私网 URL 放行开关；环境变量只接受当前项目命名。 */
     private static boolean readAllowPrivateUrls(Props props, Map<String, Object> overrides) {
-        String env = StrUtil.nullToEmpty(System.getenv("SOLONCLAW_ALLOW_PRIVATE_URLS")).trim();
+        String env =
+                StrUtil.nullToEmpty(
+                                ProfileRuntimeScope.environmentValue(
+                                        "SOLONCLAW_ALLOW_PRIVATE_URLS"))
+                        .trim();
         if (env.length() > 0) {
             return parseBooleanText(env, false);
         }
@@ -2615,6 +2807,35 @@ final class AppConfigLoader {
     private static boolean readBrowserLoopbackRewriteEnabled(
             Props props, Map<String, Object> overrides) {
         return readBoolean(props, overrides, "solonclaw.browser.rewriteLoopbackUrls", false);
+    }
+
+    /**
+     * 读取 Profile 复用网关开关；当前项环境变量只接受当前项目命名和明确布尔令牌。
+     *
+     * <p>优先级为环境变量、config.yml、内置默认值。空白或未知环境变量不会覆盖文件配置。
+     */
+    private static boolean readMultiplexProfiles(Props props, Map<String, Object> overrides) {
+        boolean configured =
+                readBoolean(props, overrides, "solonclaw.gateway.multiplexProfiles", false);
+        return resolveMultiplexProfiles(
+                ProfileRuntimeScope.environmentValue("SOLONCLAW_GATEWAY_MULTIPLEX_PROFILES"),
+                configured);
+    }
+
+    /** 根据三态环境变量解析复用网关开关，供配置加载与定向回归共用。 */
+    static boolean resolveMultiplexProfiles(String raw, boolean configured) {
+        if (raw == null || raw.trim().length() == 0) {
+            return configured;
+        }
+        String token = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (Arrays.asList("1", "true", "yes", "on").contains(token)) {
+            return true;
+        }
+        if (Arrays.asList("0", "false", "no", "off").contains(token)) {
+            return false;
+        }
+        log.warn("忽略无法识别的 SOLONCLAW_GATEWAY_MULTIPLEX_PROFILES，继续使用 config.yml 配置。");
+        return configured;
     }
 
     /**
@@ -2697,6 +2918,7 @@ final class AppConfigLoader {
             applyProviderString(rawProvider, "groupDescription", provider, "groupDescription");
             applyProviderString(rawProvider, "displayDescription", provider, "displayDescription");
             applyProviderBoolean(rawProvider, "supportsVision", provider, "supportsVision");
+            applyProviderCapabilities(rawProvider, provider);
             providers.put(key, provider);
         }
 
@@ -2718,12 +2940,43 @@ final class AppConfigLoader {
             copy.setDefaultModel(source.getDefaultModel());
             copy.setDialect(source.getDialect());
             copy.setSupportsVision(source.getSupportsVision());
+            copy.setCapabilities(
+                    source.getCapabilities() == null
+                            ? new LinkedHashMap<String, Boolean>()
+                            : new LinkedHashMap<String, Boolean>(source.getCapabilities()));
             copy.setGroupId(source.getGroupId());
             copy.setGroupLabel(source.getGroupLabel());
             copy.setGroupDescription(source.getGroupDescription());
             copy.setDisplayDescription(source.getDisplayDescription());
         }
         return copy;
+    }
+
+    /**
+     * 读取 provider.capabilities 中的显式布尔能力元数据。
+     *
+     * @param rawProvider 原始 provider 配置。
+     * @param provider 目标 provider 配置。
+     */
+    @SuppressWarnings("unchecked")
+    private static void applyProviderCapabilities(
+            Map<Object, Object> rawProvider, ProviderConfig provider) {
+        Object rawCapabilities = rawProvider.get("capabilities");
+        if (!(rawCapabilities instanceof Map)) {
+            return;
+        }
+        Map<String, Boolean> capabilities =
+                provider.getCapabilities() == null
+                        ? new LinkedHashMap<String, Boolean>()
+                        : new LinkedHashMap<String, Boolean>(provider.getCapabilities());
+        for (Map.Entry<Object, Object> entry : ((Map<Object, Object>) rawCapabilities).entrySet()) {
+            String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey()).trim();
+            Boolean value = resolveOptionalBoolean(entry.getValue());
+            if (StrUtil.isNotBlank(key) && value != null) {
+                capabilities.put(key, value);
+            }
+        }
+        provider.setCapabilities(capabilities);
     }
 
     /**
@@ -2868,6 +3121,15 @@ final class AppConfigLoader {
         provider.setDialect(LlmProviderSupport.normalizeDialect(dialect));
         provider.setSupportsVision(
                 resolveOptionalBoolean(props.get("providers.default.supportsVision")));
+        Map<String, Boolean> capabilities = new LinkedHashMap<String, Boolean>();
+        for (String key : PROVIDER_CAPABILITY_KEYS) {
+            Boolean value =
+                    resolveOptionalBoolean(props.get("providers.default.capabilities." + key));
+            if (value != null) {
+                capabilities.put(key, value);
+            }
+        }
+        provider.setCapabilities(capabilities);
         return provider;
     }
 
@@ -3110,7 +3372,8 @@ final class AppConfigLoader {
     private static String defaultRuntimeConfigContent(Props props) {
         ProviderConfig provider = loadDefaultProvider(props);
         ModelConfig model = parseModelConfig(null, props);
-        String modelDefault = StrUtil.blankToDefault(model.getDefault(), provider.getDefaultModel());
+        String modelDefault =
+                StrUtil.blankToDefault(model.getDefault(), provider.getDefaultModel());
         return "# solonclaw 最小运行配置。\n"
                 + "# 启动时自动创建；可通过 Dashboard 或直接编辑本文件继续完善。\n"
                 + "providers:\n"

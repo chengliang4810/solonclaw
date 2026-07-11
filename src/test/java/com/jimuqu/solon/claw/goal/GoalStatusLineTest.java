@@ -13,7 +13,10 @@ class GoalStatusLineTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord s = env.sessionRepository.bindNewSession("sl-chat");
         GoalService svc =
-                new GoalService(env.sessionRepository, new HeuristicGoalJudge(), new AppConfig.GoalConfig());
+                new GoalService(
+                        env.sessionRepository,
+                        new HeuristicGoalJudge(),
+                        new AppConfig.GoalConfig());
         assertThat(svc.statusLine(s)).contains("No active goal").contains("/goal");
     }
 
@@ -22,7 +25,10 @@ class GoalStatusLineTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord s = env.sessionRepository.bindNewSession("sl-chat2");
         GoalService svc =
-                new GoalService(env.sessionRepository, new HeuristicGoalJudge(), new AppConfig.GoalConfig());
+                new GoalService(
+                        env.sessionRepository,
+                        new HeuristicGoalJudge(),
+                        new AppConfig.GoalConfig());
         GoalContract c = new GoalContract();
         c.setOutcome("完成");
         svc.set(s, "目标X", c, 10);
@@ -41,7 +47,10 @@ class GoalStatusLineTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord s = env.sessionRepository.bindNewSession("sl-chat3");
         GoalService svc =
-                new GoalService(env.sessionRepository, new HeuristicGoalJudge(), new AppConfig.GoalConfig());
+                new GoalService(
+                        env.sessionRepository,
+                        new HeuristicGoalJudge(),
+                        new AppConfig.GoalConfig());
         svc.set(s, "等待目标", 10);
         // 用当前进程 pid 保证 isWaiting() 为 true（进程必然存活），触发 parked 分支
         long currentPid = ProcessHandle.current().pid();

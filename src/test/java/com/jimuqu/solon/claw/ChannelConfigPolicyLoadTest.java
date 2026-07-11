@@ -72,7 +72,8 @@ public class ChannelConfigPolicyLoadTest {
 
     @Test
     void shouldKeepMentionPolicyDefaultsWhenChannelPolicyFieldsAreAbsent() {
-        AppConfig.ChannelConfig channelConfig = AppConfig.load(new Props()).getChannels().getFeishu();
+        AppConfig.ChannelConfig channelConfig =
+                AppConfig.load(new Props()).getChannels().getFeishu();
 
         assertThat(channelConfig.isRequireMention()).isTrue();
         assertThat(channelConfig.getFreeResponseChats()).isEmpty();

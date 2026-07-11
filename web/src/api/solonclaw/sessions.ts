@@ -2,6 +2,9 @@ import { request } from '../client'
 
 export interface SessionSummary {
   id: string
+  profile?: string
+  is_default_profile?: boolean
+  archived?: boolean
   source: string
   model: string
   title: string | null
@@ -25,7 +28,6 @@ export interface SessionSummary {
   last_compression_at?: number
   last_compression_input_tokens?: number
   compression_failure_count?: number
-  active_agent_name?: string | null
   goal_state?: SessionGoalState | null
 }
 
@@ -82,6 +84,9 @@ export interface SolonClawMessage {
 
 interface DashboardSessionSummary {
   id: string
+  profile?: string
+  is_default_profile?: boolean
+  archived?: boolean
   source: string | null
   model: string | null
   provider?: string | null
@@ -106,12 +111,12 @@ interface DashboardSessionSummary {
   last_compression_at?: number
   last_compression_input_tokens?: number
   compression_failure_count?: number
-  active_agent_name?: string | null
   goal_state?: SessionGoalState | null
 }
 
 interface DashboardSessionDetail {
   session_id: string
+  profile?: string
   id?: string
   source?: string | null
   model?: string | null
@@ -135,7 +140,6 @@ interface DashboardSessionDetail {
   last_compression_at?: number
   last_compression_input_tokens?: number
   compression_failure_count?: number
-  active_agent_name?: string | null
   parent_session_id?: string | null
   branch_name?: string | null
   goal_state?: SessionGoalState | null
@@ -156,6 +160,9 @@ interface DashboardSessionDetail {
 function mapSummary(s: DashboardSessionSummary): SessionSummary {
   return {
     id: s.id,
+    profile: s.profile,
+    is_default_profile: s.is_default_profile,
+    archived: Boolean(s.archived),
     source: s.source || 'local',
     model: s.model || '',
     title: s.title,
@@ -179,7 +186,6 @@ function mapSummary(s: DashboardSessionSummary): SessionSummary {
     last_compression_at: s.last_compression_at || 0,
     last_compression_input_tokens: s.last_compression_input_tokens || 0,
     compression_failure_count: s.compression_failure_count || 0,
-    active_agent_name: s.active_agent_name || 'default',
     goal_state: s.goal_state || null,
   }
 }
@@ -200,13 +206,18 @@ function mapMessages(sessionId: string, messages: DashboardSessionDetail['messag
   }))
 }
 
-export async function fetchSessions(source?: string, limit?: number): Promise<SessionSummary[]> {
+export async function fetchSessions(source?: string, limit?: number, allProfiles = true): Promise<SessionSummary[]> {
   const params = new URLSearchParams()
   params.set('limit', String(limit || 200))
   params.set('offset', '0')
-  const res = await request<{ sessions: DashboardSessionSummary[] }>(`/api/sessions?${params}`)
+  params.set('min_messages', '1')
+  params.set('archived', 'exclude')
+  params.set('order', 'recent')
+  if (allProfiles) params.set('profile', 'all')
+  if (source) params.set('source', source)
+  const endpoint = allProfiles ? '/api/profiles/sessions' : '/api/sessions'
+  const res = await request<{ sessions: DashboardSessionSummary[] }>(`${endpoint}?${params}`)
   return res.sessions
-    .filter((session) => !source || (session.source || 'local') === source)
     .map(mapSummary)
 }
 
@@ -265,19 +276,31 @@ export async function searchSessions(q: string, source?: string, limit?: number)
     })
 }
 
-function sessionPath(id: string) {
-  return `/api/sessions/${encodeURIComponent(id)}`
+function withProfile(path: string, profile?: string) {
+  const selected = profile?.trim()
+  if (!selected) return path
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}profile=${encodeURIComponent(selected)}`
+}
+
+function sessionPath(id: string, profile?: string) {
+  return withProfile(`/api/sessions/${encodeURIComponent(id)}`, profile)
+}
+
+function sessionSubpath(id: string, suffix: string, profile?: string) {
+  return withProfile(`/api/sessions/${encodeURIComponent(id)}/${suffix}`, profile)
 }
 
 function checkpointPath(id: string) {
   return `/api/checkpoints/${encodeURIComponent(id)}`
 }
 
-export async function fetchSession(id: string): Promise<SessionDetail | null> {
+export async function fetchSession(id: string, profile?: string): Promise<SessionDetail | null> {
   try {
-    const detail = await request<DashboardSessionDetail>(`${sessionPath(id)}/messages`)
+    const detail = await request<DashboardSessionDetail>(sessionSubpath(id, 'messages', profile))
     const base = mapSummary({
       id: detail.id || detail.session_id || id,
+      profile: detail.profile || profile,
       source: detail.source || 'local',
       model: detail.model || '',
       provider: detail.provider || null,
@@ -300,7 +323,6 @@ export async function fetchSession(id: string): Promise<SessionDetail | null> {
       last_compression_at: detail.last_compression_at || 0,
       last_compression_input_tokens: detail.last_compression_input_tokens || 0,
       compression_failure_count: detail.compression_failure_count || 0,
-      active_agent_name: detail.active_agent_name || 'default',
       goal_state: detail.goal_state || null,
     })
 
@@ -314,27 +336,27 @@ export async function fetchSession(id: string): Promise<SessionDetail | null> {
   }
 }
 
-export async function fetchLatestSessionDescendant(id: string): Promise<SessionLatestDescendant | null> {
+export async function fetchLatestSessionDescendant(id: string, profile?: string): Promise<SessionLatestDescendant | null> {
   try {
-    return await request<SessionLatestDescendant>(`${sessionPath(id)}/latest-descendant`)
+    return await request<SessionLatestDescendant>(sessionSubpath(id, 'latest-descendant', profile))
   } catch {
     return null
   }
 }
 
-export async function deleteSession(id: string): Promise<boolean> {
+export async function deleteSession(id: string, profile?: string): Promise<boolean> {
   try {
-    await request(sessionPath(id), { method: 'DELETE' })
+    await request(sessionPath(id, profile), { method: 'DELETE' })
     return true
   } catch {
     return false
   }
 }
 
-export async function renameSession(id: string, title: string): Promise<boolean> {
+export async function renameSession(id: string, title: string, profile?: string): Promise<boolean> {
   try {
-    await request<DashboardSessionSummary>(sessionPath(id), {
-      method: 'PUT',
+    await request<DashboardSessionSummary>(sessionPath(id, profile), {
+      method: 'PATCH',
       body: JSON.stringify({ title }),
     })
     return true
@@ -358,8 +380,8 @@ export async function fetchSessionUsage(ids: string[]): Promise<Record<string, {
   return results
 }
 
-export async function fetchSessionUsageSingle(id: string): Promise<{ input_tokens: number; output_tokens: number; last_total_tokens?: number } | null> {
-  const detail = await fetchSession(id)
+export async function fetchSessionUsageSingle(id: string, profile?: string): Promise<{ input_tokens: number; output_tokens: number; last_total_tokens?: number } | null> {
+  const detail = await fetchSession(id, profile)
   if (!detail) return null
   return {
     input_tokens: detail.input_tokens,
@@ -368,25 +390,25 @@ export async function fetchSessionUsageSingle(id: string): Promise<{ input_token
   }
 }
 
-export async function fetchSessionTree(id: string): Promise<any> {
-  return request(`${sessionPath(id)}/tree`)
+export async function fetchSessionTree(id: string, profile?: string): Promise<any> {
+  return request(sessionSubpath(id, 'tree', profile))
 }
 
-export async function fetchSessionCheckpoints(id: string): Promise<any[]> {
-  const res = await request<{ checkpoints: any[] }>(`${sessionPath(id)}/checkpoints`)
+export async function fetchSessionCheckpoints(id: string, profile?: string): Promise<any[]> {
+  const res = await request<{ checkpoints: any[] }>(sessionSubpath(id, 'checkpoints', profile))
   return res.checkpoints || []
 }
 
-export async function fetchSessionRecap(id: string, limit = 10): Promise<SessionRecap> {
-  return request<SessionRecap>(`${sessionPath(id)}/recap?limit=${limit}`)
+export async function fetchSessionRecap(id: string, limit = 10, profile?: string): Promise<SessionRecap> {
+  return request<SessionRecap>(withProfile(`/api/sessions/${encodeURIComponent(id)}/recap?limit=${limit}`, profile))
 }
 
-export async function fetchSessionTrajectory(id: string): Promise<SessionTrajectory> {
-  return request<SessionTrajectory>(`${sessionPath(id)}/trajectory`)
+export async function fetchSessionTrajectory(id: string, profile?: string): Promise<SessionTrajectory> {
+  return request<SessionTrajectory>(sessionSubpath(id, 'trajectory', profile))
 }
 
-export async function saveSessionTrajectory(id: string): Promise<any> {
-  return request(`${sessionPath(id)}/trajectory/save`, { method: 'POST' })
+export async function saveSessionTrajectory(id: string, profile?: string): Promise<any> {
+  return request(sessionSubpath(id, 'trajectory/save', profile), { method: 'POST' })
 }
 
 export async function fetchCheckpointPreview(id: string): Promise<any> {

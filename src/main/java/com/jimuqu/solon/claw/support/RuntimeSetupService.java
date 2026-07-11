@@ -111,8 +111,7 @@ public class RuntimeSetupService {
             String key = normalizeText(entry.getKey());
             String value = normalizeText(entry.getValue());
             if (isSecretSetupKey(key) && SecretValueGuard.isPlaceholderSecret(value)) {
-                return SetupResult.error(
-                        "placeholder_secret", key + " 不能使用示例或占位符密钥。");
+                return SetupResult.error("placeholder_secret", key + " 不能使用示例或占位符密钥。");
             }
             normalizedValues.put(key, value);
             safeValues.put(key, safeConfigValue(key, value));

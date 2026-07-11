@@ -32,8 +32,7 @@ class GoalContractParserTest {
 
     @Test
     void recognizesStopWhenAlias() {
-        GoalContractParser.ParseResult r =
-                GoalContractParser.parse("do task\nstop when: 遇到阻塞");
+        GoalContractParser.ParseResult r = GoalContractParser.parse("do task\nstop when: 遇到阻塞");
         assertThat(r.getContract().getStopWhen()).isEqualTo("遇到阻塞");
     }
 

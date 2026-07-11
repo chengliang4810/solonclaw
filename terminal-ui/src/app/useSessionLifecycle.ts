@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs'
+import { rename, writeFile } from 'node:fs/promises'
 
 import type { ScrollBoxHandle } from '@solonclaw/ink'
 import { evictInkCaches } from '@solonclaw/ink'
@@ -44,16 +44,20 @@ const statusFromLiveSession = (status?: string, running = false) => {
 
 const sessionLifecycleErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
+let activeSessionWrite = Promise.resolve()
+
 export const writeActiveSessionFile = (sessionId: null | string, file = process.env.SOLONCLAW_TUI_ACTIVE_SESSION_FILE) => {
   if (!file || !sessionId) {
     return
   }
 
-  try {
-    writeFile(file, JSON.stringify({ session_id: sessionId }), { mode: 0o600 }, () => undefined)
-  } catch {
-    // Best-effort shell epilogue hint only; never break live session changes.
-  }
+  const pendingFile = `${file}.${process.pid}.tmp`
+  activeSessionWrite = activeSessionWrite
+    .then(async () => {
+      await writeFile(pendingFile, JSON.stringify({ session_id: sessionId }), { mode: 0o600 })
+      await rename(pendingFile, file)
+    })
+    .catch(() => undefined)
 }
 
 export const liveSessionInflightMessages = (inflight?: null | SessionInflightTurn): Msg[] => {

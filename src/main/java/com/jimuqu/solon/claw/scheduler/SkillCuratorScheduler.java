@@ -71,9 +71,7 @@ public class SkillCuratorScheduler {
         try {
             curatorService.runOnce(false);
         } catch (Exception e) {
-            log.warn(
-                    "[CURATOR] background run failed: error={}",
-                    CronJobSupport.safeError(e));
+            log.warn("[CURATOR] background run failed: error={}", CronJobSupport.safeError(e));
         } finally {
             running.set(false);
         }

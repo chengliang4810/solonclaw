@@ -25,7 +25,8 @@ class SqliteDatabaseConcurrencyTest {
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
 
         SqliteChannelStateRepository repository =
                 new SqliteChannelStateRepository(new SqliteDatabase(config));

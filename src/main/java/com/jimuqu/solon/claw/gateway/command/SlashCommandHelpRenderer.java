@@ -2,8 +2,8 @@ package com.jimuqu.solon.claw.gateway.command;
 
 import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -89,14 +89,17 @@ final class SlashCommandHelpRenderer {
                 usages,
                 "reload-mcp",
                 "/reload-mcp [now|always]；确认：/approve [确认编号]|/approve always [确认编号]|/cancel");
-        put(usages, "agent", "/agent [name|list|create|show|model|tools|skills|memory]");
         put(
                 usages,
                 "cron",
                 "/cron [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
         put(usages, "proactive", "/proactive [status|pause|resume|tick|config]");
         put(usages, "recap", "/recap [limit]");
-        put(usages, "trajectory", "/trajectory [user-query]", "/trajectory save [--failed] [user-query]");
+        put(
+                usages,
+                "trajectory",
+                "/trajectory [user-query]",
+                "/trajectory save [--failed] [user-query]");
         put(usages, "compact", "/compact [focus]");
         put(usages, "rollback", "/rollback [latest|checkpoint-id|number]");
         put(usages, "pairing", "/pairing [claim-admin|pending|approve|revoke|approved]");

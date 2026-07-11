@@ -338,7 +338,9 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
         if (GoalState.STATUS_DONE.equals(status) || GoalState.STATUS_CLEARED.equals(status)) {
             return false;
         }
-        String reason = CollectorSupport.normalize(goalState.getPausedReason() + "\n" + goalState.getLastReason());
+        String reason =
+                CollectorSupport.normalize(
+                        goalState.getPausedReason() + "\n" + goalState.getLastReason());
         return GoalState.STATUS_PAUSED.equals(status)
                 || status.contains("blocked")
                 || reason.contains("blocked")
@@ -380,7 +382,8 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      * @return 用户在询问概念且助手没有等待确认时返回 true。
      */
     private boolean isExplanationOnlyQuestion(SessionSignals signals) {
-        return CollectorSupport.containsKeyword(signals.lastUserMessage, EXPLANATION_QUESTION_KEYWORDS)
+        return CollectorSupport.containsKeyword(
+                        signals.lastUserMessage, EXPLANATION_QUESTION_KEYWORDS)
                 && !looksWaitingForUser(signals.finalAssistantReply);
     }
 
@@ -391,7 +394,9 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
      * @return 有工作痕迹且未明确完成时返回 true。
      */
     private boolean hasRecentWorkWithoutFinalSignal(SessionSignals signals) {
-        if (signals.messageCount < 2 || CollectorSupport.containsKeyword(signals.finalAssistantReply, COMPLETION_KEYWORDS)) {
+        if (signals.messageCount < 2
+                || CollectorSupport.containsKeyword(
+                        signals.finalAssistantReply, COMPLETION_KEYWORDS)) {
             return false;
         }
         if (isExplanationOnlyQuestion(signals)) {
@@ -413,8 +418,10 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
         boolean goalCompleted =
                 goalState != null
                         && (GoalState.STATUS_DONE.equalsIgnoreCase(goalState.getStatus())
-                                || GoalState.STATUS_CLEARED.equalsIgnoreCase(goalState.getStatus()));
-        boolean finalCompleted = CollectorSupport.containsKeyword(signals.finalAssistantReply, COMPLETION_KEYWORDS);
+                                || GoalState.STATUS_CLEARED.equalsIgnoreCase(
+                                        goalState.getStatus()));
+        boolean finalCompleted =
+                CollectorSupport.containsKeyword(signals.finalAssistantReply, COMPLETION_KEYWORDS);
         boolean hasOpenGoal =
                 reasons.contains("goal_active") || reasons.contains("goal_needs_continuation");
         boolean awaitingUser = reasons.contains("assistant_waiting_confirmation");
@@ -439,7 +446,9 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
         payload.put("branchName", CollectorSupport.safe(session.getBranchName(), 160));
         payload.put("sourceKey", CollectorSupport.safe(sourceKey, 160));
         payload.put("updatedAt", Long.valueOf(session.getUpdatedAt()));
-        payload.put("finalReplyPreview", CollectorSupport.safe(signals.finalAssistantReply, PREVIEW_MAX_LENGTH));
+        payload.put(
+                "finalReplyPreview",
+                CollectorSupport.safe(signals.finalAssistantReply, PREVIEW_MAX_LENGTH));
         payload.put("reasons", new ArrayList<String>(reasons));
 
         ProactiveObservation observation = new ProactiveObservation();
@@ -461,10 +470,7 @@ public class SessionContinuationCollector implements ProactiveObservationCollect
     private String summary(SessionRecord session, List<String> reasons) {
         String title = StrUtil.blankToDefault(session.getTitle(), session.getSessionId());
         return CollectorSupport.safe(
-                "session_continuation: 会话「"
-                        + title
-                        + "」可能需要续接，原因 "
-                        + String.join(",", reasons),
+                "session_continuation: 会话「" + title + "」可能需要续接，原因 " + String.join(",", reasons),
                 240);
     }
 

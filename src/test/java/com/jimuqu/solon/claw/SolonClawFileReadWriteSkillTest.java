@@ -1,11 +1,10 @@
 package com.jimuqu.solon.claw;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import static com.jimuqu.solon.claw.support.TestToolSupport.guardedFileSkill;
 import static com.jimuqu.solon.claw.support.TestToolSupport.readUtf8;
 import static com.jimuqu.solon.claw.support.TestToolSupport.tempDir;
 import static com.jimuqu.solon.claw.support.TestToolSupport.writeUtf8;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
 import java.nio.file.Files;
@@ -28,7 +27,8 @@ public class SolonClawFileReadWriteSkillTest {
         Files.createDirectories(dir);
         SolonClawFileReadWriteSkill skill = guardedFileSkill(dir);
 
-        ONode result = ONode.ofJson(skill.write("workspace/scripts/loop-probe.py", "print('ok')\n"));
+        ONode result =
+                ONode.ofJson(skill.write("workspace/scripts/loop-probe.py", "print('ok')\n"));
         Path expected = dir.resolve("scripts/loop-probe.py");
 
         assertThat(result.get("status").getString()).isEqualTo("success");

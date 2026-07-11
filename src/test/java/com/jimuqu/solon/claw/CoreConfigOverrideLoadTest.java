@@ -8,6 +8,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.net.InetAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.core.Props;
@@ -104,18 +105,9 @@ public class CoreConfigOverrideLoadTest {
                         + "  gatewayTimeoutSeconds: 120\n"
                         + "  mcpReloadConfirm: false\n"
                         + "security:\n"
-                        + "  fileGuardrailMode: bypass\n"
-                        + "  urlGuardrailMode: bypass\n"
                         + "  guardrailMode: bypass\n"
                         + "  guardrailCronMode: approve\n"
-                        + "  guardrailCronScope: global\n"
-                        + "  allowPrivateUrls: true\n"
-                        + "  websiteBlocklist:\n"
-                        + "    enabled: true\n"
-                        + "    domains:\n"
-                        + "      - blocked.example\n"
-                        + "    sharedFiles:\n"
-                        + "      - shared-blocklist.txt\n",
+                        + "  guardrailCronScope: global\n",
                 configFile);
 
         Props props = new Props();
@@ -164,18 +156,10 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getMcp().isEnabled()).isTrue();
         assertThat(config.getWeb().getSearchBackend()).isEqualTo("brave-free");
         assertThat(config.getWeb().getBraveSearchApiKey()).isEqualTo("brv-test-key");
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
         assertThat(config.getSecurity().isRewriteBrowserLoopbackUrls()).isTrue();
         assertThat(config.getSecurity().getBrowserLoopbackHostAlias())
                 .isEqualTo("host.containers.internal");
-        assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
-        assertThat(config.getSecurity().getWebsiteBlocklist().getDomains())
-                .containsExactly("blocked.example");
-        assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles())
-                .containsExactly("shared-blocklist.txt");
         assertThat(config.getApprovals().isMcpReloadConfirm()).isFalse();
-        assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("bypass");
-        assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("bypass");
         assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
         assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approve");
         assertThat(config.getSecurity().getGuardrailCronScope()).isEqualTo("global");
@@ -210,6 +194,46 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getChannels().getWeixin().getTextBatchSplitDelaySeconds())
                 .isEqualTo(1.6D);
         assertThat(config.getChannels().getWeixin().getSendChunkRetries()).isEqualTo(9);
+    }
+
+    /** 安全 URL 配置必须从 Profile 的 config.yml 进入真实策略，而不是只出现在配置模型中。 */
+    @Test
+    void shouldLoadUrlSafetyConfigurationIntoRuntimePolicy() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-url-policy-config").toFile();
+        File sharedRules = new File(workspaceHome, "blocked-websites.txt");
+        Files.write(
+                sharedRules.toPath(),
+                java.util.Collections.singletonList("shared.example"),
+                StandardCharsets.UTF_8);
+        File configFile = new File(workspaceHome, "config.yml");
+        FileUtil.writeUtf8String(
+                "security:\n"
+                        + "  allowPrivateUrls: true\n"
+                        + "  websiteBlocklist:\n"
+                        + "    enabled: true\n"
+                        + "    domains:\n"
+                        + "      - blocked.example\n"
+                        + "    sharedFiles:\n"
+                        + "      - "
+                        + sharedRules.getAbsolutePath().replace("\\", "\\\\")
+                        + "\n",
+                configFile);
+
+        Props props = new Props();
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
+        AppConfig config = AppConfig.load(props);
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+
+        assertThat(config.getSecurity().isAllowPrivateUrls()).isTrue();
+        assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
+        assertThat(config.getSecurity().getWebsiteBlocklist().getDomains())
+                .containsExactly("blocked.example");
+        assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles())
+                .containsExactly(sharedRules.getAbsolutePath());
+        assertThat(policy.checkUrlSafety("https://blocked.example/path", null).isAllowed())
+                .isFalse();
+        assertThat(policy.checkUrlSafety("https://shared.example/path", null).isAllowed())
+                .isFalse();
     }
 
     @Test
@@ -333,7 +357,8 @@ public class CoreConfigOverrideLoadTest {
 
     @Test
     void shouldLoadCanonicalScopedTerminalKeys() throws Exception {
-        File workspaceHome = Files.createTempDirectory("solonclaw-terminal-current-config").toFile();
+        File workspaceHome =
+                Files.createTempDirectory("solonclaw-terminal-current-config").toFile();
         File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "solonclaw:\n"
@@ -382,7 +407,7 @@ public class CoreConfigOverrideLoadTest {
     }
 
     @Test
-    void shouldDefaultSecurityModesToStrictAndApproval() throws Exception {
+    void shouldDefaultAgentApprovalAndCronStrictModes() throws Exception {
         File workspaceHome = Files.createTempDirectory("solonclaw-guardrail-defaults").toFile();
 
         Props props = new Props();
@@ -390,10 +415,7 @@ public class CoreConfigOverrideLoadTest {
 
         AppConfig config = AppConfig.load(props);
 
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
         assertThat(config.getSecurity().isTirithFailOpen()).isTrue();
-        assertThat(config.getSecurity().getFileGuardrailMode()).isEqualTo("strict");
-        assertThat(config.getSecurity().getUrlGuardrailMode()).isEqualTo("strict");
         assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("approval");
         assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("strict");
     }
@@ -424,7 +446,6 @@ public class CoreConfigOverrideLoadTest {
         File configFile = new File(workspaceHome, "config.yml");
         FileUtil.writeUtf8String(
                 "security:\n"
-                        + "  fileGuardrailMode: loose\n"
                         + "  guardrailMode: supervise\n"
                         + "  guardrailCronMode: queue\n"
                         + "  guardrailCronScope: forever\n",
@@ -435,27 +456,7 @@ public class CoreConfigOverrideLoadTest {
 
         assertThatThrownBy(() -> AppConfig.load(props))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("security.fileGuardrailMode/security.urlGuardrailMode");
-    }
-
-    @Test
-    void shouldLoadSecurityHardlineAllowlistFromYamlList() throws Exception {
-        File workspaceHome = Files.createTempDirectory("solonclaw-hardline-allowlist").toFile();
-        File configFile = new File(workspaceHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "security:\n"
-                        + "  hardlineAllowlist:\n"
-                        + "    - hardline_shutdown\n"
-                        + "    - hardline_windows_shutdown\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().getHardlineAllowlist())
-                .containsExactly("hardline_shutdown", "hardline_windows_shutdown");
+                .hasMessageContaining("security.guardrailMode");
     }
 
     @Test
@@ -550,87 +551,6 @@ public class CoreConfigOverrideLoadTest {
 
         assertThat(config.getTerminal().getWriteSafeRoot())
                 .isEqualTo("D:/workspace/solonclaw-safe");
-    }
-
-    @Test
-    void shouldLoadCanonicalWebsiteBlocklist() throws Exception {
-        File workspaceHome = Files.createTempDirectory("solonclaw-website-policy").toFile();
-        File configFile = new File(workspaceHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "security:\n"
-                        + "  websiteBlocklist:\n"
-                        + "    enabled: true\n"
-                        + "    domains:\n"
-                        + "      - blocked.example\n"
-                        + "      - '*.tracking.example'\n"
-                        + "    sharedFiles:\n"
-                        + "      - community-blocklist.txt\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().getWebsiteBlocklist().isEnabled()).isTrue();
-        assertThat(config.getSecurity().getWebsiteBlocklist().getDomains())
-                .containsExactly("blocked.example", "*.tracking.example");
-        assertThat(config.getSecurity().getWebsiteBlocklist().getSharedFiles())
-                .containsExactly("community-blocklist.txt");
-    }
-
-    @Test
-    void shouldApplyLoadedWebsitePolicyToUrlChecks() throws Exception {
-        File workspaceHome = Files.createTempDirectory("solonclaw-website-policy-check").toFile();
-        File configFile = new File(workspaceHome, "config.yml");
-        FileUtil.writeUtf8String(
-                "security:\n"
-                        + "  allowPrivateUrls: true\n"
-                        + "  websiteBlocklist:\n"
-                        + "    enabled: true\n"
-                        + "    domains:\n"
-                        + "      - blocked.example\n"
-                        + "      - '*.tracking.example'\n",
-                configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-        SecurityPolicyService policy = new FixedDnsSecurityPolicyService(config, "93.184.216.34");
-
-        assertThat(policy.checkUrl("http://127.0.0.1:8080/status").isAllowed()).isTrue();
-        assertThat(policy.checkUrl("https://docs.blocked.example/page").isAllowed()).isFalse();
-        assertThat(policy.checkUrl("https://a.tracking.example/pixel").isAllowed()).isFalse();
-        assertThat(policy.checkUrl("https://tracking.example/pixel").isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldLoadCanonicalAllowPrivateUrlsKey() throws Exception {
-        File workspaceHome = Files.createTempDirectory("solonclaw-private-url-policy").toFile();
-        File configFile = new File(workspaceHome, "config.yml");
-        FileUtil.writeUtf8String("security:\n" + "  allowPrivateUrls: false\n", configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
-    }
-
-    @Test
-    void shouldTreatQuotedFalseCanonicalAllowPrivateUrlsAsFalse() throws Exception {
-        File workspaceHome = Files.createTempDirectory("solonclaw-private-url-false").toFile();
-        File configFile = new File(workspaceHome, "config.yml");
-        FileUtil.writeUtf8String("security:\n" + "  allowPrivateUrls: \"false\"\n", configFile);
-
-        Props props = new Props();
-        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
-
-        AppConfig config = AppConfig.load(props);
-
-        assertThat(config.getSecurity().isAllowPrivateUrls()).isFalse();
     }
 
     private static class FixedDnsSecurityPolicyService extends SecurityPolicyService {

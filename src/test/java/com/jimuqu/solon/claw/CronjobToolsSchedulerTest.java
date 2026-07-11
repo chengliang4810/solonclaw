@@ -2,67 +2,27 @@ package com.jimuqu.solon.claw;
 
 import static com.jimuqu.solon.claw.CronSchedulerTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
-import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.AgentRunContext;
-import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
-import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
-import com.jimuqu.solon.claw.core.model.DeliveryRequest;
-import com.jimuqu.solon.claw.core.model.GatewayMessage;
-import com.jimuqu.solon.claw.core.model.GatewayReply;
-import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.LlmResult;
-import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.core.service.AgentRunControlService;
-import com.jimuqu.solon.claw.core.service.CommandService;
-import com.jimuqu.solon.claw.core.service.ConversationEventSink;
-import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
-import com.jimuqu.solon.claw.core.service.DeliveryService;
-import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
-import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
-import com.jimuqu.solon.claw.mcp.McpRuntimeService;
-import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
-import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
-import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
-import com.jimuqu.solon.claw.support.AttachmentCacheService;
-import com.jimuqu.solon.claw.support.CronSupport;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
-import com.jimuqu.solon.claw.support.MessageSupport;
-import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.CronjobTools;
-import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
-import com.jimuqu.solon.claw.tool.runtime.MessagingTools;
-import com.jimuqu.solon.claw.web.DashboardCronService;
 import java.io.File;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
-import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.FunctionTool;
-import org.noear.solon.ai.chat.tool.FunctionToolDesc;
 import org.noear.solon.ai.chat.tool.MethodToolProvider;
-import org.noear.solon.ai.chat.tool.ToolProvider;
 
 public class CronjobToolsSchedulerTest {
     @Test
@@ -1646,7 +1606,8 @@ public class CronjobToolsSchedulerTest {
         assertThat(properties.get("wrap_response").get("description").getString())
                 .contains("是否包装定时任务投递结果");
 
-        FunctionTool sanitized = com.jimuqu.solon.claw.tool.runtime.SanitizedFunctionTool.wrap(tool);
+        FunctionTool sanitized =
+                com.jimuqu.solon.claw.tool.runtime.SanitizedFunctionTool.wrap(tool);
         ONode sanitizedSchema = ONode.ofJson(sanitized.inputSchema());
         ONode sanitizedProperties = sanitizedSchema.get("properties");
         assertThat(sanitizedProperties.get("no_agent").get("type").getString())
@@ -2310,5 +2271,4 @@ public class CronjobToolsSchedulerTest {
             return super.chat(session, systemPrompt, userMessage, toolObjects);
         }
     }
-
 }

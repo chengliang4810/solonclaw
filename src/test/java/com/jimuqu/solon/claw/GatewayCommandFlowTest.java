@@ -61,7 +61,8 @@ public class GatewayCommandFlowTest {
 
         GatewayReply claimPrompt = env.send("room-empty-undo", "user-empty-undo", "hello");
         assertThat(claimPrompt.getContent()).contains("/pairing claim-admin");
-        GatewayReply claimReply = env.send("room-empty-undo", "user-empty-undo", "/pairing claim-admin");
+        GatewayReply claimReply =
+                env.send("room-empty-undo", "user-empty-undo", "/pairing claim-admin");
         assertThat(claimReply.getContent()).contains("唯一管理员");
         GatewayReply newReply = env.send("room-empty-undo", "user-empty-undo", "/new");
 
@@ -177,9 +178,7 @@ public class GatewayCommandFlowTest {
         GatewayReply reply = env.send("room-security", "user-security", "/security status");
 
         assertThat(reply.isError()).isFalse();
-        assertThat(reply.getContent())
-                .contains("安全策略状态摘要")
-                .contains("guardrailMode");
+        assertThat(reply.getContent()).contains("安全策略状态摘要").contains("guardrailMode");
         assertThat(reply.getRuntimeMetadata())
                 .containsEntry("command_status", "handled")
                 .containsEntry("command", "security");
@@ -392,7 +391,9 @@ public class GatewayCommandFlowTest {
                         env.dangerousCommandApprovalService.isSessionApproved(
                                 resumedSession, "recursive_delete"))
                 .isFalse();
-        assertThat(env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(untouchedSession))
+        assertThat(
+                        env.dangerousCommandApprovalService.isSessionAutoApprovalEnabled(
+                                untouchedSession))
                 .isTrue();
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(untouchedSession))
                 .isNotNull();

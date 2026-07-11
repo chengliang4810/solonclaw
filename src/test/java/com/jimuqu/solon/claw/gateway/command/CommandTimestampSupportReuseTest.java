@@ -21,8 +21,7 @@ class CommandTimestampSupportReuseTest {
                     "src/main/java/com/jimuqu/solon/claw/gateway/command/SlashCommandStatusRenderer.java",
                 };
         for (String path : paths) {
-            String source =
-                    new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
+            String source = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
             assertFalse(source.contains("private String formatTimestamp("), path);
             assertFalse(source.contains("private static String formatTimestamp("), path);
             assertFalse(source.contains("DateUtil.formatDateTime("), path);

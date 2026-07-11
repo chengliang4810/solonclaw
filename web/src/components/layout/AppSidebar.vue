@@ -6,6 +6,7 @@ import { useAppStore } from "@/stores/solonclaw/app";
 import ThemeSwitch from "./ThemeSwitch.vue";
 import LanguageSwitch from "./LanguageSwitch.vue";
 import SystemNavItems from "./SystemNavItems.vue";
+import ProfileSwitcher from "./ProfileSwitcher.vue";
 
 import { clearApiKey } from "@/api/client";
 import { getPersonaMeta } from "@/shared/personaMeta";
@@ -71,6 +72,8 @@ watch(
       <img :src="logoPath" alt="solonclaw" class="logo-img" />
       <span class="logo-text">solonclaw</span>
     </div>
+
+    <ProfileSwitcher />
 
     <nav ref="sidebarNavRef" class="sidebar-nav">
       <button

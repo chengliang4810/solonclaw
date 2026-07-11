@@ -3,10 +3,12 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.cli.CliRuntime;
+import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.ClarifyRequestCoordinator;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
@@ -27,6 +29,127 @@ import org.noear.solon.core.util.MultiMap;
 import org.noear.solon.net.websocket.WebSocket;
 
 class TerminalUiApprovalRespondTest {
+    /** 验证 WebSocket 事件 request_id 可由同会话 clarify.respond 精确回流。 */
+    @Test
+    void clarifyRespondCompletesWaitingRequestForTheSameSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TerminalUiWebSocketListener listener = newTuiListener(env);
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "clarify-flow");
+        RecordingSocket socket = new RecordingSocket();
+        listener.onOpen(socket);
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-status\",\"method\":\"session.status\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\"}}");
+        // 普通状态 RPC 不会绑定交互桥，因此使用空 prompt.submit 完成当前 socket 会话绑定。
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-bind\",\"method\":\"prompt.submit\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"text\":\"\"}}");
+
+        CompletableFuture<String> answer =
+                CompletableFuture.supplyAsync(
+                        () -> {
+                            AgentRunContext.setCurrent(
+                                    new AgentRunContext(
+                                            null,
+                                            "run-clarify-flow",
+                                            session.getSessionId(),
+                                            session.getSourceKey()));
+                            try {
+                                return ClarifyRequestCoordinator.shared()
+                                        .request(
+                                                session.getSessionId(),
+                                                "Which branch?",
+                                                java.util.Arrays.asList("dev", "main"));
+                            } finally {
+                                AgentRunContext.setCurrent(null);
+                            }
+                        });
+        waitForSocketText(socket, "\"type\":\"clarify.request\"", 2_000L);
+        String requestId = jsonStringValue(socket.sentText(), "request_id");
+
+        listener.onMessage(
+                socket,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-answer\",\"method\":\"clarify.respond\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"request_id\":\""
+                        + requestId
+                        + "\",\"answer\":\"main\"}}");
+
+        assertThat(answer.get(1, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo("main");
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"id\":\"rpc-answer\"")
+                                        && text.contains("\"status\":\"ok\""));
+        listener.onClose(socket);
+    }
+
+    /** 验证另一个 WebSocket 不能抢答不属于自己的 clarify 请求。 */
+    @Test
+    void clarifyRespondRejectsAnotherConnection() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        TerminalUiWebSocketListener listener = newTuiListener(env);
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "clarify-owner");
+        RecordingSocket owner = new RecordingSocket();
+        RecordingSocket attacker = new RecordingSocket();
+        listener.onOpen(owner);
+        listener.onOpen(attacker);
+        listener.onMessage(
+                owner,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-bind-owner\",\"method\":\"prompt.submit\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"text\":\"\"}}");
+
+        CompletableFuture<String> answer =
+                CompletableFuture.supplyAsync(
+                        () -> {
+                            AgentRunContext.setCurrent(
+                                    new AgentRunContext(
+                                            null,
+                                            "run-clarify-owner",
+                                            session.getSessionId(),
+                                            session.getSourceKey()));
+                            try {
+                                return ClarifyRequestCoordinator.shared()
+                                        .request(session.getSessionId(), "Continue?", null);
+                            } finally {
+                                AgentRunContext.setCurrent(null);
+                            }
+                        });
+        waitForSocketText(owner, "\"type\":\"clarify.request\"", 2_000L);
+        String requestId = jsonStringValue(owner.sentText(), "request_id");
+        listener.onMessage(
+                attacker,
+                "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-attack\",\"method\":\"clarify.respond\","
+                        + "\"params\":{\"session_id\":\""
+                        + session.getSessionId()
+                        + "\",\"request_id\":\""
+                        + requestId
+                        + "\",\"answer\":\"yes\"}}");
+
+        assertThat(attacker.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"id\":\"rpc-attack\"")
+                                        && text.contains("another connection"));
+        assertThat(answer).isNotDone();
+        listener.onClose(owner);
+        assertThat(answer.get(1, java.util.concurrent.TimeUnit.SECONDS)).isEmpty();
+        listener.onClose(attacker);
+    }
+
     /** 校验 TUI JSON-RPC 完成事件会携带非零模型用量，避免前端统计回退成 0。 */
     @Test
     void messageCompleteIncludesNonZeroUsageInRpcEnvelope() {
@@ -68,8 +191,11 @@ class TerminalUiApprovalRespondTest {
                         + sessionId
                         + "\"}}");
 
-        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-undo\"")
-                && text.contains("\"removed\":0"));
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"id\":\"rpc-undo\"")
+                                        && text.contains("\"removed\":0"));
     }
 
     @Test
@@ -106,14 +232,19 @@ class TerminalUiApprovalRespondTest {
         SessionRecord refreshed = env.sessionRepository.findById(session.getSessionId());
         SqliteAgentSession refreshedAgentSession =
                 new SqliteAgentSession(refreshed, env.sessionRepository);
-        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-policy-session\"")
-                && text.contains("\"ok\":true"));
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"id\":\"rpc-policy-session\"")
+                                        && text.contains("\"ok\":true"));
         assertThat(
                         env.dangerousCommandApprovalService.isSessionApproved(
                                 refreshedAgentSession,
                                 "write_file",
                                 "policy:workspace_outside_write",
-                                new File(System.getProperty("java.io.tmpdir"), "another-outside.txt")
+                                new File(
+                                                System.getProperty("java.io.tmpdir"),
+                                                "another-outside.txt")
                                         .getAbsolutePath()))
                 .isTrue();
     }
@@ -143,8 +274,11 @@ class TerminalUiApprovalRespondTest {
                         + "\",\"choice\":\"session\"}}");
 
         assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-1\""));
-        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"message.complete\"")
-                && text.contains("echo:resume"));
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"type\":\"message.complete\"")
+                                        && text.contains("echo:resume"));
     }
 
     @Test
@@ -219,8 +353,14 @@ class TerminalUiApprovalRespondTest {
                 "recursive delete",
                 "rm -rf workspace/cache");
 
-        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"approval.request\"")
-                && text.contains("\"session_id\":\"" + session.getSessionId() + "\""));
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"type\":\"approval.request\"")
+                                        && text.contains(
+                                                "\"session_id\":\""
+                                                        + session.getSessionId()
+                                                        + "\""));
     }
 
     @Test
@@ -234,9 +374,13 @@ class TerminalUiApprovalRespondTest {
                 "{\"jsonrpc\":\"2.0\",\"id\":\"rpc-missing-session\","
                         + "\"method\":\"approval.respond\",\"params\":{\"choice\":\"session\"}}");
 
-        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-missing-session\""));
-        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"ok\":false")
-                && text.contains("missing_session_id"));
+        assertThat(socket.sentText())
+                .anyMatch(text -> text.contains("\"id\":\"rpc-missing-session\""));
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"ok\":false")
+                                        && text.contains("missing_session_id"));
     }
 
     @Test
@@ -264,8 +408,11 @@ class TerminalUiApprovalRespondTest {
                         + "\",\"command\":\"approve session\"}}");
 
         assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-3\""));
-        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"message.complete\"")
-                && text.contains("echo:resume"));
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"type\":\"message.complete\"")
+                                        && text.contains("echo:resume"));
     }
 
     @Test
@@ -294,10 +441,16 @@ class TerminalUiApprovalRespondTest {
                         + "\",\"text\":\"继续执行\"}}");
 
         waitForSocketText(socket, "\"type\":\"error\"", 2000L);
-        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"id\":\"rpc-submit\"")
-                && text.contains("\"ok\":true"));
-        assertThat(socket.sentText()).anyMatch(text -> text.contains("\"type\":\"error\"")
-                && text.contains("approve session"));
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"id\":\"rpc-submit\"")
+                                        && text.contains("\"ok\":true"));
+        assertThat(socket.sentText())
+                .anyMatch(
+                        text ->
+                                text.contains("\"type\":\"error\"")
+                                        && text.contains("approve session"));
         assertThat(socket.sentText()).noneMatch(text -> text.contains("echo:继续执行"));
     }
 
@@ -418,15 +571,14 @@ class TerminalUiApprovalRespondTest {
 
     /** 判断当前测试运行环境是否为 Windows。 */
     private static boolean isWindows() {
-        return System.getProperty("os.name", "")
-                .toLowerCase(java.util.Locale.ROOT)
-                .contains("win");
+        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
     }
 
     /** 收集 WebSocket 文本帧，避免测试依赖真实网络连接。 */
     private static final class RecordingSocket implements WebSocket {
         /** 已发送文本帧。 */
         private final List<String> sentText = new ArrayList<String>();
+
         /** WebSocket 属性。 */
         private final Map<String, Object> attrs = new LinkedHashMap<String, Object>();
 

@@ -1,9 +1,12 @@
 package com.jimuqu.solon.claw.web;
 
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.CronJobRunRecord;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
+import com.jimuqu.solon.claw.storage.repository.SqliteCronJobRepository;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -14,6 +17,8 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /** Dashboard 定时任务管理服务。 */
 public class DashboardCronService {
@@ -22,7 +27,8 @@ public class DashboardCronService {
 
     /** 定时任务接口时间格式，保持原有本地时区偏移输出。 */
     private static final DateTimeFormatter ISO_OFFSET_SECONDS_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX").withZone(ZoneId.systemDefault());
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")
+                    .withZone(ZoneId.systemDefault());
 
     /** API最大提示词LENGTH的统一常量值。 */
     private static final int API_MAX_PROMPT_LENGTH = 5000;
@@ -33,6 +39,15 @@ public class DashboardCronService {
     /** 保存定时任务调度器执行组件，负责调度异步或定时任务。 */
     private final DefaultCronScheduler cronScheduler;
 
+    /** 解析 Dashboard 请求的目标 Profile。 */
+    private final DashboardProfileScope profileScope;
+
+    /** 当前服务实例实际绑定的 Profile 名。 */
+    private final String profileName;
+
+    /** 非当前 Profile 的独立 Cron 数据上下文。 */
+    private final ConcurrentMap<String, ScopedCronContext> scopedContexts;
+
     /**
      * 创建控制台定时任务服务实例，并注入运行所需依赖。
      *
@@ -40,8 +55,137 @@ public class DashboardCronService {
      * @param cronScheduler 定时任务调度器参数。
      */
     public DashboardCronService(CronJobService cronJobService, DefaultCronScheduler cronScheduler) {
+        this(cronJobService, cronScheduler, new DashboardProfileScope(), null, true);
+    }
+
+    /**
+     * 创建使用指定 Profile 解析器的 Cron 服务。
+     *
+     * @param cronJobService 当前 Profile 的 Cron 数据服务。
+     * @param cronScheduler 当前 Profile 的实时调度器。
+     * @param profileScope Profile 请求解析器。
+     */
+    public DashboardCronService(
+            CronJobService cronJobService,
+            DefaultCronScheduler cronScheduler,
+            DashboardProfileScope profileScope) {
+        this(cronJobService, cronScheduler, profileScope, null, true);
+    }
+
+    /** 创建绑定单个 Profile 的 Cron 服务或根路由服务。 */
+    private DashboardCronService(
+            CronJobService cronJobService,
+            DefaultCronScheduler cronScheduler,
+            DashboardProfileScope profileScope,
+            String profileName,
+            boolean routeProfiles) {
         this.cronJobService = cronJobService;
         this.cronScheduler = cronScheduler;
+        this.profileScope = profileScope;
+        this.profileName =
+                profileName == null || profileName.trim().length() == 0
+                        ? profileScope.currentProfile()
+                        : profileName;
+        this.scopedContexts =
+                routeProfiles
+                        ? new ConcurrentHashMap<String, ScopedCronContext>()
+                        : new ConcurrentHashMap<String, ScopedCronContext>(0);
+    }
+
+    /** 列出指定 Profile 的 Cron 任务。 */
+    public List<Map<String, Object>> listJobs(String profile) throws Exception {
+        return forProfile(profile).listJobs();
+    }
+
+    /** 按启用状态列出指定 Profile 的 Cron 任务。 */
+    public List<Map<String, Object>> listJobs(String profile, boolean includeDisabled)
+            throws Exception {
+        return forProfile(profile).listJobs(includeDisabled);
+    }
+
+    /** 读取指定 Profile 的 Cron 任务。 */
+    public Map<String, Object> get(String profile, String id) throws Exception {
+        return forProfile(profile).get(id);
+    }
+
+    /** 检查指定 Profile 的 Cron 任务和运行历史。 */
+    public Map<String, Object> inspect(String profile, String id, int limit) throws Exception {
+        return forProfile(profile).inspect(id, limit);
+    }
+
+    /** 读取指定 Profile 的 Cron 使用说明。 */
+    public Map<String, Object> guide(String profile) throws Exception {
+        return forProfile(profile).guide();
+    }
+
+    /** 读取指定 Profile 的 Cron 安全策略。 */
+    public Map<String, Object> policy(String profile) throws Exception {
+        return forProfile(profile).policy();
+    }
+
+    /** 读取指定 Profile 即将运行的 Cron 任务。 */
+    public List<Map<String, Object>> nextJobs(String profile, int limit, boolean includeDisabled)
+            throws Exception {
+        return forProfile(profile).nextJobs(limit, includeDisabled);
+    }
+
+    /** 读取指定 Profile 的 Cron 汇总状态。 */
+    public Map<String, Object> status(String profile, boolean includeDisabled, int limit)
+            throws Exception {
+        return forProfile(profile).status(includeDisabled, limit);
+    }
+
+    /** 在指定 Profile 创建 Cron 任务。 */
+    public Map<String, Object> create(String profile, Map<String, Object> body) throws Exception {
+        return forProfile(profile).create(body);
+    }
+
+    /** 更新指定 Profile 的 Cron 任务。 */
+    public Map<String, Object> update(String profile, String id, Map<String, Object> body)
+            throws Exception {
+        return forProfile(profile).update(id, body);
+    }
+
+    /** 暂停指定 Profile 的 Cron 任务。 */
+    public Map<String, Object> pause(String profile, String id, Map<String, Object> body)
+            throws Exception {
+        return forProfile(profile).pause(id, body);
+    }
+
+    /** 恢复指定 Profile 的 Cron 任务。 */
+    public Map<String, Object> resume(String profile, String id) throws Exception {
+        return forProfile(profile).resume(id);
+    }
+
+    /** 触发指定 Profile 的 Cron 任务。 */
+    public Map<String, Object> trigger(String profile, String id, Map<String, Object> body)
+            throws Exception {
+        return forProfile(profile).trigger(id, body);
+    }
+
+    /** 重试指定 Profile 的 Cron 任务。 */
+    public Map<String, Object> retry(String profile, String id, Map<String, Object> body)
+            throws Exception {
+        return forProfile(profile).retry(id, body);
+    }
+
+    /** 删除指定 Profile 的 Cron 任务。 */
+    public Map<String, Object> delete(String profile, String id) throws Exception {
+        return forProfile(profile).delete(id);
+    }
+
+    /** 读取指定 Profile 的 Cron 运行历史。 */
+    public List<Map<String, Object>> history(String profile, String id, int limit)
+            throws Exception {
+        return forProfile(profile).history(id, limit);
+    }
+
+    /** 关闭 Dashboard 为其他 Profile 打开的 Cron 数据库。 */
+    public void shutdown() {
+        for (ScopedCronContext context : scopedContexts.values()) {
+            context.close();
+        }
+        scopedContexts.clear();
     }
 
     /**
@@ -250,6 +394,7 @@ public class DashboardCronService {
         result.put("limit", Integer.valueOf(safeLimit));
         result.put("next", limitedViews(next, safeLimit));
         result.put("recent_failures", limitedMaps(recentFailures, safeLimit));
+        result.put("profile", profileName);
         return result;
     }
 
@@ -440,6 +585,13 @@ public class DashboardCronService {
      */
     private void runOrTrigger(String id, String triggerType) throws Exception {
         if (cronScheduler == null) {
+            if (!profileName.equals(profileScope.currentProfile())) {
+                cronJobService.trigger(id, triggerType);
+                throw new IllegalStateException(
+                        "Cron job for profile '"
+                                + profileName
+                                + "' is queued in its isolated database; start that profile gateway to execute it.");
+            }
             cronJobService.trigger(id, triggerType);
             return;
         }
@@ -521,6 +673,7 @@ public class DashboardCronService {
                     new LinkedHashMap<String, Object>(cronJobService.runToView(record));
             convertTime(view, "started_at");
             convertTime(view, "finished_at");
+            view.put("profile", profileName);
             result.add(view);
         }
         return result;
@@ -538,6 +691,8 @@ public class DashboardCronService {
         convertTime(view, "last_run_at");
         convertTime(view, "next_run_at");
         convertTime(view, "paused_at");
+        view.put("profile", profileName);
+        view.put("profile_name", profileName);
         return view;
     }
 
@@ -793,6 +948,57 @@ public class DashboardCronService {
         copyIfPresent(body, result, "paused_reason");
         copyIfPresent(body, result, "pausedReason");
         return result;
+    }
+
+    /** 返回目标 Profile 的独立 Cron 服务，当前 Profile 继续复用正在运行的调度器。 */
+    private DashboardCronService forProfile(String requestedProfile) throws Exception {
+        DashboardProfileScope.Resolved resolved = profileScope.resolve(requestedProfile);
+        if (resolved.isCurrent()) {
+            return this;
+        }
+        ScopedCronContext existing = scopedContexts.get(resolved.getName());
+        if (existing != null) {
+            return existing.service;
+        }
+        synchronized (scopedContexts) {
+            existing = scopedContexts.get(resolved.getName());
+            if (existing == null) {
+                existing = createScopedContext(resolved);
+                scopedContexts.put(resolved.getName(), existing);
+            }
+            return existing.service;
+        }
+    }
+
+    /** 创建只绑定目标 Profile 配置和状态数据库的 Cron 数据上下文。 */
+    private ScopedCronContext createScopedContext(DashboardProfileScope.Resolved resolved)
+            throws Exception {
+        AppConfig config = profileScope.loadConfig(resolved);
+        SqliteDatabase database = new SqliteDatabase(config);
+        CronJobService jobs = new CronJobService(config, new SqliteCronJobRepository(database));
+        DashboardCronService service =
+                new DashboardCronService(jobs, null, profileScope, resolved.getName(), false);
+        return new ScopedCronContext(service, database);
+    }
+
+    /** Dashboard 为非当前 Profile 持有的独立 Cron 数据资源。 */
+    private static final class ScopedCronContext {
+        /** 已绑定 Profile 的 Cron 服务。 */
+        private final DashboardCronService service;
+
+        /** 已绑定 Profile 的状态数据库。 */
+        private final SqliteDatabase database;
+
+        /** 创建独立 Cron 数据上下文。 */
+        private ScopedCronContext(DashboardCronService service, SqliteDatabase database) {
+            this.service = service;
+            this.database = database;
+        }
+
+        /** 关闭独立 Profile 数据库。 */
+        private void close() {
+            database.shutdown();
+        }
     }
 
     /**

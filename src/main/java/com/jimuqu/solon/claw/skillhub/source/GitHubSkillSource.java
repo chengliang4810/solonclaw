@@ -384,5 +384,4 @@ public class GitHubSkillSource implements SkillSource {
         int index = normalized.lastIndexOf('/');
         return index >= 0 ? normalized.substring(index + 1) : normalized;
     }
-
 }

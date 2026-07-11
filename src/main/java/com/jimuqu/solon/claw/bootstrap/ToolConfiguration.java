@@ -32,6 +32,7 @@ import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
+import com.jimuqu.solon.claw.media.VisionAnalysisService;
 import com.jimuqu.solon.claw.plugin.AgentHookRegistry;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.plugin.ToolRegistration;
@@ -41,6 +42,7 @@ import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.pricing.UsageCostCalculator;
+import com.jimuqu.solon.claw.profile.ProfileChildRuntimeMarker;
 import com.jimuqu.solon.claw.scheduler.CronApprovalResumeObserver;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -67,13 +69,13 @@ import com.jimuqu.solon.claw.tool.runtime.ToolResultTransformService;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
 import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
+import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
 import com.jimuqu.solon.claw.web.DashboardInsightsService;
-import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
-import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
+import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
@@ -81,6 +83,7 @@ import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.util.List;
 import org.noear.solon.annotation.Bean;
+import org.noear.solon.annotation.Condition;
 import org.noear.solon.annotation.Configuration;
 
 /** 承载工具配置并集中创建运行组件。 */
@@ -255,14 +258,28 @@ public class ToolConfiguration {
      * @param appConfig 应用运行配置。
      * @param browserProviders 浏览器Providers标识或键值。
      * @param securityPolicyService 安全策略服务依赖。
+     * @param attachmentCacheService 附件缓存服务依赖。
+     * @param llmProviderService LLM 提供方解析服务。
+     * @param llmGateway LLM 网关。
      * @return 返回浏览器运行时服务结果。
      */
     @Bean(destroyMethod = "shutdown")
     public BrowserRuntimeService browserRuntimeService(
             AppConfig appConfig,
             List<BrowserProvider> browserProviders,
-            SecurityPolicyService securityPolicyService) {
-        return new BrowserRuntimeService(appConfig, browserProviders, securityPolicyService);
+            SecurityPolicyService securityPolicyService,
+            AttachmentCacheService attachmentCacheService,
+            LlmProviderService llmProviderService,
+            LlmGateway llmGateway) {
+        VisionAnalysisService visionAnalysisService =
+                new VisionAnalysisService(
+                        appConfig,
+                        attachmentCacheService,
+                        securityPolicyService,
+                        llmProviderService,
+                        () -> llmGateway);
+        return new BrowserRuntimeService(
+                appConfig, browserProviders, securityPolicyService, visionAnalysisService::analyze);
     }
 
     /**
@@ -324,6 +341,7 @@ public class ToolConfiguration {
      * @return 返回工具注册表结果。
      */
     @Bean
+    @Condition(onMissingBean = ProfileChildRuntimeMarker.class)
     public ToolRegistry toolRegistry(
             AppConfig appConfig,
             SqlitePreferenceStore preferenceStore,
@@ -431,14 +449,16 @@ public class ToolConfiguration {
             SqlitePreferenceStore preferenceStore,
             SessionRepository sessionRepository,
             AgentRunRepository agentRunRepository,
-            AgentRunControlService agentRunControlService) {
+            AgentRunControlService agentRunControlService,
+            DeliveryService deliveryService) {
         return new DefaultDelegationService(
                 holder,
                 preferenceStore,
                 sessionRepository,
                 agentRunRepository,
                 appConfig,
-                agentRunControlService);
+                agentRunControlService,
+                deliveryService);
     }
 
     /**

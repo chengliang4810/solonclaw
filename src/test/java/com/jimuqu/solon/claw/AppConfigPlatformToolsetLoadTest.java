@@ -57,5 +57,20 @@ public class AppConfigPlatformToolsetLoadTest {
         AppConfig config = AppConfig.load(props);
 
         assertThat(config.getGateway().getPlatforms()).isEmpty();
+        assertThat(config.getGateway().isMultiplexProfiles()).isFalse();
+    }
+
+    /** 复用网关开关从当前项目的嵌套配置读取，并支持常见布尔文本。 */
+    @Test
+    void shouldLoadMultiplexProfilesFromNestedGatewayConfig() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-profile-multiplex").toFile();
+        FileUtil.writeUtf8String(
+                "solonclaw:\n  gateway:\n    multiplexProfiles: yes\n",
+                new File(workspaceHome, "config.yml"));
+
+        Props props = new Props();
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
+
+        assertThat(AppConfig.load(props).getGateway().isMultiplexProfiles()).isTrue();
     }
 }

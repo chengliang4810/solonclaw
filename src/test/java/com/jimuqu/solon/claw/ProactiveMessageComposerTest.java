@@ -22,7 +22,8 @@ public class ProactiveMessageComposerTest {
     @Test
     void shouldBuildFallbackMessageThatAsksBeforeAction() throws Exception {
         ProactiveTickContext context = context(false);
-        ProactiveDecision decision = decision(candidate("project_update_opportunity", "仓库更新", "仓库有新提交"));
+        ProactiveDecision decision =
+                decision(candidate("project_update_opportunity", "仓库更新", "仓库有新提交"));
 
         String message = new ProactiveMessageComposer().compose(context, decision);
 
@@ -168,7 +169,8 @@ public class ProactiveMessageComposerTest {
         }
 
         @Override
-        public LlmResult resume(SessionRecord session, String systemPrompt, List<Object> toolObjects) {
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
             return chat(session, systemPrompt, "", toolObjects);
         }
     }

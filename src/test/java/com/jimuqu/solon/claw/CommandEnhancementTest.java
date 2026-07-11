@@ -1828,8 +1828,7 @@ public class CommandEnhancementTest {
     }
 
     @Test
-    void shouldNotExposeRemovedTerminalPlaceholdersAsRegisteredCommands()
-            throws Exception {
+    void shouldNotExposeRemovedTerminalPlaceholdersAsRegisteredCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         assertThat(env.commandService.supports("footer")).isFalse();

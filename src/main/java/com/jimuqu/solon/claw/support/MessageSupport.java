@@ -100,9 +100,7 @@ public final class MessageSupport {
      */
     public static int dropCurrentSummaryArtifacts(
             List<ChatMessage> messages, String compressedSummary) {
-        if (messages == null
-                || messages.isEmpty()
-                || StrUtil.isBlank(compressedSummary)) {
+        if (messages == null || messages.isEmpty() || StrUtil.isBlank(compressedSummary)) {
             return 0;
         }
         int repairs = 0;
@@ -400,7 +398,9 @@ public final class MessageSupport {
      * @return 如果存在工具调用则返回 true。
      */
     private static boolean hasToolCalls(AssistantMessage message) {
-        return message != null && message.getToolCalls() != null && !message.getToolCalls().isEmpty();
+        return message != null
+                && message.getToolCalls() != null
+                && !message.getToolCalls().isEmpty();
     }
 
     /**

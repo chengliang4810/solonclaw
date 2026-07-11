@@ -28,7 +28,19 @@ providers.default.apiKey:
 # 默认模型名称；model.default 为空时使用该值。
 providers.default.defaultModel: gpt-5.4
 # 模型协议方言，可选 openai、openai-responses、ollama、gemini、anthropic。
-providers.default.dialect: openai
+providers.default.dialect: openai-responses
+# 默认模型能力由配置明确声明，避免仅依据模型名称猜测。
+providers.default.capabilities.tool_calling: true
+providers.default.capabilities.vision: true
+providers.default.capabilities.audio: false
+providers.default.capabilities.attachment: true
+providers.default.capabilities.pdf: true
+providers.default.capabilities.reasoning: true
+providers.default.capabilities.structured_output: true
+providers.default.capabilities.open_weights: false
+providers.default.capabilities.interleaved: false
+providers.default.capabilities.prompt_cache: true
+providers.default.capabilities.streaming: true
 # 当前默认提供方键名，必须匹配 providers 下的条目。
 model.providerKey: default
 # 全局默认模型覆盖；留空时使用当前 provider 的 defaultModel。
@@ -94,6 +106,25 @@ solonclaw.task.restartDrainTimeoutSeconds: 180
 solonclaw.task.toolOutputInlineLimit: 4000
 solonclaw.task.toolOutputTurnBudget: 200000
 
+# 内置 OpenAI 兼容 TTS；默认关闭，配置完整端点后显式启用。
+solonclaw.speech.tts.enabled: false
+solonclaw.speech.tts.endpoint: https://api.openai.com/v1/audio/speech
+solonclaw.speech.tts.apiKey:
+solonclaw.speech.tts.model: gpt-4o-mini-tts
+solonclaw.speech.tts.voice: alloy
+solonclaw.speech.tts.responseFormat: mp3
+solonclaw.speech.tts.speed: 1.0
+solonclaw.speech.tts.timeoutSeconds: 120
+
+# 内置 OpenAI 兼容独立 STT；可与 TTS 使用不同端点、密钥和模型。
+solonclaw.speech.stt.enabled: false
+solonclaw.speech.stt.endpoint: https://api.openai.com/v1/audio/transcriptions
+solonclaw.speech.stt.apiKey:
+solonclaw.speech.stt.model: gpt-4o-mini-transcribe
+solonclaw.speech.stt.language:
+solonclaw.speech.stt.prompt:
+solonclaw.speech.stt.timeoutSeconds: 120
+
 # 终端/沙箱执行
 solonclaw.terminal.credentialFiles:
 # 可选 sudo 密码；仅在显式配置非空值时才会通过 stdin 注入给 sudo -S。
@@ -103,6 +134,7 @@ solonclaw.terminal.foregroundMaxRetries: 3
 solonclaw.terminal.foregroundRetryBaseDelaySeconds: 2
 
 # 安全策略
+security.allowPrivateUrls: false
 security.websiteBlocklist.enabled: false
 security.websiteBlocklist.domains:
 security.websiteBlocklist.sharedFiles:
@@ -118,7 +150,7 @@ security.guardrailCronScope: job
 security.hardlineAllowlist:
 
 # 审批/确认策略
-# 子 Agent 遇到可审批危险命令时默认拒绝，避免无人值守等待本地交互。
+# 子 Agent 默认拒绝可审批危险命令；只有显式开启时才自动批准一次。
 approvals.subagentAutoApprove: false
 # 本地/直接审批超时秒数；超时后旧审批令牌不再放行。
 approvals.timeoutSeconds: 60
@@ -200,6 +232,8 @@ solonclaw.gateway.allowedUsers:
 solonclaw.gateway.allowAllUsers: false
 # 是否在支持的渠道原消息上显示处理中/完成表情回应
 solonclaw.gateway.processingReactionsEnabled: true
+# 是否由 default Profile 的单个网关进程承载全部 Profile；默认关闭。
+solonclaw.gateway.multiplexProfiles: false
 
 # 版本检查与更新
 solonclaw.update.repo:

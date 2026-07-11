@@ -17,7 +17,8 @@ import org.junit.jupiter.api.Test;
 class DashboardLogsServiceTest {
     @Test
     void shouldFilterDashboardLogsByProactiveComponent() throws Exception {
-        File workspaceHome = Files.createTempDirectory("solonclaw-logs-proactive-component").toFile();
+        File workspaceHome =
+                Files.createTempDirectory("solonclaw-logs-proactive-component").toFile();
         try {
             AppConfig config = new AppConfig();
             config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
@@ -49,7 +50,9 @@ class DashboardLogsServiceTest {
             config.getRuntime().setHome(workspaceHome.getAbsolutePath());
             config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
             config.getRuntime()
-                    .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                    .setStateDb(
+                            new File(new File(workspaceHome, "data"), "state.db")
+                                    .getAbsolutePath());
             FileUtil.mkdir(config.getRuntime().getLogsDir());
 
             database = new SqliteDatabase(config);
@@ -87,7 +90,8 @@ class DashboardLogsServiceTest {
             run.setFinishedAt(now);
             run.setStatus("ok");
             run.setOutput(marker + " local delivery ok api_key=sk-cronrun-secret12345");
-            run.setDeliveryResultJson("{\"skipped\":\"local\",\"token\":\"ghp_cronrunsecret12345\"}");
+            run.setDeliveryResultJson(
+                    "{\"skipped\":\"local\",\"token\":\"ghp_cronrunsecret12345\"}");
             run.setSummary("ok: " + marker + " local delivery ok");
             cronRepository.saveRun(run);
 

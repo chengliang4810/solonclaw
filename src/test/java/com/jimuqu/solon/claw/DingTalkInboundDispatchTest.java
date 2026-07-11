@@ -57,9 +57,7 @@ public class DingTalkInboundDispatchTest {
                 .isEqualTo("https://oapi.dingtalk.com/robot/send?access_token=unit-test");
         assertThat(
                         fixture.state.get(
-                                PlatformType.DINGTALK,
-                                "open-cid-1",
-                                "session_webhook_expires_at"))
+                                PlatformType.DINGTALK, "open-cid-1", "session_webhook_expires_at"))
                 .isEqualTo("1893456000000");
     }
 
@@ -182,7 +180,8 @@ public class DingTalkInboundDispatchTest {
         private TestDingTalkFixture(
                 DingTalkChannelAdapter adapter,
                 AppConfig.ChannelConfig config,
-                ChannelStateRepository state) throws Exception {
+                ChannelStateRepository state)
+                throws Exception {
             this.adapter = adapter;
             this.config = config;
             this.state = state;
@@ -241,8 +240,7 @@ public class DingTalkInboundDispatchTest {
         /** 调用钉钉卡片回调私有入口。 */
         private void invokeHandleCardCallback(Map<String, Object> payload) throws Throwable {
             Method method =
-                    DingTalkChannelAdapter.class.getDeclaredMethod(
-                            "handleCardCallback", Map.class);
+                    DingTalkChannelAdapter.class.getDeclaredMethod("handleCardCallback", Map.class);
             method.setAccessible(true);
             invoke(method, adapter, payload);
         }

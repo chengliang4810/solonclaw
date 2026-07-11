@@ -13,7 +13,8 @@ import java.util.Map;
 class QrSetupTicketState {
     /** 扫码 setup 接口统一使用本地时区偏移格式输出时间。 */
     private static final DateTimeFormatter ISO_OFFSET_SECONDS_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX").withZone(ZoneId.systemDefault());
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX")
+                    .withZone(ZoneId.systemDefault());
 
     /** ticket 标识，用于前端轮询状态。 */
     String ticket;

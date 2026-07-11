@@ -97,7 +97,8 @@ public class ApprovalAuditObserver implements DangerousCommandApprovalService.Ap
         try {
             repository.append(audit);
         } catch (Exception e) {
-            log.warn("审批审计写入失败，不影响审批主流程 eventType={} tool={} status={} error={}",
+            log.warn(
+                    "审批审计写入失败，不影响审批主流程 eventType={} tool={} status={} error={}",
                     SecretRedactor.redact(eventType, 80),
                     SecretRedactor.redact(event.getToolName(), 120),
                     SecretRedactor.redact(status, 80),

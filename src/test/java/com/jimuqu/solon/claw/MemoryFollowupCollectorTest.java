@@ -52,14 +52,14 @@ public class MemoryFollowupCollectorTest {
         assertThat(observation.getPayload()).containsEntry("confidenceHint", "high");
         assertThat(labels(observation)).contains("repo_watch", "preferred_followup");
         assertThat(String.valueOf(evidence(observation).get("lines"))).contains("token=***");
-        assertThat(String.valueOf(observation.getPayload())).doesNotContain("secret-token-1234567890");
+        assertThat(String.valueOf(observation.getPayload()))
+                .doesNotContain("secret-token-1234567890");
     }
 
     @Test
     void shouldEmitFollowupFromDailyMemoryLine() throws Exception {
         InMemoryMemoryService memoryService = new InMemoryMemoryService();
-        memoryService.snapshot.setDailyMemoryText(
-                "- 今天需要继续跟进 bzaqweb 风险审批工作台，下次主动询问是否要协作处理");
+        memoryService.snapshot.setDailyMemoryText("- 今天需要继续跟进 bzaqweb 风险审批工作台，下次主动询问是否要协作处理");
 
         List<ProactiveObservation> observations =
                 new MemoryFollowupCollector(memoryService).collect(context(true));

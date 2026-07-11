@@ -16,5 +16,8 @@ assert.equal(dashboardHashRouteForPath('/tui-runtime'), '#/solonclaw/tui-runtime
 assert.equal(dashboardHashRouteForPath('/curator'), '#/solonclaw/curator')
 assert.equal(dashboardHashRouteForPath('/mcp'), '#/solonclaw/mcp')
 assert.equal(dashboardHashRouteForPath('/env'), '#/solonclaw/settings')
+assert.equal(dashboardHashRouteForPath('/profiles'), '#/solonclaw/profiles')
+assert.equal(dashboardHashRouteForPath('/profiles/new'), '#/solonclaw/profiles/new')
+assert.equal(dashboardHashRouteForPath('/profiles/new/'), '#/solonclaw/profiles/new')
 assert.equal(dashboardHashRouteForPath('/solonclaw/models'), '#/solonclaw/models')
 assert.equal(dashboardHashRouteForPath('/unknown'), '')

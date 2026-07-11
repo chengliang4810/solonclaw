@@ -19,14 +19,7 @@ public class HeuristicGoalJudge implements GoalJudge {
 
     /** 表示继续执行已无法推进，需要停止目标续跑的阻塞短语。 */
     private static final String[] BLOCKED_MARKERS = {
-        "blocked",
-        "need user",
-        "need input",
-        "cannot continue",
-        "无法继续",
-        "需要用户",
-        "需要你",
-        "需要输入"
+        "blocked", "need user", "need input", "cannot continue", "无法继续", "需要用户", "需要你", "需要输入"
     };
 
     /**

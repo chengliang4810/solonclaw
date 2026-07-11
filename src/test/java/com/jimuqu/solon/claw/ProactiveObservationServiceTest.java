@@ -39,7 +39,8 @@ public class ProactiveObservationServiceTest {
                             }
 
                             @Override
-                            public List<ProactiveObservation> collect(ProactiveTickContext context) {
+                            public List<ProactiveObservation> collect(
+                                    ProactiveTickContext context) {
                                 Map<String, Object> payload = new LinkedHashMap<String, Object>();
                                 payload.put("token", "sk-test-abcdefghijklmnopqrstuvwxyz");
                                 payload.put(
@@ -84,7 +85,8 @@ public class ProactiveObservationServiceTest {
                             }
 
                             @Override
-                            public List<ProactiveObservation> collect(ProactiveTickContext context) {
+                            public List<ProactiveObservation> collect(
+                                    ProactiveTickContext context) {
                                 throw new AssertionError("disabled collector should not run");
                             }
                         },
@@ -100,7 +102,8 @@ public class ProactiveObservationServiceTest {
                             }
 
                             @Override
-                            public List<ProactiveObservation> collect(ProactiveTickContext context) {
+                            public List<ProactiveObservation> collect(
+                                    ProactiveTickContext context) {
                                 ProactiveObservation observation = new ProactiveObservation();
                                 observation.setCollector("calendar-signals");
                                 observation.setSourceKey("CAL:milestone");
@@ -125,7 +128,8 @@ public class ProactiveObservationServiceTest {
 
         assertThat(records).hasSize(3);
         assertThat(repository.savedObservations).hasSize(3);
-        assertThat(records).extracting(ProactiveObservationRecord::getCollector)
+        assertThat(records)
+                .extracting(ProactiveObservationRecord::getCollector)
                 .containsExactly("session-signals", "broken-collector", "calendar-signals");
 
         ProactiveObservationRecord success = records.get(0);
@@ -171,14 +175,17 @@ public class ProactiveObservationServiceTest {
                         repository,
                         Arrays.asList(
                                 new SingleObservationCollector("   ", null),
-                                new SingleObservationCollector("  ", observationWithBlankSource())));
+                                new SingleObservationCollector(
+                                        "  ", observationWithBlankSource())));
 
         List<ProactiveObservationRecord> records = service.collectAll(context("tick-boundary"));
 
         assertThat(records).hasSize(2);
-        assertThat(records).extracting(ProactiveObservationRecord::getCollector)
+        assertThat(records)
+                .extracting(ProactiveObservationRecord::getCollector)
                 .containsExactly("unknown", "unknown");
-        assertThat(records).extracting(ProactiveObservationRecord::getSourceKey)
+        assertThat(records)
+                .extracting(ProactiveObservationRecord::getSourceKey)
                 .containsExactly("unknown", "unknown");
         assertThat(records.get(0).getStatus()).isEqualTo("COLLECTED");
         assertThat(records.get(0).getPayload()).isEmpty();
@@ -262,7 +269,8 @@ public class ProactiveObservationServiceTest {
         }
 
         @Override
-        public void saveCandidate(com.jimuqu.solon.claw.core.model.ProactiveCandidateRecord candidate)
+        public void saveCandidate(
+                com.jimuqu.solon.claw.core.model.ProactiveCandidateRecord candidate)
                 throws Exception {
             throw new UnsupportedOperationException();
         }
@@ -274,8 +282,8 @@ public class ProactiveObservationServiceTest {
         }
 
         @Override
-        public List<com.jimuqu.solon.claw.core.model.ProactiveCandidateRecord> listPendingCandidates(
-                long nowMillis, int limit) throws Exception {
+        public List<com.jimuqu.solon.claw.core.model.ProactiveCandidateRecord>
+                listPendingCandidates(long nowMillis, int limit) throws Exception {
             throw new UnsupportedOperationException();
         }
 

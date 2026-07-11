@@ -19,11 +19,6 @@ const router = createRouter({
       component: () => import('@/views/solonclaw/ChatView.vue'),
     },
     {
-      path: '/solonclaw/agents',
-      name: 'solonclaw.agents',
-      component: () => import('@/views/solonclaw/AgentsView.vue'),
-    },
-    {
       path: '/solonclaw/jobs',
       name: 'solonclaw.jobs',
       component: () => import('@/views/solonclaw/JobsView.vue'),
@@ -62,6 +57,16 @@ const router = createRouter({
       path: '/solonclaw/skills',
       name: 'solonclaw.skills',
       component: () => import('@/views/solonclaw/SkillsView.vue'),
+    },
+    {
+      path: '/solonclaw/profiles/new',
+      name: 'solonclaw.profiles.new',
+      component: () => import('@/views/solonclaw/ProfileBuilderView.vue'),
+    },
+    {
+      path: '/solonclaw/profiles',
+      name: 'solonclaw.profiles',
+      component: () => import('@/views/solonclaw/ProfilesView.vue'),
     },
     {
       path: '/solonclaw/settings',

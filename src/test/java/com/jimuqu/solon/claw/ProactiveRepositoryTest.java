@@ -23,17 +23,33 @@ public class ProactiveRepositoryTest {
     void shouldCreateSchemaAndIndexes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        assertThat(tableExists(env.sqliteDatabase.openConnection(), "proactive_observations")).isTrue();
-        assertThat(tableExists(env.sqliteDatabase.openConnection(), "proactive_candidates")).isTrue();
-        assertThat(tableExists(env.sqliteDatabase.openConnection(), "proactive_decisions")).isTrue();
-        assertThat(tableExists(env.sqliteDatabase.openConnection(), "proactive_source_snapshots")).isTrue();
-        assertThat(indexExists(env.sqliteDatabase.openConnection(), "idx_proactive_candidates_pending"))
+        assertThat(tableExists(env.sqliteDatabase.openConnection(), "proactive_observations"))
                 .isTrue();
-        assertThat(indexExists(env.sqliteDatabase.openConnection(), "idx_proactive_candidates_dedup"))
+        assertThat(tableExists(env.sqliteDatabase.openConnection(), "proactive_candidates"))
                 .isTrue();
-        assertThat(indexExists(env.sqliteDatabase.openConnection(), "idx_proactive_decisions_created"))
+        assertThat(tableExists(env.sqliteDatabase.openConnection(), "proactive_decisions"))
                 .isTrue();
-        assertThat(indexExists(env.sqliteDatabase.openConnection(), "idx_proactive_decisions_source_created"))
+        assertThat(tableExists(env.sqliteDatabase.openConnection(), "proactive_source_snapshots"))
+                .isTrue();
+        assertThat(
+                        indexExists(
+                                env.sqliteDatabase.openConnection(),
+                                "idx_proactive_candidates_pending"))
+                .isTrue();
+        assertThat(
+                        indexExists(
+                                env.sqliteDatabase.openConnection(),
+                                "idx_proactive_candidates_dedup"))
+                .isTrue();
+        assertThat(
+                        indexExists(
+                                env.sqliteDatabase.openConnection(),
+                                "idx_proactive_decisions_created"))
+                .isTrue();
+        assertThat(
+                        indexExists(
+                                env.sqliteDatabase.openConnection(),
+                                "idx_proactive_decisions_source_created"))
                 .isTrue();
     }
 
@@ -160,7 +176,8 @@ public class ProactiveRepositoryTest {
         skipped.setReason("重复");
         skipped.setCreatedAt(now - 500L);
         repository.saveDecision(skipped);
-        repository.markCandidateStatus(second.getCandidateId(), "SKIPPED", skipped.getDecisionId(), now);
+        repository.markCandidateStatus(
+                second.getCandidateId(), "SKIPPED", skipped.getDecisionId(), now);
 
         ProactiveDecisionRecord failed = new ProactiveDecisionRecord();
         failed.setDecisionId("decision-3");
@@ -176,7 +193,8 @@ public class ProactiveRepositoryTest {
 
         assertThat(repository.countSentSince(first.getSourceKey(), now - 2000L)).isEqualTo(1);
         assertThat(repository.countSentSince(null, now - 2000L)).isEqualTo(1);
-        assertThat(repository.findLastSentAt(first.getSourceKey())).isEqualTo(Long.valueOf(now - 1000L));
+        assertThat(repository.findLastSentAt(first.getSourceKey()))
+                .isEqualTo(Long.valueOf(now - 1000L));
         assertThat(repository.findLastSentAt("MEMORY:missing")).isNull();
         assertThat(repository.listRecentDecisions(5))
                 .extracting(ProactiveDecisionRecord::getDecisionId)

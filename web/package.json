@@ -47,6 +47,7 @@
     "test:provider-display-options": "node --experimental-strip-types tests/providerDisplayOptions.test.ts",
     "test:models-load-failure": "node --experimental-strip-types tests/modelsLoadFailure.test.ts",
     "test:skills-load-failure": "node --experimental-strip-types tests/skillsLoadFailureStatic.test.ts",
+    "test:profiles": "node --experimental-strip-types tests/profileScope.test.ts && node --experimental-strip-types tests/profileUiStatic.test.ts && node --experimental-strip-types tests/profileSessionRoutingStatic.test.ts && node --experimental-strip-types tests/profileAsyncSubmitIsolationStatic.test.ts && node --experimental-strip-types tests/sessionUpdateMethodStatic.test.ts && node --experimental-strip-types tests/dashboardDirectRoutes.test.ts",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"
   },

@@ -1,5 +1,4 @@
 package com.jimuqu.solon.claw.cli;
-import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -7,6 +6,7 @@ import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;

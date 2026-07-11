@@ -21,6 +21,9 @@ public class SessionSearchEntry {
     /** 最近更新时间。 */
     private long updatedAt;
 
+    /** 会话创建时间，read 模式用于返回 session_meta.when。 */
+    private long createdAt;
+
     /** 匹配预览。 */
     private String matchPreview;
 
@@ -53,4 +56,37 @@ public class SessionSearchEntry {
 
     /** scroll 模式下是否为 aroundMessageId 锚点。 */
     private boolean anchor;
+
+    /** 条目所属 Profile；当前 Profile 内普通查询可为空。 */
+    private String profile;
+
+    /** 命中消息角色。 */
+    private String role;
+
+    /** scroll 锚点之前仍存在的消息数量。 */
+    private int messagesBefore;
+
+    /** scroll 锚点之后仍存在的消息数量。 */
+    private int messagesAfter;
+
+    /** read 模式是否因会话过长而只返回首尾消息。 */
+    private boolean truncated;
+
+    /** read 模式原始消息总数。 */
+    private int messageCount;
+
+    /** 消息写入时间戳；历史快照未记录时为 0。 */
+    private long messageTimestamp;
+
+    /** 工具消息名称，或 assistant 工具调用的首个工具名称。 */
+    private String messageToolName;
+
+    /** 工具消息关联的调用 ID。 */
+    private String toolCallId;
+
+    /** assistant 消息携带的结构化工具调用列表 JSON。 */
+    private String toolCallsJson;
+
+    /** read 模式会话实际使用或覆盖的模型名称。 */
+    private String sessionModel;
 }

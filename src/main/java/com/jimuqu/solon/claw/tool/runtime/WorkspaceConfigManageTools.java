@@ -38,8 +38,7 @@ public class WorkspaceConfigManageTools {
                     "Inspect or update non-secret workspace config items. Actions: items, set, remove.")
     public String workspaceConfigManage(
             @Param(name = "action", description = "items, set, remove") String action,
-            @Param(name = "key", required = false, description = "Workspace config key")
-                    String key,
+            @Param(name = "key", required = false, description = "Workspace config key") String key,
             @Param(name = "value", required = false, description = "Value for action=set")
                     String value) {
         try {

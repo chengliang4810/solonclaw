@@ -158,7 +158,8 @@ public class SqliteDatabase {
         try {
             connection.close();
         } catch (SQLException | RuntimeException e) {
-            log.debug("SQLite connection close failed; cleanup continues: error={}", errorSummary(e));
+            log.debug(
+                    "SQLite connection close failed; cleanup continues: error={}", errorSummary(e));
         }
     }
 
@@ -228,7 +229,8 @@ public class SqliteDatabase {
                     statement,
                     "sessions",
                     "last_compression_input_tokens integer not null default 0");
-            addColumn(statement, "sessions", "compression_failure_count integer not null default 0");
+            addColumn(
+                    statement, "sessions", "compression_failure_count integer not null default 0");
             addColumn(
                     statement, "sessions", "last_compression_failed_at integer not null default 0");
             addColumn(statement, "sessions", "last_input_tokens integer not null default 0");
@@ -240,9 +242,13 @@ public class SqliteDatabase {
             addColumn(statement, "sessions", "cumulative_input_tokens integer not null default 0");
             addColumn(statement, "sessions", "cumulative_output_tokens integer not null default 0");
             addColumn(
-                    statement, "sessions", "cumulative_reasoning_tokens integer not null default 0");
+                    statement,
+                    "sessions",
+                    "cumulative_reasoning_tokens integer not null default 0");
             addColumn(
-                    statement, "sessions", "cumulative_cache_read_tokens integer not null default 0");
+                    statement,
+                    "sessions",
+                    "cumulative_cache_read_tokens integer not null default 0");
             addColumn(
                     statement,
                     "sessions",

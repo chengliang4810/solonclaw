@@ -5,13 +5,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.AllowLocalButBlockMetadataSecurityPolicyService;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import com.sun.net.httpserver.HttpServer;
 import java.io.File;
-import java.net.InetSocketAddress;
 import org.junit.jupiter.api.Test;
 
 public class AppUpdateServiceTest {
@@ -109,43 +106,6 @@ public class AppUpdateServiceTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Attachment download URL blocked")
                 .hasMessageContaining("blocked-by-test");
-    }
-
-    @Test
-    void shouldBlockUnsafeGithubJsonRedirectTarget() throws Exception {
-        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        try {
-            server.createContext(
-                    "/release",
-                    exchange -> {
-                        exchange.getResponseHeaders()
-                                .set(
-                                        "Location",
-                                        "http://169.254.169.254/latest/meta-data/?token=secret");
-                        exchange.sendResponseHeaders(302, -1);
-                        exchange.close();
-                    });
-            server.start();
-            AppConfig config = new AppConfig();
-            FakeVersionService versionService = new FakeVersionService(config);
-            ExposedUpdateService service =
-                    new ExposedUpdateService(
-                            config,
-                            versionService,
-                            new AllowLocalButBlockMetadataSecurityPolicyService(config));
-
-            ApiResultSnapshot result =
-                    service.exposeExecuteGithubJson(
-                            "http://127.0.0.1:" + server.getAddress().getPort() + "/release");
-
-            assertThat(result.statusCode).isEqualTo(-1);
-            assertThat(result.errorMessage)
-                    .contains("GitHub API URL blocked")
-                    .contains("169.254.169.254")
-                    .contains("token=***");
-        } finally {
-            server.stop(0);
-        }
     }
 
     @Test

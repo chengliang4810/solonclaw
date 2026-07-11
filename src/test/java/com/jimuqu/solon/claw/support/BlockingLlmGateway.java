@@ -46,7 +46,10 @@ public class BlockingLlmGateway implements LlmGateway {
      */
     @Override
     public LlmResult chat(
-            SessionRecord session, String systemPrompt, String userMessage, List<Object> toolObjects)
+            SessionRecord session,
+            String systemPrompt,
+            String userMessage,
+            List<Object> toolObjects)
             throws Exception {
         started.countDown();
         try {

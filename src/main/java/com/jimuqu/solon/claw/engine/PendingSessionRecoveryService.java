@@ -156,5 +156,4 @@ public class PendingSessionRecoveryService {
         long minutes = Math.max(1L, staleAfterMinutes);
         return minutes * 60L * 1000L;
     }
-
 }

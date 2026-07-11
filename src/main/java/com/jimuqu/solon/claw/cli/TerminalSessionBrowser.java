@@ -291,9 +291,7 @@ public class TerminalSessionBrowser {
         int days = intOption(tokens, "--older-than", 90);
         String source = optionValue(tokens, "--source", "");
         if (!hasYes(tokens)) {
-            return "需要确认：将删除更新时间早于 "
-                    + days
-                    + " 天的会话。请追加 --yes 或 -y。";
+            return "需要确认：将删除更新时间早于 " + days + " 天的会话。请追加 --yes 或 -y。";
         }
         long cutoff = System.currentTimeMillis() - days * 24L * 60L * 60L * 1000L;
         int removed = 0;
@@ -366,7 +364,6 @@ public class TerminalSessionBrowser {
         appendLine(buffer, "branch", StrUtil.blankToDefault(record.getBranchName(), "-"));
         appendLine(buffer, "source", StrUtil.blankToDefault(record.getSourceKey(), "-"));
         appendLine(buffer, "parent", StrUtil.blankToDefault(record.getParentSessionId(), "-"));
-        appendLine(buffer, "agent", StrUtil.blankToDefault(record.getActiveAgentName(), "default"));
         appendLine(buffer, "model", modelLine(record));
         appendLine(buffer, "created", formatTime(record.getCreatedAt()));
         appendLine(buffer, "updated", formatTime(record.getUpdatedAt()));
@@ -432,7 +429,8 @@ public class TerminalSessionBrowser {
         }
         try {
             int count = Math.max(sessionRepository.countAll(), DEFAULT_LIMIT);
-            List<SessionRecord> recent = sessionRepository.listRecent(Math.max(count, DEFAULT_LIMIT), 0);
+            List<SessionRecord> recent =
+                    sessionRepository.listRecent(Math.max(count, DEFAULT_LIMIT), 0);
             if (recent != null) {
                 records.addAll(recent);
             }
@@ -443,9 +441,7 @@ public class TerminalSessionBrowser {
                     records.addAll(recent);
                 }
             } catch (Exception fallbackError) {
-                log.debug(
-                        "终端会话列表降级读取仍失败，管理命令退化为空结果: {}",
-                        fallbackError.toString());
+                log.debug("终端会话列表降级读取仍失败，管理命令退化为空结果: {}", fallbackError.toString());
             }
         }
         return records;

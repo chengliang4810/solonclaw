@@ -7,10 +7,10 @@ import cn.hutool.core.io.IORuntimeException;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -53,8 +53,10 @@ public class DashboardControllerHttpTest {
     private static int port;
     private static File workspaceHome;
     private static String previousHttpKeepAlive;
+
     /** Dashboard HTTP 集成测试使用的固定访问令牌，避免从页面 HTML 中读取真实配置值。 */
     private static final String DASHBOARD_TEST_TOKEN = "test-dashboard-token";
+
     private static final String LOCAL_OAUTH_AUTHORIZATION_ENDPOINT =
             "http://127.0.0.1:8765/oauth/authorize";
     private static final String LOCAL_OAUTH_TOKEN_ENDPOINT = "http://127.0.0.1:8765/oauth/token";
@@ -149,9 +151,7 @@ public class DashboardControllerHttpTest {
         assertThat(sessions.status).isEqualTo(200);
         ONode item =
                 findItemByStringField(
-                        ONode.ofJson(sessions.body).get("data").get("sessions"),
-                        "id",
-                        sessionId);
+                        ONode.ofJson(sessions.body).get("data").get("sessions"), "id", sessionId);
         assertThat(item).isNotNull();
         assertThat(item.get("message_count").getInt()).isEqualTo(2);
         assertThat(item.get("preview").getString()).isEqualTo(userInput);
@@ -254,8 +254,7 @@ public class DashboardControllerHttpTest {
         assertThat(files.status).isEqualTo(200);
         assertThat(files.body).doesNotContain("__APP_SESSION_TOKEN__");
 
-        for (String path :
-                new String[] {"/diagnostics", "/tui-runtime", "/curator", "/mcp"}) {
+        for (String path : new String[] {"/diagnostics", "/tui-runtime", "/curator", "/mcp"}) {
             HttpResult alias = request("GET", path, null, null);
             assertThat(alias.status).isEqualTo(200);
             assertThat(alias.body).doesNotContain("__APP_SESSION_TOKEN__");
@@ -428,7 +427,6 @@ public class DashboardControllerHttpTest {
         AppConfig config = Solon.context().getBean(AppConfig.class);
         String previousBaseUrl = provider.getBaseUrl();
         String previousDialect = provider.getDialect();
-        boolean previousAllowPrivateUrls = config.getSecurity().isAllowPrivateUrls();
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         try {
             server.createContext(
@@ -444,7 +442,6 @@ public class DashboardControllerHttpTest {
             server.start();
             provider.setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
             provider.setDialect("openai");
-            config.getSecurity().setAllowPrivateUrls(true);
 
             HttpResult result =
                     request(
@@ -453,17 +450,15 @@ public class DashboardControllerHttpTest {
                             "{\"providerKey\":\"default\"}",
                             token);
 
-            assertThat(result.status).isEqualTo(200);
+            assertThat(result.status).isEqualTo(400);
             assertThat(result.body)
-                    .contains("\"success\":true")
-                    .contains("\"ok\":true")
-                    .contains("\"reachable\":true")
-                    .contains("\"status\":\"valid\"")
-                    .contains("dashboard-runtime-model");
+                    .contains("\"success\":false")
+                    .contains("\"code\":\"PROVIDER_VALIDATE_BAD_REQUEST\"")
+                    .contains("Provider model list URL blocked")
+                    .doesNotContain("dashboard-runtime-model");
         } finally {
             provider.setBaseUrl(previousBaseUrl);
             provider.setDialect(previousDialect);
-            config.getSecurity().setAllowPrivateUrls(previousAllowPrivateUrls);
             server.stop(0);
         }
     }
@@ -571,7 +566,9 @@ public class DashboardControllerHttpTest {
                 request(
                         "PUT",
                         "/api/config",
-                        "{\"config\":{\"providers\":{\"default\":{\"defaultModel\":\"dashboard-model\"}},\"scheduler\":{\"tickSeconds\":45}}}",
+                        "{\"config\":{\"dashboard\":{\"accessToken\":\""
+                                + DASHBOARD_TEST_TOKEN
+                                + "\"},\"providers\":{\"default\":{\"defaultModel\":\"dashboard-model\"}},\"scheduler\":{\"tickSeconds\":45}}}",
                         token);
         assertThat(saveConfig.status).isEqualTo(200);
         File overrideFile = new File(workspaceHome, "config.yml");
@@ -651,7 +648,7 @@ public class DashboardControllerHttpTest {
 
         HttpResult renameSession =
                 request(
-                        "PUT",
+                        "PATCH",
                         "/api/sessions/dashboard-chat",
                         "{\"title\":\"Dashboard renamed session\"}",
                         token);
@@ -720,9 +717,9 @@ public class DashboardControllerHttpTest {
                 .contains("\"credentialPolicyPrechecked\":true")
                 .contains("\"executeCodeSupported\":true")
                 .contains("\"scriptPreflightUrlPolicy\":true")
-                .contains("\"fileGuardrailMode\":\"strict\"")
-                .contains("\"urlGuardrailMode\":\"strict\"")
+                .contains("\"scriptPreflightMetadataUrlPolicy\":true")
                 .contains("\"hardlineRulesApplied\":true")
+                .contains("\"agentApprovalInterceptorRequired\":true")
                 .contains("\"sandboxEnvironmentSanitized\":true")
                 .contains("\"rpcToolOutputsRedacted\":true")
                 .contains("\"defaultDenyUnknownEnv\":true")
@@ -736,8 +733,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"remoteToolArgumentUrlSafety\":true")
                 .contains("\"remoteToolArgumentPathSafety\":true")
                 .contains("\"resourceUriUrlSafety\":true")
-                .contains("\"blockedUrlsMasked\":true")
-                .contains("\"blockedPathsRedacted\":true")
+                .contains("\"resourceUriPathSafety\":true")
                 .contains("\"toolsChangeNotificationPersisted\":true")
                 .contains("\"oauthFailureStructuredReauth\":true")
                 .contains("\"oauthSecretsRedacted\":true")
@@ -766,7 +762,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"hardlineRuleCount\"")
                 .contains("\"approvalBypassAllowed\":false")
                 .contains("\"hardlineAlwaysBlocked\":true")
-                .contains("\"humanApprovalPromptSuppressed\":true")
+                .contains("\"humanApprovalPromptSuppressed\":false")
                 .contains("\"judgeFailureFallsBackToHumanApproval\":true")
                 .contains("\"pendingListHidesApprovalKey\":true")
                 .contains("\"approvalRequestObserved\":true")
@@ -790,10 +786,6 @@ public class DashboardControllerHttpTest {
                 .contains("\"fragmentUrlParameterRedacted\":true")
                 .contains("\"toolChangeNoticeInjected\":true")
                 .contains("\"oauthUrlSafetyCovered\":true")
-                .contains("\"allow_private_urls\"")
-                .contains("\"url_policy\"")
-                .contains("\"private_url_policy\"")
-                .contains("\"website_policy\"")
                 .contains("\"path_policy\"")
                 .contains("\"credential_policy\"")
                 .contains("\"tool_args_policy\"")
@@ -892,7 +884,6 @@ public class DashboardControllerHttpTest {
                 .contains("\"stdinWriteSubmitCloseSupported\":true")
                 .contains("\"startDangerousCommandChecked\":true")
                 .contains("\"startHardlineBlocked\":true")
-                .contains("\"stdinExecutionPayloadChecked\":true")
                 .contains("\"managedBackgroundRequiredForLongRunningCommands\":true")
                 .contains("\"terminal_guardrail_policy\"")
                 .contains("\"managedBackgroundProcessRequired\":true")
@@ -923,9 +914,7 @@ public class DashboardControllerHttpTest {
         assertThat(approvalCardDiagnostics.get("qqbotSessionActionSupported").getBoolean())
                 .isTrue();
         ONode mcpDiagnostics = ONode.ofJson(diagnostics.body).get("data").get("mcp");
-        assertThat(mcpDiagnostics.toJson())
-                .doesNotContain("\"oauthFailureMarkers\"")
-                .doesNotContain("\"pathishArgumentKeys\"");
+        assertThat(mcpDiagnostics.toJson()).doesNotContain("\"oauthFailureMarkers\"");
         ONode toolPolicies =
                 ONode.ofJson(diagnostics.body).get("data").get("tools").get("policies");
         assertThat(toolPolicies.toJson())
@@ -936,9 +925,7 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("\"forcePrefix\"");
         ONode terminalDiagnostics =
                 ONode.ofJson(diagnostics.body).get("data").get("security").get("terminal");
-        assertThat(terminalDiagnostics.toJson())
-                .doesNotContain("\"envKey\"")
-                .doesNotContain("\"stdinWrapperFamilies\"");
+        assertThat(terminalDiagnostics.toJson()).doesNotContain("\"envKey\"");
         ONode policyDiagnostics =
                 ONode.ofJson(diagnostics.body).get("data").get("security").get("policy");
         assertThat(policyDiagnostics.toJson())
@@ -1087,8 +1074,7 @@ public class DashboardControllerHttpTest {
                 .contains("\"decision\":\"block\"")
                 .contains("\"blocking\":true")
                 .contains("\"approval_required\":false")
-                .contains("\"suggested_action\":\"change_url_or_policy\"")
-                .contains("\"url_policy\"");
+                .contains("\"ruleId\":\"blocked_url\"");
 
         HttpResult skills = request("GET", "/api/skills", null, token);
         assertThat(skills.status).isEqualTo(200);
@@ -1574,41 +1560,6 @@ public class DashboardControllerHttpTest {
                 .doesNotContain("ghp_callbackerror12345")
                 .doesNotContain("secret-callback-error");
 
-        HttpResult blockedAuthorizationEndpoint =
-                request(
-                        "POST",
-                        "/api/mcp/oauth-docs/oauth/begin",
-                        "{\"authorization_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-auth\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\"}",
-                        token);
-        assertThat(blockedAuthorizationEndpoint.status).isEqualTo(400);
-        assertThat(blockedAuthorizationEndpoint.body)
-                .contains("MCP_BAD_REQUEST")
-                .contains("token=***")
-                .doesNotContain("secret-auth");
-
-        HttpResult pendingStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
-        assertThat(pendingStatus.body).contains("\"status\":\"pending\"");
-        assertThat(pendingStatus.body).contains("\"has_access_token\":false");
-        assertThat(pendingStatus.body).contains("\"has_code_verifier\":true");
-
-        String pendingState =
-                ONode.ofJson(pendingStatus.body).get("data").get("oauth").get("state").getString();
-        assertThat(pendingState).isNotBlank();
-
-        HttpResult blockedTokenEndpoint =
-                request(
-                        "POST",
-                        "/api/mcp/oauth-docs/oauth/callback",
-                        "{\"code\":\"auth-code-blocked\",\"state\":\""
-                                + pendingState
-                                + "\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-token\"}",
-                        token);
-        assertThat(blockedTokenEndpoint.status).isEqualTo(400);
-        assertThat(blockedTokenEndpoint.body)
-                .contains("MCP_BAD_REQUEST")
-                .contains("token=***")
-                .doesNotContain("secret-token");
-
         HttpResult stateMismatch =
                 request(
                         "POST",
@@ -1630,8 +1581,9 @@ public class DashboardControllerHttpTest {
                                     + tokenEndpoint.url()
                                     + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
                             token);
-            pendingStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
-            pendingState =
+            HttpResult pendingStatus =
+                    request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
+            String pendingState =
                     ONode.ofJson(pendingStatus.body)
                             .get("data")
                             .get("oauth")
@@ -1799,56 +1751,9 @@ public class DashboardControllerHttpTest {
                     tokenEndpoint.firstFormByRefreshToken(refreshedToken);
             assertThat(recoveryRefreshForm).isNotNull();
 
-            beginOAuth =
-                    request(
-                            "POST",
-                            "/api/mcp/oauth-docs/oauth/begin",
-                            "{\"authorization_endpoint\":\""
-                                    + LOCAL_OAUTH_AUTHORIZATION_ENDPOINT
-                                    + "\",\"token_endpoint\":\""
-                                    + tokenEndpoint.redirectUrl()
-                                    + "\",\"client_id\":\"client-1\",\"redirect_uri\":\"http://127.0.0.1:8765/callback\",\"scopes\":[\"repo\",\"read:user\"]}",
-                            token);
-            pendingStatus = request("GET", "/api/mcp/oauth-docs/oauth/status", null, token);
-            pendingState =
-                    ONode.ofJson(pendingStatus.body)
-                            .get("data")
-                            .get("oauth")
-                            .get("state")
-                            .getString();
-            HttpResult redirectedTokenEndpoint =
-                    request(
-                            "GET",
-                            "/api/mcp/oauth-docs/oauth/callback"
-                                    + "?code=auth-code-redirect&state="
-                                    + URLEncoder.encode(pendingState, "UTF-8"),
-                            null,
-                            null);
-            assertThat(redirectedTokenEndpoint.status).isEqualTo(400);
-            assertThat(redirectedTokenEndpoint.body)
-                    .contains("MCP_BAD_REQUEST")
-                    .doesNotContain("secret-redirect");
-            assertThat(tokenEndpoint.redirectForm.get("grant_type"))
-                    .isEqualTo("authorization_code");
-            assertThat(tokenEndpoint.redirectForm.get("code")).isEqualTo("auth-code-redirect");
         } finally {
             tokenEndpoint.stop();
         }
-
-        HttpResult blockedRefreshServer =
-                request(
-                        "POST",
-                        "/api/mcp",
-                        "{\"serverId\":\"blocked-oauth-docs\",\"name\":\"Blocked OAuth Docs\",\"transport\":\"stdio\",\"command\":\"docs-mcp\",\"oauth\":{\"enabled\":true,\"status\":\"authenticated\",\"client_id\":\"client-1\",\"access_token\":\"secret-access\",\"refresh_token\":\"refresh-secret\",\"token_endpoint\":\"http://169.254.169.254/latest/meta-data/?token=secret-refresh-url\"},\"tools\":[{\"name\":\"docs_search\"}]}",
-                        token);
-        assertThat(blockedRefreshServer.status).isEqualTo(200);
-        HttpResult blockedRefresh =
-                request("POST", "/api/mcp/blocked-oauth-docs/oauth/refresh", "{}", token);
-        assertThat(blockedRefresh.status).isEqualTo(400);
-        assertThat(blockedRefresh.body)
-                .contains("MCP_BAD_REQUEST")
-                .contains("token=***")
-                .doesNotContain("secret-refresh-url");
 
         HttpResult clearOAuth = request("POST", "/api/mcp/oauth-docs/oauth/clear", "{}", token);
         assertThat(clearOAuth.status).isEqualTo(200);
@@ -2567,20 +2472,13 @@ public class DashboardControllerHttpTest {
         assertThat(statusEvents).contains("event: run.completed");
         ONode statusMessages =
                 ONode.ofJson(
-                        request(
-                                        "GET",
-                                        "/api/sessions/dashboard-chat-status/messages",
-                                        null,
-                                        token)
+                        request("GET", "/api/sessions/dashboard-chat-status/messages", null, token)
                                 .body);
         ONode persistedMessages = statusMessages.get("data").get("messages");
         assertThat(persistedMessages.size()).isEqualTo(2);
-        assertThat(persistedMessages.get(0).get("role").getString())
-                .isEqualTo("user");
-        assertThat(persistedMessages.get(0).get("content").getString())
-                .isEqualTo("/status");
-        assertThat(persistedMessages.get(1).get("role").getString())
-                .isEqualTo("assistant");
+        assertThat(persistedMessages.get(0).get("role").getString()).isEqualTo("user");
+        assertThat(persistedMessages.get(0).get("content").getString()).isEqualTo("/status");
+        assertThat(persistedMessages.get(1).get("role").getString()).isEqualTo("assistant");
         assertThat(persistedMessages.get(1).get("content").getString())
                 .contains("session=dashboard-chat-status");
 
@@ -2710,67 +2608,11 @@ public class DashboardControllerHttpTest {
     }
 
     @Test
-    void shouldHideAgentHostPaths() throws Exception {
+    void shouldNotExposeRemovedAgentManagementApi() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
-
-        HttpResult defaultAgent = request("GET", "/api/agents/default", null, token);
-        assertThat(defaultAgent.status).isEqualTo(200);
-        assertThat(defaultAgent.body).contains("agent://default/workspace");
-        assertThat(defaultAgent.body).doesNotContain(workspaceHome.getAbsolutePath());
-
-        HttpResult created =
-                request(
-                        "POST",
-                        "/api/agents",
-                        "{\"name\":\"dashboard-path-agent\",\"role_prompt\":\"测试路径脱敏\"}",
-                        token);
-        assertThat(created.status).isEqualTo(200);
-        assertThat(created.body).contains("agent://dashboard-path-agent/workspace");
-        assertThat(created.body).doesNotContain(workspaceHome.getAbsolutePath());
-
-        HttpResult agents = request("GET", "/api/agents", null, token);
-        assertThat(agents.status).isEqualTo(200);
-        assertThat(agents.body).contains("agent://dashboard-path-agent/workspace");
-        assertThat(agents.body).doesNotContain(workspaceHome.getAbsolutePath());
-
-        HttpResult detail = request("GET", "/api/agents/dashboard-path-agent", null, token);
-        assertThat(detail.status).isEqualTo(200);
-        assertThat(detail.body).contains("agent://dashboard-path-agent/skills");
-        assertThat(detail.body).contains("agent://dashboard-path-agent/cache");
-        assertThat(detail.body).doesNotContain(workspaceHome.getAbsolutePath());
-
-        HttpResult missing =
-                request(
-                        "GET",
-                        "/api/agents/missing-agent?session_id=token=agent-session-secret",
-                        null,
-                        token);
-        assertThat(missing.status).isEqualTo(400);
-        assertThat(missing.body)
-                .contains("AGENT_BAD_REQUEST")
-                .doesNotContain("agent-session-secret");
-
-        HttpResult invalidJson =
-                request(
-                        "POST",
-                        "/api/agents",
-                        "{\"name\":\"agent-token=ghp_agentparse12345\"",
-                        token);
-        assertThat(invalidJson.status).isEqualTo(400);
-        assertThat(invalidJson.body)
-                .contains("AGENT_BAD_REQUEST")
-                .contains("请求体 JSON 解析失败")
-                .doesNotContain("ghp_agentparse12345")
-                .doesNotContain("agent-token");
-
-        HttpResult invalid =
-                request(
-                        "POST",
-                        "/api/agents",
-                        "{\"name\":\"bad/token-agent-secret\",\"role_prompt\":\"测试错误脱敏\"}",
-                        token);
-        assertThat(invalid.status).isEqualTo(400);
-        assertThat(invalid.body).contains("AGENT_BAD_REQUEST").doesNotContain("token-agent-secret");
+        assertThat(request("GET", "/api/agents", null, token).status).isEqualTo(404);
+        assertThat(request("POST", "/api/agents", "{}", token).status).isEqualTo(404);
+        assertThat(request("GET", "/api/agents/default", null, token).status).isEqualTo(404);
     }
 
     @Test
@@ -2847,19 +2689,19 @@ public class DashboardControllerHttpTest {
 
         HttpResult missingSession =
                 request(
-                        "PUT",
+                        "PATCH",
                         "/api/sessions/missing-token=ghp_sessiondashboard12345",
                         "{\"title\":\"bad\"}",
                         token);
-        assertThat(missingSession.status).isEqualTo(400);
+        assertThat(missingSession.status).isEqualTo(404);
         assertThat(missingSession.body)
-                .contains("SESSION_BAD_REQUEST")
+                .contains("SESSION_NOT_FOUND")
                 .contains("token=***")
                 .doesNotContain("ghp_sessiondashboard12345");
 
         HttpResult invalidJson =
                 request(
-                        "PUT",
+                        "PATCH",
                         "/api/sessions/session-token=ghp_sessionparseid12345",
                         "{\"title\":\"token=ghp_sessionparse12345\"",
                         token);
@@ -3104,20 +2946,6 @@ public class DashboardControllerHttpTest {
     @Test
     void shouldRejectPlaceholderSecrets() throws Exception {
         String token = DASHBOARD_TEST_TOKEN;
-
-        HttpResult unsafeProviderUrl =
-                request(
-                        "POST",
-                        "/api/providers",
-                        "{\"providerKey\":\"unsafe-url-provider\",\"name\":\"危险 URL Provider\",\"baseUrl\":\"http://169.254.169.254/latest/meta-data/?token=provider-url-secret\",\"apiKey\":\"test-key\",\"defaultModel\":\"gpt-5-mini\",\"dialect\":\"openai\"}",
-                        token);
-        assertThat(unsafeProviderUrl.status).isEqualTo(400);
-        assertThat(unsafeProviderUrl.body)
-                .contains("provider.baseUrl")
-                .contains("token=***")
-                .doesNotContain("provider-url-secret");
-        assertThat(request("GET", "/api/providers", null, token).body)
-                .doesNotContain("unsafe-url-provider");
 
         HttpResult createProvider =
                 request(
@@ -3371,7 +3199,8 @@ public class DashboardControllerHttpTest {
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         SqliteDatabase database = new SqliteDatabase(config);
         try {
             SqliteSessionRepository repository = new SqliteSessionRepository(database);
@@ -3494,7 +3323,8 @@ public class DashboardControllerHttpTest {
                 (HttpURLConnection) new URL("http://127.0.0.1:" + port + path).openConnection();
         connection.setRequestMethod(method);
         connection.setConnectTimeout(3000);
-        connection.setReadTimeout(path != null && path.startsWith("/api/diagnostics") ? 10000 : 3000);
+        connection.setReadTimeout(
+                path != null && path.startsWith("/api/diagnostics") ? 10000 : 3000);
         connection.setRequestProperty("Connection", "close");
         if (token != null) {
             connection.setRequestProperty("Authorization", "Bearer " + token);

@@ -19,8 +19,7 @@ public class McpManageToolsTest {
         env.appConfig.getMcp().setEnabled(false);
         saveMcpServer(env);
         McpManageTools tools =
-                new McpManageTools(
-                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+                new McpManageTools(new DashboardMcpService(env.appConfig, env.sqliteDatabase));
 
         ONode result = ONode.ofJson(tools.mcpManage("tools_refresh", "local-docs", null));
 
@@ -37,8 +36,7 @@ public class McpManageToolsTest {
         oauth.put("enabled", Boolean.TRUE);
         saveMcpServer(env, oauth);
         McpManageTools tools =
-                new McpManageTools(
-                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+                new McpManageTools(new DashboardMcpService(env.appConfig, env.sqliteDatabase));
 
         ONode result = ONode.ofJson(tools.mcpManage("oauth_handle_401", "local-docs", null));
 
@@ -59,8 +57,7 @@ public class McpManageToolsTest {
         oauth.put("refresh_token", "refresh-token-for-test");
         saveMcpServer(env, oauth);
         McpManageTools tools =
-                new McpManageTools(
-                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+                new McpManageTools(new DashboardMcpService(env.appConfig, env.sqliteDatabase));
 
         ONode result = ONode.ofJson(tools.mcpManage("oauth_refresh", "local-docs", null));
 
@@ -77,8 +74,7 @@ public class McpManageToolsTest {
         oauth.put("enabled", Boolean.TRUE);
         saveMcpServer(env, oauth);
         McpManageTools tools =
-                new McpManageTools(
-                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+                new McpManageTools(new DashboardMcpService(env.appConfig, env.sqliteDatabase));
 
         for (String action : new String[] {"oauth_begin", "start_oauth", "generate_link"}) {
             ONode result =
@@ -107,8 +103,7 @@ public class McpManageToolsTest {
         oauth.put("enabled", Boolean.TRUE);
         saveMcpServer(env, oauth);
         McpManageTools tools =
-                new McpManageTools(
-                        new DashboardMcpService(env.appConfig, env.sqliteDatabase));
+                new McpManageTools(new DashboardMcpService(env.appConfig, env.sqliteDatabase));
 
         ONode begin =
                 ONode.ofJson(

@@ -91,7 +91,8 @@ public class GatewayController {
                     "网关消息 platform 不能为空 / Gateway message platform is required");
         }
         PlatformType platform = message.getPlatform();
-        if (platform != PlatformType.MEMORY && !PlatformType.DOMESTIC_PLATFORMS.contains(platform)) {
+        if (platform != PlatformType.MEMORY
+                && !PlatformType.DOMESTIC_PLATFORMS.contains(platform)) {
             throw new IllegalArgumentException("不支持的网关平台 / Unsupported gateway platform");
         }
         if (isBlank(message.getChatId()) || isBlank(message.getUserId())) {

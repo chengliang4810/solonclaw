@@ -46,7 +46,8 @@ public class ProactiveDispatchService {
      * @return 返回带投递状态的决策记录。
      * @throws Exception 仓储保存失败时抛出异常；渠道投递失败会被记录为 FAILED 不向外抛出。
      */
-    public ProactiveDecisionRecord dispatch(ProactiveDecision decision, String message) throws Exception {
+    public ProactiveDecisionRecord dispatch(ProactiveDecision decision, String message)
+            throws Exception {
         ProactiveDecisionRecord record = baseRecord(decision, message);
         if (decision == null
                 || !"SEND".equalsIgnoreCase(StrUtil.nullToEmpty(decision.getDecision()))
@@ -113,9 +114,11 @@ public class ProactiveDispatchService {
      * @throws Exception home channel 仓储读取失败时抛出异常。
      */
     private HomeChannelRecord resolveHomeChannel(ProactiveDecision decision) throws Exception {
-        PlatformType sourcePlatform = sourcePlatform(decision == null ? null : decision.getSourceKey());
+        PlatformType sourcePlatform =
+                sourcePlatform(decision == null ? null : decision.getSourceKey());
         if (sourcePlatform != null && sourcePlatform != PlatformType.MEMORY) {
-            HomeChannelRecord home = validHome(gatewayPolicyRepository.getHomeChannel(sourcePlatform));
+            HomeChannelRecord home =
+                    validHome(gatewayPolicyRepository.getHomeChannel(sourcePlatform));
             if (home != null) {
                 return home;
             }
@@ -182,7 +185,8 @@ public class ProactiveDispatchService {
         if (error == null) {
             return "";
         }
-        String message = error.getClass().getSimpleName() + ": " + StrUtil.nullToEmpty(error.getMessage());
+        String message =
+                error.getClass().getSimpleName() + ": " + StrUtil.nullToEmpty(error.getMessage());
         return SecretRedactor.redact(message, 500);
     }
 }

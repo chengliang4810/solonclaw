@@ -112,7 +112,8 @@ public final class SolonClawToolSchemaSanitizer {
         Object patternSafe = stripPatternAndFormat(stripped).getSchema();
         Object sanitizedSchema = stripUnsupportedSchemaKeywords(patternSafe);
         sanitizedSchema = stripTopLevelForbiddenCombinators(sanitizedSchema);
-        return ONode.serialize(sanitizedSchema instanceof Map ? sanitizedSchema : defaultObjectSchema());
+        return ONode.serialize(
+                sanitizedSchema instanceof Map ? sanitizedSchema : defaultObjectSchema());
     }
 
     /**

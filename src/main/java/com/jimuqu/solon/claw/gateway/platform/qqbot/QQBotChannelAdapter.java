@@ -695,7 +695,6 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         return safeHttpErrorBody(value == null ? "" : value.toJson());
     }
 
-
     /** 承载列表ener相关状态和辅助逻辑。 */
     private class Listener extends WebSocketListener {
         /**

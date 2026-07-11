@@ -101,7 +101,10 @@ final class AtomicFileWriteSupport {
      */
     private static void logRecoverableFailure(String stage, Exception error) {
         if (log.isDebugEnabled()) {
-            log.debug("atomic file write fallback. stage={} error={}", stage, exceptionSummary(error));
+            log.debug(
+                    "atomic file write fallback. stage={} error={}",
+                    stage,
+                    exceptionSummary(error));
         }
     }
 

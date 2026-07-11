@@ -9,10 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.noear.snack4.ONode;
 
-/**
- * 目标完成契约：把"什么算完成"结构化为五个字段，供 judge 严格裁决、供续轮提示精确引导。
- * 对标外部对标仓库的 GoalContract，字段语义逐一对应。
- */
+/** 目标完成契约：把"什么算完成"结构化为五个字段，供 judge 严格裁决、供续轮提示精确引导。 对标外部对标仓库的 GoalContract，字段语义逐一对应。 */
 @Getter
 @Setter
 @NoArgsConstructor

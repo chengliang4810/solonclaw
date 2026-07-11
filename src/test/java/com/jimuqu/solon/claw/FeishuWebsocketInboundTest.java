@@ -7,17 +7,31 @@ import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.gateway.platform.feishu.FeishuChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.lark.oapi.event.EventDispatcher;
 import com.lark.oapi.service.im.v1.model.EventMessage;
 import com.lark.oapi.service.im.v1.model.EventSender;
 import com.lark.oapi.service.im.v1.model.MentionEvent;
 import com.lark.oapi.service.im.v1.model.P2MessageReceiveV1Data;
 import com.lark.oapi.service.im.v1.model.UserId;
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 /** 验证飞书 WebSocket 入站事件转换为统一网关消息的关键过滤与字段归一化行为。 */
 public class FeishuWebsocketInboundTest {
+    @Test
+    void shouldSignalChannelProtocolForGroupMentionDelivery() throws Exception {
+        ExposedFeishuChannelAdapter adapter = new ExposedFeishuChannelAdapter(channelConfig());
+        com.lark.oapi.ws.Client client =
+                adapter.createClient(EventDispatcher.newBuilder("", "").build());
+
+        Field userAgentField = com.lark.oapi.ws.Client.class.getDeclaredField("userAgent");
+        userAgentField.setAccessible(true);
+
+        assertThat(userAgentField.get(client).toString()).contains("source/channel");
+    }
+
     @Test
     void shouldConvertWebsocketMessageEventToGatewayMessage() {
         FeishuChannelAdapter adapter = adapter(channelConfig());
@@ -106,10 +120,7 @@ public class FeishuWebsocketInboundTest {
 
         adapter.handleWebsocketEvent(
                 eventData(
-                        groupMessage(
-                                "om_group_2",
-                                "{\"text\":\"群内普通聊天\"}",
-                                null),
+                        groupMessage("om_group_2", "{\"text\":\"群内普通聊天\"}", null),
                         sender("ou_sender", "u_sender")));
 
         assertThat(captured.get()).isNull();
@@ -180,8 +191,20 @@ public class FeishuWebsocketInboundTest {
 
     /** 基于给定渠道配置创建飞书适配器，测试中不启动真实 WebSocket 连接。 */
     private FeishuChannelAdapter adapter(AppConfig.ChannelConfig channelConfig) {
-        return new FeishuChannelAdapter(
-                channelConfig, new AttachmentCacheService(new AppConfig()));
+        return new FeishuChannelAdapter(channelConfig, new AttachmentCacheService(new AppConfig()));
+    }
+
+    /** 暴露 WebSocket 客户端构造入口，验证生产连接携带群聊事件路由信号。 */
+    private static final class ExposedFeishuChannelAdapter extends FeishuChannelAdapter {
+        /** 使用测试配置初始化适配器，不建立真实网络连接。 */
+        private ExposedFeishuChannelAdapter(AppConfig.ChannelConfig channelConfig) {
+            super(channelConfig, new AttachmentCacheService(new AppConfig()));
+        }
+
+        /** 调用生产构造逻辑并返回尚未启动的飞书 WebSocket 客户端。 */
+        private com.lark.oapi.ws.Client createClient(EventDispatcher dispatcher) {
+            return createWebsocketClient(dispatcher);
+        }
     }
 
     /** 组装飞书 SDK 回调数据对象，保持测试入口与真实 WebSocket 回调一致。 */

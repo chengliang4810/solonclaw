@@ -3,7 +3,6 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveObservation;
 import com.jimuqu.solon.claw.core.model.ProactiveTickContext;
@@ -14,7 +13,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -81,8 +79,7 @@ public class RunStateCollectorTest {
     }
 
     @Test
-    void shouldNotEmitRecoverableForSuccessfulFinishedRunWithStaleRecoveryHint()
-            throws Exception {
+    void shouldNotEmitRecoverableForSuccessfulFinishedRunWithStaleRecoveryHint() throws Exception {
         InMemoryAgentRunRepository repository = new InMemoryAgentRunRepository();
         AgentRunRecord run = run("run-success-recoverable", "success");
         run.setExitReason("success");
@@ -109,7 +106,8 @@ public class RunStateCollectorTest {
         List<ProactiveObservation> observations =
                 new RunStateCollector(repository).collect(context());
 
-        assertThat(observations).extracting(item -> item.getPayload().get("type"))
+        assertThat(observations)
+                .extracting(item -> item.getPayload().get("type"))
                 .containsExactly("run_recoverable");
         assertThat(repository.toolCallReads).containsEntry("run-duplicate", Integer.valueOf(1));
         assertThat(repository.queuedReads)
@@ -126,13 +124,19 @@ public class RunStateCollectorTest {
         repository.toolCalls.put(
                 "run-verify",
                 Arrays.asList(
-                        tool("tool-1", "shell", "error", "mvn test", "测试失败 token=secret-token-1234567890"),
+                        tool(
+                                "tool-1",
+                                "shell",
+                                "error",
+                                "mvn test",
+                                "测试失败 token=secret-token-1234567890"),
                         tool("tool-2", "read_file", "success", "读取文件", "")));
 
         List<ProactiveObservation> observations =
                 new RunStateCollector(repository).collect(context());
 
-        assertThat(observations).extracting(item -> item.getPayload().get("type"))
+        assertThat(observations)
+                .extracting(item -> item.getPayload().get("type"))
                 .contains("verification_failed");
         ProactiveObservation verification = observationOfType(observations, "verification_failed");
         assertThat(verification.getPayload()).containsEntry("runId", "run-verify");
@@ -344,8 +348,7 @@ public class RunStateCollectorTest {
             toolCallReads.put(
                     runId,
                     Integer.valueOf(
-                            toolCallReads.getOrDefault(runId, Integer.valueOf(0)).intValue()
-                                    + 1));
+                            toolCallReads.getOrDefault(runId, Integer.valueOf(0)).intValue() + 1));
             return toolCalls.getOrDefault(runId, Collections.<ToolCallRecord>emptyList());
         }
 

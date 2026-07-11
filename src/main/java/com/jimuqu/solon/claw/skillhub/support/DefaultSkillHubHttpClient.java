@@ -145,7 +145,8 @@ public class DefaultSkillHubHttpClient implements SkillHubHttpClient {
             throws Exception {
         assertSafeUrl(url);
         Response response = client.newCall(request).execute();
-        if (securityPolicyService == null || !HttpRedirectSupport.isRedirectStatus(response.code())) {
+        if (securityPolicyService == null
+                || !HttpRedirectSupport.isRedirectStatus(response.code())) {
             return response;
         }
         try {

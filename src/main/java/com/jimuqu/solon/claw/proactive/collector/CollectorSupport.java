@@ -40,8 +40,7 @@ public final class CollectorSupport {
             return false;
         }
         for (String keyword : keywords) {
-            if (StrUtil.isNotBlank(keyword)
-                    && value.contains(keyword.toLowerCase(Locale.ROOT))) {
+            if (StrUtil.isNotBlank(keyword) && value.contains(keyword.toLowerCase(Locale.ROOT))) {
                 return true;
             }
         }

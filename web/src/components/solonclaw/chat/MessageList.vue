@@ -67,7 +67,7 @@ function scrollToMessage(messageId: string) {
 
 // Scroll to bottom once when messages are first loaded
 watch(
-  () => chatStore.activeSessionId,
+  () => chatStore.activeSessionKey,
   (id) => {
     if (!id) return;
     if (chatStore.focusMessageId) {

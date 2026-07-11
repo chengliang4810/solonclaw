@@ -136,6 +136,7 @@ model:
   default: "gpt-5.4"
 fallbackProviders: []
 security:
+  allowPrivateUrls: false
   fileGuardrailMode: strict
   urlGuardrailMode: strict
   guardrailMode: approval
@@ -143,6 +144,7 @@ security:
   guardrailCronScope: job
   hardlineAllowlist: []
 approvals:
+  subagentAutoApprove: false
   timeoutSeconds: 60
   gatewayTimeoutSeconds: 300
   mcpReloadConfirm: true
@@ -172,16 +174,16 @@ solonclaw:
 | `solonclaw.proactive.cooldownMinutes` | `120` | 两次主动联系之间的冷却时间，单位分钟 |
 | `solonclaw.proactive.quietStartHour` / `quietEndHour` | `23` / `8` | 本地免打扰时段 |
 | `solonclaw.browser.rewriteLoopbackUrls` | `false` | 容器内浏览器访问宿主机 loopback 服务时是否改写 URL |
-| `security.allowPrivateUrls` | `true` | 是否允许 URL 工具访问 localhost / 内网地址；云元数据地址默认仍阻断 |
-| `security.websiteBlocklist.enabled` | `false` | 是否启用 webfetch/websearch/codesearch 域名阻断列表 |
 | `security.tirithEnabled` | `true` | 是否启用 Tirith 命令内容扫描 |
 | `security.tirithFailOpen` | `true` | Tirith 不可用或超时时是否放行；设为 `false` 会 fail-closed |
-| `security.fileGuardrailMode` | `bypass` | 命令文本中的文件路径安全预检：`bypass` 最自由，`strict` 启用预检 |
-| `security.urlGuardrailMode` | `bypass` | 命令文本中的 URL 安全预检：`bypass` 最自由，`strict` 启用预检 |
-| `security.guardrailMode` | `bypass` | Agent 工具安全策略：`bypass`、`approval`、`strict`、`smart` |
-| `security.guardrailCronMode` | `bypass` | 定时任务安全策略：`bypass`、`approval`、`strict`、`approve` |
+| `security.allowPrivateUrls` | `false` | 是否允许 URL 工具访问内网/私有地址；云元数据地址仍阻断 |
+| `security.fileGuardrailMode` | `strict` | 文件路径预检：`strict`、`bypass` |
+| `security.urlGuardrailMode` | `strict` | URL 预检：`strict`、`bypass` |
+| `security.guardrailMode` | `approval` | Agent 工具安全策略：`bypass`、`approval`、`smart` |
+| `security.guardrailCronMode` | `strict` | 定时任务安全策略：`strict`、`approval`、`bypass`、`approve` |
 | `security.guardrailCronScope` | `job` | 定时任务审批记忆范围：`job`、`session`、`global` |
-| `security.hardlineAllowlist` | 空 | 允许跳过 hardline 硬阻断的类别；`*` 表示放行所有 hardline |
+| `security.hardlineAllowlist` | 空 | 显式允许跳过的 hardline 类别；默认不放行 |
+| `approvals.subagentAutoApprove` | `false` | 子 Agent 是否自动批准一次可审批危险命令 |
 | `approvals.timeoutSeconds` | `60` | 本地/直接审批超时秒数 |
 | `approvals.gatewayTimeoutSeconds` | `300` | 消息渠道审批超时秒数 |
 | `approvals.mcpReloadConfirm` | `true` | `/reload-mcp` 是否需要确认 |

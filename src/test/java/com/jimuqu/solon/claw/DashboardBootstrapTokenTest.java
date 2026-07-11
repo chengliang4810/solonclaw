@@ -20,8 +20,7 @@ public class DashboardBootstrapTokenTest {
                                 env.appConfig, env.gatewayRuntimeRefreshService),
                         new DashboardAuthService(env.appConfig));
         BootstrapContext context =
-                new BootstrapContext(
-                        "127.0.0.1", "{\"accessToken\":\"bootstrap-token-123456\"}");
+                new BootstrapContext("127.0.0.1", "{\"accessToken\":\"bootstrap-token-123456\"}");
 
         Map<String, Object> result = controller.bootstrapDashboardToken(context);
 
@@ -29,8 +28,9 @@ public class DashboardBootstrapTokenTest {
         assertThat(result).containsEntry("success", true);
         assertThat(env.appConfig.getDashboard().getAccessToken())
                 .isEqualTo("bootstrap-token-123456");
-        assertThat(new DashboardAuthService(env.appConfig).isAuthorized(
-                        new HeaderContext("Bearer bootstrap-token-123456")))
+        assertThat(
+                        new DashboardAuthService(env.appConfig)
+                                .isAuthorized(new HeaderContext("Bearer bootstrap-token-123456")))
                 .isTrue();
 
         BootstrapContext second =
@@ -43,10 +43,12 @@ public class DashboardBootstrapTokenTest {
 
     @Test
     void dashboardTokenBootstrapRouteIsPublicButEndpointStillChecksLocalhost() {
-        DashboardAuthService authService = new DashboardAuthService(new com.jimuqu.solon.claw.config.AppConfig());
+        DashboardAuthService authService =
+                new DashboardAuthService(new com.jimuqu.solon.claw.config.AppConfig());
 
-        assertThat(authService.isPublicApiPath(
-                        "/api/workspace-config/bootstrap-dashboard-token", "POST"))
+        assertThat(
+                        authService.isPublicApiPath(
+                                "/api/workspace-config/bootstrap-dashboard-token", "POST"))
                 .isTrue();
     }
 

@@ -450,6 +450,25 @@ public class DomesticChannelEnhancementTest {
         assertThat(message.getThreadId()).isEqualTo("m1");
     }
 
+    /** 纯图片元宝消息也必须进入网关，不能因正文为空被丢弃。 */
+    @Test
+    void shouldParseYuanbaoInboundAttachmentsWithoutText() {
+        AppConfig config = new AppConfig();
+        config.getChannels().getYuanbao().setAllowAllUsers(true);
+        TestYuanbaoAdapter adapter = new TestYuanbaoAdapter(config);
+
+        GatewayMessage message =
+                adapter.parse(
+                        "{\"body\":{\"chat_id\":\"room-a\",\"user_id\":\"user-a\",\"chat_type\":\"group\",\"image\":{\"url\":\"https://cdn.example.test/photo.jpg\",\"file_name\":\"photo.jpg\",\"mime_type\":\"image/jpeg\"},\"message_id\":\"m2\"}}");
+
+        assertThat(message).isNotNull();
+        assertThat(message.getText()).isEmpty();
+        assertThat(message.getAttachments()).hasSize(1);
+        assertThat(message.getAttachments().get(0).getKind()).isEqualTo("image");
+        assertThat(message.getAttachments().get(0).getUrl())
+                .isEqualTo("https://cdn.example.test/photo.jpg");
+    }
+
     @Test
     void shouldParseFeishuDocumentCommentEvent() {
         AppConfig config = new AppConfig();
@@ -722,7 +741,6 @@ public class DomesticChannelEnhancementTest {
         HttpServer server = successServer(largeJsonBody("ghp_yuanbaolargebody12345"));
         try {
             AppConfig config = new AppConfig();
-            config.getSecurity().setAllowPrivateUrls(true);
             config.getChannels().getYuanbao().setAppId("yb_real");
             config.getChannels().getYuanbao().setAppSecret("real_secret");
             config.getChannels().getYuanbao().setApiDomain(localUrl(server));
@@ -749,7 +767,6 @@ public class DomesticChannelEnhancementTest {
         HttpServer server = successServer(largeJsonBody("ghp_qqbotlargebody12345"));
         try {
             AppConfig config = new AppConfig();
-            config.getSecurity().setAllowPrivateUrls(true);
             config.getChannels().getQqbot().setApiDomain(localUrl(server));
             QQBotChannelAdapter adapter =
                     new QQBotChannelAdapter(
@@ -850,7 +867,6 @@ public class DomesticChannelEnhancementTest {
         HttpServer server = secretErrorServer("{\"error\":\"token=ghp_yuanbaohttp12345\"}");
         try {
             AppConfig config = new AppConfig();
-            config.getSecurity().setAllowPrivateUrls(true);
             config.getChannels().getYuanbao().setAppId("yb_real");
             config.getChannels().getYuanbao().setAppSecret("real_secret");
             config.getChannels().getYuanbao().setApiDomain(localUrl(server));
@@ -877,7 +893,6 @@ public class DomesticChannelEnhancementTest {
         HttpServer server = secretErrorServer("{\"message\":\"api_key=sk-qqbot-http-secret\"}");
         try {
             AppConfig config = new AppConfig();
-            config.getSecurity().setAllowPrivateUrls(true);
             config.getChannels().getQqbot().setAppId("qq_real");
             config.getChannels().getQqbot().setClientSecret("real_secret");
             config.getChannels().getQqbot().setApiDomain(localUrl(server));
@@ -911,7 +926,6 @@ public class DomesticChannelEnhancementTest {
         HttpServer server = secretErrorServer("{\"message\":\"token=ghp_qqbotget12345\"}");
         try {
             AppConfig config = new AppConfig();
-            config.getSecurity().setAllowPrivateUrls(true);
             config.getChannels().getQqbot().setApiDomain(localUrl(server));
             QQBotChannelAdapter adapter =
                     new QQBotChannelAdapter(

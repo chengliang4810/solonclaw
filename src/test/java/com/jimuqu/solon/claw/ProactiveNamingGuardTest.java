@@ -20,7 +20,8 @@ public class ProactiveNamingGuardTest {
 
     /** 主动协作文案生成源码路径。 */
     private static final Path COMPOSER =
-            ROOT.resolve("src/main/java/com/jimuqu/solon/claw/proactive/ProactiveMessageComposer.java");
+            ROOT.resolve(
+                    "src/main/java/com/jimuqu/solon/claw/proactive/ProactiveMessageComposer.java");
 
     /** 默认仓库探测源码路径。 */
     private static final Path REPOSITORY_PROBE =

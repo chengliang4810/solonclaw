@@ -42,8 +42,7 @@ public class MediaManageTools {
                             name = "action",
                             description = "list, detail, index, refresh, download, reference")
                     String action,
-            @Param(name = "media_id", required = false, description = "Media id")
-                    String mediaId,
+            @Param(name = "media_id", required = false, description = "Media id") String mediaId,
             @Param(name = "platform", required = false, description = "Platform filter")
                     String platform,
             @Param(
@@ -52,10 +51,7 @@ public class MediaManageTools {
                             defaultValue = "50",
                             description = "Max rows for list")
                     Integer limit,
-            @Param(
-                            name = "body_json",
-                            required = false,
-                            description = "JSON body for action=index")
+            @Param(name = "body_json", required = false, description = "JSON body for action=index")
                     String bodyJson) {
         try {
             if (dashboardMediaService == null) {

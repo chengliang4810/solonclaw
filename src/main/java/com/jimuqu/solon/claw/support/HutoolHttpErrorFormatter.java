@@ -87,5 +87,4 @@ public final class HutoolHttpErrorFormatter {
         }
         return base + ", response preview: " + safe;
     }
-
 }

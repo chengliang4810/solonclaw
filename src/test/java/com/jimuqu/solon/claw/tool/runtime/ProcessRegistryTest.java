@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -13,7 +14,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -225,12 +225,66 @@ public class ProcessRegistryTest {
         assertThat(managed.getOutput()).doesNotContain("chcp");
     }
 
-    // shouldFilterSensitiveExplicitShellInitFilesWithPolicyLikeJimuqu 已删除：
-    // resolveShellInitFiles 经 isSafeConfiguredShellInit -> checkPath(path, false) 读路径过滤，
-    // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），.env/credentials.json/id_rsa 不再被过滤。
-
     @Test
-    void shouldNotPrependSensitiveConfiguredShellInitFilesAtRuntimeLikeJimuqu() throws Exception {
+    void shouldUseOnlyActiveProfileEnvironmentForManagedProcesses() throws Exception {
+        assumeTrue(!isWindows());
+        Path home = Files.createTempDirectory("profile-managed-process");
+        Path homeA = Files.createDirectories(home.resolve("a"));
+        Path homeB = Files.createDirectories(home.resolve("b"));
+        Path workA = Files.createDirectories(homeA.resolve("workspace"));
+        Path workB = Files.createDirectories(homeB.resolve("workspace"));
+        AppConfig config = new AppConfig();
+        config.getTerminal().getEnvPassthrough().add("PROFILE_PROCESS_VALUE");
+        ProcessRegistry registry = new ProcessRegistry(config);
+
+        ProcessRegistry.ManagedProcess fromA;
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "a",
+                        homeA,
+                        Collections.singletonMap("PROFILE_PROCESS_VALUE", "profile-a"),
+                        null)) {
+            fromA =
+                    registry.start(
+                            "printf '<%s>|<%s>|<%s>|<%s>' "
+                                    + "\"${PROFILE_PROCESS_VALUE-unset}\" "
+                                    + "\"${SOLONCLAW_PROFILE-unset}\" "
+                                    + "\"${SOLONCLAW_HOME-unset}\" "
+                                    + "\"$(pwd)\"",
+                            workA.toFile());
+        }
+        assertThat(registry.waitFor(fromA.getId(), 5000L)).isTrue();
+        waitForOutput(fromA, "<profile-a>|<a>");
+        assertThat(fromA.getOutput())
+                .contains("<profile-a>|<a>")
+                .contains(homeA.toAbsolutePath().normalize().toString())
+                .contains(workA.toAbsolutePath().normalize().toString());
+
+        ProcessRegistry.ManagedProcess fromB;
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "b", homeB, Collections.<String, String>emptyMap(), null)) {
+            fromB =
+                    registry.start(
+                            "printf '<%s>|<%s>|<%s>|<%s>' "
+                                    + "\"${PROFILE_PROCESS_VALUE-unset}\" "
+                                    + "\"${SOLONCLAW_PROFILE-unset}\" "
+                                    + "\"${SOLONCLAW_HOME-unset}\" "
+                                    + "\"$(pwd)\"",
+                            workB.toFile());
+        }
+        assertThat(registry.waitFor(fromB.getId(), 5000L)).isTrue();
+        waitForOutput(fromB, "<unset>|<b>");
+        assertThat(fromB.getOutput())
+                .contains("<unset>|<b>")
+                .contains(homeB.toAbsolutePath().normalize().toString())
+                .contains(workB.toAbsolutePath().normalize().toString())
+                .doesNotContain("profile-a");
+    }
+
+    /** 验证显式配置的 shell 初始化文件按配置加载，不按凭据文件名实施额外硬阻断。 */
+    @Test
+    void shouldPrependAllExplicitConfiguredShellInitFilesAtRuntime() throws Exception {
         assumeTrue(
                 !System.getProperty("os.name", "")
                         .toLowerCase(java.util.Locale.ROOT)
@@ -252,12 +306,9 @@ public class ProcessRegistryTest {
         String wrapped = skill.prependShellInit("echo hi");
 
         assertThat(wrapped).contains(safe.toString());
-        assertThat(wrapped).doesNotContain(envFile.toString());
-        assertThat(wrapped).doesNotContain(credentials.toString());
+        assertThat(wrapped).contains(envFile.toString());
+        assertThat(wrapped).contains(credentials.toString());
     }
-
-    // shouldExpandAndFilterConfiguredShellInitEnvVarsLikeJimuqu 已删除：
-    // 同上，resolveShellInitFiles 经读路径过滤；凭据文件读已放宽，id_ed25519 不再被过滤。
 
     /** 构建跨平台中文输出命令，用于覆盖后台进程输出读取链路。 */
     private String chineseOutputCommand(String text) {
@@ -270,6 +321,15 @@ public class ProcessRegistryTest {
     /** 校验输出中不存在替换字符或典型 UTF-8/GBK 误读片段。 */
     private void assertNoMojibake(String output) {
         assertThat(output).doesNotContain("\uFFFD").doesNotContain("闀").doesNotContain("鍥炲綊");
+    }
+
+    /** 等待后台读取线程收齐短命进程输出。 */
+    private void waitForOutput(ProcessRegistry.ManagedProcess managed, String expected)
+            throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 2000L;
+        while (!managed.getOutput().contains(expected) && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10L);
+        }
     }
 
     /** 判断当前测试运行环境是否为 Windows。 */

@@ -4,34 +4,15 @@ import static com.jimuqu.solon.claw.DangerousCommandApprovalTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import cn.hutool.core.io.FileUtil;
-import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
-import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
-import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
-import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
-import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
-import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
-import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
-import java.io.File;
-import java.net.InetAddress;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.Agent;
-import org.noear.solon.ai.agent.react.intercept.HITL;
-import org.noear.solon.ai.agent.react.intercept.HITLDecision;
-import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
-import org.noear.solon.ai.agent.react.task.ToolExchanger;
-import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
 public class DangerousCommandCodeAndNetworkPolicyTest {
     @AfterEach
@@ -1257,39 +1238,10 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                 env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
                         "execute_shell", "npm run dev --help");
 
-        assertThat(nohup).contains("nohup");
-        assertThat(amp).contains("&");
-        assertThat(server).contains("长驻服务");
+        assertThat(nohup).contains("nohup").doesNotContain("BLOCKED");
+        assertThat(amp).contains("&").doesNotContain("BLOCKED");
+        assertThat(server).contains("长驻服务").doesNotContain("BLOCKED");
         assertThat(help).isNull();
-    }
-
-    @Test
-    void shouldWarnForForegroundBackgroundShellPatternsInsideScripts() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-
-        String pythonNohup =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_python",
-                        "import os\nos.system('nohup npm run dev > app.log 2>&1')");
-        String pythonSpawn =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_python",
-                        "import subprocess\nsubprocess.Popen(['npm', 'run', 'dev'])");
-        String jsExec =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_js", "child_process.exec('python -m http.server 8000')");
-        String jsSpawn =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_js", "child_process.spawn('npm', ['run', 'dev'])");
-        String jsSpawnSafe =
-                env.dangerousCommandApprovalService.foregroundBackgroundGuidance(
-                        "execute_js", "child_process.spawn('git', ['status'])");
-
-        assertThat(pythonNohup).contains("Python").contains("nohup");
-        assertThat(pythonSpawn).contains("Python").contains("长驻服务");
-        assertThat(jsExec).contains("Node").contains("长驻服务");
-        assertThat(jsSpawn).contains("Node").contains("长驻服务");
-        assertThat(jsSpawnSafe).isNull();
     }
 
     @Test
@@ -1325,30 +1277,12 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                 .isNotNull();
         assertThat(
                         env.dangerousCommandApprovalService.detectHardline(
-                                "execute_shell", "shutdown /r /t 0"))
+                                "execute_shell", "shutdown -r now"))
                 .isNotNull();
     }
 
     @Test
-    void shouldAllowShutdownHardlineCategoriesWhenExplicitlyAllowlisted() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig
-                .getSecurity()
-                .setHardlineAllowlist(
-                        Arrays.asList("hardline_shutdown", "hardline_windows_shutdown"));
-
-        assertThat(
-                        env.dangerousCommandApprovalService.detectHardline(
-                                "execute_shell", "sudo reboot"))
-                .isNull();
-        assertThat(
-                        env.dangerousCommandApprovalService.detectHardline(
-                                "execute_shell", "shutdown /r /t 0"))
-                .isNull();
-    }
-
-    @Test
-    void shouldStillBlockNonAllowlistedHardlineAndMetadataUrlByDefault() throws Exception {
+    void shouldClassifyMetadataUrlAsCommandHardline() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         DangerousCommandApprovalService.DetectionResult deleteRoot =
@@ -1360,43 +1294,35 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
         assertThat(deleteRoot).isNotNull();
         assertThat(deleteRoot.getPatternKey()).isEqualTo("hardline_delete_root");
         assertThat(metadataUrl).isNotNull();
-        assertThat(metadataUrl.getPatternKey()).isEqualTo("hardline_metadata_url");
+        assertThat(metadataUrl.getPatternKey()).isEqualTo("metadata_url_access");
     }
 
     @Test
-    void shouldAllowAllHardlineCategoriesWhenWildcardAllowlisted() throws Exception {
+    void shouldNotTreatNonUpstreamPrivilegeWrappersAsHardlineCommandPrefixes() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setHardlineAllowlist(Collections.singletonList("*"));
-
-        assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", "rm -rf /"))
-                .isNull();
-        assertThat(
-                        env.dangerousCommandApprovalService.detectHardline(
-                                "execute_shell", "curl http://169.254.169.254/latest/meta-data/"))
-                .isNull();
-    }
-
-    @Test
-    void shouldTreatPrivilegeEscalationWrappersAsHardlineCommandPrefixes() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         String[] commands =
                 new String[] {
-                    "doas reboot",
-                    "pkexec shutdown now",
-                    "doas rm -rf /etc",
-                    "pkexec rm -rf /usr",
-                    "runas /user:Administrator reboot"
+                    "doas reboot", "pkexec shutdown now", "runas /user:Administrator reboot"
                 };
 
         for (String command : commands) {
             DangerousCommandApprovalService.DetectionResult result =
                     env.dangerousCommandApprovalService.detectHardline("execute_shell", command);
 
-            assertThat(result)
-                    .as("expected privilege wrapper hardline block for %s", command)
-                    .isNotNull();
-            assertThat(result.isHardline()).isTrue();
+            assertThat(result).as("expected no hardline block for %s", command).isNull();
+        }
+    }
+
+    /** 验证未被外部对标实现列为命令包装器的提权命令不会触发硬阻断。 */
+    @Test
+    void shouldNotTreatNonUpstreamPrivilegeWrappersAsRecursiveDeletePrefixes() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String[] commands = new String[] {"doas rm -rf /etc", "pkexec rm -rf /usr"};
+
+        for (String command : commands) {
+            assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", command))
+                    .as("expected no hardline block for %s", command)
+                    .isNull();
         }
     }
 
@@ -1406,13 +1332,11 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
 
         env.appConfig.getSecurity().setGuardrailMode("bypass");
         env.appConfig.getSecurity().setGuardrailCronMode("approve");
-        env.appConfig.getApprovals().setSubagentAutoApprove(true);
         env.appConfig.getApprovals().setTimeoutSeconds(45);
         env.appConfig.getApprovals().setGatewayTimeoutSeconds(120);
 
         assertThat(env.dangerousCommandApprovalService.guardrailMode()).isEqualTo("bypass");
         assertThat(env.dangerousCommandApprovalService.guardrailCronMode()).isEqualTo("approve");
-        assertThat(env.dangerousCommandApprovalService.isSubagentAutoApproveEnabled()).isTrue();
         assertThat(env.dangerousCommandApprovalService.approvalTimeoutSeconds()).isEqualTo(45);
         assertThat(env.dangerousCommandApprovalService.approvalGatewayTimeoutSeconds())
                 .isEqualTo(120);
@@ -1425,17 +1349,11 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
     }
 
     @Test
-    void shouldUseFailClosedGuardrailDefaultsWithoutAppConfig() {
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(null, null, null, null);
-
-        assertThat(service.guardrailMode()).isEqualTo("approval");
-        assertThat(service.guardrailCronMode()).isEqualTo("strict");
-    }
-
-    @Test
     void shouldOnlyAcceptSolonClawCronApprovalModeCanonicalValues() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.appConfig.getSecurity().setGuardrailCronMode("STRICT");
+        assertThat(env.dangerousCommandApprovalService.guardrailCronMode()).isEqualTo("strict");
 
         env.appConfig.getSecurity().setGuardrailCronMode("APPROVE");
         assertThat(env.dangerousCommandApprovalService.guardrailCronMode()).isEqualTo("approve");
@@ -1449,187 +1367,78 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                 .hasMessageContaining("security.guardrailCronMode");
     }
 
-    @Test
-    void shouldAutoDenySubagentDangerousCommandByDefaultWithCanonicalConfig() throws Exception {
-        TestEnvironment env = approvalEnvironment();
-        FakeTirithSecurityService tirith =
-                new FakeTirithSecurityService(
-                        scanResult(
-                                "warn",
-                                Collections.singletonList(
-                                        finding(
-                                                "subagent_secret",
-                                                "HIGH",
-                                                "Subagent token=tirith-subagent-secret",
-                                                "")),
-                                "subagent token=tirith-subagent-secret"));
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository,
-                        env.appConfig,
-                        new SecurityPolicyService(env.appConfig),
-                        tirith);
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("code", "rm -rf workspace/cache");
-        TestTrace trace = new TestTrace();
-        AgentRunContext previous = AgentRunContext.current();
-        AgentRunContext subagent =
-                new AgentRunContext(
-                        env.agentRunRepository,
-                        "run-child",
-                        "session-child",
-                        "MEMORY:room:user:delegate:child");
-        subagent.setRunKind("subagent");
-        AgentRunContext.setCurrent(subagent);
-        try {
-            service.buildInterceptor().onAction(trace, exchange("execute_shell", args));
-        } finally {
-            AgentRunContext.setCurrent(previous);
-        }
-
-        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(trace.getFinalAnswer())
-                .contains("子 Agent 默认拒绝")
-                .contains("recursive delete")
-                .contains("token=***")
-                .doesNotContain("tirith-subagent-secret");
-        assertThat(service.getPendingApproval(trace.session)).isNull();
-    }
-
-    @Test
-    void shouldAutoApproveSubagentDangerousCommandOnlyWhenConfigured() throws Exception {
-        TestEnvironment env = approvalEnvironment();
-        env.appConfig.getApprovals().setSubagentAutoApprove(true);
-        DangerousCommandApprovalService service = env.dangerousCommandApprovalService;
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("code", "rm -rf workspace/cache");
-        TestTrace trace = new TestTrace();
-        AgentRunContext previous = AgentRunContext.current();
-        AgentRunContext subagent =
-                new AgentRunContext(
-                        env.agentRunRepository,
-                        "run-child",
-                        "session-child",
-                        "MEMORY:room:user:delegate:child");
-        subagent.setRunKind("subagent");
-        AgentRunContext.setCurrent(subagent);
-        try {
-            service.buildInterceptor().onAction(trace, exchange("execute_shell", args));
-        } finally {
-            AgentRunContext.setCurrent(previous);
-        }
-
-        assertThat(trace.getRoute()).isNull();
-        assertThat(trace.getFinalAnswer()).isNull();
-        assertThat(service.getPendingApproval(trace.session)).isNull();
-        assertThat(
-                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
-                                "execute_shell", "rm -rf workspace/cache"))
-                .isTrue();
-    }
-
-    @Test
-    void shouldTreatWindowsTerminalGuardrailsAsHardline() throws Exception {
+    void shouldLeaveWindowsSpecificCommandsOutOfHardline() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
+        String[] commands =
+                new String[] {
+                    "format C:",
+                    "Format-Volume -DriveLetter E -FileSystem NTFS",
+                    "powershell -NoProfile -Command Restart-Computer -Force",
+                    "pwsh -c Stop-Computer -Force"
+                };
 
-        DangerousCommandApprovalService.DetectionResult format =
-                env.dangerousCommandApprovalService.detectHardline("execute_shell", "format C:");
-        DangerousCommandApprovalService.DetectionResult shutdown =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "shutdown /r /t 0");
-        DangerousCommandApprovalService.DetectionResult cmdShutdown =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "cmd /c shutdown /r /t 0");
-        DangerousCommandApprovalService.DetectionResult powershellRestart =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "powershell -NoProfile -Command Restart-Computer -Force");
-        DangerousCommandApprovalService.DetectionResult cmdWrappedPowershellRestart =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell",
-                        "cmd /c powershell -NoProfile -Command Restart-Computer -Force");
-        DangerousCommandApprovalService.DetectionResult barePowershellRestart =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "powershell Restart-Computer");
-        DangerousCommandApprovalService.DetectionResult pwshStop =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "pwsh -c Stop-Computer -Force");
-        DangerousCommandApprovalService.DetectionResult barePwshStop =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell", "pwsh Stop-Computer");
-        DangerousCommandApprovalService.DetectionResult startProcessPowershellStop =
-                env.dangerousCommandApprovalService.detectHardline(
-                        "execute_shell",
-                        "Start-Process powershell -ArgumentList '-NoProfile -Command Stop-Computer -Force'");
-
-        assertThat(format).isNotNull();
-        assertThat(format.getPatternKey()).isEqualTo("hardline_windows_format");
-        assertThat(shutdown).isNotNull();
-        assertThat(shutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
-        assertThat(cmdShutdown).isNotNull();
-        assertThat(cmdShutdown.getPatternKey()).isEqualTo("hardline_windows_shutdown");
-        assertThat(powershellRestart).isNotNull();
-        assertThat(powershellRestart.getPatternKey()).isEqualTo("hardline_windows_shutdown");
-        assertThat(cmdWrappedPowershellRestart).isNotNull();
-        assertThat(cmdWrappedPowershellRestart.getPatternKey())
-                .isEqualTo("hardline_windows_shutdown");
-        assertThat(barePowershellRestart).isNotNull();
-        assertThat(barePowershellRestart.getPatternKey()).isEqualTo("hardline_windows_shutdown");
-        assertThat(pwshStop).isNotNull();
-        assertThat(pwshStop.getPatternKey()).isEqualTo("hardline_windows_shutdown");
-        assertThat(barePwshStop).isNotNull();
-        assertThat(barePwshStop.getPatternKey()).isEqualTo("hardline_windows_shutdown");
-        assertThat(startProcessPowershellStop).isNotNull();
-        assertThat(startProcessPowershellStop.getPatternKey())
-                .isEqualTo("hardline_windows_shutdown");
+        for (String command : commands) {
+            assertThat(env.dangerousCommandApprovalService.detectHardline("execute_shell", command))
+                    .as("expected no hardline block for %s", command)
+                    .isNull();
+        }
     }
 
     @Test
-    void shouldMatchJimuquHardlineBlocklistExamples() throws Exception {
+    void shouldMatchUpstreamHardlineBlocklistExamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setHardlineAllowlist(Collections.<String>emptyList());
         String[] blocked =
                 withCommonHardlineShutdownCommands(
-                    "rm -rf /",
-                    "rm -rf /*",
-                    "rm -rf /home",
-                    "rm -rf /home/*",
-                    "rm -rf /etc",
-                    "rm -rf /usr",
-                    "rm -rf /var",
-                    "rm -rf /boot",
-                    "rm -rf /bin",
-                    "rm --recursive --force /",
-                    "rm -fr /",
-                    "sudo rm -rf /",
-                    "rm -rf ~",
-                    "rm -rf ~/",
-                    "rm -rf ~/*",
-                    "rm -rf $HOME",
-                    "rm -rf ${HOME}",
-                    "rm -rf $env:HOME",
-                    "rm -rf %USERPROFILE%",
-                    "rm -rf %HOMEPATH%",
-                    "mkfs.ext4 /dev/sda1",
-                    "mkfs /dev/sdb",
-                    "mkfs.xfs /dev/nvme0n1",
-                    "dd if=/dev/zero of=/dev/sda bs=1M",
-                    "dd if=/dev/urandom of=/dev/nvme0n1",
-                    "dd if=anything of=/dev/hda",
-                    "dd if=/dev/zero of=/dev/mmcblk0",
-                    "dd if=/dev/zero of=/dev/vda",
-                    "dd if=/dev/zero of=/dev/xvda",
-                    "dd if=/dev/zero of=\"/dev/sda\" bs=1M",
-                    "dd if=/dev/zero of='/dev/nvme0n1'",
-                    "echo bad > /dev/sda",
-                    "echo bad > \"/dev/sda\"",
-                    "cat /dev/urandom > /dev/sdb",
-                    "cat image.bin > '/dev/nvme0n1'",
-                    "cat image.bin > /dev/nvme0n1",
-                    "cat image.bin > /dev/mmcblk0",
-                    "env -i reboot",
-                    "env --ignore-environment FOO=1 shutdown now",
-                    "Format-Volume -DriveLetter E -FileSystem NTFS");
+                        "rm -rf /",
+                        "rm -rf /*",
+                        "rm -rf /home",
+                        "rm -rf /home/*",
+                        "rm -rf /etc",
+                        "rm -rf /usr",
+                        "rm -rf /var",
+                        "rm -rf /boot",
+                        "rm -rf /bin",
+                        "rm --recursive --force /",
+                        "rm -fr /",
+                        "sudo rm -rf /",
+                        "rm -rf //",
+                        "rm -rf /.",
+                        "rm -rf /./",
+                        "rm -rf /..",
+                        "rm -rf //*",
+                        "rm -rf \"/\"",
+                        "rm -rf '/'",
+                        "rm -rf \"/etc\"",
+                        "rm -rf \"/home\"",
+                        "rm -rf ~",
+                        "rm -rf ~/",
+                        "rm -rf ~/*",
+                        "rm -rf $HOME",
+                        "rm -rf ${HOME}",
+                        "rm -rf \"${HOME}\"",
+                        "rm -rf \\\n/",
+                        "rm -r\\\nf /",
+                        "(rm -rf /)",
+                        "{ rm -rf /; }",
+                        "r\\m -rf /",
+                        "r''m -rf /",
+                        "r\"\"m -rf /",
+                        "$(echo rm) -rf /",
+                        "`echo rm` -rf /",
+                        "${0/x/r}m -rf /",
+                        "mkfs.ext4 /dev/sda1",
+                        "mkfs /dev/sdb",
+                        "mkfs.xfs /dev/nvme0n1",
+                        "dd if=/dev/zero of=/dev/sda bs=1M",
+                        "dd if=/dev/urandom of=/dev/nvme0n1",
+                        "dd if=anything of=/dev/hda",
+                        "dd if=/dev/zero of=/dev/mmcblk0",
+                        "dd if=/dev/zero of=/dev/vda",
+                        "dd if=/dev/zero of=/dev/xvda",
+                        "echo bad > /dev/sda",
+                        "cat /dev/urandom > /dev/sdb",
+                        "cat image.bin > /dev/nvme0n1",
+                        "cat image.bin > /dev/mmcblk0");
 
         for (String command : blocked) {
             DangerousCommandApprovalService.DetectionResult result =
@@ -1640,7 +1449,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
     }
 
     @Test
-    void shouldAllowJimuquHardlineNegativeExamples() throws Exception {
+    void shouldAllowLatestUpstreamHardlineNegativeExamples() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         String[] allowed =
                 new String[] {
@@ -1652,26 +1461,43 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                     "rm -rf ~/Downloads/old",
                     "rm -rf $HOME/tmp",
                     "rm -rf ${HOME}/tmp",
+                    "rm -rf /...",
+                    "rm -rf /....",
+                    "rm -rf /.foo",
+                    "rm -rf /.config/foo",
                     "rm -rf $env:HOME/tmp",
                     "rm -rf %USERPROFILE%/Downloads/old",
+                    "rm -rf $env:HOME",
+                    "rm -rf %USERPROFILE%",
+                    "rm -rf %HOMEPATH%",
+                    "echo 'rm -rf /etc'",
+                    "grep 'rm -rf /usr' notes.txt",
+                    "python3 -c 'print(\"rm -rf /var\")'",
+                    "gh pr create --title \"block rm -rf / spellings\"",
+                    "git commit -m \"fixes rm -rf / bypass\"",
+                    "echo \"run rm -rf / now\"",
+                    "printf \"%s\" \"rm -rf /\"",
+                    "echo \"(reboot)\"",
+                    "echo \"{ reboot; }\"",
                     "rm foo.txt",
                     "rm -rf some/path",
                     "dd if=/dev/zero of=./image.bin",
                     "dd if=./data of=./backup.bin",
+                    "dd if=/dev/zero of=\"/dev/sda\" bs=1M",
+                    "dd if=/dev/zero of='/dev/nvme0n1'",
                     "echo done > /tmp/flag",
                     "echo test > /dev/null",
+                    "echo bad > \"/dev/sda\"",
+                    "cat image.bin > '/dev/nvme0n1'",
                     "ls /dev/sda",
                     "cat /dev/urandom | head -c 10",
                     "grep 'shutdown' logs.txt",
                     "echo reboot",
                     "echo Restart-Computer",
-                    "echo 'rm -rf /etc'",
-                    "grep 'rm -rf /usr' notes.txt",
                     "echo '# init 0 in comment'",
                     "cat rebooting.log",
                     "echo 'halt and catch fire'",
                     "python3 -c 'print(\"shutdown\")'",
-                    "python3 -c 'print(\"rm -rf /var\")'",
                     "find . -name '*reboot*'",
                     "mkfs_helper --version",
                     "systemctl status nginx",
@@ -1684,6 +1510,11 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                     "git status",
                     "npm run build",
                     "sudo apt update",
+                    "env -i reboot",
+                    "env --ignore-environment FOO=1 shutdown now",
+                    "doas reboot",
+                    "pkexec shutdown now",
+                    "runas /user:Administrator reboot",
                     "curl https://example.com | head",
                     "Remove-Item C:\\Users\\chengliang\\scratch -Force",
                     "Remove-Item .\\runtime\\cache -Force -Recurse",
@@ -1698,20 +1529,7 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
     }
 
     @Test
-    void shouldBlockCloudMetadataUrlsEvenWhenPrivateUrlsAreAllowed() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("http://169.254.169.254/latest/meta-data/");
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.getMessage()).contains("元数据");
-    }
-
-    @Test
-    void shouldTreatEmbeddedMetadataUrlCommandsAsHardline() throws Exception {
+    void shouldHardBlockEmbeddedMetadataUrlCommands() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         List<String> commands =
@@ -1730,1091 +1548,93 @@ public class DangerousCommandCodeAndNetworkPolicyTest {
                     env.dangerousCommandApprovalService.detectHardline("execute_shell", command);
 
             assertThat(result)
-                    .withFailMessage(
-                            "expected hardline metadata URL block for command: %s", command)
+                    .withFailMessage("expected metadata URL hardline block: %s", command)
                     .isNotNull();
-            assertThat(result.isHardline()).isTrue();
-            assertThat(result.getPatternKey()).isEqualTo("hardline_metadata_url");
-            assertThat(result.getDescription()).contains("元数据");
+            assertThat(result.getPatternKey()).isEqualTo("metadata_url_access");
         }
     }
 
     @Test
-    void shouldBlockEmbeddedMetadataUrlCommandsWhenGuardrailBypassOrSessionAutoApproval()
-            throws Exception {
+    void shouldRejectExplicitSudoStdinWithoutConfiguredPasswordEvenInBypass() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailMode("bypass");
-        TestTrace offTrace = new TestTrace();
-        Map<String, Object> offArgs = new LinkedHashMap<String, Object>();
-        offArgs.put("code", "curl http://169.254.169.254");
+        String[] commands =
+                new String[] {
+                    "sudo -S whoami", "echo password | sudo -S whoami", "sudo -S -u root whoami"
+                };
 
-        env.dangerousCommandApprovalService
-                .buildInterceptor()
-                .onAction(offTrace, exchange("execute_shell", offArgs));
-
-        assertThat(offTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(offTrace.getFinalAnswer()).contains("BLOCKED (hardline)").contains("元数据");
-        assertThat(env.dangerousCommandApprovalService.getPendingApproval(offTrace.session))
-                .isNull();
-
-        TestTrace autoApprovalTrace = new TestTrace();
-        Map<String, Object> autoApprovalArgs = new LinkedHashMap<String, Object>();
-        autoApprovalArgs.put(
-                "code",
-                "python -c \"import requests; requests.get('http://169.254.169.254/latest/meta-data/')\"");
-
-        assertThat(
-                        env.dangerousCommandApprovalService.enableSessionAutoApproval(
-                                autoApprovalTrace.session))
-                .isTrue();
-        env.dangerousCommandApprovalService
-                .buildInterceptor()
-                .onAction(autoApprovalTrace, exchange("execute_shell", autoApprovalArgs));
-
-        assertThat(autoApprovalTrace.getRoute()).isEqualTo(Agent.ID_END);
-        assertThat(autoApprovalTrace.getFinalAnswer())
-                .contains("BLOCKED (hardline)")
-                .contains("元数据");
-        assertThat(
-                        env.dangerousCommandApprovalService.getPendingApproval(
-                                autoApprovalTrace.session))
-                .isNull();
-    }
-
-    @Test
-    void shouldExposeAlwaysBlockedCommandUrlScanForMetadataOnly() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(false);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict metadata =
-                securityPolicyService.checkCommandAlwaysBlockedUrls(
-                        "Invoke-WebRequest http://169.254.169.254");
-        SecurityPolicyService.UrlVerdict privateUrl =
-                securityPolicyService.checkCommandAlwaysBlockedUrls("curl http://127.0.0.1:8080");
-
-        assertThat(metadata.isAllowed()).isFalse();
-        assertThat(metadata.getMessage()).contains("元数据");
-        assertThat(privateUrl.isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldNormalizeUrlControlSequencesBeforeSecurityChecks() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("query", "read \u001B]0;hidden\u0007http://169.254.169.254/latest/meta-data/");
-
-        SecurityPolicyService.UrlVerdict nul =
-                securityPolicyService.checkUrl(
-                        "http://169.254.169.\u0000254/latest/meta-data/?token=secret123");
-        SecurityPolicyService.UrlVerdict osc =
-                securityPolicyService.checkToolArgs("websearch", args);
-        SecurityPolicyService.UrlVerdict fullwidth =
-                securityPolicyService.checkCommandUrls(
-                        "curl ｈｔｔｐ://１６９.２５４.１６９.２５４/latest/meta-data/");
-
-        assertThat(nul.isAllowed()).isFalse();
-        assertThat(nul.getMessage()).contains("元数据");
-        assertThat(nul.getUrl()).doesNotContain("\u0000");
-        assertThat(osc.isAllowed()).isFalse();
-        assertThat(osc.getMessage()).contains("元数据");
-        assertThat(fullwidth.isAllowed()).isFalse();
-        assertThat(fullwidth.getMessage()).contains("元数据");
-    }
-
-    @Test
-    void shouldBlockCloudMetadataHostnamesEvenWhenPrivateUrlsAreAllowed() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        List<String> blocked =
-                Arrays.asList(
-                        "http://metadata.google.internal/computeMetadata/v1/",
-                        "http://metadata.goog/computeMetadata/v1/");
-
-        for (String url : blocked) {
-            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
-            assertThat(verdict.getMessage()).contains("元数据");
-        }
-    }
-
-    @Test
-    void shouldBlockAwsIpv6MetadataEvenWhenPrivateUrlsAreAllowed() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("http://[fd00:ec2::254]/latest/meta-data/");
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.getMessage()).contains("元数据");
-    }
-
-    @Test
-    void shouldBlockIpv4MappedIpv6MetadataEvenWhenPrivateUrlsAreAllowed() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("http://[::ffff:169.254.169.254]/latest/meta-data/");
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.getMessage()).contains("元数据");
-    }
-
-    @Test
-    void shouldBlockIpv4CompatibleIpv6MetadataEvenWhenPrivateUrlsAreAllowed() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("http://[::169.254.169.254]/latest/meta-data/");
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.getMessage()).contains("元数据");
-    }
-
-    @Test
-    void shouldBlockObfuscatedIpv4MetadataAndPrivateUrlsWhenPrivateUrlsDisabled() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(false);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        List<String> blocked =
-                Arrays.asList(
-                        "http://0xA9FEA9FE/latest/meta-data/",
-                        "http://0251.0376.0251.0376/latest/meta-data/",
-                        "http://2852039166/latest/meta-data/",
-                        "http://0x7f000001/status",
-                        "http://0177.0.0.1/status",
-                        "http://2130706433/status");
-
-        for (String url : blocked) {
-            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
-            assertThat(verdict.getMessage()).contains("阻断");
-        }
-    }
-
-    @Test
-    void shouldStillBlockObfuscatedMetadataWhenPrivateUrlsAreAllowed() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        List<String> blocked =
-                Arrays.asList(
-                        "http://0xA9FEA9FE/latest/meta-data/",
-                        "http://0251.0376.0251.0376/latest/meta-data/",
-                        "http://2852039166/latest/meta-data/");
-
-        for (String url : blocked) {
-            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
-            assertThat(verdict.getMessage()).contains("元数据");
-        }
-    }
-
-    @Test
-    void shouldExtractObfuscatedSchemelessIpv4FromToolArgsAndCommands() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put(
-                "query",
-                "check 0xA9FEA9FE/latest/meta-data/ then 0251.0376.0251.0376/latest/meta-data/");
-
-        SecurityPolicyService.UrlVerdict toolArgs =
-                securityPolicyService.checkToolArgs("websearch", args);
-        SecurityPolicyService.UrlVerdict command =
-                securityPolicyService.checkCommandUrls("curl 2852039166/latest/meta-data/");
-
-        assertThat(toolArgs.isAllowed()).isFalse();
-        assertThat(toolArgs.getMessage()).contains("元数据");
-        assertThat(command.isAllowed()).isFalse();
-        assertThat(command.getMessage()).contains("元数据");
-    }
-
-    @Test
-    void shouldFailClosedForEmptyUrlsWithCanonicalConfig() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl("   ");
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.getMessage()).contains("URL");
-    }
-
-    @Test
-    void shouldBlockUnsupportedNetworkSchemesInToolArgs() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        List<String> blocked =
-                Arrays.asList(
-                        "ftp://example.com/private.txt",
-                        "sftp://example.com/private.txt",
-                        "scp://example.com/private.txt");
-
-        for (String url : blocked) {
+        for (String command : commands) {
+            TestTrace trace = new TestTrace();
             Map<String, Object> args = new LinkedHashMap<String, Object>();
-            args.put("url", url);
-            SecurityPolicyService.UrlVerdict verdict =
-                    securityPolicyService.checkToolArgs("webfetch", args);
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
-            assertThat(verdict.getMessage()).contains("仅允许 http/https/ws/wss");
-        }
+            args.put("code", command);
+            env.dangerousCommandApprovalService
+                    .buildInterceptor()
+                    .onAction(trace, exchange("execute_shell", args));
 
-        Map<String, Object> summary = securityPolicyService.toolArgsPolicySummary();
-        assertThat(summary.get("unsupportedNetworkSchemeChecked")).isEqualTo(Boolean.TRUE);
-    }
-
-    @Test
-    void shouldBlockUnsupportedNetworkSchemesInShellCommands() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        List<String> blocked =
-                Arrays.asList(
-                        "curl ftp://example.com/private.txt",
-                        "curl sftp://example.com/private.txt",
-                        "scp scp://example.com/private.txt ./private.txt");
-
-        for (String command : blocked) {
-            SecurityPolicyService.UrlVerdict verdict =
-                    securityPolicyService.checkCommandUrls(command);
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", command).isFalse();
-            assertThat(verdict.getMessage()).contains("仅允许 http/https/ws/wss");
+            assertThat(trace.getRoute()).as(command).isEqualTo(Agent.ID_END);
+            assertThat(trace.getFinalAnswer()).as(command).contains("sudo -S").contains("密码");
+            assertThat(env.dangerousCommandApprovalService.getPendingApproval(trace.session))
+                    .isNull();
         }
     }
 
     @Test
-    void shouldAllowExternalNetworkToolWithoutExplicitUrls() throws Exception {
+    void shouldAllowConfiguredSudoStdinInjectionPath() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        env.appConfig.getSecurity().setGuardrailMode("bypass");
+        env.appConfig.getTerminal().setSudoPassword("testpass");
+        TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("query", "普通搜索内容，没有链接");
+        args.put("code", "sudo -S -p '' whoami");
 
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkToolArgs("websearch", args);
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(trace, exchange("execute_shell", args));
 
-        assertThat(verdict.isAllowed()).isTrue();
+        assertThat(trace.getRoute()).isNull();
+        assertThat(trace.getFinalAnswer()).isNull();
     }
 
     @Test
-    void shouldBlockPrivateReservedAndSharedUrlsWhenPrivateUrlsDisabled() throws Exception {
+    void shouldMatchUserDenyRulesAsCaseInsensitiveWholeGlobs() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(false);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        env.appConfig.getSecurity().setGuardrailMode("bypass");
+        env.appConfig.getApprovals().setDeny(Arrays.asList("git push --force*"));
 
-        List<String> blocked =
-                Arrays.asList(
-                        "http://127.0.0.1/status",
-                        "http://localhost/status",
-                        "http://0.0.0.0/status",
-                        "http://224.0.0.1/status",
-                        "http://100.127.255.254/status",
-                        "http://198.18.0.1/status",
-                        "http://192.0.2.10/status",
-                        "http://203.0.113.10/status",
-                        "http://[::1]/status",
-                        "http://[2001:db8::1]/status",
-                        "http://[2001:1ff::1]/status",
-                        "http://[2002::1]/status",
-                        "http://[64:ff9b::1]/status",
-                        "http://[::ffff:127.0.0.1]/status");
+        TestTrace matchingTrace = new TestTrace();
+        Map<String, Object> matchingArgs = new LinkedHashMap<String, Object>();
+        matchingArgs.put("code", "GIT PUSH --FORCE origin main");
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(matchingTrace, exchange("execute_shell", matchingArgs));
 
-        for (String url : blocked) {
-            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkUrl(url);
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", url).isFalse();
-            assertThat(verdict.getMessage()).contains("阻断");
-        }
+        TestTrace partialTrace = new TestTrace();
+        Map<String, Object> partialArgs = new LinkedHashMap<String, Object>();
+        partialArgs.put("code", "echo git push --force origin main");
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(partialTrace, exchange("execute_shell", partialArgs));
+
+        assertThat(matchingTrace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(matchingTrace.getFinalAnswer()).contains("deny 规则");
+        assertThat(partialTrace.getRoute()).isNull();
+        assertThat(partialTrace.getFinalAnswer()).isNull();
     }
 
     @Test
-    void shouldBlockSchemelessPrivateUrlsInToolArgsAndCommandsWithCanonicalConfig()
-            throws Exception {
+    void shouldMatchUserDenyRulesAgainstDeobfuscatedCommandVariants() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(false);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
+        env.appConfig.getSecurity().setGuardrailMode("bypass");
+        env.appConfig.getApprovals().setDeny(Arrays.asList("git push --force*"));
+        TestTrace trace = new TestTrace();
         Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("query", "check 127.0.0.1:8080/admin then localhost:3000/debug and [::1]/metrics");
+        args.put("code", "git pu\"\"sh --force origin main");
 
-        SecurityPolicyService.UrlVerdict toolArgs =
-                securityPolicyService.checkToolArgs("websearch", args);
-        SecurityPolicyService.UrlVerdict command =
-                securityPolicyService.checkCommandUrls("curl 169.254.169.254/latest/meta-data/");
-        SecurityPolicyService.UrlVerdict cidrCommand =
-                securityPolicyService.checkCommandUrls("curl 169.254.169.254/32");
-        SecurityPolicyService.UrlVerdict ipv6CidrCommand =
-                securityPolicyService.checkCommandUrls("curl [fd00:ec2::254]/128");
-        SecurityPolicyService.UrlVerdict resolvePrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl --resolve safe.example:443:127.0.0.1 https://safe.example/");
-        SecurityPolicyService.UrlVerdict resolveIpv6Private =
-                securityPolicyService.checkCommandUrls(
-                        "curl --resolve safe.example:443:[::1] https://safe.example/");
-        SecurityPolicyService.UrlVerdict connectToIpv6Metadata =
-                securityPolicyService.checkCommandUrls(
-                        "curl --connect-to safe.example:443:[fd00:ec2::254]:8443 https://safe.example/");
-        SecurityPolicyService.UrlVerdict proxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl --proxy 127.0.0.1:8080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict allProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl --all-proxy 127.0.0.1:8080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict httpProxyMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "curl --http-proxy=169.254.169.254:8080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict httpsProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl --https-proxy 127.0.0.1:8080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict ftpProxyMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "curl --ftp-proxy=169.254.169.254:8080 ftp://safe.example/file");
-        SecurityPolicyService.UrlVerdict dohMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "curl --doh-url http://169.254.169.254/dns-query https://safe.example/");
-        SecurityPolicyService.UrlVerdict dohPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl --doh-url=http://127.0.0.1/dns-query https://safe.example/");
-        SecurityPolicyService.UrlVerdict dnsServerPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl --dns-servers 127.0.0.1 https://safe.example/");
-        SecurityPolicyService.UrlVerdict dnsServerMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "curl --dns-servers=8.8.8.8,169.254.169.254 https://safe.example/");
-        SecurityPolicyService.UrlVerdict dnsIpv4Private =
-                securityPolicyService.checkCommandUrls(
-                        "curl --dns-ipv4-addr 127.0.0.1 https://safe.example/");
-        SecurityPolicyService.UrlVerdict dnsIpv6Metadata =
-                securityPolicyService.checkCommandUrls(
-                        "curl --dns-ipv6-addr=fd00:ec2::254 https://safe.example/");
-        SecurityPolicyService.UrlVerdict curlInterfacePrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl --interface 127.0.0.1 https://safe.example/");
-        SecurityPolicyService.UrlVerdict curlLocalAddressMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "curl --local-address=169.254.169.254 https://safe.example/");
-        SecurityPolicyService.UrlVerdict httpxSourceAddressPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "httpx --source-address 127.0.0.1 https://safe.example");
-        SecurityPolicyService.UrlVerdict socksMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "curl --socks5-hostname=169.254.169.254:1080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict socks4Private =
-                securityPolicyService.checkCommandUrls(
-                        "curl --socks4 127.0.0.1:1080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict proxy10Metadata =
-                securityPolicyService.checkCommandUrls(
-                        "curl --proxy1.0=169.254.169.254:8080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict envProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "http_proxy=127.0.0.1:8080 curl https://safe.example/");
-        SecurityPolicyService.UrlVerdict ftpProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "FTP_PROXY=127.0.0.1:8080 curl https://safe.example/");
-        SecurityPolicyService.UrlVerdict envProxyMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "ALL_PROXY=169.254.169.254:1080 curl https://safe.example/");
-        SecurityPolicyService.UrlVerdict compactProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl -x127.0.0.1:8080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict authProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl --proxy user:pass@127.0.0.1:8080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict schemeProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "curl --proxy socks5h://127.0.0.1:1080 https://safe.example/");
-        SecurityPolicyService.UrlVerdict schemeProxyMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "https_proxy=http://169.254.169.254:8080 curl https://safe.example/");
-        SecurityPolicyService.UrlVerdict powershellProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "Invoke-WebRequest https://safe.example -Proxy http://127.0.0.1:8080");
-        SecurityPolicyService.UrlVerdict powershellProxyUriMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "Invoke-RestMethod https://safe.example -ProxyUri:http://169.254.169.254:8080");
-        SecurityPolicyService.UrlVerdict powershellProxyServerPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "iwr https://safe.example -ProxyServer http://127.0.0.1:8080");
-        SecurityPolicyService.UrlVerdict javaHttpProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "java -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=8080 -jar app.jar");
-        SecurityPolicyService.UrlVerdict javaSocksProxyMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "java -DsocksProxyHost=169.254.169.254 -DsocksProxyPort=1080 -jar app.jar");
-        SecurityPolicyService.UrlVerdict javaToolOptionsPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "JAVA_TOOL_OPTIONS=-Dhttp.proxyHost=127.0.0.1 java -jar app.jar");
-        SecurityPolicyService.UrlVerdict mavenOptsMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "MAVEN_OPTS=-DsocksProxyHost=169.254.169.254 mvn test");
-        SecurityPolicyService.UrlVerdict gradleOptsPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "GRADLE_OPTS='-Dhttps.proxyHost=127.0.0.1' gradle build");
-        SecurityPolicyService.UrlVerdict quotedJavaToolOptionsPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "JAVA_TOOL_OPTIONS=\"-Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=8080\" java -jar app.jar");
-        SecurityPolicyService.UrlVerdict quotedJdkJavaOptionsMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "JDK_JAVA_OPTIONS='-DsocksProxyHost=169.254.169.254 -DsocksProxyPort=1080' java -jar app.jar");
-        SecurityPolicyService.UrlVerdict chromiumProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "chromium --proxy-server=http://127.0.0.1:8080 https://safe.example");
-        SecurityPolicyService.UrlVerdict nodeProxyMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "node app.js --proxy-server socks5://169.254.169.254:1080");
-        SecurityPolicyService.UrlVerdict npmProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "npm_config_proxy=http://127.0.0.1:8080 npm install");
-        SecurityPolicyService.UrlVerdict npmHttpsProxyMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "npm_config_https_proxy=http://169.254.169.254:8080 npm install");
-        SecurityPolicyService.UrlVerdict yarnProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "YARN_PROXY=http://127.0.0.1:8080 yarn install");
-        SecurityPolicyService.UrlVerdict pnpmProxyMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "pnpm_config_https_proxy=http://169.254.169.254:8080 pnpm install");
-        SecurityPolicyService.UrlVerdict pipProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "PIP_PROXY=http://127.0.0.1:8080 pip install requests");
-        SecurityPolicyService.UrlVerdict pipProxyMetadata =
-                securityPolicyService.checkCommandUrls(
-                        "pip install requests --proxy http://169.254.169.254:8080");
-        SecurityPolicyService.UrlVerdict httpxProxyPrivate =
-                securityPolicyService.checkCommandUrls(
-                        "httpx --proxy-url=http://127.0.0.1:8080 https://safe.example");
-        SecurityPolicyService.UrlVerdict ordinaryUnixSocket =
-                securityPolicyService.checkCommandUrls(
-                        "curl --unix-socket runtime/app.sock http://localhost/status");
+        env.dangerousCommandApprovalService
+                .buildInterceptor()
+                .onAction(trace, exchange("execute_shell", args));
 
-        assertThat(toolArgs.isAllowed()).isFalse();
-        assertThat(toolArgs.getMessage()).contains("阻断");
-        assertThat(command.isAllowed()).isFalse();
-        assertThat(command.getMessage()).contains("元数据");
-        assertThat(cidrCommand.isAllowed()).isFalse();
-        assertThat(cidrCommand.getMessage()).contains("元数据");
-        assertThat(ipv6CidrCommand.isAllowed()).isFalse();
-        assertThat(ipv6CidrCommand.getMessage()).contains("元数据");
-        assertThat(resolvePrivate.isAllowed()).isFalse();
-        assertThat(resolvePrivate.getMessage()).contains("内网");
-        assertThat(resolveIpv6Private.isAllowed()).isFalse();
-        assertThat(resolveIpv6Private.getMessage()).contains("内网");
-        assertThat(connectToIpv6Metadata.isAllowed()).isFalse();
-        assertThat(connectToIpv6Metadata.getMessage()).contains("元数据");
-        assertThat(proxyPrivate.isAllowed()).isFalse();
-        assertThat(proxyPrivate.getMessage()).contains("内网");
-        assertThat(allProxyPrivate.isAllowed()).isFalse();
-        assertThat(allProxyPrivate.getMessage()).contains("内网");
-        assertThat(httpProxyMetadata.isAllowed()).isFalse();
-        assertThat(httpProxyMetadata.getMessage()).contains("元数据");
-        assertThat(httpsProxyPrivate.isAllowed()).isFalse();
-        assertThat(httpsProxyPrivate.getMessage()).contains("内网");
-        assertThat(ftpProxyMetadata.isAllowed()).isFalse();
-        assertThat(ftpProxyMetadata.getMessage()).contains("元数据");
-        assertThat(dohMetadata.isAllowed()).isFalse();
-        assertThat(dohMetadata.getMessage()).contains("元数据");
-        assertThat(dohPrivate.isAllowed()).isFalse();
-        assertThat(dohPrivate.getMessage()).contains("内网");
-        assertThat(dnsServerPrivate.isAllowed()).isFalse();
-        assertThat(dnsServerPrivate.getMessage()).contains("内网");
-        assertThat(dnsServerMetadata.isAllowed()).isFalse();
-        assertThat(dnsServerMetadata.getMessage()).contains("元数据");
-        assertThat(dnsIpv4Private.isAllowed()).isFalse();
-        assertThat(dnsIpv4Private.getMessage()).contains("内网");
-        assertThat(dnsIpv6Metadata.isAllowed()).isFalse();
-        assertThat(dnsIpv6Metadata.getMessage()).contains("元数据");
-        assertThat(curlInterfacePrivate.isAllowed()).isFalse();
-        assertThat(curlInterfacePrivate.getMessage()).contains("内网");
-        assertThat(curlLocalAddressMetadata.isAllowed()).isFalse();
-        assertThat(curlLocalAddressMetadata.getMessage()).contains("元数据");
-        assertThat(httpxSourceAddressPrivate.isAllowed()).isFalse();
-        assertThat(httpxSourceAddressPrivate.getMessage()).contains("内网");
-        assertThat(socksMetadata.isAllowed()).isFalse();
-        assertThat(socksMetadata.getMessage()).contains("元数据");
-        assertThat(socks4Private.isAllowed()).isFalse();
-        assertThat(socks4Private.getMessage()).contains("内网");
-        assertThat(proxy10Metadata.isAllowed()).isFalse();
-        assertThat(proxy10Metadata.getMessage()).contains("元数据");
-        assertThat(envProxyPrivate.isAllowed()).isFalse();
-        assertThat(envProxyPrivate.getMessage()).contains("内网");
-        assertThat(ftpProxyPrivate.isAllowed()).isFalse();
-        assertThat(ftpProxyPrivate.getMessage()).contains("内网");
-        assertThat(envProxyMetadata.isAllowed()).isFalse();
-        assertThat(envProxyMetadata.getMessage()).contains("元数据");
-        assertThat(compactProxyPrivate.isAllowed()).isFalse();
-        assertThat(compactProxyPrivate.getMessage()).contains("内网");
-        assertThat(authProxyPrivate.isAllowed()).isFalse();
-        assertThat(authProxyPrivate.getMessage()).contains("内网");
-        assertThat(schemeProxyPrivate.isAllowed()).isFalse();
-        assertThat(schemeProxyPrivate.getMessage()).contains("内网");
-        assertThat(schemeProxyMetadata.isAllowed()).isFalse();
-        assertThat(schemeProxyMetadata.getMessage()).contains("元数据");
-        assertThat(powershellProxyPrivate.isAllowed()).isFalse();
-        assertThat(powershellProxyPrivate.getMessage()).contains("内网");
-        assertThat(powershellProxyUriMetadata.isAllowed()).isFalse();
-        assertThat(powershellProxyUriMetadata.getMessage()).contains("元数据");
-        assertThat(powershellProxyServerPrivate.isAllowed()).isFalse();
-        assertThat(powershellProxyServerPrivate.getMessage()).contains("内网");
-        assertThat(javaHttpProxyPrivate.isAllowed()).isFalse();
-        assertThat(javaHttpProxyPrivate.getMessage()).contains("内网");
-        assertThat(javaSocksProxyMetadata.isAllowed()).isFalse();
-        assertThat(javaSocksProxyMetadata.getMessage()).contains("元数据");
-        assertThat(javaToolOptionsPrivate.isAllowed()).isFalse();
-        assertThat(javaToolOptionsPrivate.getMessage()).contains("内网");
-        assertThat(mavenOptsMetadata.isAllowed()).isFalse();
-        assertThat(mavenOptsMetadata.getMessage()).contains("元数据");
-        assertThat(gradleOptsPrivate.isAllowed()).isFalse();
-        assertThat(gradleOptsPrivate.getMessage()).contains("内网");
-        assertThat(quotedJavaToolOptionsPrivate.isAllowed()).isFalse();
-        assertThat(quotedJavaToolOptionsPrivate.getMessage()).contains("内网");
-        assertThat(quotedJdkJavaOptionsMetadata.isAllowed()).isFalse();
-        assertThat(quotedJdkJavaOptionsMetadata.getMessage()).contains("元数据");
-        assertThat(chromiumProxyPrivate.isAllowed()).isFalse();
-        assertThat(chromiumProxyPrivate.getMessage()).contains("内网");
-        assertThat(nodeProxyMetadata.isAllowed()).isFalse();
-        assertThat(nodeProxyMetadata.getMessage()).contains("元数据");
-        assertThat(npmProxyPrivate.isAllowed()).isFalse();
-        assertThat(npmProxyPrivate.getMessage()).contains("内网");
-        assertThat(npmHttpsProxyMetadata.isAllowed()).isFalse();
-        assertThat(npmHttpsProxyMetadata.getMessage()).contains("元数据");
-        assertThat(yarnProxyPrivate.isAllowed()).isFalse();
-        assertThat(yarnProxyPrivate.getMessage()).contains("内网");
-        assertThat(pnpmProxyMetadata.isAllowed()).isFalse();
-        assertThat(pnpmProxyMetadata.getMessage()).contains("元数据");
-        assertThat(pipProxyPrivate.isAllowed()).isFalse();
-        assertThat(pipProxyPrivate.getMessage()).contains("内网");
-        assertThat(pipProxyMetadata.isAllowed()).isFalse();
-        assertThat(pipProxyMetadata.getMessage()).contains("元数据");
-        assertThat(httpxProxyPrivate.isAllowed()).isFalse();
-        assertThat(httpxProxyPrivate.getMessage()).contains("内网");
-        assertThat(ordinaryUnixSocket.isAllowed()).isFalse();
-        assertThat(ordinaryUnixSocket.getMessage()).contains("内网");
+        assertThat(trace.getRoute()).isEqualTo(Agent.ID_END);
+        assertThat(trace.getFinalAnswer()).contains("deny 规则");
     }
-
-    @Test
-    void shouldBlockBareSecurityRelevantHostsInsideShellCommandsWithCanonicalConfig()
-            throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(false);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "127.0.0.1");
-
-        SecurityPolicyService.UrlVerdict localhost =
-                securityPolicyService.checkCommandUrls("curl localhost:8080");
-        SecurityPolicyService.UrlVerdict metadataHost =
-                securityPolicyService.checkCommandUrls("curl metadata.google.internal");
-        SecurityPolicyService.UrlVerdict websitePolicy =
-                securityPolicyService.checkCommandUrls("python -c \"fetch('blocked.example')\"");
-        SecurityPolicyService.UrlVerdict ordinaryNumber =
-                securityPolicyService.checkCommandUrls("head -n 10 logs/app.log");
-        SecurityPolicyService.UrlVerdict diagnosticPing =
-                securityPolicyService.checkCommandUrls("ping -n 30 127.0.0.1 > nul");
-        SecurityPolicyService.UrlVerdict fetchPublic =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34")
-                        .checkCommandUrls("curl https://example.com/path");
-
-        assertThat(localhost.isAllowed()).isFalse();
-        assertThat(localhost.getMessage()).contains("内网");
-        assertThat(metadataHost.isAllowed()).isFalse();
-        assertThat(metadataHost.getMessage()).contains("元数据");
-        assertThat(websitePolicy.isAllowed()).isFalse();
-        assertThat(websitePolicy.getMessage()).contains("blocked.example");
-        assertThat(ordinaryNumber.isAllowed()).isTrue();
-        assertThat(diagnosticPing.isAllowed()).isTrue();
-        assertThat(fetchPublic.isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldAllowPrivateUrlsWhenConfiguredExceptMetadata() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict privateUrl =
-                securityPolicyService.checkUrl("http://127.0.0.1/status");
-        SecurityPolicyService.UrlVerdict metadata =
-                securityPolicyService.checkUrl("http://169.254.169.254/latest/meta-data/");
-
-        assertThat(privateUrl.isAllowed()).isTrue();
-        assertThat(metadata.isAllowed()).isFalse();
-        assertThat(metadata.getMessage()).contains("元数据");
-    }
-
-    @Test
-    void shouldFailClosedForDnsFailuresEvenWhenPrivateUrlsAreAllowed() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        SecurityPolicyService securityPolicyService =
-                new FailingDnsSecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("https://nonexistent.example.com");
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.getMessage()).contains("DNS").contains("nonexistent.example.com");
-    }
-
-    @Test
-    void shouldMatchJimuquAllowPrivateUrlToggleForNonMetadataInternalRanges() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        List<String> allowedResolvedIps =
-                Arrays.asList(
-                        "100.100.100.100",
-                        "198.18.23.183",
-                        "127.0.0.1",
-                        "fe80::1",
-                        "fd12::1",
-                        "ff02::1");
-
-        for (String ip : allowedResolvedIps) {
-            SecurityPolicyService securityPolicyService =
-                    new FixedDnsSecurityPolicyService(env.appConfig, ip);
-            SecurityPolicyService.UrlVerdict verdict =
-                    securityPolicyService.checkUrl("https://internal.example/resource");
-            assertThat(verdict.isAllowed()).isTrue();
-        }
-    }
-
-    @Test
-    void shouldStillBlockMetadataRangesWhenPrivateUrlsAreAllowedWithCanonicalConfig()
-            throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        List<String> blockedResolvedIps =
-                Arrays.asList(
-                        "169.254.42.99",
-                        "169.254.169.254",
-                        "169.254.170.2",
-                        "169.254.169.253",
-                        "100.100.100.200",
-                        "fd00:ec2::254");
-
-        for (String ip : blockedResolvedIps) {
-            SecurityPolicyService securityPolicyService =
-                    new FixedDnsSecurityPolicyService(env.appConfig, ip);
-            SecurityPolicyService.UrlVerdict verdict =
-                    securityPolicyService.checkUrl("https://metadata-probe.example/resource");
-            assertThat(verdict.isAllowed()).as("expected %s to be blocked", ip).isFalse();
-            assertThat(verdict.getMessage()).contains("元数据");
-        }
-    }
-
-    @Test
-    void shouldAllowNonCgnatHundredDotPublicRangeWithCanonicalConfig() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "100.0.0.1");
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("https://public-hundred.example/resource");
-
-        assertThat(verdict.isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldApplyUrlSafetyToWebsocketSchemes() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService publicWs =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-        SecurityPolicyService metadataWs =
-                new FixedDnsSecurityPolicyService(env.appConfig, "169.254.169.254");
-
-        assertThat(publicWs.checkUrl("wss://gateway.example/ws").isAllowed()).isTrue();
-        SecurityPolicyService.UrlVerdict blocked = metadataWs.checkUrl("wss://gateway.example/ws");
-
-        assertThat(blocked.isAllowed()).isFalse();
-        assertThat(blocked.getMessage()).contains("元数据");
-    }
-
-    @Test
-    void shouldOnlyTrustQqMultimediaPrivateProxyRangeWithCanonicalConfigUrlSafety()
-            throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(false);
-        SecurityPolicyService benchmark =
-                new FixedDnsSecurityPolicyService(env.appConfig, "198.18.0.23");
-        SecurityPolicyService loopback =
-                new FixedDnsSecurityPolicyService(env.appConfig, "127.0.0.1");
-        SecurityPolicyService metadata =
-                new FixedDnsSecurityPolicyService(env.appConfig, "169.254.169.254");
-
-        SecurityPolicyService.UrlVerdict benchmarkVerdict =
-                benchmark.checkUrl("https://multimedia.nt.qq.com.cn/download?id=123");
-        SecurityPolicyService.UrlVerdict loopbackVerdict =
-                loopback.checkUrl("https://multimedia.nt.qq.com.cn/download?id=123");
-        SecurityPolicyService.UrlVerdict metadataVerdict =
-                metadata.checkUrl("https://multimedia.nt.qq.com.cn/download?id=123");
-        SecurityPolicyService.UrlVerdict httpVerdict =
-                benchmark.checkUrl("http://multimedia.nt.qq.com.cn/download?id=123");
-        SecurityPolicyService.UrlVerdict subdomainVerdict =
-                benchmark.checkUrl("https://sub.multimedia.nt.qq.com.cn/download?id=123");
-
-        assertThat(benchmarkVerdict.isAllowed()).isTrue();
-        assertThat(loopbackVerdict.isAllowed()).isFalse();
-        assertThat(loopbackVerdict.getMessage()).contains("内网");
-        assertThat(metadataVerdict.isAllowed()).isFalse();
-        assertThat(metadataVerdict.getMessage()).contains("元数据");
-        assertThat(httpVerdict.isAllowed()).isTrue();
-        assertThat(subdomainVerdict.isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldApplyWebsiteBlocklistToUrlTools() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example", "*.internal.example"));
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict direct =
-                securityPolicyService.checkUrl("https://docs.blocked.example/page?token=secret");
-        SecurityPolicyService.UrlVerdict bidiDirect =
-                securityPolicyService.checkUrl(
-                        "https://docs.blocked.ex\u202Eample/page?token=secret");
-        SecurityPolicyService.UrlVerdict directSchemeless =
-                securityPolicyService.checkUrl("www.blocked.example/docs");
-        Map<String, Object> args = new LinkedHashMap<String, Object>();
-        args.put("query", "read https://api.internal.example/docs");
-        SecurityPolicyService.UrlVerdict query =
-                securityPolicyService.checkToolArgs("websearch", args);
-        Map<String, Object> schemelessArgs = new LinkedHashMap<String, Object>();
-        schemelessArgs.put("query", "read www.blocked.example/docs");
-        SecurityPolicyService.UrlVerdict schemeless =
-                securityPolicyService.checkToolArgs("websearch", schemelessArgs);
-        Map<String, Object> wildcardBareArgs = new LinkedHashMap<String, Object>();
-        wildcardBareArgs.put("query", "read public.example/docs");
-        SecurityPolicyService.UrlVerdict wildcardBare =
-                securityPolicyService.checkToolArgs("websearch", wildcardBareArgs);
-
-        assertThat(direct.isAllowed()).isFalse();
-        assertThat(direct.getMessage()).contains("blocked.example");
-        assertThat(bidiDirect.isAllowed()).isFalse();
-        assertThat(bidiDirect.getMessage()).contains("blocked.example").doesNotContain("\u202E");
-        assertThat(directSchemeless.isAllowed()).isFalse();
-        assertThat(directSchemeless.getMessage()).contains("blocked.example");
-        assertThat(query.isAllowed()).isFalse();
-        assertThat(query.getMessage()).contains("*.internal.example");
-        assertThat(schemeless.isAllowed()).isFalse();
-        assertThat(schemeless.getMessage()).contains("blocked.example");
-        assertThat(wildcardBare.isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldNormalizeUnicodeHostsBeforeWebsitePolicyChecks() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("example.com", "例え.テスト", "*.wild.テスト"));
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict fullwidth =
-                securityPolicyService.checkUrl("https://ｅxample.com/path");
-        SecurityPolicyService.UrlVerdict idn =
-                securityPolicyService.checkUrl("https://例え.テスト/path");
-        SecurityPolicyService.UrlVerdict wildcard =
-                securityPolicyService.checkUrl("https://api.wild.テスト/path");
-        Map<String, Object> schemelessArgs = new LinkedHashMap<String, Object>();
-        schemelessArgs.put("query", "read www.ｅxample.com/docs");
-        SecurityPolicyService.UrlVerdict schemeless =
-                securityPolicyService.checkToolArgs("websearch", schemelessArgs);
-
-        assertThat(fullwidth.isAllowed()).isFalse();
-        assertThat(fullwidth.getMessage()).contains("example.com");
-        assertThat(idn.isAllowed()).isFalse();
-        assertThat(idn.getMessage()).contains("xn--r8jz45g.xn--zckzah");
-        assertThat(wildcard.isAllowed()).isFalse();
-        assertThat(wildcard.getMessage()).contains("*.wild.xn--zckzah");
-        assertThat(schemeless.isAllowed()).isFalse();
-        assertThat(schemeless.getMessage()).contains("example.com");
-    }
-
-    @Test
-    void shouldNormalizeWebsitePolicyRulesWithPorts() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example:443", "*.blocked.test:8443"));
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict exact =
-                securityPolicyService.checkUrl("https://blocked.example/docs");
-        SecurityPolicyService.UrlVerdict wildcard =
-                securityPolicyService.checkUrl("https://api.blocked.test/docs");
-
-        assertThat(exact.isAllowed()).isFalse();
-        assertThat(exact.getMessage()).contains("blocked.example");
-        assertThat(wildcard.isAllowed()).isFalse();
-        assertThat(wildcard.getMessage()).contains("*.blocked.test");
-    }
-
-    @Test
-    void shouldIgnoreInlineCommentsInWebsitePolicyRules() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        File shared = new File(env.appConfig.getRuntime().getHome(), "commented-blocklist.txt");
-        FileUtil.writeUtf8String(
-                "shared-commented.example # local note\n*.commented.test\t# shared wildcard\n",
-                shared);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("config-commented.example # config note"));
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setSharedFiles(Arrays.asList("commented-blocklist.txt"));
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict configured =
-                securityPolicyService.checkUrl("https://config-commented.example/docs");
-        SecurityPolicyService.UrlVerdict sharedExact =
-                securityPolicyService.checkUrl("https://shared-commented.example/docs");
-        SecurityPolicyService.UrlVerdict sharedWildcard =
-                securityPolicyService.checkUrl("https://api.commented.test/docs");
-
-        assertThat(configured.isAllowed()).isFalse();
-        assertThat(configured.getMessage()).contains("config-commented.example");
-        assertThat(sharedExact.isAllowed()).isFalse();
-        assertThat(sharedExact.getMessage()).contains("shared-commented.example");
-        assertThat(sharedWildcard.isAllowed()).isFalse();
-        assertThat(sharedWildcard.getMessage()).contains("*.commented.test");
-    }
-
-    @Test
-    void shouldFailOpenWhenWebsiteBlocklistDomainsAreMissingWithCanonicalConfig() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(null);
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("https://allowed.example/docs");
-
-        assertThat(verdict.isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldApplySharedWebsiteBlocklistFiles() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        File shared = new File(env.appConfig.getRuntime().getHome(), "blocked-sites.txt");
-        FileUtil.writeUtf8String("# shared rules\nshared.example\n*.team.internal\n", shared);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setSharedFiles(Arrays.asList("blocked-sites.txt"));
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-
-        SecurityPolicyService.UrlVerdict exact =
-                securityPolicyService.checkUrl("https://shared.example/docs");
-        SecurityPolicyService.UrlVerdict wildcard =
-                securityPolicyService.checkUrl("https://api.team.internal/v1");
-
-        assertThat(exact.isAllowed()).isFalse();
-        assertThat(exact.getMessage()).contains("shared.example");
-        assertThat(wildcard.isAllowed()).isFalse();
-        assertThat(wildcard.getMessage()).contains("*.team.internal");
-    }
-
-    @Test
-    void shouldMergeWebsiteBlocklistConfigAndSharedFilesWithCanonicalConfig() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        File shared = new File(env.appConfig.getRuntime().getHome(), "community-blocklist.txt");
-        FileUtil.writeUtf8String("# comment\nexample.org\nsub.bad.net\n", shared);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("example.com", "https://www.evil.test/path"));
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setSharedFiles(Arrays.asList("community-blocklist.txt"));
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict parent =
-                securityPolicyService.checkUrl("https://docs.example.com/page");
-        SecurityPolicyService.UrlVerdict normalized =
-                securityPolicyService.checkUrl("https://evil.test/path");
-        SecurityPolicyService.UrlVerdict sharedExact =
-                securityPolicyService.checkUrl("https://example.org/docs");
-        SecurityPolicyService.UrlVerdict sharedParent =
-                securityPolicyService.checkUrl("https://api.sub.bad.net/docs");
-
-        assertThat(parent.isAllowed()).isFalse();
-        assertThat(parent.getMessage()).contains("example.com");
-        assertThat(normalized.isAllowed()).isFalse();
-        assertThat(normalized.getMessage()).contains("evil.test");
-        assertThat(sharedExact.isAllowed()).isFalse();
-        assertThat(sharedExact.getMessage()).contains("example.org");
-        assertThat(sharedParent.isAllowed()).isFalse();
-        assertThat(sharedParent.getMessage()).contains("sub.bad.net");
-    }
-
-    @Test
-    void shouldSkipMissingSharedWebsiteBlocklistFilesWithCanonicalConfig() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setSharedFiles(Arrays.asList("missing-blocklist.txt"));
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("https://allowed.example/docs");
-
-        assertThat(verdict.isAllowed()).isTrue();
-    }
-
-    @Test
-    void shouldApplyAbsoluteSharedWebsiteBlocklistFilesWithCanonicalConfig() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
-        File outside =
-                new File(workspaceHome.getParentFile(), "outside-website-blocklist.txt")
-                        .getCanonicalFile();
-        FileUtil.writeUtf8String("escaped.example\n", outside);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setSharedFiles(Arrays.asList(outside.getAbsolutePath()));
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict escaped =
-                securityPolicyService.checkUrl("https://escaped.example/docs");
-
-        assertThat(escaped.isAllowed()).isFalse();
-        assertThat(escaped.getMessage()).contains("escaped.example");
-    }
-
-    // shouldIgnoreCredentialFilesAsSharedWebsiteBlocklistSources 已删除：
-    // resolveSharedFile 经 checkPath(path, false) 读意图判断共享黑名单源文件是否可读，
-    // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），.env 现在会被读取并加载其规则，
-    // 原"凭据文件作为共享源被忽略"语义不再成立。普通共享文件的加载由
-    // shouldExpandHomeInSharedWebsiteBlocklistFilesWithCanonicalConfig 等覆盖（仍有效，保留）。
-
-    @Test
-    void shouldExpandHomeInSharedWebsiteBlocklistFilesWithCanonicalConfig() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        String oldHome = System.getProperty("user.home");
-        File fakeHome =
-                new File(env.appConfig.getRuntime().getHome(), "fake-home").getCanonicalFile();
-        File shared = new File(fakeHome, "home-website-blocklist.txt").getCanonicalFile();
-        FileUtil.mkdir(fakeHome);
-        FileUtil.writeUtf8String("home-shared.example\n", shared);
-        try {
-            System.setProperty("user.home", fakeHome.getAbsolutePath());
-            env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-            env.appConfig
-                    .getSecurity()
-                    .getWebsiteBlocklist()
-                    .setSharedFiles(Arrays.asList("~/home-website-blocklist.txt"));
-            SecurityPolicyService securityPolicyService =
-                    new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-            SecurityPolicyService.UrlVerdict verdict =
-                    securityPolicyService.checkUrl("https://home-shared.example/docs");
-
-            assertThat(verdict.isAllowed()).isFalse();
-            assertThat(verdict.getMessage()).contains("home-shared.example");
-        } finally {
-            if (oldHome == null) {
-                System.clearProperty("user.home");
-            } else {
-                System.setProperty("user.home", oldHome);
-            }
-        }
-    }
-
-    @Test
-    void shouldIgnoreRelativeSharedWebsiteBlocklistTraversal() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
-        File outside =
-                new File(workspaceHome.getParentFile(), "traversal-website-blocklist.txt")
-                        .getCanonicalFile();
-        FileUtil.writeUtf8String("traversal-shared.example\n", outside);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setSharedFiles(Arrays.asList("../" + outside.getName()));
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict verdict =
-                securityPolicyService.checkUrl("https://traversal-shared.example/docs");
-
-        assertThat(verdict.isAllowed()).isTrue();
-        assertThat(verdict.getMessage()).doesNotContain("website policy");
-    }
-
-    @Test
-    void shouldIgnoreSharedWebsiteBlocklistSymlinkEscapingRuntimeHomeWithCanonicalConfig()
-            throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
-        File outside =
-                new File(workspaceHome.getParentFile(), "symlink-website-blocklist.txt")
-                        .getCanonicalFile();
-        FileUtil.writeUtf8String("symlinked-blocked.example\n", outside);
-        File link = new File(workspaceHome, "linked-blocklist.txt");
-        boolean symlinkCreated = false;
-        try {
-            java.nio.file.Files.createSymbolicLink(link.toPath(), outside.toPath());
-            symlinkCreated = true;
-        } catch (UnsupportedOperationException ignored) {
-            // Windows test environments may disallow symlink creation.
-        } catch (java.io.IOException ignored) {
-            // Windows without Developer Mode/Admin often rejects symlink creation.
-        }
-        if (!symlinkCreated) {
-            return;
-        }
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setSharedFiles(Arrays.asList(link.getName()));
-        SecurityPolicyService securityPolicyService =
-                new FixedDnsSecurityPolicyService(env.appConfig, "93.184.216.34");
-
-        SecurityPolicyService.UrlVerdict escaped =
-                securityPolicyService.checkUrl("https://symlinked-blocked.example/docs");
-
-        assertThat(escaped.isAllowed()).isTrue();
-        assertThat(escaped.getMessage()).doesNotContain("website policy");
-    }
-
 }

@@ -127,22 +127,31 @@ final class DangerousCommandRuleCatalog {
     /** BROAD列表ENADDRESS的统一常量值。 */
     private static final String BROAD_LISTEN_ADDRESS = "(?:0\\.0\\.0\\.0|\\[?::\\]?|\\*)";
 
-    /** HARDLINE命令POSITION的统一常量值。 */
+    /** Unix 命令起始位置，限制 hardline 规则只命中真实命令而非参数中的示例文本。 */
     private static final String HARDLINE_COMMAND_POSITION =
-            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*|runas\\s+(?:/(?:user|profile|env|netonly|savecred):\\S+\\s+)*)?(?:env\\s+(?:(?:-[^\\s]+|--[^\\s]+|\\w+=\\S*)\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
+            "(?:^|[;&|\\n`]|\\$\\()\\s*(?:sudo\\s+(?:-[^\\s]+\\s+)*)?(?:env\\s+(?:\\w+=\\S*\\s+)*)?(?:(?:exec|nohup|setsid|time)\\s+)*\\s*";
+
+    /** hardline 递归删除规则中的 rm 命令前缀，只在真实命令位置匹配。 */
+    private static final String HARDLINE_RM_PREFIX =
+            HARDLINE_COMMAND_POSITION + "rm\\s+(-[^\\s]*\\s+)*";
+
+    /** hardline 递归删除规则允许的裸路径结束符。 */
+    private static final String HARDLINE_RM_PATH_TAIL = "(?:\\s|$|[)`;|&])";
+
+    /** 会直接破坏系统且无法恢复的 Unix 根目录集合。 */
+    private static final String HARDLINE_SYSTEM_DIRECTORIES =
+            "/home|/home/\\*|/root|/root/\\*|/etc|/etc/\\*|/usr|/usr/\\*|/var|/var/\\*|/bin|/bin/\\*|/sbin|/sbin/\\*|/boot|/boot/\\*|/lib|/lib/\\*";
 
     /** 终端命令START的统一常量值。 */
     private static final String SHELL_COMMAND_START =
             "(?:^|[;&|\\n`]|\\$\\()\\s*(?:(?:sudo|doas|pkexec)\\s+(?:-[^\\s]+\\s+)*)?";
-
-    /** 元数据 URL 硬阻断规则键，由 URL 安全策略动态检测。 */
-    static final String HARDLINE_METADATA_URL_RULE_KEY = "hardline_metadata_url";
 
     /** 硬阻断策略覆盖的工具列表。 */
     private static final List<String> HARDLINE_COVERED_TOOLS =
             Collections.unmodifiableList(
                     Arrays.asList(
                             ToolNameConstants.EXECUTE_SHELL,
+                            ToolNameConstants.TERMINAL,
                             ToolNameConstants.EXECUTE_CODE,
                             ToolNameConstants.EXECUTE_PYTHON,
                             ToolNameConstants.EXECUTE_JS));
@@ -154,9 +163,7 @@ final class DangerousCommandRuleCatalog {
                             "root_or_system_recursive_delete",
                             "filesystem_format_or_raw_device_write",
                             "system_shutdown_or_reboot",
-                            "kill_all_or_fork_bomb",
-                            "windows_disk_or_profile_destruction",
-                            "metadata_url_access"));
+                            "kill_all_or_fork_bomb"));
 
     /** KUBECTL选项PREFIX的统一常量值。 */
     private static final String KUBECTL_OPTION_PREFIX =
@@ -170,11 +177,6 @@ final class DangerousCommandRuleCatalog {
 
     /** TRAILINGBACKGROUNDAMP的统一常量值。 */
     static final Pattern TRAILING_BACKGROUND_AMP = pattern("\\s&\\s*(?:#.*)?$");
-
-    /** PYTHON终端EXECCALL的统一常量值。 */
-    static final Pattern PYTHON_SHELL_EXEC_CALL =
-            pattern(
-                    "\\b(?:os\\.system|subprocess\\.(?:run|Popen|call|check_call|check_output))\\s*\\(");
 
     /** 终端护栏摘要键，和前台命令实际检测分支保持一致。 */
     private static final List<String> TERMINAL_GUARDRAIL_KEYS =
@@ -1433,8 +1435,7 @@ final class DangerousCommandRuleCatalog {
                             new DangerRule(
                                     "gateway_stop_restart",
                                     "stop/restart gateway (kills running agents)",
-                                    pattern(
-                                            "\\b(?:solonclaw)\\s+gateway\\s+(stop|restart)\\b"),
+                                    pattern("\\b(?:solonclaw)\\s+gateway\\s+(stop|restart)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "app_update_restart",
@@ -1450,8 +1451,7 @@ final class DangerousCommandRuleCatalog {
                             new DangerRule(
                                     "kill_agent_process",
                                     "kill agent/gateway process (self-termination)",
-                                    pattern(
-                                            "\\b(pkill|killall)\\b.*\\b(solonclaw|gateway)\\b"),
+                                    pattern("\\b(pkill|killall)\\b.*\\b(solonclaw|gateway)\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "kill_pgrep_expansion",
@@ -2544,22 +2544,24 @@ final class DangerousCommandRuleCatalog {
                                     "hardline_delete_root",
                                     "recursive delete of root filesystem",
                                     pattern(
-                                            HARDLINE_COMMAND_POSITION
-                                                    + "rm\\s+(-[^\\s]*\\s+)*(/|/\\*|/ \\*)(\\s|$)"),
+                                            HARDLINE_RM_PREFIX
+                                                    + hardlineRmPath(
+                                                            "/(?:(?:\\.\\.?)?/)*(?:\\.\\.?)?\\**|/ \\*")),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_delete_system_dir",
                                     "recursive delete of system directory",
                                     pattern(
-                                            HARDLINE_COMMAND_POSITION
-                                                    + "rm\\s+(-[^\\s]*\\s+)*(/home|/home/\\*|/root|/root/\\*|/etc|/etc/\\*|/usr|/usr/\\*|/var|/var/\\*|/bin|/bin/\\*|/sbin|/sbin/\\*|/boot|/boot/\\*|/lib|/lib/\\*)(\\s|$)"),
+                                            HARDLINE_RM_PREFIX
+                                                    + hardlineRmPath(HARDLINE_SYSTEM_DIRECTORIES)),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_delete_home",
                                     "recursive delete of home directory",
                                     pattern(
-                                            HARDLINE_COMMAND_POSITION
-                                                    + "rm\\s+(-[^\\s]*\\s+)*(~|\\$HOME|\\$\\{HOME\\}|\\$env:HOME|\\$env:USERPROFILE|%USERPROFILE%|%HOMEPATH%)(/?|/\\*)?(\\s|$)"),
+                                            HARDLINE_RM_PREFIX
+                                                    + hardlineRmPath(
+                                                            "(?:~|\\$\\{?HOME\\}?)(?:/?|/\\*)?")),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_mkfs",
@@ -2570,20 +2572,19 @@ final class DangerousCommandRuleCatalog {
                                     "hardline_dd_device",
                                     "dd to raw block device",
                                     pattern(
-                                            "\\bdd\\b[^\\n]*\\bof=[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*"),
+                                            "\\bdd\\b[^\\n]*\\bof=/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_redirect_device",
                                     "redirect to raw block device",
-                                    pattern(
-                                            ">\\s*[\"']?/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\\b"),
+                                    pattern(">\\s*/dev/(sd|nvme|hd|mmcblk|vd|xvd)[a-z0-9]*\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_shutdown",
                                     "system shutdown/reboot",
                                     pattern(
                                             HARDLINE_COMMAND_POSITION
-                                                    + "(shutdown(?!\\.exe)(?!\\s*/)|reboot|halt|poweroff|init\\s+[06]|telinit\\s+[06]|systemctl\\s+(poweroff|reboot|halt|kexec))\\b"),
+                                                    + "(shutdown|reboot|halt|poweroff|init\\s+[06]|telinit\\s+[06]|systemctl\\s+(poweroff|reboot|halt|kexec))\\b"),
                                     ToolNameConstants.EXECUTE_SHELL),
                             new DangerRule(
                                     "hardline_kill_all",
@@ -2595,18 +2596,6 @@ final class DangerousCommandRuleCatalog {
                                     "fork bomb",
                                     pattern(
                                             ":\\(\\)\\s*\\{\\s*:\\s*\\|\\s*:\\s*&\\s*\\}\\s*;\\s*:"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "hardline_windows_format",
-                                    "format Windows volume",
-                                    pattern(
-                                            "\\b(?:format\\s+[a-z]:|Format-Volume\\b)(\\s|$|[^\\n]*\\b(?:-DriveLetter|-Partition|-FileSystem)\\b)"),
-                                    ToolNameConstants.EXECUTE_SHELL),
-                            new DangerRule(
-                                    "hardline_windows_shutdown",
-                                    "Windows shutdown/reboot",
-                                    pattern(
-                                            "(?:(?:^|[;&|\\n`])\\s*(?:cmd(?:\\.exe)?\\s+/c\\s+)?(?:(?:powershell|pwsh)(?:\\.exe)?\\s+(?:-[^\\s]+\\s+)*(?:(?:-Command|-c)\\s+)?)?(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer)\\b|\\bStart-Process\\b(?=[^\\n]*(?:powershell|pwsh|shutdown(?:\\.exe)?))(?=[^\\n]*(?:shutdown(?:\\.exe)?\\s+/(?:r|s|p|g|sg)|Restart-Computer|Stop-Computer))[^\\n]*)"),
                                     ToolNameConstants.EXECUTE_SHELL)));
 
     /**
@@ -2617,6 +2606,22 @@ final class DangerousCommandRuleCatalog {
      */
     static Pattern pattern(String regex) {
         return Pattern.compile(regex, Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    }
+
+    /**
+     * 构建引号路径或裸路径 hardline 参数匹配，避免引号绕过且不误判普通参数文本。
+     *
+     * @param pathAlternative 允许的危险路径表达式。
+     * @return 返回完整路径参数正则。
+     */
+    private static String hardlineRmPath(String pathAlternative) {
+        return "(?:[\"'](?:"
+                + pathAlternative
+                + ")[\"']|(?:"
+                + pathAlternative
+                + ")"
+                + HARDLINE_RM_PATH_TAIL
+                + ")";
     }
 
     /**
@@ -2689,9 +2694,9 @@ final class DangerousCommandRuleCatalog {
         return TERMINAL_GUARDRAIL_KEYS;
     }
 
-    /** 返回包含动态元数据 URL 规则在内的硬阻断规则数量。 */
+    /** 返回命令 hardline 规则数量。 */
     static int hardlineRuleCount() {
-        return HARDLINE_RULES.size() + 1;
+        return HARDLINE_RULES.size();
     }
 
     /** 返回硬阻断策略覆盖工具列表。 */
@@ -2711,14 +2716,7 @@ final class DangerousCommandRuleCatalog {
      * @return 返回hardline Rule Samples结果。
      */
     static List<String> hardlineRuleSamples(int max) {
-        List<String> samples = ruleSamples(HARDLINE_RULES, max);
-        if (max > 0 && !samples.contains(HARDLINE_METADATA_URL_RULE_KEY)) {
-            if (samples.size() >= max) {
-                samples.remove(samples.size() - 1);
-            }
-            samples.add(HARDLINE_METADATA_URL_RULE_KEY);
-        }
-        return samples;
+        return ruleSamples(HARDLINE_RULES, max);
     }
 
     /** 承载DangerRule相关状态和辅助逻辑。 */

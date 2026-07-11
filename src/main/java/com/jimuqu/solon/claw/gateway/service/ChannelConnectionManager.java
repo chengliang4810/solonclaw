@@ -4,6 +4,7 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
 import com.jimuqu.solon.claw.core.service.ChannelAdapter;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,6 +38,9 @@ public class ChannelConnectionManager {
     /** 保存reconnect执行器执行组件，负责调度异步或定时任务。 */
     private final ScheduledExecutorService reconnectExecutor;
 
+    /** 构造当前连接管理器时捕获的 Profile 作用域，供延迟重连恢复独立配置和 Bean 容器。 */
+    private final ProfileRuntimeScope.Context runtimeScope;
+
     /**
      * 创建渠道Connection管理器实例，并注入运行所需依赖。
      *
@@ -44,6 +48,7 @@ public class ChannelConnectionManager {
      */
     public ChannelConnectionManager(Map<PlatformType, ChannelAdapter> adapters) {
         this.adapters = adapters;
+        this.runtimeScope = ProfileRuntimeScope.current();
         this.reconnectExecutor =
                 Executors.newScheduledThreadPool(
                         1,
@@ -224,15 +229,17 @@ public class ChannelConnectionManager {
                         ErrorTextSupport.safeError(error));
         reconnectStates.put(adapter.platform(), state);
         reconnectExecutor.schedule(
-                new Runnable() {
-                    /** 执行异步任务主体。 */
-                    @Override
-                    public void run() {
-                        if (!adapter.isConnected()) {
-                            connectIsolated(adapter, attempt + 1);
-                        }
-                    }
-                },
+                ProfileRuntimeScope.capture(
+                        runtimeScope,
+                        new Runnable() {
+                            /** 执行异步任务主体。 */
+                            @Override
+                            public void run() {
+                                if (!adapter.isConnected()) {
+                                    connectIsolated(adapter, attempt + 1);
+                                }
+                            }
+                        }),
                 delaySeconds,
                 TimeUnit.SECONDS);
     }

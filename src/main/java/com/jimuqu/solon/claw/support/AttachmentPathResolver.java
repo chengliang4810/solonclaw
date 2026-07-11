@@ -5,8 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
-import com.jimuqu.solon.claw.support.AttachmentCacheService;
-import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.net.URI;
@@ -53,11 +52,19 @@ public class AttachmentPathResolver {
     private static final Pattern ABSOLUTE_PATH_IN_MESSAGE =
             Pattern.compile("(?:(?<=\\s)|(?<=^)|(?<==)|(?<=:))(/[A-Za-z0-9._+@%-][^\\s'\"<>|;,]*)");
 
+    /** 允许从引号文本识别的相对附件后缀，普通自然语言不会被当作文件路径。 */
+    private static final Pattern RELATIVE_ATTACHMENT_PATH =
+            Pattern.compile(
+                    "(?i)^.+\\.(?:png|jpe?g|gif|webp|bmp|heic|heif|mp4|mov|avi|mkv|webm|3gp|m4v|silk|ogg|opus|mp3|wav|m4a|aac|flac|amr|pdf|docx?|xlsx?|pptx?|txt|csv|md|markdown|json|zip|rar|7z|apk|ipa)$");
+
     /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
 
     /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 注入配置声明的工作区；当前 Profile 作用域存在时由作用域覆盖。 */
+    private final File configuredWorkspaceHome;
 
     /**
      * 创建Cli附件Resolver实例，并注入运行所需依赖。
@@ -71,7 +78,8 @@ public class AttachmentPathResolver {
                 attachmentCacheService == null
                         ? new AttachmentCacheService(appConfig)
                         : attachmentCacheService,
-                new SecurityPolicyService(appConfig));
+                new SecurityPolicyService(appConfig),
+                runtimeHome(appConfig));
     }
 
     /**
@@ -83,8 +91,17 @@ public class AttachmentPathResolver {
     public AttachmentPathResolver(
             AttachmentCacheService attachmentCacheService,
             SecurityPolicyService securityPolicyService) {
+        this(attachmentCacheService, securityPolicyService, null);
+    }
+
+    /** 创建附件解析器，并保存可供未进入 Profile scope 时使用的运行工作区。 */
+    private AttachmentPathResolver(
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService,
+            File configuredWorkspaceHome) {
         this.attachmentCacheService = attachmentCacheService;
         this.securityPolicyService = securityPolicyService;
+        this.configuredWorkspaceHome = configuredWorkspaceHome;
     }
 
     /**
@@ -318,7 +335,18 @@ public class AttachmentPathResolver {
         }
         try {
             String expanded = expandUserHome(value);
-            return FileUtil.file(expanded).getCanonicalFile();
+            File direct = new File(expanded);
+            if (isAbsolutePath(expanded, direct)) {
+                return direct.getCanonicalFile();
+            }
+            File workspaceHome = preferredWorkspaceHome();
+            if (workspaceHome != null) {
+                File resolvedCandidate = resolveInsideWorkspace(workspaceHome, expanded);
+                if (ProfileRuntimeScope.current() != null || resolvedCandidate.isFile()) {
+                    return resolvedCandidate;
+                }
+            }
+            return direct.getCanonicalFile();
         } catch (Exception e) {
             logRecoverableFailure("local_path_canonicalize", e);
             return null;
@@ -342,7 +370,14 @@ public class AttachmentPathResolver {
         if (Pattern.compile("^[A-Za-z]:[/\\\\].+").matcher(text).matches()) {
             return true;
         }
-        return text.startsWith("/") || text.startsWith("~/");
+        if (text.startsWith("/") || text.startsWith("~/")) {
+            return true;
+        }
+        if (!RELATIVE_ATTACHMENT_PATH.matcher(text).matches()) {
+            return false;
+        }
+        File resolved = resolveCandidate(text);
+        return resolved != null && resolved.isFile();
     }
 
     /**
@@ -352,6 +387,7 @@ public class AttachmentPathResolver {
      * @return 返回expand用户主渠道结果。
      */
     private String expandUserHome(String value) {
+        // `~` 始终表示操作系统用户主目录，不等同于 Profile 工作区。
         String home = System.getProperty("user.home");
         if (StrUtil.isBlank(home)) {
             return value;
@@ -363,6 +399,44 @@ public class AttachmentPathResolver {
             return home + value.substring(1);
         }
         return value;
+    }
+
+    /** 返回当前 Profile 或注入配置对应的工作区根目录。 */
+    private File preferredWorkspaceHome() {
+        ProfileRuntimeScope.Context scoped = ProfileRuntimeScope.current();
+        if (scoped != null && scoped.getHome() != null) {
+            return scoped.getHome().toFile().getAbsoluteFile();
+        }
+        return configuredWorkspaceHome;
+    }
+
+    /** 在工作区内解析相对路径，并拒绝 `..` 或符号链接跨出 Profile。 */
+    private File resolveInsideWorkspace(File workspaceHome, String relativePath) throws Exception {
+        File canonicalHome = workspaceHome.getCanonicalFile();
+        File candidate = new File(canonicalHome, relativePath).getCanonicalFile();
+        if (!FilePathSupport.isUnderPath(candidate, canonicalHome)) {
+            throw new IllegalArgumentException(
+                    "Attachment path escapes the current profile workspace");
+        }
+        return candidate;
+    }
+
+    /** 判断路径文本是否已经是 POSIX、Windows 或 UNC 绝对路径。 */
+    private boolean isAbsolutePath(String value, File file) {
+        return file.isAbsolute()
+                || Pattern.compile("^[A-Za-z]:[/\\\\].+").matcher(value).matches()
+                || value.startsWith("\\\\")
+                || value.startsWith("//");
+    }
+
+    /** 从注入配置读取工作区；空配置保持原来的进程工作目录解析语义。 */
+    private static File runtimeHome(AppConfig appConfig) {
+        if (appConfig == null
+                || appConfig.getRuntime() == null
+                || StrUtil.isBlank(appConfig.getRuntime().getHome())) {
+            return null;
+        }
+        return new File(appConfig.getRuntime().getHome()).getAbsoluteFile();
     }
 
     /**

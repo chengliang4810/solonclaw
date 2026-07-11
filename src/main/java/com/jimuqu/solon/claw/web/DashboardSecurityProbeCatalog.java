@@ -48,7 +48,9 @@ final class DashboardSecurityProbeCatalog {
                 runner.urlProbe(
                         "metadata_url", "云元数据 URL 阻断", "http://169.254.169.254/latest/meta-data/"));
         items.add(runner.privateUrlProbe("private_url", "内网 URL 默认阻断", "http://10.0.0.5/internal"));
-        items.add(runner.privateUrlProbe("loopback_url", "本机回环 URL 默认阻断", "http://localhost:8080/admin"));
+        items.add(
+                runner.privateUrlProbe(
+                        "loopback_url", "本机回环 URL 默认阻断", "http://localhost:8080/admin"));
         items.add(
                 runner.privateUrlProbe(
                         "ipv6_loopback_url", "IPv6 回环 URL 默认阻断", "http://[::1]:8080/admin"));
@@ -79,7 +81,8 @@ final class DashboardSecurityProbeCatalog {
                         "不支持的 SFTP 协议阻断",
                         "sftp://example.test/file.txt"));
         items.add(
-                runner.urlProbe("unsupported_scp_scheme", "不支持的 SCP 协议阻断", "scp://example.test/file.txt"));
+                runner.urlProbe(
+                        "unsupported_scp_scheme", "不支持的 SCP 协议阻断", "scp://example.test/file.txt"));
         items.add(
                 runner.urlProbe(
                         "sensitive_query",
@@ -201,7 +204,9 @@ final class DashboardSecurityProbeCatalog {
                         "编码路径遍历读取阻断",
                         "safe/%252e%252e/readme.txt",
                         false));
-        items.add(runner.pathProbe("path_control_character", "控制字符路径读取阻断", "safe\u0000readme.txt", false));
+        items.add(
+                runner.pathProbe(
+                        "path_control_character", "控制字符路径读取阻断", "safe\u0000readme.txt", false));
         items.add(runner.pathProbe("device_path_read", "设备文件读取阻断", "/dev/zero", false));
         items.add(runner.pathProbe("raw_block_device_write", "裸块设备写入阻断", "/dev/sda", true));
         items.add(
@@ -781,12 +786,8 @@ final class DashboardSecurityProbeCatalog {
                         "命令 Windows 百分号兼容程序目录写入检查",
                         "echo probe > %ProgramFiles(x86)%/Probe/probe.txt"));
         items.add(
-                runner.commandPathPolicyProbe("command_device_path_read", "命令设备文件读取检查", "cat /dev/zero"));
-        items.add(
                 runner.commandPathPolicyProbe(
-                        "command_raw_block_device_write",
-                        "命令裸块设备写入检查",
-                        "dd if=probe.img of=/dev/sda bs=1M count=1"));
+                        "command_device_path_read", "命令设备文件读取检查", "cat /dev/zero"));
         items.add(
                 runner.commandAlwaysBlockedUrlProbe(
                         "command_bare_packed_ipv4_metadata", "命令裸数字元数据地址阻断", "curl 2852039166"));
@@ -824,12 +825,15 @@ final class DashboardSecurityProbeCatalog {
         items.add(runner.schemaSanitizerProbe("schema_sanitizer", "工具 Schema 安全清洗"));
         items.add(runner.mcpOAuthPolicyProbe("mcp_oauth_policy", "MCP OAuth 安全策略检查"));
         items.add(runner.mcpToolChangePolicyProbe("mcp_tool_change_policy", "MCP 工具变更通知策略检查"));
-        items.add(runner.mcpRuntimeArgumentPolicyProbe("mcp_runtime_argument_policy", "MCP 运行时参数安全策略检查"));
+        items.add(
+                runner.mcpRuntimeArgumentPolicyProbe(
+                        "mcp_runtime_argument_policy", "MCP 运行时参数安全策略检查"));
         items.add(runner.mcpPackageSecurityProbe("mcp_package_security", "MCP 包安全检查"));
         items.add(runner.subprocessEnvironmentProbe("subprocess_environment", "子进程环境变量净化"));
         items.add(runner.toolResultStorageProbe("tool_result_storage", "工具输出结果存储"));
         items.add(
-                runner.toolResultRetrievalRedactionProbe("tool_result_retrieval_redaction", "工具输出读取脱敏检查"));
+                runner.toolResultRetrievalRedactionProbe(
+                        "tool_result_retrieval_redaction", "工具输出读取脱敏检查"));
         items.add(
                 runner.attachmentDownloadUrlProbe(
                         "attachment_download_url",
@@ -892,18 +896,6 @@ final class DashboardSecurityProbeCatalog {
                         "Fork bomb 硬阻断",
                         ":(){ :|:& };:",
                         "hardline_fork_bomb"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_format",
-                        "Windows 卷格式化硬阻断",
-                        "format c:",
-                        "hardline_windows_format"));
-        items.add(
-                runner.hardlineCommandProbe(
-                        "hardline_windows_shutdown",
-                        "Windows 关机重启硬阻断",
-                        "shutdown.exe /r /t 0",
-                        "hardline_windows_shutdown"));
         items.add(runner.sudoRewriteProbe("sudo_rewrite", "sudo 改写安全检查"));
         items.add(runner.terminalGuardrailProbe("terminal_guardrail", "长时间前台命令守卫", "npm run dev"));
         items.add(runner.terminalOutputProbe("terminal_output", "终端输出安全检查"));

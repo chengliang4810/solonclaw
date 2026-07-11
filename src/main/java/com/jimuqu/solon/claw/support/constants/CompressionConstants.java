@@ -28,6 +28,9 @@ public interface CompressionConstants {
     /** 估算字符到 token 的粗略倍率。 */
     int CHARS_PER_TOKEN = 4;
 
+    /** 单张图片在上下文预算和附件摘要中的统一保守 token 估算值。 */
+    int IMAGE_ATTACHMENT_ESTIMATED_TOKENS = 1500;
+
     /** 已有摘要注入到新摘要时的最大保留长度。 */
     int MAX_PREVIOUS_SUMMARY_LENGTH = 400;
 
@@ -72,5 +75,4 @@ public interface CompressionConstants {
         }
         return value;
     }
-
 }

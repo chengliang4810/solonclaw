@@ -57,8 +57,8 @@ public final class GoalPromptTemplates {
     /**
      * 带完成契约的 Judge 用户提示模板：契约块告知裁决器「done」的精确定义。
      *
-     * <p>裁决器须严格依据契约的 Verification 判定 DONE，命中 Stop when blocked 才允许 WAIT，
-     * 违反 Constraints/Boundaries 时不得判 DONE。两个格式位分别对应目标与契约块。
+     * <p>裁决器须严格依据契约的 Verification 判定 DONE，命中 Stop when blocked 才允许 WAIT， 违反 Constraints/Boundaries
+     * 时不得判 DONE。两个格式位分别对应目标与契约块。
      */
     public static final String JUDGE_USER_PROMPT_WITH_CONTRACT_TEMPLATE =
             "Goal: %s\n\n"

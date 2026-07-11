@@ -18,7 +18,7 @@ import java.util.Map;
 /** TTS 与独立语音转写运行时服务，负责选择插件提供方并把语音结果接入附件缓存。 */
 public class SpeechService {
     /** 单个音频输入或输出允许处理的最大字节数。 */
-    private static final long MAX_AUDIO_BYTES = 32L * 1024L * 1024L;
+    static final long MAX_AUDIO_BYTES = 32L * 1024L * 1024L;
 
     /** 附件缓存服务，用于保存 TTS 输出并解析待转写的本地语音缓存。 */
     private final AttachmentCacheService attachmentCacheService;
@@ -28,6 +28,12 @@ public class SpeechService {
 
     /** 语音转写提供方列表，按插件注册顺序选择第一个可用提供方。 */
     private final List<TranscriptionProvider> transcriptionProviders;
+
+    /** 默认部署内置的 OpenAI 兼容 TTS Provider。 */
+    private final SpeechProvider builtInSpeechProvider;
+
+    /** 默认部署内置的 OpenAI 兼容独立 STT Provider。 */
+    private final TranscriptionProvider builtInTranscriptionProvider;
 
     /**
      * 创建语音服务实例，并注入运行所需依赖。
@@ -48,6 +54,26 @@ public class SpeechService {
                         : attachmentCacheService;
         this.speechProviders = BasicValueSupport.emptyListIfNull(speechProviders);
         this.transcriptionProviders = BasicValueSupport.emptyListIfNull(transcriptionProviders);
+        this.builtInSpeechProvider = new OpenAiTtsProvider(appConfig);
+        this.builtInTranscriptionProvider = new OpenAiSttProvider(appConfig);
+    }
+
+    /**
+     * 判断当前是否存在真实可调用的 TTS Provider。
+     *
+     * @return 插件或内置 Provider 可用时返回 true。
+     */
+    public boolean isTtsAvailable() {
+        return chooseSpeechProvider() != null;
+    }
+
+    /**
+     * 判断当前是否存在真实可调用的独立 STT Provider。
+     *
+     * @return 插件或内置 Provider 可用时返回 true。
+     */
+    public boolean isTranscriptionAvailable() {
+        return chooseTranscriptionProvider() != null;
     }
 
     /**
@@ -155,7 +181,7 @@ public class SpeechService {
                 return provider;
             }
         }
-        return null;
+        return builtInSpeechProvider.isAvailable() ? builtInSpeechProvider : null;
     }
 
     /**
@@ -169,7 +195,7 @@ public class SpeechService {
                 return provider;
             }
         }
-        return null;
+        return builtInTranscriptionProvider.isAvailable() ? builtInTranscriptionProvider : null;
     }
 
     /**

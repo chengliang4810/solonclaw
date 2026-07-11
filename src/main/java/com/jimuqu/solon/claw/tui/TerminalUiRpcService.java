@@ -5,15 +5,14 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.config.AppConfig;
-import com.jimuqu.solon.claw.support.update.AppVersionService;
+import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
+import com.jimuqu.solon.claw.core.model.CheckpointRecord;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
-import com.jimuqu.solon.claw.context.LocalSkillService;
-import com.jimuqu.solon.claw.core.model.CheckpointRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.core.model.SkillView;
@@ -31,26 +30,32 @@ import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
 import com.jimuqu.solon.claw.skillhub.model.SkillBrowseResult;
 import com.jimuqu.solon.claw.skillhub.model.SkillMeta;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.AttachmentPathResolver;
+import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
-import com.jimuqu.solon.claw.support.TuiRuntimeProtocolService;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
-import com.jimuqu.solon.claw.support.constants.SkillConstants;
+import com.jimuqu.solon.claw.support.TuiRuntimeProtocolService;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
+import com.jimuqu.solon.claw.support.constants.SkillConstants;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
-import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
+import com.jimuqu.solon.claw.web.DomesticQrSetupService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatRole;
@@ -64,46 +69,80 @@ public class TerminalUiRpcService {
     /** TUI RPC 降级路径日志，默认只在 debug 下输出，避免污染交互式终端。 */
     private static final Logger log = LoggerFactory.getLogger(TerminalUiRpcService.class);
 
+    /** 远程图片字节上传上限，与交互基线的单图片限制保持一致。 */
+    private static final int MAX_IMAGE_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+    /** image.attach 与 image.attach_bytes 接受的图片扩展名。 */
+    private static final Set<String> IMAGE_EXTENSIONS =
+            new HashSet<String>(
+                    java.util.Arrays.asList(".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"));
+
     /** 应用运行配置，用于读取当前模型、工作区等展示信息。 */
     private final AppConfig appConfig;
+
     /** 会话仓储，用于让终端 UI 的会话生命周期落到 Java 持久化会话上。 */
     private final SessionRepository sessionRepository;
+
     /** 本地技能服务，用于驱动 TUI 技能列表、查看和重载动作。 */
     private final LocalSkillService localSkillService;
+
     /** Skills Hub 服务，用于驱动 TUI 社区技能搜索、浏览和安装动作。 */
     private final SkillHubService skillHubService;
+
     /** Checkpoint 服务，用于驱动 TUI rollback 列表、预览和恢复动作。 */
     private final CheckpointService checkpointService;
+
     /** Dashboard 技能服务，用于复用现有工具集定义和开关状态。 */
     private final DashboardSkillsService dashboardSkillsService;
+
     /** 偏好存储，用于持久化 TUI 工具开关动作。 */
     private final SqlitePreferenceStore preferenceStore;
+
     /** 浏览器运行时，用于把 TUI /browser 命令接入内置浏览器自动化。 */
     private final BrowserRuntimeService browserRuntimeService;
+
     /** 上下文压缩服务，用于驱动终端 UI /compact 操作。 */
     private final ContextCompressionService contextCompressionService;
+
     /** 终端本地附件解析服务，用于驱动终端 UI 图片/文件 attach 操作。 */
     private final AttachmentPathResolver attachmentResolver;
+
+    /** 附件缓存服务，用于接收远程终端上传的 base64 图片字节。 */
+    private final AttachmentCacheService attachmentCacheService;
+
+    /** 会话级待提交附件服务，用于保证每次 prompt.submit 只消费自己的附件快照。 */
+    private final TerminalUiPendingAttachmentService pendingAttachmentService;
+
     /** 后台进程注册表，用于驱动终端 UI /stop 操作。 */
     private final ProcessRegistry processRegistry;
+
     /** MCP 运行时，用于驱动终端 UI /reload-mcp 操作。 */
     private final McpRuntimeService mcpRuntimeService;
+
     /** 配置刷新服务，用于驱动终端 UI /reload 操作。 */
     private final GatewayRuntimeRefreshService gatewayRuntimeRefreshService;
+
     /** 子代理委托服务，用于驱动终端 UI /agents 暂停、状态和中断操作。 */
     private final DelegationService delegationService;
+
     /** Agent run 控制服务，用于驱动 steer 与后台化等运行中控制操作。 */
     private final AgentRunControlService agentRunControlService;
+
     /** Agent run 仓储，用于从现有运行轨迹生成 TUI 可读取的 spawn tree 归档列表。 */
     private final AgentRunRepository agentRunRepository;
+
     /** 工作区配置服务，用于让 TUI 配置命令写入真实后端配置。 */
     private final RuntimeSettingsService runtimeSettingsService;
+
     /** 共享初始化协议服务，用于复用模型与国内渠道 setup 写入规则。 */
     private final TuiRuntimeProtocolService runtimeProtocolService;
+
     /** 全局设置仓储，用于保存仅属于终端 UI 的显示偏好。 */
     private final GlobalSettingRepository globalSettingRepository;
+
     /** 当前 JVM 内仍保持打开状态的 TUI 会话，用于驱动 session.active_list。 */
     private final List<String> liveTerminalSessionIds = new ArrayList<String>();
+
     /** 当前 TUI 连接创建的浏览器租约 ID，用于 status/disconnect 的轻量状态保持。 */
     private volatile String tuiBrowserSessionId;
 
@@ -114,7 +153,25 @@ public class TerminalUiRpcService {
 
     /** 创建带会话仓储的终端 UI RPC 响应构造服务。 */
     public TerminalUiRpcService(AppConfig appConfig, SessionRepository sessionRepository) {
-        this(appConfig, sessionRepository, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+        this(
+                appConfig,
+                sessionRepository,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     /** 创建完整后端服务注入的终端 UI RPC 响应构造服务。 */
@@ -182,6 +239,55 @@ public class TerminalUiRpcService {
             GlobalSettingRepository globalSettingRepository,
             WeixinQrSetupService weixinQrSetupService,
             DomesticQrSetupService domesticQrSetupService) {
+        this(
+                appConfig,
+                sessionRepository,
+                localSkillService,
+                skillHubService,
+                checkpointService,
+                dashboardSkillsService,
+                preferenceStore,
+                browserRuntimeService,
+                contextCompressionService,
+                attachmentResolver,
+                processRegistry,
+                mcpRuntimeService,
+                gatewayRuntimeRefreshService,
+                delegationService,
+                agentRunControlService,
+                agentRunRepository,
+                runtimeSettingsService,
+                globalSettingRepository,
+                weixinQrSetupService,
+                domesticQrSetupService,
+                appConfig == null ? null : new AttachmentCacheService(appConfig),
+                new TerminalUiPendingAttachmentService());
+    }
+
+    /** 创建完整后端服务注入且带附件会话状态的终端 UI RPC 响应构造服务。 */
+    public TerminalUiRpcService(
+            AppConfig appConfig,
+            SessionRepository sessionRepository,
+            LocalSkillService localSkillService,
+            SkillHubService skillHubService,
+            CheckpointService checkpointService,
+            DashboardSkillsService dashboardSkillsService,
+            SqlitePreferenceStore preferenceStore,
+            BrowserRuntimeService browserRuntimeService,
+            ContextCompressionService contextCompressionService,
+            AttachmentPathResolver attachmentResolver,
+            ProcessRegistry processRegistry,
+            McpRuntimeService mcpRuntimeService,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            DelegationService delegationService,
+            AgentRunControlService agentRunControlService,
+            AgentRunRepository agentRunRepository,
+            RuntimeSettingsService runtimeSettingsService,
+            GlobalSettingRepository globalSettingRepository,
+            WeixinQrSetupService weixinQrSetupService,
+            DomesticQrSetupService domesticQrSetupService,
+            AttachmentCacheService attachmentCacheService,
+            TerminalUiPendingAttachmentService pendingAttachmentService) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
         this.localSkillService = localSkillService;
@@ -192,6 +298,11 @@ public class TerminalUiRpcService {
         this.browserRuntimeService = browserRuntimeService;
         this.contextCompressionService = contextCompressionService;
         this.attachmentResolver = attachmentResolver;
+        this.attachmentCacheService = attachmentCacheService;
+        this.pendingAttachmentService =
+                pendingAttachmentService == null
+                        ? new TerminalUiPendingAttachmentService()
+                        : pendingAttachmentService;
         this.processRegistry = processRegistry;
         this.mcpRuntimeService = mcpRuntimeService;
         this.gatewayRuntimeRefreshService = gatewayRuntimeRefreshService;
@@ -233,7 +344,9 @@ public class TerminalUiRpcService {
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         String sessionId =
-                session == null ? newSessionId() : StrUtil.blankToDefault(session.getSessionId(), newSessionId());
+                session == null
+                        ? newSessionId()
+                        : StrUtil.blankToDefault(session.getSessionId(), newSessionId());
         rememberLiveSession(sessionId);
         result.put("session_id", sessionId);
         result.put("info", sessionInfo(session));
@@ -257,7 +370,9 @@ public class TerminalUiRpcService {
             rememberLiveSession(session.getSessionId());
         }
         String effectiveSessionId =
-                session == null ? StrUtil.blankToDefault(sessionId, newSessionId()) : session.getSessionId();
+                session == null
+                        ? StrUtil.blankToDefault(sessionId, newSessionId())
+                        : session.getSessionId();
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("session_id", effectiveSessionId);
         result.put("info", sessionInfo(session));
@@ -270,7 +385,10 @@ public class TerminalUiRpcService {
         result.put("status", liveSessionStatus(activeRun));
         result.put(
                 "started_at",
-                Long.valueOf(running ? toEpochSeconds(activeRun.getStartedAt()) : toEpochSeconds(startedAt(effectiveSessionId))));
+                Long.valueOf(
+                        running
+                                ? toEpochSeconds(activeRun.getStartedAt())
+                                : toEpochSeconds(startedAt(effectiveSessionId))));
         result.put("inflight", null);
         return result;
     }
@@ -278,10 +396,21 @@ public class TerminalUiRpcService {
     /** 关闭一个 TUI live 会话；历史会话仍保留给 session.list 恢复。 */
     public Map<String, Object> sessionClose(String sessionId) {
         forgetLiveSession(sessionId);
+        pendingAttachmentService.clear(sessionId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("ok", Boolean.TRUE);
         result.put("closed", Boolean.valueOf(StrUtil.isNotBlank(sessionId)));
         return result;
+    }
+
+    /** 原子消费指定会话下一轮待提交附件，消费后即使运行失败也不会自动回填。 */
+    public List<MessageAttachment> drainPendingAttachments(String sessionId) {
+        return pendingAttachmentService.drain(sessionId);
+    }
+
+    /** 清理指定会话尚未提交的附件，用于 interrupt 和连接生命周期收尾。 */
+    public void clearPendingAttachments(String sessionId) {
+        pendingAttachmentService.clear(sessionId);
     }
 
     /** 返回最近一个可恢复会话，供终端 UI 自动恢复入口使用。 */
@@ -316,7 +445,8 @@ public class TerminalUiRpcService {
         if (!currentIncluded) {
             SessionRecord current = findSession(currentSessionId);
             if (current != null) {
-                sessions.add(activeSessionItem(current, true, latestActiveRun(current.getSessionId())));
+                sessions.add(
+                        activeSessionItem(current, true, latestActiveRun(current.getSessionId())));
             }
         }
         Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -396,7 +526,8 @@ public class TerminalUiRpcService {
         List<Map<String, Object>> items = new ArrayList<Map<String, Object>>();
         for (CommandDescriptor descriptor : CommandRegistry.all()) {
             if (descriptor.getName().startsWith(query)) {
-                appendLocalSlashCompletion(items, query, descriptor.getName(), descriptor.getDescription());
+                appendLocalSlashCompletion(
+                        items, query, descriptor.getName(), descriptor.getDescription());
             }
             for (String alias : descriptor.getAliases()) {
                 appendLocalSlashCompletion(items, query, alias, descriptor.getDescription());
@@ -460,7 +591,8 @@ public class TerminalUiRpcService {
                         ? (Map<String, Object>) runtimeFull.get("config")
                         : new LinkedHashMap<String, Object>();
         Map<String, Object> display = new LinkedHashMap<String, Object>();
-        display.put("bell_on_complete", Boolean.valueOf(booleanPreference("bell_on_complete", false)));
+        display.put(
+                "bell_on_complete", Boolean.valueOf(booleanPreference("bell_on_complete", false)));
         display.put("busy_input_mode", currentBusyPolicy());
         display.put("details_mode", textPreference("details_mode", "collapsed"));
         display.put("inline_diffs", Boolean.valueOf(booleanPreference("inline_diffs", true)));
@@ -468,7 +600,9 @@ public class TerminalUiRpcService {
         display.put("show_cost", Boolean.valueOf(booleanPreference("show_cost", false)));
         display.put("show_reasoning", Boolean.valueOf(showReasoning()));
         display.put("streaming", Boolean.valueOf(booleanPreference("streaming", true)));
-        display.put("tui_auto_resume_recent", Boolean.valueOf(booleanPreference("tui_auto_resume_recent", false)));
+        display.put(
+                "tui_auto_resume_recent",
+                Boolean.valueOf(booleanPreference("tui_auto_resume_recent", false)));
         display.put("tui_compact", Boolean.valueOf(booleanPreference("tui_compact", false)));
         display.put("tui_status_indicator", textPreference("indicator", "kaomoji"));
         display.put("tui_statusbar", textPreference("statusbar", "top"));
@@ -510,7 +644,8 @@ public class TerminalUiRpcService {
         usage.put("output", Long.valueOf(Math.max(0L, session.getCumulativeOutputTokens())));
         usage.put("reasoning", Long.valueOf(Math.max(0L, session.getCumulativeReasoningTokens())));
         usage.put("cache_read", Long.valueOf(Math.max(0L, session.getCumulativeCacheReadTokens())));
-        usage.put("cache_write", Long.valueOf(Math.max(0L, session.getCumulativeCacheWriteTokens())));
+        usage.put(
+                "cache_write", Long.valueOf(Math.max(0L, session.getCumulativeCacheWriteTokens())));
         usage.put("total", Long.valueOf(Math.max(0L, session.getCumulativeTotalTokens())));
         usage.put("model", model(session));
         usage.put("calls", Long.valueOf(usageCallCount(session)));
@@ -524,10 +659,14 @@ public class TerminalUiRpcService {
         }
         if (agentRunRepository != null && StrUtil.isNotBlank(session.getSessionId())) {
             try {
-                return Math.max(0L, agentRunRepository.countUsageRunsBySession(session.getSessionId()));
+                return Math.max(
+                        0L, agentRunRepository.countUsageRunsBySession(session.getSessionId()));
             } catch (Exception e) {
                 // 仅记录异常类型与脱敏后的会话标识，避免原始 Throwable 堆栈携带敏感上下文进入日志
-                log.debug("Failed to count TUI usage runs, fallback to message count: session={} error={}", session.getSessionId(), exceptionSummary(e));
+                log.debug(
+                        "Failed to count TUI usage runs, fallback to message count: session={} error={}",
+                        session.getSessionId(),
+                        exceptionSummary(e));
             }
         }
         return messageCount(session) > 0 ? 1L : 0L;
@@ -576,7 +715,8 @@ public class TerminalUiRpcService {
     }
 
     /** 构造配置写入响应，当前先回显写入值并附带当前 session info。 */
-    public Map<String, Object> configSet(String key, String value, String sessionId) throws Exception {
+    public Map<String, Object> configSet(String key, String value, String sessionId)
+            throws Exception {
         if ("model".equals(StrUtil.nullToEmpty(key).trim())) {
             Map<String, Object> result = runtimeProtocolService.configSet(key, value, sessionId);
             result.put("info", sessionInfo(findSession(sessionId)));
@@ -676,7 +816,8 @@ public class TerminalUiRpcService {
     }
 
     /** 保存独立终端 UI 提交的国内渠道配置字段。 */
-    public Map<String, Object> channelSave(String channel, Map<String, String> values, String sessionId) {
+    public Map<String, Object> channelSave(
+            String channel, Map<String, String> values, String sessionId) {
         return runtimeProtocolService.channelSave(channel, values, sessionId);
     }
 
@@ -704,14 +845,16 @@ public class TerminalUiRpcService {
     }
 
     /** 强制压缩当前会话，并把用户在 /compact 后输入的关注主题传递给摘要生成逻辑。 */
-    public Map<String, Object> sessionCompress(String sessionId, String focusTopic) throws Exception {
+    public Map<String, Object> sessionCompress(String sessionId, String focusTopic)
+            throws Exception {
         SessionRecord session = findSession(sessionId);
         int beforeMessages = messageCount(session);
         int beforeTokens = session == null ? 0 : (int) session.getCumulativeTotalTokens();
         CompressionOutcome outcome = null;
         if (session != null && beforeMessages > 0 && contextCompressionService != null) {
-            outcome = contextCompressionService.compressNowWithOutcome(
-                    session, "", StrUtil.nullToEmpty(focusTopic));
+            outcome =
+                    contextCompressionService.compressNowWithOutcome(
+                            session, "", StrUtil.nullToEmpty(focusTopic));
             if (outcome != null && outcome.getSession() != null && sessionRepository != null) {
                 session = outcome.getSession();
                 sessionRepository.save(session);
@@ -728,7 +871,9 @@ public class TerminalUiRpcService {
         result.put("before_messages", Integer.valueOf(beforeMessages));
         result.put("after_messages", Integer.valueOf(messageCount(session)));
         result.put("before_tokens", Integer.valueOf(beforeTokens));
-        result.put("after_tokens", Long.valueOf(session == null ? 0L : session.getCumulativeTotalTokens()));
+        result.put(
+                "after_tokens",
+                Long.valueOf(session == null ? 0L : session.getCumulativeTotalTokens()));
         result.put("messages", transcript(session));
         result.put("info", sessionInfo());
         result.put("usage", sessionUsage(sessionId));
@@ -770,8 +915,13 @@ public class TerminalUiRpcService {
         return result;
     }
 
-    /** 解析本地图片/文件路径为后端附件缓存，并返回终端 UI attach 结果。 */
+    /** 兼容旧调用入口；没有会话标识时只会返回未附加结果。 */
     public Map<String, Object> imageAttach(String path) {
+        return imageAttach("", path);
+    }
+
+    /** 解析本地图片路径、写入指定会话的下一轮附件队列并返回 attach 结果。 */
+    public Map<String, Object> imageAttach(String sessionId, String path) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         File file = new File(StrUtil.nullToEmpty(path));
         result.put("attached", Boolean.FALSE);
@@ -780,25 +930,207 @@ public class TerminalUiRpcService {
             AttachmentPathResolver.ResolvedInput resolved = attachmentResolver.resolve(path);
             if (!resolved.getAttachments().isEmpty()) {
                 MessageAttachment attachment = resolved.getAttachments().get(0);
-                result.remove("message");
-                result.put("name", StrUtil.blankToDefault(attachment.getOriginalName(), file.getName()));
-                result.put("remainder", "");
-                result.put("token_estimate", Integer.valueOf(0));
-                result.put("mime_type", StrUtil.nullToEmpty(attachment.getMimeType()));
-                result.put("kind", StrUtil.nullToEmpty(attachment.getKind()));
-                result.put("size_bytes", Long.valueOf(attachment.getSizeBytes()));
-                result.put("attached", Boolean.TRUE);
+                if (!"image".equals(StrUtil.nullToEmpty(attachment.getKind()))) {
+                    result.put("message", "unsupported image: " + file.getName());
+                    return result;
+                }
+                if (StrUtil.isBlank(sessionId)) {
+                    result.put("message", "session_id is required");
+                    return result;
+                }
+                int count = pendingAttachmentService.add(sessionId, attachment);
+                return attachedImageResult(attachment, count, "");
             }
         }
         return result;
     }
 
-    /** 返回剪贴板图片粘贴的降级提示。 */
+    /** 从 base64 字节接收远程客户端图片，并写入指定会话的下一轮附件队列。 */
+    public Map<String, Object> imageAttachBytes(
+            String sessionId, String contentBase64, String filename, String extensionHint) {
+        if (StrUtil.isBlank(sessionId)) {
+            throw new IllegalArgumentException("session_id is required");
+        }
+        if (attachmentCacheService == null) {
+            throw new IllegalStateException("attachment cache is not available");
+        }
+        byte[] bytes = decodeImageBytes(contentBase64);
+        if (bytes.length == 0) {
+            throw new IllegalArgumentException("image is empty");
+        }
+        if (bytes.length > MAX_IMAGE_UPLOAD_BYTES) {
+            throw new IllegalArgumentException(
+                    "image too large ("
+                            + bytes.length
+                            + " bytes; cap is "
+                            + (MAX_IMAGE_UPLOAD_BYTES / 1024 / 1024)
+                            + " MB)");
+        }
+
+        String extension = imageExtension(bytes, filename, extensionHint);
+        if (!IMAGE_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException("unsupported image extension: " + extension);
+        }
+        String safeFilename = imageFilename(filename, extension);
+        MessageAttachment attachment =
+                attachmentCacheService.cacheBytes(
+                        PlatformType.MEMORY,
+                        "image",
+                        safeFilename,
+                        imageMimeType(extension),
+                        false,
+                        "",
+                        bytes);
+        int count = pendingAttachmentService.add(sessionId, attachment);
+        Map<String, Object> result = attachedImageResult(attachment, count, "");
+        result.put("bytes", Integer.valueOf(bytes.length));
+        return result;
+    }
+
+    /** 兼容旧调用入口；没有会话标识时无法安全绑定剪贴板附件。 */
     public Map<String, Object> clipboardPaste() {
+        return clipboardPaste("");
+    }
+
+    /** 返回服务端剪贴板不可用提示；远程客户端应使用 image.attach_bytes 上传本机图片。 */
+    public Map<String, Object> clipboardPaste(String sessionId) {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("attached", Boolean.FALSE);
-        result.put("message", "clipboard image paste is pending backend media attachment wiring");
+        if (StrUtil.isBlank(sessionId)) {
+            result.put("message", "session_id is required");
+            return result;
+        }
+        result.put(
+                "message",
+                "No image found in server clipboard; remote clients should use image.attach_bytes");
         return result;
+    }
+
+    /** 构造统一图片附加响应，路径只保留在后端附件模型中，不回显主机绝对路径。 */
+    private Map<String, Object> attachedImageResult(
+            MessageAttachment attachment, int count, String remainder) {
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        String name = StrUtil.blankToDefault(attachment.getOriginalName(), "image");
+        result.put("attached", Boolean.TRUE);
+        result.put("name", name);
+        result.put("count", Integer.valueOf(Math.max(1, count)));
+        result.put("remainder", StrUtil.nullToEmpty(remainder));
+        result.put("text", "[User attached image: " + name + "]");
+        result.put(
+                "token_estimate",
+                Integer.valueOf(MessageAttachmentSupport.estimatedTokenCost(attachment)));
+        result.put("mime_type", StrUtil.nullToEmpty(attachment.getMimeType()));
+        result.put("kind", StrUtil.nullToEmpty(attachment.getKind()));
+        result.put("size_bytes", Long.valueOf(attachment.getSizeBytes()));
+        return result;
+    }
+
+    /** 严格解码纯 base64 或 data:image/...;base64 载荷。 */
+    private byte[] decodeImageBytes(String contentBase64) {
+        String raw = StrUtil.nullToEmpty(contentBase64).trim();
+        if (StrUtil.isBlank(raw)) {
+            throw new IllegalArgumentException("content_base64 required");
+        }
+        if (raw.startsWith("data:")) {
+            int comma = raw.indexOf(',');
+            String header = comma < 0 ? raw : raw.substring(0, comma);
+            if (comma < 0 || !header.startsWith("data:image/") || !header.endsWith(";base64")) {
+                throw new IllegalArgumentException("data is not valid base64");
+            }
+            raw = raw.substring(comma + 1);
+        }
+        String compact = raw.replaceAll("\\s+", "");
+        if (compact.length() > ((MAX_IMAGE_UPLOAD_BYTES + 2L) / 3L) * 4L + 16L) {
+            throw new IllegalArgumentException("image too large");
+        }
+        try {
+            return Base64.getDecoder().decode(compact);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("data is not valid base64", e);
+        }
+    }
+
+    /** 按文件名提示或魔数确定图片扩展名，未知格式按基线行为回退 PNG。 */
+    private String imageExtension(byte[] bytes, String filename, String extensionHint) {
+        String suffix = extensionOf(filename);
+        if (StrUtil.isBlank(suffix)) {
+            suffix = StrUtil.nullToEmpty(extensionHint).trim().toLowerCase(Locale.ROOT);
+            if (StrUtil.isNotBlank(suffix) && !suffix.startsWith(".")) {
+                suffix = "." + suffix;
+            }
+        }
+        if (StrUtil.isNotBlank(suffix)) {
+            return suffix;
+        }
+        if (startsWith(bytes, new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})) {
+            return ".png";
+        }
+        if (startsWith(bytes, new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF})) {
+            return ".jpg";
+        }
+        if (startsWith(bytes, "GIF87a".getBytes(java.nio.charset.StandardCharsets.US_ASCII))
+                || startsWith(
+                        bytes, "GIF89a".getBytes(java.nio.charset.StandardCharsets.US_ASCII))) {
+            return ".gif";
+        }
+        if (bytes.length >= 12
+                && startsWith(bytes, "RIFF".getBytes(java.nio.charset.StandardCharsets.US_ASCII))
+                && "WEBP"
+                        .equals(
+                                new String(
+                                        bytes, 8, 4, java.nio.charset.StandardCharsets.US_ASCII))) {
+            return ".webp";
+        }
+        if (startsWith(bytes, new byte[] {0x42, 0x4D})) {
+            return ".bmp";
+        }
+        return ".png";
+    }
+
+    /** 读取文件名最后一个扩展名并转为小写。 */
+    private String extensionOf(String filename) {
+        String name = new File(StrUtil.nullToEmpty(filename)).getName();
+        int dot = name.lastIndexOf('.');
+        return dot < 0 ? "" : name.substring(dot).toLowerCase(Locale.ROOT);
+    }
+
+    /** 构造去除客户端目录信息且与实际扩展名一致的缓存文件名。 */
+    private String imageFilename(String filename, String extension) {
+        String name = new File(StrUtil.nullToEmpty(filename)).getName();
+        if (StrUtil.isBlank(name)) {
+            return "upload" + extension;
+        }
+        return StrUtil.isBlank(extensionOf(name)) ? name + extension : name;
+    }
+
+    /** 将图片扩展名映射为标准 MIME。 */
+    private String imageMimeType(String extension) {
+        if (".jpg".equals(extension) || ".jpeg".equals(extension)) {
+            return "image/jpeg";
+        }
+        if (".gif".equals(extension)) {
+            return "image/gif";
+        }
+        if (".webp".equals(extension)) {
+            return "image/webp";
+        }
+        if (".bmp".equals(extension)) {
+            return "image/bmp";
+        }
+        return "image/png";
+    }
+
+    /** 判断字节数组是否具有指定前缀。 */
+    private boolean startsWith(byte[] bytes, byte[] prefix) {
+        if (bytes == null || prefix == null || bytes.length < prefix.length) {
+            return false;
+        }
+        for (int index = 0; index < prefix.length; index++) {
+            if (bytes[index] != prefix[index]) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** 返回粘贴折叠结果，当前不改写输入文本。 */
@@ -812,7 +1144,8 @@ public class TerminalUiRpcService {
     /** 停止当前后端注册表中的后台进程。 */
     public Map<String, Object> processStop() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("killed", Integer.valueOf(processRegistry == null ? 0 : processRegistry.stopAll()));
+        result.put(
+                "killed", Integer.valueOf(processRegistry == null ? 0 : processRegistry.stopAll()));
         return result;
     }
 
@@ -835,7 +1168,9 @@ public class TerminalUiRpcService {
                 && appConfig.getApprovals().isMcpReloadConfirm()
                 && !confirmed) {
             result.put("status", "confirm_required");
-            result.put("message", "/reload-mcp 会刷新下一轮工具 schema。请使用 /reload-mcp now 确认本次执行，或 /reload-mcp always 以后不再提示。");
+            result.put(
+                    "message",
+                    "/reload-mcp 会刷新下一轮工具 schema。请使用 /reload-mcp now 确认本次执行，或 /reload-mcp always 以后不再提示。");
             return result;
         }
         if (rememberAlways && appConfig != null && appConfig.getApprovals() != null) {
@@ -851,7 +1186,9 @@ public class TerminalUiRpcService {
         }
         try {
             List<McpRuntimeService.McpToolRefreshResult> refreshed =
-                    mcpRuntimeService.refreshAllEnabledLiveToolsAsync(false).get(30, TimeUnit.SECONDS);
+                    mcpRuntimeService
+                            .refreshAllEnabledLiveToolsAsync(false)
+                            .get(30, TimeUnit.SECONDS);
             result.put("status", "reloaded");
             result.put("message", "MCP servers reloaded: " + refreshed.size());
             result.put("servers", Integer.valueOf(refreshed.size()));
@@ -887,7 +1224,9 @@ public class TerminalUiRpcService {
         if (browserRuntimeService == null) {
             result.put("connected", Boolean.FALSE);
             result.put("url", "");
-            result.put("messages", java.util.Collections.singletonList("browser runtime is not enabled"));
+            result.put(
+                    "messages",
+                    java.util.Collections.singletonList("browser runtime is not enabled"));
             return result;
         }
         if ("connect".equals(normalized)) {
@@ -962,7 +1301,8 @@ public class TerminalUiRpcService {
     }
 
     /** 恢复指定 checkpoint；文件级恢复等待后端提供独立 API 后再接入。 */
-    public Map<String, Object> rollbackRestore(String checkpointId, String filePath) throws Exception {
+    public Map<String, Object> rollbackRestore(String checkpointId, String filePath)
+            throws Exception {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (checkpointService == null) {
             result.put("success", Boolean.FALSE);
@@ -972,7 +1312,9 @@ public class TerminalUiRpcService {
         }
         if (StrUtil.isNotBlank(filePath)) {
             result.put("success", Boolean.FALSE);
-            result.put("message", "file-level checkpoint restore is not available in this backend yet");
+            result.put(
+                    "message",
+                    "file-level checkpoint restore is not available in this backend yet");
             result.put("history_removed", Integer.valueOf(0));
             return result;
         }
@@ -981,7 +1323,8 @@ public class TerminalUiRpcService {
             restored = checkpointService.rollback(checkpointId);
         } catch (Exception e) {
             result.put("success", Boolean.FALSE);
-            result.put("message", StrUtil.blankToDefault(e.getMessage(), "checkpoint restore failed"));
+            result.put(
+                    "message", StrUtil.blankToDefault(e.getMessage(), "checkpoint restore failed"));
             result.put("history_removed", Integer.valueOf(0));
             return result;
         }
@@ -993,7 +1336,8 @@ public class TerminalUiRpcService {
     }
 
     /** 返回技能管理响应，复用本地技能目录与 Skills Hub 服务。 */
-    public Map<String, Object> skillsManage(String action, String query, int page) throws Exception {
+    public Map<String, Object> skillsManage(String action, String query, int page)
+            throws Exception {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         String normalized = StrUtil.blankToDefault(action, "list");
         if ("inspect".equals(normalized)) {
@@ -1001,7 +1345,8 @@ public class TerminalUiRpcService {
         } else if ("search".equals(normalized)) {
             result.put("results", skillSearch(query));
         } else if ("install".equals(normalized)) {
-            HubInstallRecord record = skillHubService == null ? null : skillHubService.install(query, null, true);
+            HubInstallRecord record =
+                    skillHubService == null ? null : skillHubService.install(query, null, true);
             result.put("installed", Boolean.valueOf(record != null));
             result.put("name", record == null ? StrUtil.nullToEmpty(query) : record.getName());
         } else if ("browse".equals(normalized)) {
@@ -1014,7 +1359,8 @@ public class TerminalUiRpcService {
             result.put("total", Integer.valueOf(Math.max(0, browse.getTotal())));
             result.put(
                     "total_pages",
-                    Integer.valueOf(totalPages(browse.getTotal(), Math.max(1, browse.getPageSize()))));
+                    Integer.valueOf(
+                            totalPages(browse.getTotal(), Math.max(1, browse.getPageSize()))));
         } else {
             result.put("skills", groupedLocalSkills());
         }
@@ -1095,20 +1441,28 @@ public class TerminalUiRpcService {
     public Map<String, Object> delegationStatus() {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("active", activeSubagentItems());
-        result.put("paused", Boolean.valueOf(delegationService != null && delegationService.isSpawnPaused()));
+        result.put(
+                "paused",
+                Boolean.valueOf(delegationService != null && delegationService.isSpawnPaused()));
         result.put(
                 "max_concurrent_children",
                 Integer.valueOf(
-                        appConfig == null ? 0 : Math.max(1, appConfig.getTask().getSubagentMaxConcurrency())));
+                        appConfig == null
+                                ? 0
+                                : Math.max(1, appConfig.getTask().getSubagentMaxConcurrency())));
         result.put(
                 "max_spawn_depth",
-                Integer.valueOf(appConfig == null ? 0 : Math.max(1, appConfig.getTask().getSubagentMaxDepth())));
+                Integer.valueOf(
+                        appConfig == null
+                                ? 0
+                                : Math.max(1, appConfig.getTask().getSubagentMaxDepth())));
         return result;
     }
 
     /** 返回子 Agent 中断状态。 */
     public Map<String, Object> subagentInterrupt(String subagentId) {
-        boolean found = delegationService != null && delegationService.interruptSubagent(subagentId);
+        boolean found =
+                delegationService != null && delegationService.interruptSubagent(subagentId);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("found", Boolean.valueOf(found));
         result.put("subagent_id", StrUtil.nullToEmpty(subagentId));
@@ -1120,7 +1474,8 @@ public class TerminalUiRpcService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         List<Map<String, Object>> entries = new ArrayList<Map<String, Object>>();
         if (agentRunRepository != null && StrUtil.isNotBlank(sessionId)) {
-            for (AgentRunRecord run : agentRunRepository.listBySession(sessionId, Math.max(1, Math.min(limit, 50)))) {
+            for (AgentRunRecord run :
+                    agentRunRepository.listBySession(sessionId, Math.max(1, Math.min(limit, 50)))) {
                 Map<String, Object> tree = spawnTreeEntry(run);
                 if (tree != null) {
                     entries.add(tree);
@@ -1135,7 +1490,9 @@ public class TerminalUiRpcService {
     public Map<String, Object> spawnTreeLoad(String path) throws Exception {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         AgentRunRecord run = runFromSpawnPath(path);
-        result.put("subagents", run == null ? new ArrayList<Object>() : subagentsForRun(run.getRunId()));
+        result.put(
+                "subagents",
+                run == null ? new ArrayList<Object>() : subagentsForRun(run.getRunId()));
         if (run != null) {
             result.put("session_id", run.getSessionId());
             result.put("started_at", Long.valueOf(toEpochSeconds(run.getStartedAt())));
@@ -1174,12 +1531,15 @@ public class TerminalUiRpcService {
     public Map<String, Object> sessionBranch(String sessionId, String name) throws Exception {
         SessionRecord source = findSession(sessionId);
         if (sessionRepository == null || source == null) {
-            return sessionCreate("MEMORY:terminal-ui:" + StrUtil.blankToDefault(sessionId, "terminal-ui"));
+            return sessionCreate(
+                    "MEMORY:terminal-ui:" + StrUtil.blankToDefault(sessionId, "terminal-ui"));
         }
         String branchName = StrUtil.blankToDefault(name, "branch-" + System.currentTimeMillis());
         SessionRecord branch =
                 sessionRepository.cloneSession(
-                        terminalSourceKey(source.getSessionId()), source.getSessionId(), branchName);
+                        terminalSourceKey(source.getSessionId()),
+                        source.getSessionId(),
+                        branchName);
         branch.setSourceKey(terminalSourceKey(branch.getSessionId()));
         sessionRepository.save(branch);
         bindTerminalSource(branch.getSessionId(), branch.getSessionId());
@@ -1214,7 +1574,9 @@ public class TerminalUiRpcService {
             return StrUtil.blankToDefault(outcome.getErrorMessage(), outcome.getWarning());
         }
         if (outcome.isCompressed()) {
-            return trim(StrUtil.nullToEmpty(session == null ? "" : session.getCompressedSummary()), 240);
+            return trim(
+                    StrUtil.nullToEmpty(session == null ? "" : session.getCompressedSummary()),
+                    240);
         }
         return "message count is below compression threshold";
     }
@@ -1244,7 +1606,8 @@ public class TerminalUiRpcService {
         }
         for (SkillDescriptor descriptor : localSkillService.listSkills(null)) {
             String category =
-                    StrUtil.blankToDefault(descriptor.getCategory(), SkillConstants.DEFAULT_CATEGORY);
+                    StrUtil.blankToDefault(
+                            descriptor.getCategory(), SkillConstants.DEFAULT_CATEGORY);
             if (!grouped.containsKey(category)) {
                 grouped.put(category, new ArrayList<String>());
             }
@@ -1423,7 +1786,8 @@ public class TerminalUiRpcService {
             return raw;
         }
         if (isRuntimeConfigKey(normalized)) {
-            Map<String, Object> result = runtimeProtocolService.configSet(normalized, raw, sessionId);
+            Map<String, Object> result =
+                    runtimeProtocolService.configSet(normalized, raw, sessionId);
             Object stored = result.get("value");
             return stored == null ? raw : String.valueOf(stored);
         }
@@ -1524,18 +1888,25 @@ public class TerminalUiRpcService {
                 configured == null
                         ? currentModel()
                         : StrUtil.blankToDefault(configured.getDefaultModel(), currentModel());
-        boolean hasKey = authenticated
-                && (configured == null
-                        ? runtimeSettingsService == null
-                        : SecretValueGuard.hasUsableSecret(configured.getApiKey()));
+        boolean hasKey =
+                authenticated
+                        && (configured == null
+                                ? runtimeSettingsService == null
+                                : SecretValueGuard.hasUsableSecret(configured.getApiKey()));
         Map<String, Object> provider = new LinkedHashMap<String, Object>();
         provider.put("slug", providerSlug);
-        provider.put("name", configured == null ? providerSlug : StrUtil.blankToDefault(configured.getName(), providerSlug));
+        provider.put(
+                "name",
+                configured == null
+                        ? providerSlug
+                        : StrUtil.blankToDefault(configured.getName(), providerSlug));
         provider.put("auth_type", "api_key");
         provider.put("key_env", providerSlug.toUpperCase(Locale.ROOT) + "_API_KEY");
         provider.put("authenticated", Boolean.valueOf(hasKey));
         provider.put("is_current", Boolean.valueOf(StrUtil.equals(providerSlug, providerName())));
-        provider.put("models", hasKey ? java.util.Collections.singletonList(model) : new ArrayList<Object>());
+        provider.put(
+                "models",
+                hasKey ? java.util.Collections.singletonList(model) : new ArrayList<Object>());
         provider.put("total_models", Integer.valueOf(hasKey ? 1 : 0));
         if (!hasKey) {
             provider.put("warning", "paste API key to activate");
@@ -1555,7 +1926,9 @@ public class TerminalUiRpcService {
     private boolean showReasoning() {
         return booleanPreference(
                 "show_reasoning",
-                appConfig == null || appConfig.getDisplay() == null || appConfig.getDisplay().isShowReasoning());
+                appConfig == null
+                        || appConfig.getDisplay() == null
+                        || appConfig.getDisplay().isShowReasoning());
     }
 
     /** 读取 TUI 文本偏好。 */
@@ -1564,7 +1937,8 @@ public class TerminalUiRpcService {
             return fallback;
         }
         try {
-            return StrUtil.blankToDefault(globalSettingRepository.get(preferenceKey(key)), fallback);
+            return StrUtil.blankToDefault(
+                    globalSettingRepository.get(preferenceKey(key)), fallback);
         } catch (Exception e) {
             logRecoverableRpcFailure("text preference read", e);
             return fallback;
@@ -1596,7 +1970,9 @@ public class TerminalUiRpcService {
     /** 归一化 TUI busy 输入策略。 */
     private String normalizeBusyPolicy(String value) {
         String normalized = StrUtil.blankToDefault(value, "queue").trim().toLowerCase(Locale.ROOT);
-        if ("interrupt".equals(normalized) || "queue".equals(normalized) || "steer".equals(normalized)) {
+        if ("interrupt".equals(normalized)
+                || "queue".equals(normalized)
+                || "steer".equals(normalized)) {
             return normalized;
         }
         return "queue";
@@ -1665,7 +2041,8 @@ public class TerminalUiRpcService {
 
     /** 归一化状态指示器样式。 */
     private String normalizeIndicator(String value) {
-        String normalized = StrUtil.blankToDefault(value, "kaomoji").trim().toLowerCase(Locale.ROOT);
+        String normalized =
+                StrUtil.blankToDefault(value, "kaomoji").trim().toLowerCase(Locale.ROOT);
         if ("kaomoji".equals(normalized)
                 || "emoji".equals(normalized)
                 || "unicode".equals(normalized)
@@ -1689,8 +2066,11 @@ public class TerminalUiRpcService {
 
     /** 归一化详情展示模式。 */
     private String normalizeDetailsMode(String value) {
-        String normalized = StrUtil.blankToDefault(value, "collapsed").trim().toLowerCase(Locale.ROOT);
-        if ("hidden".equals(normalized) || "collapsed".equals(normalized) || "expanded".equals(normalized)) {
+        String normalized =
+                StrUtil.blankToDefault(value, "collapsed").trim().toLowerCase(Locale.ROOT);
+        if ("hidden".equals(normalized)
+                || "collapsed".equals(normalized)
+                || "expanded".equals(normalized)) {
             return normalized;
         }
         return "collapsed";
@@ -1717,7 +2097,8 @@ public class TerminalUiRpcService {
     /** 构造 TUI 会话专用入站消息，用于运行中 steer 等控制入口。 */
     private GatewayMessage terminalMessage(String sessionId, String text) {
         GatewayMessage message =
-                new GatewayMessage(PlatformType.MEMORY, "terminal-ui", "local", StrUtil.nullToEmpty(text));
+                new GatewayMessage(
+                        PlatformType.MEMORY, "terminal-ui", "local", StrUtil.nullToEmpty(text));
         message.setSourceKeyOverride(terminalSourceKey(sessionId));
         message.setChatName("Terminal UI");
         message.setUserName("local");
@@ -1860,7 +2241,9 @@ public class TerminalUiRpcService {
         item.put("notes", new ArrayList<Object>());
         item.put("thinking", new ArrayList<Object>());
         item.put("startedAt", Long.valueOf(record.getStartedAt()));
-        item.put("durationSeconds", Long.valueOf(durationSeconds(record.getStartedAt(), record.getFinishedAt())));
+        item.put(
+                "durationSeconds",
+                Long.valueOf(durationSeconds(record.getStartedAt(), record.getFinishedAt())));
         item.put("outputTail", parseOutputTail(record.getOutputTailJson()));
         if (StrUtil.isNotBlank(record.getError())) {
             item.put("summary", record.getError());
@@ -1933,7 +2316,8 @@ public class TerminalUiRpcService {
 
     /** 生成 spawn tree 列表标题。 */
     private String spawnTreeLabel(AgentRunRecord run) {
-        return StrUtil.blankToDefault(run.getInputPreview(), "run " + StrUtil.nullToEmpty(run.getRunId()));
+        return StrUtil.blankToDefault(
+                run.getInputPreview(), "run " + StrUtil.nullToEmpty(run.getRunId()));
     }
 
     /** 毫秒时间戳转换为秒级时间戳。 */
@@ -1999,7 +2383,8 @@ public class TerminalUiRpcService {
             return "";
         }
         StringBuilder buffer = new StringBuilder();
-        buffer.append("checkpoint: ").append(StrUtil.nullToEmpty(String.valueOf(preview.get("checkpoint_id"))));
+        buffer.append("checkpoint: ")
+                .append(StrUtil.nullToEmpty(String.valueOf(preview.get("checkpoint_id"))));
         appendPreviewFiles(buffer, "files", (List<Map<String, Object>>) preview.get("files"));
         appendPreviewFiles(buffer, "skipped", (List<Map<String, Object>>) preview.get("skipped"));
         return buffer.toString();
@@ -2017,7 +2402,8 @@ public class TerminalUiRpcService {
                     .append("- ")
                     .append(StrUtil.nullToEmpty(String.valueOf(file.get("path"))));
             if (file.containsKey("reason")) {
-                buffer.append(" · ").append(StrUtil.nullToEmpty(String.valueOf(file.get("reason"))));
+                buffer.append(" · ")
+                        .append(StrUtil.nullToEmpty(String.valueOf(file.get("reason"))));
             }
         }
     }
@@ -2068,7 +2454,8 @@ public class TerminalUiRpcService {
                     Object name = item.get("name");
                     Object tools = item.get("tools");
                     if (name != null && tools instanceof List) {
-                        result.put(String.valueOf(name), new ArrayList<String>((List<String>) tools));
+                        result.put(
+                                String.valueOf(name), new ArrayList<String>((List<String>) tools));
                     }
                 }
             } catch (Exception e) {
@@ -2219,10 +2606,7 @@ public class TerminalUiRpcService {
      * @param description 用户可见描述。
      */
     private void appendLocalSlashCompletion(
-            List<Map<String, Object>> items,
-            String query,
-            String command,
-            String description) {
+            List<Map<String, Object>> items, String query, String command, String description) {
         if (!command.startsWith(query)) {
             return;
         }
@@ -2266,7 +2650,9 @@ public class TerminalUiRpcService {
 
     /** 将终端 UI 活动会话 ID 映射到 Java 本地终端 source key。 */
     private void bindTerminalSource(String sessionId, String boundSessionId) throws Exception {
-        if (sessionRepository == null || StrUtil.isBlank(sessionId) || StrUtil.isBlank(boundSessionId)) {
+        if (sessionRepository == null
+                || StrUtil.isBlank(sessionId)
+                || StrUtil.isBlank(boundSessionId)) {
             return;
         }
         sessionRepository.bindSource(terminalSourceKey(sessionId), boundSessionId);
@@ -2414,7 +2800,8 @@ public class TerminalUiRpcService {
             return currentModel();
         }
         return StrUtil.blankToDefault(
-                record.getLastResolvedModel(), StrUtil.blankToDefault(record.getModelOverride(), currentModel()));
+                record.getLastResolvedModel(),
+                StrUtil.blankToDefault(record.getModelOverride(), currentModel()));
     }
 
     /** 转换 Solon AI 消息角色为终端 UI transcript 角色。 */
@@ -2493,7 +2880,8 @@ public class TerminalUiRpcService {
     }
 
     /** 向分类 Map 中追加一条命令记录。 */
-    private void append(Map<String, List<List<String>>> grouped, String category, List<String> pair) {
+    private void append(
+            Map<String, List<List<String>>> grouped, String category, List<String> pair) {
         String key = StrUtil.blankToDefault(category, "other");
         if (!grouped.containsKey(key)) {
             grouped.put(key, new ArrayList<List<String>>());

@@ -89,7 +89,7 @@ public class ProviderDisplayGroupingTest {
     }
 
     @Test
-    void shouldMarkFreePricingAndLeaveUnpricedModelsUnchanged() {
+    void shouldMarkFreePricingAndExposeUnknownPricingExplicitly() {
         AppConfig config = config();
         ModelPrice price = new ModelPrice();
         price.setProvider("default");
@@ -112,7 +112,9 @@ public class ProviderDisplayGroupingTest {
         assertThat(pricing.get("cache_read")).isEqualTo("free");
         assertThat(pricing.get("cache_write")).isEqualTo("free");
         assertThat(pricing.get("reasoning")).isEqualTo("free");
-        assertThat(backupModel.containsKey("pricing")).isFalse();
+        Map<?, ?> unknownPricing = (Map<?, ?>) backupModel.get("pricing");
+        assertThat(unknownPricing.get("available")).isEqualTo(Boolean.FALSE);
+        assertThat(unknownPricing.get("status")).isEqualTo("unknown");
     }
 
     @Test

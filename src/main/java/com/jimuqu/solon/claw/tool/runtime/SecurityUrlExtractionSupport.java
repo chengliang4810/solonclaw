@@ -310,7 +310,8 @@ final class SecurityUrlExtractionSupport {
             if (StrUtil.isBlank(host) || value.matches("\\d+")) {
                 continue;
             }
-            if (SecurityAddressPolicySupport.isAlwaysBlockedIp(host) || !policyService.checkStaticHostPolicy(value, host).isAllowed()) {
+            if (SecurityAddressPolicySupport.isAlwaysBlockedIp(host)
+                    || !policyService.checkStaticHostPolicy(value, host).isAllowed()) {
                 urls.add(value);
             }
         }
@@ -1834,8 +1835,10 @@ final class SecurityUrlExtractionSupport {
             if (colon > 0 && hostPort.indexOf(':') == colon) {
                 hostPort = hostPort.substring(0, colon);
             }
-            int[] octets = SecurityAddressPolicySupport.parseObfuscatedIpv4(normalizeHost(hostPort));
-            if (octets != null && SecurityAddressPolicySupport.isBlockedOrAlwaysBlockedIpv4(octets)) {
+            int[] octets =
+                    SecurityAddressPolicySupport.parseObfuscatedIpv4(normalizeHost(hostPort));
+            if (octets != null
+                    && SecurityAddressPolicySupport.isBlockedOrAlwaysBlockedIpv4(octets)) {
                 urls.add(value);
             }
         }
@@ -1923,6 +1926,4 @@ final class SecurityUrlExtractionSupport {
         String host = text.substring(1, text.indexOf(']'));
         return host.indexOf(':') >= 0;
     }
-
-
 }

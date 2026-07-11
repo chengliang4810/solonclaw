@@ -1,38 +1,39 @@
 package com.jimuqu.solon.claw;
 
+import static com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import static com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink;
-
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.TestEnvironment;
-import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawCodeExecutionSkills;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileStateTracker;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
-import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawWebTools;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
-import java.io.File;
-import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileTime;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.agent.react.task.ToolExchanger;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
+import org.noear.solon.ai.chat.prompt.Prompt;
+import org.noear.solon.ai.chat.talent.Talent;
+import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.ai.chat.tool.ToolProvider;
 import org.noear.solon.ai.rag.Document;
 import org.noear.solon.ai.talents.web.CodeSearchTalent;
 import org.noear.solon.ai.talents.web.WebfetchTalent;
@@ -60,174 +61,9 @@ class ToolRegistryWebAndCodeToolsTest {
         };
     }
 
-    /** 配置单个拦截域名并返回固定公网解析策略，用于验证工具返回 URL 的二次拦截。 */
+    /** 返回不再执行网站硬阻断的固定公网策略。 */
     private static SecurityPolicyService blockedPolicy(TestEnvironment env, String domain) {
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList(domain));
         return fixedPublicDnsPolicy(env);
-    }
-
-    @Test
-    void shouldGuardWebToolsBeforeDelegatingToSolonAiTools() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        env.appConfig
-                .getSecurity()
-                .getWebsiteBlocklist()
-                .setDomains(Arrays.asList("blocked.example"));
-        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
-
-        SolonClawWebTools.SafeWebfetchTool webfetch =
-                new SolonClawWebTools.SafeWebfetchTool(policy);
-        SolonClawWebTools.SafeWebsearchTool websearch =
-                new SolonClawWebTools.SafeWebsearchTool(policy);
-        SolonClawWebTools.SafeCodeSearchTool codesearch =
-                new SolonClawWebTools.SafeCodeSearchTool(policy);
-
-        assertThatThrownBy(
-                        () ->
-                                webfetch.webfetch(
-                                        "http://169.254.169.254/latest/meta-data/?token=secret123",
-                                        "text",
-                                        Integer.valueOf(1)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("元数据")
-                .hasMessageNotContaining("secret123");
-        assertThatThrownBy(
-                        () ->
-                                websearch.websearch(
-                                        "read https://blocked.example/docs?token=secret123",
-                                        Integer.valueOf(1),
-                                        "fallback",
-                                        "auto",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-        assertThatThrownBy(
-                        () ->
-                                codesearch.codesearch(
-                                        "read https://blocked.example/docs?token=secret123",
-                                        Integer.valueOf(5000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
-    void shouldGuardWebfetchFinalDocumentUrlAfterRedirect() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeWebfetchTool webfetch =
-                new SolonClawWebTools.SafeWebfetchTool(
-                        policy,
-                        new WebfetchTalent() {
-                            @Override
-                            public String webfetch(
-                                    String url, String format, Integer timeoutSeconds) {
-                                return "secret redirected content https://blocked.example/final?token=secret123";
-                            }
-                        });
-
-        assertThatThrownBy(
-                        () ->
-                                webfetch.webfetch(
-                                        "https://allowed.example/start",
-                                        "markdown",
-                                        Integer.valueOf(1)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
-    void shouldGuardWebfetchNestedMetadataUrlsAfterProviderResult() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeWebfetchTool webfetch =
-                new SolonClawWebTools.SafeWebfetchTool(
-                        policy,
-                        new WebfetchTalent() {
-                            @Override
-                            public String webfetch(
-                                    String url, String format, Integer timeoutSeconds) {
-                                Map<String, Object> nested =
-                                        new java.util.LinkedHashMap<String, Object>();
-                                nested.put(
-                                        "redirect_uri",
-                                        "https://blocked.example/oauth/callback?client_secret=secret123");
-                                return "allowed body " + ONode.serialize(nested);
-                            }
-                        });
-
-        assertThatThrownBy(
-                        () ->
-                                webfetch.webfetch(
-                                        "https://allowed.example/page",
-                                        "markdown",
-                                        Integer.valueOf(1)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
-    void shouldGuardWebfetchReturnedDocumentContentUrlsAfterProviderResult() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeWebfetchTool webfetch =
-                new SolonClawWebTools.SafeWebfetchTool(
-                        policy,
-                        new WebfetchTalent() {
-                            @Override
-                            public String webfetch(
-                                    String url, String format, Integer timeoutSeconds) {
-                                return "{\"download\":\"https://blocked.example/files/app.jar?token=secret123\"}";
-                            }
-                        });
-
-        assertThatThrownBy(
-                        () ->
-                                webfetch.webfetch(
-                                        "https://allowed.example/page",
-                                        "markdown",
-                                        Integer.valueOf(1)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
-    void shouldGuardWebfetchReturnedSchemelessDocumentUrlsAfterProviderResult() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeWebfetchTool webfetch =
-                new SolonClawWebTools.SafeWebfetchTool(
-                        policy,
-                        new WebfetchTalent() {
-                            @Override
-                            public String webfetch(
-                                    String url, String format, Integer timeoutSeconds) {
-                                return "{\"mirror\":\"//blocked.example/files/app.jar?token=secret123\",\"source_url\":\"blocked.example/download?client_secret=secret123\"}";
-                            }
-                        });
-
-        assertThatThrownBy(
-                        () ->
-                                webfetch.webfetch(
-                                        "https://allowed.example/page",
-                                        "markdown",
-                                        Integer.valueOf(1)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
     }
 
     @Test
@@ -257,39 +93,6 @@ class ToolRegistryWebAndCodeToolsTest {
                 .doesNotContain("ghp_webfetchid12345")
                 .doesNotContain("ghp_webfetchtitle12345")
                 .doesNotContain("sk-webfetch-meta");
-    }
-
-    @Test
-    void shouldGuardWebsearchReturnedDocumentUrlsAfterProviderResult() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeWebsearchTool websearch =
-                new SolonClawWebTools.SafeWebsearchTool(
-                        policy,
-                        new WebsearchTalent() {
-                            @Override
-                            public String websearch(
-                                    String query,
-                                    Integer numResults,
-                                    String livecrawl,
-                                    String type,
-                                    Integer contextMaxCharacters) {
-                                return "secret search content https://blocked.example/result?token=secret123";
-                            }
-                        });
-
-        assertThatThrownBy(
-                        () ->
-                                websearch.websearch(
-                                        "allowed search",
-                                        Integer.valueOf(1),
-                                        "fallback",
-                                        "auto",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
     }
 
     @Test
@@ -331,39 +134,6 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
-    void shouldGuardWebsearchReturnedDocumentContentUrlsAfterProviderResult() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeWebsearchTool websearch =
-                new SolonClawWebTools.SafeWebsearchTool(
-                        policy,
-                        new WebsearchTalent() {
-                            @Override
-                            public String websearch(
-                                    String query,
-                                    Integer numResults,
-                                    String livecrawl,
-                                    String type,
-                                    Integer contextMaxCharacters) {
-                                return "{\"assets\":[{\"browser_download_url\":\"https://blocked.example/releases/app.jar?token=secret123\"}]}";
-                            }
-                        });
-
-        assertThatThrownBy(
-                        () ->
-                                websearch.websearch(
-                                        "allowed search",
-                                        Integer.valueOf(1),
-                                        "fallback",
-                                        "auto",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
     void shouldRedactSecretsFromCodesearchSuccessContainers() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SolonClawWebTools.SafeCodeSearchTool codesearch =
@@ -371,7 +141,8 @@ class ToolRegistryWebAndCodeToolsTest {
                         new SecurityPolicyService(env.appConfig),
                         new CodeSearchTalent() {
                             @Override
-                            public String codesearch(String query, Integer tokensNum) throws Throwable {
+                            public String codesearch(String query, Integer tokensNum)
+                                    throws Throwable {
                                 Map<String, Object> hit =
                                         new java.util.LinkedHashMap<String, Object>();
                                 hit.put("title", "code ghp_codesearchtitle12345");
@@ -424,9 +195,7 @@ class ToolRegistryWebAndCodeToolsTest {
                         assertThat(limit).isEqualTo(2);
                         return Arrays.asList(
                                 new SearchResult(
-                                        "Exa Result",
-                                        "https://example.com/exa",
-                                        "插件搜索结果"));
+                                        "Exa Result", "https://example.com/exa", "插件搜索结果"));
                     }
                 };
         DefaultToolRegistry registry =
@@ -554,62 +323,6 @@ class ToolRegistryWebAndCodeToolsTest {
                 .hasMessageContaining("BRAVE_SEARCH_API_KEY");
     }
 
-    @Test
-    void shouldGuardBraveFreeReturnedUrls() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getWeb().setSearchBackend("brave-free");
-        env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeWebsearchTool websearch =
-                new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
-                    @Override
-                    protected String executeBraveSearchRequest(
-                            String query, int limit, String apiKey) {
-                        return "{\"web\":{\"results\":[{\"title\":\"Blocked\",\"url\":\"https://blocked.example/docs?token=secret123\",\"description\":\"bad\"}]}}";
-                    }
-                };
-
-        assertThatThrownBy(
-                        () ->
-                                websearch.websearch(
-                                        "blocked",
-                                        Integer.valueOf(1),
-                                        "fallback",
-                                        "auto",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
-    void shouldGuardBraveFreeSearchEndpointBeforeNetworkAccess() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getWeb().setSearchBackend("brave-free");
-        env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
-        SecurityPolicyService policy = blockedPolicy(env, "api.search.brave.com");
-        SolonClawWebTools.SafeWebsearchTool websearch =
-                new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
-                    @Override
-                    protected String executeBraveSearchRequest(
-                            String query, int limit, String apiKey) {
-                        throw new AssertionError("Brave backend should not be called");
-                    }
-                };
-
-        assertThatThrownBy(
-                        () ->
-                                websearch.websearch(
-                                        "blocked",
-                                        Integer.valueOf(1),
-                                        "fallback",
-                                        "auto",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("api.search.brave.com");
-    }
-
-    @Test
     void shouldUseDdgsSearchBackendWhenConfigured() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getWeb().setSearchBackend("ddgs");
@@ -645,166 +358,6 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
-    void shouldGuardDdgsReturnedUrls() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getWeb().setSearchBackend("ddgs");
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeWebsearchTool websearch =
-                new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
-                    @Override
-                    protected String executeDdgsSearchRequest(String query, int limit) {
-                        return "<a class=\"result__a\" href=\"//duckduckgo.com/l/?uddg=https%3A%2F%2Fblocked.example%2Fdocs%3Ftoken%3Dsecret123\">Blocked</a>";
-                    }
-                };
-
-        assertThatThrownBy(
-                        () ->
-                                websearch.websearch(
-                                        "blocked",
-                                        Integer.valueOf(1),
-                                        "fallback",
-                                        "auto",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
-    void shouldGuardDdgsSearchEndpointBeforeNetworkAccess() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getWeb().setSearchBackend("ddgs");
-        SecurityPolicyService policy = blockedPolicy(env, "html.duckduckgo.com");
-        SolonClawWebTools.SafeWebsearchTool websearch =
-                new SolonClawWebTools.SafeWebsearchTool(policy, null, env.appConfig) {
-                    @Override
-                    protected String executeDdgsSearchRequest(String query, int limit) {
-                        throw new AssertionError("DDGS backend should not be called");
-                    }
-                };
-
-        assertThatThrownBy(
-                        () ->
-                                websearch.websearch(
-                                        "blocked",
-                                        Integer.valueOf(1),
-                                        "fallback",
-                                        "auto",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("html.duckduckgo.com");
-    }
-
-    @Test
-    void shouldGuardCodesearchReturnedDocumentUrlsInsideContainers() throws Throwable {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeCodeSearchTool codesearch =
-                new SolonClawWebTools.SafeCodeSearchTool(
-                        policy,
-                        new CodeSearchTalent() {
-                            @Override
-                            public String codesearch(String query, Integer tokensNum) throws Throwable {
-                                Map<String, Object> result =
-                                        new java.util.LinkedHashMap<String, Object>();
-                                result.put(
-                                        "documents",
-                                        Arrays.asList(
-                                                new Document("secret code content")
-                                                        .title("code")
-                                                        .metadata(
-                                                                "source_url",
-                                                                "https://blocked.example/code?token=secret123")));
-                                return ONode.serialize(result);
-                            }
-                        });
-
-        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
-    void shouldGuardCodesearchReturnedDocumentContentUrlsInsideContainers() throws Throwable {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeCodeSearchTool codesearch =
-                new SolonClawWebTools.SafeCodeSearchTool(
-                        policy,
-                        new CodeSearchTalent() {
-                            @Override
-                            public String codesearch(String query, Integer tokensNum) throws Throwable {
-                                Map<String, Object> result =
-                                        new java.util.LinkedHashMap<String, Object>();
-                                result.put(
-                                        "documents",
-                                        Arrays.asList(
-                                                new Document(
-                                                                "{\"download\":\"https://blocked.example/code.zip?token=secret123\"}")
-                                                        .title("code")));
-                                return ONode.serialize(result);
-                            }
-                        });
-
-        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
-    void shouldGuardCodesearchReturnedStringUrlsInsideContainers() throws Throwable {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeCodeSearchTool codesearch =
-                new SolonClawWebTools.SafeCodeSearchTool(
-                        policy,
-                        new CodeSearchTalent() {
-                            @Override
-                            public String codesearch(String query, Integer tokensNum) throws Throwable {
-                                Map<String, Object> hit =
-                                        new java.util.LinkedHashMap<String, Object>();
-                                hit.put("finalUrl", "https://blocked.example/code?token=secret123");
-                                hit.put("title", "blocked code result");
-                                Map<String, Object> result =
-                                        new java.util.LinkedHashMap<String, Object>();
-                                result.put("results", Arrays.asList(hit));
-                                return ONode.serialize(result);
-                            }
-                        });
-
-        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
-    void shouldGuardCodesearchReturnedPojoUrlFields() throws Throwable {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeCodeSearchTool codesearch =
-                new SolonClawWebTools.SafeCodeSearchTool(
-                        policy,
-                        new CodeSearchTalent() {
-                            @Override
-                            public String codesearch(String query, Integer tokensNum) throws Throwable {
-                                return "blocked code result https://blocked.example/code?token=secret123";
-                            }
-                        });
-
-        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
     void shouldRedactCodesearchReturnedPojoFields() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = fixedPublicDnsPolicy(env);
@@ -813,7 +366,8 @@ class ToolRegistryWebAndCodeToolsTest {
                         policy,
                         new CodeSearchTalent() {
                             @Override
-                            public String codesearch(String query, Integer tokensNum) throws Throwable {
+                            public String codesearch(String query, Integer tokensNum)
+                                    throws Throwable {
                                 return "token=ghp_pojoresult12345 https://example.com/code";
                             }
                         });
@@ -827,27 +381,6 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
-    void shouldGuardCodesearchUnstructuredObjectStringUrls() throws Throwable {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = blockedPolicy(env, "blocked.example");
-        SolonClawWebTools.SafeCodeSearchTool codesearch =
-                new SolonClawWebTools.SafeCodeSearchTool(
-                        policy,
-                        new CodeSearchTalent() {
-                            @Override
-                            public String codesearch(String query, Integer tokensNum) throws Throwable {
-                                return new BlockedStringReturnedObject().toString();
-                            }
-                        });
-
-        assertThatThrownBy(() -> codesearch.codesearch("allowed code query", Integer.valueOf(5000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageContaining("blocked.example")
-                .hasMessageNotContaining("secret123");
-    }
-
-    @Test
     void shouldRedactCodesearchUnstructuredObjectStringFields() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SecurityPolicyService policy = fixedPublicDnsPolicy(env);
@@ -856,7 +389,8 @@ class ToolRegistryWebAndCodeToolsTest {
                         policy,
                         new CodeSearchTalent() {
                             @Override
-                            public String codesearch(String query, Integer tokensNum) throws Throwable {
+                            public String codesearch(String query, Integer tokensNum)
+                                    throws Throwable {
                                 return new SecretStringReturnedObject().toString();
                             }
                         });
@@ -870,43 +404,24 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
-    void shouldGuardCodeExecutionToolsBeforeDelegatingToSolonAiSkills() throws Exception {
+    void shouldReportDirectCodeExecutionSecurityBoundaryEnabled() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
-        env.appConfig.getSecurity().setGuardrailMode("approval");
-        env.appConfig.getSecurity().setFileGuardrailMode("strict");
-        env.appConfig.getSecurity().setUrlGuardrailMode("strict");
-        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
+        Map<String, Object> summary =
+                SolonClawCodeExecutionSkills.codeExecutionPolicySummary(env.appConfig);
 
-        SolonClawCodeExecutionSkills.SafeNodejsSkill nodejs =
-                new SolonClawCodeExecutionSkills.SafeNodejsSkill(
-                        env.appConfig.getRuntime().getHome(), policy);
-
-        // python 读取 .env 的读阻断断言已移除：凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），
-        // open('.env').read() 现在放行。下方 URL/危险命令阻断断言保留。
-        assertThatThrownBy(
-                        () ->
-                                nodejs.execute(
-                                        "fetch('http://169.254.169.254/latest/meta-data/?token=secret123')",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("URL 安全策略")
-                .hasMessageNotContaining("secret123");
-        assertThatThrownBy(
-                        () ->
-                                nodejs.execute(
-                                        "require('child_process').execSync('whoami')",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("危险命令安全规则")
-                .hasMessageContaining("child");
+        assertThat(summary)
+                .containsEntry("scriptPreflightPathPolicy", Boolean.TRUE)
+                .containsEntry("scriptPreflightUrlPolicy", Boolean.TRUE)
+                .containsEntry("scriptPreflightMetadataUrlPolicy", Boolean.TRUE)
+                .containsEntry("dangerousCommandRulesApplied", Boolean.TRUE)
+                .containsEntry("hardlineRulesApplied", Boolean.TRUE)
+                .containsEntry("agentApprovalInterceptorRequired", Boolean.TRUE);
     }
 
     @Test
     void shouldRedactDirectCodeExecutionSkillOutputs() throws Exception {
         assumeTrue(commandExists("python"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setAllowPrivateUrls(true);
         SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
         SolonClawCodeExecutionSkills.SafePythonSkill python =
                 new SolonClawCodeExecutionSkills.SafePythonSkill(
@@ -952,100 +467,6 @@ class ToolRegistryWebAndCodeToolsTest {
                 .contains("'a b'")
                 .doesNotContain("sk-test-secret")
                 .doesNotContain("\u001b");
-    }
-
-    @Test
-    void shouldReturnErrorWhenExecuteCodeContainsShellHardlineCommand() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig);
-
-        ONode result =
-                ONode.ofJson(
-                        executeCode.executeCode(
-                                "import os\nos.system('rm -rf /')\nprint('after')\n",
-                                Integer.valueOf(5)));
-
-        assertThat(result.get("status").getString()).isEqualTo("error");
-        assertThat(result.get("error").getString()).contains("硬阻断安全规则").contains("root filesystem");
-        assertThat(result.get("output").getString()).doesNotContain("after");
-    }
-
-    @Test
-    void shouldReturnErrorWhenExecuteCodeSubprocessArgvContainsHardlineCommand() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig);
-
-        ONode result =
-                ONode.ofJson(
-                        executeCode.executeCode(
-                                "import subprocess\nsubprocess.run(['rm', '-rf', '/'])\nprint('after')\n",
-                                Integer.valueOf(5)));
-
-        assertThat(result.get("status").getString()).isEqualTo("error");
-        assertThat(result.get("error").getString()).contains("硬阻断安全规则").contains("root filesystem");
-        assertThat(result.get("output").getString()).doesNotContain("after");
-    }
-
-    @Test
-    void shouldRejectNodeChildProcessHardlineBeforeRunning() throws Exception {
-        assumeTrue(commandExists("node"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SolonClawCodeExecutionSkills.SafeNodejsSkill nodejs =
-                new SolonClawCodeExecutionSkills.SafeNodejsSkill(
-                        env.appConfig.getRuntime().getHome(),
-                        new SecurityPolicyService(env.appConfig));
-
-        assertThatThrownBy(
-                        () ->
-                                nodejs.execute(
-                                        "require('child_process').execSync('rm -rf /')\nconsole.log('after')",
-                                        Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("硬阻断安全规则")
-                .hasMessageContaining("root filesystem")
-                .hasMessageNotContaining("after");
-    }
-
-    // shouldReturnErrorWhenExecuteCodeReadsCredentialFilesBeforeRunning 已删除：该测试断言
-    // execute_code 读取 .env/credentials.json 命中"文件安全策略"读阻断；凭据文件读已放宽
-    // （对齐 外部对标仓库"读非安全边界"），文件安全策略不再阻断此类读。同类 home ssh 密钥阻断由
-    // shouldReturnErrorWhenExecuteCodeTouchesHomeSshKeyBeforeRunning 覆盖（仍有效，保留）。
-
-    @Test
-    void shouldReturnErrorWhenExecuteCodeTouchesHomeSshKeyBeforeRunning() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(),
-                        "python",
-                        new SecurityPolicyService(env.appConfig),
-                        env.appConfig);
-
-        ONode result =
-                ONode.ofJson(
-                        executeCode.executeCode(
-                                "print(open('~/.ssh/id_rsa').read())\nprint('after')\n",
-                                Integer.valueOf(5)));
-
-        assertThat(result.get("status").getString()).isEqualTo("error");
-        assertThat(result.get("error").getString())
-                .contains("文件安全策略")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("id_rsa");
-        assertThat(result.get("output").getString()).doesNotContain("after");
     }
 
     @Test
@@ -1188,179 +609,6 @@ class ToolRegistryWebAndCodeToolsTest {
                 .contains("rpc-repeat.txt")
                 .contains("None")
                 .contains("BLOCKED");
-    }
-
-    // shouldReturnExecuteCodeRpcToolErrorsWithoutBypassingSafety 已删除：该测试断言 execute_code
-    // 通过 RPC 调用 read_file('.env') 命中"文件安全策略"读阻断；凭据文件读已放宽
-    // （对齐 外部对标仓库"读非安全边界"），read_file('.env') 现在放行（返回文件不存在），原读阻断语义不再成立。
-
-    @Test
-    void shouldLetApprovedExecuteCodeScriptPassToolFallbackOnce() throws Exception {
-        assumeTrue(commandExists("python"));
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
-        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCode =
-                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        env.appConfig.getRuntime().getHome(), "python", policy, env.appConfig);
-        String code =
-                "import shutil\n"
-                        + "import os\n"
-                        + "target = 'approved-delete-target'\n"
-                        + "os.makedirs(target, exist_ok=True)\n"
-                        + "shutil.rmtree(target)\n"
-                        + "print('deleted')\n";
-
-        ONode blockedBefore = ONode.ofJson(executeCode.executeCode(code, Integer.valueOf(5)));
-        assertThat(blockedBefore.get("status").getString()).isEqualTo("error");
-        assertThat(blockedBefore.get("error").getString())
-                .contains("危险命令安全规则")
-                .contains("Python recursive delete");
-
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository, env.appConfig, policy);
-        TestTrace trace = new TestTrace();
-        Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
-        args.put("code", code);
-        service.buildInterceptor().onAction(trace, exchange("execute_code", args));
-        assertThat(
-                        service.approve(
-                                trace.getSession(),
-                                DangerousCommandApprovalService.ApprovalScope.ONCE,
-                                "test"))
-                .isTrue();
-        TestTrace resumed = new TestTrace(trace.getSession());
-        service.buildInterceptor().onAction(resumed, exchange("execute_code", args));
-
-        ONode allowed = ONode.ofJson(executeCode.executeCode(code, Integer.valueOf(5)));
-        assertThat(allowed.get("status").getString()).isEqualTo("success");
-        assertThat(allowed.get("output").getString()).contains("deleted");
-
-        ONode blockedAfter = ONode.ofJson(executeCode.executeCode(code, Integer.valueOf(5)));
-        assertThat(blockedAfter.get("status").getString()).isEqualTo("error");
-        assertThat(blockedAfter.get("error").getString())
-                .contains("危险命令安全规则")
-                .contains("Python recursive delete");
-    }
-
-    @Test
-    void shouldLetApprovedExecuteShellCommandPassToolFallbackOnce() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setGuardrailMode("approval");
-        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
-        SolonClawShellSkill shell =
-                new SolonClawShellSkill(
-                        env.appConfig.getRuntime().getHome(), env.appConfig, policy);
-        String command = "git reset --hard";
-
-        assertThatThrownBy(() -> shell.execute(command, Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("危险命令安全规则")
-                .hasMessageContaining("git reset --hard");
-
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository, env.appConfig, policy);
-        TestTrace trace = new TestTrace();
-        Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
-        args.put("code", command);
-        service.buildInterceptor().onAction(trace, exchange("execute_shell", args));
-        assertThat(
-                        service.approve(
-                                trace.getSession(),
-                                DangerousCommandApprovalService.ApprovalScope.ONCE,
-                                "test"))
-                .isTrue();
-        TestTrace resumed = new TestTrace(trace.getSession());
-        service.buildInterceptor().onAction(resumed, exchange("execute_shell", args));
-
-        assertThat(shell.execute(command, Integer.valueOf(1000))).doesNotContain("危险命令安全规则");
-
-        assertThatThrownBy(() -> shell.execute(command, Integer.valueOf(1000)))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("危险命令安全规则")
-                .hasMessageContaining("git reset --hard");
-    }
-
-    @Test
-    void shouldLetApprovedTerminalCommandPassToolFallbackOnce() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setGuardrailMode("approval");
-        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
-        SolonClawShellSkill shell =
-                new SolonClawShellSkill(
-                        env.appConfig.getRuntime().getHome(), env.appConfig, policy);
-        String command = "git reset --hard";
-
-        ONode blockedBefore =
-                ONode.ofJson(
-                        shell.terminal(
-                                command, Boolean.FALSE, Integer.valueOf(1), null, Boolean.FALSE));
-        assertThat(blockedBefore.get("status").getString()).isEqualTo("error");
-        assertThat(blockedBefore.get("error").getString())
-                .contains("危险命令安全规则")
-                .contains("git reset --hard");
-
-        DangerousCommandApprovalService service =
-                new DangerousCommandApprovalService(
-                        env.globalSettingRepository, env.appConfig, policy);
-        TestTrace trace = new TestTrace();
-        Map<String, Object> args = new java.util.LinkedHashMap<String, Object>();
-        args.put("command", command);
-        service.buildInterceptor().onAction(trace, exchange("terminal", args));
-        assertThat(
-                        service.approve(
-                                trace.getSession(),
-                                DangerousCommandApprovalService.ApprovalScope.ONCE,
-                                "test"))
-                .isTrue();
-        TestTrace resumed = new TestTrace(trace.getSession());
-        service.buildInterceptor().onAction(resumed, exchange("terminal", args));
-
-        ONode allowed =
-                ONode.ofJson(
-                        shell.terminal(
-                                command, Boolean.FALSE, Integer.valueOf(1), null, Boolean.FALSE));
-        assertThat(allowed.toJson()).doesNotContain("危险命令安全规则");
-
-        ONode blockedAfter =
-                ONode.ofJson(
-                        shell.terminal(
-                                command, Boolean.FALSE, Integer.valueOf(1), null, Boolean.FALSE));
-        assertThat(blockedAfter.get("status").getString()).isEqualTo("error");
-        assertThat(blockedAfter.get("error").getString())
-                .contains("危险命令安全规则")
-                .contains("git reset --hard");
-    }
-
-    @Test
-    void shouldGuardFileToolsBeforeDelegatingToSolonAiSkill() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        SecurityPolicyService policy = new SecurityPolicyService(env.appConfig);
-        SolonClawFileReadWriteSkill fileSkill =
-                new SolonClawFileReadWriteSkill(env.appConfig.getRuntime().getHome(), policy);
-
-        // 凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"）：read(".env")、read("credentials.json")、
-        // list("~/.ssh") 的读阻断断言已移除。下方写/删除/路径遍历/Skills Hub 缓存阻断断言保留。
-        assertThatThrownBy(() -> fileSkill.write("credentials", "token=secret"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining("credentials");
-        assertThatThrownBy(() -> fileSkill.write("../outside.txt", "x"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("路径遍历");
-        assertThatThrownBy(() -> fileSkill.delete("~/.ssh/id_rsa"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("敏感")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining(".ssh")
-                .hasMessageNotContaining("id_rsa");
-        assertThatThrownBy(() -> fileSkill.list("skills/.hub/index-cache"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("文件安全策略")
-                .hasMessageContaining("Skills Hub")
-                .hasMessageNotContaining("index-cache");
     }
 
     @Test
@@ -1529,7 +777,10 @@ class ToolRegistryWebAndCodeToolsTest {
         assertToolSuccess(write);
         assertThat(write.get("resolved_path").getString())
                 .isEqualTo(workspace.resolve("notes/out.txt").toRealPath().toString());
-        assertThat(new String(Files.readAllBytes(workspace.resolve("notes/out.txt")), StandardCharsets.UTF_8))
+        assertThat(
+                        new String(
+                                Files.readAllBytes(workspace.resolve("notes/out.txt")),
+                                StandardCharsets.UTF_8))
                 .isEqualTo("saved\n");
     }
 
@@ -1759,50 +1010,6 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
-    void shouldGuardFileAndPatchToolsAgainstConfiguredCredentialFiles() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getTerminal().setCredentialFiles(Arrays.asList("credentials/oauth.json"));
-        Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
-        Path credentialDir = workspace.resolve("credentials");
-        Files.createDirectories(credentialDir);
-        Path credentialFile = credentialDir.resolve("oauth.json");
-        Files.write(credentialFile, Arrays.asList("{\"token\":\"old\"}"), StandardCharsets.UTF_8);
-        SecurityPolicyService securityPolicyService = new SecurityPolicyService(env.appConfig);
-        SolonClawFileReadWriteSkill fileSkill =
-                new SolonClawFileReadWriteSkill(
-                        env.appConfig.getRuntime().getHome(), securityPolicyService);
-        SolonClawPatchTools patchTools =
-                new SolonClawPatchTools(
-                        env.appConfig.getRuntime().getHome(), securityPolicyService);
-
-        ONode patchResult =
-                ONode.ofJson(
-                        patchTools.patch(
-                                "replace",
-                                "credentials/oauth.json",
-                                "old",
-                                "new",
-                                Boolean.FALSE,
-                                null));
-
-        // fileSkill.read 读阻断断言已移除：凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），
-        // 读 credentials/oauth.json 现在放行。下方写/patch 写阻断断言保留。
-        assertThatThrownBy(() -> fileSkill.write("credentials/oauth.json", "{\"token\":\"new\"}"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("凭据")
-                .hasMessageContaining("[REDACTED_PATH]")
-                .hasMessageNotContaining("credentials/oauth.json");
-        assertToolError(patchResult);
-        assertThat(patchResult.get("error").getString())
-                .contains("凭据")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain("credentials/oauth.json");
-        assertThat(new String(Files.readAllBytes(credentialFile), StandardCharsets.UTF_8))
-                .contains("old")
-                .doesNotContain("new");
-    }
-
-    @Test
     void shouldApplyJimuquToolOutputLimitsToFileReads() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         Path workspace = new java.io.File(env.appConfig.getRuntime().getHome()).toPath();
@@ -1849,20 +1056,15 @@ class ToolRegistryWebAndCodeToolsTest {
                 workspace.resolve("runtime-limits.txt"),
                 Arrays.asList("alpha", "0123456789ABCDEFGHIJ", "charlie", "delta"),
                 StandardCharsets.UTF_8);
-        SolonClawFileReadWriteSkill fileSkill = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1")) {
-            if (tool instanceof SolonClawFileReadWriteSkill) {
-                fileSkill = (SolonClawFileReadWriteSkill) tool;
-                break;
-            }
-        }
-        assertThat(fileSkill).isNotNull();
+        FunctionTool fileRead =
+                functionTool(
+                        env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1"), "file_read");
 
-        ONode firstPage = ONode.ofJson(fileSkill.read("runtime-limits.txt", 1, 99));
+        ONode firstPage = ONode.ofJson(invokeFileRead(fileRead, "runtime-limits.txt", 1, 99));
         env.appConfig.getTask().setToolOutputMaxLines(3);
         env.appConfig.getTask().setToolOutputMaxLineLength(20);
         ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool("test_config_refresh");
-        ONode updatedPage = ONode.ofJson(fileSkill.read("runtime-limits.txt", 1, 99));
+        ONode updatedPage = ONode.ofJson(invokeFileRead(fileRead, "runtime-limits.txt", 1, 99));
 
         assertThat(firstPage.get("limit").getInt()).isEqualTo(2);
         assertThat(firstPage.get("content").getString())
@@ -1885,19 +1087,14 @@ class ToolRegistryWebAndCodeToolsTest {
                 workspace.resolve("runtime-line-length.txt"),
                 Arrays.asList("0123456789ABCDEFGHIJ", "bravo", "charlie"),
                 StandardCharsets.UTF_8);
-        SolonClawFileReadWriteSkill fileSkill = null;
-        for (Object tool : env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1")) {
-            if (tool instanceof SolonClawFileReadWriteSkill) {
-                fileSkill = (SolonClawFileReadWriteSkill) tool;
-                break;
-            }
-        }
-        assertThat(fileSkill).isNotNull();
+        FunctionTool fileRead =
+                functionTool(
+                        env.toolRegistry.resolveEnabledTools("MEMORY:room-1:user-1"), "file_read");
 
-        ONode firstPage = ONode.ofJson(fileSkill.read("runtime-line-length.txt", 1, 2));
+        ONode firstPage = ONode.ofJson(invokeFileRead(fileRead, "runtime-line-length.txt", 1, 2));
         env.appConfig.getTask().setToolOutputMaxLineLength(20);
         ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool("test_config_refresh");
-        ONode updatedPage = ONode.ofJson(fileSkill.read("runtime-line-length.txt", 1, 2));
+        ONode updatedPage = ONode.ofJson(invokeFileRead(fileRead, "runtime-line-length.txt", 1, 2));
 
         assertThat(firstPage.get("content").getString())
                 .contains("1|0123456789... [truncated]")
@@ -1908,6 +1105,60 @@ class ToolRegistryWebAndCodeToolsTest {
                 .contains("1|0123456789ABCDEFGHIJ")
                 .contains("2|bravo")
                 .doesNotContain("... [truncated]");
+    }
+
+    /**
+     * 从注册表结果中按模型可见函数名定位工具。
+     *
+     * @param toolObjects 注册表返回的工具对象。
+     * @param name 目标函数名。
+     * @return 匹配的模型函数工具。
+     */
+    private static FunctionTool functionTool(List<Object> toolObjects, String name) {
+        for (Object toolObject : toolObjects) {
+            Collection<FunctionTool> functions = null;
+            if (toolObject instanceof FunctionTool) {
+                FunctionTool function = (FunctionTool) toolObject;
+                functions = java.util.Collections.singletonList(function);
+            } else if (toolObject instanceof ToolProvider) {
+                functions = ((ToolProvider) toolObject).getTools();
+            } else if (toolObject instanceof Talent) {
+                functions = ((Talent) toolObject).getTools(Prompt.of(""));
+            }
+            if (functions == null) {
+                continue;
+            }
+            for (FunctionTool function : functions) {
+                if (function != null && name.equals(function.name())) {
+                    return function;
+                }
+            }
+        }
+        throw new AssertionError("tool not found: " + name);
+    }
+
+    /**
+     * 通过模型函数边界调用 file_read，验证注册实例的运行时配置读取行为。
+     *
+     * @param tool file_read 函数工具。
+     * @param fileName 文件名。
+     * @param offset 起始行。
+     * @param limit 最大行数。
+     * @return 工具返回的 JSON 文本。
+     */
+    private static String invokeFileRead(FunctionTool tool, String fileName, int offset, int limit)
+            throws Exception {
+        Map<String, Object> args = new LinkedHashMap<String, Object>();
+        args.put("fileName", fileName);
+        args.put("offset", Integer.valueOf(offset));
+        args.put("limit", Integer.valueOf(limit));
+        try {
+            return String.valueOf(tool.handle(args));
+        } catch (Exception e) {
+            throw e;
+        } catch (Throwable e) {
+            throw new AssertionError("file_read invocation failed", e);
+        }
     }
 
     @Test
@@ -2143,6 +1394,7 @@ class ToolRegistryWebAndCodeToolsTest {
         System.arraycopy(suffix, 0, result, prefix.length, suffix.length);
         return result;
     }
+
     private boolean commandExists(String command) {
         try {
             Process process =

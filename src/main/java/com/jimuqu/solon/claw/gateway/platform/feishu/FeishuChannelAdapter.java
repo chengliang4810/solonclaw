@@ -314,10 +314,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                         }
                                     })
                             .build();
-            wsClient =
-                    new com.lark.oapi.ws.Client.Builder(config.getAppId(), config.getAppSecret())
-                            .eventHandler(dispatcher)
-                            .build();
+            wsClient = createWebsocketClient(dispatcher);
             wsClient.start();
             setConnected(true);
             setSetupState("connected");
@@ -333,6 +330,21 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             log.warn("[FEISHU] connect failed: errorType={}, error={}", errorType(e), safeError(e));
             return false;
         }
+    }
+
+    /**
+     * 创建携带 Channel 协议信号的飞书 WebSocket 客户端。
+     *
+     * <p>飞书服务端根据 User-Agent 中的 {@code channel} 来源标签开启群聊提及事件路由；只注册事件处理器时， 私聊事件可用但群内提及事件可能不会下发。
+     *
+     * @param dispatcher 已注册消息、互动卡片和评论事件的分发器。
+     * @return 已配置群聊事件路由信号、尚未启动网络连接的客户端。
+     */
+    protected com.lark.oapi.ws.Client createWebsocketClient(EventDispatcher dispatcher) {
+        return new com.lark.oapi.ws.Client.Builder(config.getAppId(), config.getAppSecret())
+                .eventHandler(dispatcher)
+                .source("channel")
+                .build();
     }
 
     /** 断开当前组件持有的连接。 */
@@ -685,13 +697,15 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
             appendText(buffer, node.getString());
             return;
         }
-        String type = StrUtil.firstNonBlank(node.get("type").getString(), node.get("tag").getString());
+        String type =
+                StrUtil.firstNonBlank(node.get("type").getString(), node.get("tag").getString());
         if ("text_run".equalsIgnoreCase(type)) {
             appendText(buffer, node.get("text_run").get("text").getString());
         } else if ("text".equalsIgnoreCase(type)) {
             appendText(
                     buffer,
-                    StrUtil.firstNonBlank(node.get("text").getString(), node.get("content").getString()));
+                    StrUtil.firstNonBlank(
+                            node.get("text").getString(), node.get("content").getString()));
         } else if ("docs_link".equalsIgnoreCase(type) || "link".equalsIgnoreCase(type)) {
             appendText(
                     buffer,
@@ -1352,10 +1366,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         bot.get("app_name").getString()));
         result.put(
                 "bot_open_id",
-                StrUtil.firstNonBlank(bot.get("open_id").getString(), bot.get("openId").getString()));
+                StrUtil.firstNonBlank(
+                        bot.get("open_id").getString(), bot.get("openId").getString()));
         result.put(
                 "bot_user_id",
-                StrUtil.firstNonBlank(bot.get("user_id").getString(), bot.get("userId").getString()));
+                StrUtil.firstNonBlank(
+                        bot.get("user_id").getString(), bot.get("userId").getString()));
         return result;
     }
 
@@ -2073,7 +2089,6 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     private String guardedResponseBody(HttpResponse response, String purpose) {
         return HutoolHttpErrorFormatter.guardedBody(purpose, response);
     }
-
 
     /**
      * 生成安全展示用的平台消息。

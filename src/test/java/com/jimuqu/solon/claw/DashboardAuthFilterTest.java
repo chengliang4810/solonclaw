@@ -46,7 +46,8 @@ public class DashboardAuthFilterTest {
                     @Override
                     public void doFilter(Context ctx) {
                         throw new RuntimeException(
-                                "OutputStream has closed", new IOException("writeBuffer has closed"));
+                                "OutputStream has closed",
+                                new IOException("writeBuffer has closed"));
                     }
                 });
 
@@ -66,7 +67,8 @@ public class DashboardAuthFilterTest {
                     @Override
                     public void doFilter(Context ctx) {
                         throw new RuntimeException(
-                                "OutputStream has closed", new IOException("writeBuffer has closed"));
+                                "OutputStream has closed",
+                                new IOException("writeBuffer has closed"));
                     }
                 });
 
@@ -86,7 +88,8 @@ public class DashboardAuthFilterTest {
                                             /** 非断连异常仍然暴露，避免掩盖真实服务端错误。 */
                                             @Override
                                             public void doFilter(Context ctx) {
-                                                throw new IllegalStateException("static file missing");
+                                                throw new IllegalStateException(
+                                                        "static file missing");
                                             }
                                         }))
                 .isInstanceOf(IllegalStateException.class)

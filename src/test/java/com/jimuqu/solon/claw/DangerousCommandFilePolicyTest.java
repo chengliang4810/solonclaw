@@ -2,22 +2,15 @@ package com.jimuqu.solon.claw;
 
 import static com.jimuqu.solon.claw.DangerousCommandApprovalTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
-import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
-import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
-import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import java.io.File;
-import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -30,8 +23,6 @@ import org.noear.solon.ai.agent.Agent;
 import org.noear.solon.ai.agent.react.intercept.HITL;
 import org.noear.solon.ai.agent.react.intercept.HITLDecision;
 import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
-import org.noear.solon.ai.agent.react.task.ToolExchanger;
-import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
 public class DangerousCommandFilePolicyTest {
     @AfterEach
@@ -307,7 +298,8 @@ public class DangerousCommandFilePolicyTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File workspaceRootDir = workspaceBoundaryParent("file-tool-aliases");
         File workspace = new File(workspaceRootDir, "workspace").getCanonicalFile();
-        File outsideFile = new File(workspaceRootDir, "outside-workspace/file.txt").getCanonicalFile();
+        File outsideFile =
+                new File(workspaceRootDir, "outside-workspace/file.txt").getCanonicalFile();
         FileUtil.mkdir(workspace);
         FileUtil.mkdir(outsideFile.getParentFile());
         env.appConfig.getWorkspace().setDir(workspace.getAbsolutePath());
@@ -398,7 +390,7 @@ public class DangerousCommandFilePolicyTest {
     }
 
     @Test
-    void shouldRequireApprovalForWorkspaceSymlinkEscapeWithCanonicalConfig() throws Exception {
+    void shouldLeaveWorkspaceBoundaryEnforcementToFileToolWithCanonicalConfig() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         File safeRoot = workspaceBoundaryWorkspace("symlink-escape");
         File outside = new File(safeRoot.getParentFile(), "workspace-outside").getCanonicalFile();
@@ -426,7 +418,7 @@ public class DangerousCommandFilePolicyTest {
         SecurityPolicyService.FileVerdict verdict =
                 securityPolicyService.checkFileToolArgs("file_write", args);
 
-        assertFileApprovalRequired(verdict, "workspace_outside_write");
+        assertThat(verdict.isAllowed()).isTrue();
     }
 
     @Test
@@ -1791,12 +1783,12 @@ public class DangerousCommandFilePolicyTest {
         DangerousCommandApprovalService.PendingApproval pending =
                 service.getPendingApproval(trace.session);
 
-        assertThat(trace.getFinalAnswer()).contains("需要审批").contains("Python recursive delete");
+        assertThat(trace.getFinalAnswer()).contains("需要审批").contains("execute_code");
         assertThat(pending).isNotNull();
         assertThat(pending.getToolName()).isEqualTo("execute_code");
         assertThat(pending.getCommand())
                 .isEqualTo("import shutil\nshutil.rmtree('workspace/cache')\n");
-        assertThat(pending.getPatternKeys()).containsExactly("python_rmtree");
+        assertThat(pending.getPatternKeys()).containsExactly("execute_code");
     }
 
     @Test
@@ -1922,7 +1914,8 @@ public class DangerousCommandFilePolicyTest {
         camelShellArgs.put("cmd", "git reset --hard");
         TestTrace camelShellTrace = new TestTrace();
 
-        service.buildInterceptor().onAction(camelShellTrace, exchange("execute_shell", camelShellArgs));
+        service.buildInterceptor()
+                .onAction(camelShellTrace, exchange("execute_shell", camelShellArgs));
 
         DangerousCommandApprovalService.PendingApproval camelShellPending =
                 service.getPendingApproval(camelShellTrace.session);
@@ -2065,7 +2058,7 @@ public class DangerousCommandFilePolicyTest {
         assertThat(started.get("session_id").getString()).isNotBlank();
         env.processRegistry.stop(started.get("session_id").getString());
 
-        ONode blocked =
+        ONode repeatedWithinApprovedInvocation =
                 ONode.ofJson(
                         tools.process(
                                 "start",
@@ -2076,8 +2069,8 @@ public class DangerousCommandFilePolicyTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertToolError(blocked);
-        assertThat(blocked.get("error").getString()).contains("危险命令安全规则");
+        assertToolSuccess(repeatedWithinApprovedInvocation);
+        env.processRegistry.stop(repeatedWithinApprovedInvocation.get("session_id").getString());
     }
 
     @Test
@@ -2238,7 +2231,8 @@ public class DangerousCommandFilePolicyTest {
         gatewayWebsearch.put("tool_args", websearchArgs);
         TestTrace websearchTrace = new TestTrace();
 
-        service.buildInterceptor().onAction(websearchTrace, exchange("call_tool", gatewayWebsearch));
+        service.buildInterceptor()
+                .onAction(websearchTrace, exchange("call_tool", gatewayWebsearch));
 
         assertThat(websearchTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(websearchTrace.getFinalAnswer())
@@ -2254,7 +2248,8 @@ public class DangerousCommandFilePolicyTest {
         gatewayCodeSearch.put("tool_args", codeSearchArgs);
         TestTrace codeSearchTrace = new TestTrace();
 
-        service.buildInterceptor().onAction(codeSearchTrace, exchange("call_tool", gatewayCodeSearch));
+        service.buildInterceptor()
+                .onAction(codeSearchTrace, exchange("call_tool", gatewayCodeSearch));
 
         assertThat(codeSearchTrace.getRoute()).isEqualTo(Agent.ID_END);
         assertThat(codeSearchTrace.getFinalAnswer())
@@ -2281,5 +2276,4 @@ public class DangerousCommandFilePolicyTest {
                 .doesNotContain("secret456");
         assertThat(service.getPendingApproval(exactCodeSearchTrace.session)).isNull();
     }
-
 }

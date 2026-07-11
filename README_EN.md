@@ -115,6 +115,7 @@ model:
   default: "gpt-5.4"
 fallbackProviders: []
 security:
+  allowPrivateUrls: false
   fileGuardrailMode: strict
   urlGuardrailMode: strict
   guardrailMode: approval
@@ -122,6 +123,7 @@ security:
   guardrailCronScope: job
   hardlineAllowlist: []
 approvals:
+  subagentAutoApprove: false
   timeoutSeconds: 60
   gatewayTimeoutSeconds: 300
   mcpReloadConfirm: true
@@ -147,16 +149,16 @@ Common workspace settings:
 | `solonclaw.llm.reasoningEffort` | `medium` | Default reasoning effort |
 | `solonclaw.scheduler.enabled` | `true` | Enables scheduled jobs |
 | `solonclaw.browser.rewriteLoopbackUrls` | `false` | Rewrites loopback URLs for browser tools running inside containers |
-| `security.allowPrivateUrls` | `true` | Allows URL tools to access localhost / private networks; metadata URLs are still blocked by default |
-| `security.websiteBlocklist.enabled` | `false` | Enables domain blocklists for webfetch/websearch/codesearch URLs |
 | `security.tirithEnabled` | `true` | Enables Tirith command content scanning |
 | `security.tirithFailOpen` | `true` | Allows execution when Tirith is unavailable or times out; set `false` to fail closed |
-| `security.fileGuardrailMode` | `bypass` | File path preflight for command text: `bypass` is most permissive, `strict` enables preflight |
-| `security.urlGuardrailMode` | `bypass` | URL preflight for command text: `bypass` is most permissive, `strict` enables preflight |
-| `security.guardrailMode` | `bypass` | Agent tool safety mode: `bypass`, `approval`, `strict`, `smart` |
-| `security.guardrailCronMode` | `bypass` | Scheduled-job safety mode: `bypass`, `approval`, `strict`, `approve` |
+| `security.allowPrivateUrls` | `false` | Allows URL tools to reach private addresses; cloud metadata remains blocked |
+| `security.fileGuardrailMode` | `strict` | File path preflight mode: `strict`, `bypass` |
+| `security.urlGuardrailMode` | `strict` | URL preflight mode: `strict`, `bypass` |
+| `security.guardrailMode` | `approval` | Agent tool safety mode: `bypass`, `approval`, `smart` |
+| `security.guardrailCronMode` | `strict` | Scheduled-job safety mode: `strict`, `approval`, `bypass`, `approve` |
 | `security.guardrailCronScope` | `job` | Scheduled-job approval memory scope: `job`, `session`, `global` |
-| `security.hardlineAllowlist` | empty | Hardline categories allowed to bypass hard blocking; `*` allows all hardline categories |
+| `security.hardlineAllowlist` | empty | Explicitly allowlisted hardline categories; none are allowed by default |
+| `approvals.subagentAutoApprove` | `false` | Automatically approves one approvable dangerous command for sub-agents |
 | `approvals.timeoutSeconds` | `60` | Local/direct approval timeout in seconds |
 | `approvals.gatewayTimeoutSeconds` | `300` | Messaging-channel approval timeout in seconds |
 | `approvals.mcpReloadConfirm` | `true` | Whether `/reload-mcp` requires confirmation |

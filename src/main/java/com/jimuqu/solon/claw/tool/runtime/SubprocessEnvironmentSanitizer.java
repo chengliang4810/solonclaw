@@ -48,7 +48,20 @@ public final class SubprocessEnvironmentSanitizer {
             };
 
     /** 安全上下文环境变量名称列表的统一常量值。 */
-    private static final String[] SAFE_CONTEXT_ENV_NAMES = new String[] {"SOLONCLAW_PROFILE"};
+    private static final String[] SAFE_CONTEXT_ENV_NAMES =
+            new String[] {"SOLONCLAW_HOME", "SOLONCLAW_PROFILE"};
+
+    /** 子进程可继承的精确 JVM、证书和代理运行变量，不使用宽前缀避免误放行同名前缀凭据。 */
+    private static final String[] SAFE_RUNTIME_ENV_NAMES =
+            new String[] {
+                "JAVA_HOME",
+                "MAVEN_HOME",
+                "SSL_CERT_FILE",
+                "HTTP_PROXY",
+                "HTTPS_PROXY",
+                "ALL_PROXY",
+                "NO_PROXY"
+            };
 
     /** 密钥环境变量SUBSTRINGS的统一常量值。 */
     private static final String[] SECRET_ENV_SUBSTRINGS =
@@ -85,6 +98,7 @@ public final class SubprocessEnvironmentSanitizer {
         summary.put("defaultDenyUnknownEnv", Boolean.TRUE);
         summary.put("safePrefixCount", Integer.valueOf(SAFE_ENV_PREFIXES.length));
         summary.put("safeContextEnvCount", Integer.valueOf(SAFE_CONTEXT_ENV_NAMES.length));
+        summary.put("safeRuntimeEnvCount", Integer.valueOf(SAFE_RUNTIME_ENV_NAMES.length));
         summary.put("secretSubstringCount", Integer.valueOf(SECRET_ENV_SUBSTRINGS.length));
         summary.put("providerBlocklistCount", Integer.valueOf(PROVIDER_ENV_BLOCKLIST.size()));
         summary.put(
@@ -374,6 +388,11 @@ public final class SubprocessEnvironmentSanitizer {
                 return true;
             }
         }
+        for (String safeName : SAFE_RUNTIME_ENV_NAMES) {
+            if (safeName.equals(upper)) {
+                return true;
+            }
+        }
         for (String prefix : SAFE_ENV_PREFIXES) {
             if (value.startsWith(prefix)) {
                 return true;
@@ -405,7 +424,11 @@ public final class SubprocessEnvironmentSanitizer {
      * @return 如果提供方Env 块ed满足条件则返回 true，否则返回 false。
      */
     public static boolean isProviderEnvBlocked(String name) {
-        return PROVIDER_ENV_BLOCKLIST.contains(StrUtil.nullToEmpty(name).toUpperCase(Locale.ROOT));
+        String normalized = StrUtil.nullToEmpty(name).toUpperCase(Locale.ROOT);
+        return PROVIDER_ENV_BLOCKLIST.contains(normalized)
+                || normalized.startsWith("SOLONCLAW_CHANNEL_")
+                || (normalized.startsWith("SOLONCLAW_PROVIDER_") && normalized.endsWith("_API_KEY"))
+                || "SOLONCLAW_SPEECH_API_KEY".equals(normalized);
     }
 
     /**
@@ -460,7 +483,7 @@ public final class SubprocessEnvironmentSanitizer {
      * @return 如果Configured Env Passthrough 块ed满足条件则返回 true，否则返回 false。
      */
     private static boolean isConfiguredEnvPassthroughBlocked(String normalizedName) {
-        return PROVIDER_ENV_BLOCKLIST.contains(normalizedName)
+        return isProviderEnvBlocked(normalizedName)
                 || CONFIG_ENV_PASSTHROUGH_BLOCKLIST.contains(normalizedName);
     }
 

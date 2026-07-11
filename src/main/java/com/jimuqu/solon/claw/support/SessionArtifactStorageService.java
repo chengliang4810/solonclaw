@@ -33,7 +33,10 @@ public class SessionArtifactStorageService {
 
     /** 创建会话Artifact Storage服务实例。 */
     public SessionArtifactStorageService() {
-        this(new File(RuntimePathConstants.WORKSPACE_HOME, RuntimePathConstants.ARTIFACTS_DIR_NAME));
+        this(
+                new File(
+                        RuntimePathConstants.WORKSPACE_HOME,
+                        RuntimePathConstants.ARTIFACTS_DIR_NAME));
     }
 
     /**

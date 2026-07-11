@@ -48,17 +48,24 @@ public class SearchManageTools {
                     "Inspect dashboard search results across sessions, runs and tool calls with filters.")
     public String searchManage(
             @Param(name = "query", required = false, description = "Search keyword") String query,
-            @Param(name = "sourceKey", required = false, description = "Source key") String sourceKey,
-            @Param(name = "sessionId", required = false, description = "Session id") String sessionId,
+            @Param(name = "sourceKey", required = false, description = "Source key")
+                    String sourceKey,
+            @Param(name = "sessionId", required = false, description = "Session id")
+                    String sessionId,
             @Param(name = "runId", required = false, description = "Run id") String runId,
-            @Param(name = "toolName", required = false, description = "Tool name filter") String toolName,
+            @Param(name = "toolName", required = false, description = "Tool name filter")
+                    String toolName,
             @Param(name = "channel", required = false, description = "Channel or platform filter")
                     String channel,
             @Param(name = "timeFrom", required = false, description = "Start timestamp millis")
                     Long timeFrom,
             @Param(name = "timeTo", required = false, description = "End timestamp millis")
                     Long timeTo,
-            @Param(name = "summarize", required = false, defaultValue = "false", description = "Summarize matched sessions")
+            @Param(
+                            name = "summarize",
+                            required = false,
+                            defaultValue = "false",
+                            description = "Summarize matched sessions")
                     Boolean summarize,
             @Param(name = "limit", required = false, defaultValue = "10", description = "Max rows")
                     Integer limit) {
@@ -67,7 +74,9 @@ public class SearchManageTools {
                 return ToolResultEnvelope.error("search service unavailable").toJson();
             }
             Map<String, Object> result =
-                    search(query, sourceKey, sessionId, runId, toolName, channel, timeFrom, timeTo, summarize, limit);
+                    search(
+                            query, sourceKey, sessionId, runId, toolName, channel, timeFrom, timeTo,
+                            summarize, limit);
             return ToolResultEnvelope.ok("Dashboard 搜索完成")
                     .preview(SecretRedactor.redact(ONode.serialize(result), 3000))
                     .data("result", result)

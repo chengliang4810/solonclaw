@@ -2,7 +2,9 @@ package com.jimuqu.solon.claw.plugin;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -53,12 +55,25 @@ public class AgentPluginManager {
             AgentHookRegistry hookRegistry,
             Set<String> enabledPlugins,
             Set<String> disabledPlugins) {
-        this(
-                hookRegistry,
-                enabledPlugins,
-                disabledPlugins,
-                Paths.get(System.getProperty("user.home"), ".jimuqu", "plugins"),
-                true);
+        this(hookRegistry, enabledPlugins, disabledPlugins, defaultPluginRoot(), true);
+    }
+
+    /** 返回当前 Profile 的默认插件目录，未进入 Profile 作用域时使用默认工作区。 */
+    private static Path defaultPluginRoot() {
+        ProfileRuntimeScope.Context current = ProfileRuntimeScope.current();
+        if (current != null && current.getHome() != null) {
+            return current.getHome().resolve("plugins").toAbsolutePath().normalize();
+        }
+        return Paths.get(RuntimePathConstants.WORKSPACE_HOME, "plugins")
+                .toAbsolutePath()
+                .normalize();
+    }
+
+    /**
+     * @return 当前管理器扫描的 Profile 用户插件目录。
+     */
+    public Path getUserPluginsDir() {
+        return userPluginsDir;
     }
 
     /**
@@ -251,8 +266,8 @@ public class AgentPluginManager {
     /**
      * 解析插件清单文件，使用 snakeyaml 加载后再映射到 AgentPluginManifest。
      *
-     * <p>字段映射与原手写解析保持一致：顶层标量取字符串值；布尔字段（enabled、env.secret）沿用
-     * Boolean.parseBoolean 语义；列表字段保留出现顺序。name/kind/enabled 维持原有默认值。
+     * <p>字段映射与原手写解析保持一致：顶层标量取字符串值；布尔字段（enabled、env.secret）沿用 Boolean.parseBoolean
+     * 语义；列表字段保留出现顺序。name/kind/enabled 维持原有默认值。
      *
      * @param manifestFile plugin.yaml 或 plugin.yml 路径。
      * @param pluginDir 插件所在目录。
@@ -262,7 +277,8 @@ public class AgentPluginManager {
     @SuppressWarnings("unchecked")
     private AgentPluginManifest parseManifest(Path manifestFile, Path pluginDir, String source)
             throws IOException {
-        String content = FileUtil.readString(manifestFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
+        String content =
+                FileUtil.readString(manifestFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
         Object root = new Yaml().load(content);
         Map<String, Object> props =
                 root instanceof Map ? (Map<String, Object>) root : Collections.emptyMap();
@@ -321,7 +337,8 @@ public class AgentPluginManager {
                 continue;
             }
             Map<?, ?> fields = (Map<?, ?>) item;
-            AgentPluginManifest.EnvRequirement requirement = new AgentPluginManifest.EnvRequirement();
+            AgentPluginManifest.EnvRequirement requirement =
+                    new AgentPluginManifest.EnvRequirement();
             requirement.setName(scalar(fields.get("name")));
             requirement.setDescription(scalar(fields.get("description")));
             Object secret = fields.get("secret");
@@ -363,7 +380,9 @@ public class AgentPluginManager {
 
             DynamicCompiler compiler = new DynamicCompiler();
             for (Path javaFile : javaFiles) {
-                String source = FileUtil.readString(javaFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
+                String source =
+                        FileUtil.readString(
+                                javaFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
                 String className = sourceClassName(javaFile, source);
                 compiler.addSource(className, source);
             }
@@ -377,7 +396,9 @@ public class AgentPluginManager {
                 classNames.add(manifest.getEntry());
             }
             for (Path javaFile : javaFiles) {
-                String source = FileUtil.readString(javaFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
+                String source =
+                        FileUtil.readString(
+                                javaFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
                 String className = sourceClassName(javaFile, source);
                 if (!classNames.contains(className)) {
                     classNames.add(className);
@@ -480,7 +501,7 @@ public class AgentPluginManager {
             if (requirement == null || StrUtil.isBlank(requirement.getName())) {
                 continue;
             }
-            if (StrUtil.isBlank(System.getenv(requirement.getName()))) {
+            if (StrUtil.isBlank(ProfileRuntimeScope.environmentValue(requirement.getName()))) {
                 return requirement.getName();
             }
         }
@@ -647,18 +668,13 @@ public class AgentPluginManager {
             return delegate.hasCommand(name) || pluginCommands.contains(name);
         }
 
-        /**
-         * 注册工具，并在名称为空或冲突时写入跳过诊断。
-         *
-         */
+        /** 注册工具，并在名称为空或冲突时写入跳过诊断。 */
         @Override
         public void onToolRegistered(ToolRegistration registration) {
             String name = registration == null ? null : registration.getName();
             if (StrUtil.isBlank(name) || hasTool(name)) {
                 recordSkippedRegistration(
-                        "duplicate_tool_name",
-                        "Plugin tool name already exists: ",
-                        name);
+                        "duplicate_tool_name", "Plugin tool name already exists: ", name);
                 return;
             }
             pluginTools.add(name);
@@ -675,9 +691,7 @@ public class AgentPluginManager {
         public void onCommandRegistered(String name, CommandHandler handler, String description) {
             if (StrUtil.isBlank(name) || hasCommand(name)) {
                 recordSkippedRegistration(
-                        "duplicate_command_name",
-                        "Plugin command name already exists: ",
-                        name);
+                        "duplicate_command_name", "Plugin command name already exists: ", name);
                 return;
             }
             pluginCommands.add(name);

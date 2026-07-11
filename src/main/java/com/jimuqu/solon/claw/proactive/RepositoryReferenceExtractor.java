@@ -36,8 +36,7 @@ public class RepositoryReferenceExtractor {
      * @return 返回按出现顺序去重后的仓库引用列表。
      */
     public List<RepositoryReference> extract(String sourceType, String sourceRef, String text) {
-        Map<String, RepositoryReference> result =
-                new LinkedHashMap<String, RepositoryReference>();
+        Map<String, RepositoryReference> result = new LinkedHashMap<String, RepositoryReference>();
         if (StrUtil.isBlank(text)) {
             return new ArrayList<RepositoryReference>();
         }

@@ -82,8 +82,7 @@ public final class TestToolSupport {
     public static SolonClawFileReadWriteSkill guardedFileSkill(Path root) {
         AppConfig config = new AppConfig();
         config.getRuntime().setHome(root.toString());
-        return new SolonClawFileReadWriteSkill(
-                root.toString(), new SecurityPolicyService(config));
+        return new SolonClawFileReadWriteSkill(root.toString(), new SecurityPolicyService(config));
     }
 
     /** 将工具返回的 JSON 解析为 Map，保持测试统一使用 snack4。 */

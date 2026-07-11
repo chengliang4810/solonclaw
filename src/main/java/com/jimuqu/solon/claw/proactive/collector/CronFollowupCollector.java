@@ -181,7 +181,8 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
         List<CronJobRunRecord> recentRuns = runHistory.runs;
         if (isPaused(job)) {
             if (StrUtil.isNotBlank(job.getPausedReason())) {
-                observations.add(buildObservation(job, "cron_paused_visible_reason", recentRuns, 0));
+                observations.add(
+                        buildObservation(job, "cron_paused_visible_reason", recentRuns, 0));
             }
             return;
         }
@@ -268,8 +269,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
      * @param nowMillis 当前 tick 时间。
      * @return 下次运行时间已过且任务主表和执行历史都没有同一时间后的运行记录时返回 true。
      */
-    private boolean isDueButNotRun(
-            CronJobRecord job, CronRunHistory runHistory, long nowMillis) {
+    private boolean isDueButNotRun(CronJobRecord job, CronRunHistory runHistory, long nowMillis) {
         long nextRunAt = job.getNextRunAt();
         if (nextRunAt <= 0L || nextRunAt > nowMillis) {
             return false;
@@ -315,7 +315,8 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
      * @return 包含人工确认、审批、继续处理等关键词时返回 true。
      */
     private boolean isActionableText(String text) {
-        return !isSilent(text) && CollectorSupport.containsKeyword(text, ACTIONABLE_OUTPUT_KEYWORDS);
+        return !isSilent(text)
+                && CollectorSupport.containsKeyword(text, ACTIONABLE_OUTPUT_KEYWORDS);
     }
 
     /**
@@ -383,7 +384,9 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
             CronJobRecord job, List<CronJobRunRecord> recentRuns, int failureCount) {
         Map<String, Object> evidence = new LinkedHashMap<String, Object>();
         evidence.put("lastError", CollectorSupport.safe(job.getLastError(), TEXT_MAX_LENGTH));
-        evidence.put("deliveryError", CollectorSupport.safe(job.getLastDeliveryError(), TEXT_MAX_LENGTH));
+        evidence.put(
+                "deliveryError",
+                CollectorSupport.safe(job.getLastDeliveryError(), TEXT_MAX_LENGTH));
         evidence.put("pausedReason", CollectorSupport.safe(job.getPausedReason(), TEXT_MAX_LENGTH));
         evidence.put("lastOutput", CollectorSupport.safe(job.getLastOutput(), TEXT_MAX_LENGTH));
         evidence.put("lastRunAt", Long.valueOf(job.getLastRunAt()));
@@ -414,7 +417,9 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
             payload.put("output", CollectorSupport.safe(run.getOutput(), RUN_PREVIEW_MAX_LENGTH));
             payload.put("summary", CollectorSupport.safe(run.getSummary(), RUN_PREVIEW_MAX_LENGTH));
             payload.put("error", CollectorSupport.safe(run.getError(), RUN_PREVIEW_MAX_LENGTH));
-            payload.put("deliveryError", CollectorSupport.safe(run.getDeliveryError(), RUN_PREVIEW_MAX_LENGTH));
+            payload.put(
+                    "deliveryError",
+                    CollectorSupport.safe(run.getDeliveryError(), RUN_PREVIEW_MAX_LENGTH));
             payload.put("startedAt", Long.valueOf(run.getStartedAt()));
             payload.put("finishedAt", Long.valueOf(run.getFinishedAt()));
             payloads.add(payload);
@@ -431,10 +436,7 @@ public class CronFollowupCollector implements ProactiveObservationCollector {
      */
     private String summary(CronJobRecord job, String type) {
         return CollectorSupport.safe(
-                type
-                        + ": 定时任务 "
-                        + StrUtil.blankToDefault(job.getJobId(), "unknown")
-                        + " 需要主动协作评估",
+                type + ": 定时任务 " + StrUtil.blankToDefault(job.getJobId(), "unknown") + " 需要主动协作评估",
                 240);
     }
 

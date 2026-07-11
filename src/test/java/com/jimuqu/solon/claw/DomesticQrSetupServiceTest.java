@@ -240,7 +240,8 @@ public class DomesticQrSetupServiceTest {
         config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         return config;
@@ -266,5 +267,4 @@ public class DomesticQrSetupServiceTest {
             outputStream.close();
         }
     }
-
 }

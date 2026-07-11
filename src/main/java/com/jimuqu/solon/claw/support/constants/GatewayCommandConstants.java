@@ -227,9 +227,6 @@ public interface GatewayCommandConstants {
     /** 命令HELP的统一常量值。 */
     String COMMAND_HELP = "help";
 
-    /** 命令Agent的统一常量值。 */
-    String COMMAND_AGENT = "agent";
-
     /** 命令APPROVE的统一常量值。 */
     String COMMAND_APPROVE = "approve";
 
@@ -384,7 +381,6 @@ public interface GatewayCommandConstants {
     String SLASH_HELP = COMMAND_PREFIX + COMMAND_HELP;
 
     /** 斜杠命令Agent的统一常量值。 */
-    String SLASH_AGENT = COMMAND_PREFIX + COMMAND_AGENT;
 
     /** 斜杠命令APPROVE的统一常量值。 */
     String SLASH_APPROVE = COMMAND_PREFIX + COMMAND_APPROVE;

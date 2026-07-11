@@ -46,16 +46,30 @@ class DangerousCommandRuleCatalogTest {
     }
 
     @Test
-    void hardlineSummaryIncludesVirtualMetadataUrlRule() {
+    void hardlineSummaryContainsOnlyCommandRules() {
         assertThat(DangerousCommandRuleCatalog.hardlineRuleCount())
-                .isEqualTo(DangerousCommandRuleCatalog.HARDLINE_RULES.size() + 1);
+                .isEqualTo(DangerousCommandRuleCatalog.HARDLINE_RULES.size());
         assertThat(DangerousCommandRuleCatalog.hardlineRuleSamples(99))
-                .contains(DangerousCommandRuleCatalog.HARDLINE_METADATA_URL_RULE_KEY);
+                .containsExactly(
+                        "hardline_delete_root",
+                        "hardline_delete_system_dir",
+                        "hardline_delete_home",
+                        "hardline_mkfs",
+                        "hardline_dd_device",
+                        "hardline_redirect_device",
+                        "hardline_shutdown",
+                        "hardline_kill_all",
+                        "hardline_fork_bomb");
         assertThat(DangerousCommandRuleCatalog.hardlineBlockedCategories())
-                .contains("metadata_url_access");
+                .containsExactly(
+                        "root_or_system_recursive_delete",
+                        "filesystem_format_or_raw_device_write",
+                        "system_shutdown_or_reboot",
+                        "kill_all_or_fork_bomb");
         assertThat(DangerousCommandRuleCatalog.hardlineCoveredTools())
-                .contains(
+                .containsExactly(
                         ToolNameConstants.EXECUTE_SHELL,
+                        ToolNameConstants.TERMINAL,
                         ToolNameConstants.EXECUTE_CODE,
                         ToolNameConstants.EXECUTE_PYTHON,
                         ToolNameConstants.EXECUTE_JS);

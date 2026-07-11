@@ -48,18 +48,22 @@ public class SessionSearchTools {
      */
     public String sessionSearch(
             @Param(name = "query", description = "检索主题；为空时列出最近会话", required = false) String query,
-            @Param(name = "limit", description = "结果条数，默认 3，最大 5", required = false) Integer limit)
+            @Param(name = "limit", description = "结果条数，默认 3，最大 10", required = false) Integer limit)
             throws Exception {
-        return sessionSearch(query, null, null, limit);
+        return sessionSearch(query, limit, null, null, null, null, null, null);
     }
 
     /**
      * 执行会话搜索相关逻辑。
      *
      * @param query 查询参数。
+     * @param limit 最大返回数量。
+     * @param sort discovery 时间排序。
      * @param sessionId 当前会话标识。
      * @param aroundMessageId around消息标识。
-     * @param limit 最大返回数量。
+     * @param window 锚点两侧窗口大小。
+     * @param roleFilter discovery 消息角色过滤。
+     * @param profile 目标 Profile。
      * @return 返回会话搜索结果。
      */
     @ToolMapping(
@@ -72,11 +76,20 @@ public class SessionSearchTools {
                             description = "discovery 模式检索主题；为空且无锚点时 browse 最近会话",
                             required = false)
                     String query,
-            @Param(name = "sessionId", description = "scroll 模式目标会话 ID", required = false)
+            @Param(name = "limit", description = "discovery 结果条数，默认 3，最大 10", required = false)
+                    Integer limit,
+            @Param(name = "sort", description = "discovery 排序：newest 或 oldest", required = false)
+                    String sort,
+            @Param(name = "session_id", description = "scroll/read 模式目标会话 ID", required = false)
                     String sessionId,
-            @Param(name = "aroundMessageId", description = "scroll 模式锚点消息 ID", required = false)
+            @Param(name = "around_message_id", description = "scroll 模式锚点消息 ID", required = false)
                     String aroundMessageId,
-            @Param(name = "limit", description = "结果条数，默认 3，最大 5", required = false) Integer limit)
+            @Param(name = "window", description = "锚点两侧各返回的消息数，默认 5，范围 1..20", required = false)
+                    Integer window,
+            @Param(name = "role_filter", description = "discovery 角色过滤，逗号分隔", required = false)
+                    String roleFilter,
+            @Param(name = "profile", description = "可选目标 Profile 名称", required = false)
+                    String profile)
             throws Exception {
         try {
             SessionSearchQuery searchQuery = new SessionSearchQuery();
@@ -85,9 +98,18 @@ public class SessionSearchTools {
             searchQuery.setSessionId(sessionId);
             searchQuery.setAroundMessageId(aroundMessageId);
             searchQuery.setLimit(limit == null ? 3 : limit.intValue());
+            searchQuery.setSort(sort);
+            searchQuery.setWindow(window == null ? 5 : window.intValue());
+            searchQuery.setRoleFilter(roleFilter);
+            searchQuery.setProfile(profile);
             List<SessionSearchEntry> sessions = sessionSearchService.search(searchQuery);
             for (SessionSearchEntry session : sessions) {
                 redact(session);
+            }
+            if (sessionId != null
+                    && sessionId.trim().length() > 0
+                    && (aroundMessageId == null || aroundMessageId.trim().length() == 0)) {
+                return ONode.serialize(compactReadResults(sessions));
             }
             if (aroundMessageId != null && aroundMessageId.trim().length() > 0) {
                 return ONode.serialize(compactScrollResults(sessions));
@@ -110,8 +132,7 @@ public class SessionSearchTools {
      * @param sessions discovery 或 browse 模式检索结果。
      * @return 返回压缩后的结果。
      */
-    private List<Map<String, Object>> compactDiscoveryResults(
-            List<SessionSearchEntry> sessions) {
+    private List<Map<String, Object>> compactDiscoveryResults(List<SessionSearchEntry> sessions) {
         List<Map<String, Object>> results = new ArrayList<Map<String, Object>>();
         if (sessions == null) {
             return results;
@@ -132,8 +153,7 @@ public class SessionSearchTools {
                     "platformMessageId",
                     compactRedact(session.getPlatformMessageId(), COMPACT_ID_LIMIT));
             putIfNotBlank(item, "runId", compactRedact(session.getRunId(), COMPACT_ID_LIMIT));
-            putIfNotBlank(
-                    item, "toolName", compactRedact(session.getToolName(), COMPACT_ID_LIMIT));
+            putIfNotBlank(item, "toolName", compactRedact(session.getToolName(), COMPACT_ID_LIMIT));
             item.put("score", Long.valueOf(session.getScore()));
             if (session.getUpdatedAt() > 0L) {
                 item.put("updatedAt", Long.valueOf(session.getUpdatedAt()));
@@ -184,10 +204,88 @@ public class SessionSearchTools {
             item.put("sessionId", session.getSessionId());
             item.put("messageId", session.getMessageId());
             item.put("anchor", Boolean.valueOf(session.isAnchor()));
+            putIfNotBlank(item, "role", redact(session.getRole(), 50));
+            item.put("messagesBefore", Integer.valueOf(session.getMessagesBefore()));
+            item.put("messagesAfter", Integer.valueOf(session.getMessagesAfter()));
             item.put("text", scrollText(session));
             results.add(item);
         }
         return results;
+    }
+
+    /** 将 read 模式结果组装为带 Profile 归属和截断元数据的单一响应对象。 */
+    private Map<String, Object> compactReadResults(List<SessionSearchEntry> sessions) {
+        Map<String, Object> response = new LinkedHashMap<String, Object>();
+        response.put("success", Boolean.TRUE);
+        response.put("mode", "read");
+        if (sessions == null || sessions.isEmpty()) {
+            response.put("success", Boolean.FALSE);
+            response.put("error", "session_id not found");
+            response.put("messages", new ArrayList<Map<String, Object>>());
+            return response;
+        }
+        SessionSearchEntry first = sessions.get(0);
+        putIfNotBlank(response, "profile", redact(first.getProfile(), 64));
+        putIfNotBlank(response, "session_id", redact(first.getSessionId(), COMPACT_ID_LIMIT));
+        Map<String, Object> sessionMeta = new LinkedHashMap<String, Object>();
+        if (first.getCreatedAt() > 0L) {
+            sessionMeta.put("when", Long.valueOf(first.getCreatedAt()));
+        }
+        putIfNotBlank(sessionMeta, "source", redact(first.getChannel(), 400));
+        putIfNotBlank(sessionMeta, "model", redact(first.getSessionModel(), 200));
+        putIfNotBlank(sessionMeta, "title", compactRedact(first.getTitle(), COMPACT_TITLE_LIMIT));
+        response.put("session_meta", sessionMeta);
+        response.put("message_count", Integer.valueOf(first.getMessageCount()));
+        response.put("truncated", Boolean.valueOf(first.isTruncated()));
+        List<Map<String, Object>> messages = new ArrayList<Map<String, Object>>();
+        for (SessionSearchEntry session : sessions) {
+            if (session == null) {
+                continue;
+            }
+            if (session.getMessageCount() == 0 && session.getMessageId() == null) {
+                continue;
+            }
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            putIfNotBlank(item, "id", redact(session.getMessageId(), COMPACT_ID_LIMIT));
+            putIfNotBlank(item, "role", redact(session.getRole(), 50));
+            item.put("content", readText(session));
+            if (session.getMessageTimestamp() > 0L) {
+                item.put("timestamp", Long.valueOf(session.getMessageTimestamp()));
+            }
+            putIfNotBlank(item, "tool_name", redact(session.getMessageToolName(), 200));
+            putIfNotBlank(item, "tool_call_id", redact(session.getToolCallId(), 200));
+            if (session.getToolCallsJson() != null && session.getToolCallsJson().length() > 0) {
+                item.put("tool_calls", parseJsonValue(session.getToolCallsJson()));
+            }
+            messages.add(item);
+        }
+        response.put("messages", messages);
+        if (first.isTruncated()) {
+            response.put(
+                    "message",
+                    "Session has "
+                            + first.getMessageCount()
+                            + " messages; showing first 20 + last 10. Pass around_message_id to scroll the middle.");
+        }
+        return response;
+    }
+
+    /** 将可信的内部 JSON 字符串恢复为结构化值；解析失败时保留原文。 */
+    private Object parseJsonValue(String value) {
+        try {
+            return ONode.deserialize(value, Object.class);
+        } catch (Exception ignored) {
+            return value;
+        }
+    }
+
+    /** read 模式保留消息换行和更大的正文预算，避免把整段会话再次压成搜索片段。 */
+    private String readText(SessionSearchEntry session) {
+        String value = session.getMatchPreview();
+        if (value == null) {
+            value = session.getSnippet();
+        }
+        return redact(value == null ? "" : value, 16000);
     }
 
     /**
@@ -219,7 +317,7 @@ public class SessionSearchTools {
         session.setSessionId(redact(session.getSessionId(), 200));
         session.setBranchName(redact(session.getBranchName(), 400));
         session.setTitle(redact(session.getTitle(), 400));
-        session.setMatchPreview(redact(session.getMatchPreview(), 2000));
+        session.setMatchPreview(redact(session.getMatchPreview(), 16000));
         session.setSummary(redact(session.getSummary(), 4000));
         session.setRunId(redact(session.getRunId(), 200));
         session.setToolName(redact(session.getToolName(), 200));
@@ -228,6 +326,12 @@ public class SessionSearchTools {
         session.setMessageId(redact(session.getMessageId(), 200));
         session.setPlatformMessageId(redact(session.getPlatformMessageId(), 200));
         session.setSnippet(redact(session.getSnippet(), 2000));
+        session.setRole(redact(session.getRole(), 50));
+        session.setProfile(redact(session.getProfile(), 64));
+        session.setMessageToolName(redact(session.getMessageToolName(), 200));
+        session.setToolCallId(redact(session.getToolCallId(), 200));
+        session.setToolCallsJson(redact(session.getToolCallsJson(), 4000));
+        session.setSessionModel(redact(session.getSessionModel(), 200));
     }
 
     /**

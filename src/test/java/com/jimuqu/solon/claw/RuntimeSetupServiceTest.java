@@ -16,8 +16,7 @@ public class RuntimeSetupServiceTest {
         Path workspaceHome = Files.createTempDirectory("solonclaw-workspace-setup-model");
         RuntimeSetupService service = new RuntimeSetupService(config(workspaceHome));
 
-        RuntimeSetupService.ModelSetupRequest request =
-                new RuntimeSetupService.ModelSetupRequest();
+        RuntimeSetupService.ModelSetupRequest request = new RuntimeSetupService.ModelSetupRequest();
         request.setProviderKey("local-openai");
         request.setProviderName("Local OpenAI");
         request.setBaseUrl("http://127.0.0.1:9999/v1");
@@ -49,8 +48,7 @@ public class RuntimeSetupServiceTest {
         Path workspaceHome = Files.createTempDirectory("solonclaw-workspace-setup-placeholder");
         RuntimeSetupService service = new RuntimeSetupService(config(workspaceHome));
 
-        RuntimeSetupService.ModelSetupRequest request =
-                new RuntimeSetupService.ModelSetupRequest();
+        RuntimeSetupService.ModelSetupRequest request = new RuntimeSetupService.ModelSetupRequest();
         request.setProviderKey("local-openai");
         request.setProviderName("Local OpenAI");
         request.setBaseUrl("http://127.0.0.1:9999/v1");
@@ -93,7 +91,8 @@ public class RuntimeSetupServiceTest {
 
     @Test
     void shouldRejectPlaceholderChannelSecretBeforeAnySetupWrite() throws Exception {
-        Path workspaceHome = Files.createTempDirectory("solonclaw-workspace-setup-channel-placeholder");
+        Path workspaceHome =
+                Files.createTempDirectory("solonclaw-workspace-setup-channel-placeholder");
         RuntimeSetupService service = new RuntimeSetupService(config(workspaceHome));
         Map<String, String> values = new LinkedHashMap<String, String>();
         values.put("enabled", "true");

@@ -9,9 +9,9 @@ import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.stripGoa
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentProfileService;
+import com.jimuqu.solon.claw.cli.TerminalSecurityPolicyView;
 import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
-import com.jimuqu.solon.claw.cli.TerminalSecurityPolicyView;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
@@ -40,9 +40,9 @@ import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRestartCoordinator;
 import com.jimuqu.solon.claw.goal.GoalContract;
 import com.jimuqu.solon.claw.goal.GoalContractDrafter;
+import com.jimuqu.solon.claw.goal.GoalContractParser;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
-import com.jimuqu.solon.claw.goal.GoalContractParser;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
@@ -71,7 +71,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -314,7 +313,6 @@ public class DefaultCommandService implements CommandService {
         this.pluginManager = pluginManager;
     }
 
-
     /** 判断当前命令是否由默认命令服务承接。 */
     @Override
     public boolean supports(String commandName) {
@@ -337,12 +335,6 @@ public class DefaultCommandService implements CommandService {
 
         if (descriptor != null && !descriptor.supportsScope(CommandRegistry.SCOPE_GATEWAY)) {
             return tuiOnlyCommandReply(descriptor);
-        }
-
-        if (GatewayCommandConstants.COMMAND_AGENT.equals(command)) {
-            return GatewayReply.ok(
-                    agentProfileService.handleCommand(
-                            args, sessionRepository, message.sourceKey()));
         }
 
         if (GatewayCommandConstants.COMMAND_GOAL.equals(command)) {
@@ -539,7 +531,8 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_REASONING.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
-            GatewayReply reply = newSessionSettingsCommandHandler().handleReasoning(message, session, args);
+            GatewayReply reply =
+                    newSessionSettingsCommandHandler().handleReasoning(message, session, args);
             reply.setSessionId(session.getSessionId());
             reply.setBranchName(session.getBranchName());
             return reply;
@@ -1081,7 +1074,8 @@ public class DefaultCommandService implements CommandService {
         }
         // show：状态 + 契约块
         if ("show".equalsIgnoreCase(raw)) {
-            String body = goalService.statusLine(session) + "\n" + goalService.renderContract(session);
+            String body =
+                    goalService.statusLine(session) + "\n" + goalService.renderContract(session);
             return okGoalReply(session, body);
         }
         // draft：用辅助模型把裸目标起草为完成契约后再设置目标
@@ -1111,7 +1105,8 @@ public class DefaultCommandService implements CommandService {
         // pause/resume
         if ("pause".equalsIgnoreCase(raw)) {
             GoalState state = goalService.pause(session, "user-paused");
-            return okGoalReply(session, state == null ? "No goal set." : "⏸ Goal paused: " + state.getGoal());
+            return okGoalReply(
+                    session, state == null ? "No goal set." : "⏸ Goal paused: " + state.getGoal());
         }
         if ("resume".equalsIgnoreCase(raw)) {
             GoalState state = goalService.resume(session, true);
@@ -1165,8 +1160,7 @@ public class DefaultCommandService implements CommandService {
         if (agentRunControlService != null
                 && agentRunControlService.isRunning(message.sourceKey())) {
             return okGoalReply(
-                    session,
-                    "Agent 正在运行 —— 用 /goal status/pause/clear/wait，或先 /stop 再设新目标。");
+                    session, "Agent 正在运行 —— 用 /goal status/pause/clear/wait，或先 /stop 再设新目标。");
         }
         int maxTurns = parseGoalMaxTurns(raw, GoalState.DEFAULT_MAX_TURNS, log);
         String goalText = stripGoalOptions(raw);
@@ -1180,7 +1174,9 @@ public class DefaultCommandService implements CommandService {
                                 + state.getMaxTurns()
                                 + "-turn budget): "
                                 + state.getGoal()
-                                + (state.hasContract() ? "\n" + state.getContract().renderBlock() : "")
+                                + (state.hasContract()
+                                        ? "\n" + state.getContract().renderBlock()
+                                        : "")
                                 + "\nI'll keep working until the goal is done, you pause/clear it, or the budget is exhausted.\n"
                                 + "Controls: /goal status · /goal pause · /goal resume · /goal clear · /subgoal <text>");
         reply.getRuntimeMetadata().put("goal_kickoff", state.getGoal());
@@ -1236,7 +1232,9 @@ public class DefaultCommandService implements CommandService {
                 boolean removed = goalService.removeSubgoal(session, n);
                 return okGoalReply(
                         session,
-                        removed ? "✓ Subgoal " + n + " removed." : "No subgoal at index " + n + ".");
+                        removed
+                                ? "✓ Subgoal " + n + " removed."
+                                : "No subgoal at index " + n + ".");
             } catch (NumberFormatException e) {
                 return okGoalReply(session, "无效的序号，用法：/subgoal remove <n>");
             }
@@ -1761,7 +1759,9 @@ public class DefaultCommandService implements CommandService {
         try {
             return Math.max(1, Integer.parseInt(text.split("\\s+", 2)[0]));
         } catch (Exception e) {
-            log.debug("Positive integer option parsing failed; using default value: {}", exceptionSummary(e));
+            log.debug(
+                    "Positive integer option parsing failed; using default value: {}",
+                    exceptionSummary(e));
             return defaultValue;
         }
     }
@@ -1804,7 +1804,9 @@ public class DefaultCommandService implements CommandService {
             agentRunRepository.appendEvent(event);
         } catch (Exception e) {
             restoreInterruptIfNeeded(e);
-            log.debug("Slash command event recording failed; command history remains best-effort: {}", exceptionSummary(e));
+            log.debug(
+                    "Slash command event recording failed; command history remains best-effort: {}",
+                    exceptionSummary(e));
         }
     }
 
@@ -2058,7 +2060,9 @@ public class DefaultCommandService implements CommandService {
                     .isEmpty();
         } catch (Exception e) {
             restoreInterruptIfNeeded(e);
-            log.debug("Pending dangerous approval lookup failed; treating as no pending approval: {}", exceptionSummary(e));
+            log.debug(
+                    "Pending dangerous approval lookup failed; treating as no pending approval: {}",
+                    exceptionSummary(e));
             return false;
         }
     }
@@ -2181,7 +2185,9 @@ public class DefaultCommandService implements CommandService {
             sessionRepository.save(session);
         } catch (Exception e) {
             restoreInterruptIfNeeded(e);
-            log.debug("MCP reload history notice append failed; continuing without history notice: {}", exceptionSummary(e));
+            log.debug(
+                    "MCP reload history notice append failed; continuing without history notice: {}",
+                    exceptionSummary(e));
         }
     }
 
@@ -2225,7 +2231,9 @@ public class DefaultCommandService implements CommandService {
                         "approvals.mcpReloadConfirm", String.valueOf(confirmRequired));
             } catch (Exception e) {
                 restoreInterruptIfNeeded(e);
-                log.warn("MCP reload confirmation setting persistence failed; in-memory setting remains active: error={}", exceptionSummary(e));
+                log.warn(
+                        "MCP reload confirmation setting persistence failed; in-memory setting remains active: error={}",
+                        exceptionSummary(e));
             }
         }
     }
@@ -2340,7 +2348,8 @@ public class DefaultCommandService implements CommandService {
 
     /** 创建技能命令处理器，集中承接 skills、tap 与 curator 命令族。 */
     private DefaultSkillCommandHandler newSkillCommandHandler() {
-        return new DefaultSkillCommandHandler(localSkillService, skillHubService, dashboardCuratorService);
+        return new DefaultSkillCommandHandler(
+                localSkillService, skillHubService, dashboardCuratorService);
     }
 
     /**
@@ -2437,8 +2446,7 @@ public class DefaultCommandService implements CommandService {
      * @return 返回Dangerous Approve结果。
      */
     private GatewayReply handleDangerousApprove(
-            GatewayMessage message, String args, ConversationEventSink eventSink)
-            throws Exception {
+            GatewayMessage message, String args, ConversationEventSink eventSink) throws Exception {
         String safeArgs = cleanApprovalCommandArgs(args);
         String normalizedArgs = safeArgs.toLowerCase();
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
@@ -2477,8 +2485,7 @@ public class DefaultCommandService implements CommandService {
                 message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试原始请求。");
         }
-        GatewayReply reply =
-                conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        GatewayReply reply = conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }
@@ -2547,8 +2554,7 @@ public class DefaultCommandService implements CommandService {
         if (approved <= 0) {
             return GatewayReply.error("当前没有待审批的危险命令。若刚刚收到审批提示，请重试原始请求；也可以使用 /approve list 查看审批状态。");
         }
-        GatewayReply reply =
-                conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        GatewayReply reply = conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }
@@ -2734,8 +2740,7 @@ public class DefaultCommandService implements CommandService {
      * @return 返回Dangerous Deny结果。
      */
     private GatewayReply handleDangerousDeny(
-            GatewayMessage message, String args, ConversationEventSink eventSink)
-            throws Exception {
+            GatewayMessage message, String args, ConversationEventSink eventSink) throws Exception {
         String safeArgs = cleanApprovalCommandArgs(args);
         String selector = SlashCommandLine.firstToken(safeArgs);
         SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
@@ -2771,8 +2776,7 @@ public class DefaultCommandService implements CommandService {
                 agentSession, selector, message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试。");
         }
-        GatewayReply reply =
-                conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        GatewayReply reply = conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }
@@ -3032,5 +3036,4 @@ public class DefaultCommandService implements CommandService {
         }
         return false;
     }
-
 }

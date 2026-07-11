@@ -39,7 +39,9 @@ class TerminalSetupCommandsRuntimeRefreshTest {
         String authStatus = commands.render("auth status backup");
         String modelStatus = commands.render("model");
 
-        assertThat(written).contains("provider=backup").doesNotContain("Sk-Test-AuthRefreshSecret123");
+        assertThat(written)
+                .contains("provider=backup")
+                .doesNotContain("Sk-Test-AuthRefreshSecret123");
         assertThat(authStatus)
                 .contains("provider=backup")
                 .contains("api_key=configured")

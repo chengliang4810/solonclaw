@@ -365,7 +365,8 @@ public class SqliteAgentSession implements AgentSession {
                 return context;
             }
         } catch (Throwable e) {
-            log.warn("Agent会话快照恢复失败，重建空上下文 sessionId={} error={}",
+            log.warn(
+                    "Agent会话快照恢复失败，重建空上下文 sessionId={} error={}",
                     safeSessionId(sessionRecord),
                     e.getClass().getSimpleName());
         }
@@ -489,7 +490,8 @@ public class SqliteAgentSession implements AgentSession {
      * @return 返回截断后的会话标识。
      */
     private String safeSessionId(SessionRecord sessionRecord) {
-        String sessionId = sessionRecord == null ? "" : StrUtil.nullToEmpty(sessionRecord.getSessionId());
+        String sessionId =
+                sessionRecord == null ? "" : StrUtil.nullToEmpty(sessionRecord.getSessionId());
         return sessionId.length() > 64 ? sessionId.substring(0, 64) : sessionId;
     }
 

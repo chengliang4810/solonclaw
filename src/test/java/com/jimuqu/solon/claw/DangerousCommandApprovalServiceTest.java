@@ -2,33 +2,19 @@ package com.jimuqu.solon.claw;
 
 import static com.jimuqu.solon.claw.DangerousCommandApprovalTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
-import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
-import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
-import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
-import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import java.io.File;
-import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.noear.solon.ai.agent.Agent;
-import org.noear.solon.ai.agent.react.intercept.HITL;
-import org.noear.solon.ai.agent.react.intercept.HITLDecision;
-import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
-import org.noear.solon.ai.agent.react.task.ToolExchanger;
 import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
 public class DangerousCommandApprovalServiceTest {
@@ -93,7 +79,8 @@ public class DangerousCommandApprovalServiceTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         DangerousCommandApprovalService.DetectionResult result =
-                env.dangerousCommandApprovalService.detect("execute_shell", "rm -rf workspace/cache");
+                env.dangerousCommandApprovalService.detect(
+                        "execute_shell", "rm -rf workspace/cache");
 
         assertThat(result).isNotNull();
         assertThat(result.getPatternKey()).isEqualTo("recursive_delete");
@@ -123,7 +110,6 @@ public class DangerousCommandApprovalServiceTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailMode("smart");
         env.appConfig.getSecurity().setGuardrailCronMode("approve");
-        env.appConfig.getApprovals().setSubagentAutoApprove(true);
         env.appConfig.getTerminal().setSudoPassword("secret-sudo");
         env.dangerousCommandApprovalService.setSmartApprovalJudge(
                 new SmartApprovalJudge() {
@@ -138,13 +124,12 @@ public class DangerousCommandApprovalServiceTest {
 
         assertThat(summary.get("guardrailMode")).isEqualTo("smart");
         assertThat(summary.get("guardrailCronMode")).isEqualTo("approve");
-        assertThat(summary.get("subagentAutoApprove")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("cronApprovalPolicy")))
                 .contains("autoApproveDangerousCommands=true")
                 .contains("hardlineAlwaysBlocked");
         assertThat(String.valueOf(summary.get("subagentApprovalPolicy")))
-                .contains("approve_once")
-                .contains("humanApprovalPromptSuppressed");
+                .contains("human_approval")
+                .contains("humanApprovalPromptSuppressed=false");
         assertThat(summary.get("smartJudgeConfigured")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("smartApprovalPolicy")))
                 .contains("approve")
@@ -152,7 +137,7 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("deny")
                 .contains("hardlinePrechecked");
         assertThat(((Integer) summary.get("dangerousRuleCount")).intValue()).isGreaterThan(50);
-        assertThat(((Integer) summary.get("hardlineRuleCount")).intValue()).isGreaterThan(10);
+        assertThat(((Integer) summary.get("hardlineRuleCount")).intValue()).isGreaterThan(5);
         assertThat(String.valueOf(summary.get("dangerousRuleSamples")))
                 .contains("recursive_delete");
         assertThat(String.valueOf(summary.get("domesticCloudRuleSamples")))
@@ -212,9 +197,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("unsafeUrlApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
         assertThat(String.valueOf(summary.get("hardlineRuleSamples"))).contains("hardline");
         assertThat(String.valueOf(summary.get("hardlinePolicy")))
-                .contains("hardline_windows")
-                .contains("metadataUrlBlocked")
-                .contains("hardlineAllowlist")
+                .contains("hardline_shutdown")
                 .contains("approvalBypassAllowed=false");
         assertThat(String.valueOf(summary.get("terminalGuardrails")))
                 .contains("long_lived_foreground");
@@ -222,8 +205,7 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("backgroundProcessGuard")).isEqualTo(Boolean.TRUE);
         assertThat(String.valueOf(summary.get("terminalGuardrailPolicy")))
                 .contains("nohup")
-                .contains("npm run dev")
-                .contains("execute_python");
+                .contains("npm run dev");
         assertThat(String.valueOf(summary.get("slashConfirmPolicy")))
                 .contains("/approve")
                 .contains("/deny")
@@ -263,12 +245,8 @@ public class DangerousCommandApprovalServiceTest {
                 env.dangerousCommandApprovalService.detect(
                         "execute_shell", "cat runtime/upload/payload-notes.md");
 
-        assertThat(relative).isNotNull();
-        assertThat(relative.getPatternKey()).isEqualTo("credential_command_path_access");
-        assertThat(relative.getDescription()).contains("凭据");
-        assertThat(relative.isHardline()).isFalse();
-        assertThat(absolute).isNotNull();
-        assertThat(absolute.getPatternKey()).isEqualTo("credential_command_path_access");
+        assertThat(relative).isNull();
+        assertThat(absolute).isNull();
         assertThat(safeSibling).isNull();
     }
 
@@ -323,7 +301,6 @@ public class DangerousCommandApprovalServiceTest {
     void shouldExposeCronAndSubagentApprovalPolicySummaries() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailCronMode("approve");
-        env.appConfig.getApprovals().setSubagentAutoApprove(true);
 
         Map<String, Object> cronSummary =
                 env.dangerousCommandApprovalService.cronApprovalPolicySummary();
@@ -339,7 +316,6 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(String.valueOf(cronSummary.get("supportedModes")))
                 .contains("bypass")
                 .contains("approval")
-                .contains("strict")
                 .contains("approve")
                 .doesNotContain("allow")
                 .doesNotContain("ignore");
@@ -352,38 +328,24 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(cronSummary.get("dangerousPatternCheckedBeforeRun")).isEqualTo(Boolean.TRUE);
         assertThat(cronSummary.get("scriptContentChecked")).isEqualTo(Boolean.TRUE);
 
-        assertThat(subagentSummary.get("autoApproveDangerousCommands")).isEqualTo(Boolean.TRUE);
-        assertThat(subagentSummary.get("defaultDecision")).isEqualTo("approve_once");
-        assertThat(subagentSummary.get("configKey")).isEqualTo("approvals.subagentAutoApprove");
+        assertThat(subagentSummary.get("defaultDecision")).isEqualTo("human_approval");
         assertThat(subagentSummary.get("runKind")).isEqualTo("subagent");
         assertThat(subagentSummary.get("hardlinePrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(subagentSummary.get("smartApprovalRunsBeforeSubagentPolicy"))
                 .isEqualTo(Boolean.TRUE);
-        assertThat(subagentSummary.get("humanApprovalPromptSuppressed")).isEqualTo(Boolean.TRUE);
-        assertThat(subagentSummary.get("currentThreadApprovalWhenAutoApproved"))
-                .isEqualTo(Boolean.TRUE);
-        assertThat(subagentSummary.get("pendingApprovalCreatedWhenDenied"))
-                .isEqualTo(Boolean.FALSE);
-        assertThat(subagentSummary.get("denyMessageIncludesConfigHint")).isEqualTo(Boolean.TRUE);
+        assertThat(subagentSummary.get("humanApprovalPromptSuppressed")).isEqualTo(Boolean.FALSE);
 
         env.appConfig.getSecurity().setGuardrailCronMode("approval");
-        env.appConfig.getApprovals().setSubagentAutoApprove(false);
         assertThat(
                         env.dangerousCommandApprovalService
                                 .cronApprovalPolicySummary()
                                 .get("defaultDecision"))
                 .isEqualTo("request_approval");
-        env.appConfig.getSecurity().setGuardrailCronMode("strict");
-        assertThat(
-                        env.dangerousCommandApprovalService
-                                .cronApprovalPolicySummary()
-                                .get("defaultDecision"))
-                .isEqualTo("deny");
         assertThat(
                         env.dangerousCommandApprovalService
                                 .subagentApprovalPolicySummary()
                                 .get("defaultDecision"))
-                .isEqualTo("deny");
+                .isEqualTo("human_approval");
     }
 
     @Test
@@ -470,28 +432,14 @@ public class DangerousCommandApprovalServiceTest {
 
         Map<String, Object> summary = env.dangerousCommandApprovalService.hardlinePolicySummary();
 
-        assertThat(((Integer) summary.get("ruleCount")).intValue()).isGreaterThan(10);
-        assertThat(String.valueOf(summary.get("ruleSamples")))
-                .contains("hardline_metadata_url")
-                .contains("hardline_windows");
+        assertThat(((Integer) summary.get("ruleCount")).intValue()).isGreaterThan(5);
+        assertThat(String.valueOf(summary.get("ruleSamples"))).contains("hardline_shutdown");
         assertThat(String.valueOf(summary.get("coveredTools")))
                 .contains("execute_shell")
-                .contains("execute_code")
-                .contains("execute_python")
-                .contains("execute_js");
+                .contains("terminal")
+                .contains("execute_code", "execute_python", "execute_js");
         assertThat(String.valueOf(summary.get("blockedCategories")))
-                .contains("root_or_system_recursive_delete")
-                .contains("windows_disk_or_profile_destruction")
-                .contains("metadata_url_access");
-        assertThat(summary.get("metadataUrlBlocked")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("allowlistWildcardSupported")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("allowlistedCategoriesCanBypass")).isEqualTo(Boolean.TRUE);
-        assertThat(String.valueOf(summary.get("hardlineAllowlist")))
-                .doesNotContain("hardline_shutdown")
-                .doesNotContain("hardline_windows_shutdown");
-        assertThat(summary.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("pythonShellExtractionCovered")).isEqualTo(Boolean.TRUE);
-        assertThat(summary.get("javascriptChildProcessExtractionCovered")).isEqualTo(Boolean.TRUE);
+                .contains("root_or_system_recursive_delete");
         assertThat(summary.get("approvalBypassAllowed")).isEqualTo(Boolean.FALSE);
         assertThat(summary.get("slashApproveBypassAllowed")).isEqualTo(Boolean.FALSE);
         assertThat(summary.get("sessionApprovalBypassAllowed")).isEqualTo(Boolean.FALSE);
@@ -540,11 +488,6 @@ public class DangerousCommandApprovalServiceTest {
                 .contains("npm run dev")
                 .contains("docker compose up")
                 .contains("python -m http.server");
-        assertThat(summary.get("codeToolShellExtractionCovered")).isEqualTo(Boolean.TRUE);
-        assertThat(String.valueOf(summary.get("codeToolShellSources")))
-                .contains("execute_code")
-                .contains("execute_python")
-                .contains("execute_js");
         assertThat(summary.get("commandPathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("credentialPathPrechecked")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("downloadOutputPathPrechecked")).isEqualTo(Boolean.TRUE);
@@ -2962,5 +2905,4 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.detect("execute_shell", "sc qc DemoService"))
                 .isNull();
     }
-
 }

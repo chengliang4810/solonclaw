@@ -4,6 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
+import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -16,9 +17,6 @@ import org.slf4j.LoggerFactory;
 public final class MessageAttachmentSupport {
     /** 记录附件提示解析降级路径的低敏诊断日志。 */
     private static final Logger log = LoggerFactory.getLogger(MessageAttachmentSupport.class);
-
-    /** 图片ESTIMATEDtoken的统一常量值。 */
-    private static final int IMAGE_ESTIMATED_TOKENS = 1500;
 
     /** 语音记录文本最小token的统一常量值。 */
     private static final int VOICE_TRANSCRIPT_MIN_TOKENS = 80;
@@ -314,7 +312,7 @@ public final class MessageAttachmentSupport {
                         : (sizeBytes + BYTES_PER_ESTIMATED_TOKEN - 1L) / BYTES_PER_ESTIMATED_TOKEN;
         int tokens;
         if ("image".equals(kind)) {
-            tokens = IMAGE_ESTIMATED_TOKENS;
+            tokens = CompressionConstants.IMAGE_ATTACHMENT_ESTIMATED_TOKENS;
         } else if ("voice".equals(kind)) {
             tokens =
                     Math.max(

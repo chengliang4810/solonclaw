@@ -46,72 +46,6 @@ final class DangerousCommandApprovalMessageRenderer {
     }
 
     /**
-     * 构建 smart 审批拒绝消息，确保拒绝原因和命令描述都经过低敏展示。
-     *
-     * @param detection 危险命令或策略检测结果。
-     * @param decision smart 审批器返回的拒绝决策。
-     * @return 返回 smart 审批拒绝提示。
-     */
-    String buildSmartDeniedMessage(
-            DangerousCommandApprovalService.DetectionResult detection,
-            SmartApprovalDecision decision) {
-        String description =
-                detection == null
-                        ? "dangerous command"
-                        : StrUtil.blankToDefault(
-                                detection.getDescription(), detection.getPatternKey());
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("BLOCKED by smart approval: ")
-                .append(redactApprovalDisplay(description, 1000))
-                .append(". The command was assessed as genuinely dangerous. Do NOT retry.");
-        if (decision != null && StrUtil.isNotBlank(decision.getReason())) {
-            buffer.append("\n原因：").append(redactApprovalDisplay(decision.getReason(), 1000));
-        }
-        return buffer.toString();
-    }
-
-    /**
-     * 构建 strict 模式拒绝消息，说明当前策略不会进入人工审批。
-     *
-     * @param toolName 触发拒绝的工具名称。
-     * @param detection 危险命令检测结果。
-     * @param code 待执行命令。
-     * @return 返回 strict 模式拒绝提示。
-     */
-    String buildStrictDeniedMessage(
-            String toolName,
-            DangerousCommandApprovalService.DetectionResult detection,
-            String code) {
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("BLOCKED (strict): ");
-        buffer.append(
-                redactApprovalDisplay(
-                        detection == null ? "dangerous command" : detection.getDescription(),
-                        1000));
-        buffer.append("。当前安全策略为 strict，命中可审批危险策略时不会进入人工审批。");
-        appendToolAndCommandPreview(buffer, toolName, code);
-        return buffer.toString();
-    }
-
-    /**
-     * 构建子 Agent 拒绝消息，提示只能通过显式可信批处理配置放行。
-     *
-     * @param detection 危险命令或策略检测结果。
-     * @return 返回子 Agent 拒绝提示。
-     */
-    String buildSubagentDeniedMessage(
-            DangerousCommandApprovalService.DetectionResult detection) {
-        String description =
-                detection == null
-                        ? "dangerous command"
-                        : StrUtil.blankToDefault(
-                                detection.getDescription(), detection.getPatternKey());
-        return "BLOCKED: 子 Agent 默认拒绝可审批危险命令："
-                + redactApprovalDisplay(description, 1000)
-                + "。如确实需要在可信批处理里允许，请设置 approvals.subagentAutoApprove=true。";
-    }
-
-    /**
      * 构建 hardline 阻断消息，明确该类操作不能通过审批绕过。
      *
      * @param toolName 触发阻断的工具名称。
@@ -132,35 +66,31 @@ final class DangerousCommandApprovalMessageRenderer {
     }
 
     /**
-     * 构建文件策略阻断消息，路径只做脱敏短预览。
+     * 构建未配置密码时 sudo -S 的不可绕过提示，避免 Agent 通过标准输入猜测提权密码。
      *
-     * @param toolName 触发阻断的工具名称。
-     * @param verdict 文件安全策略判定。
-     * @return 返回文件策略阻断提示。
+     * @param toolName 触发拒绝的工具名称。
+     * @param code 待执行命令。
+     * @return 返回 sudo stdin 拒绝提示。
      */
-    String buildFilePolicyMessage(
-            String toolName, SecurityPolicyService.FileVerdict verdict) {
+    String buildSudoStdinMessage(String toolName, String code) {
         StringBuilder buffer = new StringBuilder();
-        buffer.append("BLOCKED: 文件安全策略阻止访问：");
-        buffer.append(verdict.getMessage());
-        buffer.append("\n工具：").append(toolLabel(toolName));
-        buffer.append("\n路径：").append(SecretRedactor.redact(verdict.getPath(), 400));
-        buffer.append("\n请改用工作区内的普通项目文件，敏感凭据文件不能通过 Agent 工具读取、写入或删除。");
+        buffer.append(
+                "BLOCKED: 未配置 solonclaw.terminal.sudoPassword 或 SOLONCLAW_SUDO_PASSWORD 时，不允许显式使用 sudo -S。该写法会让 Agent 通过标准输入猜测 sudo 密码。");
+        buffer.append("请配置受管 sudo 密码，或在 Agent 外部终端手动执行该命令。");
+        appendToolAndCommandPreview(buffer, toolName, code);
         return buffer.toString();
     }
 
     /**
-     * 构建 URL 策略阻断消息，URL 通过统一密钥遮蔽逻辑展示。
+     * 构建用户 deny 规则阻断消息，明确该配置不可通过审批绕过。
      *
-     * @param verdict URL 安全策略判定。
-     * @return 返回 URL 策略阻断提示。
+     * @param denyReason 命中的用户规则说明。
+     * @return 返回用户 deny 规则阻断提示。
      */
-    String buildUrlPolicyMessage(SecurityPolicyService.UrlVerdict verdict) {
-        return "BLOCKED: URL 安全策略阻止访问："
-                + verdict.getMessage()
-                + "\nURL: "
-                + SecretRedactor.maskUrl(verdict.getUrl())
-                + "\n请换用公开、可信且符合网站访问策略的地址。";
+    String buildUserDenyMessage(String denyReason) {
+        return "BLOCKED: 命令匹配用户配置的不可绕过 approvals.deny 规则: "
+                + redactApprovalDisplay(denyReason, 1000)
+                + "。如需修改请调整 approvals.deny 配置。";
     }
 
     /**

@@ -560,7 +560,6 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         return BoundedAttachmentIO.downloadOkHttp(client, url, maxBytes, securityPolicyService);
     }
 
-
     /**
      * 发送附件。
      *

@@ -1,7 +1,5 @@
 package com.jimuqu.solon.claw.bootstrap;
 
-import com.jimuqu.solon.claw.agent.AgentProfileService;
-import com.jimuqu.solon.claw.agent.AgentRuntimeService;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
@@ -16,13 +14,18 @@ import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
+import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
+import com.jimuqu.solon.claw.media.SpeechService;
+import com.jimuqu.solon.claw.plugin.AgentPluginManager;
+import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.proactive.ProactiveRepository;
-import com.jimuqu.solon.claw.plugin.AgentPluginManager;
+import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
@@ -42,7 +45,6 @@ import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
 import com.jimuqu.solon.claw.tool.runtime.ToolResultStorageService;
 import com.jimuqu.solon.claw.usage.UsageEventRepository;
-import com.jimuqu.solon.claw.web.DashboardAgentService;
 import com.jimuqu.solon.claw.web.DashboardAnalyticsService;
 import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
 import com.jimuqu.solon.claw.web.DashboardAuthFilter;
@@ -58,6 +60,7 @@ import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardMediaService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardPluginStatusService;
+import com.jimuqu.solon.claw.web.DashboardProfileService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
@@ -67,6 +70,8 @@ import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
 import com.jimuqu.solon.claw.web.McpPackageSecurityService;
 import com.jimuqu.solon.claw.web.WeixinQrSetupService;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
+import java.util.List;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
 import org.noear.solon.core.handle.Filter;
@@ -74,6 +79,50 @@ import org.noear.solon.core.handle.Filter;
 /** 承载控制台配置并集中创建运行组件。 */
 @Configuration
 public class DashboardConfiguration {
+    /**
+     * 创建机器级 Profile 管理器，供 Dashboard 和后续 Profile 作用域服务复用。
+     *
+     * @return 基于当前启动工作区的 Profile 管理器。
+     */
+    @Bean
+    public ProfileManager profileManager() {
+        return ProfileManager.current();
+    }
+
+    /**
+     * 创建 Dashboard Profile 管理服务。
+     *
+     * @param profileManager Profile 核心管理器。
+     * @param dashboardMcpService 跨 Profile MCP 配置服务。
+     * @param dashboardSkillsService 跨 Profile 技能服务。
+     * @return Dashboard Profile 服务。
+     */
+    @Bean
+    public DashboardProfileService dashboardProfileService(
+            ProfileManager profileManager,
+            DashboardMcpService dashboardMcpService,
+            DashboardSkillsService dashboardSkillsService,
+            ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager) {
+        return new DashboardProfileService(
+                profileManager,
+                dashboardMcpService,
+                dashboardSkillsService,
+                profileMultiplexRuntimeManager);
+    }
+
+    /**
+     * 创建不修改 JVM 全局状态的 Dashboard Profile 请求上下文。
+     *
+     * @param profileManager 机器级 Profile 管理器。
+     * @param appConfig 当前 Dashboard JVM 配置。
+     * @return Profile 请求上下文。
+     */
+    @Bean
+    public DashboardProfileContext dashboardProfileContext(
+            ProfileManager profileManager, AppConfig appConfig) {
+        return new DashboardProfileContext(profileManager, appConfig);
+    }
+
     /**
      * 执行控制台认证服务相关逻辑。
      *
@@ -108,6 +157,9 @@ public class DashboardConfiguration {
      * @param appUpdateService 应用Update服务依赖。
      * @param llmProviderService LLM提供方Service标识或键值。
      * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
+     * @param speechService 语音运行时服务依赖。
+     * @param imageGenProviders 图像生成 Provider 列表。
+     * @param dashboardProfileContext Dashboard Profile 请求上下文。
      * @return 返回控制台状态服务结果。
      */
     @Bean
@@ -120,7 +172,10 @@ public class DashboardConfiguration {
             AppVersionService appVersionService,
             AppUpdateService appUpdateService,
             LlmProviderService llmProviderService,
-            ProactiveDiagnosticsService proactiveDiagnosticsService) {
+            ProactiveDiagnosticsService proactiveDiagnosticsService,
+            SpeechService speechService,
+            List<ImageGenProvider> imageGenProviders,
+            DashboardProfileContext dashboardProfileContext) {
         return new DashboardStatusService(
                 appConfig,
                 sessionRepository,
@@ -130,7 +185,10 @@ public class DashboardConfiguration {
                 appVersionService,
                 appUpdateService,
                 llmProviderService,
-                proactiveDiagnosticsService);
+                proactiveDiagnosticsService,
+                speechService,
+                imageGenProviders,
+                dashboardProfileContext);
     }
 
     /**
@@ -146,7 +204,8 @@ public class DashboardConfiguration {
             AppConfig appConfig,
             ProactiveRepository proactiveRepository,
             com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository gatewayPolicyRepository) {
-        return new ProactiveDiagnosticsService(appConfig, proactiveRepository, gatewayPolicyRepository);
+        return new ProactiveDiagnosticsService(
+                appConfig, proactiveRepository, gatewayPolicyRepository);
     }
 
     /**
@@ -176,10 +235,7 @@ public class DashboardConfiguration {
             CheckpointService checkpointService,
             SessionArtifactService sessionArtifactService) {
         return new DashboardSessionService(
-                sessionRepository,
-                checkpointService,
-                sessionArtifactService,
-                agentRunRepository);
+                sessionRepository, checkpointService, sessionArtifactService, agentRunRepository);
     }
 
     /**
@@ -212,25 +268,6 @@ public class DashboardConfiguration {
     }
 
     /**
-     * 执行控制台Agent服务相关逻辑。
-     *
-     * @param agentProfileService 文件或目录路径参数。
-     * @param agentRuntimeService Agent运行时服务依赖。
-     * @param sessionRepository 会话仓储依赖。
-     * @param agentRunRepository Agent运行仓储依赖。
-     * @return 返回控制台Agent服务结果。
-     */
-    @Bean
-    public DashboardAgentService dashboardAgentService(
-            AgentProfileService agentProfileService,
-            AgentRuntimeService agentRuntimeService,
-            SessionRepository sessionRepository,
-            AgentRunRepository agentRunRepository) {
-        return new DashboardAgentService(
-                agentProfileService, agentRuntimeService, sessionRepository, agentRunRepository);
-    }
-
-    /**
      * 执行控制台诊断服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
@@ -251,6 +288,7 @@ public class DashboardConfiguration {
      * @param agentRunRepository Agent运行仓储依赖。
      * @param processRegistry 进程注册表依赖组件。
      * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param dashboardProfileContext Dashboard Profile 请求上下文。
      * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
      * @return 返回控制台诊断服务结果。
      */
@@ -335,8 +373,11 @@ public class DashboardConfiguration {
      */
     @Bean
     public DashboardConfigService dashboardConfigService(
-            AppConfig appConfig, GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
-        return new DashboardConfigService(appConfig, gatewayRuntimeRefreshService);
+            AppConfig appConfig,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            DashboardProfileContext dashboardProfileContext) {
+        return new DashboardConfigService(
+                appConfig, gatewayRuntimeRefreshService, dashboardProfileContext);
     }
 
     /**
@@ -346,6 +387,7 @@ public class DashboardConfiguration {
      * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
      * @param llmProviderService LLM提供方Service标识或键值。
      * @param modelMetadataService 模型元数据服务依赖。
+     * @param dashboardProfileContext Dashboard Profile 请求上下文。
      * @return 返回控制台提供方服务结果。
      */
     @Bean
@@ -353,13 +395,15 @@ public class DashboardConfiguration {
             AppConfig appConfig,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             LlmProviderService llmProviderService,
-            ModelMetadataService modelMetadataService) {
+            ModelMetadataService modelMetadataService,
+            DashboardProfileContext dashboardProfileContext) {
         return new DashboardProviderService(
                 appConfig,
                 gatewayRuntimeRefreshService,
                 llmProviderService,
                 null,
-                modelMetadataService);
+                modelMetadataService,
+                dashboardProfileContext);
     }
 
     /**
@@ -417,8 +461,11 @@ public class DashboardConfiguration {
      */
     @Bean
     public DashboardWorkspaceService dashboardWorkspaceService(
-            PersonaWorkspaceService personaWorkspaceService) {
-        return new DashboardWorkspaceService(personaWorkspaceService);
+            PersonaWorkspaceService personaWorkspaceService,
+            DashboardProfileContext dashboardProfileContext) {
+        return new DashboardWorkspaceService(
+                personaWorkspaceService,
+                new com.jimuqu.solon.claw.web.DashboardProfileScope(dashboardProfileContext));
     }
 
     /**
@@ -426,12 +473,16 @@ public class DashboardConfiguration {
      *
      * @param appConfig 应用运行配置。
      * @param gatewayRuntimeRefreshService 网关运行时Refresh服务依赖。
+     * @param dashboardProfileContext Dashboard Profile 请求上下文。
      * @return 返回控制台工作区配置服务结果。
      */
     @Bean
     public DashboardRuntimeConfigService dashboardRuntimeConfigService(
-            AppConfig appConfig, GatewayRuntimeRefreshService gatewayRuntimeRefreshService) {
-        return new DashboardRuntimeConfigService(appConfig, gatewayRuntimeRefreshService);
+            AppConfig appConfig,
+            GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
+            DashboardProfileContext dashboardProfileContext) {
+        return new DashboardRuntimeConfigService(
+                appConfig, gatewayRuntimeRefreshService, dashboardProfileContext);
     }
 
     /**
@@ -439,12 +490,16 @@ public class DashboardConfiguration {
      *
      * @param appConfig 应用运行配置。
      * @param dashboardConfigService dashboard配置Service配置对象。
+     * @param dashboardProfileContext Dashboard Profile 请求上下文。
      * @return 返回控制台平台Toolsets服务结果。
      */
     @Bean
     public DashboardPlatformToolsetsService dashboardPlatformToolsetsService(
-            AppConfig appConfig, DashboardConfigService dashboardConfigService) {
-        return new DashboardPlatformToolsetsService(appConfig, dashboardConfigService);
+            AppConfig appConfig,
+            DashboardConfigService dashboardConfigService,
+            DashboardProfileContext dashboardProfileContext) {
+        return new DashboardPlatformToolsetsService(
+                appConfig, dashboardConfigService, dashboardProfileContext);
     }
 
     /**
@@ -525,8 +580,15 @@ public class DashboardConfiguration {
      */
     @Bean
     public DashboardSkillsService dashboardSkillsService(
-            LocalSkillService localSkillService, SqlitePreferenceStore sqlitePreferenceStore) {
-        return new DashboardSkillsService(localSkillService, sqlitePreferenceStore);
+            LocalSkillService localSkillService,
+            SqlitePreferenceStore sqlitePreferenceStore,
+            DashboardProfileContext dashboardProfileContext,
+            SkillHubService skillHubService) {
+        return new DashboardSkillsService(
+                localSkillService,
+                sqlitePreferenceStore,
+                new com.jimuqu.solon.claw.web.DashboardProfileScope(dashboardProfileContext),
+                skillHubService);
     }
 
     /**
@@ -536,10 +598,15 @@ public class DashboardConfiguration {
      * @param defaultCronScheduler 默认定时任务调度器参数。
      * @return 返回控制台定时任务服务结果。
      */
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     public DashboardCronService dashboardCronService(
-            CronJobService cronJobService, DefaultCronScheduler defaultCronScheduler) {
-        return new DashboardCronService(cronJobService, defaultCronScheduler);
+            CronJobService cronJobService,
+            DefaultCronScheduler defaultCronScheduler,
+            DashboardProfileContext dashboardProfileContext) {
+        return new DashboardCronService(
+                cronJobService,
+                defaultCronScheduler,
+                new com.jimuqu.solon.claw.web.DashboardProfileScope(dashboardProfileContext));
     }
 
     /**
@@ -551,12 +618,13 @@ public class DashboardConfiguration {
      * @param securityPolicyService 安全策略服务依赖。
      * @return 返回控制台MCP服务结果。
      */
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     public DashboardMcpService dashboardMcpService(
             AppConfig appConfig,
             SqliteDatabase sqliteDatabase,
             McpRuntimeService mcpRuntimeService,
-            com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService) {
+            com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService,
+            DashboardProfileContext dashboardProfileContext) {
         return new DashboardMcpService(
                 appConfig,
                 sqliteDatabase,
@@ -564,7 +632,8 @@ public class DashboardConfiguration {
                         new com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient(
                                 securityPolicyService),
                         securityPolicyService),
-                mcpRuntimeService);
+                mcpRuntimeService,
+                new com.jimuqu.solon.claw.web.DashboardProfileScope(dashboardProfileContext));
     }
 
     /**

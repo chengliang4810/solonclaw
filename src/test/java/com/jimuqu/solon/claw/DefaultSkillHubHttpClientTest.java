@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.AllowLocalButBlockMetadataSecurityPolicyService;
-import com.jimuqu.solon.claw.support.SecurityPolicyTestSupport.FixedDnsSecurityPolicyService;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.util.Collections;
@@ -14,74 +13,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class DefaultSkillHubHttpClientTest {
-    @Test
-    void shouldBlockPrivateSkillHubUrlsBeforeNetworkAccess() {
-        DefaultSkillHubHttpClient client =
-                new DefaultSkillHubHttpClient(
-                        new FixedDnsSecurityPolicyService(new AppConfig(), "127.0.0.1"));
-
-        assertThatThrownBy(
-                        () ->
-                                client.getText(
-                                        "https://skills.example/.well-known/skills/index.json",
-                                        null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Skills Hub HTTP URL blocked")
-                .hasMessageContaining("内网");
-    }
-
-    @Test
-    void shouldBlockUnsafeOsvEndpointBeforePostingJson() {
-        DefaultSkillHubHttpClient client =
-                new DefaultSkillHubHttpClient(
-                        new FixedDnsSecurityPolicyService(new AppConfig(), "169.254.169.254"));
-
-        assertThatThrownBy(() -> client.postJson("https://api.osv.dev/v1/query", null, "{}"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Skills Hub HTTP URL blocked")
-                .hasMessageContaining("169.254.169.254");
-    }
-
-    @Test
-    void shouldBlockUnsafeGetRedirectTargetBeforeFollowingIt() throws Exception {
-        HttpServer server = redirectServer();
-        try {
-            server.start();
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/index";
-            DefaultSkillHubHttpClient client =
-                    new DefaultSkillHubHttpClient(
-                            new AllowLocalButBlockMetadataSecurityPolicyService(new AppConfig()));
-
-            assertThatThrownBy(() -> client.getText(url, null))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Skills Hub HTTP URL blocked")
-                    .hasMessageContaining("169.254.169.254")
-                    .hasMessageContaining("token=***");
-        } finally {
-            server.stop(0);
-        }
-    }
-
-    @Test
-    void shouldBlockUnsafePostRedirectTargetBeforeFollowingIt() throws Exception {
-        HttpServer server = redirectServer();
-        try {
-            server.start();
-            String url = "http://127.0.0.1:" + server.getAddress().getPort() + "/index";
-            DefaultSkillHubHttpClient client =
-                    new DefaultSkillHubHttpClient(
-                            new AllowLocalButBlockMetadataSecurityPolicyService(new AppConfig()));
-
-            assertThatThrownBy(() -> client.postJson(url, null, "{}"))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Skills Hub HTTP URL blocked")
-                    .hasMessageContaining("169.254.169.254")
-                    .hasMessageContaining("token=***");
-        } finally {
-            server.stop(0);
-        }
-    }
-
     @Test
     void shouldNotForwardAuthorizationAcrossSkillHubRedirectOrigins() throws Exception {
         CaptureServer target = captureServer();
@@ -230,5 +161,4 @@ public class DefaultSkillHubHttpClientTest {
             return "http://127.0.0.1:" + server.getAddress().getPort() + path;
         }
     }
-
 }

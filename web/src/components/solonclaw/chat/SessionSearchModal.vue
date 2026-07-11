@@ -7,6 +7,7 @@ import { useI18n } from 'vue-i18n'
 import { fetchSessions, searchSessions, type SessionSearchResult, type SessionSummary } from '@/api/solonclaw/sessions'
 import { useChatStore } from '@/stores/solonclaw/chat'
 import { useSessionSearch } from '@/composables/useSessionSearch'
+import { profileSessionIdentity } from '@/shared/profileScope'
 import { getSourceLabel } from '@/shared/session-display'
 
 const { t } = useI18n()
@@ -114,7 +115,7 @@ async function openItem(item: SearchItem) {
   sessionSearchOpen.value = false
 
   await ensureChatSessionsLoaded()
-  await chatStore.switchSession(item.id, messageId)
+  await chatStore.switchSession(item.id, messageId, item.profile)
   if (router.currentRoute.value.name !== 'solonclaw.chat') {
     await router.push({ name: 'solonclaw.chat' })
   }
@@ -237,7 +238,7 @@ onUnmounted(() => {
           <div v-else class="result-list">
             <button
               v-for="(item, idx) in items"
-              :key="item.id"
+              :key="profileSessionIdentity(item.id, item.profile)"
               class="result-item"
               :class="{ active: idx === activeIndex }"
               @click="openItem(item)"
@@ -246,6 +247,7 @@ onUnmounted(() => {
               <div class="result-main">
                 <div class="result-title-row">
                   <span class="result-title">{{ getItemTitle(item) }}</span>
+                  <span v-if="item.profile" class="result-profile">{{ item.profile }}</span>
                   <span class="result-source">{{ formatSource(item.source) }}</span>
                 </div>
                 <div class="result-snippet">
@@ -363,6 +365,12 @@ onUnmounted(() => {
   flex-shrink: 0;
   font-size: 11px;
   color: $text-muted;
+}
+
+.result-profile {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: $accent-primary;
 }
 
 .result-snippet {

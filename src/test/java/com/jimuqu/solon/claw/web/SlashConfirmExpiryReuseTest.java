@@ -19,7 +19,8 @@ class SlashConfirmExpiryReuseTest {
                                         "src/main/java/com/jimuqu/solon/claw/web/DashboardDiagnosticsService.java")),
                         StandardCharsets.UTF_8);
 
-        assertFalse(source.contains("pending.getCreatedAt() + SlashConfirmService.DEFAULT_TIMEOUT_MS"));
+        assertFalse(
+                source.contains("pending.getCreatedAt() + SlashConfirmService.DEFAULT_TIMEOUT_MS"));
         assertFalse(source.contains("remainingMillis = expiresAt - now"));
     }
 }

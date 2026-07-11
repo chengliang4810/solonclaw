@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.engine;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.LlmResult;
@@ -12,10 +13,14 @@ import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.core.service.SessionSearchService;
+import com.jimuqu.solon.claw.profile.ProfileManager;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
+import com.jimuqu.solon.claw.storage.repository.ReadOnlyProfileSessionRepository;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SearchTextSupport;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -26,6 +31,7 @@ import java.util.Map;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +45,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
     private static final int DEFAULT_LIMIT = 3;
 
     /** 最大限制的统一常量值。 */
-    private static final int MAX_LIMIT = 5;
+    private static final int MAX_LIMIT = 10;
+
+    /** read 模式完整保留的开头消息数。 */
+    private static final int READ_HEAD_MESSAGES = 20;
+
+    /** read 模式完整保留的结尾消息数。 */
+    private static final int READ_TAIL_MESSAGES = 10;
 
     /** 摘要系统提示词的统一常量值。 */
     private static final String SUMMARY_SYSTEM_PROMPT =
@@ -56,6 +68,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
     /** 保存Agent运行仓储依赖，用于访问持久化数据。 */
     private final AgentRunRepository agentRunRepository;
 
+    /** 当前逻辑运行时所属 Profile，来自独立 AppConfig 工作区而非 JVM 全局可变状态。 */
+    private final String currentProfileName;
+
     /**
      * 创建默认会话搜索服务实例，并注入运行所需依赖。
      *
@@ -63,7 +78,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
      * @param llmGateway LLM网关参数。
      */
     public DefaultSessionSearchService(SessionRepository sessionRepository, LlmGateway llmGateway) {
-        this(sessionRepository, llmGateway, null);
+        this(sessionRepository, llmGateway, null, null);
     }
 
     /**
@@ -77,9 +92,26 @@ public class DefaultSessionSearchService implements SessionSearchService {
             SessionRepository sessionRepository,
             LlmGateway llmGateway,
             AgentRunRepository agentRunRepository) {
+        this(sessionRepository, llmGateway, agentRunRepository, null);
+    }
+
+    /**
+     * 创建绑定独立 Profile 配置的会话搜索服务。
+     *
+     * @param sessionRepository 当前 Profile 会话仓储。
+     * @param llmGateway LLM 网关。
+     * @param agentRunRepository 当前 Profile 运行仓储。
+     * @param appConfig 当前逻辑运行时配置，用于解析 Profile 身份。
+     */
+    public DefaultSessionSearchService(
+            SessionRepository sessionRepository,
+            LlmGateway llmGateway,
+            AgentRunRepository agentRunRepository,
+            AppConfig appConfig) {
         this.sessionRepository = sessionRepository;
         this.llmGateway = llmGateway;
         this.agentRunRepository = agentRunRepository;
+        this.currentProfileName = ProfileRuntimeIdentity.resolve(appConfig);
     }
 
     /**
@@ -93,7 +125,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
     @Override
     public List<SessionSearchEntry> search(String sourceKey, String query, int limit)
             throws Exception {
-        return search(sourceKey, query, limit, false);
+        return search(sourceKey, query, limit, false, null, null);
     }
 
     /**
@@ -103,10 +135,18 @@ public class DefaultSessionSearchService implements SessionSearchService {
      * @param query 查询参数。
      * @param limit 最大返回数量。
      * @param summarize 是否调用模型生成搜索聚焦总结；默认工具路径关闭以保证长会话检索延迟稳定。
+     * @param sort 时间排序偏好。
+     * @param roleFilter 允许命中的消息角色。
      * @return 返回搜索结果。
      */
     private List<SessionSearchEntry> search(
-            String sourceKey, String query, int limit, boolean summarize) throws Exception {
+            String sourceKey,
+            String query,
+            int limit,
+            boolean summarize,
+            String sort,
+            String roleFilter)
+            throws Exception {
         int resolvedLimit = Math.max(1, Math.min(limit <= 0 ? DEFAULT_LIMIT : limit, MAX_LIMIT));
         SessionRecord currentSession =
                 StrUtil.isBlank(sourceKey) ? null : sessionRepository.getBoundSession(sourceKey);
@@ -145,7 +185,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 }
                 grouped.put(rootId, new SearchCandidate(display, candidate));
             }
-            if (StrUtil.isBlank(query) && grouped.size() >= resolvedLimit) {
+            if (StrUtil.isBlank(query)
+                    && !"oldest".equalsIgnoreCase(StrUtil.nullToEmpty(sort).trim())
+                    && grouped.size() >= resolvedLimit) {
                 break;
             }
         }
@@ -166,6 +208,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
             entry.setMatchPreview(buildPreview(representative, query));
             entry.setSnippet(entry.getMatchPreview());
             entry.setMessageId(findPreviewMessageId(representative, query));
+            entry.setRole(findPreviewRole(representative, query));
             entry.setScore(scoreMatch(representative, query));
             if (StrUtil.isBlank(query)) {
                 entry.setSummary(entry.getMatchPreview());
@@ -183,7 +226,11 @@ public class DefaultSessionSearchService implements SessionSearchService {
             appendRunEventResults(sourceKey, query, resolvedLimit, results);
             appendToolCallResults(sourceKey, query, resolvedLimit, results);
             results = retainConfirmedDiscoveryResults(results);
+            results = filterEntriesByRole(results, roleFilter);
             sortDiscoveryResults(results);
+            sortByTime(results, sort);
+        } else {
+            sortByTime(results, sort);
         }
         return limitResults(results, resolvedLimit);
     }
@@ -199,6 +246,14 @@ public class DefaultSessionSearchService implements SessionSearchService {
         if (query == null) {
             return search(null, null, DEFAULT_LIMIT);
         }
+        normalizeEmbeddedProfile(query);
+        if (StrUtil.isNotBlank(query.getSessionId())
+                && StrUtil.isBlank(query.getAroundMessageId())) {
+            return readSession(query);
+        }
+        if (StrUtil.isNotBlank(query.getProfile())) {
+            return searchProfile(query);
+        }
         if (shouldSearchRuns(query)) {
             return searchRunScope(query);
         }
@@ -207,7 +262,13 @@ public class DefaultSessionSearchService implements SessionSearchService {
             return scroll(query);
         }
         List<SessionSearchEntry> entries =
-                search(query.getSourceKey(), query.getQuery(), query.getLimit(), query.isSummarize());
+                search(
+                        query.getSourceKey(),
+                        query.getQuery(),
+                        query.getLimit(),
+                        query.isSummarize(),
+                        query.getSort(),
+                        query.getRoleFilter());
         List<SessionSearchEntry> filtered = new ArrayList<SessionSearchEntry>();
         for (SessionSearchEntry entry : entries) {
             if (StrUtil.isNotBlank(query.getSessionId())
@@ -223,6 +284,225 @@ public class DefaultSessionSearchService implements SessionSearchService {
             filtered.add(entry);
         }
         return filtered;
+    }
+
+    /**
+     * 解析 session_id 中的 `profile/id` 复合引用；显式 profile 始终优先。
+     *
+     * @param query 待规范化查询。
+     */
+    private void normalizeEmbeddedProfile(SessionSearchQuery query) {
+        String sessionId = StrUtil.nullToEmpty(query.getSessionId()).trim();
+        int separator = sessionId.indexOf('/');
+        if (separator <= 0 || separator >= sessionId.length() - 1) {
+            return;
+        }
+        if (StrUtil.isBlank(query.getProfile())) {
+            query.setProfile(sessionId.substring(0, separator));
+        }
+        query.setSessionId(sessionId.substring(separator + 1));
+    }
+
+    /**
+     * 按 ID 读取一个会话；目标库未命中时扫描全部 Profile，并返回实际所属 Profile。
+     *
+     * <p>先读显式 Profile 或当前运行库；只有未命中时才按 default、命名 Profile 字典序定位，保持链接丢失 Profile 前缀时的确定性恢复行为。
+     */
+    private List<SessionSearchEntry> readSession(SessionSearchQuery query) throws Exception {
+        String sessionId = query.getSessionId().trim();
+        ProfileManager manager = ProfileManager.current();
+        String explicitProfile = StrUtil.nullToEmpty(query.getProfile()).trim();
+        String currentProfile = currentProfileName;
+        String primaryProfile = explicitProfile.length() > 0 ? explicitProfile : currentProfile;
+        SessionRepository primaryRepository;
+        if (explicitProfile.length() == 0) {
+            primaryRepository = sessionRepository;
+        } else {
+            primaryRepository = readOnlyProfileRepository(manager, primaryProfile);
+        }
+        List<LocatedSession> matches = new ArrayList<LocatedSession>();
+        if (primaryRepository != null) {
+            SessionRecord session = primaryRepository.findById(sessionId);
+            if (session != null) {
+                LocatedSession located = new LocatedSession(primaryProfile, session);
+                if (explicitProfile.length() > 0) {
+                    return readEntries(located);
+                }
+                matches.add(located);
+            }
+        }
+        for (String profile : manager.listProfileNames()) {
+            if (profile.equals(primaryProfile)) {
+                continue;
+            }
+            SessionRepository repository = readOnlyProfileRepository(manager, profile);
+            if (repository == null) {
+                continue;
+            }
+            SessionRecord session = repository.findById(sessionId);
+            if (session != null) {
+                matches.add(new LocatedSession(profile, session));
+            }
+        }
+        if (matches.isEmpty()) {
+            throw new IllegalArgumentException("session_id not found: " + sessionId);
+        }
+        if (matches.size() > 1) {
+            List<String> owners = new ArrayList<String>();
+            for (LocatedSession match : matches) {
+                owners.add(match.profile);
+            }
+            throw new IllegalArgumentException(
+                    "Session ID '"
+                            + sessionId
+                            + "' is ambiguous across Profiles: "
+                            + owners
+                            + ". Retry with profile.");
+        }
+        return readEntries(matches.get(0));
+    }
+
+    /** 打开 Profile 会话库的只读仓储；尚未产生数据库的空 Profile 返回 null。 */
+    private SessionRepository readOnlyProfileRepository(ProfileManager manager, String profile)
+            throws Exception {
+        Path stateDb = manager.requireProfileStateDb(profile);
+        return java.nio.file.Files.isRegularFile(stateDb)
+                ? new ReadOnlyProfileSessionRepository(stateDb)
+                : null;
+    }
+
+    /** 将会话转为有界 read 结果；短会话完整返回，长会话返回前 20 与后 10 条。 */
+    private List<SessionSearchEntry> readEntries(LocatedSession located) throws Exception {
+        List<ChatMessage> messages = MessageSupport.loadMessages(located.session.getNdjson());
+        int total = messages.size();
+        boolean truncated = total > READ_HEAD_MESSAGES + READ_TAIL_MESSAGES;
+        List<Integer> indexes = new ArrayList<Integer>();
+        int headEnd = truncated ? READ_HEAD_MESSAGES : total;
+        for (int i = 0; i < headEnd; i++) {
+            indexes.add(Integer.valueOf(i));
+        }
+        if (truncated) {
+            for (int i = total - READ_TAIL_MESSAGES; i < total; i++) {
+                indexes.add(Integer.valueOf(i));
+            }
+        }
+        List<SessionSearchEntry> results = new ArrayList<SessionSearchEntry>();
+        if (messages.isEmpty()) {
+            results.add(readEntry(located, null, -1, total, truncated));
+            return results;
+        }
+        for (Integer boxed : indexes) {
+            int i = boxed.intValue();
+            results.add(readEntry(located, messages.get(i), i, total, truncated));
+        }
+        return results;
+    }
+
+    /** 创建一条 read 消息投影；message 为空时仅承载空会话元数据。 */
+    private SessionSearchEntry readEntry(
+            LocatedSession located, ChatMessage message, int index, int total, boolean truncated) {
+        SessionSearchEntry entry = new SessionSearchEntry();
+        entry.setMode("read");
+        entry.setProfile(located.profile);
+        entry.setSessionId(located.session.getSessionId());
+        entry.setBranchName(located.session.getBranchName());
+        entry.setTitle(resolveTitle(located.session, located.session));
+        entry.setCreatedAt(located.session.getCreatedAt());
+        entry.setUpdatedAt(located.session.getUpdatedAt());
+        entry.setChannel(located.session.getSourceKey());
+        entry.setSessionModel(
+                StrUtil.firstNonBlank(
+                        located.session.getLastResolvedModel(),
+                        located.session.getModelOverride()));
+        entry.setPlatformMessageId(located.session.getPlatformMessageId());
+        entry.setMessageCount(total);
+        entry.setTruncated(truncated);
+        if (message == null) {
+            return entry;
+        }
+        entry.setMessageId(resolveMessageId(message, index));
+        entry.setRole(roleLabel(message.getRole()).toLowerCase(Locale.ROOT));
+        entry.setMessageTimestamp(message.getCreatedAt());
+        populateToolMetadata(entry, message);
+        entry.setMessagesBefore(index);
+        entry.setMessagesAfter(total - index - 1);
+        entry.setMatchPreview(StrUtil.nullToEmpty(message.getContent()));
+        entry.setSnippet(entry.getMatchPreview());
+        return entry;
+    }
+
+    /** 将工具调用元数据投影到 read 消息条目，保持结构化会话读取能力。 */
+    private void populateToolMetadata(SessionSearchEntry entry, ChatMessage message) {
+        if (message instanceof ToolMessage) {
+            ToolMessage toolMessage = (ToolMessage) message;
+            entry.setMessageToolName(toolMessage.getName());
+            entry.setToolCallId(toolMessage.getToolCallId());
+            return;
+        }
+        if (!(message instanceof AssistantMessage)) {
+            return;
+        }
+        List<ToolCall> calls = ((AssistantMessage) message).getToolCalls();
+        if (calls == null || calls.isEmpty()) {
+            return;
+        }
+        entry.setMessageToolName(calls.get(0) == null ? null : calls.get(0).getName());
+        entry.setToolCallsJson(org.noear.snack4.ONode.serialize(calls));
+    }
+
+    /**
+     * 使用 SQLite 只读连接在显式指定的 Profile 中执行同一套会话搜索逻辑。
+     *
+     * @param query 携带目标 Profile 的查询。
+     * @return 目标 Profile 的会话搜索结果。
+     */
+    private List<SessionSearchEntry> searchProfile(SessionSearchQuery query) throws Exception {
+        Path profileHome = ProfileManager.current().requireProfileHome(query.getProfile());
+        SessionRepository profileRepository =
+                new ReadOnlyProfileSessionRepository(
+                        profileHome.resolve("data").resolve("state.db"));
+        SessionSearchQuery delegated = copyForProfile(query);
+        return new DefaultSessionSearchService(profileRepository, llmGateway, null)
+                .search(delegated);
+    }
+
+    /** 精确会话及其所属 Profile。 */
+    private static final class LocatedSession {
+        /** 所属 Profile。 */
+        private final String profile;
+
+        /** 会话记录。 */
+        private final SessionRecord session;
+
+        /** 创建定位结果。 */
+        private LocatedSession(String profile, SessionRecord session) {
+            this.profile = profile;
+            this.session = session;
+        }
+    }
+
+    /**
+     * 复制跨 Profile 查询并清除当前来源绑定与递归 Profile 标记。
+     *
+     * @param source 原始查询。
+     * @return 可交给只读 Profile 搜索服务的查询副本。
+     */
+    private SessionSearchQuery copyForProfile(SessionSearchQuery source) {
+        SessionSearchQuery target = new SessionSearchQuery();
+        target.setSessionId(source.getSessionId());
+        target.setRunId(source.getRunId());
+        target.setToolName(source.getToolName());
+        target.setChannel(source.getChannel());
+        target.setQuery(source.getQuery());
+        target.setAroundMessageId(source.getAroundMessageId());
+        target.setSort(source.getSort());
+        target.setWindow(source.getWindow());
+        target.setRoleFilter(source.getRoleFilter());
+        target.setTimeFrom(source.getTimeFrom());
+        target.setTimeTo(source.getTimeTo());
+        target.setSummarize(source.isSummarize());
+        target.setLimit(source.getLimit());
+        return target;
     }
 
     /**
@@ -265,7 +545,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
                     break;
                 }
             }
-            return new ArrayList<SessionSearchEntry>(results.values());
+            return filterEntriesByRole(
+                    new ArrayList<SessionSearchEntry>(results.values()), query.getRoleFilter());
         }
         for (AgentRunRecord run :
                 agentRunRepository.searchRuns(
@@ -282,7 +563,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
                 break;
             }
         }
-        return new ArrayList<SessionSearchEntry>(results.values());
+        return filterEntriesByRole(
+                new ArrayList<SessionSearchEntry>(results.values()), query.getRoleFilter());
     }
 
     /**
@@ -321,6 +603,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         entry.setSnippet(entry.getMatchPreview());
         entry.setRunId(run.getRunId());
         entry.setChannel(run.getSourceKey());
+        entry.setRole("assistant");
         entry.setScore(scoreRun(run, query));
         return entry;
     }
@@ -363,6 +646,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         entry.setRunId(record.getRunId());
         entry.setToolName(record.getToolName());
         entry.setChannel(record.getSourceKey());
+        entry.setRole("tool");
         entry.setScore(scoreToolCall(record, query));
         return entry;
     }
@@ -395,6 +679,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         entry.setRunId(record.getRunId());
         entry.setToolName("event:" + StrUtil.blankToDefault(record.getEventType(), "unknown"));
         entry.setChannel(record.getSourceKey());
+        entry.setRole("assistant");
         entry.setScore(scoreRunEvent(record, query));
         return entry;
     }
@@ -495,8 +780,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
         if (StrUtil.isNotBlank(entry.getMessageId())) {
             buffer.append("\n命中位置：").append(entry.getMessageId());
         }
-        buffer.append("\n匹配片段：")
-                .append(StrUtil.blankToDefault(entry.getMatchPreview(), "未生成匹配片段"));
+        buffer.append("\n匹配片段：").append(StrUtil.blankToDefault(entry.getMatchPreview(), "未生成匹配片段"));
         return trim(buffer.toString(), 1200);
     }
 
@@ -533,8 +817,7 @@ public class DefaultSessionSearchService implements SessionSearchService {
      * @return 返回scroll结果。
      */
     private List<SessionSearchEntry> scroll(SessionSearchQuery query) throws Exception {
-        int limit =
-                Math.max(1, Math.min(query.getLimit() <= 0 ? DEFAULT_LIMIT : query.getLimit(), 50));
+        int window = Math.max(1, Math.min(query.getWindow() <= 0 ? 5 : query.getWindow(), 20));
         SessionRecord session = sessionRepository.findById(query.getSessionId());
         if (session == null) {
             return Collections.emptyList();
@@ -547,9 +830,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
         if (anchorIndex < 0) {
             return Collections.emptyList();
         }
-        int start = Math.max(0, anchorIndex - ((limit - 1) / 2));
-        int end = Math.min(messages.size(), start + limit);
-        start = Math.max(0, end - limit);
+        int start = Math.max(0, anchorIndex - window);
+        int end = Math.min(messages.size(), anchorIndex + window + 1);
         List<SessionSearchEntry> results = new ArrayList<SessionSearchEntry>();
         for (int i = start; i < end; i++) {
             ChatMessage message = messages.get(i);
@@ -563,6 +845,9 @@ public class DefaultSessionSearchService implements SessionSearchService {
             entry.setPlatformMessageId(session.getPlatformMessageId());
             entry.setMessageId(resolveMessageId(message, i));
             entry.setAnchor(i == anchorIndex);
+            entry.setRole(roleLabel(message.getRole()).toLowerCase(Locale.ROOT));
+            entry.setMessagesBefore(anchorIndex);
+            entry.setMessagesAfter(messages.size() - anchorIndex - 1);
             entry.setMatchPreview(trim(content, 220));
             entry.setSnippet(entry.getMatchPreview());
             entry.setSummary(entry.getMatchPreview());
@@ -611,6 +896,32 @@ public class DefaultSessionSearchService implements SessionSearchService {
             }
         }
         return null;
+    }
+
+    /**
+     * 查找 discovery 命中消息的角色，供 role_filter 在统一结果层过滤。
+     *
+     * @param session 会话记录。
+     * @param query 查询文本。
+     * @return 命中角色；压缩摘要按 assistant 处理。
+     */
+    private String findPreviewRole(SessionRecord session, String query) throws Exception {
+        List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+        String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
+        if (compressedSummaryMatches(session, normalizedQuery)) {
+            return "assistant";
+        }
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            ChatMessage message = messages.get(i);
+            String content = messageSearchText(message);
+            if (content.length() == 0 || message.getRole() == ChatRole.SYSTEM) {
+                continue;
+            }
+            if (normalizedQuery.length() == 0 || textMatchesQuery(content, normalizedQuery)) {
+                return roleLabel(message.getRole()).toLowerCase(Locale.ROOT);
+            }
+        }
+        return "";
     }
 
     /**
@@ -840,7 +1151,8 @@ public class DefaultSessionSearchService implements SessionSearchService {
         try {
             int searchLimit = Math.max(10, limit * 5);
             for (AgentRunRecord record :
-                    agentRunRepository.searchRuns(sourceKey, null, null, query, 0L, 0L, searchLimit)) {
+                    agentRunRepository.searchRuns(
+                            sourceKey, null, null, query, 0L, 0L, searchLimit)) {
                 if (record == null) {
                     continue;
                 }
@@ -938,6 +1250,60 @@ public class DefaultSessionSearchService implements SessionSearchService {
                         return Long.compare(right.getUpdatedAt(), left.getUpdatedAt());
                     }
                 });
+    }
+
+    /**
+     * 按显式时间偏好覆盖默认相关性顺序；未指定时保留既有排序。
+     *
+     * @param results 待排序结果。
+     * @param sort newest 或 oldest。
+     */
+    private void sortByTime(List<SessionSearchEntry> results, String sort) {
+        String normalized = StrUtil.nullToEmpty(sort).trim().toLowerCase(Locale.ROOT);
+        if (!"newest".equals(normalized) && !"oldest".equals(normalized)) {
+            return;
+        }
+        final boolean newest = "newest".equals(normalized);
+        Collections.sort(
+                results,
+                new Comparator<SessionSearchEntry>() {
+                    @Override
+                    public int compare(SessionSearchEntry left, SessionSearchEntry right) {
+                        return newest
+                                ? Long.compare(right.getUpdatedAt(), left.getUpdatedAt())
+                                : Long.compare(left.getUpdatedAt(), right.getUpdatedAt());
+                    }
+                });
+    }
+
+    /**
+     * 仅在调用方显式传入 role_filter 时过滤，保留当前默认召回扩展结果。
+     *
+     * @param entries 原始结果。
+     * @param roleFilter 逗号分隔角色。
+     * @return 过滤后的结果。
+     */
+    private List<SessionSearchEntry> filterEntriesByRole(
+            List<SessionSearchEntry> entries, String roleFilter) {
+        if (StrUtil.isBlank(roleFilter)) {
+            return entries;
+        }
+        java.util.Set<String> roles = new java.util.LinkedHashSet<String>();
+        for (String role : roleFilter.split(",")) {
+            String normalized = StrUtil.nullToEmpty(role).trim().toLowerCase(Locale.ROOT);
+            if (StrUtil.isNotBlank(normalized)) {
+                roles.add(normalized);
+            }
+        }
+        List<SessionSearchEntry> filtered = new ArrayList<SessionSearchEntry>();
+        for (SessionSearchEntry entry : entries) {
+            if (entry != null
+                    && roles.contains(
+                            StrUtil.nullToEmpty(entry.getRole()).trim().toLowerCase(Locale.ROOT))) {
+                filtered.add(entry);
+            }
+        }
+        return filtered;
     }
 
     /**

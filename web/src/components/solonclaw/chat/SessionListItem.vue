@@ -45,6 +45,7 @@ const { t } = useI18n()
         <span v-if="session.isLive" class="session-item-live">{{ t('chat.liveMode') }}</span>
       </span>
       <span class="session-item-meta">
+        <span v-if="session.profile" class="session-item-profile">{{ session.profile }}</span>
         <span v-if="session.model" class="session-item-model">{{ session.model }}</span>
         <span class="session-item-time">{{ formatTimestampMs(session.createdAt) }}</span>
       </span>

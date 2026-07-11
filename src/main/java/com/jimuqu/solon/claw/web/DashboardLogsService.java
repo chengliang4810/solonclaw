@@ -215,8 +215,7 @@ public class DashboardLogsService {
             Set<String> matchedRunIds = new LinkedHashSet<String>();
             Set<String> appendedToolCallIds = new LinkedHashSet<String>();
             for (AgentRunRecord run :
-                    agentRunRepository.searchRuns(
-                            null, null, null, query, 0L, 0L, searchLimit)) {
+                    agentRunRepository.searchRuns(null, null, null, query, 0L, 0L, searchLimit)) {
                 filtered.add(formatRunIndexLine(run));
                 if (StrUtil.isNotBlank(run.getRunId())) {
                     matchedRunIds.add(run.getRunId());
@@ -237,8 +236,7 @@ public class DashboardLogsService {
         } catch (Exception e) {
             filtered.add(
                     SecretRedactor.redact(
-                            "run-index:error Dashboard 日志运行索引查询失败: " + e.getMessage(),
-                            2000));
+                            "run-index:error Dashboard 日志运行索引查询失败: " + e.getMessage(), 2000));
         }
     }
 
@@ -262,7 +260,8 @@ public class DashboardLogsService {
             for (CronJobRecord job : cronJobRepository.listAll()) {
                 boolean jobMatched = matchesCronJob(job, normalizedQuery);
                 List<CronJobRunRecord> matchedRuns = new ArrayList<CronJobRunRecord>();
-                for (CronJobRunRecord run : cronJobRepository.listRuns(job.getJobId(), searchLimit)) {
+                for (CronJobRunRecord run :
+                        cronJobRepository.listRuns(job.getJobId(), searchLimit)) {
                     if (jobMatched || matchesCronRun(run, normalizedQuery)) {
                         matchedRuns.add(run);
                     }
@@ -277,8 +276,7 @@ public class DashboardLogsService {
         } catch (Exception e) {
             filtered.add(
                     SecretRedactor.redact(
-                            "cron-index:error Dashboard 日志定时任务索引查询失败: " + e.getMessage(),
-                            2000));
+                            "cron-index:error Dashboard 日志定时任务索引查询失败: " + e.getMessage(), 2000));
         }
     }
 

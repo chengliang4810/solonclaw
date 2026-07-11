@@ -375,7 +375,6 @@ public class ConfigTools {
                 @Param(name = "value", description = "新的配置值，列表键使用逗号分隔") String value) {
             return delegate.configSet(key, value);
         }
-
     }
 
     /** 提供配置Set密钥工具能力，供 Agent 运行时按安全策略调用。 */
@@ -400,7 +399,6 @@ public class ConfigTools {
                 @Param(name = "value", description = "新的密钥值") String value) {
             return delegate.configSetSecret(key, value);
         }
-
     }
 
     /** 提供配置刷新工具能力，供 Agent 运行时按安全策略调用。 */

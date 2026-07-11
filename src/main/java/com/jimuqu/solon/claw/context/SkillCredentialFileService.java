@@ -21,8 +21,7 @@ import java.util.logging.Logger;
 /** 提供技能凭据文件相关业务能力，封装调用方不需要感知的运行细节。 */
 public class SkillCredentialFileService {
     /** 技能凭据文件服务的低敏日志记录器。 */
-    private static final Logger LOG =
-            Logger.getLogger(SkillCredentialFileService.class.getName());
+    private static final Logger LOG = Logger.getLogger(SkillCredentialFileService.class.getName());
 
     /** 默认CONTAINER基础的统一常量值。 */
     private static final String DEFAULT_CONTAINER_BASE = "/root/.solonclaw";

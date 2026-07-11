@@ -182,7 +182,6 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
           'scheduledJobMode',
           firstDefined(approvalPolicy.guardrailCronMode, securityApprovals.value.guardrail_cron_mode),
         ),
-        metric('subagentAutoApprove', approvalPolicy.subagentAutoApprove),
         metric('smartJudgeConfigured', approvalPolicy.smartJudgeConfigured),
         metric('dangerousRuleCount', approvalPolicy.dangerousRuleCount),
         metric('hardlineRuleCount', approvalPolicy.hardlineRuleCount),
@@ -200,10 +199,6 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
         metric('ruleCount', hardlinePolicy.ruleCount),
         metric('coveredTools', hardlinePolicy.coveredTools),
         metric('blockedCategories', hardlinePolicy.blockedCategories),
-        metric('metadataUrlBlocked', hardlinePolicy.metadataUrlBlocked),
-        metric('codeToolShellExtractionCovered', hardlinePolicy.codeToolShellExtractionCovered),
-        metric('pythonShellExtractionCovered', hardlinePolicy.pythonShellExtractionCovered),
-        metric('javascriptChildProcessExtractionCovered', hardlinePolicy.javascriptChildProcessExtractionCovered),
         metric('approvalBypassAllowed', hardlinePolicy.approvalBypassAllowed, false),
         metric('slashApproveBypassAllowed', hardlinePolicy.slashApproveBypassAllowed, false),
         metric('sessionApprovalBypassAllowed', hardlinePolicy.sessionApprovalBypassAllowed, false),
@@ -323,20 +318,15 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
       title: d('detailGroups.mcpSecurity'),
       items: [
         metric('remoteEndpointUrlSafety', mcpRuntimePolicy.remoteEndpointUrlSafety),
-        metric('remoteToolArgumentUrlSafety', mcpRuntimePolicy.remoteToolArgumentUrlSafety),
-        metric('remoteToolArgumentPathSafety', mcpRuntimePolicy.remoteToolArgumentPathSafety),
-        metric('resourceUriUrlSafety', mcpRuntimePolicy.resourceUriUrlSafety),
-        metric('resourceUriPathSafety', mcpRuntimePolicy.resourceUriPathSafety),
-        metric('nestedUrlExtraction', mcpRuntimePolicy.nestedUrlExtraction),
-        metric('blockedUrlsMasked', mcpRuntimePolicy.blockedUrlsMasked),
-        metric('blockedPathsRedacted', mcpRuntimePolicy.blockedPathsRedacted),
+        metric('remoteToolArgumentsForwarded', mcpRuntimePolicy.remoteToolArgumentsForwarded),
+        metric('resourceUrisForwarded', mcpRuntimePolicy.resourceUrisForwarded),
         metric('toolNamesPrefixed', mcpRuntimePolicy.toolNamesPrefixed),
         metric('toolsChangeNotificationPersisted', mcpRuntimePolicy.toolsChangeNotificationPersisted),
         metric('authorizationEndpointUrlSafety', mcpOAuthPolicy.authorizationEndpointUrlSafety),
         metric('stateValidationRequired', mcpOAuthPolicy.stateValidationRequired),
         metric('pkceS256Required', mcpOAuthPolicy.pkceS256Required),
         metric('accessTokenRedacted', mcpOAuthPolicy.accessTokenRedacted),
-        metric('endpointUrlSafetyChecked', mcpPackageSecurityPolicy.endpointUrlSafetyChecked),
+        metric('requestFailureFailsOpen', mcpPackageSecurityPolicy.requestFailureFailsOpen),
         metric('malwareBlocksSaveAndCheck', mcpPackageSecurityPolicy.malwareBlocksSaveAndCheck),
       ],
     },
@@ -364,7 +354,6 @@ const securityDetailGroups = computed<SecurityDetailGroup[]>(() => {
     {
       title: d('detailGroups.urlAndPrivateAddresses'),
       items: [
-        metric('allowPrivateUrls', firstDefined(privateUrlPolicy.allowPrivateUrls, urlPolicy.allowPrivateUrls, policy.allow_private_urls), true),
         metric('alwaysBlockedHostCount', urlPolicy.alwaysBlockedHostCount),
         metric('alwaysBlockedIpCount', urlPolicy.alwaysBlockedIpCount),
         metric('sensitiveQueryNameCount', urlPolicy.sensitiveQueryNameCount),
@@ -1260,35 +1249,6 @@ onMounted(load)
                 <div>
                   <dt>{{ t('diagnostics.alwaysApprovalCount') }}</dt>
                   <dd>{{ valueOf(securityApprovals, 'always_approval_count', 0) }}</dd>
-                </div>
-              </dl>
-            </div>
-            <div class="security-group">
-              <h4>{{ t('diagnostics.urlAndWebsitePolicy') }}</h4>
-              <dl>
-                <div>
-                  <dt>{{ t('diagnostics.allowPrivateUrls') }}</dt>
-                  <dd>
-                    <Tag size="small" :color="booleanTagType(securityPolicy.allow_private_urls, true)">
-                      {{ booleanText(securityPolicy.allow_private_urls) }}
-                    </Tag>
-                  </dd>
-                </div>
-                <div>
-                  <dt>{{ t('diagnostics.websiteBlocklist') }}</dt>
-                  <dd>
-                    <Tag size="small" :color="booleanTagType(securityPolicy.website_blocklist_enabled)">
-                      {{ booleanText(securityPolicy.website_blocklist_enabled) }}
-                    </Tag>
-                  </dd>
-                </div>
-                <div>
-                  <dt>{{ t('diagnostics.domainRules') }}</dt>
-                  <dd>{{ valueOf(securityPolicy, 'website_blocklist_domain_count', 0) }}</dd>
-                </div>
-                <div>
-                  <dt>{{ t('diagnostics.sharedRuleFiles') }}</dt>
-                  <dd>{{ valueOf(securityPolicy, 'website_blocklist_shared_file_count', 0) }}</dd>
                 </div>
               </dl>
             </div>

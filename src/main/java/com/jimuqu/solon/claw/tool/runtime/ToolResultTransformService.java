@@ -62,7 +62,8 @@ public class ToolResultTransformService {
                     return transformed;
                 }
             } catch (Exception e) {
-                log.warn("工具结果转换器执行失败，继续使用原始结果 transformer={} error={}",
+                log.warn(
+                        "工具结果转换器执行失败，继续使用原始结果 transformer={} error={}",
                         transformer.getClass().getName(),
                         e.getClass().getSimpleName());
             }
@@ -218,7 +219,10 @@ public class ToolResultTransformService {
          */
         @Override
         public void onReasonEnd(
-                ReActTrace trace, ChatResponse response, AssistantMessage message, long durationMs) {
+                ReActTrace trace,
+                ChatResponse response,
+                AssistantMessage message,
+                long durationMs) {
             ToolCallIdTraceSupport.capture(trace, message, EXTRA_TOOL_CALL_ID_PREFIX);
         }
 

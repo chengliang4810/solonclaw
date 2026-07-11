@@ -116,10 +116,10 @@ public class MemoryTools {
     }
 
     /**
-     * 执行scan记忆Content相关逻辑。
+     * 扫描即将写入系统提示词的记忆内容，阻断提示词注入、秘密外泄和隐形字符载荷。
      *
-     * @param content 待处理内容。
-     * @return 返回scan记忆Content结果。
+     * @param content 待写入的记忆内容。
+     * @return 命中威胁时返回阻断原因，否则返回 null。
      */
     private String scanMemoryContent(String content) {
         if (StrUtil.isBlank(content)) {
@@ -144,12 +144,12 @@ public class MemoryTools {
     }
 
     /**
-     * 执行阻断响应相关逻辑。
+     * 返回结构化阻断结果，且不把危险内容回显给调用方。
      *
-     * @param action 操作参数。
-     * @param target target 参数。
-     * @param message 平台消息或错误消息。
-     * @return 返回blocked响应结果。
+     * @param action 请求的记忆操作。
+     * @param target 目标记忆文件。
+     * @param message 阻断原因。
+     * @return 结构化错误 JSON。
      */
     private String blockedResponse(String action, String target, String message) {
         return new ONode()

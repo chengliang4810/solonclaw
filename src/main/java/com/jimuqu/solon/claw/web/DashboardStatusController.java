@@ -1,5 +1,7 @@
 package com.jimuqu.solon.claw.web;
 
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileNotFoundException;
 import java.util.Map;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -35,7 +37,14 @@ public class DashboardStatusController {
      */
     @Mapping(value = "/api/status", method = MethodType.GET)
     public Map<String, Object> status(Context context) throws Exception {
-        return DashboardResponse.ok(statusService.getStatus(authService.isAuthorized(context)));
+        try {
+            return DashboardResponse.ok(
+                    statusService.getStatus(
+                            authService.isAuthorized(context),
+                            DashboardProfileContext.requestedProfile(context)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        }
     }
 
     /**
@@ -46,6 +55,13 @@ public class DashboardStatusController {
      */
     @Mapping(value = "/api/model/info", method = MethodType.GET)
     public Map<String, Object> modelInfo(Context context) {
-        return DashboardResponse.ok(statusService.getModelInfo(authService.isAuthorized(context)));
+        try {
+            return DashboardResponse.ok(
+                    statusService.getModelInfo(
+                            authService.isAuthorized(context),
+                            DashboardProfileContext.requestedProfile(context)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        }
     }
 }

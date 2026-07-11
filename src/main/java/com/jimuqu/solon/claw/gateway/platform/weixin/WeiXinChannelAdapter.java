@@ -126,8 +126,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /**
      * 输入状态心跳刷新间隔（秒）。
      *
-     * <p>微信 sendtyping 信号不持久，几秒后即失效；参考实现在整个 Agent 运行期间每 2 秒刷新一次。
-     * 若任务时长超过该间隔，需要在运行中持续发送 TYPING_START，否则用户看不到“正在输入中”。
+     * <p>微信 sendtyping 信号不持久，几秒后即失效；参考实现在整个 Agent 运行期间每 2 秒刷新一次。 若任务时长超过该间隔，需要在运行中持续发送
+     * TYPING_START，否则用户看不到“正在输入中”。
      */
     static final int TYPING_HEARTBEAT_INTERVAL_SECONDS = 2;
 
@@ -142,6 +142,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** 入站文本SPLITTHRESHOLD的统一常量值。 */
     private static final int INBOUND_TEXT_SPLIT_THRESHOLD = 1800;
+
     private static final String FENCE_CLOSE = "\n```";
     private static final Pattern FENCE_PATTERN = Pattern.compile("^```([^\\n`]*)\\s*$");
     private static final Pattern HEADER_PATTERN = Pattern.compile("^(#{1,6})\\s+(.+?)\\s*$");
@@ -484,8 +485,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 wordStart++;
             }
             int wordEnd = wordStart;
-            while (wordEnd < trimmed.length()
-                    && !Character.isWhitespace(trimmed.charAt(wordEnd))) {
+            while (wordEnd < trimmed.length() && !Character.isWhitespace(trimmed.charAt(wordEnd))) {
                 wordEnd++;
             }
             String separator = trimmed.substring(index, wordStart);
@@ -493,8 +493,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             if (word.length() == 0) {
                 break;
             }
-            String candidate =
-                    current.length() == 0 ? word : current.toString() + separator + word;
+            String candidate = current.length() == 0 ? word : current.toString() + separator + word;
             if (current.length() > 0 && codePointLength(candidate) > width) {
                 wrapped.add(rstrip(current.toString()));
                 current.setLength(0);
@@ -615,8 +614,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     continue;
                 }
                 boolean continuation =
-                        !current.isEmpty()
-                                && (rawLine.startsWith(" ") || rawLine.startsWith("\t"));
+                        !current.isEmpty() && (rawLine.startsWith(" ") || rawLine.startsWith("\t"));
                 if (continuation) {
                     current.add(line);
                     continue;
@@ -761,7 +759,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
 
             String candidate = remaining.substring(0, splitAt);
-            int backtickCount = countOccurrences(candidate, "`") - countOccurrences(candidate, "\\`");
+            int backtickCount =
+                    countOccurrences(candidate, "`") - countOccurrences(candidate, "\\`");
             if (backtickCount % 2 == 1) {
                 int lastBacktick = candidate.lastIndexOf('`');
                 while (lastBacktick > 0 && candidate.charAt(lastBacktick - 1) == '\\') {
@@ -1392,7 +1391,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (typingHeartbeatExecutor == null
                 || typingHeartbeatExecutor.isShutdown()
                 || typingHeartbeatExecutor.isTerminated()) {
-            typingHeartbeatExecutor = BoundedExecutorFactory.scheduled("weixin-typing-heartbeat", 1);
+            typingHeartbeatExecutor =
+                    BoundedExecutorFactory.scheduled("weixin-typing-heartbeat", 1);
         }
         return typingHeartbeatExecutor;
     }
@@ -1400,8 +1400,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /**
      * 启动输入状态心跳：每 {@link #TYPING_HEARTBEAT_INTERVAL_SECONDS} 秒刷新 ticket 并重发 sendtyping。
      *
-     * <p>微信 typing 信号不持久，几秒后即失效；整个 Agent 运行期间需周期性重发，
-     * 否则长任务中用户看不到“正在输入中”。心跳任务在 dispatchInboundMessage 的 finally 中取消。
+     * <p>微信 typing 信号不持久，几秒后即失效；整个 Agent 运行期间需周期性重发， 否则长任务中用户看不到“正在输入中”。心跳任务在
+     * dispatchInboundMessage 的 finally 中取消。
      *
      * @param chatId 私聊用户标识。
      * @param contextToken 上下文 token，用于刷新可能过期的 typing ticket。
@@ -1486,7 +1486,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                         if ("dm".equals(chatType)) {
                                             maybeFetchTypingTicket(chatId, contextToken);
                                             sendTyping(chatId, TYPING_START);
-                                            typingHeartbeat = startTypingHeartbeat(chatId, contextToken);
+                                            typingHeartbeat =
+                                                    startTypingHeartbeat(chatId, contextToken);
                                         }
                                         inboundMessageHandler().handle(gatewayMessage);
                                     } catch (Exception e) {
@@ -2189,7 +2190,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                         url, location, purpose + " redirect URL is invalid");
         return nextUrl;
     }
-
 
     /**
      * 生成安全展示用的JSON。

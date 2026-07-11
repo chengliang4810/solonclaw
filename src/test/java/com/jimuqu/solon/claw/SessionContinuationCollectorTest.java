@@ -11,7 +11,6 @@ import com.jimuqu.solon.claw.proactive.collector.SessionContinuationCollector;
 import com.jimuqu.solon.claw.support.FixedSessionRepository;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -39,8 +38,7 @@ public class SessionContinuationCollectorTest {
         goal.setStatus(GoalState.STATUS_DONE);
         completed.setGoalStateJson(goal.toJson());
 
-        List<ProactiveObservation> observations =
-                collector(completed).collect(context(7));
+        List<ProactiveObservation> observations = collector(completed).collect(context(7));
 
         assertThat(observations).isEmpty();
     }
@@ -59,8 +57,7 @@ public class SessionContinuationCollectorTest {
                                         ChatMessage.ofUser("帮我解释一下这个配置项的作用"),
                                         ChatMessage.ofAssistant("这个配置项用于控制默认输出长度。"))));
 
-        List<ProactiveObservation> observations =
-                collector(answered).collect(context(7));
+        List<ProactiveObservation> observations = collector(answered).collect(context(7));
 
         assertThat(observations).isEmpty();
     }
@@ -77,10 +74,10 @@ public class SessionContinuationCollectorTest {
                         MessageSupport.toNdjson(
                                 Arrays.asList(
                                         ChatMessage.ofUser("什么是 code review 和 pull request？"),
-                                        ChatMessage.ofAssistant("code review 是代码评审，pull request 是协作提交入口。"))));
+                                        ChatMessage.ofAssistant(
+                                                "code review 是代码评审，pull request 是协作提交入口。"))));
 
-        List<ProactiveObservation> observations =
-                collector(answered).collect(context(7));
+        List<ProactiveObservation> observations = collector(answered).collect(context(7));
 
         assertThat(observations).isEmpty();
     }
@@ -103,8 +100,7 @@ public class SessionContinuationCollectorTest {
         goal.setLastReason("之前 blocked，后来已经处理");
         completedGoal.setGoalStateJson(goal.toJson());
 
-        List<ProactiveObservation> observations =
-                collector(completedGoal).collect(context(7));
+        List<ProactiveObservation> observations = collector(completedGoal).collect(context(7));
 
         assertThat(observations).isEmpty();
     }
@@ -123,8 +119,7 @@ public class SessionContinuationCollectorTest {
                                         ChatMessage.ofUser("请 review 后 push"),
                                         ChatMessage.ofAssistant("我已经完成检查，是否继续 merge 到 dev？"))));
 
-        List<ProactiveObservation> observations =
-                collector(waiting).collect(context(7));
+        List<ProactiveObservation> observations = collector(waiting).collect(context(7));
 
         assertThat(observations).hasSize(1);
         ProactiveObservation observation = observations.get(0);
@@ -161,8 +156,7 @@ public class SessionContinuationCollectorTest {
         goal.setGoal("完成剩余验证");
         active.setGoalStateJson(goal.toJson());
 
-        List<ProactiveObservation> observations =
-                collector(active).collect(context(7));
+        List<ProactiveObservation> observations = collector(active).collect(context(7));
 
         assertThat(observations).hasSize(1);
         assertThat(observations.get(0).getPayload().get("reasons").toString())
@@ -183,8 +177,7 @@ public class SessionContinuationCollectorTest {
                                         ChatMessage.ofUser("请继续"),
                                         ChatMessage.ofAssistant("需要你确认是否继续。"))));
 
-        List<ProactiveObservation> observations =
-                collector(old).collect(context(1));
+        List<ProactiveObservation> observations = collector(old).collect(context(1));
 
         assertThat(observations).isEmpty();
     }
@@ -205,8 +198,7 @@ public class SessionContinuationCollectorTest {
                                         ChatMessage.ofUser("请 follow-up"),
                                         ChatMessage.ofAssistant("等待你确认后我继续。"))));
 
-        List<ProactiveObservation> observations =
-                collector(broken, valid).collect(context(7));
+        List<ProactiveObservation> observations = collector(broken, valid).collect(context(7));
 
         assertThat(observations).hasSize(1);
         assertThat(observations.get(0).getPayload()).containsEntry("sessionId", "valid-session");
@@ -215,7 +207,8 @@ public class SessionContinuationCollectorTest {
     @Test
     void shouldTreatNullRecentSessionListAsEmpty() throws Exception {
         List<ProactiveObservation> observations =
-                new SessionContinuationCollector(new FixedSessionRepository(null, true)).collect(context(7));
+                new SessionContinuationCollector(new FixedSessionRepository(null, true))
+                        .collect(context(7));
 
         assertThat(observations).isEmpty();
     }
@@ -242,7 +235,8 @@ public class SessionContinuationCollectorTest {
 
     /** 创建待测采集器并注入内存会话仓储。 */
     private static SessionContinuationCollector collector(SessionRecord... sessions) {
-        return new SessionContinuationCollector(new FixedSessionRepository(Arrays.asList(sessions)));
+        return new SessionContinuationCollector(
+                new FixedSessionRepository(Arrays.asList(sessions)));
     }
 
     /** 构造主动协作 tick 上下文并开启指定天数的会话回看窗口。 */
@@ -273,5 +267,4 @@ public class SessionContinuationCollectorTest {
         record.setNdjson(ndjson);
         return record;
     }
-
 }

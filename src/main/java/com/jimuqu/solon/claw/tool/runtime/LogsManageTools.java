@@ -51,12 +51,10 @@ public class LogsManageTools {
                             defaultValue = "100",
                             description = "Max returned lines")
                     Integer lines,
-            @Param(name = "level", required = false, description = "Log level filter")
-                    String level,
+            @Param(name = "level", required = false, description = "Log level filter") String level,
             @Param(name = "component", required = false, description = "Component filter")
                     String component,
-            @Param(name = "query", required = false, description = "Keyword query")
-                    String query) {
+            @Param(name = "query", required = false, description = "Keyword query") String query) {
         try {
             if (dashboardLogsService == null) {
                 return ToolResultEnvelope.error("logs service unavailable").toJson();
@@ -87,7 +85,10 @@ public class LogsManageTools {
         String selectedFile = file == null || file.trim().isEmpty() ? "agent" : file.trim();
         List<String> rows =
                 dashboardLogsService.read(
-                        selectedFile, lines == null ? 100 : lines.intValue(), level, component,
+                        selectedFile,
+                        lines == null ? 100 : lines.intValue(),
+                        level,
+                        component,
                         query);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("file", selectedFile);

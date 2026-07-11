@@ -48,18 +48,18 @@ public class RepositoryUpdateCollectorTest {
                         "用户让检查 gitee.com/org/app 的 release，并继续 /Users/chengliang/code-repositories/app"));
         references.addAll(
                 extractor.extract(
-                        "cron",
-                        "cron:1",
-                        "定期查看 https://gitlab.com/group/tool/-/releases"));
+                        "cron", "cron:1", "定期查看 https://gitlab.com/group/tool/-/releases"));
 
-        assertThat(references).extracting(RepositoryReferenceExtractor.RepositoryReference::getRef)
+        assertThat(references)
+                .extracting(RepositoryReferenceExtractor.RepositoryReference::getRef)
                 .contains(
                         "https://github.com/example/demo.git",
                         "/Users/chengliang/code-projects/demo",
                         "https://gitee.com/org/app",
                         "/Users/chengliang/code-repositories/app",
                         "https://gitlab.com/group/tool");
-        assertThat(references).extracting(RepositoryReferenceExtractor.RepositoryReference::getSourceType)
+        assertThat(references)
+                .extracting(RepositoryReferenceExtractor.RepositoryReference::getSourceType)
                 .contains("memory", "session", "cron");
     }
 
@@ -74,18 +74,24 @@ public class RepositoryUpdateCollectorTest {
         memoryService.snapshot.setMemoryText("- 持续关注 https://github.com/example/demo 的更新");
 
         List<ProactiveObservation> observations =
-                collector(proactiveRepository, probeService, memoryService).collect(context(true, 0));
+                collector(proactiveRepository, probeService, memoryService)
+                        .collect(context(true, 0));
 
-        ProactiveObservation observation = observationOfType(observations, "project_update_opportunity");
+        ProactiveObservation observation =
+                observationOfType(observations, "project_update_opportunity");
         assertThat(observation.getCollector()).isEqualTo("repository_update");
-        assertThat(observation.getSourceKey()).isEqualTo("repository_update:https://github.com/example/demo");
+        assertThat(observation.getSourceKey())
+                .isEqualTo("repository_update:https://github.com/example/demo");
         assertThat(observation.getStatus()).isEqualTo("COLLECTED");
         assertThat(observation.getSummary()).contains("github.com/example/demo");
-        assertThat(observation.getPayload()).containsEntry("sourceRef", "https://github.com/example/demo");
+        assertThat(observation.getPayload())
+                .containsEntry("sourceRef", "https://github.com/example/demo");
         assertThat(observation.getPayload()).containsEntry("branch", "main");
         assertThat(observation.getPayload()).containsEntry("stateHash", "abc123");
         assertThat(evidence(observation)).containsEntry("previousHash", null);
-        assertThat(proactiveRepository.findSnapshot("repository", "https://github.com/example/demo"))
+        assertThat(
+                        proactiveRepository.findSnapshot(
+                                "repository", "https://github.com/example/demo"))
                 .extracting(ProactiveSourceSnapshotRecord::getStateHash)
                 .isEqualTo("abc123");
     }
@@ -107,11 +113,14 @@ public class RepositoryUpdateCollectorTest {
         memoryService.snapshot.setMemoryText("- 持续关注 https://github.com/example/demo 的更新");
 
         List<ProactiveObservation> observations =
-                collector(proactiveRepository, probeService, memoryService).collect(context(true, 0));
+                collector(proactiveRepository, probeService, memoryService)
+                        .collect(context(true, 0));
 
         assertThat(observations).isEmpty();
-        assertThat(proactiveRepository.findSnapshot("repository", "https://github.com/example/demo")
-                        .getCheckedAt())
+        assertThat(
+                        proactiveRepository
+                                .findSnapshot("repository", "https://github.com/example/demo")
+                                .getCheckedAt())
                 .isEqualTo(NOW);
     }
 
@@ -132,13 +141,17 @@ public class RepositoryUpdateCollectorTest {
         memoryService.snapshot.setMemoryText("- 持续关注 https://github.com/example/demo 的更新");
 
         List<ProactiveObservation> observations =
-                collector(proactiveRepository, probeService, memoryService).collect(context(true, 360));
+                collector(proactiveRepository, probeService, memoryService)
+                        .collect(context(true, 360));
 
-        ProactiveObservation observation = observationOfType(observations, "project_update_opportunity");
+        ProactiveObservation observation =
+                observationOfType(observations, "project_update_opportunity");
         assertThat(observation.getPayload()).containsEntry("stateHash", "new456");
         assertThat(evidence(observation)).containsEntry("previousHash", "old123");
-        assertThat(proactiveRepository.findSnapshot("repository", "https://github.com/example/demo")
-                        .getStateHash())
+        assertThat(
+                        proactiveRepository
+                                .findSnapshot("repository", "https://github.com/example/demo")
+                                .getStateHash())
                 .isEqualTo("new456");
     }
 
@@ -158,11 +171,13 @@ public class RepositoryUpdateCollectorTest {
         InMemoryMemoryService memoryService = new InMemoryMemoryService();
         memoryService.snapshot.setMemoryText("- 持续关注 https://github.com/example/demo 的更新");
 
-        assertThat(collector(proactiveRepository, probeService, memoryService)
-                        .collect(context(false, 360)))
+        assertThat(
+                        collector(proactiveRepository, probeService, memoryService)
+                                .collect(context(false, 360)))
                 .isEmpty();
-        assertThat(collector(proactiveRepository, probeService, memoryService)
-                        .collect(context(true, 360)))
+        assertThat(
+                        collector(proactiveRepository, probeService, memoryService)
+                                .collect(context(true, 360)))
                 .isEmpty();
         assertThat(probeService.probedRefs).isEmpty();
     }
@@ -201,7 +216,8 @@ public class RepositoryUpdateCollectorTest {
                                 cronJobRepository)
                         .collect(context(true, 0));
 
-        assertThat(observations).extracting(item -> item.getPayload().get("sourceRef"))
+        assertThat(observations)
+                .extracting(item -> item.getPayload().get("sourceRef"))
                 .contains("https://gitee.com/org/app", "https://gitlab.com/group/tool");
     }
 
@@ -407,7 +423,8 @@ public class RepositoryUpdateCollectorTest {
         }
 
         @Override
-        public SessionRecord cloneSession(String sourceKey, String sourceSessionId, String branchName) {
+        public SessionRecord cloneSession(
+                String sourceKey, String sourceSessionId, String branchName) {
             throw new UnsupportedOperationException("测试会话仓储不支持克隆会话");
         }
 

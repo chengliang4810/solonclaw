@@ -1101,10 +1101,7 @@ public class SqliteSessionRepository implements SessionRepository {
                         "\"$1\":\"<redacted>\"");
         safeMessage = safeMessage.replaceAll("\"(?:\\\\.|[^\"]){32,}\"", "\"<redacted>\"");
         safeMessage = safeMessage.replaceAll("'(?:\\\\.|[^']){32,}'", "'<redacted>'");
-        safeMessage =
-                safeMessage.replaceAll(
-                        "\\b[A-Za-z0-9_./+=:-]{48,}\\b",
-                        "<redacted>");
+        safeMessage = safeMessage.replaceAll("\\b[A-Za-z0-9_./+=:-]{48,}\\b", "<redacted>");
         if (safeMessage.length() > 160) {
             safeMessage = safeMessage.substring(0, 160) + "...";
         }

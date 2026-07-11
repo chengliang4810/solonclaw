@@ -29,8 +29,7 @@ class QrSetupTicketMapReuseTest {
                     "expires_at",
                 };
         for (String path : paths) {
-            String source =
-                    new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
+            String source = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
             for (String field : duplicatedFields) {
                 assertFalse(source.contains("result.put(\"" + field + "\""), path + " " + field);
             }

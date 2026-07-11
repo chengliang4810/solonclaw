@@ -46,7 +46,8 @@ public interface ProactiveRepository {
     Long findLastSentAt(String sourceKey) throws Exception;
 
     /** 查询来源快照。 */
-    ProactiveSourceSnapshotRecord findSnapshot(String sourceType, String sourceRef) throws Exception;
+    ProactiveSourceSnapshotRecord findSnapshot(String sourceType, String sourceRef)
+            throws Exception;
 
     /** 保存来源快照。 */
     void saveSnapshot(ProactiveSourceSnapshotRecord snapshot) throws Exception;

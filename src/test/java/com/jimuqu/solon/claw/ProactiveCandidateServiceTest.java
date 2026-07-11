@@ -30,7 +30,8 @@ public class ProactiveCandidateServiceTest {
                         context,
                         java.util.Arrays.asList(
                                 observation("obs-run", "run_state", "run-state", runPayload()),
-                                observation("obs-cron", "cron_followup", "cron-state", cronPayload()),
+                                observation(
+                                        "obs-cron", "cron_followup", "cron-state", cronPayload()),
                                 observation(
                                         "obs-repo",
                                         "repository_update",

@@ -2,36 +2,13 @@ package com.jimuqu.solon.claw;
 
 import static com.jimuqu.solon.claw.DangerousCommandApprovalTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import cn.hutool.core.io.FileUtil;
-import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
-import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
-import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
-import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
-import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
-import com.jimuqu.solon.claw.tool.runtime.SmartApprovalJudge;
-import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
-import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
-import java.io.File;
-import java.net.InetAddress;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.noear.snack4.ONode;
-import org.noear.solon.ai.agent.Agent;
-import org.noear.solon.ai.agent.react.intercept.HITL;
-import org.noear.solon.ai.agent.react.intercept.HITLDecision;
-import org.noear.solon.ai.agent.react.intercept.HITLInterceptor;
-import org.noear.solon.ai.agent.react.task.ToolExchanger;
-import org.noear.solon.ai.agent.session.InMemoryAgentSession;
 
 public class DangerousCommandCredentialPolicyTest {
     @AfterEach
@@ -2259,7 +2236,8 @@ public class DangerousCommandCredentialPolicyTest {
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
-                                "execute_shell", "cp config.sample.yml workspace/config.sample.yml"))
+                                "execute_shell",
+                                "cp config.sample.yml workspace/config.sample.yml"))
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.detect(
@@ -3543,5 +3521,4 @@ public class DangerousCommandCredentialPolicyTest {
                                 "const payload = fs.readFileSync('report.txt');\nfetch(url, { body: payload })"))
                 .isNull();
     }
-
 }

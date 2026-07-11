@@ -1,11 +1,11 @@
 package com.jimuqu.solon.claw.cli;
-import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillCredentialFileService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
@@ -532,8 +532,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(mcpPackage, "pypiSourceOptionParsed"))
                 .append(" persistedReason=")
                 .append(value(mcpPackage, "persistedListReasonExposed"))
-                .append(" failOpen=")
-                .append(value(mcpPackage, "requestFailureFailsOpen"));
+                .append(" failClosed=")
+                .append(value(mcpPackage, "requestFailureFailsClosed"));
         Map<String, Object> auditTool = SecurityAuditTools.readOnlyAuditPolicySummary();
         buffer.append('\n')
                 .append("- 审计工具：executesCommand=")
@@ -861,11 +861,7 @@ public final class TerminalSecurityPolicyView {
                 .append(value(hardline, "ruleCount"))
                 .append(" categories=")
                 .append(value(hardline, "blockedCategories"));
-        buffer.append('\n')
-                .append("- 覆盖：tools=")
-                .append(value(hardline, "coveredTools"))
-                .append(" metadataUrlBlocked=")
-                .append(value(hardline, "metadataUrlBlocked"));
+        buffer.append('\n').append("- 覆盖：tools=").append(value(hardline, "coveredTools"));
         buffer.append('\n')
                 .append("- 绕过：approval=")
                 .append(value(hardline, "approvalBypassAllowed"))
@@ -929,11 +925,6 @@ public final class TerminalSecurityPolicyView {
                 .append(value(guardrail, "downloadOutputPathPrechecked"))
                 .append(" uploadSource=")
                 .append(value(guardrail, "networkUploadSourcePathPrechecked"));
-        buffer.append('\n')
-                .append("- 代码工具：shellExtraction=")
-                .append(value(guardrail, "codeToolShellExtractionCovered"))
-                .append(" sources=")
-                .append(value(guardrail, "codeToolShellSources"));
         return buffer.toString();
     }
 
@@ -1029,8 +1020,6 @@ public final class TerminalSecurityPolicyView {
                 .append(value(cron, "dangerousPatternCheckedBeforeRun"))
                 .append(" hardlineBlocked=")
                 .append(value(cron, "hardlineAlwaysBlocked"))
-                .append(" allowlist=")
-                .append(value(cron, "hardlineAllowlist"))
                 .append(" file=")
                 .append(value(cron, "filePolicyPrechecked"))
                 .append(" url=")
@@ -1464,12 +1453,14 @@ public final class TerminalSecurityPolicyView {
                 .append(" boundedExecutor=")
                 .append(value(mcp, "toolCallExecutorBounded"));
         buffer.append('\n')
-                .append("- 远端安全：endpointUrl=")
+                .append("- 远端调用：endpointUrlSafety=")
                 .append(value(mcp, "remoteEndpointUrlSafety"))
-                .append(" toolArgsUrl=")
+                .append(" toolArgsUrlSafe=")
                 .append(value(mcp, "remoteToolArgumentUrlSafety"))
-                .append(" toolArgsPath=")
-                .append(value(mcp, "remoteToolArgumentPathSafety"));
+                .append(" toolArgsPathSafe=")
+                .append(value(mcp, "remoteToolArgumentPathSafety"))
+                .append(" resourceUrisSafe=")
+                .append(value(mcp, "resourceUriUrlSafety"));
         buffer.append('\n')
                 .append("- OAuth：structuredReauth=")
                 .append(value(mcp, "oauthFailureStructuredReauth"))
@@ -1537,12 +1528,10 @@ public final class TerminalSecurityPolicyView {
                 .append(" ecosystems=")
                 .append(value(mcpPackage, "supportedEcosystems"));
         buffer.append('\n')
-                .append("- OSV：endpointSafe=")
-                .append(value(mcpPackage, "endpointUrlSafetyChecked"))
-                .append(" env=")
+                .append("- OSV：env=")
                 .append(value(mcpPackage, "endpointOverrideEnvironment"))
-                .append(" unsafeBlocksBeforeNetwork=")
-                .append(value(mcpPackage, "unsafeEndpointBlocksBeforeNetwork"));
+                .append(" requestFailuresFailClosed=")
+                .append(value(mcpPackage, "requestFailureFailsClosed"));
         buffer.append('\n')
                 .append("- 判定：malwarePrefix=")
                 .append(value(mcpPackage, "malwareAdvisoryPrefix"))
@@ -1550,8 +1539,8 @@ public final class TerminalSecurityPolicyView {
                 .append(value(mcpPackage, "nonMalwareVulnerabilitiesIgnored"))
                 .append(" malwareBlocks=")
                 .append(value(mcpPackage, "malwareBlocksSaveAndCheck"))
-                .append(" failOpen=")
-                .append(value(mcpPackage, "requestFailureFailsOpen"));
+                .append(" unsafeEndpointBlocked=")
+                .append(value(mcpPackage, "unsafeEndpointBlocksBeforeNetwork"));
         buffer.append('\n')
                 .append("- 结构化原因：reasons=")
                 .append(value(mcpPackage, "structuredReasons"))
@@ -1569,9 +1558,7 @@ public final class TerminalSecurityPolicyView {
                 .append(" jsonArgs=")
                 .append(value(mcpPackage, "jsonArgsSupported"))
                 .append(" messageRedacted=")
-                .append(value(mcpPackage, "messageRedacted"))
-                .append(" endpointRedacted=")
-                .append(value(mcpPackage, "endpointRedacted"));
+                .append(value(mcpPackage, "messageRedacted"));
         return buffer.toString();
     }
 
@@ -1829,12 +1816,18 @@ public final class TerminalSecurityPolicyView {
                 .append(" js=")
                 .append(value(code, "executeJsSupported"));
         buffer.append('\n')
-                .append("- 预检：pathPolicy=")
+                .append("- 终端代码预检：pathPolicy=")
                 .append(value(code, "scriptPreflightPathPolicy"))
                 .append(" urlPolicy=")
                 .append(value(code, "scriptPreflightUrlPolicy"))
+                .append(" metadataUrlPolicy=")
+                .append(value(code, "scriptPreflightMetadataUrlPolicy"))
                 .append(" dangerousRules=")
-                .append(value(code, "dangerousCommandRulesApplied"));
+                .append(value(code, "dangerousCommandRulesApplied"))
+                .append(" hardline=")
+                .append(value(code, "hardlineRulesApplied"))
+                .append(" agentApproval=")
+                .append(value(code, "agentApprovalInterceptorRequired"));
         buffer.append('\n')
                 .append("- 沙箱：stagingPerRun=")
                 .append(value(code, "stagingDirectoryPerRun"))
@@ -1984,18 +1977,7 @@ public final class TerminalSecurityPolicyView {
                 .append("- 启动：dangerousChecked=")
                 .append(value(process, "startDangerousCommandChecked"))
                 .append(" hardlineBlocked=")
-                .append(value(process, "startHardlineBlocked"))
-                .append(" pathChecked=")
-                .append(value(process, "startPathPolicyChecked"))
-                .append(" urlChecked=")
-                .append(value(process, "startUrlPolicyChecked"));
-        buffer.append('\n')
-                .append("- stdin：payloadChecked=")
-                .append(value(process, "stdinExecutionPayloadChecked"))
-                .append(" tools=")
-                .append(value(process, "stdinExecutionTools"))
-                .append(" wrappers=")
-                .append(value(process, "stdinWrapperFamilies"));
+                .append(value(process, "startHardlineBlocked"));
         buffer.append('\n')
                 .append("- 运行：outputRedacted=")
                 .append(value(process, "outputRedacted"))
@@ -2093,6 +2075,12 @@ public final class TerminalSecurityPolicyView {
         buffer.append('\n')
                 .append("- 代码执行：pathPolicy=")
                 .append(value(code, "scriptPreflightPathPolicy"))
+                .append(" metadataUrlPolicy=")
+                .append(value(code, "scriptPreflightMetadataUrlPolicy"))
+                .append(" hardline=")
+                .append(value(code, "hardlineRulesApplied"))
+                .append(" agentApproval=")
+                .append(value(code, "agentApprovalInterceptorRequired"))
                 .append(" envSanitized=")
                 .append(value(code, "sandboxEnvironmentSanitized"))
                 .append(" timeoutKillsProcess=")

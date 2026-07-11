@@ -36,8 +36,12 @@ public class DashboardPluginStatusService {
         List<PluginLoadDiagnostic> diagnostics = pluginManager.diagnostics();
         Map<String, Object> status = new LinkedHashMap<String, Object>();
         status.put("loaded_count", Integer.valueOf(plugins.size()));
-        status.put("skipped_count", Integer.valueOf(countDiagnostics(diagnostics, PluginLoadStatus.SKIPPED)));
-        status.put("failed_count", Integer.valueOf(countDiagnostics(diagnostics, PluginLoadStatus.FAILED)));
+        status.put(
+                "skipped_count",
+                Integer.valueOf(countDiagnostics(diagnostics, PluginLoadStatus.SKIPPED)));
+        status.put(
+                "failed_count",
+                Integer.valueOf(countDiagnostics(diagnostics, PluginLoadStatus.FAILED)));
         status.put("diagnostic_count", Integer.valueOf(diagnostics.size()));
         status.put("plugins", pluginItems(plugins));
         status.put("diagnostics", diagnosticItems(diagnostics));

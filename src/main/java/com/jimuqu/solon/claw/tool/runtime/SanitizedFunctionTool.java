@@ -178,6 +178,10 @@ public final class SanitizedFunctionTool implements FunctionTool {
      */
     @Override
     public Object handle(Map<String, Object> args) throws Throwable {
+        ToolResult invalid = validateGatewayToolArgs(args);
+        if (invalid != null) {
+            return invalid;
+        }
         return delegate.handle(args);
     }
 
@@ -189,7 +193,28 @@ public final class SanitizedFunctionTool implements FunctionTool {
      */
     @Override
     public ToolResult call(Map<String, Object> args) throws Throwable {
+        ToolResult invalid = validateGatewayToolArgs(args);
+        if (invalid != null) {
+            return invalid;
+        }
         return delegate.call(args);
+    }
+
+    /**
+     * 校验渐进披露网关的内层工具参数，避免非对象参数绕过目标工具的统一边界检查。
+     *
+     * @param args call_tool 的顶层参数。
+     * @return 参数合法或当前不是 call_tool 时返回 null，否则返回可由模型消费的错误结果。
+     */
+    private ToolResult validateGatewayToolArgs(Map<String, Object> args) {
+        if (!"call_tool".equalsIgnoreCase(name())) {
+            return null;
+        }
+        Object toolArgs = args == null ? null : args.get("tool_args");
+        if (!(toolArgs instanceof Map)) {
+            return ToolResult.error("call_tool.tool_args 必须是 JSON 对象");
+        }
+        return null;
     }
 
     /**

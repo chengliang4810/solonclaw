@@ -79,7 +79,7 @@ const selectedRunActive = computed(() => {
 })
 
 async function loadSessions() {
-  sessions.value = await fetchSessions(undefined, 200)
+  sessions.value = await fetchSessions(undefined, 200, false)
   if (!selectedSessionId.value && sessions.value.length) {
     selectedSessionId.value = sessions.value[0].id
   }

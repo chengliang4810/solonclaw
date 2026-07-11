@@ -73,8 +73,7 @@ public class CompressionCommandTest {
         env.sessionRepository.save(session);
 
         GatewayReply reply =
-                env.gatewayService.handle(
-                        env.message("admin-chat", "admin-user", "/compact 发布流程"));
+                env.gatewayService.handle(env.message("admin-chat", "admin-user", "/compact 发布流程"));
         SessionRecord updated = env.sessionRepository.findById(session.getSessionId());
 
         assertThat(reply.getContent()).contains("关注主题");

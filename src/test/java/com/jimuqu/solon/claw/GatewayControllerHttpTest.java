@@ -154,7 +154,8 @@ public class GatewayControllerHttpTest {
     @Test
     void shouldAcceptDomesticGatewayPlatformsThroughHttpController() throws Exception {
         GatewayHttpResponse qqbotResponse =
-                postMessageResponse(PlatformType.QQBOT, "http-qqbot-chat", "http-qqbot-user", "hello");
+                postMessageResponse(
+                        PlatformType.QQBOT, "http-qqbot-chat", "http-qqbot-user", "hello");
         GatewayHttpResponse yuanbaoResponse =
                 postMessageResponse(
                         PlatformType.YUANBAO, "http-yuanbao-chat", "http-yuanbao-user", "hello");

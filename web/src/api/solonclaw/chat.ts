@@ -17,6 +17,7 @@ export interface UploadedChatFile {
 
 export interface StartRunRequest {
   input: string
+  profile?: string
   instructions?: string
   conversation_history?: ChatMessage[]
   session_id?: string
@@ -61,7 +62,14 @@ export interface RunEvent {
   }
 }
 
-export async function uploadChatFiles(files: File[]): Promise<UploadedChatFile[]> {
+function withProfile(path: string, profile?: string): string {
+  const selected = profile?.trim()
+  if (!selected) return path
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}profile=${encodeURIComponent(selected)}`
+}
+
+export async function uploadChatFiles(files: File[], profile?: string): Promise<UploadedChatFile[]> {
   const formData = new FormData()
   for (const file of files) {
     formData.append('file', file, file.name)
@@ -73,7 +81,7 @@ export async function uploadChatFiles(files: File[]): Promise<UploadedChatFile[]
     headers.set('Authorization', `Bearer ${apiKey}`)
   }
 
-  const res = await dashboardFetch(`${getBaseUrlValue()}/api/chat/uploads`, {
+  const res = await dashboardFetch(`${getBaseUrlValue()}${withProfile('/api/chat/uploads', profile)}`, {
     method: 'POST',
     body: formData,
     headers,
@@ -95,8 +103,8 @@ export async function startRun(body: StartRunRequest): Promise<StartRunResponse>
   })
 }
 
-export async function cancelRun(runId: string): Promise<void> {
-  await request(`/api/chat/runs/${encodeURIComponent(runId)}/cancel`, {
+export async function cancelRun(runId: string, profile?: string): Promise<void> {
+  await request(withProfile(`/api/chat/runs/${encodeURIComponent(runId)}/cancel`, profile), {
     method: 'POST',
   })
 }
@@ -106,6 +114,7 @@ export function streamRunEvents(
   onEvent: (event: RunEvent) => void,
   onDone: () => void,
   onError: (err: Error) => void,
+  profile?: string,
 ) {
   const controller = new AbortController()
   const headers = new Headers()
@@ -116,7 +125,8 @@ export function streamRunEvents(
 
   void (async () => {
     try {
-      const res = await dashboardFetch(`${getBaseUrlValue()}/api/chat/runs/${encodeURIComponent(runId)}/events`, {
+      const eventsPath = withProfile(`/api/chat/runs/${encodeURIComponent(runId)}/events`, profile)
+      const res = await dashboardFetch(`${getBaseUrlValue()}${eventsPath}`, {
         method: 'GET',
         headers,
         signal: controller.signal,

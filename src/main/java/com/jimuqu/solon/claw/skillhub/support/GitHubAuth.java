@@ -116,13 +116,9 @@ public class GitHubAuth {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOG.fine(
-                    "GitHub CLI token 读取被中断，已回退到后续鉴权方式：errorType="
-                            + e.getClass().getSimpleName());
+            LOG.fine("GitHub CLI token 读取被中断，已回退到后续鉴权方式：errorType=" + e.getClass().getSimpleName());
         } catch (IOException | RuntimeException e) {
-            LOG.fine(
-                    "GitHub CLI token 读取失败，已回退到后续鉴权方式：errorType="
-                            + e.getClass().getSimpleName());
+            LOG.fine("GitHub CLI token 读取失败，已回退到后续鉴权方式：errorType=" + e.getClass().getSimpleName());
         }
         return null;
     }
@@ -161,9 +157,7 @@ public class GitHubAuth {
                             "{}");
             return ONode.ofJson(response).get("token").getString();
         } catch (Exception e) {
-            LOG.fine(
-                    "GitHub App token 申请失败，已回退为匿名访问：errorType="
-                            + e.getClass().getSimpleName());
+            LOG.fine("GitHub App token 申请失败，已回退为匿名访问：errorType=" + e.getClass().getSimpleName());
             return null;
         }
     }

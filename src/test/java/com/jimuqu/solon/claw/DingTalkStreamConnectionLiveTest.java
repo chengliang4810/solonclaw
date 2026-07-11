@@ -34,7 +34,8 @@ public class DingTalkStreamConnectionLiveTest {
         config.setClientSecret(clientSecret);
         config.setRobotCode(robotCode);
         AppConfig appConfig = new AppConfig();
-        java.io.File workspaceHome = Files.createTempDirectory("solonclaw-dingtalk-stream").toFile();
+        java.io.File workspaceHome =
+                Files.createTempDirectory("solonclaw-dingtalk-stream").toFile();
         appConfig.getChannels().setDingtalk(config);
         appConfig.getWorkspace().setDir(workspaceHome.getAbsolutePath());
         appConfig.normalizePaths();

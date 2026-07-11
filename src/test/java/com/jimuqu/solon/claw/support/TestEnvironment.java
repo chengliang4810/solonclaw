@@ -88,8 +88,8 @@ import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.TirithSecurityService;
-import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardApprovalEventsService;
+import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardCuratorService;
 import com.jimuqu.solon.claw.web.DashboardDiagnosticsService;
 import com.jimuqu.solon.claw.web.DashboardGatewayDoctorService;
@@ -97,8 +97,8 @@ import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
-import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
+import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
 import com.jimuqu.solon.claw.web.DashboardSkillsService;
 import com.jimuqu.solon.claw.web.DashboardStatusService;
 import com.jimuqu.solon.claw.web.DashboardWorkspaceService;
@@ -184,7 +184,8 @@ public class TestEnvironment {
     }
 
     public static String runtimeConfigValue(String key, String defaultValue) {
-        String value = RuntimeConfigResolver.initialize(RuntimePathConstants.WORKSPACE_HOME).get(key);
+        String value =
+                RuntimeConfigResolver.initialize(RuntimePathConstants.WORKSPACE_HOME).get(key);
         return StrUtil.blankToDefault(value, defaultValue).trim();
     }
 
@@ -572,7 +573,8 @@ public class TestEnvironment {
         config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         config.getWorkspace().setDir(workspaceHome.getAbsolutePath());

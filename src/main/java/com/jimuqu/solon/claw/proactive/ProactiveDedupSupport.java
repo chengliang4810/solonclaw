@@ -119,7 +119,8 @@ public final class ProactiveDedupSupport {
     public static String sha256Hex(String value) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] bytes = digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
+            byte[] bytes =
+                    digest.digest(StrUtil.nullToEmpty(value).getBytes(StandardCharsets.UTF_8));
             StringBuilder buffer = new StringBuilder();
             for (byte item : bytes) {
                 buffer.append(String.format("%02x", item & 0xff));

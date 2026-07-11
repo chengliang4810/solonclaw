@@ -15,12 +15,15 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelHttpSupport;
 import com.jimuqu.solon.claw.gateway.platform.ChannelInboundPolicySupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -52,6 +55,9 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 注入安全策略服务，用于调用对应业务能力。 */
     private final SecurityPolicyService securityPolicyService;
 
+    /** 将入站媒体落入统一缓存，供多模态和后续转写链消费。 */
+    private final AttachmentCacheService attachmentCacheService;
+
     /** 记录元宝渠道中的client。 */
     private final OkHttpClient client;
 
@@ -67,7 +73,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param config 当前模块使用的配置对象。
      */
     public YuanbaoChannelAdapter(AppConfig.ChannelConfig config) {
-        this(config, null);
+        this(config, null, null);
     }
 
     /**
@@ -78,8 +84,23 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     public YuanbaoChannelAdapter(
             AppConfig.ChannelConfig config, SecurityPolicyService securityPolicyService) {
+        this(config, null, securityPolicyService);
+    }
+
+    /**
+     * 创建带统一附件缓存的元宝渠道适配器。
+     *
+     * @param config 渠道配置。
+     * @param attachmentCacheService 附件缓存服务。
+     * @param securityPolicyService URL 安全策略。
+     */
+    public YuanbaoChannelAdapter(
+            AppConfig.ChannelConfig config,
+            AttachmentCacheService attachmentCacheService,
+            SecurityPolicyService securityPolicyService) {
         super(PlatformType.YUANBAO, config);
         this.config = config;
+        this.attachmentCacheService = attachmentCacheService;
         this.securityPolicyService = securityPolicyService;
         this.client =
                 new OkHttpClient.Builder()
@@ -302,7 +323,6 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         return ChannelHttpSupport.apiDomain(config.getApiDomain(), DEFAULT_API_DOMAIN);
     }
 
-
     /**
      * 执行sign相关逻辑。
      *
@@ -441,19 +461,142 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                         body.get("content").getString(),
                         body.get("voice").get("text").getString(),
                         body.get("asr_text").getString());
+        List<MessageAttachment> attachments = extractAttachments(body);
         if (StrUtil.isBlank(chatId)
-                || StrUtil.isBlank(text)
+                || (StrUtil.isBlank(text) && attachments.isEmpty())
                 || !allowInbound(chatType, chatId, userId)) {
             return null;
         }
         GatewayMessage message =
-                new GatewayMessage(PlatformType.YUANBAO, chatId, userId, text.trim());
+                new GatewayMessage(
+                        PlatformType.YUANBAO, chatId, userId, StrUtil.nullToEmpty(text).trim());
         message.setChatType(chatType);
         message.setChatName(chatId);
         message.setUserName(userId);
         message.setThreadId(
                 firstNonBlank(body.get("message_id").getString(), body.get("msg_id").getString()));
+        message.setAttachments(attachments);
         return message;
+    }
+
+    /** 提取元宝入站消息中的图片、文件、视频和语音附件。 */
+    private List<MessageAttachment> extractAttachments(ONode body) {
+        List<MessageAttachment> result = new ArrayList<MessageAttachment>();
+        String transcript =
+                firstNonBlank(
+                        body.get("voice").get("text").getString(),
+                        body.get("asr_text").getString());
+        collectAttachmentNodes(body.get("attachments"), result, transcript);
+        collectAttachmentNodes(body.get("attachment"), result, transcript);
+        collectAttachmentNodes(body.get("media"), result, transcript);
+        collectAttachmentNodes(body.get("image"), result, transcript);
+        collectAttachmentNodes(body.get("file"), result, transcript);
+        collectAttachmentNodes(body.get("video"), result, transcript);
+        collectAttachmentNodes(body.get("voice"), result, transcript);
+        return result;
+    }
+
+    /** 递归收集单个或数组形式的媒体节点。 */
+    private void collectAttachmentNodes(
+            ONode node, List<MessageAttachment> result, String fallbackTranscript) {
+        if (node == null || node.isNull()) {
+            return;
+        }
+        if (node.isArray()) {
+            for (int i = 0; i < node.size(); i++) {
+                collectAttachmentNodes(node.get(i), result, fallbackTranscript);
+            }
+            return;
+        }
+        if (!node.isObject()) {
+            return;
+        }
+        String fileName =
+                firstNonBlank(
+                        node.get("file_name").getString(),
+                        node.get("filename").getString(),
+                        node.get("name").getString());
+        String mimeType =
+                firstNonBlank(
+                        node.get("mime_type").getString(),
+                        node.get("content_type").getString(),
+                        node.get("mimeType").getString());
+        String kind =
+                AttachmentCacheService.normalizeKind(
+                        firstNonBlank(node.get("kind").getString(), node.get("type").getString()),
+                        fileName,
+                        mimeType);
+        String transcript =
+                firstNonBlank(
+                        node.get("asr_text").getString(),
+                        node.get("transcribed_text").getString(),
+                        node.get("text").getString(),
+                        fallbackTranscript);
+        String inlineData =
+                firstNonBlank(node.get("file_data").getString(), node.get("data").getString());
+        String url =
+                firstNonBlank(
+                        node.get("url").getString(),
+                        node.get("file_url").getString(),
+                        node.get("download_url").getString(),
+                        node.get("downloadUrl").getString());
+        if (StrUtil.isBlank(inlineData) && StrUtil.isBlank(url)) {
+            return;
+        }
+        try {
+            result.add(
+                    cacheInboundAttachment(kind, fileName, mimeType, transcript, inlineData, url));
+        } catch (Exception e) {
+            log.warn(
+                    "[YUANBAO] attachment cache failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
+        }
+    }
+
+    /** 下载或解码入站附件；无缓存服务的测试构造仅保留受限 URL 元数据。 */
+    private MessageAttachment cacheInboundAttachment(
+            String kind,
+            String fileName,
+            String mimeType,
+            String transcript,
+            String inlineData,
+            String url)
+            throws Exception {
+        if (attachmentCacheService != null) {
+            byte[] data;
+            String effectiveMime = mimeType;
+            if (StrUtil.isNotBlank(inlineData)) {
+                data = Base64.decode(inlineData);
+            } else {
+                BoundedAttachmentIO.OkHttpDownloadResult download =
+                        BoundedAttachmentIO.downloadOkHttpResult(
+                                client,
+                                url,
+                                BoundedAttachmentIO.DEFAULT_MAX_BYTES,
+                                securityPolicyService);
+                data = download.getData();
+                effectiveMime =
+                        AttachmentCacheService.normalizeMimeType(
+                                download.getContentType(), fileName);
+            }
+            return attachmentCacheService.cacheBytes(
+                    PlatformType.YUANBAO,
+                    kind,
+                    StrUtil.blankToDefault(fileName, "yuanbao-attachment.bin"),
+                    effectiveMime,
+                    false,
+                    transcript,
+                    data);
+        }
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind(kind);
+        attachment.setOriginalName(StrUtil.blankToDefault(fileName, "yuanbao-attachment.bin"));
+        attachment.setMimeType(AttachmentCacheService.normalizeMimeType(mimeType, fileName));
+        attachment.setData(inlineData);
+        attachment.setUrl(url);
+        attachment.setTranscribedText(StrUtil.nullToEmpty(transcript).trim());
+        return attachment;
     }
 
     /**

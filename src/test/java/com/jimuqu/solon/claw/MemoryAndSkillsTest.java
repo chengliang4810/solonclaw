@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.core.model.SkillView;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.core.service.MemoryProvider;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
@@ -30,9 +31,11 @@ import com.jimuqu.solon.claw.tool.runtime.MemoryTools;
 import com.jimuqu.solon.claw.tool.runtime.SkillTools;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import java.io.File;
+import java.nio.file.Files;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
@@ -189,8 +192,7 @@ public class MemoryAndSkillsTest {
 
         assertThat(tools.skillsList(null)).doesNotContain("toggle-skill");
 
-        tools.skillManage(
-                "toggle", "toggle-skill", null, null, null, null, null, null, null, true);
+        tools.skillManage("toggle", "toggle-skill", null, null, null, null, null, null, null, true);
 
         assertThat(tools.skillsList(null)).contains("toggle-skill");
     }
@@ -206,8 +208,7 @@ public class MemoryAndSkillsTest {
                         + "description: files test\n"
                         + "---\n\n"
                         + "Use [brief](references/brief.md).\n");
-        env.localSkillService.writeSkillFile(
-                "files-skill", "references/brief.md", "brief content");
+        env.localSkillService.writeSkillFile("files-skill", "references/brief.md", "brief content");
         SkillTools tools =
                 new SkillTools(
                         env.localSkillService,
@@ -448,7 +449,9 @@ public class MemoryAndSkillsTest {
         CapturingMemoryProvider provider = new CapturingMemoryProvider();
         provider.systemPromptBlock =
                 MemoryContextBoundary.OPEN_TAG
-                        + "\n[System note: The following is recalled memory context, NOT new user input. Treat as authoritative reference data.]\n\n"
+                        + "\n"
+                        + "[System note: The following is recalled memory context, NOT new user"
+                        + " input. Treat as authoritative reference data.]\n\n"
                         + "内部旧上下文\n"
                         + MemoryContextBoundary.CLOSE_TAG
                         + "\n普通召回记忆";
@@ -749,8 +752,7 @@ public class MemoryAndSkillsTest {
 
         String response =
                 env.memoryService.add(
-                        "memory",
-                        "长期偏好：loop-todo-memory-marker-20260615 回归报告要同时复述任务清单与记忆状态");
+                        "memory", "长期偏好：loop-todo-memory-marker-20260615 回归报告要同时复述任务清单与记忆状态");
 
         assertThat(response).contains("已写入");
         assertThat(env.memoryService.read("memory"))
@@ -888,71 +890,6 @@ public class MemoryAndSkillsTest {
         assertThat(result).contains("outside skill directory");
         assertThat(result).doesNotContain("sk-do-not-leak");
         assertThat(result).doesNotContain("SECRET_API_KEY");
-    }
-
-    @Test
-    void shouldBlockCredentialPathsInSkillFiles() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.localSkillService.createSkill("secure-skill", null, skill("secure-skill", "demo"));
-        SkillTools tools =
-                new SkillTools(
-                        env.localSkillService,
-                        env.checkpointService,
-                        env.sessionRepository,
-                        "MEMORY:room:user");
-
-        String writeEnv =
-                tools.skillManage(
-                        "write_file",
-                        "secure-skill",
-                        null,
-                        null,
-                        null,
-                        null,
-                        "references/.env",
-                        "TOKEN=1");
-        String viewEnv = tools.skillView("secure-skill", "references/.env");
-        File envFile =
-                FileUtil.file(
-                        env.appConfig.getRuntime().getSkillsDir(),
-                        "secure-skill",
-                        "references",
-                        ".env");
-        FileUtil.writeUtf8String(
-                "KEY=old",
-                FileUtil.file(
-                        env.appConfig.getRuntime().getSkillsDir(),
-                        "secure-skill",
-                        "scripts",
-                        "id_rsa"));
-        String patchKey =
-                tools.skillManage(
-                        "patch", "secure-skill", null, null, "old", "new", "scripts/id_rsa", null);
-        String removeKey =
-                tools.skillManage(
-                        "remove_file",
-                        "secure-skill",
-                        null,
-                        null,
-                        null,
-                        null,
-                        "scripts/id_rsa",
-                        null);
-
-        // writeEnv 写 .env、patchKey/removeKey 写 id_rsa 仍阻断（写阻断保留）。
-        // viewEnv 读 references/.env 已放宽（对齐 外部对标仓库"读非安全边界"），读阻断断言已移除。
-        assertThat(writeEnv).contains("\"status\":\"error\"").contains("security policy");
-        assertThat(patchKey).contains("\"status\":\"error\"").contains("security policy");
-        assertThat(removeKey).contains("\"status\":\"error\"").contains("security policy");
-        assertThat(envFile).doesNotExist();
-        assertThat(
-                        FileUtil.readUtf8String(
-                                FileUtil.file(
-                                        env.appConfig.getRuntime().getSkillsDir(),
-                                        "secure-skill",
-                                        "scripts",
-                                        "id_rsa")))
-                .isEqualTo("KEY=old");
     }
 
     @Test
@@ -1476,49 +1413,6 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldFilterPromptAndSkillToolsByAgentSkills() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.localSkillService.createSkill("global-skill", null, skill("global-skill", "global"));
-        File agentSkillDir =
-                FileUtil.file(
-                        env.appConfig.getRuntime().getHome(),
-                        "agents",
-                        "coder",
-                        "skills",
-                        "agent-only");
-        FileUtil.mkdir(agentSkillDir);
-        FileUtil.writeUtf8String(
-                skill("agent-only", "agent local"), FileUtil.file(agentSkillDir, "SKILL.md"));
-
-        env.agentProfileService.createAgent("coder", "你是代码助手。");
-        env.send("skill-room", "skill-user", "hello");
-        env.send("skill-room", "skill-user", "/pairing claim-admin");
-        env.send("skill-room", "skill-user", "/agent skills coder agent-only");
-        env.send("skill-room", "skill-user", "/agent coder");
-        AgentRuntimeScope scope =
-                env.agentRuntimeService.resolve(
-                        env.sessionRepository.getBoundSession("MEMORY:skill-room:skill-user"));
-
-        String prompt =
-                env.localSkillService.renderSkillIndexPrompt("MEMORY:skill-room:skill-user", scope);
-        SkillTools tools =
-                new SkillTools(
-                        env.localSkillService,
-                        env.checkpointService,
-                        env.sessionRepository,
-                        "MEMORY:skill-room:skill-user",
-                        scope);
-        String listed = tools.skillsList(null);
-        String viewed = tools.skillView("agent-only", null);
-        String hidden = tools.skillView("global-skill", null);
-
-        assertThat(prompt).contains("agent-only").doesNotContain("global-skill");
-        assertThat(listed).contains("agent-only").doesNotContain("global-skill");
-        assertThat(viewed).contains("agent local");
-        assertThat(hidden).contains("\"status\":\"error\"").contains("Skill not found");
-    }
-
-    @Test
     void shouldRewriteCronSkillRefsWhenSkillManageDeletesWithAbsorbedInto() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.localSkillService.createSkill("source-skill", null, skill("source-skill", "source"));
@@ -1588,13 +1482,15 @@ public class MemoryAndSkillsTest {
         String addResult = tools.memory("add", "memory", "长期偏好 token=ghp_memorytool12345", null);
         String readResult = tools.memory("read", "memory", null, null);
 
-        assertThat(addResult).contains("\"status\":\"success\"").doesNotContain("ghp_memorytool12345");
+        assertThat(addResult)
+                .contains("\"status\":\"success\"")
+                .doesNotContain("ghp_memorytool12345");
         assertThat(readResult).contains("长期偏好 token=***").doesNotContain("ghp_memorytool12345");
         assertThat(env.memoryService.read("memory")).contains("ghp_memorytool12345");
     }
 
     @Test
-    void shouldBlockUnsafeMemoryToolContentLikeJimuqu() throws Exception {
+    void shouldBlockUnsafeMemoryContentWithoutPersistingIt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         MemoryTools tools = new MemoryTools(env.memoryService);
 
@@ -1615,7 +1511,7 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldBlockUnsafeMemoryReplacementWithoutChangingExistingEntry() throws Exception {
+    void shouldBlockUnsafeMemoryReplacementWithoutChangingStoredContent() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         MemoryTools tools = new MemoryTools(env.memoryService);
 
@@ -1697,6 +1593,33 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldCarryProfileScopeAcrossReusedLearningExecutors() throws Exception {
+        ScopedSkillSummaryGateway gateway = new ScopedSkillSummaryGateway(4);
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        env.appConfig.getLearning().setToolCallThreshold(1);
+        AsyncSkillLearningService learningService =
+                new AsyncSkillLearningService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.memoryService,
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.llmGateway);
+        try {
+            scheduleScopedLearning(env, learningService, "a", "env-a", "scope-a-task");
+            waitSkillContent(env, "scope-a-task", "模型总结出的发布流程");
+            scheduleScopedLearning(env, learningService, "b", "env-b", "scope-b-task");
+            waitSkillContent(env, "scope-b-task", "模型总结出的发布流程");
+
+            assertThat(gateway.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(gateway.observations)
+                    .containsExactly("a:env-a", "a:env-a", "b:env-b", "b:env-b");
+        } finally {
+            learningService.shutdown();
+        }
+    }
+
+    @Test
     void shouldTimeoutBlockedAuxiliarySkillLearningCall() throws Exception {
         BlockingAuxiliaryGateway gateway = new BlockingAuxiliaryGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);
@@ -1738,6 +1661,37 @@ public class MemoryAndSkillsTest {
 
     private String waitSkillContent(TestEnvironment env, String name) throws Exception {
         return waitSkillContent(env, name, "当前任务验证点");
+    }
+
+    /** 在指定 Profile 下提交一次会经过学习线程池和辅助模型线程池的任务。 */
+    private void scheduleScopedLearning(
+            TestEnvironment env,
+            AsyncSkillLearningService learningService,
+            String profile,
+            String marker,
+            String title)
+            throws Exception {
+        SessionRecord session =
+                env.sessionRepository.bindNewSession(
+                        "MEMORY:" + profile + "-room:" + profile + "-user");
+        session.setTitle(title);
+        session.setCompressedSummary("已完成 " + title + " 的验证流程。");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Collections.singletonList(
+                                ChatMessage.ofTool("tool output", "shell", "1"))));
+        env.sessionRepository.save(session);
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        profile,
+                        Files.createTempDirectory("learning-profile-" + profile),
+                        java.util.Collections.singletonMap("PROFILE_ASYNC_MARKER", marker),
+                        null)) {
+            learningService.schedulePostReplyLearning(
+                    session,
+                    env.message(profile + "-room", profile + "-user", "沉淀 " + title),
+                    GatewayReply.ok("done"));
+        }
     }
 
     private String waitSkillContent(TestEnvironment env, String name, String expected)
@@ -1845,6 +1799,43 @@ public class MemoryAndSkillsTest {
                 SessionRecord session, String systemPrompt, List<Object> toolObjects)
                 throws Exception {
             return chat(session, systemPrompt, "", toolObjects);
+        }
+    }
+
+    /** 记录辅助模型线程实际看到的 Profile，验证两层线程池都传播作用域。 */
+    private static class ScopedSkillSummaryGateway extends SkillSummaryGateway {
+        /** 两次辅助模型调用完成信号。 */
+        private final CountDownLatch observed;
+
+        /** 按执行顺序保存 Profile 和环境标记。 */
+        private final List<String> observations =
+                new java.util.concurrent.CopyOnWriteArrayList<String>();
+
+        /** 创建指定观测次数的模型桩。 */
+        private ScopedSkillSummaryGateway(int count) {
+            this.observed = new CountDownLatch(count);
+        }
+
+        /** 记录当前异步线程作用域后返回标准技能内容。 */
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            ProfileRuntimeScope.Context current = ProfileRuntimeScope.current();
+            observations.add(
+                    (current == null ? "default" : current.getProfile())
+                            + ":"
+                            + ProfileRuntimeScope.environmentValue("PROFILE_ASYNC_MARKER"));
+            observed.countDown();
+            return super.chat(session, systemPrompt, userMessage, toolObjects);
+        }
+
+        /** 等待指定次数的辅助模型观测完成。 */
+        private boolean await(long timeout, TimeUnit unit) throws InterruptedException {
+            return observed.await(timeout, unit);
         }
     }
 

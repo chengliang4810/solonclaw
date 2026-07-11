@@ -37,7 +37,9 @@ public class ApprovalQueueManageTools {
             description =
                     "Inspect dashboard approval queues. Actions: pending, history, always, slash_confirms, summary.")
     public String approvalQueueManage(
-            @Param(name = "action", description = "pending, history, always, slash_confirms, summary")
+            @Param(
+                            name = "action",
+                            description = "pending, history, always, slash_confirms, summary")
                     String action,
             @Param(
                             name = "limit",
@@ -70,8 +72,7 @@ public class ApprovalQueueManageTools {
      */
     private Map<String, Object> run(
             DashboardDiagnosticsService service, String action, Integer limit) throws Exception {
-        String normalized =
-                action == null ? "pending" : action.trim().toLowerCase(Locale.ROOT);
+        String normalized = action == null ? "pending" : action.trim().toLowerCase(Locale.ROOT);
         int safeLimit = limit == null ? 50 : Math.min(Math.max(1, limit.intValue()), 200);
         if ("history".equals(normalized)) {
             return service.approvalHistory(safeLimit);

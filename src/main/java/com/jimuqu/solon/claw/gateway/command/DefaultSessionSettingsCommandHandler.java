@@ -75,7 +75,9 @@ final class DefaultSessionSettingsCommandHandler {
         }
 
         String override =
-                StrUtil.isNotBlank(input.provider) ? input.provider + ":" + input.model : input.model;
+                StrUtil.isNotBlank(input.provider)
+                        ? input.provider + ":" + input.model
+                        : input.model;
         sessionRepository.setModelOverride(session.getSessionId(), override);
         return GatewayReply.ok("已切换当前会话模型为：" + override + "（下一条消息生效）");
     }

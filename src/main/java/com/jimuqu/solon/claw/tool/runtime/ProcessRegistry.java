@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.io.File;
@@ -194,6 +195,7 @@ public class ProcessRegistry {
             builder.directory(workDir);
         }
         builder.redirectErrorStream(true);
+        ProfileRuntimeScope.replaceProcessEnvironment(builder.environment());
         SubprocessEnvironmentSanitizer.sanitize(builder.environment(), appConfig);
         Process process = builder.start();
         String id = "proc_" + IdSupport.newId();
@@ -595,7 +597,8 @@ public class ProcessRegistry {
                                     + watchGlobalMaxPerWindow
                                     + " notifications in "
                                     + (watchGlobalWindowMillis / 1000L)
-                                    + "s across all processes. Suppressing further watch_match events for "
+                                    + "s across all processes. Suppressing further watch_match"
+                                    + " events for "
                                     + (watchGlobalCooldownMillis / 1000L)
                                     + "s.");
                     admit = false;
@@ -630,7 +633,8 @@ public class ProcessRegistry {
                         + managed.getId()
                         + " after "
                         + watchStrikeLimit
-                        + " consecutive rate-limit windows. Falling back to notify_on_complete semantics.");
+                        + " consecutive rate-limit windows. Falling back to notify_on_complete"
+                        + " semantics.");
         enqueueEvent(event);
     }
 
@@ -909,13 +913,15 @@ public class ProcessRegistry {
             autoSource = appConfig.getTerminal().isAutoSourceBashrc();
         }
         String home =
-                StrUtil.blankToDefault(System.getenv("HOME"), System.getProperty("user.home"));
+                StrUtil.blankToDefault(
+                        ProfileRuntimeScope.environmentValue("HOME"),
+                        System.getProperty("user.home"));
         return SolonClawShellSkill.resolveShellInitFiles(
                 configured,
                 autoSource,
                 isWindows(),
                 home,
-                System.getenv(),
+                ProfileRuntimeScope.environmentSnapshot(),
                 appConfig == null ? null : new SecurityPolicyService(appConfig));
     }
 
@@ -1149,7 +1155,8 @@ public class ProcessRegistry {
      */
     private static void logRecoverableFailure(String stage, Exception error) {
         if (log.isDebugEnabled()) {
-            log.debug("process registry fallback. stage={} error={}", stage, exceptionSummary(error));
+            log.debug(
+                    "process registry fallback. stage={} error={}", stage, exceptionSummary(error));
         }
     }
 
@@ -1272,13 +1279,14 @@ public class ProcessRegistry {
         void startReader() {
             Thread reader =
                     new Thread(
-                            new Runnable() {
-                                /** 执行异步任务主体。 */
-                                @Override
-                                public void run() {
-                                    readOutputLoop();
-                                }
-                            },
+                            ProfileRuntimeScope.capture(
+                                    new Runnable() {
+                                        /** 执行异步任务主体。 */
+                                        @Override
+                                        public void run() {
+                                            readOutputLoop();
+                                        }
+                                    }),
                             "jimuqu-process-" + id);
             reader.setDaemon(true);
             reader.start();

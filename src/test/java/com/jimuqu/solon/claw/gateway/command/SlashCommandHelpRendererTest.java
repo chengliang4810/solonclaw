@@ -14,9 +14,7 @@ class SlashCommandHelpRendererTest {
 
         for (CommandDescriptor descriptor : CommandRegistry.all()) {
             if (descriptor.supportsScope(CommandRegistry.SCOPE_GATEWAY)) {
-                assertThat(help)
-                        .as(descriptor.slashName())
-                        .contains(descriptor.slashName() + " ");
+                assertThat(help).as(descriptor.slashName()).contains(descriptor.slashName() + " ");
             } else {
                 assertThat(help)
                         .as(descriptor.slashName())

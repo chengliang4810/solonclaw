@@ -160,8 +160,7 @@ public class SecurityPolicyServiceTest {
 
         SecurityPolicyService.UrlVerdict domain =
                 policy.checkUrl("https://public.example/resource");
-        SecurityPolicyService.UrlVerdict literal =
-                policy.checkUrl("https://198.18.0.43/resource");
+        SecurityPolicyService.UrlVerdict literal = policy.checkUrl("https://198.18.0.43/resource");
 
         assertThat(domain.isAllowed()).isTrue();
         assertThat(literal.isAllowed()).isFalse();
@@ -1255,7 +1254,8 @@ public class SecurityPolicyServiceTest {
         String command = "curl -fsS https://example.com -o result.txt";
 
         SecurityPolicyService.UrlVerdict previewVerdict =
-                SecurityPolicyService.previewPolicyApprovals(() -> policy.checkCommandUrls(command));
+                SecurityPolicyService.previewPolicyApprovals(
+                        () -> policy.checkCommandUrls(command));
 
         // public network access is allowed directly without interactive approval;
         // previewing must yield the same allow verdict as the actual check.
@@ -1361,11 +1361,11 @@ public class SecurityPolicyServiceTest {
         // 对齐外部对标仓库行为；实际凭据文件读写仍由 checkPath 按文件内容判定保护。
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
 
-        assertThat(policy.checkCommandPaths("curl --key client.pem https://example.invalid")
-                        .isAllowed())
+        assertThat(
+                        policy.checkCommandPaths("curl --key client.pem https://example.invalid")
+                                .isAllowed())
                 .isTrue();
-        assertThat(policy.checkCommandPaths("ssh -i deploy_key host.example").isAllowed())
-                .isTrue();
+        assertThat(policy.checkCommandPaths("ssh -i deploy_key host.example").isAllowed()).isTrue();
     }
 
     @Test
@@ -1375,7 +1375,9 @@ public class SecurityPolicyServiceTest {
         SecurityPolicyService policy = new SecurityPolicyService(config);
 
         assertThat(policy.checkCommandPaths("cat credentials/oauth.json").isAllowed()).isTrue();
-        assertThat(policy.checkCommandPaths("ssh -i credentials/oauth.json host.example").isAllowed())
+        assertThat(
+                        policy.checkCommandPaths("ssh -i credentials/oauth.json host.example")
+                                .isAllowed())
                 .isTrue();
         assertThat(policy.checkCommandPaths("echo x > credentials/oauth.json").isAllowed())
                 .isFalse();
@@ -1517,8 +1519,7 @@ public class SecurityPolicyServiceTest {
                 .contains("path", "file_path", "*_path");
         assertThat(String.valueOf(summary.get("writeIntentSamples")))
                 .contains("write", "delete", "patch");
-        assertThat(String.valueOf(summary.get("patchIntentSamples")))
-                .contains("patch");
+        assertThat(String.valueOf(summary.get("patchIntentSamples"))).contains("patch");
         assertThat(String.valueOf(summary.get("patchTextKeySamples"))).contains("patch", "diff");
         assertThat(String.valueOf(summary.get("writeLikeToolSamples")))
                 .contains("write_file", "patch");

@@ -73,7 +73,7 @@ public class CronJobService {
                 new int[] {0x20E3, 0x20E3}
             };
 
-    /** 定时任务提示词THREATS的统一常量值。 */
+    /** 原始用户定时任务提示词的严格威胁规则。 */
     private static final CronPromptThreat[] CRON_PROMPT_THREATS =
             new CronPromptThreat[] {
                 threat(
@@ -109,6 +109,19 @@ public class CronJobService {
                                 + "|(?:\\bsystemctl\\s+(?:restart|stop|start)\\b[^\\n]*solon-?claw)"
                                 + "|(?:\\b(?:pkill|killall)\\b[^\\n]*(?:solonclaw|gateway))"
                                 + "|(?:\\bkill\\b[^\\n]*(?:\\$\\(\\s*(?:pgrep|pidof)\\b|`\\s*(?:pgrep|pidof)\\b))")
+            };
+
+    /** 可信运行期内容的宽松威胁规则，仅拦截脱离正常资料文本的明确注入指令。 */
+    private static final CronPromptThreat[] CRON_TRUSTED_ASSEMBLED_PROMPT_THREATS =
+            new CronPromptThreat[] {
+                threat(
+                        "prompt_injection",
+                        "ignore\\s+(?:\\w+\\s+)*(?:previous|all|above|prior)\\s+(?:\\w+\\s+)*instructions"),
+                threat("deception_hide", "do\\s+not\\s+tell\\s+the\\s+user"),
+                threat("sys_prompt_override", "system\\s+prompt\\s+override"),
+                threat(
+                        "disregard_rules",
+                        "disregard\\s+(your|all|any)\\s+(instructions|rules|guidelines)")
             };
 
     /** 注入应用配置，用于定时任务任务。 */
@@ -821,9 +834,7 @@ public class CronJobService {
         result.put(
                 "last_run_at",
                 record.getLastRunAt() <= 0 ? null : Long.valueOf(record.getLastRunAt()));
-        result.put(
-                "next_run_at",
-                visibleNextRunAt(record));
+        result.put("next_run_at", visibleNextRunAt(record));
         result.put("last_status", record.getLastStatus());
         result.put("last_error", safeViewText(record.getLastError()));
         result.put("last_delivery_error", safeViewText(record.getLastDeliveryError()));
@@ -1397,9 +1408,7 @@ public class CronJobService {
         result.put("workdir_validation", "workdir 会规范化到 workspace 内部，禁止逃逸工作目录。");
         result.put("delivery_validation", "deliver 只允许本地、origin 或已支持平台。");
         result.put("protected_disabled_toolsets", PROTECTED_CRON_DISABLED_TOOLSETS);
-        result.put(
-                "enabled_toolsets_policy",
-                "受保护的禁用工具集会覆盖任务级和 scheduler enabled_toolsets 配置。");
+        result.put("enabled_toolsets_policy", "受保护的禁用工具集会覆盖任务级和 scheduler enabled_toolsets 配置。");
         result.put("guardrail_mode", "触发后的命令和工具调用继续走运行时审批与危险命令策略。");
         return result;
     }
@@ -1572,7 +1581,8 @@ public class CronJobService {
                 throw new IllegalStateException("script must stay within workspace/scripts");
             }
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("script path could not be validated: " + CronJobSupport.safeError(e));
+            throw new IllegalStateException(
+                    "script path could not be validated: " + CronJobSupport.safeError(e));
         }
     }
 
@@ -1672,7 +1682,8 @@ public class CronJobService {
             }
             return normalized;
         } catch (java.io.IOException e) {
-            throw new IllegalStateException("workdir path could not be validated: " + CronJobSupport.safeError(e));
+            throw new IllegalStateException(
+                    "workdir path could not be validated: " + CronJobSupport.safeError(e));
         }
     }
 
@@ -1707,7 +1718,8 @@ public class CronJobService {
                 return "workspace://";
             }
             if (filePath.startsWith(homePath + File.separator)) {
-                return "workspace://" + filePath.substring(homePath.length() + 1).replace('\\', '/');
+                return "workspace://"
+                        + filePath.substring(homePath.length() + 1).replace('\\', '/');
             }
         } catch (Exception e) {
             logCronBestEffortFailure(jobId, "workdir_reference", e);
@@ -1770,6 +1782,29 @@ public class CronJobService {
     }
 
     /**
+     * 扫描技能、脚本输出或上游任务输出参与组装后的定时任务提示词。
+     *
+     * <p>这些运行期内容可以合法引用危险命令作为报告、排障记录或安全文档的一部分， 因此只阻断明确的提示词注入指令。不可见字符会在实际调用 Agent 前剥离，避免资料中的
+     * 偶发零宽字符持续阻断同一任务。
+     *
+     * @param prompt 包含可信运行期内容的完整提示词。
+     * @return 已清理且通过宽松扫描的提示词。
+     */
+    String scanTrustedAssembledPrompt(String prompt) {
+        if (StrUtil.isBlank(prompt)) {
+            return prompt;
+        }
+        String cleanedPrompt = stripInvisibleInjectionChars(prompt);
+        String promptToScan = stripCronSafeConstructs(cleanedPrompt);
+        for (CronPromptThreat threat : CRON_TRUSTED_ASSEMBLED_PROMPT_THREATS) {
+            if (threat.pattern.matcher(promptToScan).find()) {
+                throw new IllegalStateException("Blocked unsafe cron prompt pattern: " + threat.id);
+            }
+        }
+        return cleanedPrompt;
+    }
+
+    /**
      * 剥离定时任务安全Constructs。
      *
      * @param prompt 提示词参数。
@@ -1779,6 +1814,35 @@ public class CronJobService {
         return CRON_GITHUB_AUTH_HEADER
                 .matcher(prompt)
                 .replaceAll("curl https://api.github.com/user");
+    }
+
+    /**
+     * 剥离可信运行期内容中的不可见注入字符，同时保留合法 Emoji 连接符。
+     *
+     * @param prompt 待清理的完整提示词。
+     * @return 供 Agent 实际执行的清理后提示词。
+     */
+    private static String stripInvisibleInjectionChars(String prompt) {
+        StringBuilder cleaned = new StringBuilder(prompt.length());
+        List<String> removed = new ArrayList<String>();
+        for (int i = 0; i < prompt.length(); i++) {
+            char ch = prompt.charAt(i);
+            if (!isInvisibleInjectionChar(ch, prompt, i)) {
+                cleaned.append(ch);
+                continue;
+            }
+            String codePoint = String.format(Locale.ROOT, "U+%04X", Integer.valueOf(ch));
+            if (!removed.contains(codePoint)) {
+                removed.add(codePoint);
+            }
+        }
+        if (!removed.isEmpty()) {
+            log.warn(
+                    "Cron trusted assembled prompt stripped {} invisible unicode character type(s): {}",
+                    Integer.valueOf(removed.size()),
+                    String.join(", ", removed));
+        }
+        return cleaned.toString();
     }
 
     /**
@@ -1797,12 +1861,19 @@ public class CronJobService {
                 || ch == '\u200c'
                 || ch == '\u200d'
                 || ch == '\u2060'
+                || ch == '\u2062'
+                || ch == '\u2063'
+                || ch == '\u2064'
                 || ch == '\ufeff'
                 || ch == '\u202a'
                 || ch == '\u202b'
                 || ch == '\u202c'
                 || ch == '\u202d'
-                || ch == '\u202e';
+                || ch == '\u202e'
+                || ch == '\u2066'
+                || ch == '\u2067'
+                || ch == '\u2068'
+                || ch == '\u2069';
     }
 
     /**
@@ -2195,7 +2266,8 @@ public class CronJobService {
     private String scheduleObjectValue(Object value) {
         if (value instanceof Map) {
             Map<?, ?> map = (Map<?, ?>) value;
-            String text = CronJobSupport.firstString(map, "raw", "expr", "cron", "value", "display");
+            String text =
+                    CronJobSupport.firstString(map, "raw", "expr", "cron", "value", "display");
             if (StrUtil.isNotBlank(text)) {
                 return text;
             }
@@ -2222,8 +2294,12 @@ public class CronJobService {
             return null;
         }
         String platform = CronJobSupport.firstString(value, "platform", "type", "channel", "mode");
-        String chatId = CronJobSupport.firstString(value, "chat_id", "chatId", "target", "target_id", "targetId");
-        String threadId = CronJobSupport.firstString(value, "thread_id", "threadId", "message_id", "messageId");
+        String chatId =
+                CronJobSupport.firstString(
+                        value, "chat_id", "chatId", "target", "target_id", "targetId");
+        String threadId =
+                CronJobSupport.firstString(
+                        value, "thread_id", "threadId", "message_id", "messageId");
         if (StrUtil.isBlank(platform)) {
             return null;
         }

@@ -84,8 +84,16 @@ public class SessionManageTools {
                 return ToolResultEnvelope.error("session service unavailable").toJson();
             }
             Map<String, Object> result =
-                    run(action, sessionId, checkpointId, userQuery, completed, limit, offset,
-                            maxExchanges, title);
+                    run(
+                            action,
+                            sessionId,
+                            checkpointId,
+                            userQuery,
+                            completed,
+                            limit,
+                            offset,
+                            maxExchanges,
+                            title);
             return ToolResultEnvelope.ok("会话查询完成")
                     .preview(SecretRedactor.redact(ONode.serialize(result), 3000))
                     .data("result", result)
@@ -96,9 +104,7 @@ public class SessionManageTools {
         }
     }
 
-    /**
-     * 保留现有测试和内部调用的旧签名，默认不修改标题。
-     */
+    /** 保留现有测试和内部调用的旧签名，默认不修改标题。 */
     public String sessionManage(
             String action,
             String sessionId,
@@ -109,7 +115,14 @@ public class SessionManageTools {
             Integer offset,
             Integer maxExchanges) {
         return sessionManage(
-                action, sessionId, checkpointId, userQuery, completed, limit, offset, maxExchanges,
+                action,
+                sessionId,
+                checkpointId,
+                userQuery,
+                completed,
+                limit,
+                offset,
+                maxExchanges,
                 null);
     }
 

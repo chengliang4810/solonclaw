@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.cli;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import java.util.Locale;
 
 /** 承载终端Skin相关状态和辅助逻辑。 */
@@ -46,7 +47,7 @@ public final class TerminalSkin {
      * @return 返回Environment结果。
      */
     public static TerminalSkin fromEnvironment() {
-        return resolve(System.getenv("SOLONCLAW_TERMINAL_SKIN"));
+        return resolve(ProfileRuntimeScope.environmentValue("SOLONCLAW_TERMINAL_SKIN"));
     }
 
     /**

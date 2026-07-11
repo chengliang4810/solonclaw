@@ -3,8 +3,8 @@ package com.jimuqu.solon.claw.support;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Locale;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class SecretRedactorTest {

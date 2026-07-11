@@ -13,8 +13,7 @@ import org.noear.snack4.ONode;
  */
 final class SkillMetaDeserialize {
 
-    private SkillMetaDeserialize() {
-    }
+    private SkillMetaDeserialize() {}
 
     /**
      * 执行deserialize列表相关逻辑。

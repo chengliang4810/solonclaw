@@ -1028,16 +1028,19 @@ public class LocalSkillService implements SkillCatalogService {
         boolean readOnly = false;
         if (metadata != null) {
             pinned = SkillFrontmatterSupport.parseBoolean(metadata.get("pinned"));
-            readOnly = SkillFrontmatterSupport.parseBoolean(metadata.get("readonly"))
-                    || SkillFrontmatterSupport.parseBoolean(metadata.get("readOnly"));
+            readOnly =
+                    SkillFrontmatterSupport.parseBoolean(metadata.get("readonly"))
+                            || SkillFrontmatterSupport.parseBoolean(metadata.get("readOnly"));
             Object curator = metadata.get("curator");
             if (curator instanceof Map) {
-                pinned = pinned
-                        || SkillFrontmatterSupport.parseBoolean(
-                                ((Map<String, Object>) curator).get("pinned"));
-                readOnly = readOnly
-                        || SkillFrontmatterSupport.parseBoolean(
-                                ((Map<String, Object>) curator).get("readonly"));
+                pinned =
+                        pinned
+                                || SkillFrontmatterSupport.parseBoolean(
+                                        ((Map<String, Object>) curator).get("pinned"));
+                readOnly =
+                        readOnly
+                                || SkillFrontmatterSupport.parseBoolean(
+                                        ((Map<String, Object>) curator).get("readonly"));
             }
         }
         if (pinned || readOnly || !"agent-created".equals(descriptor.getTrustLevel())) {
@@ -1561,7 +1564,8 @@ public class LocalSkillService implements SkillCatalogService {
             } catch (IOException e) {
                 log.debug(
                         "Atomic skill file move failed, retrying with replace move: {}, error={}",
-                        SecretRedactor.redact(StrUtil.blankToDefault(displayPath, target.getName()), 400),
+                        SecretRedactor.redact(
+                                StrUtil.blankToDefault(displayPath, target.getName()), 400),
                         safeError(e));
                 Files.move(tempFile.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING);
             } finally {

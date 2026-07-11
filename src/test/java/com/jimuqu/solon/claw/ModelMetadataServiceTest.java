@@ -314,6 +314,43 @@ public class ModelMetadataServiceTest {
     }
 
     @Test
+    void shouldPreferExplicitProviderCapabilitiesOverModelNameInference() {
+        AppConfig config = new AppConfig();
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setDefaultModel("gpt-5.4");
+        provider.setDialect("openai-responses");
+        provider.getCapabilities().put("tool_calling", Boolean.FALSE);
+        provider.getCapabilities().put("vision", Boolean.FALSE);
+        provider.getCapabilities().put("audio", Boolean.TRUE);
+        provider.getCapabilities().put("attachment", Boolean.FALSE);
+        provider.getCapabilities().put("pdf", Boolean.FALSE);
+        provider.getCapabilities().put("reasoning", Boolean.FALSE);
+        provider.getCapabilities().put("structured_output", Boolean.FALSE);
+        provider.getCapabilities().put("open_weights", Boolean.TRUE);
+        provider.getCapabilities().put("interleaved", Boolean.TRUE);
+        provider.getCapabilities().put("prompt_cache", Boolean.FALSE);
+        provider.getCapabilities().put("streaming", Boolean.FALSE);
+
+        ModelMetadata metadata = new ModelMetadataService(config).resolve("default", provider);
+
+        assertThat(metadata.isSupportsTools()).isFalse();
+        assertThat(metadata.isSupportsVision()).isFalse();
+        assertThat(metadata.isSupportsAudio()).isTrue();
+        assertThat(metadata.isSupportsAttachment()).isFalse();
+        assertThat(metadata.isSupportsPdf()).isFalse();
+        assertThat(metadata.isSupportsReasoning()).isFalse();
+        assertThat(metadata.isSupportsStructuredOutput()).isFalse();
+        assertThat(metadata.isSupportsOpenWeights()).isTrue();
+        assertThat(metadata.isSupportsInterleaved()).isTrue();
+        assertThat(metadata.isSupportsPromptCache()).isFalse();
+        assertThat(metadata.isSupportsStreaming()).isFalse();
+        assertThat(metadata.getInputModalities()).containsExactly("text", "audio");
+        assertThat(metadata.getSource()).isEqualTo("provider_config");
+        assertThat(metadata.getProvenance())
+                .isEqualTo("provider_config:capabilities_with_static_fallback");
+    }
+
+    @Test
     void shouldResolveProviderAwareModelListUrlForOpenAiCompatibleHosts() {
         AppConfig config = new AppConfig();
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();

@@ -1,13 +1,13 @@
 package com.jimuqu.solon.claw.tui;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.cli.TerminalModelPicker;
 import com.jimuqu.solon.claw.cli.TerminalSetupCommands;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
@@ -21,10 +21,12 @@ import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.mcp.McpRuntimeService;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
-import com.jimuqu.solon.claw.support.RuntimeSettingsService;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
 import com.jimuqu.solon.claw.tool.runtime.BrowserRuntimeService;
+import com.jimuqu.solon.claw.tool.runtime.ClarifyRequestCoordinator;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.ProcessRegistry;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
@@ -55,22 +57,34 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
 
     /** 后台执行 prompt.submit，避免模型请求占住 WebSocket worker 导致其他 RPC 超时。 */
     private final ExecutorService promptExecutor;
+
     /** 复用本地终端运行时执行会话命令与用户输入。 */
     private final CliRuntime runtime;
+
     /** 构造终端 UI RPC 响应的服务。 */
     private final TerminalUiRpcService rpcService;
+
     /** 复用本地终端 setup/config/doctor 命令，避免这些命令落入模型运行时。 */
     private final TerminalSetupCommands setupCommands;
+
     /** 会话仓储用于把复制来的 TUI 会话 ID 绑定到 Java 终端运行时 source key。 */
     private final SessionRepository sessionRepository;
+
     /** 复用现有终端工具执行 TUI 的 shell.exec，保留安全检查、脱敏和输出裁剪。 */
     private final SolonClawShellSkill shellSkill;
+
     /** 危险命令审批服务，用于把 TUI 审批弹层选择写回真实审批流。 */
     private final DangerousCommandApprovalService approvalService;
+
     /** 安全策略服务，用于直接 shell 命令审批恢复时生成精确的一次性策略 token。 */
     private final SecurityPolicyService securityPolicyService;
+
     /** 复用 Dashboard 访问令牌策略保护远程 TUI WebSocket 控制面。 */
     private final DashboardAuthService dashboardAuthService;
+
+    /** clarify 工具与终端 UI 的请求/响应协调器。 */
+    private final ClarifyRequestCoordinator clarifyCoordinator;
+
     /** 当前 WebSocket 连接对应的审批观察器，断开连接时需要注销避免泄露。 */
     private final Map<WebSocket, TerminalUiApprovalObserver> approvalObservers =
             new java.util.concurrent.ConcurrentHashMap<WebSocket, TerminalUiApprovalObserver>();
@@ -209,6 +223,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         this.approvalService = approvalService;
         this.securityPolicyService = securityPolicyService;
         this.dashboardAuthService = appConfig == null ? null : new DashboardAuthService(appConfig);
+        this.clarifyCoordinator = ClarifyRequestCoordinator.shared();
         this.rpcService =
                 new TerminalUiRpcService(
                         appConfig,
@@ -236,7 +251,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                         ? null
                         : new TerminalSetupCommands(
                                 appConfig,
-                                new TerminalModelPicker(appConfig, new LlmProviderService(appConfig)));
+                                new TerminalModelPicker(
+                                        appConfig, new LlmProviderService(appConfig)));
         this.shellSkill =
                 new SolonClawShellSkill(
                         System.getProperty("user.dir"),
@@ -292,13 +308,14 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         send(socket, "error", pair("message", "Binary messages are not supported"));
     }
 
-    /** 终端 UI 断开时无需额外清理，运行态由后端服务管理。 */
+    /** 终端 UI 断开时释放本连接等待中的 clarify 请求，避免后台工具线程泄露。 */
     @Override
     public void onClose(WebSocket socket) {
         TerminalUiApprovalObserver observer = approvalObservers.remove(socket);
         if (approvalService != null && observer != null) {
             approvalService.removeApprovalObserver(observer);
         }
+        clarifyCoordinator.clearOwner(socket);
     }
 
     /** 底层连接异常由 WebSocket 容器记录，这里不向业务运行时传播。 */
@@ -309,14 +326,16 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     private void handleChatSend(WebSocket socket, ONode payload) throws Exception {
         String sessionId = payload.get("session_id").getString();
         bindApprovalObserver(socket, sessionId);
+        bindClarifySession(socket, sessionId);
         bindRuntimeSource(sessionId);
         String input = payload.get("input").getString();
-        if (StrUtil.isBlank(input)) {
+        List<MessageAttachment> attachments = rpcService.drainPendingAttachments(sessionId);
+        if (StrUtil.isBlank(input) && attachments.isEmpty()) {
             send(socket, "error", pair("message", "input must not be blank"));
             return;
         }
         TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket);
-        GatewayReply reply = runtime.send(sessionId, input, sink);
+        GatewayReply reply = runtime.send(sessionId, input, attachments, sink);
         if (reply != null && reply.isError()) {
             sink.onRunFailed(sessionId, new IllegalStateException(reply.getContent()));
             return;
@@ -355,6 +374,10 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                 sendRpcResult(socket, id, approvalRespond(socket, params));
                 return;
             }
+            if ("clarify.respond".equals(method)) {
+                sendRpcResult(socket, id, clarifyRespond(socket, params));
+                return;
+            }
             if ("shell.exec".equals(method)) {
                 sendRpcResult(
                         socket,
@@ -377,9 +400,11 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     private void handlePromptSubmit(WebSocket socket, String id, ONode params) throws Exception {
         String sessionId = params.get("session_id").getString();
         bindApprovalObserver(socket, sessionId);
+        bindClarifySession(socket, sessionId);
         bindRuntimeSource(sessionId);
         String input = params.get("text").getString();
-        if (StrUtil.isBlank(input)) {
+        List<MessageAttachment> attachments = rpcService.drainPendingAttachments(sessionId);
+        if (StrUtil.isBlank(input) && attachments.isEmpty()) {
             sendRpcResult(socket, id, rpcService.ok());
             return;
         }
@@ -388,16 +413,17 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                 new Runnable() {
                     @Override
                     public void run() {
-                        runPromptSubmit(socket, sessionId, input);
+                        runPromptSubmit(socket, sessionId, input, attachments);
                     }
                 });
     }
 
     /** 在后台线程执行模型请求并持续向终端 UI 推送事件流。 */
-    private void runPromptSubmit(WebSocket socket, String sessionId, String input) {
+    private void runPromptSubmit(
+            WebSocket socket, String sessionId, String input, List<MessageAttachment> attachments) {
         TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
         try {
-            GatewayReply reply = runtime.send(sessionId, input, sink);
+            GatewayReply reply = runtime.send(sessionId, input, attachments, sink);
             if (reply != null && reply.isError()) {
                 sink.onRunFailed(sessionId, new IllegalStateException(reply.getContent()));
                 return;
@@ -426,7 +452,6 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
     }
 
-
     /** 根据 RPC 方法名生成终端 UI 前端所需的响应载荷。 */
     private Object rpcResult(String method, ONode params) throws Exception {
         if ("setup.status".equals(method)) {
@@ -451,9 +476,18 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return rpcService.sessionResume(params.get("session_id").getString());
         }
         if ("session.close".equals(method)) {
-            return rpcService.sessionClose(params.get("session_id").getString());
+            String sessionId = params.get("session_id").getString();
+            clarifyCoordinator.closeSession(sessionId);
+            return rpcService.sessionClose(sessionId);
         }
-        if ("session.interrupt".equals(method) || "terminal.resize".equals(method)) {
+        if ("session.interrupt".equals(method)) {
+            String sessionId = params.get("session_id").getString();
+            clarifyCoordinator.clearSession(sessionId);
+            rpcService.clearPendingAttachments(sessionId);
+            runtime.stop(sessionId);
+            return rpcService.ok();
+        }
+        if ("terminal.resize".equals(method)) {
             return rpcService.ok();
         }
         if ("session.save".equals(method)) {
@@ -542,7 +576,19 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                     params.get("session_id").getString(), params.get("text").getString());
         }
         if ("image.attach".equals(method)) {
-            return rpcService.imageAttach(params.get("path").getString());
+            return rpcService.imageAttach(
+                    params.get("session_id").getString(), params.get("path").getString());
+        }
+        if ("image.attach_bytes".equals(method)) {
+            String contentBase64 = params.get("content_base64").getString();
+            if (StrUtil.isBlank(contentBase64)) {
+                contentBase64 = params.get("data").getString();
+            }
+            return rpcService.imageAttachBytes(
+                    params.get("session_id").getString(),
+                    contentBase64,
+                    params.get("filename").getString(),
+                    params.get("ext").getString());
         }
         if ("input.detect_drop".equals(method)) {
             Map<String, Object> result = new LinkedHashMap<String, Object>();
@@ -553,19 +599,21 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return rpcService.pasteCollapse(params.get("text").getString());
         }
         if ("clipboard.paste".equals(method)) {
-            return rpcService.clipboardPaste();
+            return rpcService.clipboardPaste(params.get("session_id").getString());
         }
         if ("process.stop".equals(method)) {
             return rpcService.processStop();
         }
         if ("reload.mcp".equals(method)) {
-            return rpcService.reloadMcp(params.get("confirm").getBoolean(), params.get("always").getBoolean());
+            return rpcService.reloadMcp(
+                    params.get("confirm").getBoolean(), params.get("always").getBoolean());
         }
         if ("reload.env".equals(method)) {
             return rpcService.reloadEnv();
         }
         if ("browser.manage".equals(method)) {
-            return rpcService.browserManage(params.get("action").getString(), params.get("url").getString());
+            return rpcService.browserManage(
+                    params.get("action").getString(), params.get("url").getString());
         }
         if ("rollback.list".equals(method)) {
             return rpcService.rollbackList(params.get("session_id").getString());
@@ -574,7 +622,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return rpcService.rollbackDiff(checkpointId(params));
         }
         if ("rollback.restore".equals(method)) {
-            return rpcService.rollbackRestore(checkpointId(params), params.get("file_path").getString());
+            return rpcService.rollbackRestore(
+                    checkpointId(params), params.get("file_path").getString());
         }
         if ("skills.manage".equals(method)) {
             return rpcService.skillsManage(
@@ -586,7 +635,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return rpcService.skillsReload();
         }
         if ("tools.configure".equals(method)) {
-            return rpcService.toolsConfigure(params.get("action").getString(), stringList(params.get("names")));
+            return rpcService.toolsConfigure(
+                    params.get("action").getString(), stringList(params.get("names")));
         }
         if ("voice.toggle".equals(method)) {
             return rpcService.voiceToggle();
@@ -594,9 +644,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         if ("voice.record".equals(method)) {
             return rpcService.voiceRecord();
         }
-        if ("sudo.respond".equals(method)
-                || "secret.respond".equals(method)
-                || "clarify.respond".equals(method)) {
+        if ("sudo.respond".equals(method) || "secret.respond".equals(method)) {
             return rpcService.acknowledge();
         }
         if ("delegation.status".equals(method)) {
@@ -638,10 +686,7 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
      * @return 如果命令可能恢复被挂起运行则返回 true。
      */
     private boolean shouldStreamSlashCommand(String command) {
-        String text =
-                StrUtil.nullToEmpty(command)
-                        .trim()
-                        .toLowerCase(java.util.Locale.ROOT);
+        String text = StrUtil.nullToEmpty(command).trim().toLowerCase(java.util.Locale.ROOT);
         if (StrUtil.isBlank(text)) {
             return false;
         }
@@ -690,11 +735,20 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             command = appendApprovalSelector(command, selector);
         }
         Map<String, Object> result =
-                runSlash(
-                        sessionId,
-                        command,
-                        new TerminalUiWebSocketEventSink(socket, true));
+                runSlash(sessionId, command, new TerminalUiWebSocketEventSink(socket, true));
         result.put("ok", Boolean.valueOf(!result.containsKey("warning")));
+        return result;
+    }
+
+    /** 将终端 UI 的 clarify 回答按 request_id 回流到正在等待的工具调用。 */
+    private Map<String, Object> clarifyRespond(WebSocket socket, ONode params) {
+        clarifyCoordinator.respond(
+                params.get("session_id").getString(),
+                params.get("request_id").getString(),
+                params.get("answer").getString(),
+                socket);
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("status", "ok");
         return result;
     }
 
@@ -783,20 +837,42 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
     }
 
-    /**
-     * 会话生命周期 RPC 成功后同步当前 TUI socket 的审批观察器，避免恢复会话后首次安全策略审批
-     * 无法投递到前端弹层。
-     */
+    /** 绑定当前会话到 WebSocket，并把 clarify.request 发送为前端识别的 JSON-RPC event。 */
+    private void bindClarifySession(WebSocket socket, String sessionId) {
+        if (StrUtil.isBlank(sessionId)) {
+            return;
+        }
+        clarifyCoordinator.bindSession(
+                sessionId,
+                socket,
+                new ClarifyRequestCoordinator.RequestEmitter() {
+                    @Override
+                    public void emit(ClarifyRequestCoordinator.ClarifyRequest request) {
+                        Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                        payload.put("request_id", request.getRequestId());
+                        payload.put("question", request.getQuestion());
+                        payload.put("choices", request.getChoices());
+                        sendRpcEvent(socket, "clarify.request", payload, request.getSessionId());
+                    }
+                });
+    }
+
+    /** 会话生命周期 RPC 成功后同步当前 TUI socket 的审批观察器，避免恢复会话后首次安全策略审批 无法投递到前端弹层。 */
     @SuppressWarnings("unchecked")
-    private void bindApprovalObserverAfterSessionRpc(WebSocket socket, String method, Object result) {
-        if (!"session.create".equals(method) && !"session.activate".equals(method) && !"session.resume".equals(method)) {
+    private void bindApprovalObserverAfterSessionRpc(
+            WebSocket socket, String method, Object result) {
+        if (!"session.create".equals(method)
+                && !"session.activate".equals(method)
+                && !"session.resume".equals(method)) {
             return;
         }
         if (!(result instanceof Map)) {
             return;
         }
         Object sessionId = ((Map<String, Object>) result).get("session_id");
-        bindApprovalObserver(socket, sessionId == null ? "" : String.valueOf(sessionId));
+        String effectiveSessionId = sessionId == null ? "" : String.valueOf(sessionId);
+        bindApprovalObserver(socket, effectiveSessionId);
+        bindClarifySession(socket, effectiveSessionId);
     }
 
     /** 处理终端 UI 命令分发兜底，优先复用 Java 后端统一命令服务。 */
@@ -813,7 +889,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /** 执行 TUI 的感叹号 shell 命令并返回原前端需要的 stdout/stderr/code。 */
-    private Map<String, Object> shellExec(WebSocket socket, String sessionId, String command) throws Exception {
+    private Map<String, Object> shellExec(WebSocket socket, String sessionId, String command)
+            throws Exception {
         String normalized = StrUtil.nullToEmpty(command).trim();
         bindApprovalObserver(socket, sessionId);
         bindRuntimeSource(sessionId);
@@ -830,9 +907,11 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         int exitCode = terminal.get("exit_code").getInt();
         String output = StrUtil.nullToEmpty(terminal.get("output").getString());
         String error = StrUtil.nullToEmpty(terminal.get("error").getString());
-        if (isDirectShellApprovalRequired(exitCode, error) && storeDirectShellApproval(sessionId, normalized, error)) {
+        if (isDirectShellApprovalRequired(exitCode, error)
+                && storeDirectShellApproval(sessionId, normalized, error)) {
             SqliteAgentSession agentSession =
-                    new SqliteAgentSession(sessionRepository.findById(sessionId), sessionRepository);
+                    new SqliteAgentSession(
+                            sessionRepository.findById(sessionId), sessionRepository);
             result.put("approval_required", Boolean.TRUE);
             result.put("next_approval", directShellApprovalPayload(sessionId, agentSession));
             result.put("code", Integer.valueOf(-1));
@@ -847,14 +926,16 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /** 将会话或永久的 direct shell 策略审批转换为本次底层安全策略放行 token。 */
-    private void applyStoredDirectShellPolicyApproval(String sessionId, String command) throws Exception {
+    private void applyStoredDirectShellPolicyApproval(String sessionId, String command)
+            throws Exception {
         if (approvalService == null
                 || securityPolicyService == null
                 || sessionRepository == null
                 || StrUtil.hasBlank(sessionId, command)) {
             return;
         }
-        com.jimuqu.solon.claw.core.model.SessionRecord session = sessionRepository.findById(sessionId);
+        com.jimuqu.solon.claw.core.model.SessionRecord session =
+                sessionRepository.findById(sessionId);
         if (session == null) {
             return;
         }
@@ -864,7 +945,9 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                         () -> securityPolicyService.checkCommandPaths(command));
         if (fileVerdict.isApprovalRequired()
                 && isStoredDirectShellPolicyApproved(
-                        agentSession, directShellPolicyPatternFromPolicyKey(fileVerdict.getPolicyKey()), command)) {
+                        agentSession,
+                        directShellPolicyPatternFromPolicyKey(fileVerdict.getPolicyKey()),
+                        command)) {
             SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
         }
     }
@@ -875,8 +958,10 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         if (approvalService == null || agentSession == null || StrUtil.isBlank(patternKey)) {
             return false;
         }
-        return approvalService.isSessionApproved(agentSession, ToolNameConstants.TERMINAL, patternKey, command)
-                || approvalService.isAlwaysApproved(ToolNameConstants.TERMINAL, patternKey, command);
+        return approvalService.isSessionApproved(
+                        agentSession, ToolNameConstants.TERMINAL, patternKey, command)
+                || approvalService.isAlwaysApproved(
+                        ToolNameConstants.TERMINAL, patternKey, command);
     }
 
     /** 把底层策略键转换为危险命令审批服务使用的策略 pattern。 */
@@ -905,11 +990,15 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /** 将直接 shell 命令登记为当前 TUI 会话的一条待审批记录，并触发 approval.request。 */
-    private boolean storeDirectShellApproval(String sessionId, String command, String error) throws Exception {
-        if (approvalService == null || sessionRepository == null || StrUtil.hasBlank(sessionId, command)) {
+    private boolean storeDirectShellApproval(String sessionId, String command, String error)
+            throws Exception {
+        if (approvalService == null
+                || sessionRepository == null
+                || StrUtil.hasBlank(sessionId, command)) {
             return false;
         }
-        com.jimuqu.solon.claw.core.model.SessionRecord session = sessionRepository.findById(sessionId);
+        com.jimuqu.solon.claw.core.model.SessionRecord session =
+                sessionRepository.findById(sessionId);
         if (session == null) {
             return false;
         }
@@ -951,7 +1040,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return false;
         }
         try {
-            com.jimuqu.solon.claw.core.model.SessionRecord session = sessionRepository.findById(sessionId);
+            com.jimuqu.solon.claw.core.model.SessionRecord session =
+                    sessionRepository.findById(sessionId);
             if (session == null) {
                 return false;
             }
@@ -967,12 +1057,14 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /** 处理直接 shell 审批响应，审批通过后重新执行原命令并返回结果。 */
-    private Map<String, Object> respondDirectShellApproval(WebSocket socket, String sessionId, String choice, ONode params)
-            throws Exception {
-        com.jimuqu.solon.claw.core.model.SessionRecord session = sessionRepository.findById(sessionId);
+    private Map<String, Object> respondDirectShellApproval(
+            WebSocket socket, String sessionId, String choice, ONode params) throws Exception {
+        com.jimuqu.solon.claw.core.model.SessionRecord session =
+                sessionRepository.findById(sessionId);
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
         String selector = StrUtil.nullToEmpty(params.get("approval_id").getString()).trim();
-        DangerousCommandApprovalService.PendingApproval pending = directShellPendingApproval(agentSession, selector);
+        DangerousCommandApprovalService.PendingApproval pending =
+                directShellPendingApproval(agentSession, selector);
         String command = directShellCommand(agentSession, pending);
         String approvalSelector =
                 StrUtil.isNotBlank(selector) || pending == null
@@ -1005,18 +1097,22 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
         grantDirectShellPendingPolicyApproval(pending, command);
         applyStoredDirectShellPolicyApproval(sessionId, command);
-        DangerousCommandApprovalService.grantCurrentThreadApproval(ToolNameConstants.TERMINAL, command);
+        DangerousCommandApprovalService.grantCurrentThreadApproval(
+                ToolNameConstants.TERMINAL, command);
         ONode terminal = runShellTerminal(command);
         int exitCode = terminal.get("exit_code").getInt();
         String output = StrUtil.nullToEmpty(terminal.get("output").getString());
         String error = StrUtil.nullToEmpty(terminal.get("error").getString());
-        if (isDirectShellApprovalRequired(exitCode, error) && storeDirectShellApproval(sessionId, command, error)) {
+        if (isDirectShellApprovalRequired(exitCode, error)
+                && storeDirectShellApproval(sessionId, command, error)) {
             SqliteAgentSession refreshedAgentSession =
-                    new SqliteAgentSession(sessionRepository.findById(sessionId), sessionRepository);
+                    new SqliteAgentSession(
+                            sessionRepository.findById(sessionId), sessionRepository);
             result.put("ok", Boolean.TRUE);
             result.put("direct_shell", Boolean.TRUE);
             result.put("approval_required", Boolean.TRUE);
-            result.put("next_approval", directShellApprovalPayload(sessionId, refreshedAgentSession));
+            result.put(
+                    "next_approval", directShellApprovalPayload(sessionId, refreshedAgentSession));
             result.put("code", Integer.valueOf(-1));
             result.put("stdout", "");
             result.put("stderr", error);
@@ -1043,7 +1139,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
                         SecurityPolicyService.previewPolicyApprovals(
                                 () -> securityPolicyService.checkCommandPaths(command));
                 if (fileVerdict.isApprovalRequired()) {
-                    SecurityPolicyService.approveFilePolicyForCurrentThread(fileVerdict.getApprovalToken());
+                    SecurityPolicyService.approveFilePolicyForCurrentThread(
+                            fileVerdict.getApprovalToken());
                 }
                 continue;
             }
@@ -1062,7 +1159,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
 
     /** 从审批 pending 记录读取对应的直接 shell 命令，避免多条审批共用一个上下文字段时串命令。 */
     private String directShellCommand(
-            SqliteAgentSession agentSession, DangerousCommandApprovalService.PendingApproval pending) {
+            SqliteAgentSession agentSession,
+            DangerousCommandApprovalService.PendingApproval pending) {
         if (pending != null && StrUtil.isNotBlank(pending.getCommand())) {
             return pending.getCommand().trim();
         }
@@ -1093,7 +1191,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /** 判断审批记录是否属于 TUI 直接 shell 的文件或网络安全策略。 */
-    private boolean isDirectShellPendingApproval(DangerousCommandApprovalService.PendingApproval pending) {
+    private boolean isDirectShellPendingApproval(
+            DangerousCommandApprovalService.PendingApproval pending) {
         if (pending == null || !ToolNameConstants.TERMINAL.equals(pending.getToolName())) {
             return false;
         }
@@ -1113,7 +1212,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
 
     /** 审批响应后按剩余 pending 记录刷新直接 shell 状态，避免清掉其它仍待授权的命令。 */
     private void refreshDirectShellApprovalState(SqliteAgentSession agentSession) {
-        DangerousCommandApprovalService.PendingApproval remaining = directShellPendingApproval(agentSession, "");
+        DangerousCommandApprovalService.PendingApproval remaining =
+                directShellPendingApproval(agentSession, "");
         if (remaining == null) {
             agentSession.getContext().remove(DIRECT_SHELL_APPROVAL_COMMAND);
             agentSession.pending(false, null);
@@ -1125,8 +1225,10 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
     }
 
     /** 构造 approval.respond 结果中的下一张 direct shell 审批卡片，避免前端依赖事件顺序。 */
-    private Map<String, Object> directShellApprovalPayload(String sessionId, SqliteAgentSession agentSession) {
-        DangerousCommandApprovalService.PendingApproval pending = directShellPendingApproval(agentSession, "");
+    private Map<String, Object> directShellApprovalPayload(
+            String sessionId, SqliteAgentSession agentSession) {
+        DangerousCommandApprovalService.PendingApproval pending =
+                directShellPendingApproval(agentSession, "");
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         if (pending == null) {
             return payload;
@@ -1165,7 +1267,9 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
             return values;
         }
         for (Map.Entry<String, Object> entry : ((Map<String, Object>) data).entrySet()) {
-            values.put(entry.getKey(), entry.getValue() == null ? "" : String.valueOf(entry.getValue()));
+            values.put(
+                    entry.getKey(),
+                    entry.getValue() == null ? "" : String.valueOf(entry.getValue()));
         }
         return values;
     }
@@ -1208,6 +1312,20 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         socket.send(ONode.serialize(frame));
     }
 
+    /** 发送终端 UI 业务事件的 JSON-RPC 信封，并附带严格会话归属。 */
+    private void sendRpcEvent(
+            WebSocket socket, String type, Map<String, Object> payload, String sessionId) {
+        Map<String, Object> event = new LinkedHashMap<String, Object>();
+        event.put("type", type);
+        event.put("payload", payload);
+        event.put("session_id", sessionId);
+        Map<String, Object> frame = new LinkedHashMap<String, Object>();
+        frame.put("jsonrpc", "2.0");
+        frame.put("method", "event");
+        frame.put("params", event);
+        socket.send(ONode.serialize(frame));
+    }
+
     /** 发送 JSON-RPC 错误响应。 */
     private void sendRpcError(WebSocket socket, String id, String message) {
         Map<String, Object> error = new LinkedHashMap<String, Object>();
@@ -1234,7 +1352,8 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         /** 创建后台 prompt.submit 执行线程。 */
         @Override
         public Thread newThread(Runnable runnable) {
-            Thread thread = new Thread(runnable, "terminal-ui-prompt-" + sequence.getAndIncrement());
+            Thread thread =
+                    new Thread(runnable, "terminal-ui-prompt-" + sequence.getAndIncrement());
             thread.setDaemon(true);
             return thread;
         }

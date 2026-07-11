@@ -257,8 +257,7 @@ public class WeixinQrSetupService {
                     throw new IllegalStateException("微信 iLink 请求重定向缺少 Location");
                 }
                 String nextUrl =
-                        HttpRedirectSupport.resolveLocation(
-                                url, location, "微信 iLink 请求重定向地址无效");
+                        HttpRedirectSupport.resolveLocation(url, location, "微信 iLink 请求重定向地址无效");
                 response.close();
                 return executeJsonGet(nextUrl, redirectCount + 1);
             }

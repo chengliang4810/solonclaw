@@ -34,12 +34,16 @@ public class DiagnosticsManageTools {
             description =
                     "Inspect dashboard diagnostics. Actions: overview, subprocess_environment.")
     public String diagnosticsManage(
-            @Param(name = "action", required = false, description = "overview, subprocess_environment")
+            @Param(
+                            name = "action",
+                            required = false,
+                            description = "overview, subprocess_environment")
                     String action,
             @Param(
                             name = "names_json",
                             required = false,
-                            description = "JSON array of environment variable names for subprocess_environment")
+                            description =
+                                    "JSON array of environment variable names for subprocess_environment")
                     String namesJson) {
         try {
             DashboardDiagnosticsService service = resolveDiagnosticsService();

@@ -45,17 +45,15 @@ public class SkillImportServiceTest {
     }
 
     @Test
-    void shouldBlockCommunityDangerousImportEvenWhenForced() throws Exception {
+    void shouldBlockAndAuditDangerousCommunityImportEvenWhenForced() throws Exception {
         File skillsDir = Files.createTempDirectory("skill-import-block").toFile();
+        SkillHubStateStore stateStore = new SkillHubStateStore(skillsDir);
         SkillImportService service =
                 new DefaultSkillImportService(
-                        skillsDir,
-                        new DefaultSkillGuardService(),
-                        new SkillHubStateStore(skillsDir));
+                        skillsDir, new DefaultSkillGuardService(), stateStore);
         SkillBundle bundle = new SkillBundle();
         bundle.setName("danger-demo");
-        bundle.setSource("clawhub");
-        bundle.setTrustLevel("community");
+        bundle.setSource("community-hub");
         bundle.getFiles()
                 .put(
                         "SKILL.md",
@@ -68,6 +66,10 @@ public class SkillImportServiceTest {
                 .hasMessageContaining("community")
                 .hasMessageContaining("dangerous")
                 .hasMessageContaining("force");
+        assertThat(FileUtil.readUtf8String(FileUtil.file(skillsDir, ".hub", "audit.log")))
+                .contains("\"action\":\"BLOCKED\"")
+                .contains("\"skillName\":\"danger-demo\"")
+                .doesNotContain("\"action\":\"WARNING\"");
     }
 
     @Test

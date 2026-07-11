@@ -13,18 +13,22 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.service.DefaultGatewayService;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 /** 覆盖 gateway 的异常隔离与重复消息抑制行为。 */
@@ -267,6 +271,55 @@ public class GatewayResilienceTest {
         assertThat(first.getContent()).isEqualTo("ok");
         assertThat(second).isNull();
         assertThat(calls.get()).isEqualTo(1);
+    }
+
+    /** goal kickoff 后台线程必须继承触发消息的 Profile 作用域。 */
+    @Test
+    void shouldCarryProfileScopeIntoGoalKickoffThread() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:goal-room:user");
+        CountDownLatch scheduled = new CountDownLatch(1);
+        AtomicReference<String> observedProfile = new AtomicReference<String>();
+        ConversationOrchestrator orchestrator =
+                new ConversationOrchestrator() {
+                    @Override
+                    public GatewayReply handleIncoming(GatewayMessage message) {
+                        GatewayReply reply = GatewayReply.ok("started");
+                        reply.setSessionId(session.getSessionId());
+                        reply.getRuntimeMetadata().put("goal_kickoff", "continue");
+                        return reply;
+                    }
+
+                    @Override
+                    public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+                        ProfileRuntimeScope.Context current = ProfileRuntimeScope.current();
+                        observedProfile.set(current == null ? null : current.getProfile());
+                        scheduled.countDown();
+                        return null;
+                    }
+
+                    @Override
+                    public GatewayReply resumePending(String sourceKey) {
+                        return GatewayReply.ok("ok");
+                    }
+                };
+        DefaultGatewayService service =
+                new DefaultGatewayService(
+                        unsupportedCommandService(),
+                        orchestrator,
+                        env.deliveryService,
+                        env.sessionRepository,
+                        allowAllAuthorization(env),
+                        noopLearningService());
+        Path profileHome = Files.createTempDirectory("gateway-goal-profile");
+
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open("worker", profileHome, Collections.emptyMap(), null)) {
+            service.handle(env.message("goal-room", "user", "start"));
+        }
+
+        assertThat(scheduled.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(observedProfile.get()).isEqualTo("worker");
     }
 
     @Test

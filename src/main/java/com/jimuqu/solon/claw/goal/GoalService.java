@@ -50,9 +50,7 @@ public class GoalService {
      * @param goalConfig goal 配置。
      */
     public GoalService(
-            SessionRepository sessionRepository,
-            GoalJudge judge,
-            AppConfig.GoalConfig goalConfig) {
+            SessionRepository sessionRepository, GoalJudge judge, AppConfig.GoalConfig goalConfig) {
         this.sessionRepository = sessionRepository;
         this.judge = judge == null ? new HeuristicGoalJudge() : judge;
         this.goalConfig = goalConfig == null ? new AppConfig.GoalConfig() : goalConfig;
@@ -77,8 +75,7 @@ public class GoalService {
     }
 
     /**
-     * 重载并惰性清屏障：读取持久化目标状态，若 pid 屏障的进程已退出或时间屏障已过期，
-     * 则清除等待字段并回写，保证"死 pid / 过期屏障立即解除"语义。
+     * 重载并惰性清屏障：读取持久化目标状态，若 pid 屏障的进程已退出或时间屏障已过期， 则清除等待字段并回写，保证"死 pid / 过期屏障立即解除"语义。
      *
      * @param session 会话参数。
      * @return 返回目标状态；无目标返回 null。
@@ -126,7 +123,8 @@ public class GoalService {
      * @param maxTurns maxTurns 参数。
      * @return 返回设置后的目标状态。
      */
-    public GoalState set(SessionRecord session, String headline, GoalContract contract, int maxTurns)
+    public GoalState set(
+            SessionRecord session, String headline, GoalContract contract, int maxTurns)
             throws Exception {
         String text = StrUtil.nullToEmpty(headline).trim();
         if (StrUtil.isBlank(text)) {

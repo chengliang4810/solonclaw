@@ -10,7 +10,8 @@ import org.junit.jupiter.api.Test;
 /**
  * 校验官方 Docker 镜像保持非 root 运行（固定 UID 的 solonclaw 用户）与基础远程连接能力。
  *
- * <p>历史上镜像曾以 root 运行，后改为非 root 用户以避免 Agent 工具获得容器 root 权限；本测试锁定该安全策略，防止被误改回 root 或引入 gosu / 动态 UID 等降权方案。
+ * <p>历史上镜像曾以 root 运行，后改为非 root 用户以避免 Agent 工具获得容器 root 权限；本测试锁定该安全策略，防止被误改回 root 或引入 gosu / 动态 UID
+ * 等降权方案。
  */
 public class SolonClawDockerRootRuntimeTest {
     @Test

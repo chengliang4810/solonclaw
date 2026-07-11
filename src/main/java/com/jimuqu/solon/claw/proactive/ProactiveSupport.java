@@ -1,8 +1,6 @@
 package com.jimuqu.solon.claw.proactive;
 
-/**
- * 主动协作共享辅助，集中各 proactive 类原本复制粘贴的纯函数（如免打扰时段判定），避免口径漂移。
- */
+/** 主动协作共享辅助，集中各 proactive 类原本复制粘贴的纯函数（如免打扰时段判定），避免口径漂移。 */
 public final class ProactiveSupport {
     /** 创建主动协作共享辅助实例。 */
     private ProactiveSupport() {}

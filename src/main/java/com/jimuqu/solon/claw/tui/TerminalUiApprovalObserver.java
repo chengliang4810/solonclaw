@@ -11,6 +11,7 @@ public class TerminalUiApprovalObserver
         implements DangerousCommandApprovalService.ApprovalObserver {
     /** 终端 UI WebSocket 连接，用于向当前前端推送审批请求。 */
     private final WebSocket socket;
+
     /** 当前终端 UI 连接绑定的会话编号，用于过滤其他渠道或其他会话的审批事件。 */
     private volatile String sessionId;
 
@@ -35,7 +36,8 @@ public class TerminalUiApprovalObserver
         Map<String, Object> payload = new LinkedHashMap<String, Object>();
         payload.put("approval_id", event.getApprovalSelector());
         payload.put("command", event.getCommand());
-        payload.put("description", StrUtil.blankToDefault(event.getDescription(), "dangerous command"));
+        payload.put(
+                "description", StrUtil.blankToDefault(event.getDescription(), "dangerous command"));
         send("approval.request", payload, event.getSessionId());
     }
 

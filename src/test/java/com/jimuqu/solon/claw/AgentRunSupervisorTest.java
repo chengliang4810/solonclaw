@@ -26,6 +26,7 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
@@ -43,6 +44,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
@@ -374,7 +376,8 @@ public class AgentRunSupervisorTest {
         }
         assertThat(failed).isTrue();
 
-        List<AgentRunRecord> runs = fixture.agentRunRepository.listBySession(session.getSessionId(), 10);
+        List<AgentRunRecord> runs =
+                fixture.agentRunRepository.listBySession(session.getSessionId(), 10);
         assertThat(runs).hasSize(1);
         AgentRunRecord run = runs.get(0);
         assertThat(run.getStatus()).isEqualTo("failed");
@@ -641,6 +644,87 @@ public class AgentRunSupervisorTest {
     }
 
     @Test
+    void shouldCarryProfileScopeIntoQueuedRunDrainThread() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        String sourceKey = "MEMORY:profile-queue:profile-user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        supervisor.queueIncoming(
+                sourceKey,
+                session.getSessionId(),
+                new GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "profile-queue",
+                        "profile-user",
+                        "queued"));
+        CountDownLatch drained = new CountDownLatch(1);
+        AtomicReference<String> observed = new AtomicReference<String>();
+
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "a",
+                        Files.createTempDirectory("supervisor-profile-a"),
+                        Collections.singletonMap("PROFILE_ASYNC_MARKER", "env-a"),
+                        null)) {
+            supervisor.onRunFinished(
+                    sourceKey,
+                    session.getSessionId(),
+                    message -> {
+                        ProfileRuntimeScope.Context current = ProfileRuntimeScope.current();
+                        observed.set(
+                                (current == null ? "default" : current.getProfile())
+                                        + ":"
+                                        + ProfileRuntimeScope.environmentValue(
+                                                "PROFILE_ASYNC_MARKER"));
+                        drained.countDown();
+                        return GatewayReply.ok("done");
+                    });
+        }
+
+        assertThat(drained.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(observed.get()).isEqualTo("a:env-a");
+    }
+
+    @Test
+    void shouldUseProfileHomeWhenRunScopeHasNoWorkspace() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getWorkspace().setDir("");
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new SuccessfulGateway("done"),
+                        noCompressionBudget(),
+                        noCompressionService());
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:profile-cwd:user");
+        java.nio.file.Path profileHome = Files.createTempDirectory("supervisor-profile-home");
+
+        AgentRunOutcome outcome;
+        try (ProfileRuntimeScope.Scope ignored =
+                ProfileRuntimeScope.open(
+                        "a", profileHome, Collections.<String, String>emptyMap(), null)) {
+            outcome =
+                    supervisor.run(
+                            session,
+                            "system",
+                            "hello",
+                            Collections.emptyList(),
+                            ConversationFeedbackSink.noop(),
+                            ConversationEventSink.noop(),
+                            false,
+                            null,
+                            Collections.emptyList(),
+                            null);
+        }
+
+        assertThat(outcome.getCwd()).isEqualTo(profileHome.toAbsolutePath().normalize().toString());
+    }
+
+    @Test
     void hasPendingRealMessageReturnsFalseWhenQueueEmpty() throws Exception {
         // 队列为空 → 没有待处理真实消息
         Fixture fixture = fixture();
@@ -661,7 +745,10 @@ public class AgentRunSupervisorTest {
         SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
         GatewayMessage message =
                 new GatewayMessage(
-                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY, "real", "u", "真实用户输入");
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "real",
+                        "u",
+                        "真实用户输入");
         supervisor.queueIncoming(sourceKey, session.getSessionId(), message);
 
         assertThat(supervisor.hasPendingRealMessage(sourceKey)).isTrue();
@@ -678,10 +765,7 @@ public class AgentRunSupervisorTest {
         SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
         GatewayMessage message =
                 new GatewayMessage(
-                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
-                        "cont",
-                        "u",
-                        "续轮提示");
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY, "cont", "u", "续轮提示");
         message.setGoalContinuation(true);
         supervisor.queueIncoming(sourceKey, session.getSessionId(), message);
 
@@ -715,7 +799,8 @@ public class AgentRunSupervisorTest {
         config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         writeProviderConfig(workspaceHome);
@@ -1042,8 +1127,7 @@ public class AgentRunSupervisorTest {
 
         @Override
         public SessionRecord compressIfNeeded(
-                SessionRecord session, String systemPrompt, String userMessage)
-                throws Exception {
+                SessionRecord session, String systemPrompt, String userMessage) throws Exception {
             return mutate(session);
         }
 

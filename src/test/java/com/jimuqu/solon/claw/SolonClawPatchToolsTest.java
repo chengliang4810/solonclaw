@@ -1,15 +1,13 @@
 package com.jimuqu.solon.claw;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
 import static com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink;
-import static com.jimuqu.solon.claw.support.TestToolSupport.guardedPatchTools;
 import static com.jimuqu.solon.claw.support.TestToolSupport.parseJsonMap;
 import static com.jimuqu.solon.claw.support.TestToolSupport.patchTools;
 import static com.jimuqu.solon.claw.support.TestToolSupport.readUtf8;
 import static com.jimuqu.solon.claw.support.TestToolSupport.tempDir;
 import static com.jimuqu.solon.claw.support.TestToolSupport.writeUtf8;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import java.nio.file.Files;
@@ -55,8 +53,7 @@ public class SolonClawPatchToolsTest {
         assertThat(result.get("status")).isEqualTo("success");
         assertThat(String.valueOf(result.get("files_modified")))
                 .contains(file.toRealPath().toString());
-        assertThat(readUtf8(file))
-                .isEqualTo("hi\nworld\n");
+        assertThat(readUtf8(file)).isEqualTo("hi\nworld\n");
     }
 
     /** 验证默认 workspace 工具根下的 patch 路径语义与 read_file/write_file 保持一致。 */
@@ -81,8 +78,7 @@ public class SolonClawPatchToolsTest {
         Map<?, ?> result = parseJsonMap(json);
         assertThat(result.get("status")).isEqualTo("success");
         assertThat(result.get("resolved_path")).isEqualTo(file.toRealPath().toString());
-        assertThat(readUtf8(file))
-                .isEqualTo("line_1\nline_2=new\nline_3\n");
+        assertThat(readUtf8(file)).isEqualTo("line_1\nline_2=new\nline_3\n");
         assertThat(dir.resolve("workspace/logs/patch-target.txt")).doesNotExist();
     }
 
@@ -99,8 +95,7 @@ public class SolonClawPatchToolsTest {
 
         Map<?, ?> result = parseJsonMap(json);
         assertThat(result.get("status")).isEqualTo("success");
-        assertThat(readUtf8(file))
-                .isEqualTo("after\n");
+        assertThat(readUtf8(file)).isEqualTo("after\n");
         assertThat(Files.getAttribute(file, "unix:ino")).isNotEqualTo(beforeKey);
         try (Stream<Path> files = Files.list(dir)) {
             assertThat(
@@ -134,8 +129,7 @@ public class SolonClawPatchToolsTest {
                                 "config.yml",
                                 "    apiKey: sk-original-patch-secret-12345\n"
                                         + "    defaultModel: gpt-5",
-                                "    apiKey: ***\n"
-                                        + "    defaultModel: gpt-5.1",
+                                "    apiKey: ***\n" + "    defaultModel: gpt-5.1",
                                 false,
                                 null));
 
@@ -221,8 +215,7 @@ public class SolonClawPatchToolsTest {
         assertThat(String.valueOf(result.get("diff")))
                 .contains("--- a/target.txt")
                 .contains("+++ b/target.txt");
-        assertThat(readUtf8(file))
-                .isEqualTo("after\n");
+        assertThat(readUtf8(file)).isEqualTo("after\n");
     }
 
     @Test
@@ -246,8 +239,7 @@ public class SolonClawPatchToolsTest {
         assertThat(result.get("status")).isEqualTo("success");
         assertThat(result.get("resolved_path")).isEqualTo(expected);
         assertThat(String.valueOf(result.get("files_modified"))).isEqualTo("[" + expected + "]");
-        assertThat(readUtf8(file))
-                .isEqualTo("alpha\ngamma\n");
+        assertThat(readUtf8(file)).isEqualTo("alpha\ngamma\n");
     }
 
     @Test
@@ -289,8 +281,7 @@ public class SolonClawPatchToolsTest {
                 .contains("--- /dev/null")
                 .contains("+++ b/new.txt")
                 .contains("+created");
-        assertThat(readUtf8(file))
-                .isEqualTo("alpha\ngamma\n");
+        assertThat(readUtf8(file)).isEqualTo("alpha\ngamma\n");
         assertThat(readUtf8(dir.resolve("new.txt"))).isEqualTo("created");
     }
 
@@ -334,8 +325,7 @@ public class SolonClawPatchToolsTest {
         assertThat(String.valueOf(result.get("error")))
                 .contains("Patch validation failed")
                 .contains("context hint 'def missing' not found");
-        assertThat(readUtf8(file))
-                .isEqualTo("def main():\n    pass\n");
+        assertThat(readUtf8(file)).isEqualTo("def main():\n    pass\n");
     }
 
     @Test
@@ -358,8 +348,7 @@ public class SolonClawPatchToolsTest {
         assertThat(String.valueOf(result.get("error")))
                 .contains("Patch validation failed")
                 .contains("context hint 'marker' is ambiguous");
-        assertThat(readUtf8(file))
-                .isEqualTo("marker\none\nmarker\ntwo\n");
+        assertThat(readUtf8(file)).isEqualTo("marker\none\nmarker\ntwo\n");
     }
 
     @Test
@@ -371,7 +360,9 @@ public class SolonClawPatchToolsTest {
 
         Map<?, ?> result = parseJsonMap(json);
         assertThat(result.get("status")).isEqualTo("error");
-        assertThat(String.valueOf(result.get("error"))).contains("越权");
+        assertThat(String.valueOf(result.get("error")))
+                .contains("APPROVAL_REQUIRED")
+                .contains("../outside.txt");
     }
 
     @Test
@@ -388,94 +379,12 @@ public class SolonClawPatchToolsTest {
 
         Map<?, ?> result = parseJsonMap(json);
         assertThat(result.get("status")).isEqualTo("error");
-        assertThat(String.valueOf(result.get("error"))).contains("符号链接").contains("沙箱外部");
-        assertThat(readUtf8(outsideFile))
-                .isEqualTo("TOKEN=old\n");
-    }
-
-    @Test
-    void shouldBlockCredentialFilesInsidePatchToolItself() throws Exception {
-        Path dir = tempDir("patch");
-        Path file = dir.resolve(".env.production");
-        writeUtf8(file, "TOKEN=old\n");
-        SolonClawPatchTools tools = guardedPatchTools(dir);
-
-        String json = tools.patch("replace", ".env.production", "old", "new", false, null);
-
-        Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("status")).isEqualTo("error");
-        assertThat(String.valueOf(result.get("error"))).contains("BLOCKED").contains("敏感");
-        assertThat(readUtf8(file))
-                .isEqualTo("TOKEN=old\n");
-    }
-
-    @Test
-    void shouldBlockCredentialFilesInV4aPatchBeforeWriting() throws Exception {
-        Path dir = tempDir("patch");
-        SolonClawPatchTools tools = guardedPatchTools(dir);
-        String patch =
-                "*** Begin Patch\n"
-                        + "*** Add File: .env.local\n"
-                        + "+TOKEN=new\n"
-                        + "*** End Patch";
-
-        String json = tools.patch("patch", null, null, null, null, patch);
-
-        Map<?, ?> result = parseJsonMap(json);
-        assertThat(result.get("status")).isEqualTo("error");
         assertThat(String.valueOf(result.get("error")))
-                .contains("BLOCKED")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".env.local");
-        assertThat(dir.resolve(".env.local")).doesNotExist();
+                .contains("APPROVAL_REQUIRED")
+                .contains("linked/secret.txt");
+        assertThat(readUtf8(outsideFile)).isEqualTo("TOKEN=old\n");
     }
 
-    @Test
-    void shouldBlockCredentialMoveTargetsBeforeWriting() throws Exception {
-        Path dir = tempDir("patch");
-        Path source = dir.resolve("source.txt");
-        Path template = dir.resolve("template.txt");
-        writeUtf8(source, "alpha\n");
-        writeUtf8(template, "token\n");
-        SolonClawPatchTools tools =
-                guardedPatchTools(dir);
-
-        String moveFilePatch =
-                "*** Begin Patch\n"
-                        + "*** Move File: template.txt -> .env.local\n"
-                        + "*** End Patch";
-        String updateMovePatch =
-                "*** Begin Patch\n"
-                        + "*** Update File: source.txt\n"
-                        + "*** Move to: .env.production\n"
-                        + "@@ alpha @@\n"
-                        + "-alpha\n"
-                        + "+beta\n"
-                        + "*** End Patch";
-
-        Map<?, ?> moveFileResult =
-                parseJsonMap(tools.patch("patch", null, null, null, null, moveFilePatch));
-        Map<?, ?> updateMoveResult =
-                parseJsonMap(tools.patch("patch", null, null, null, null, updateMovePatch));
-
-        assertThat(moveFileResult.get("status")).isEqualTo("error");
-        assertThat(String.valueOf(moveFileResult.get("error")))
-                .contains("BLOCKED")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".env.local");
-        assertThat(updateMoveResult.get("status")).isEqualTo("error");
-        assertThat(String.valueOf(updateMoveResult.get("error")))
-                .contains("BLOCKED")
-                .contains("[REDACTED_PATH]")
-                .doesNotContain(".env.production");
-        assertThat(readUtf8(source))
-                .isEqualTo("alpha\n");
-        assertThat(dir.resolve("template.txt")).exists();
-        assertThat(dir.resolve(".env.local")).doesNotExist();
-        assertThat(dir.resolve(".env.production")).doesNotExist();
-    }
-
-    @Test
     void shouldRedactSecretsFromPatchErrors() throws Exception {
         Path dir = tempDir("patch");
         SolonClawPatchTools tools = patchTools(dir);
@@ -552,8 +461,7 @@ public class SolonClawPatchToolsTest {
                 .contains("Authorization: Bearer ***")
                 .doesNotContain("ghp_patchpath12345")
                 .doesNotContain("ghp_patchdiff12345");
-        assertThat(readUtf8(file))
-                .contains("ghp_patchdiff12345");
+        assertThat(readUtf8(file)).contains("ghp_patchdiff12345");
     }
 
     @Test
@@ -577,8 +485,7 @@ public class SolonClawPatchToolsTest {
                 .contains("existing.txt")
                 .contains("already exists")
                 .contains("add would overwrite");
-        assertThat(readUtf8(file))
-                .isEqualTo("original\n");
+        assertThat(readUtf8(file)).isEqualTo("original\n");
     }
 
     @Test
@@ -597,8 +504,7 @@ public class SolonClawPatchToolsTest {
                 .contains("patch rejected")
                 .contains("Begin Patch")
                 .contains("End Patch");
-        assertThat(readUtf8(file))
-                .isEqualTo("alpha\n");
+        assertThat(readUtf8(file)).isEqualTo("alpha\n");
     }
 
     @Test
@@ -627,10 +533,8 @@ public class SolonClawPatchToolsTest {
                 .contains("destination.txt")
                 .contains("destination already exists")
                 .contains("move would overwrite");
-        assertThat(readUtf8(source))
-                .isEqualTo("alpha\n");
-        assertThat(readUtf8(destination))
-                .isEqualTo("destination\n");
+        assertThat(readUtf8(source)).isEqualTo("alpha\n");
+        assertThat(readUtf8(destination)).isEqualTo("destination\n");
     }
 
     @Test
@@ -648,7 +552,6 @@ public class SolonClawPatchToolsTest {
         assertThat(String.valueOf(result.get("error")))
                 .contains("Patch validation failed")
                 .contains("missing destination path");
-        assertThat(readUtf8(source))
-                .isEqualTo("alpha\n");
+        assertThat(readUtf8(source)).isEqualTo("alpha\n");
     }
 }

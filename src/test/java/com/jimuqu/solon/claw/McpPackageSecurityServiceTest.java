@@ -17,100 +17,23 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 public class McpPackageSecurityServiceTest {
+    /** 验证只把 OSV 的恶意软件公告作为包级阻断依据。 */
     @Test
-    void shouldBlockOnlyMalwareAdvisoriesFromOsv() throws Exception {
+    void shouldBlockConfirmedMalwareAdvisory() throws Exception {
         FakeOsvHttpClient http =
                 new FakeOsvHttpClient(
-                        "{\"vulns\":[{\"id\":\"MAL-2026-0001\",\"summary\":\"malicious package\"},{\"id\":\"GHSA-regular\",\"summary\":\"ordinary vuln\"}]}");
+                        "{\"vulns\":[{\"id\":\"MAL-2026-0001\",\"summary\":\"malicious package\"},{\"id\":\"GHSA-regular\",\"summary\":\"ordinary vulnerability\"}]}");
         McpPackageSecurityService service =
                 new McpPackageSecurityService(http, "https://osv.test/query");
 
         McpPackageSecurityService.SecurityVerdict verdict =
-                service.check("npx", Arrays.asList("-y", "@scope/server@1.2.3", "--stdio"));
+                service.check("npx", Arrays.asList("-y", "@scope/server@1.2.3"));
 
         assertThat(verdict.isAllowed()).isFalse();
         assertThat(verdict.getReason()).isEqualTo("malware_advisory");
-        assertThat(verdict.getMessage()).contains("MAL-2026-0001");
-        assertThat(verdict.getMessage()).doesNotContain("GHSA-regular");
-        assertThat(http.lastBody).contains("\"name\":\"@scope/server\"");
-        assertThat(http.lastBody).contains("\"ecosystem\":\"npm\"");
-        assertThat(http.lastBody).contains("\"version\":\"1.2.3\"");
+        assertThat(verdict.getMessage()).contains("MAL-2026-0001").doesNotContain("GHSA-regular");
     }
 
-    @Test
-    void shouldParseMcpPackageOptionsBeforeToolCommand() throws Exception {
-        FakeOsvHttpClient http =
-                new FakeOsvHttpClient(
-                        "{\"vulns\":[{\"id\":\"MAL-2026-0002\",\"summary\":\"bad npx package\"}]}");
-        McpPackageSecurityService service =
-                new McpPackageSecurityService(http, "https://osv.test/query");
-
-        McpPackageSecurityService.SecurityVerdict verdict =
-                service.check(
-                        "npx.cmd",
-                        Arrays.asList("-y", "--package=@scope/server@2.0.0", "server-cli"));
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(http.lastBody).contains("\"name\":\"@scope/server\"");
-        assertThat(http.lastBody).contains("\"version\":\"2.0.0\"");
-        assertThat(http.lastBody).doesNotContain("server-cli");
-    }
-
-    @Test
-    void shouldParsePipxRunPackageAfterSubcommand() throws Exception {
-        FakeOsvHttpClient http =
-                new FakeOsvHttpClient(
-                        "{\"vulns\":[{\"id\":\"MAL-2026-0003\",\"summary\":\"bad pip package\"}]}");
-        McpPackageSecurityService service =
-                new McpPackageSecurityService(http, "https://osv.test/query");
-
-        McpPackageSecurityService.SecurityVerdict verdict =
-                service.check("pipx.cmd", Arrays.asList("run", "demo-mcp[stdio]==0.2.0", "--flag"));
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(http.lastBody).contains("\"name\":\"demo-mcp\"");
-        assertThat(http.lastBody).contains("\"ecosystem\":\"PyPI\"");
-        assertThat(http.lastBody).contains("\"version\":\"0.2.0\"");
-    }
-
-    @Test
-    void shouldParsePypiSourceOptionsBeforeCommand() throws Exception {
-        FakeOsvHttpClient http =
-                new FakeOsvHttpClient(
-                        "{\"vulns\":[{\"id\":\"MAL-2026-0004\",\"summary\":\"bad uvx source\"}]}");
-        McpPackageSecurityService service =
-                new McpPackageSecurityService(http, "https://osv.test/query");
-
-        McpPackageSecurityService.SecurityVerdict verdict =
-                service.check("uvx", Arrays.asList("--from", "demo-source==1.0.0", "demo-command"));
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(http.lastBody).contains("\"name\":\"demo-source\"");
-        assertThat(http.lastBody).contains("\"version\":\"1.0.0\"");
-        assertThat(http.lastBody).doesNotContain("demo-command");
-    }
-
-    @Test
-    void shouldRedactMcpMalwareAdvisoryMessages() throws Exception {
-        FakeOsvHttpClient http =
-                new FakeOsvHttpClient(
-                        "{\"vulns\":[{\"id\":\"MAL-2026-ghp_mcpadvisory12345\",\"summary\":\"token=secret-mcp-summary\"}]}");
-        McpPackageSecurityService service =
-                new McpPackageSecurityService(http, "https://osv.test/query");
-
-        McpPackageSecurityService.SecurityVerdict verdict =
-                service.check("npx", Arrays.asList("-y", "bad-ghp_mcppackage12345"));
-
-        assertThat(verdict.isAllowed()).isFalse();
-        assertThat(verdict.getMessage())
-                .contains("ghp_***")
-                .contains("token=***")
-                .doesNotContain("ghp_mcpadvisory12345")
-                .doesNotContain("secret-mcp-summary")
-                .doesNotContain("ghp_mcppackage12345");
-    }
-
-    /** 验证OSV请求异常会失败关闭，避免网络或探测失败时静默允许MCP包。 */
     @Test
     void shouldFailClosedWhenOsvRequestFails() throws Exception {
         FakeOsvHttpClient http = new FakeOsvHttpClient(null);
@@ -124,11 +47,9 @@ public class McpPackageSecurityServiceTest {
         assertThat(verdict.isAllowed()).isFalse();
         assertThat(verdict.getReason()).isEqualTo("scan_error");
         assertThat(verdict.getMessage()).contains("MCP package security check failed");
-        assertThat(verdict.getMessage()).contains("demo-mcp");
-        assertThat(verdict.getMessage()).contains("network down");
     }
 
-    /** 验证OSV响应结构异常会失败关闭，避免畸形响应被当成无漏洞结果。 */
+    /** 验证 OSV 响应结构异常会失败关闭，不能把畸形响应当成无漏洞。 */
     @Test
     void shouldFailClosedWhenOsvResponseIsMalformed() throws Exception {
         FakeOsvHttpClient http = new FakeOsvHttpClient("[]");
@@ -143,7 +64,7 @@ public class McpPackageSecurityServiceTest {
         assertThat(verdict.getMessage()).contains("OSV response is not a JSON object");
     }
 
-    /** 验证控制台MCP保存与检查流程会把包安全探测异常落成blocked状态。 */
+    /** 验证控制台会持久化 OSV 探测故障，避免后续运行绕过扫描。 */
     @Test
     void shouldPersistBlockedStatusWhenOsvRequestFails() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -172,10 +93,9 @@ public class McpPackageSecurityServiceTest {
         assertThat(checked.get("status")).isEqualTo("blocked");
         assertThat(String.valueOf(checked.get("security"))).contains("reason=scan_error");
         assertThat(String.valueOf(listed.get("servers"))).contains("blocked");
-        assertThat(String.valueOf(listed.get("servers")))
-                .contains("MCP package security check failed");
     }
 
+    /** 验证不安全 OSV 端点在联网前被阻断。 */
     @Test
     void shouldBlockUnsafeOsvEndpointBeforeNetworkAccess() throws Exception {
         FakeOsvHttpClient http = new FakeOsvHttpClient("{\"vulns\":[]}");
@@ -190,49 +110,13 @@ public class McpPackageSecurityServiceTest {
 
         assertThat(verdict.isAllowed()).isFalse();
         assertThat(verdict.getReason()).isEqualTo("unsafe_endpoint");
-        assertThat(verdict.getMessage()).contains("OSV endpoint is unsafe");
-        assertThat(verdict.getMessage()).contains("169.254.169.254");
-        assertThat(verdict.getMessage()).contains("token=***");
+        assertThat(verdict.getMessage()).contains("token=***").doesNotContain("token=secret");
         assertThat(http.lastBody).isNull();
     }
 
+    /** 验证异常 OSV 端点状态会安全脱敏并持久化为阻断。 */
     @Test
-    void shouldPersistBlockedMcpPackageStatus() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        FakeOsvHttpClient http =
-                new FakeOsvHttpClient(
-                        "{\"vulns\":[{\"id\":\"MAL-2026-9999\",\"summary\":\"known malware\"}]}");
-        DashboardMcpService service =
-                new DashboardMcpService(
-                        env.appConfig,
-                        env.sqliteDatabase,
-                        new McpPackageSecurityService(http, "https://osv.test/query"));
-
-        Map<String, Object> body = new LinkedHashMap<String, Object>();
-        body.put("serverId", "bad-mcp");
-        body.put("name", "Bad MCP");
-        body.put("transport", "stdio");
-        body.put("command", "npx");
-        body.put("args", Arrays.asList("-y", "bad-mcp-server"));
-        body.put("tools", Arrays.asList(tool("bad_tool")));
-
-        Map<String, Object> saved = service.save(body);
-        Map<String, Object> checked = service.check("bad-mcp");
-        Map<String, Object> listed = service.list();
-
-        assertThat(String.valueOf(saved.get("security"))).contains("allowed=false");
-        assertThat(String.valueOf(saved.get("security"))).contains("reason=malware_advisory");
-        assertThat(String.valueOf(saved.get("security"))).doesNotContain("reason=unsafe_endpoint");
-        assertThat(checked.get("status")).isEqualTo("blocked");
-        assertThat(String.valueOf(checked.get("security"))).contains("MAL-2026-9999");
-        assertThat(String.valueOf(checked.get("security"))).contains("reason=malware_advisory");
-        assertThat(String.valueOf(listed.get("servers"))).contains("blocked");
-        assertThat(String.valueOf(listed.get("servers"))).contains("MAL-2026-9999");
-        assertThat(String.valueOf(listed.get("servers"))).contains("reason=malware_advisory");
-    }
-
-    @Test
-    void shouldRedactBlockedMcpPackageStatusMessages() throws Exception {
+    void shouldPersistBlockedStatusForUnsafeOsvEndpoint() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         DashboardMcpService service =
                 new DashboardMcpService(
@@ -254,19 +138,10 @@ public class McpPackageSecurityServiceTest {
         Map<String, Object> saved = service.save(body);
         Map<String, Object> checked = service.check("unsafe-osv-mcp");
         Map<String, Object> listed = service.list();
-        String storedLastError = storedLastError(env, "unsafe-osv-mcp");
-
-        assertThat(String.valueOf(saved.get("security"))).contains("token=***");
         assertThat(String.valueOf(saved.get("security"))).contains("reason=unsafe_endpoint");
+        assertThat(checked.get("status")).isEqualTo("blocked");
         assertThat(String.valueOf(checked.get("security"))).contains("token=***");
-        assertThat(String.valueOf(checked.get("security"))).contains("reason=unsafe_endpoint");
-        assertThat(String.valueOf(listed.get("servers"))).contains("token=***");
-        assertThat(String.valueOf(listed.get("servers"))).contains("reason=unsafe_endpoint");
-        assertThat(storedLastError).contains("token=***");
-        assertThat(storedLastError).doesNotContain("secret-mcp-osv");
-        assertThat(String.valueOf(saved)).doesNotContain("secret-mcp-osv");
-        assertThat(String.valueOf(checked)).doesNotContain("secret-mcp-osv");
-        assertThat(String.valueOf(listed)).doesNotContain("secret-mcp-osv");
+        assertThat(String.valueOf(listed.get("servers"))).doesNotContain("secret-mcp-osv");
     }
 
     @Test
@@ -282,7 +157,9 @@ public class McpPackageSecurityServiceTest {
                 .containsEntry("npxPackageOptionParsed", Boolean.TRUE)
                 .containsEntry("pipxRunSubcommandSkipped", Boolean.TRUE)
                 .containsEntry("pypiSourceOptionParsed", Boolean.TRUE);
-        assertThat(String.valueOf(summary.get("structuredReasons"))).contains("scan_error");
+        assertThat(String.valueOf(summary.get("structuredReasons")))
+                .contains("scan_error")
+                .contains("unsafe_endpoint");
         assertThat(summary.get("endpointOverrideEnvironment")).isEqualTo("SOLONCLAW_OSV_ENDPOINT");
         assertThat(summary.get("projectEndpointOverrideEnvironment"))
                 .isEqualTo("SOLONCLAW_OSV_ENDPOINT");

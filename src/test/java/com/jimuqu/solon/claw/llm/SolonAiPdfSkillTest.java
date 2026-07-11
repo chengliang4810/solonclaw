@@ -22,7 +22,12 @@ public class SolonAiPdfSkillTest {
         String parsed = pdfSkill.parse("report.pdf");
 
         assertThat(result).contains("PDF");
-        assertThat(Files.exists(workspaceHome.resolve("cache").resolve("pdf").resolve("report.pdf")))
+        assertThat(
+                        Files.exists(
+                                workspaceHome
+                                        .resolve("cache")
+                                        .resolve("pdf")
+                                        .resolve("report.pdf")))
                 .isTrue();
         assertThat(parsed).containsIgnoringCase("Solon");
         assertThat(parsed).containsIgnoringCase("Hello");

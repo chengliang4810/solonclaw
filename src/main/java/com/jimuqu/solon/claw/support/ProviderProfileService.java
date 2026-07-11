@@ -106,9 +106,7 @@ public class ProviderProfileService {
         item.put("parameters", parameters(metadata));
         item.put("routing", routing(providerKey, resolved));
         item.put("display", display(providerKey, provider));
-        if (price != null) {
-            item.put("pricing", pricing(price));
-        }
+        item.put("pricing", price == null ? unknownPricing() : pricing(price));
         return item;
     }
 
@@ -124,7 +122,8 @@ public class ProviderProfileService {
         try {
             return llmProviderService.resolveProvider(providerKey, null);
         } catch (Exception e) {
-            log.debug("Provider画像解析失败，回落到静态配置 provider={} error={}",
+            log.debug(
+                    "Provider画像解析失败，回落到静态配置 provider={} error={}",
                     SecretRedactor.redact(providerKey, 120),
                     e.getClass().getSimpleName());
             LlmProviderService.ResolvedProvider resolved =
@@ -153,6 +152,10 @@ public class ProviderProfileService {
         if (provider != null) {
             effective.setName(provider.getName());
             effective.setSupportsVision(provider.getSupportsVision());
+            effective.setCapabilities(
+                    provider.getCapabilities() == null
+                            ? new LinkedHashMap<String, Boolean>()
+                            : new LinkedHashMap<String, Boolean>(provider.getCapabilities()));
             effective.setGroupId(provider.getGroupId());
             effective.setGroupLabel(provider.getGroupLabel());
             effective.setGroupDescription(provider.getGroupDescription());
@@ -214,7 +217,8 @@ public class ProviderProfileService {
         capabilities.put("tool_calling", Boolean.valueOf(metadata.isSupportsTools()));
         capabilities.put("streaming", Boolean.valueOf(metadata.isSupportsStreaming()));
         capabilities.put("reasoning", Boolean.valueOf(metadata.isSupportsReasoning()));
-        capabilities.put("structured_output", Boolean.valueOf(metadata.isSupportsStructuredOutput()));
+        capabilities.put(
+                "structured_output", Boolean.valueOf(metadata.isSupportsStructuredOutput()));
         capabilities.put("prompt_cache", Boolean.valueOf(metadata.isSupportsPromptCache()));
         capabilities.put("vision", Boolean.valueOf(metadata.isSupportsVision()));
         capabilities.put("audio", Boolean.valueOf(metadata.isSupportsAudio()));
@@ -240,7 +244,8 @@ public class ProviderProfileService {
                 StrUtil.nullToEmpty(appConfig.getLlm().getReasoningEffort()).trim());
         parameters.put("reasoning_supported", Boolean.valueOf(metadata.isSupportsReasoning()));
         Map<String, Object> promptCache = new LinkedHashMap<String, Object>();
-        promptCache.put("enabled", Boolean.valueOf(appConfig.getLlm().getPromptCache().isEnabled()));
+        promptCache.put(
+                "enabled", Boolean.valueOf(appConfig.getLlm().getPromptCache().isEnabled()));
         promptCache.put("ttl", appConfig.getLlm().getPromptCache().getTtl());
         promptCache.put("layout", appConfig.getLlm().getPromptCache().getLayout());
         parameters.put("prompt_cache", promptCache);
@@ -297,11 +302,13 @@ public class ProviderProfileService {
      */
     private Map<String, Object> pricing(ModelPrice price) {
         Map<String, Object> pricing = new LinkedHashMap<String, Object>();
+        pricing.put("available", Boolean.TRUE);
         String currency =
                 StrUtil.blankToDefault(price.getCurrency(), "USD").trim().toUpperCase(Locale.ROOT);
         pricing.put("currency", currency);
         boolean free = price.isFree();
         pricing.put("free", Boolean.valueOf(free));
+        pricing.put("status", free ? "free" : "priced");
         if (free) {
             pricing.put("input", "free");
             pricing.put("output", "free");
@@ -327,6 +334,19 @@ public class ProviderProfileService {
         if (price.getFetchedAt() > 0L) {
             pricing.put("fetched_at", Long.valueOf(price.getFetchedAt()));
         }
+        return pricing;
+    }
+
+    /**
+     * 返回未配置价格时的显式状态，避免缺字段被误读为免费。
+     *
+     * @return 返回 unknown 价格画像。
+     */
+    private Map<String, Object> unknownPricing() {
+        Map<String, Object> pricing = new LinkedHashMap<String, Object>();
+        pricing.put("available", Boolean.FALSE);
+        pricing.put("status", "unknown");
+        pricing.put("free", Boolean.FALSE);
         return pricing;
     }
 

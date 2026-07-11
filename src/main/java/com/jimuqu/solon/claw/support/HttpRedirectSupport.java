@@ -25,7 +25,8 @@ public final class HttpRedirectSupport {
      * @param invalidMessage Location 无法解析时的业务上下文消息。
      * @return 解析后的下一跳 URL。
      */
-    public static String resolveLocation(String currentUrl, String location, String invalidMessage) {
+    public static String resolveLocation(
+            String currentUrl, String location, String invalidMessage) {
         try {
             return URI.create(currentUrl).resolve(location.trim()).toString();
         } catch (Exception e) {

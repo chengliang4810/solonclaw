@@ -31,13 +31,7 @@ public class MessagingToolsAttachmentTest {
 
         String result =
                 tools.sendMessage(
-                        "list",
-                        null,
-                        null,
-                        null,
-                        null,
-                        Collections.<String>emptyList(),
-                        null);
+                        "list", null, null, null, null, Collections.<String>emptyList(), null);
 
         Map<?, ?> payload = (Map<?, ?>) org.noear.snack4.ONode.ofJson(result).toData();
         assertThat(payload.get("status")).isEqualTo("success");

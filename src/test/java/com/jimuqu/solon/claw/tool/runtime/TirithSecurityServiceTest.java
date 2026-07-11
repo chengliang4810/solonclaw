@@ -19,7 +19,8 @@ public class TirithSecurityServiceTest {
         CloseAwareInputStream inputStream =
                 new CloseAwareInputStream("第一行\nsecond line".getBytes(StandardCharsets.UTF_8));
         Method readUtf8 =
-                TirithSecurityService.class.getDeclaredMethod("readUtf8", java.io.InputStream.class);
+                TirithSecurityService.class.getDeclaredMethod(
+                        "readUtf8", java.io.InputStream.class);
         readUtf8.setAccessible(true);
 
         String content = (String) readUtf8.invoke(null, inputStream);

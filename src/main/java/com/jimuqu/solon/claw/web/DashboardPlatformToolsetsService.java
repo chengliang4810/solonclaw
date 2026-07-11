@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -21,6 +22,9 @@ public class DashboardPlatformToolsetsService {
     /** 注入控制台配置服务，用于调用对应业务能力。 */
     private final DashboardConfigService dashboardConfigService;
 
+    /** 解析 Dashboard 显式选择的 Profile。 */
+    private final DashboardProfileContext profileContext;
+
     /**
      * 创建控制台平台Toolsets服务实例，并注入运行所需依赖。
      *
@@ -29,8 +33,23 @@ public class DashboardPlatformToolsetsService {
      */
     public DashboardPlatformToolsetsService(
             AppConfig appConfig, DashboardConfigService dashboardConfigService) {
+        this(appConfig, dashboardConfigService, null);
+    }
+
+    /**
+     * 创建支持 Profile 作用域的平台工具集服务。
+     *
+     * @param appConfig 当前 JVM 配置。
+     * @param dashboardConfigService Dashboard 配置写入服务。
+     * @param profileContext Dashboard Profile 请求上下文。
+     */
+    public DashboardPlatformToolsetsService(
+            AppConfig appConfig,
+            DashboardConfigService dashboardConfigService,
+            DashboardProfileContext profileContext) {
         this.appConfig = appConfig;
         this.dashboardConfigService = dashboardConfigService;
+        this.profileContext = profileContext;
     }
 
     /**
@@ -39,10 +58,21 @@ public class DashboardPlatformToolsetsService {
      * @return 返回overview结果。
      */
     public Map<String, Object> overview() {
+        return overview(null);
+    }
+
+    /**
+     * 读取指定 Profile 的渠道工具集策略。
+     *
+     * @param profile Profile 名。
+     * @return 平台策略总览。
+     */
+    public Map<String, Object> overview(String profile) {
+        AppConfig targetConfig = configFor(profile);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         Map<String, Object> platformSummary = new LinkedHashMap<String, Object>();
         for (String platform : SUPPORTED_PLATFORMS) {
-            platformSummary.put(platform, platformConfig(platform));
+            platformSummary.put(platform, platformConfig(platform, targetConfig));
         }
         result.put("platforms", platformSummary);
         return result;
@@ -56,6 +86,18 @@ public class DashboardPlatformToolsetsService {
      * @return 返回更新结果。
      */
     public Map<String, Object> update(String platform, Map<String, Object> body) {
+        return update(platform, body, null);
+    }
+
+    /**
+     * 更新指定 Profile 的渠道工具集策略。
+     *
+     * @param platform 国内渠道标识。
+     * @param body 平台策略。
+     * @param profile Profile 名。
+     * @return 更新后的平台策略。
+     */
+    public Map<String, Object> update(String platform, Map<String, Object> body, String profile) {
         String normalizedPlatform = normalizePlatform(platform);
         List<String> enabledToolsets =
                 normalizeToolsets(body == null ? null : body.get("enabledToolsets"));
@@ -69,8 +111,8 @@ public class DashboardPlatformToolsetsService {
         updates.put(
                 platformKey(normalizedPlatform, "approvalRequired"),
                 Boolean.valueOf(approvalRequired));
-        dashboardConfigService.savePartialFlat(updates, false);
-        return platformConfig(normalizedPlatform);
+        dashboardConfigService.savePartialFlat(updates, false, profile);
+        return platformConfig(normalizedPlatform, configFor(profile));
     }
 
     /**
@@ -79,8 +121,8 @@ public class DashboardPlatformToolsetsService {
      * @param platform 平台参数。
      * @return 返回平台配置。
      */
-    private Map<String, Object> platformConfig(String platform) {
-        AppConfig.PlatformConfig config = readPlatformConfig(platform);
+    private Map<String, Object> platformConfig(String platform, AppConfig targetConfig) {
+        AppConfig.PlatformConfig config = readPlatformConfig(platform, targetConfig);
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("platform", platform);
         result.put("enabledToolsets", copyList(config.getEnabledToolsets()));
@@ -95,11 +137,19 @@ public class DashboardPlatformToolsetsService {
      * @param platform 平台参数。
      * @return 返回读取到的平台配置。
      */
-    private AppConfig.PlatformConfig readPlatformConfig(String platform) {
-        Map<String, AppConfig.PlatformConfig> platforms = appConfig.getGateway().getPlatforms();
+    private AppConfig.PlatformConfig readPlatformConfig(String platform, AppConfig targetConfig) {
+        Map<String, AppConfig.PlatformConfig> platforms = targetConfig.getGateway().getPlatforms();
         AppConfig.PlatformConfig config =
                 platforms == null ? null : platforms.get(platform.toUpperCase());
         return config == null ? new AppConfig.PlatformConfig() : config;
+    }
+
+    /** 返回目标 Profile 的独立配置快照。 */
+    private AppConfig configFor(String profile) {
+        if (profileContext == null) {
+            return appConfig;
+        }
+        return profileContext.resolve(profile).getConfig();
     }
 
     /**

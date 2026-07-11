@@ -41,6 +41,9 @@ public class SolonClawCodeExecutionSkills {
     /** 默认执行CODE超时时间秒数的统一常量值。 */
     private static final int DEFAULT_EXECUTE_CODE_TIMEOUT_SECONDS = 300;
 
+    /** Python 与 Node.js 直接执行工具默认超时时间，模型可见单位统一为秒。 */
+    private static final int DEFAULT_SCRIPT_TIMEOUT_SECONDS = 120;
+
     /** 默认最大STDOUTCHARS的统一常量值。 */
     private static final int DEFAULT_MAX_STDOUT_CHARS = 50000;
 
@@ -61,29 +64,54 @@ public class SolonClawCodeExecutionSkills {
                             "patch",
                             "terminal"));
 
-    /** MANAGED文件工具CALL的统一常量值。 */
+    /** 受管文件工具调用中的路径由实际 RPC 工具校验，脚本预检只检查直接文件访问。 */
     private static final Pattern MANAGED_FILE_TOOL_CALL =
             Pattern.compile(
-                    "(?:\\bsolonclaw_tools\\s*\\.\\s*)?(?:\\bread_file|\\bwrite_file)\\s*\\(\\s*(['\"])(.*?)\\1",
+                    "(?:\\bsolonclaw_tools\\s*\\.\\s*)?(?:\\bread_file|\\bwrite_file|\\bfile_read|\\bfile_write)\\s*\\(\\s*(['\"])(.*?)\\1",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
-    /** MANAGED webfetch 工具 CALL 的统一常量值。 */
+    /** 受管 webfetch 调用中的 URL 由实际 RPC 工具校验，脚本预检只检查直接网络访问。 */
     private static final Pattern MANAGED_WEBFETCH_TOOL_CALL =
             Pattern.compile(
                     "(?:\\bsolonclaw_tools\\s*\\.\\s*)?\\bwebfetch\\s*\\(\\s*(['\"])(.*?)\\1",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
-    /** Python 字符串内转义控制序列的统一匹配常量。 */
+    /** Python 字符串中的转义控制序列不应被路径扫描误判为 Windows 盘符。 */
     private static final Pattern PYTHON_ESCAPED_CONTROL_SEQUENCE =
             Pattern.compile("\\\\(?:u001[bB]|x1[bB]|033)");
 
-    /** 代码执行脚本中直接触碰用户 SSH 私钥的路径字面量，仍作为执行边界防御性阻断。 */
-    private static final Pattern EXECUTE_CODE_HOME_SSH_PRIVATE_KEY =
-            Pattern.compile(
-                    "(?i)(?:~|\\$HOME|\\$\\{HOME\\}|%USERPROFILE%|\\$env:USERPROFILE)[/\\\\]\\.ssh[/\\\\]id_(?:rsa|dsa|ecdsa(?:_sk)?|ed25519(?:_sk)?|rsa_sk)");
-
     /** 创建Solon项目Code Execution技能实例。 */
     private SolonClawCodeExecutionSkills() {}
+
+    /**
+     * 判断文件路径预检是否启用；安全边界默认启用，仅显式 bypass 时关闭。
+     *
+     * @param appConfig 应用安全配置。
+     * @return 非 bypass 时返回 true。
+     */
+    static boolean isFileGuardrailEnabled(AppConfig appConfig) {
+        return appConfig == null
+                || appConfig.getSecurity() == null
+                || !"bypass"
+                        .equalsIgnoreCase(
+                                StrUtil.blankToDefault(
+                                        appConfig.getSecurity().getFileGuardrailMode(), "strict"));
+    }
+
+    /**
+     * 判断 URL 预检是否启用；安全边界默认启用，仅显式 bypass 时关闭。
+     *
+     * @param appConfig 应用安全配置。
+     * @return 非 bypass 时返回 true。
+     */
+    static boolean isUrlGuardrailEnabled(AppConfig appConfig) {
+        return appConfig == null
+                || appConfig.getSecurity() == null
+                || !"bypass"
+                        .equalsIgnoreCase(
+                                StrUtil.blankToDefault(
+                                        appConfig.getSecurity().getUrlGuardrailMode(), "strict"));
+    }
 
     /**
      * 执行codeExecution策略摘要相关逻辑。
@@ -98,17 +126,13 @@ public class SolonClawCodeExecutionSkills {
         summary.put("executeJsSupported", Boolean.TRUE);
         summary.put("solonAiSysSkillsWrapped", Boolean.TRUE);
         summary.put("workdirTextValidated", Boolean.TRUE);
-        summary.put(
-                "scriptPreflightPathPolicy", Boolean.valueOf(isFileGuardrailEnabled(appConfig)));
-        summary.put("scriptPreflightUrlPolicy", Boolean.valueOf(isUrlGuardrailEnabled(appConfig)));
-        summary.put("fileGuardrailMode", fileGuardrailMode(appConfig));
-        summary.put("urlGuardrailMode", urlGuardrailMode(appConfig));
+        summary.put("scriptPreflightPathPolicy", Boolean.TRUE);
+        summary.put("scriptPreflightUrlPolicy", Boolean.TRUE);
+        summary.put("scriptPreflightMetadataUrlPolicy", Boolean.TRUE);
         summary.put("dangerousCommandRulesApplied", Boolean.TRUE);
         summary.put("hardlineRulesApplied", Boolean.TRUE);
-        summary.put("foregroundBackgroundGuardrail", Boolean.TRUE);
-        summary.put("managedFileToolPathLiteralsIgnoredForPreflight", Boolean.TRUE);
-        summary.put("managedWebfetchUrlLiteralsIgnoredForPreflight", Boolean.TRUE);
-        summary.put("escapedControlSequencesIgnoredForPathPreflight", Boolean.TRUE);
+        summary.put("foregroundBackgroundGuardrail", Boolean.FALSE);
+        summary.put("agentApprovalInterceptorRequired", Boolean.TRUE);
         summary.put("stagingDirectoryPerRun", Boolean.TRUE);
         summary.put("stagingPrefix", "execute_code_");
         summary.put("stagingCleanup", Boolean.TRUE);
@@ -304,8 +328,7 @@ public class SolonClawCodeExecutionSkills {
                         rpcFuture.get(3, TimeUnit.SECONDS);
                     } catch (Exception e) {
                         log.debug(
-                                "execute_code RPC loop did not stop cleanly: {}",
-                                safeErrorText(e));
+                                "execute_code RPC loop did not stop cleanly: {}", safeErrorText(e));
                     }
                     String stdoutText =
                             cleanOutput(stdout.get(3, TimeUnit.SECONDS), maxStdoutChars());
@@ -874,7 +897,8 @@ public class SolonClawCodeExecutionSkills {
                                 url,
                                 getString(args, "format", "markdown"),
                                 Integer.valueOf(getInt(args, "timeout", 120)));
-                result.put("title", StrUtil.blankToDefault(doc == null ? null : doc.getTitle(), url));
+                result.put(
+                        "title", StrUtil.blankToDefault(doc == null ? null : doc.getTitle(), url));
                 result.put("content", doc == null ? "" : StrUtil.nullToEmpty(doc.getContent()));
                 result.put("error", null);
                 result.put("status", "success");
@@ -1389,7 +1413,7 @@ public class SolonClawCodeExecutionSkills {
          * 执行当前回调或工具调用。
          *
          * @param code code 参数。
-         * @param timeout 超时时间或等待上限。
+         * @param timeoutSeconds 超时时间，单位为秒。
          * @return 返回执行结果。
          */
         @Override
@@ -1399,11 +1423,12 @@ public class SolonClawCodeExecutionSkills {
                 @Param(
                                 name = "timeout",
                                 required = false,
-                                defaultValue = "120000",
-                                description = "可选超时时间，单位为毫秒")
-                        Integer timeout) {
+                                defaultValue = "120",
+                                description = "可选超时时间，单位为秒")
+                        Integer timeoutSeconds) {
             assertSafe(ToolNameConstants.EXECUTE_PYTHON, code, securityPolicyService);
-            return SecretRedactor.redact(super.execute(code, timeout), 20000);
+            return SecretRedactor.redact(
+                    super.execute(code, scriptTimeoutMillis(timeoutSeconds)), 20000);
         }
     }
 
@@ -1427,7 +1452,7 @@ public class SolonClawCodeExecutionSkills {
          * 执行当前回调或工具调用。
          *
          * @param code code 参数。
-         * @param timeout 超时时间或等待上限。
+         * @param timeoutSeconds 超时时间，单位为秒。
          * @return 返回执行结果。
          */
         @Override
@@ -1437,12 +1462,27 @@ public class SolonClawCodeExecutionSkills {
                 @Param(
                                 name = "timeout",
                                 required = false,
-                                defaultValue = "120000",
-                                description = "可选超时时间，单位为毫秒")
-                        Integer timeout) {
+                                defaultValue = "120",
+                                description = "可选超时时间，单位为秒")
+                        Integer timeoutSeconds) {
             assertSafe(ToolNameConstants.EXECUTE_JS, code, securityPolicyService);
-            return SecretRedactor.redact(super.execute(code, timeout), 20000);
+            return SecretRedactor.redact(
+                    super.execute(code, scriptTimeoutMillis(timeoutSeconds)), 20000);
         }
+    }
+
+    /**
+     * 把模型可见的秒单位换算为 Solon AI Talent 使用的毫秒单位。
+     *
+     * @param timeoutSeconds 模型传入的超时秒数。
+     * @return 返回正数毫秒值；未提供或非正数时使用 120 秒默认值。
+     */
+    private static Integer scriptTimeoutMillis(Integer timeoutSeconds) {
+        int seconds =
+                timeoutSeconds == null || timeoutSeconds.intValue() <= 0
+                        ? DEFAULT_SCRIPT_TIMEOUT_SECONDS
+                        : timeoutSeconds.intValue();
+        return Integer.valueOf((int) Math.min((long) seconds * 1000L, Integer.MAX_VALUE));
     }
 
     /**
@@ -1502,13 +1542,13 @@ public class SolonClawCodeExecutionSkills {
     }
 
     /**
-     * 执行assert安全相关逻辑。
+     * 对直接命令和代码执行入口应用不可绕过底线与可审批危险规则。
      *
-     * @param approvalToolName 审批工具名称参数。
-     * @param ruleToolName rule工具名称参数。
-     * @param code code 参数。
-     * @param securityPolicyService 安全策略服务依赖。
-     * @param rejectForegroundPatterns reject前台进程Patterns参数。
+     * @param approvalToolName 审批工具名称。
+     * @param ruleToolName 规则工具名称。
+     * @param code 待执行终端命令。
+     * @param securityPolicyService 安全策略服务。
+     * @param rejectForegroundPatterns 是否检查未受管前台长驻命令。
      */
     private static void assertSafe(
             String approvalToolName,
@@ -1517,47 +1557,77 @@ public class SolonClawCodeExecutionSkills {
             SecurityPolicyService securityPolicyService,
             boolean rejectForegroundPatterns) {
         if (securityPolicyService != null) {
-            AppConfig appConfig = appConfigFrom(securityPolicyService);
-            if (isFileGuardrailEnabled(appConfig)) {
-                SecurityPolicyService.FileVerdict fileVerdict =
-                        securityPolicyService.checkCommandPaths(code);
-                if (!fileVerdict.isAllowed()) {
-                    if (fileVerdict.isApprovalRequired()) {
-                        throw new IllegalArgumentException(
-                                "APPROVAL_REQUIRED: "
-                                        + fileVerdict.getMessage()
-                                        + " path="
-                                        + redactPath(fileVerdict.getPath(), 400)
-                                        + "。请先在对话审批该单次操作。");
-                    }
+            SecurityPolicyService.FileVerdict fileVerdict =
+                    securityPolicyService.checkCommandPaths(code);
+            if (!fileVerdict.isAllowed()) {
+                if (fileVerdict.isApprovalRequired()) {
                     throw new IllegalArgumentException(
-                            blockedFileMessage(approvalToolName, fileVerdict));
+                            "APPROVAL_REQUIRED: "
+                                    + fileVerdict.getMessage()
+                                    + " path="
+                                    + redactPath(fileVerdict.getPath(), 400)
+                                    + "。请先在对话审批该单次操作。");
                 }
+                throw new IllegalArgumentException(
+                        blockedFileMessage(approvalToolName, fileVerdict));
             }
-            if (isUrlGuardrailEnabled(appConfig)) {
-                SecurityPolicyService.UrlVerdict urlVerdict =
-                        securityPolicyService.checkCommandUrls(code);
-                if (!urlVerdict.isAllowed()) {
-                    if (urlVerdict.isApprovalRequired()) {
-                        throw new IllegalArgumentException(
-                                "APPROVAL_REQUIRED: "
-                                        + urlVerdict.getMessage()
-                                        + " url="
-                                        + SecretRedactor.maskUrl(urlVerdict.getUrl())
-                                        + "。请先在对话审批该单次操作。");
-                    }
-                    throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
+            SecurityPolicyService.UrlVerdict urlVerdict =
+                    securityPolicyService.checkCommandUrls(code);
+            if (!urlVerdict.isAllowed()) {
+                if (urlVerdict.isApprovalRequired()) {
+                    throw new IllegalArgumentException(
+                            "APPROVAL_REQUIRED: "
+                                    + urlVerdict.getMessage()
+                                    + " url="
+                                    + SecretRedactor.maskUrl(urlVerdict.getUrl())
+                                    + "。请先在对话审批该单次操作。");
                 }
+                throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
             }
         }
 
+        assertDangerousRules(
+                approvalToolName,
+                ruleToolName,
+                code,
+                securityPolicyService,
+                rejectForegroundPatterns);
+    }
+
+    /**
+     * 应用 hardline、sudo、用户 deny 与可审批危险命令规则。
+     *
+     * @param approvalToolName 审批工具名称。
+     * @param ruleToolName 规则匹配使用的工具名称。
+     * @param code 待执行命令或脚本。
+     * @param securityPolicyService 安全策略服务。
+     * @param rejectForegroundPatterns 是否拒绝未受管前台长驻命令。
+     */
+    private static void assertDangerousRules(
+            String approvalToolName,
+            String ruleToolName,
+            String code,
+            SecurityPolicyService securityPolicyService,
+            boolean rejectForegroundPatterns) {
         DangerousCommandApprovalService approvalService =
                 new DangerousCommandApprovalService(
                         null, appConfigFrom(securityPolicyService), securityPolicyService);
         DangerousCommandApprovalService.DetectionResult hardline =
                 approvalService.detectHardline(ruleToolName, code);
         if (hardline != null) {
-            throw new IllegalArgumentException(blockedHardlineMessage(approvalToolName, hardline));
+            throw new IllegalArgumentException(
+                    new DangerousCommandApprovalMessageRenderer()
+                            .buildHardlineMessage(approvalToolName, hardline, code));
+        }
+        if (approvalService.hasUnconfiguredSudoStdin(ruleToolName, code)) {
+            throw new IllegalArgumentException(
+                    new DangerousCommandApprovalMessageRenderer()
+                            .buildSudoStdinMessage(approvalToolName, code));
+        }
+        String denyReason = approvalService.matchUserDenyRule(code);
+        if (denyReason != null) {
+            throw new IllegalArgumentException(
+                    new DangerousCommandApprovalMessageRenderer().buildUserDenyMessage(denyReason));
         }
         if (rejectForegroundPatterns) {
             String foregroundGuidance =
@@ -1566,7 +1636,7 @@ public class SolonClawCodeExecutionSkills {
                 throw new IllegalArgumentException(foregroundGuidance);
             }
         }
-        if (isSoftDangerousRuleBypassEnabled(approvalService)) {
+        if ("bypass".equals(approvalService.guardrailMode())) {
             return;
         }
         DangerousCommandApprovalService.DetectionResult dangerous =
@@ -1582,92 +1652,42 @@ public class SolonClawCodeExecutionSkills {
     }
 
     /**
-     * 执行assert安全执行CodeScript相关逻辑。
+     * 在 execute_code 直接 handler 启动解释器前复用同一文件、URL 与危险命令策略。
      *
-     * @param code code 参数。
-     * @param securityPolicyService 安全策略服务依赖。
+     * @param code 待执行脚本。
+     * @param securityPolicyService 安全策略服务。
      */
     static void assertSafeExecuteCodeScript(
             String code, SecurityPolicyService securityPolicyService) {
-        String scriptForPreflight =
+        String scriptForPathPreflight =
                 stripEscapedControlSequences(stripManagedFileToolPathLiterals(code));
         String scriptForUrlPreflight = stripManagedWebfetchUrlLiterals(code);
         if (securityPolicyService != null) {
-            AppConfig appConfig = appConfigFrom(securityPolicyService);
-            if (isFileGuardrailEnabled(appConfig)) {
-                SecurityPolicyService.FileVerdict executeCodeCredentialVerdict =
-                        checkExecuteCodeHomeSshPrivateKey(scriptForPreflight);
-                if (!executeCodeCredentialVerdict.isAllowed()) {
-                    throw new IllegalArgumentException(
-                            blockedFileMessage(
-                                    ToolNameConstants.EXECUTE_CODE, executeCodeCredentialVerdict));
-                }
-                SecurityPolicyService.FileVerdict fileVerdict =
-                        securityPolicyService.checkCommandPaths(scriptForPreflight);
-                if (!fileVerdict.isAllowed()) {
-                    throw new IllegalArgumentException(
-                            blockedFileMessage(ToolNameConstants.EXECUTE_CODE, fileVerdict));
-                }
+            SecurityPolicyService.FileVerdict fileVerdict =
+                    securityPolicyService.checkCommandPaths(scriptForPathPreflight);
+            if (!fileVerdict.isAllowed()) {
+                throw new IllegalArgumentException(
+                        blockedFileMessage(ToolNameConstants.EXECUTE_CODE, fileVerdict));
             }
-            if (isUrlGuardrailEnabled(appConfig)) {
-                SecurityPolicyService.UrlVerdict urlVerdict =
-                        securityPolicyService.checkCommandUrls(scriptForUrlPreflight);
-                if (!urlVerdict.isAllowed()) {
-                    throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
-                }
+            SecurityPolicyService.UrlVerdict urlVerdict =
+                    securityPolicyService.checkCommandUrls(scriptForUrlPreflight);
+            if (!urlVerdict.isAllowed()) {
+                throw new IllegalArgumentException(blockedUrlMessage(urlVerdict));
             }
         }
-
-        DangerousCommandApprovalService approvalService =
-                new DangerousCommandApprovalService(
-                        null, appConfigFrom(securityPolicyService), securityPolicyService);
-        DangerousCommandApprovalService.DetectionResult hardline =
-                approvalService.detectHardline(ToolNameConstants.EXECUTE_PYTHON, code);
-        if (hardline != null) {
-            throw new IllegalArgumentException(
-                    blockedHardlineMessage(ToolNameConstants.EXECUTE_CODE, hardline));
-        }
-        String foregroundGuidance =
-                approvalService.foregroundBackgroundGuidance(
-                        ToolNameConstants.EXECUTE_PYTHON, code);
-        if (foregroundGuidance != null) {
-            throw new IllegalArgumentException(foregroundGuidance);
-        }
-        if (isSoftDangerousRuleBypassEnabled(approvalService)) {
-            return;
-        }
-        DangerousCommandApprovalService.DetectionResult dangerous =
-                approvalService.detect(ToolNameConstants.EXECUTE_PYTHON, code);
-        if (dangerous != null) {
-            if (DangerousCommandApprovalService.consumeCurrentThreadApproval(
-                    ToolNameConstants.EXECUTE_CODE, code)) {
-                return;
-            }
-            throw new IllegalArgumentException(
-                    blockedDangerousMessage(ToolNameConstants.EXECUTE_CODE, dangerous));
-        }
+        assertDangerousRules(
+                ToolNameConstants.EXECUTE_CODE,
+                ToolNameConstants.EXECUTE_PYTHON,
+                code,
+                securityPolicyService,
+                true);
     }
 
     /**
-     * 检查代码执行脚本是否直接触碰用户 SSH 私钥路径。
+     * 从代码文本中移除受管文件工具的路径字面量，避免与 RPC 工具策略重复判断。
      *
-     * @param code 待执行脚本文本。
-     * @return 返回文件策略判定结果。
-     */
-    private static SecurityPolicyService.FileVerdict checkExecuteCodeHomeSshPrivateKey(
-            String code) {
-        Matcher matcher = EXECUTE_CODE_HOME_SSH_PRIVATE_KEY.matcher(StrUtil.nullToEmpty(code));
-        if (!matcher.find()) {
-            return SecurityPolicyService.FileVerdict.allow();
-        }
-        return SecurityPolicyService.FileVerdict.block(matcher.group(), "读取敏感系统/凭据文件被阻断");
-    }
-
-    /**
-     * 剥离Managed文件工具路径Literals。
-     *
-     * @param code code 参数。
-     * @return 返回strip Managed文件工具Literals结果。
+     * @param code 待扫描脚本。
+     * @return 返回用于直接文件访问预检的脚本文本。
      */
     private static String stripManagedFileToolPathLiterals(String code) {
         String value = StrUtil.nullToEmpty(code);
@@ -1683,10 +1703,10 @@ public class SolonClawCodeExecutionSkills {
     }
 
     /**
-     * 剥离Managed webfetch工具URL Literals。
+     * 从代码文本中移除受管 webfetch 的 URL 字面量，实际 URL 由 RPC 工具校验。
      *
-     * @param code code 参数。
-     * @return 返回剥离托管 webfetch URL 后的脚本文本。
+     * @param code 待扫描脚本。
+     * @return 返回用于直接网络访问预检的脚本文本。
      */
     private static String stripManagedWebfetchUrlLiterals(String code) {
         String value = StrUtil.nullToEmpty(code);
@@ -1702,10 +1722,10 @@ public class SolonClawCodeExecutionSkills {
     }
 
     /**
-     * 剥离 Python 字符串内的转义控制序列，避免路径预检把 ANSI 字面量误判成 Windows 绝对路径。
+     * 移除 Python 字符串内的转义控制序列，避免路径预检产生误判。
      *
-     * @param code code 参数。
-     * @return 返回剥离转义控制序列后的脚本文本。
+     * @param code 待扫描脚本。
+     * @return 返回清理后的脚本文本。
      */
     private static String stripEscapedControlSequences(String code) {
         return PYTHON_ESCAPED_CONTROL_SEQUENCE
@@ -1714,11 +1734,11 @@ public class SolonClawCodeExecutionSkills {
     }
 
     /**
-     * 执行阻断文件消息相关逻辑。
+     * 构建文件安全策略阻断消息，并对路径做脱敏处理。
      *
-     * @param toolName 工具名称。
-     * @param verdict 判定参数。
-     * @return 返回blocked文件消息结果。
+     * @param toolName 触发阻断的工具名称。
+     * @param verdict 文件策略判定。
+     * @return 返回可安全展示的阻断消息。
      */
     private static String blockedFileMessage(
             String toolName, SecurityPolicyService.FileVerdict verdict) {
@@ -1743,10 +1763,10 @@ public class SolonClawCodeExecutionSkills {
     }
 
     /**
-     * 执行阻断URL消息相关逻辑。
+     * 构建 URL 安全策略阻断消息，并隐藏查询参数中的敏感信息。
      *
-     * @param verdict 判定参数。
-     * @return 返回blocked URL消息结果。
+     * @param verdict URL 策略判定。
+     * @return 返回可安全展示的阻断消息。
      */
     private static String blockedUrlMessage(SecurityPolicyService.UrlVerdict verdict) {
         return "BLOCKED: URL 安全策略阻止访问："
@@ -1757,27 +1777,11 @@ public class SolonClawCodeExecutionSkills {
     }
 
     /**
-     * 执行阻断Hardline消息相关逻辑。
+     * 构建直接执行入口缺少审批上下文时的危险命令拒绝消息。
      *
-     * @param toolName 工具名称。
-     * @param detection detection 参数。
-     * @return 返回blocked Hardline消息结果。
-     */
-    private static String blockedHardlineMessage(
-            String toolName, DangerousCommandApprovalService.DetectionResult detection) {
-        return "BLOCKED: 该 "
-                + toolName
-                + " 调用命中硬阻断安全规则："
-                + StrUtil.blankToDefault(detection.getDescription(), detection.getPatternKey())
-                + "。请改用更小、更可审计的安全操作。";
-    }
-
-    /**
-     * 执行阻断Dangerous消息相关逻辑。
-     *
-     * @param toolName 工具名称。
-     * @param detection detection 参数。
-     * @return 返回blocked Dangerous消息结果。
+     * @param toolName 触发阻断的工具名称。
+     * @param detection 危险命令检测结果。
+     * @return 返回可安全展示的阻断消息。
      */
     private static String blockedDangerousMessage(
             String toolName, DangerousCommandApprovalService.DetectionResult detection) {
@@ -1788,10 +1792,14 @@ public class SolonClawCodeExecutionSkills {
                 + "。直接执行入口没有审批上下文，请改用可审批的 Agent 工具调用流程或拆成更安全的操作。";
     }
 
-    /** 判断全局工具安全策略是否允许跳过可审批危险规则；hardline 和前台保护仍在此前执行。 */
-    private static boolean isSoftDangerousRuleBypassEnabled(
-            DangerousCommandApprovalService approvalService) {
-        return approvalService != null && "bypass".equals(approvalService.guardrailMode());
+    /**
+     * 从安全策略服务读取同一份应用配置。
+     *
+     * @param securityPolicyService 安全策略服务。
+     * @return 返回应用配置；服务为空时返回 null。
+     */
+    private static AppConfig appConfigFrom(SecurityPolicyService securityPolicyService) {
+        return securityPolicyService == null ? null : securityPolicyService.getAppConfig();
     }
 
     /**
@@ -1846,43 +1854,5 @@ public class SolonClawCodeExecutionSkills {
             value = appConfig.getTask().getToolOutputInlineLimit();
         }
         return Math.max(256, value);
-    }
-
-    /**
-     * 执行应用配置From相关逻辑。
-     *
-     * @param securityPolicyService 安全策略服务依赖。
-     * @return 返回app配置From结果。
-     */
-    private static AppConfig appConfigFrom(SecurityPolicyService securityPolicyService) {
-        return securityPolicyService == null ? null : securityPolicyService.getAppConfig();
-    }
-
-    /** 判断文件路径预检是否启用；默认 strict，只有显式 bypass 才跳过。 */
-    static boolean isFileGuardrailEnabled(AppConfig appConfig) {
-        return !"bypass".equals(fileGuardrailMode(appConfig));
-    }
-
-    /** 判断 URL 预检是否启用；默认 strict，只有显式 bypass 才跳过。 */
-    static boolean isUrlGuardrailEnabled(AppConfig appConfig) {
-        return !"bypass".equals(urlGuardrailMode(appConfig));
-    }
-
-    /** 获取文件路径预检模式，避免空配置时改变默认安全行为。 */
-    private static String fileGuardrailMode(AppConfig appConfig) {
-        return appConfig == null || appConfig.getSecurity() == null
-                ? "strict"
-                : StrUtil.blankToDefault(appConfig.getSecurity().getFileGuardrailMode(), "strict")
-                        .trim()
-                        .toLowerCase(Locale.ROOT);
-    }
-
-    /** 获取 URL 预检模式，避免空配置时改变默认安全行为。 */
-    private static String urlGuardrailMode(AppConfig appConfig) {
-        return appConfig == null || appConfig.getSecurity() == null
-                ? "strict"
-                : StrUtil.blankToDefault(appConfig.getSecurity().getUrlGuardrailMode(), "strict")
-                        .trim()
-                        .toLowerCase(Locale.ROOT);
     }
 }

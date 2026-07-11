@@ -6,9 +6,9 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
-import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import java.util.List;
@@ -36,7 +36,10 @@ class LlmGoalJudgeTest {
 
         @Override
         public LlmResult chat(
-                SessionRecord session, String systemPrompt, String userMessage, List<Object> toolObjects)
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
                 throws Exception {
             chatCalled = true;
             capturedUserMessage = userMessage;
@@ -132,8 +135,8 @@ class LlmGoalJudgeTest {
         LlmGateway broken =
                 new LlmGateway() {
                     @Override
-                    public LlmResult chat(
-                            SessionRecord s, String sp, String um, List<Object> tools) throws Exception {
+                    public LlmResult chat(SessionRecord s, String sp, String um, List<Object> tools)
+                            throws Exception {
                         throw new RuntimeException("network down");
                     }
 
@@ -202,9 +205,7 @@ class LlmGoalJudgeTest {
         LlmGoalJudge j = new LlmGoalJudge(gw, appConfig(), new LlmProviderService(new AppConfig()));
         GoalContract contract = new GoalContract();
         contract.setVerification("测试通过");
-        j.judge(
-                new GoalJudgeRequest(
-                        "g", "resp", java.util.Arrays.asList("额外准则"), contract));
+        j.judge(new GoalJudgeRequest("g", "resp", java.util.Arrays.asList("额外准则"), contract));
         // 契约优先；子目标折叠为 Extra criterion，而非作为独立 Additional criteria 块
         assertThat(gw.capturedUserMessage)
                 .contains("Completion contract:")

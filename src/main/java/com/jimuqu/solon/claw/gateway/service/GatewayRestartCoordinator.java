@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +28,9 @@ public class GatewayRestartCoordinator {
 
     /** 保存执行器服务执行组件，负责调度异步或定时任务。 */
     private final ScheduledExecutorService executorService;
+
+    /** 构造当前协调器时捕获的 Profile 作用域，供延迟排空与退出回调恢复正确运行图。 */
+    private final ProfileRuntimeScope.Context runtimeScope;
 
     /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
@@ -84,6 +88,7 @@ public class GatewayRestartCoordinator {
             RestartExitHandler exitHandler) {
         this.agentRunControlService = agentRunControlService;
         this.exitHandler = exitHandler == null ? new SystemExitRestartHandler() : exitHandler;
+        this.runtimeScope = ProfileRuntimeScope.current();
         this.workspaceHome =
                 FileUtil.file(
                                 StrUtil.blankToDefault(
@@ -169,28 +174,30 @@ public class GatewayRestartCoordinator {
         long timeoutMs = Math.max(0L, drainTimeoutSeconds) * 1000L;
         long deadline = System.currentTimeMillis() + timeoutMs;
         executorService.execute(
-                () -> {
-                    try {
-                        while (System.currentTimeMillis() < deadline) {
-                            int count = currentRunningRunCount();
-                            activeRunCount = count;
-                            if (count <= 0) {
-                                sleepQuietly(3000L);
-                                exitHandler.restartAfterDrain(false);
-                                return;
+                ProfileRuntimeScope.capture(
+                        runtimeScope,
+                        () -> {
+                            try {
+                                while (System.currentTimeMillis() < deadline) {
+                                    int count = currentRunningRunCount();
+                                    activeRunCount = count;
+                                    if (count <= 0) {
+                                        sleepQuietly(3000L);
+                                        exitHandler.restartAfterDrain(false);
+                                        return;
+                                    }
+                                    sleepQuietly(200L);
+                                }
+                                activeRunCount = currentRunningRunCount();
+                                if (activeRunCount > 0 && agentRunControlService != null) {
+                                    agentRunControlService.stopAllRunningRuns("restart_timeout");
+                                    sleepQuietly(3000L);
+                                }
+                                exitHandler.restartAfterDrain(activeRunCount > 0);
+                            } finally {
+                                clear();
                             }
-                            sleepQuietly(200L);
-                        }
-                        activeRunCount = currentRunningRunCount();
-                        if (activeRunCount > 0 && agentRunControlService != null) {
-                            agentRunControlService.stopAllRunningRuns("restart_timeout");
-                            sleepQuietly(3000L);
-                        }
-                        exitHandler.restartAfterDrain(activeRunCount > 0);
-                    } finally {
-                        clear();
-                    }
-                });
+                        }));
     }
 
     /**
@@ -200,13 +207,15 @@ public class GatewayRestartCoordinator {
      */
     private void scheduleExit(long delayMs) {
         executorService.schedule(
-                () -> {
-                    try {
-                        exitHandler.restartAfterDrain(false);
-                    } finally {
-                        clear();
-                    }
-                },
+                ProfileRuntimeScope.capture(
+                        runtimeScope,
+                        () -> {
+                            try {
+                                exitHandler.restartAfterDrain(false);
+                            } finally {
+                                clear();
+                            }
+                        }),
                 Math.max(0L, delayMs),
                 TimeUnit.MILLISECONDS);
     }

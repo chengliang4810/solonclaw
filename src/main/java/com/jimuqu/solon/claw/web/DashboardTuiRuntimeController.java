@@ -199,7 +199,9 @@ public class DashboardTuiRuntimeController {
         }
         Map<String, Object> source = (Map<String, Object>) value;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
-            result.put(entry.getKey(), entry.getValue() == null ? "" : String.valueOf(entry.getValue()));
+            result.put(
+                    entry.getKey(),
+                    entry.getValue() == null ? "" : String.valueOf(entry.getValue()));
         }
         return result;
     }

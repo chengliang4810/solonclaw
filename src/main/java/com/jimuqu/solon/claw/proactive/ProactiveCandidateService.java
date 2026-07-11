@@ -52,7 +52,10 @@ public class ProactiveCandidateService {
             ProactiveTickContext context, List<ProactiveObservationRecord> observations)
             throws Exception {
         List<ProactiveCandidateRecord> candidates = new ArrayList<ProactiveCandidateRecord>();
-        if (context == null || repository == null || observations == null || observations.isEmpty()) {
+        if (context == null
+                || repository == null
+                || observations == null
+                || observations.isEmpty()) {
             return candidates;
         }
         int limit = maxCandidatesPerTick(context);
@@ -160,14 +163,22 @@ public class ProactiveCandidateService {
             Map<String, Object> payload,
             String type) {
         String jobId = text(payload, "jobId");
-        String lastStatus = firstNonBlank(text(payload, "lastStatus"), text(payload, "status"), type);
+        String lastStatus =
+                firstNonBlank(text(payload, "lastStatus"), text(payload, "status"), type);
         long lastRunAt = number(nestedMap(payload, "evidence").get("lastRunAt"), 0L);
         if (StrUtil.isBlank(jobId)) {
             return null;
         }
         String stateSeed = jobId + ":" + lastStatus + ":" + lastRunAt + ":" + type;
         ProactiveCandidateRecord candidate =
-                baseCandidate(context, observation, "cron", jobId, "cron_job", jobId, sourceStateHash(payload, stateSeed));
+                baseCandidate(
+                        context,
+                        observation,
+                        "cron",
+                        jobId,
+                        "cron_job",
+                        jobId,
+                        sourceStateHash(payload, stateSeed));
         candidate.setTopic("cron_followup");
         candidate.setTitle("定时任务需要跟进");
         candidate.setSummary(summary(observation, "定时任务 " + jobId + " 需要确认"));
@@ -199,7 +210,14 @@ public class ProactiveCandidateService {
             return null;
         }
         ProactiveCandidateRecord candidate =
-                baseCandidate(context, observation, "repository", sourceRef, "repository", sourceRef, stateHash);
+                baseCandidate(
+                        context,
+                        observation,
+                        "repository",
+                        sourceRef,
+                        "repository",
+                        sourceRef,
+                        stateHash);
         candidate.setTopic("project_update_opportunity");
         candidate.setTitle("关注的项目有更新");
         candidate.setSummary(summary(observation, "仓库 " + sourceRef + " 有新的状态变化"));
@@ -270,13 +288,21 @@ public class ProactiveCandidateService {
         String topic = firstNonBlank(text(payload, "topic"), "知识跟进");
         String sourceRef = firstNonBlank(text(payload, "sourceRef"), observation.getSourceKey());
         ProactiveCandidateRecord candidate =
-                baseCandidate(context, observation, "memory", sourceRef, "memory", sourceRef, evidenceHash);
+                baseCandidate(
+                        context,
+                        observation,
+                        "memory",
+                        sourceRef,
+                        "memory",
+                        sourceRef,
+                        evidenceHash);
         candidate.setTopic("knowledge_followup");
         candidate.setTitle("可以基于已知信息主动确认");
         candidate.setSummary(summary(observation, topic));
         candidate.setReason("长期记忆中存在可跟进的工作线索");
         candidate.setActionOffer("询问用户最近是否有相关工作需要协作");
-        candidate.setConfidence("high".equalsIgnoreCase(text(payload, "confidenceHint")) ? 0.74D : 0.66D);
+        candidate.setConfidence(
+                "high".equalsIgnoreCase(text(payload, "confidenceHint")) ? 0.74D : 0.66D);
         candidate.setPriority(PRIORITY_MEDIUM_LOW);
         candidate.setDedupKey(ProactiveDedupSupport.memoryKey(evidence));
         candidate.setEvidence(evidence(observation, payload));
@@ -295,10 +321,12 @@ public class ProactiveCandidateService {
             ProactiveTickContext context,
             ProactiveObservationRecord observation,
             Map<String, Object> payload) {
-        String sourceRef = firstNonBlank(text(payload, "sourceRef"), observation.getSourceKey(), "care");
+        String sourceRef =
+                firstNonBlank(text(payload, "sourceRef"), observation.getSourceKey(), "care");
         String stateHash = sourceStateHash(payload, sourceRef + ":" + context.getNowMillis());
         ProactiveCandidateRecord candidate =
-                baseCandidate(context, observation, "care", sourceRef, "user", sourceRef, stateHash);
+                baseCandidate(
+                        context, observation, "care", sourceRef, "user", sourceRef, stateHash);
         candidate.setTopic("care_checkin");
         candidate.setTitle("主动询问是否需要协作");
         candidate.setSummary(summary(observation, "询问用户最近是否有工作需要协作"));
@@ -331,7 +359,8 @@ public class ProactiveCandidateService {
             String subjectType,
             String subjectRef,
             String stateHash) {
-        long now = context.getNowMillis() > 0L ? context.getNowMillis() : System.currentTimeMillis();
+        long now =
+                context.getNowMillis() > 0L ? context.getNowMillis() : System.currentTimeMillis();
         ProactiveCandidateRecord candidate = new ProactiveCandidateRecord();
         candidate.setCandidateId(IdSupport.newId());
         candidate.setSourceType(sourceType);
@@ -355,7 +384,8 @@ public class ProactiveCandidateService {
      * @return 已存在同去重键与状态哈希时返回 true。
      * @throws Exception 仓储读取失败时抛出异常。
      */
-    private boolean isDuplicate(ProactiveCandidateRecord candidate, long nowMillis) throws Exception {
+    private boolean isDuplicate(ProactiveCandidateRecord candidate, long nowMillis)
+            throws Exception {
         if (StrUtil.isBlank(candidate.getDedupKey()) || StrUtil.isBlank(candidate.getStateHash())) {
             return false;
         }

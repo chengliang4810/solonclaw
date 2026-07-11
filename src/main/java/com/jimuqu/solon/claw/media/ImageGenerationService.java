@@ -11,6 +11,8 @@ import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +31,9 @@ public class ImageGenerationService {
 
     /** URL 安全策略服务，用于约束插件返回的远程图片下载地址。 */
     private final SecurityPolicyService securityPolicyService;
+
+    /** 图片输入统一边界，用于把编辑主图和参考图归一到受控附件缓存。 */
+    private final ImageInputService imageInputService;
 
     /**
      * 创建图片Generation服务实例，并注入运行所需依赖。
@@ -63,31 +68,65 @@ public class ImageGenerationService {
                         : attachmentCacheService;
         this.providers = BasicValueSupport.emptyListIfNull(providers);
         this.securityPolicyService = securityPolicyService;
+        this.imageInputService =
+                new ImageInputService(
+                        appConfig, this.attachmentCacheService, securityPolicyService);
     }
 
     /**
      * 执行图片生成请求并返回缓存后的媒体引用。
      *
      * @param prompt 图片生成提示词，不能为空。
-     * @param aspectRatio 期望宽高比；为空时使用 1:1。
-     * @param options 插件透传选项。
+     * @param aspectRatio 期望宽高比；为空时使用 landscape。
+     * @param imageUrl 可选编辑主图。
+     * @param referenceImageUrls 可选参考图列表。
      * @return 返回生成结果、缓存附件和媒体用量。
      */
     public ImageGenerationOutcome generate(
-            String prompt, String aspectRatio, Map<String, Object> options) {
+            String prompt, String aspectRatio, String imageUrl, List<String> referenceImageUrls) {
         if (StrUtil.isBlank(prompt)) {
             return ImageGenerationOutcome.fail("Image prompt is required");
+        }
+        ImageAspectRatio resolvedAspectRatio = ImageAspectRatio.resolve(aspectRatio);
+        if (resolvedAspectRatio == null) {
+            return ImageGenerationOutcome.fail(
+                    "aspect_ratio must be one of landscape, square, portrait");
         }
         ImageGenProvider provider = chooseProvider();
         if (provider == null) {
             return ImageGenerationOutcome.fail("No available image generation provider");
         }
         try {
+            String primary = BasicValueSupport.trimToEmpty(imageUrl);
+            List<String> references = normalizeReferences(referenceImageUrls);
+            int sourceCount = (StrUtil.isBlank(primary) ? 0 : 1) + references.size();
+            if (sourceCount > 0 && !provider.supportsImageInput()) {
+                return ImageGenerationOutcome.fail(
+                        "Image provider " + provider.name() + " does not support image input");
+            }
+            int sourceLimit = provider.maxSourceImages();
+            if (sourceCount > 0 && (sourceLimit <= 0 || sourceCount > sourceLimit)) {
+                return ImageGenerationOutcome.fail(
+                        "Image provider "
+                                + provider.name()
+                                + " accepts at most "
+                                + Math.max(0, sourceLimit)
+                                + " source image(s)");
+            }
+            String preparedPrimary =
+                    StrUtil.isBlank(primary)
+                            ? null
+                            : imageInputService.resolve(primary).getProviderReference();
+            List<String> preparedReferences = new ArrayList<String>();
+            for (String reference : references) {
+                preparedReferences.add(imageInputService.resolve(reference).getProviderReference());
+            }
             ImageGenProvider.ImageGenResult result =
                     provider.generate(
                             prompt,
-                            StrUtil.blankToDefault(aspectRatio, "1:1"),
-                            BasicValueSupport.emptyMapIfNull(options));
+                            resolvedAspectRatio.name(),
+                            preparedPrimary,
+                            Collections.unmodifiableList(preparedReferences));
             if (result == null || !result.isSuccess()) {
                 return ImageGenerationOutcome.fail(
                         safeError(result == null ? "Image generation failed" : result.getError()));
@@ -114,6 +153,7 @@ public class ImageGenerationService {
             Map<String, Object> usage = new LinkedHashMap<String, Object>();
             usage.put("generatedImages", Integer.valueOf(1));
             usage.put("imageOutputBytes", Long.valueOf(bytes.length));
+            usage.put("sourceImages", Integer.valueOf(sourceCount));
             return ImageGenerationOutcome.ok(
                     attachment,
                     attachmentCacheService.mediaReference(attachment),
@@ -122,6 +162,21 @@ public class ImageGenerationService {
         } catch (Exception e) {
             return ImageGenerationOutcome.fail(safeError(e.getMessage()));
         }
+    }
+
+    /** 清理参考图列表中的空值并保留原顺序。 */
+    private List<String> normalizeReferences(List<String> references) {
+        if (references == null || references.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<String> result = new ArrayList<String>();
+        for (String reference : references) {
+            String value = BasicValueSupport.trimToEmpty(reference);
+            if (StrUtil.isNotBlank(value)) {
+                result.add(value);
+            }
+        }
+        return result;
     }
 
     /**

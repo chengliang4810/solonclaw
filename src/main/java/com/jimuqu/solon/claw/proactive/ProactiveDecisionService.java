@@ -98,7 +98,13 @@ public class ProactiveDecisionService {
             if (hardGateReason != null) {
                 decision = skip(context, candidate, hardGateReason, null, gateContext.metadata());
             } else if (sentThisTick >= maxContactsPerTick) {
-                decision = skip(context, candidate, "contact_limit_reached", null, gateContext.metadata());
+                decision =
+                        skip(
+                                context,
+                                candidate,
+                                "contact_limit_reached",
+                                null,
+                                gateContext.metadata());
             } else {
                 decision = softDecision(context, candidate, gateContext);
                 if ("SEND".equals(decision.getDecision())) {
@@ -121,10 +127,18 @@ public class ProactiveDecisionService {
      * @throws Exception 模型调用失败时抛出异常。
      */
     private ProactiveDecision softDecision(
-            ProactiveTickContext context, ProactiveCandidateRecord candidate, GateContext gateContext)
+            ProactiveTickContext context,
+            ProactiveCandidateRecord candidate,
+            GateContext gateContext)
             throws Exception {
         if (!llmDecisionEnabled(context) || llmDecisionClient == null) {
-            return send(context, candidate, "deterministic_allow", "可以主动询问用户是否需要协作", "normal", gateContext.metadata());
+            return send(
+                    context,
+                    candidate,
+                    "deterministic_allow",
+                    "可以主动询问用户是否需要协作",
+                    "normal",
+                    gateContext.metadata());
         }
         LlmDecisionResult llmResult = llmDecisionClient.decide(context, candidate);
         if (llmResult == null) {
@@ -159,7 +173,9 @@ public class ProactiveDecisionService {
      * @throws Exception 仓储统计失败时抛出异常。
      */
     private String hardGateReason(
-            ProactiveTickContext context, ProactiveCandidateRecord candidate, GateContext gateContext)
+            ProactiveTickContext context,
+            ProactiveCandidateRecord candidate,
+            GateContext gateContext)
             throws Exception {
         AppConfig.ProactiveConfig proactive = proactiveConfig(context);
         long now = nowMillis(context);
@@ -218,7 +234,8 @@ public class ProactiveDecisionService {
             String messageIntent,
             String sensitivity,
             Map<String, Object> metadata) {
-        ProactiveDecision decision = baseDecision(context, candidate, "SEND", reason, messageIntent, metadata);
+        ProactiveDecision decision =
+                baseDecision(context, candidate, "SEND", reason, messageIntent, metadata);
         decision.setSensitivity(normalizeSensitivity(sensitivity));
         return decision;
     }
@@ -239,7 +256,8 @@ public class ProactiveDecisionService {
             String reason,
             String messageIntent,
             Map<String, Object> metadata) {
-        ProactiveDecision decision = baseDecision(context, candidate, "SKIP", reason, messageIntent, metadata);
+        ProactiveDecision decision =
+                baseDecision(context, candidate, "SKIP", reason, messageIntent, metadata);
         decision.setSensitivity("normal");
         return decision;
     }
@@ -312,7 +330,8 @@ public class ProactiveDecisionService {
      * @param candidates 原始候选列表。
      * @return 返回排序后的候选列表。
      */
-    private List<ProactiveCandidateRecord> rankedCandidates(List<ProactiveCandidateRecord> candidates) {
+    private List<ProactiveCandidateRecord> rankedCandidates(
+            List<ProactiveCandidateRecord> candidates) {
         List<ProactiveCandidateRecord> ranked = new ArrayList<ProactiveCandidateRecord>();
         for (ProactiveCandidateRecord candidate : candidates) {
             if (candidate != null) {
@@ -323,9 +342,13 @@ public class ProactiveDecisionService {
                 ranked,
                 Comparator.comparingInt(ProactiveCandidateRecord::getPriority)
                         .reversed()
-                        .thenComparing(Comparator.comparingDouble(ProactiveCandidateRecord::getConfidence).reversed())
+                        .thenComparing(
+                                Comparator.comparingDouble(ProactiveCandidateRecord::getConfidence)
+                                        .reversed())
                         .thenComparingLong(ProactiveCandidateRecord::getCreatedAt)
-                        .thenComparing(Comparator.comparingLong(ProactiveCandidateRecord::getUpdatedAt).reversed()));
+                        .thenComparing(
+                                Comparator.comparingLong(ProactiveCandidateRecord::getUpdatedAt)
+                                        .reversed()));
         return ranked;
     }
 
@@ -521,8 +544,8 @@ public class ProactiveDecisionService {
          * @throws Exception 模型调用或 JSON 解析失败时抛出异常。
          */
         @Override
-        public LlmDecisionResult decide(ProactiveTickContext context, ProactiveCandidateRecord candidate)
-                throws Exception {
+        public LlmDecisionResult decide(
+                ProactiveTickContext context, ProactiveCandidateRecord candidate) throws Exception {
             if (llmGateway == null) {
                 return new LlmDecisionResult(false, "llm_gateway_missing", "", "normal");
             }
@@ -535,8 +558,9 @@ public class ProactiveDecisionService {
                             LLM_DECISION_SYSTEM_PROMPT,
                             decisionPrompt(candidate),
                             Collections.emptyList());
-            String text = MessageSupport.assistantText(
-                    result == null ? null : result.getAssistantMessage());
+            String text =
+                    MessageSupport.assistantText(
+                            result == null ? null : result.getAssistantMessage());
             return parseLlmDecision(text);
         }
 
@@ -556,8 +580,7 @@ public class ProactiveDecisionService {
             payload.put("confidence", Double.valueOf(candidate.getConfidence()));
             payload.put("priority", Integer.valueOf(candidate.getPriority()));
             payload.put("evidence", sanitizedEvidence(candidate));
-            return "请判断这个主动协作候选是否值得现在联系用户。只输出 JSON。\n"
-                    + ONode.serialize(payload);
+            return "请判断这个主动协作候选是否值得现在联系用户。只输出 JSON。\n" + ONode.serialize(payload);
         }
 
         /**
@@ -567,7 +590,9 @@ public class ProactiveDecisionService {
          * @return 返回脱敏后的证据摘要。
          */
         private String sanitizedEvidence(ProactiveCandidateRecord candidate) {
-            if (candidate == null || candidate.getEvidence() == null || candidate.getEvidence().isEmpty()) {
+            if (candidate == null
+                    || candidate.getEvidence() == null
+                    || candidate.getEvidence().isEmpty()) {
                 return "";
             }
             return SecretRedactor.redact(ONode.serialize(candidate.getEvidence()), 900);
@@ -702,7 +727,8 @@ public class ProactiveDecisionService {
             }
             for (ProactiveObservationRecord observation : observations) {
                 Map<String, Object> payload = observation == null ? null : observation.getPayload();
-                if (payload == null || !"proactive_context".equals(String.valueOf(payload.get("type")))) {
+                if (payload == null
+                        || !"proactive_context".equals(String.valueOf(payload.get("type")))) {
                     continue;
                 }
                 Object homeReady = payload.get("homeChannelReady");
@@ -718,7 +744,8 @@ public class ProactiveDecisionService {
                     for (Object item : (Iterable<?>) activeRuns) {
                         if (item instanceof Map<?, ?>) {
                             Object sourceKey = ((Map<String, Object>) item).get("sourceKey");
-                            if (sourceKey != null && StrUtil.isNotBlank(String.valueOf(sourceKey))) {
+                            if (sourceKey != null
+                                    && StrUtil.isNotBlank(String.valueOf(sourceKey))) {
                                 gate.activeSources.add(String.valueOf(sourceKey));
                             }
                         }
@@ -764,7 +791,9 @@ public class ProactiveDecisionService {
                 return false;
             }
             for (HomeChannelRecord channel : context.getHomeChannels()) {
-                if (channel != null && channel.getPlatform() != null && StrUtil.isNotBlank(channel.getChatId())) {
+                if (channel != null
+                        && channel.getPlatform() != null
+                        && StrUtil.isNotBlank(channel.getChatId())) {
                     return true;
                 }
             }

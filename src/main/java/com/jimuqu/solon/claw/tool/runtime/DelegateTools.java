@@ -1,7 +1,6 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
-import com.jimuqu.solon.claw.agent.AgentRuntimePolicy;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
@@ -9,7 +8,10 @@ import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -23,47 +25,73 @@ public class DelegateTools {
     /** 当前来源键。 */
     private final String sourceKey;
 
+    /** 保留 Java 内部调用的旧参数形态；模型工具契约使用包含 Profile 的重载。 */
+    public String delegateTask(
+            String goal,
+            String context,
+            List<DelegateTaskInput> tasks,
+            String role,
+            Boolean background)
+            throws Exception {
+        return delegateTask(goal, context, tasks, role, null, background);
+    }
+
     /** 支持单任务与批量委托。 */
     @ToolMapping(
             name = "delegate_task",
             description =
-                    "Delegate a subtask. mode supports single or batch. batch mode accepts tasks as JSON array.")
+                    "Delegate one goal or a structured task list. Each task has goal, optional context, and optional role leaf/orchestrator.")
     public String delegateTask(
-            @Param(name = "mode", description = "委托模式：single 或 batch", required = false)
-                    String mode,
-            @Param(name = "prompt", description = "单任务模式下的委托目标", required = false) String prompt,
-            @Param(name = "tasks", description = "批量模式下的任务 JSON 数组", required = false) String tasks,
+            @Param(name = "goal", description = "单任务目标；与 tasks 二选一", required = false) String goal,
             @Param(name = "context", description = "委托补充上下文", required = false) String context,
-            @Param(name = "allowedTools", description = "允许子代理使用的工具名 JSON 数组", required = false)
-                    String allowedTools,
-            @Param(
-                            name = "toolsets",
-                            description = "允许子代理使用的工具集 JSON 数组或逗号列表，例如 web、terminal、file",
-                            required = false)
-                    String toolsets,
-            @Param(name = "expectedOutput", description = "期望输出格式", required = false)
-                    String expectedOutput,
-            @Param(name = "writeScope", description = "可写入范围", required = false) String writeScope)
+            @Param(name = "tasks", description = "批量结构化任务，每项必须包含 goal", required = false)
+                    List<DelegateTaskInput> tasks,
+            @Param(name = "role", description = "子代理角色：leaf 或 orchestrator", required = false)
+                    String role,
+            @Param(name = "profile", description = "目标 Profile 名；为空时按任务与 Profile 职责自动选择", required = false)
+                    String profile,
+            @Param(name = "background", description = "协议字段；执行方式由运行时决定，模型值不改变调度", required = false)
+                    Boolean background)
             throws Exception {
         if (delegationService == null) {
             return error("Delegate tool is not ready");
         }
 
         try {
-            if ("batch".equalsIgnoreCase(mode)) {
-                List<DelegationTask> items = parseTasks(tasks);
+            String topRole = normalizeRole(role);
+            if (topRole == null) {
+                return error("role must be leaf or orchestrator");
+            }
+            if (tasks != null && !tasks.isEmpty()) {
+                List<DelegationTask> items = toTasks(tasks, context, topRole);
+                if (items == null) {
+                    return error("each task requires a goal and role must be leaf or orchestrator");
+                }
+                if (delegationService.shouldRunInBackground()) {
+                    return SecretRedactor.redact(
+                            ONode.serialize(
+                                    delegationService.delegateInBackground(sourceKey, items)),
+                            20000);
+                }
                 List<DelegationResult> results = delegationService.delegateBatch(sourceKey, items);
                 return SecretRedactor.redact(ONode.serialize(results), 20000);
             }
-
+            if (StrUtil.isBlank(goal)) {
+                return error("Provide either goal or tasks");
+            }
             DelegationTask task = new DelegationTask();
             task.setName("delegate");
-            task.setPrompt(prompt);
+            task.setPrompt(goal.trim());
             task.setContext(context);
-            task.setAllowedTools(parseStringArray(allowedTools));
-            task.setToolsets(parseStringArray(toolsets));
-            task.setExpectedOutput(expectedOutput);
-            task.setWriteScope(writeScope);
+            task.setRole(topRole);
+            task.setProfile(StrUtil.trimToNull(profile));
+            if (delegationService.shouldRunInBackground()) {
+                return SecretRedactor.redact(
+                        ONode.serialize(
+                                delegationService.delegateInBackground(
+                                        sourceKey, java.util.Collections.singletonList(task))),
+                        20000);
+            }
             DelegationResult result = delegationService.delegateSingle(sourceKey, task);
             return SecretRedactor.redact(result == null ? null : result.getContent(), 20000);
         } catch (Exception e) {
@@ -71,42 +99,50 @@ public class DelegateTools {
         }
     }
 
-    /** 解析批量任务 JSON。 */
-    private List<DelegationTask> parseTasks(String tasks) {
+    /**
+     * 将模型传入的结构化任务转换为领域任务。
+     *
+     * @param tasks 结构化任务。
+     * @param sharedContext 顶层共享上下文。
+     * @param topRole 顶层角色。
+     * @return 参数非法时返回 null，否则返回领域任务列表。
+     */
+    private List<DelegationTask> toTasks(
+            List<DelegateTaskInput> tasks, String sharedContext, String topRole) {
         List<DelegationTask> items = new ArrayList<DelegationTask>();
-        if (StrUtil.isBlank(tasks)) {
-            return items;
-        }
-        ONode node = ONode.ofJson(tasks);
-        if (!node.isArray()) {
-            return items;
-        }
-        for (int i = 0; i < node.size(); i++) {
-            ONode item = node.get(i);
+        for (int i = 0; i < tasks.size(); i++) {
+            DelegateTaskInput input = tasks.get(i);
+            if (input == null || StrUtil.isBlank(input.getGoal())) {
+                return null;
+            }
+            String itemRole = normalizeRole(StrUtil.blankToDefault(input.getRole(), topRole));
+            if (itemRole == null) {
+                return null;
+            }
             DelegationTask task = new DelegationTask();
-            task.setName(item.get("name").getString());
-            task.setPrompt(item.get("prompt").getString());
-            task.setContext(item.get("context").getString());
-            task.setExpectedOutput(item.get("expectedOutput").getString());
-            task.setWriteScope(item.get("writeScope").getString());
-            task.setAllowedTools(parseStringArray(item.get("allowedTools").toJson()));
-            task.setToolsets(parseStringArray(item.get("toolsets").toJson()));
+            task.setName("delegate-" + (i + 1));
+            task.setPrompt(input.getGoal().trim());
+            task.setContext(StrUtil.blankToDefault(input.getContext(), sharedContext));
+            task.setRole(itemRole);
+            task.setProfile(StrUtil.trimToNull(input.getProfile()));
             items.add(task);
         }
         return items;
     }
 
     /**
-     * 解析String Array。
+     * 规范化子代理角色。
      *
-     * @param json JSON参数。
-     * @return 返回解析后的String Array。
+     * @param role 原始角色。
+     * @return leaf/orchestrator；非法值返回 null。
      */
-    private List<String> parseStringArray(String json) {
-        if (StrUtil.isBlank(json) || "null".equalsIgnoreCase(json.trim())) {
-            return new ArrayList<String>();
+    private String normalizeRole(String role) {
+        String normalized =
+                StrUtil.blankToDefault(role, "leaf").trim().toLowerCase(java.util.Locale.ROOT);
+        if ("leaf".equals(normalized) || "orchestrator".equals(normalized)) {
+            return normalized;
         }
-        return AgentRuntimePolicy.parseStringList(json);
+        return null;
     }
 
     /**
@@ -120,5 +156,27 @@ public class DelegateTools {
                         SecretRedactor.redact(
                                 StrUtil.blankToDefault(message, "delegate failed"), 1000))
                 .toJson();
+    }
+
+    /** 模型可见的结构化委派任务。 */
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    public static class DelegateTaskInput {
+        /** 子任务目标，批量模式必填。 */
+        @Param(description = "Task goal")
+        private String goal;
+
+        /** 子任务专属上下文；为空时使用顶层 context。 */
+        @Param(description = "Task-specific context", required = false)
+        private String context;
+
+        /** 子任务角色；为空时使用顶层 role。 */
+        @Param(description = "leaf or orchestrator", required = false)
+        private String role;
+
+        /** 目标 Profile；为空时由委派服务结合任务内容和职责说明选择。 */
+        @Param(description = "Target profile name", required = false)
+        private String profile;
     }
 }

@@ -1,12 +1,11 @@
 package com.jimuqu.solon.claw.support;
 
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import org.junit.jupiter.api.Test;
 
 /** 验证重定向判断与 Location 解析应复用共享工具，避免各模块复制安全边界逻辑。 */
 class HttpRedirectSupportReuseTest {
@@ -24,8 +23,7 @@ class HttpRedirectSupportReuseTest {
                     "src/main/java/com/jimuqu/solon/claw/gateway/platform/weixin/WeiXinChannelAdapter.java",
                 };
         for (String path : paths) {
-            String source =
-                    new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
+            String source = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
             assertFalse(source.contains("private boolean isRedirect("), path);
             assertFalse(source.contains("private static boolean isRedirect("), path);
             assertFalse(source.contains("private String resolveRedirectUrl("), path);

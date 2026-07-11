@@ -9,7 +9,7 @@ import com.jimuqu.solon.claw.tool.runtime.ProcessTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawShellSkill;
 import java.io.File;
-import java.lang.reflect.Method;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 
@@ -73,6 +73,43 @@ class ToolRegistryProcessToolsTest {
         assertThat(String.valueOf(listed.get("processes")))
                 .contains("output_preview")
                 .contains("uptime_seconds");
+    }
+
+    @Test
+    void shouldLeaveManagedProcessStartCommandScreeningToApprovalInterceptor() throws Exception {
+        assumeTrue(
+                !System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win"));
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProcessTools tools = processTools(env);
+
+        ONode started =
+                ONode.ofJson(
+                        tools.process(
+                                "start",
+                                "printf '%s\\n' 'rm -rf /'",
+                                null,
+                                env.appConfig.getRuntime().getHome(),
+                                null,
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        assertToolSuccess(started);
+
+        ONode waited =
+                ONode.ofJson(
+                        tools.process(
+                                "wait",
+                                null,
+                                started.get("session_id").getString(),
+                                null,
+                                null,
+                                Integer.valueOf(5),
+                                null,
+                                null));
+        assertToolSuccess(waited);
+        assertThat(waited.get("output").getString()).contains("rm -rf /");
     }
 
     @Test
@@ -347,7 +384,6 @@ class ToolRegistryProcessToolsTest {
     @Test
     void shouldRedactSecretsFromManagedProcessOutputsAndMetadata() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getSecurity().setUrlGuardrailMode("bypass");
         ProcessTools tools = processTools(env);
 
         ONode started =
@@ -776,10 +812,16 @@ class ToolRegistryProcessToolsTest {
         assertThat(writeAfterExit.get("process_status").getString()).isEqualTo("already_exited");
     }
 
+    /** write 与 submit 必须在任何字节进入受管 shell 前重新执行安全策略。 */
     @Test
-    void shouldApplyTerminalGuardrailsToManagedProcessStdinForShells() throws Exception {
+    void shouldRecheckManagedShellStdinBeforeWriteAndSubmit() throws Exception {
+        assumeTrue(
+                !System.getProperty("os.name", "")
+                        .toLowerCase(java.util.Locale.ROOT)
+                        .contains("win"));
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailMode("approval");
+        env.appConfig.getApprovals().setDeny(Arrays.asList("printf blocked*"));
         ProcessTools tools = processTools(env);
 
         ONode started =
@@ -793,70 +835,69 @@ class ToolRegistryProcessToolsTest {
                                 Integer.valueOf(1),
                                 null,
                                 null));
+        assertToolSuccess(started);
         String sessionId = started.get("session_id").getString();
 
-        ONode blocked =
+        ONode blockedWrite =
+                ONode.ofJson(
+                        tools.process(
+                                "write",
+                                null,
+                                sessionId,
+                                null,
+                                "printf blocked-write\n",
+                                Integer.valueOf(1),
+                                null,
+                                null));
+        assertToolError(blockedWrite);
+        assertThat(blockedWrite.get("error").getString())
+                .contains("process stdin")
+                .contains("approvals.deny");
+
+        ONode blockedSubmit =
                 ONode.ofJson(
                         tools.process(
                                 "submit",
                                 null,
                                 sessionId,
                                 null,
-                                "curl http://169.254.169.254/latest/meta-data/?token=secret",
+                                "printf blocked-submit",
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertToolError(blocked);
-        assertThat(blocked.get("error").getString())
+        assertToolError(blockedSubmit);
+        assertThat(blockedSubmit.get("error").getString())
                 .contains("process stdin")
-                .contains("169.254.169.254")
-                .doesNotContain("token=secret");
+                .contains("approvals.deny");
 
-        ONode dangerous =
+        ONode close =
                 ONode.ofJson(
                         tools.process(
-                                "submit",
+                                "close",
                                 null,
                                 sessionId,
                                 null,
-                                "rm -rf workspace/cache",
+                                null,
                                 Integer.valueOf(1),
                                 null,
                                 null));
-        assertToolError(dangerous);
-        assertThat(dangerous.get("error").getString())
-                .contains("process stdin")
-                .contains("危险命令安全规则");
+        assertToolSuccess(close);
 
-        assertThat(env.processRegistry.stop(sessionId)).isTrue();
-    }
-
-    @Test
-    void shouldRecognizeWrappedManagedProcessStdinInterpretersForGuardrails() throws Exception {
-        TestEnvironment env = TestEnvironment.withFakeLlm();
-        ProcessTools tools = processTools(env);
-
-        assertThat(resolveStdinExecutionToolName(tools, "TOKEN=1 python3"))
-                .isEqualTo("execute_python");
-        assertThat(resolveStdinExecutionToolName(tools, "/usr/bin/env FOO=bar python3 -i"))
-                .isEqualTo("execute_python");
-        assertThat(resolveStdinExecutionToolName(tools, "env -i -u TOKEN node"))
-                .isEqualTo("execute_js");
-        assertThat(resolveStdinExecutionToolName(tools, "sudo -S -p '' python3"))
-                .isEqualTo("execute_python");
-        assertThat(resolveStdinExecutionToolName(tools, "sudo --user root -- bash"))
-                .isEqualTo("execute_shell");
-        assertThat(resolveStdinExecutionToolName(tools, "doas python3"))
-                .isEqualTo("execute_python");
-        assertThat(resolveStdinExecutionToolName(tools, "pkexec node")).isEqualTo("execute_js");
-        assertThat(resolveStdinExecutionToolName(tools, "runas /user:Administrator powershell"))
-                .isEqualTo("execute_shell");
-        assertThat(resolveStdinExecutionToolName(tools, "command -p sh"))
-                .isEqualTo("execute_shell");
-        assertThat(resolveStdinExecutionToolName(tools, "exec /bin/bash"))
-                .isEqualTo("execute_shell");
-        assertThat(resolveStdinExecutionToolName(tools, "nohup node")).isEqualTo("execute_js");
-        assertThat(resolveStdinExecutionToolName(tools, "cat")).isEqualTo("");
+        ONode waited =
+                ONode.ofJson(
+                        tools.process(
+                                "wait",
+                                null,
+                                sessionId,
+                                null,
+                                null,
+                                Integer.valueOf(5),
+                                null,
+                                null));
+        assertToolSuccess(waited);
+        assertThat(waited.get("output").getString())
+                .doesNotContain("blocked-write")
+                .doesNotContain("blocked-submit");
     }
 
     @Test
@@ -865,7 +906,8 @@ class ToolRegistryProcessToolsTest {
         ProcessTools tools = processTools(env);
         File workspaceHome = new File(env.appConfig.getRuntime().getHome()).getCanonicalFile();
         File missing =
-                new File(workspaceHome.getParentFile(), "process-token=ghp_processcwd12345-missing");
+                new File(
+                        workspaceHome.getParentFile(), "process-token=ghp_processcwd12345-missing");
 
         ONode result =
                 ONode.ofJson(
@@ -963,13 +1005,4 @@ class ToolRegistryProcessToolsTest {
         }
         return "printf '%s\\n' 'api_key=sk-test-secret token=secret123 credentials.json'";
     }
-
-    private String resolveStdinExecutionToolName(ProcessTools tools, String command)
-            throws Exception {
-        Method method =
-                ProcessTools.class.getDeclaredMethod("stdinExecutionToolName", String.class);
-        method.setAccessible(true);
-        return String.valueOf(method.invoke(tools, command));
-    }
-
 }

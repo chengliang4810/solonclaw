@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveObservation;
@@ -47,17 +46,20 @@ public class QuietContextCollectorTest {
 
         ProactiveObservation lateNightObservation =
                 observationOfType(
-                        new QuietContextCollector(new InMemoryAgentRunRepository()).collect(lateNight),
+                        new QuietContextCollector(new InMemoryAgentRunRepository())
+                                .collect(lateNight),
                         "proactive_context");
 
         assertThat(lateNightObservation.getPayload()).containsEntry("quietHour", Boolean.TRUE);
 
         ProactiveTickContext earlyMorning = contextAt(7, 30);
-        earlyMorning.setHomeChannels(Collections.singletonList(home(PlatformType.WEIXIN, "chat-1")));
+        earlyMorning.setHomeChannels(
+                Collections.singletonList(home(PlatformType.WEIXIN, "chat-1")));
 
         ProactiveObservation earlyMorningObservation =
                 observationOfType(
-                        new QuietContextCollector(new InMemoryAgentRunRepository()).collect(earlyMorning),
+                        new QuietContextCollector(new InMemoryAgentRunRepository())
+                                .collect(earlyMorning),
                         "proactive_context");
 
         assertThat(earlyMorningObservation.getPayload()).containsEntry("quietHour", Boolean.TRUE);
@@ -67,7 +69,8 @@ public class QuietContextCollectorTest {
 
         ProactiveObservation daytimeObservation =
                 observationOfType(
-                        new QuietContextCollector(new InMemoryAgentRunRepository()).collect(daytime),
+                        new QuietContextCollector(new InMemoryAgentRunRepository())
+                                .collect(daytime),
                         "proactive_context");
 
         assertThat(daytimeObservation.getPayload()).containsEntry("quietHour", Boolean.FALSE);
@@ -81,7 +84,9 @@ public class QuietContextCollectorTest {
         context.setHomeChannels(Collections.singletonList(home(PlatformType.WEIXIN, "chat-1")));
 
         ProactiveObservation observation =
-                observationOfType(new QuietContextCollector(runRepository).collect(context), "proactive_context");
+                observationOfType(
+                        new QuietContextCollector(runRepository).collect(context),
+                        "proactive_context");
 
         assertThat(observation.getPayload()).containsEntry("homeChannelReady", Boolean.TRUE);
         assertThat(observation.getPayload()).containsEntry("homeChannelCount", Integer.valueOf(1));

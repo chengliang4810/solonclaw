@@ -3,15 +3,18 @@ package com.jimuqu.solon.claw.gateway.service;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.profile.ProfileEnvironmentLoader;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-import org.noear.solon.Solon;
 import org.noear.solon.core.Props;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,6 +37,9 @@ public class GatewayRuntimeRefreshService {
     /** 记录消息网关工作区配置刷新中的最近一次Failure。 */
     private volatile RefreshFailure lastFailure;
 
+    /** default Profile 的复用运行时管理器；命名 Profile 中为关闭递归的空运行实例。 */
+    private volatile ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager;
+
     /**
      * 创建消息网关工作区配置刷新服务实例，并注入运行所需依赖。
      *
@@ -45,6 +51,15 @@ public class GatewayRuntimeRefreshService {
         this.appConfig = appConfig;
         this.channelConnectionManager = channelConnectionManager;
         this.lastConfigMtime = fileMtime(appConfig.getRuntime().getConfigFile());
+    }
+
+    /**
+     * 绑定当前 Bean 容器的 Profile 复用运行时管理器。
+     *
+     * @param manager default 或命名 Profile 的运行时管理器。
+     */
+    public void setProfileMultiplexRuntimeManager(ProfileMultiplexRuntimeManager manager) {
+        this.profileMultiplexRuntimeManager = manager;
     }
 
     /**
@@ -96,12 +111,21 @@ public class GatewayRuntimeRefreshService {
 
         AppConfig latest;
         try {
-            Props props = Solon.cfg() == null ? new Props() : new Props(Solon.cfg());
+            Props props = new Props();
+            props.loadAddIfAbsent("app.yml");
             props.put("solonclaw.workspace", appConfig.getWorkspace().getDir());
-            if (Solon.cfg() == null) {
-                latest = AppConfig.load(props);
-            } else {
-                latest = AppConfig.load(props);
+            latest = AppConfig.loadDetached(props);
+            Path home = Paths.get(appConfig.getRuntime().getHome()).toAbsolutePath().normalize();
+            ProfileEnvironmentLoader.apply(latest, ProfileEnvironmentLoader.load(home));
+            // 配置局部写入不得清空控制台令牌，否则当前 Dashboard 会在刷新后立即自锁。
+            if (StrUtil.isBlank(latest.getDashboard().getAccessToken())) {
+                latest.getDashboard().setAccessToken(appConfig.getDashboard().getAccessToken());
+            }
+            if (StrUtil.isBlank(latest.getGateway().getInjectionSecret())) {
+                latest.getGateway().setInjectionSecret(appConfig.getGateway().getInjectionSecret());
+            }
+            if (!"default".equals(ProfileRuntimeIdentity.resolve(appConfig))) {
+                latest.getGateway().setMultiplexProfiles(false);
             }
         } catch (Throwable e) {
             log.debug(
@@ -117,7 +141,17 @@ public class GatewayRuntimeRefreshService {
         if (!reconnectChannels) {
             return RefreshResult.success(runtimeConfigReference(configFile), false, "工作区配置已刷新。");
         }
-        channelConnectionManager.refreshAll();
+        try {
+            channelConnectionManager.refreshAll();
+            ProfileMultiplexRuntimeManager manager = profileMultiplexRuntimeManager;
+            if (manager != null) {
+                manager.reload();
+            }
+        } catch (Throwable e) {
+            String message = safeError(e);
+            recordFailure(configFile, e.getClass().getSimpleName(), message, false);
+            return RefreshResult.failure(runtimeConfigReference(configFile), message);
+        }
         return RefreshResult.success(runtimeConfigReference(configFile), true, "工作区配置已刷新，渠道连接已重连。");
     }
 
@@ -901,9 +935,10 @@ public class GatewayRuntimeRefreshService {
                     "security.tirith_enabled",
                     "security.tirithFailOpen",
                     "security.tirith_fail_open",
+                    "approvals.subagentAutoApprove",
+                    "approvals.subagent_auto_approve",
                     "approvals.mcpReloadConfirm",
                     "approvals.mcp_reload_confirm",
-                    "approvals.deny",
                     "security.websiteBlocklist.enabled",
                     "security.website_blocklist.enabled",
                     "solonclaw.llm.modelsDevRefreshEnabled",
@@ -916,8 +951,10 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.gateway.allowedUsers",
                     "security.websiteBlocklist.domains",
                     "security.websiteBlocklist.sharedFiles",
+                    "security.hardlineAllowlist",
                     "security.website_blocklist.domains",
                     "security.website_blocklist.shared_files",
+                    "security.hardline_allowlist",
                     "solonclaw.plugins.enabled",
                     "solonclaw.plugins.disabled",
                     "solonclaw.terminal.credentialFiles");

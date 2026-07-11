@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -106,9 +107,6 @@ public class ProcessTools {
         summary.put("stdinWriteSubmitCloseSupported", Boolean.TRUE);
         summary.put("startDangerousCommandChecked", Boolean.TRUE);
         summary.put("startHardlineBlocked", Boolean.TRUE);
-        summary.put("startPathPolicyChecked", Boolean.TRUE);
-        summary.put("startUrlPolicyChecked", Boolean.TRUE);
-        summary.put("currentThreadApprovalCanBypassStartCheck", Boolean.TRUE);
         summary.put("stdinExecutionPayloadChecked", Boolean.TRUE);
         summary.put(
                 "stdinExecutionTools",
@@ -117,10 +115,6 @@ public class ProcessTools {
                         ToolNameConstants.EXECUTE_PYTHON,
                         ToolNameConstants.EXECUTE_JS));
         summary.put("stdinPrivilegeWrapperDetection", Boolean.TRUE);
-        summary.put(
-                "stdinWrapperFamilies",
-                Arrays.asList(
-                        "env", "sudo", "doas", "pkexec", "runas", "command", "exec", "nohup"));
         summary.put("waitTimeoutClamped", Boolean.TRUE);
         summary.put(
                 "processWaitTimeoutSeconds",
@@ -145,12 +139,16 @@ public class ProcessTools {
     @ToolMapping(
             name = "process",
             description =
-                    "Manage tracked background processes. Actions: start, list, status/detail, lifecycle, events/drain, poll/log, wait, kill/stop, write, submit, close. Use start for long-running commands instead of shell-level '&', nohup, disown, or watch processes in execute_shell.")
+                    "Manage tracked background processes. Actions: start, list, status/detail,"
+                            + " lifecycle, events/drain, poll/log, wait, kill/stop, write, submit,"
+                            + " close. Use start for long-running commands instead of shell-level '&',"
+                            + " nohup, disown, or watch processes in execute_shell.")
     public String process(
             @Param(
                             name = "action",
                             description =
-                                    "start, list, status, detail, lifecycle, events, drain, poll, log, wait, kill, stop, write, submit, close")
+                                    "start, list, status, detail, lifecycle, events, drain, poll,"
+                                            + " log, wait, kill, stop, write, submit, close")
                     String action,
             @Param(name = "command", required = false, description = "Command for action=start")
                     String command,
@@ -172,14 +170,16 @@ public class ProcessTools {
                             required = false,
                             defaultValue = "180",
                             description =
-                                    "Wait timeout in seconds for action=wait. Values above the configured process wait limit are clamped.")
+                                    "Wait timeout in seconds for action=wait. Values above the"
+                                            + " configured process wait limit are clamped.")
                     Integer timeoutSeconds,
             @Param(
                             name = "offset",
                             required = false,
                             defaultValue = "0",
                             description =
-                                    "Line offset for action=log. With offset=0, returns the last limit lines.")
+                                    "Line offset for action=log. With offset=0, returns the last"
+                                            + " limit lines.")
                     Integer offset,
             @Param(
                             name = "limit",
@@ -246,10 +246,6 @@ public class ProcessTools {
     private String start(String command, String cwd) throws Exception {
         if (StrUtil.isBlank(command)) {
             return ToolResultEnvelope.error("command is required for action=start").toJson();
-        }
-        if (!DangerousCommandApprovalService.consumeCurrentThreadApproval(
-                ToolNameConstants.PROCESS, command)) {
-            assertBackgroundSafe(command);
         }
         File workDir = resolveWorkDir(cwd);
         ProcessRegistry.ManagedProcess managed = processRegistry.start(command, workDir);
@@ -544,7 +540,7 @@ public class ProcessTools {
                                 ? "已向后台进程提交输入：" + managed.getId()
                                 : "已写入后台进程 stdin：" + managed.getId())
                 .data("session_id", managed.getId())
-                    .data("process_status", "ok")
+                .data("process_status", "ok")
                 .data("bytes_written", Integer.valueOf(payload.length()))
                 .data("written", Integer.valueOf(payload.length()))
                 .data("stdin_closed", Boolean.valueOf(managed.isStdinClosed()))
@@ -591,16 +587,17 @@ public class ProcessTools {
     }
 
     /**
-     * 执行assertStdin安全相关逻辑。
+     * 对会把 stdin 当作命令或脚本执行的受管进程重新执行现有安全策略。
      *
-     * @param managed managed 参数。
-     * @param payload 待签名或解析的载荷内容。
+     * @param managed 当前受管进程。
+     * @param payload 即将写入 stdin 的原始内容。
      */
     private void assertStdinSafe(ProcessRegistry.ManagedProcess managed, String payload) {
         if (managed == null || StrUtil.isBlank(payload)) {
             return;
         }
-        String toolName = stdinExecutionToolName(managed.getCommand());
+        String executable = DangerousCommandTextSupport.firstExecutableName(managed.getCommand());
+        String toolName = stdinExecutionToolName(executable);
         if (StrUtil.isBlank(toolName)) {
             return;
         }
@@ -609,13 +606,44 @@ public class ProcessTools {
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException(
                     "BLOCKED: process stdin 会被 "
-                            + StrUtil.blankToDefault(
-                                    stdinExecutionExecutable(managed.getCommand()),
-                                    executableLabel(managed.getCommand()))
+                            + safeText(executable)
                             + " 当作命令或脚本执行，已套用同等终端安全策略。\n"
                             + safeError(e),
                     e);
         }
+    }
+
+    /**
+     * 按真实可执行程序选择 stdin 内容对应的既有安全策略。
+     *
+     * @param executable 不含路径的可执行程序名称。
+     * @return 返回安全策略使用的工具名，普通数据进程返回空字符串。
+     */
+    private String stdinExecutionToolName(String executable) {
+        String normalized = StrUtil.nullToEmpty(executable).toLowerCase(Locale.ROOT);
+        if ("sh".equals(normalized)
+                || "bash".equals(normalized)
+                || "zsh".equals(normalized)
+                || "ksh".equals(normalized)
+                || "dash".equals(normalized)
+                || "cmd".equals(normalized)
+                || "cmd.exe".equals(normalized)
+                || "powershell".equals(normalized)
+                || "powershell.exe".equals(normalized)
+                || "pwsh".equals(normalized)
+                || "pwsh.exe".equals(normalized)) {
+            return ToolNameConstants.EXECUTE_SHELL;
+        }
+        if ("python".equals(normalized)
+                || "python.exe".equals(normalized)
+                || "python3".equals(normalized)
+                || "python3.exe".equals(normalized)
+                || normalized.startsWith("python3.")) {
+            return ToolNameConstants.EXECUTE_PYTHON;
+        }
+        return "node".equals(normalized) || "node.exe".equals(normalized)
+                ? ToolNameConstants.EXECUTE_JS
+                : "";
     }
 
     /**
@@ -640,294 +668,6 @@ public class ProcessTools {
      */
     private String safeText(String text) {
         return SecretRedactor.redact(text, 1000);
-    }
-
-    /**
-     * 执行stdinExecution工具名称相关逻辑。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回stdin Execution工具名称结果。
-     */
-    private String stdinExecutionToolName(String command) {
-        String executable = stdinExecutionExecutable(command).toLowerCase(java.util.Locale.ROOT);
-        if (executable.length() == 0) {
-            return "";
-        }
-        if ("sh".equals(executable)
-                || "bash".equals(executable)
-                || "zsh".equals(executable)
-                || "ksh".equals(executable)
-                || "dash".equals(executable)
-                || "cmd".equals(executable)
-                || "cmd.exe".equals(executable)
-                || "powershell".equals(executable)
-                || "powershell.exe".equals(executable)
-                || "pwsh".equals(executable)
-                || "pwsh.exe".equals(executable)) {
-            return ToolNameConstants.EXECUTE_SHELL;
-        }
-        if ("python".equals(executable)
-                || "python.exe".equals(executable)
-                || "python3".equals(executable)
-                || "python3.exe".equals(executable)
-                || executable.startsWith("python3.")) {
-            return ToolNameConstants.EXECUTE_PYTHON;
-        }
-        if ("node".equals(executable) || "node.exe".equals(executable)) {
-            return ToolNameConstants.EXECUTE_JS;
-        }
-        return "";
-    }
-
-    /**
-     * 执行stdinExecutionExecutable相关逻辑。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回stdin Execution Executable结果。
-     */
-    private String stdinExecutionExecutable(String command) {
-        List<String> tokens = commandTokens(command, 24);
-        if (tokens.isEmpty()) {
-            return "";
-        }
-        int index = 0;
-        while (index < tokens.size()) {
-            String token = tokens.get(index);
-            String executable = executableName(token);
-            String normalized = executable.toLowerCase(java.util.Locale.ROOT);
-            if (isEnvAssignment(token)) {
-                index++;
-                continue;
-            }
-            if ("env".equals(normalized) || "env.exe".equals(normalized)) {
-                index++;
-                while (index < tokens.size()) {
-                    String option = tokens.get(index);
-                    if (isEnvAssignment(option)) {
-                        index++;
-                        continue;
-                    }
-                    if ("-i".equals(option)
-                            || "--ignore-environment".equals(option)
-                            || "-0".equals(option)) {
-                        index++;
-                        continue;
-                    }
-                    if (option.startsWith("-u") && option.length() > 2) {
-                        index++;
-                        continue;
-                    }
-                    if (("-u".equals(option) || "--unset".equals(option))
-                            && index + 1 < tokens.size()) {
-                        index += 2;
-                        continue;
-                    }
-                    break;
-                }
-                continue;
-            }
-            if ("sudo".equals(normalized)
-                    || "sudo.exe".equals(normalized)
-                    || "doas".equals(normalized)
-                    || "doas.exe".equals(normalized)
-                    || "pkexec".equals(normalized)
-                    || "pkexec.exe".equals(normalized)) {
-                index++;
-                while (index < tokens.size()) {
-                    String option = tokens.get(index);
-                    if (isEnvAssignment(option)) {
-                        index++;
-                        continue;
-                    }
-                    if ("--".equals(option)) {
-                        index++;
-                        break;
-                    }
-                    if (!option.startsWith("-") || "-".equals(option)) {
-                        break;
-                    }
-                    if (sudoOptionConsumesNext(option) && index + 1 < tokens.size()) {
-                        index += 2;
-                    } else {
-                        index++;
-                    }
-                }
-                continue;
-            }
-            if ("runas".equals(normalized) || "runas.exe".equals(normalized)) {
-                index++;
-                while (index < tokens.size()) {
-                    String option = tokens.get(index);
-                    if (!option.startsWith("/") && !option.startsWith("-")) {
-                        break;
-                    }
-                    index++;
-                }
-                continue;
-            }
-            if ("command".equals(normalized)
-                    || "command.exe".equals(normalized)
-                    || "exec".equals(normalized)
-                    || "exec.exe".equals(normalized)
-                    || "builtin".equals(normalized)
-                    || "builtin.exe".equals(normalized)
-                    || "nohup".equals(normalized)
-                    || "nohup.exe".equals(normalized)) {
-                index++;
-                while (index < tokens.size() && tokens.get(index).startsWith("-")) {
-                    index++;
-                }
-                continue;
-            }
-            return executable;
-        }
-        return "";
-    }
-
-    /**
-     * 执行executableLabel相关逻辑。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回executable Label结果。
-     */
-    private String executableLabel(String command) {
-        String token = firstCommandToken(command);
-        if (token.length() == 0) {
-            return "";
-        }
-        return executableName(token);
-    }
-
-    /**
-     * 执行executable名称相关逻辑。
-     *
-     * @param token token 参数。
-     * @return 返回executable名称结果。
-     */
-    private String executableName(String token) {
-        String value = StrUtil.nullToEmpty(token).trim();
-        if (value.length() == 0) {
-            return "";
-        }
-        return new File(value).getName();
-    }
-
-    /**
-     * 判断是否Env Assignment。
-     *
-     * @param token token 参数。
-     * @return 如果Env Assignment满足条件则返回 true，否则返回 false。
-     */
-    private boolean isEnvAssignment(String token) {
-        String value = StrUtil.nullToEmpty(token);
-        int equals = value.indexOf('=');
-        if (equals <= 0) {
-            return false;
-        }
-        for (int i = 0; i < equals; i++) {
-            char ch = value.charAt(i);
-            if (!(Character.isLetterOrDigit(ch) || ch == '_')) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 执行sudo选项ConsumesNext相关逻辑。
-     *
-     * @param option 选项参数。
-     * @return 返回sudo Option Consumes Next结果。
-     */
-    private boolean sudoOptionConsumesNext(String option) {
-        String value = StrUtil.nullToEmpty(option);
-        if ("-u".equals(value)
-                || "-g".equals(value)
-                || "-h".equals(value)
-                || "-p".equals(value)
-                || "-C".equals(value)
-                || "-T".equals(value)
-                || "-r".equals(value)
-                || "-t".equals(value)
-                || "--user".equals(value)
-                || "--group".equals(value)
-                || "--host".equals(value)
-                || "--prompt".equals(value)
-                || "--close-from".equals(value)
-                || "--command-timeout".equals(value)
-                || "--role".equals(value)
-                || "--type".equals(value)) {
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * 执行first命令token相关逻辑。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @return 返回first命令token结果。
-     */
-    private String firstCommandToken(String command) {
-        List<String> tokens = commandTokens(command, 1);
-        if (tokens.isEmpty()) {
-            return "";
-        }
-        return tokens.get(0);
-    }
-
-    /**
-     * 执行命令token相关逻辑。
-     *
-     * @param command 待执行或解析的命令文本。
-     * @param maxTokens maxtoken参数。
-     * @return 返回命令token结果。
-     */
-    private List<String> commandTokens(String command, int maxTokens) {
-        String text = StrUtil.nullToEmpty(command).trim();
-        List<String> tokens = new ArrayList<String>();
-        if (text.length() == 0) {
-            return tokens;
-        }
-        int i = 0;
-        while (i < text.length() && tokens.size() < Math.max(1, maxTokens)) {
-            while (i < text.length() && Character.isWhitespace(text.charAt(i))) {
-                i++;
-            }
-            if (i >= text.length()) {
-                return tokens;
-            }
-            boolean quoted = text.charAt(i) == '"' || text.charAt(i) == '\'';
-            char quote = quoted ? text.charAt(i++) : 0;
-            StringBuilder token = new StringBuilder();
-            while (i < text.length()) {
-                char ch = text.charAt(i);
-                if (quoted) {
-                    if (ch == quote) {
-                        i++;
-                        break;
-                    }
-                    token.append(ch);
-                    i++;
-                    continue;
-                }
-                if (ch == '\\' && i + 1 < text.length()) {
-                    token.append(text.charAt(i + 1));
-                    i += 2;
-                    continue;
-                }
-                if (Character.isWhitespace(ch)) {
-                    break;
-                }
-                token.append(ch);
-                i++;
-            }
-            String value = token.toString();
-            if (value.length() > 0 || quoted) {
-                tokens.add(value);
-            }
-        }
-        return tokens;
     }
 
     /**
@@ -990,18 +730,9 @@ public class ProcessTools {
         SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(value);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
-                    "Blocked: "
+                    "Invalid workdir: "
                             + verdict.getMessage()
                             + ". Use a simple filesystem path without shell metacharacters.");
-        }
-        if (securityPolicyService != null) {
-            SecurityPolicyService.FileVerdict pathVerdict =
-                    securityPolicyService.checkPath(value, false);
-            if (!pathVerdict.isAllowed()) {
-                throw new IllegalArgumentException(
-                        "Blocked: workdir path is not allowed by path safety policy: "
-                                + pathVerdict.getMessage());
-            }
         }
         File dir = new File(TerminalPathSupport.toProcessCwd(value));
         if (!dir.isDirectory()) {
@@ -1026,61 +757,6 @@ public class ProcessTools {
             name = "[path]";
         }
         return SecretRedactor.redact(name, 400);
-    }
-
-    /**
-     * 执行assertBackground安全相关逻辑。
-     *
-     * @param command 待执行或解析的命令文本。
-     */
-    private void assertBackgroundSafe(String command) {
-        if (securityPolicyService != null) {
-            AppConfig appConfig = securityPolicyService.getAppConfig();
-            if (SolonClawCodeExecutionSkills.isFileGuardrailEnabled(appConfig)) {
-                SecurityPolicyService.FileVerdict fileVerdict =
-                        securityPolicyService.checkCommandPaths(command);
-                if (!fileVerdict.isAllowed()) {
-                    throw new IllegalArgumentException(
-                            "BLOCKED: 文件安全策略阻止访问："
-                                    + fileVerdict.getMessage()
-                                    + "\n路径："
-                                    + SecretRedactor.redact(fileVerdict.getPath(), 400));
-                }
-            }
-            if (SolonClawCodeExecutionSkills.isUrlGuardrailEnabled(appConfig)) {
-                SecurityPolicyService.UrlVerdict urlVerdict =
-                        securityPolicyService.checkCommandUrls(command);
-                if (!urlVerdict.isAllowed()) {
-                    throw new IllegalArgumentException(
-                            "BLOCKED: URL 安全策略阻止访问："
-                                    + urlVerdict.getMessage()
-                                    + "\nURL: "
-                                    + SecretRedactor.maskUrl(urlVerdict.getUrl()));
-                }
-            }
-        }
-
-        DangerousCommandApprovalService approvalService =
-                new DangerousCommandApprovalService(
-                        null,
-                        securityPolicyService == null ? null : securityPolicyService.getAppConfig(),
-                        securityPolicyService);
-        DangerousCommandApprovalService.DetectionResult hardline =
-                approvalService.detectHardline(ToolNameConstants.EXECUTE_SHELL, command);
-        if (hardline != null) {
-            throw new IllegalArgumentException(
-                    "BLOCKED: 该 process 调用命中硬阻断安全规则："
-                            + StrUtil.blankToDefault(
-                                    hardline.getDescription(), hardline.getPatternKey()));
-        }
-        DangerousCommandApprovalService.DetectionResult dangerous =
-                approvalService.detect(ToolNameConstants.EXECUTE_SHELL, command);
-        if (dangerous != null) {
-            throw new IllegalArgumentException(
-                    "BLOCKED: 该 process 调用命中危险命令安全规则："
-                            + StrUtil.blankToDefault(
-                                    dangerous.getDescription(), dangerous.getPatternKey()));
-        }
     }
 
     /**

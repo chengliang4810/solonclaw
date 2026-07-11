@@ -358,7 +358,8 @@ public class DashboardAuthService {
                 return false;
             }
             String requestScheme =
-                    StrUtil.blankToDefault(firstHeaderValue(context.header("X-Forwarded-Proto")),
+                    StrUtil.blankToDefault(
+                            firstHeaderValue(context.header("X-Forwarded-Proto")),
                             context.isSecure() ? "https" : "http");
             URI requestUri = URI.create(requestScheme + "://" + requestHost.trim());
             return originUri.getHost().equalsIgnoreCase(requestUri.getHost())
@@ -381,7 +382,8 @@ public class DashboardAuthService {
             return true;
         }
         return ("https".equalsIgnoreCase(originScheme) && "http".equalsIgnoreCase(requestScheme))
-                || ("http".equalsIgnoreCase(originScheme) && "https".equalsIgnoreCase(requestScheme));
+                || ("http".equalsIgnoreCase(originScheme)
+                        && "https".equalsIgnoreCase(requestScheme));
     }
 
     /**
@@ -512,5 +514,4 @@ public class DashboardAuthService {
             return value;
         }
     }
-
 }

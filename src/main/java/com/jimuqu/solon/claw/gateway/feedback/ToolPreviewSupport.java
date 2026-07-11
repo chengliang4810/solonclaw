@@ -70,7 +70,9 @@ public final class ToolPreviewSupport {
                 return serialized;
             }
         } catch (Exception e) {
-            log.debug("Tool argument JSON preview shrink failed; using truncated fallback: {}", exceptionSummary(e));
+            log.debug(
+                    "Tool argument JSON preview shrink failed; using truncated fallback: {}",
+                    exceptionSummary(e));
         }
         Map<String, Object> fallback = new LinkedHashMap<String, Object>();
         fallback.put("truncated", Boolean.TRUE);

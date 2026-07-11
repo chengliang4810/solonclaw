@@ -1,6 +1,8 @@
 package com.jimuqu.solon.claw.web;
 
 import com.jimuqu.solon.claw.support.DashboardRequestBodies;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileNotFoundException;
 import java.util.Map;
 import org.noear.solon.annotation.Controller;
 import org.noear.solon.annotation.Mapping;
@@ -26,11 +28,18 @@ public class DashboardPlatformToolsetsController {
     /**
      * 执行overview相关逻辑。
      *
+     * @param context 当前请求或运行上下文。
      * @return 返回overview结果。
      */
     @Mapping(value = "/api/tools/platform-toolsets", method = MethodType.GET)
-    public Map<String, Object> overview() {
-        return DashboardResponse.ok(platformToolsetsService.overview());
+    public Map<String, Object> overview(Context context) {
+        try {
+            return DashboardResponse.ok(
+                    platformToolsetsService.overview(
+                            DashboardProfileContext.requestedProfile(context)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        }
     }
 
     /**
@@ -43,9 +52,14 @@ public class DashboardPlatformToolsetsController {
     @Mapping(value = "/api/tools/platform-toolsets/{platform}", method = MethodType.PUT)
     public Map<String, Object> update(Context context, String platform) {
         try {
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
             return DashboardResponse.ok(
                     platformToolsetsService.update(
-                            platform, DashboardRequestBodies.jsonObjectMap(context)));
+                            platform,
+                            body,
+                            DashboardProfileContext.requestedProfile(context, body)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "PLATFORM_TOOLSETS_BAD_REQUEST", e);
         } catch (IllegalStateException e) {

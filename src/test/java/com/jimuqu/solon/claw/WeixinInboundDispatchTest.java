@@ -1,7 +1,6 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -9,7 +8,6 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
-import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -127,11 +125,7 @@ public class WeixinInboundDispatchTest {
         format.setAccessible(true);
 
         String formatted =
-                (String)
-                        format.invoke(
-                                null,
-                                "hello    world    "
-                                        + repeat("x ", 80).trim());
+                (String) format.invoke(null, "hello    world    " + repeat("x ", 80).trim());
 
         assertThat(formatted).startsWith("hello    world    x");
         assertThat(formatted.split("\\n")).allMatch(line -> codePointLength(line) <= 120);
@@ -172,18 +166,10 @@ public class WeixinInboundDispatchTest {
         List<String> chunks =
                 (List<String>)
                         split.invoke(
-                                adapter,
-                                "今天结论：\n"
-                                        + "- 留存下降 3%\n"
-                                        + "- 转化上涨 8%\n"
-                                        + "- 主要问题在首日激活");
+                                adapter, "今天结论：\n" + "- 留存下降 3%\n" + "- 转化上涨 8%\n" + "- 主要问题在首日激活");
 
         assertThat(chunks)
-                .containsExactly(
-                        "今天结论：\n"
-                                + "- 留存下降 3%\n"
-                                + "- 转化上涨 8%\n"
-                                + "- 主要问题在首日激活");
+                .containsExactly("今天结论：\n" + "- 留存下降 3%\n" + "- 转化上涨 8%\n" + "- 主要问题在首日激活");
     }
 
     @Test
@@ -233,8 +219,7 @@ public class WeixinInboundDispatchTest {
         }
 
         @SuppressWarnings("unchecked")
-        List<String> chunks =
-                (List<String>) split.invoke(adapter, "```java\n" + lines + "\n```");
+        List<String> chunks = (List<String>) split.invoke(adapter, "```java\n" + lines + "\n```");
 
         assertThat(chunks).hasSizeGreaterThan(1);
         assertThat(chunks).allMatch(chunk -> codePointLength(chunk) <= 2000);
@@ -581,7 +566,8 @@ public class WeixinInboundDispatchTest {
         config.getRuntime().setSkillsDir(new File(workspaceHome, "skills").getAbsolutePath());
         config.getRuntime().setCacheDir(new File(workspaceHome, "cache").getAbsolutePath());
         config.getRuntime()
-                .setStateDb(new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
+                .setStateDb(
+                        new File(new File(workspaceHome, "data"), "state.db").getAbsolutePath());
         config.getRuntime().setConfigFile(new File(workspaceHome, "config.yml").getAbsolutePath());
         config.getRuntime().setLogsDir(new File(workspaceHome, "logs").getAbsolutePath());
         return config;

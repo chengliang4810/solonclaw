@@ -43,7 +43,8 @@ public class ProactiveDecisionServiceTest {
 
         assertThat(decisions).extracting(ProactiveDecision::getDecision).containsExactly("SKIP");
         assertThat(decisions.get(0).getReason()).isEqualTo("proactive_disabled");
-        assertThat(repository.savedDecisions).extracting(ProactiveDecisionRecord::getReason)
+        assertThat(repository.savedDecisions)
+                .extracting(ProactiveDecisionRecord::getReason)
                 .containsExactly("proactive_disabled");
     }
 
@@ -81,7 +82,8 @@ public class ProactiveDecisionServiceTest {
                 new ProactiveDecisionService(cooldownRepository)
                         .decide(
                                 cooldownContext,
-                                Arrays.asList(candidate("candidate-cooldown", 90, 0.9D, "source-a")),
+                                Arrays.asList(
+                                        candidate("candidate-cooldown", 90, 0.9D, "source-a")),
                                 Arrays.asList(gate(false, "source-a")))
                         .get(0);
         assertThat(cooldownDecision.getReason()).isEqualTo("cooldown_active");
@@ -117,10 +119,14 @@ public class ProactiveDecisionServiceTest {
 
         List<ProactiveDecision> decisions =
                 new ProactiveDecisionService(repository)
-                        .decide(contextAt(10, 0), Arrays.asList(candidate), Arrays.asList(gate(false, "source-a")));
+                        .decide(
+                                contextAt(10, 0),
+                                Arrays.asList(candidate),
+                                Arrays.asList(gate(false, "source-a")));
 
         assertThat(decisions).extracting(ProactiveDecision::getDecision).containsExactly("SEND");
-        assertThat(repository.savedDecisions).extracting(ProactiveDecisionRecord::getDecision)
+        assertThat(repository.savedDecisions)
+                .extracting(ProactiveDecisionRecord::getDecision)
                 .containsExactly("SEND");
     }
 
@@ -140,12 +146,16 @@ public class ProactiveDecisionServiceTest {
                                 Arrays.asList(low, second, best),
                                 Arrays.asList(gate(false)));
 
-        assertThat(decisions).extracting(ProactiveDecision::getCandidateId)
+        assertThat(decisions)
+                .extracting(ProactiveDecision::getCandidateId)
                 .containsExactly("candidate-best", "candidate-second", "candidate-low");
-        assertThat(decisions).extracting(ProactiveDecision::getDecision)
+        assertThat(decisions)
+                .extracting(ProactiveDecision::getDecision)
                 .containsExactly("SEND", "SKIP", "SKIP");
-        assertThat(decisions).extracting(ProactiveDecision::getReason)
-                .containsExactly("deterministic_allow", "contact_limit_reached", "contact_limit_reached");
+        assertThat(decisions)
+                .extracting(ProactiveDecision::getReason)
+                .containsExactly(
+                        "deterministic_allow", "contact_limit_reached", "contact_limit_reached");
     }
 
     @Test
@@ -178,9 +188,9 @@ public class ProactiveDecisionServiceTest {
         List<ProactiveDecision> hardGateDecisions =
                 new ProactiveDecisionService(new InMemoryProactiveRepository(), overridingClient)
                         .decide(
-                        noHomeContext,
-                        Arrays.asList(candidate("candidate-hard", 90, 0.9D, "source-a")),
-                        new ArrayList<ProactiveObservationRecord>());
+                                noHomeContext,
+                                Arrays.asList(candidate("candidate-hard", 90, 0.9D, "source-a")),
+                                new ArrayList<ProactiveObservationRecord>());
 
         assertThat(overridingClient.calls).isEqualTo(0);
         assertThat(hardGateDecisions.get(0).getReason()).isEqualTo("no_home_channel");
@@ -274,7 +284,8 @@ public class ProactiveDecisionServiceTest {
                 new ProactiveDecisionService(repository)
                         .decide(context, Arrays.asList(candidate), observations);
         assertThat(decisions).extracting(ProactiveDecision::getReason).containsExactly(reason);
-        assertThat(repository.savedDecisions).extracting(ProactiveDecisionRecord::getReason)
+        assertThat(repository.savedDecisions)
+                .extracting(ProactiveDecisionRecord::getReason)
                 .containsExactly(reason);
     }
 
@@ -439,7 +450,8 @@ public class ProactiveDecisionServiceTest {
         }
 
         @Override
-        public LlmResult resume(SessionRecord session, String systemPrompt, List<Object> toolObjects) {
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects) {
             throw new UnsupportedOperationException("主动协作决策测试不需要恢复会话");
         }
     }

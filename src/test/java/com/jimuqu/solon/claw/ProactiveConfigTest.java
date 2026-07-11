@@ -109,7 +109,8 @@ public class ProactiveConfigTest {
     @Test
     void shouldAcceptAllProactiveRuntimeOverrideKeys() throws Exception {
         File workspaceHome = Files.createTempDirectory("solonclaw-proactive-runtime-keys").toFile();
-        RuntimeConfigResolver resolver = RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
+        RuntimeConfigResolver resolver =
+                RuntimeConfigResolver.initialize(workspaceHome.getAbsolutePath());
         resolver.setFileValue("solonclaw.proactive.enabled", "false");
         resolver.setFileValue("solonclaw.proactive.intervalMinutes", "31");
         resolver.setFileValue("solonclaw.proactive.initialDelaySeconds", "62");

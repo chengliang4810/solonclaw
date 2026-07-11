@@ -1,6 +1,8 @@
 package com.jimuqu.solon.claw.web;
 
 import com.jimuqu.solon.claw.support.DashboardRequestBodies;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
+import com.jimuqu.solon.claw.web.profile.DashboardProfileNotFoundException;
 import java.util.List;
 import java.util.Map;
 import org.noear.solon.annotation.Controller;
@@ -26,31 +28,49 @@ public class DashboardProviderController {
     /**
      * 执行providers相关逻辑。
      *
+     * @param context 当前请求或运行上下文。
      * @return 返回providers结果。
      */
     @Mapping(value = "/api/providers", method = MethodType.GET)
-    public Map<String, Object> providers() {
-        return providerService.listProviders();
+    public Map<String, Object> providers(Context context) {
+        try {
+            return providerService.listProviders(DashboardProfileContext.requestedProfile(context));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        }
     }
 
     /**
      * 执行项目Models相关逻辑。
      *
+     * @param context 当前请求或运行上下文。
      * @return 返回项目Models结果。
      */
     @Mapping(value = "/api/models", method = MethodType.GET)
-    public Map<String, Object> JimuquModels() {
-        return DashboardResponse.ok(providerService.JimuquModels());
+    public Map<String, Object> JimuquModels(Context context) {
+        try {
+            return DashboardResponse.ok(
+                    providerService.JimuquModels(
+                            DashboardProfileContext.requestedProfile(context)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        }
     }
 
     /**
      * 执行项目模型健康检查相关逻辑。
      *
+     * @param context 当前请求或运行上下文。
      * @return 返回项目模型健康检查结果。
      */
     @Mapping(value = "/api/models/health", method = MethodType.GET)
-    public Map<String, Object> JimuquModelHealth() {
-        return DashboardResponse.ok(providerService.health());
+    public Map<String, Object> JimuquModelHealth(Context context) {
+        try {
+            return DashboardResponse.ok(
+                    providerService.health(DashboardProfileContext.requestedProfile(context)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        }
     }
 
     /**
@@ -62,7 +82,11 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers", method = MethodType.POST)
     public Map<String, Object> create(Context context) throws Exception {
         try {
-            return providerService.createProvider(DashboardRequestBodies.jsonObjectMap(context));
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
+            return providerService.createProvider(
+                    body, DashboardProfileContext.requestedProfile(context, body));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }
@@ -77,8 +101,12 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers/models", method = MethodType.POST)
     public Map<String, Object> listModels(Context context) throws Exception {
         try {
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
             return DashboardResponse.ok(
-                    providerService.listRemoteModels(DashboardRequestBodies.jsonObjectMap(context)));
+                    providerService.listRemoteModels(
+                            body, DashboardProfileContext.requestedProfile(context, body)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "PROVIDER_MODELS_BAD_REQUEST", e);
         } catch (IllegalStateException e) {
@@ -95,8 +123,12 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers/validate", method = MethodType.POST)
     public Map<String, Object> validate(Context context) throws Exception {
         try {
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
             return DashboardResponse.ok(
-                    providerService.validateProvider(DashboardRequestBodies.jsonObjectMap(context)));
+                    providerService.validateProvider(
+                            body, DashboardProfileContext.requestedProfile(context, body)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "PROVIDER_VALIDATE_BAD_REQUEST", e);
         }
@@ -112,8 +144,11 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers/{providerKey}", method = MethodType.PUT)
     public Map<String, Object> update(String providerKey, Context context) throws Exception {
         try {
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
             return providerService.updateProvider(
-                    providerKey, DashboardRequestBodies.jsonObjectMap(context));
+                    providerKey, body, DashboardProfileContext.requestedProfile(context, body));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }
@@ -129,7 +164,10 @@ public class DashboardProviderController {
     @Mapping(value = "/api/providers/{providerKey}", method = MethodType.DELETE)
     public Map<String, Object> delete(String providerKey, Context context) {
         try {
-            return providerService.deleteProvider(providerKey);
+            return providerService.deleteProvider(
+                    providerKey, DashboardProfileContext.requestedProfile(context));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }
@@ -147,7 +185,10 @@ public class DashboardProviderController {
             Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
             return providerService.updateDefaultModel(
                     body.get("providerKey") == null ? "" : String.valueOf(body.get("providerKey")),
-                    body.get("model") == null ? "" : String.valueOf(body.get("model")));
+                    body.get("model") == null ? "" : String.valueOf(body.get("model")),
+                    DashboardProfileContext.requestedProfile(context, body));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }
@@ -165,7 +206,10 @@ public class DashboardProviderController {
             Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
             Object items = body.get("fallbackProviders");
             return providerService.updateFallbackProviders(
-                    items instanceof List ? (List<Map<String, Object>>) items : null);
+                    items instanceof List ? (List<Map<String, Object>>) items : null,
+                    DashboardProfileContext.requestedProfile(context, body));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
         } catch (IllegalArgumentException e) {
             return DashboardResponse.error(context, 400, "PROVIDER_BAD_REQUEST", e);
         }

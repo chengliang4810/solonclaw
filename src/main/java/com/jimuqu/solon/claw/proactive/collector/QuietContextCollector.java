@@ -161,8 +161,12 @@ public class QuietContextCollector implements ProactiveObservationCollector {
         payload.put("homeChannelCount", Integer.valueOf(homeChannels.size()));
         payload.put("missingHomeChannel", Boolean.valueOf(!homeReady));
         payload.put("quietHour", Boolean.valueOf(quietHour));
-        payload.put("quietStartHour", Integer.valueOf(proactive == null ? 0 : proactive.getQuietStartHour()));
-        payload.put("quietEndHour", Integer.valueOf(proactive == null ? 0 : proactive.getQuietEndHour()));
+        payload.put(
+                "quietStartHour",
+                Integer.valueOf(proactive == null ? 0 : proactive.getQuietStartHour()));
+        payload.put(
+                "quietEndHour",
+                Integer.valueOf(proactive == null ? 0 : proactive.getQuietEndHour()));
         payload.put("lastSentAt", lastSentAt(context));
         payload.put("activeRunCount", Integer.valueOf(activeRuns.size()));
         payload.put("homeChannels", homeChannelPayload(homeChannels));
@@ -209,12 +213,11 @@ public class QuietContextCollector implements ProactiveObservationCollector {
         }
         int hour =
                 LocalDateTime.ofInstant(
-                                Instant.ofEpochMilli(context.getNowMillis()), ZoneId.systemDefault())
+                                Instant.ofEpochMilli(context.getNowMillis()),
+                                ZoneId.systemDefault())
                         .getHour();
         return com.jimuqu.solon.claw.proactive.ProactiveSupport.isQuietHour(
-                proactive.getQuietStartHour(),
-                proactive.getQuietEndHour(),
-                hour);
+                proactive.getQuietStartHour(), proactive.getQuietEndHour(), hour);
     }
 
     /**
@@ -224,7 +227,9 @@ public class QuietContextCollector implements ProactiveObservationCollector {
      * @return 主动协作配置；缺失时返回 null。
      */
     private AppConfig.ProactiveConfig proactiveConfig(ProactiveTickContext context) {
-        return context == null || context.getConfig() == null ? null : context.getConfig().getProactive();
+        return context == null || context.getConfig() == null
+                ? null
+                : context.getConfig().getProactive();
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.support.MessageSupport;
@@ -11,6 +12,7 @@ import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -52,7 +54,9 @@ public class DashboardSessionServiceTest {
         session.setTitle("Detail title");
         session.setCreatedAt(100L);
         session.setUpdatedAt(200L);
-        session.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("inspect session detail"))));
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("inspect session detail"))));
         env.sessionRepository.save(session);
 
         DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
@@ -85,8 +89,7 @@ public class DashboardSessionServiceTest {
         DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
         Map<String, Object> detail = service.getSessionMessages(session.getSessionId());
 
-        assertThat(detail.get("compressed_summary"))
-                .isEqualTo("摘要：长期任务目标仍然是验证状态连续。");
+        assertThat(detail.get("compressed_summary")).isEqualTo("摘要：长期任务目标仍然是验证状态连续。");
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> messages = (List<Map<String, Object>>) detail.get("messages");
         assertThat(messages.get(0).get("content")).isEqualTo("长期回归 Loop：检查会话恢复");
@@ -102,8 +105,7 @@ public class DashboardSessionServiceTest {
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:dash-summary-artifact:user");
         session.setCompressedSummary(
-                CompressionConstants.SUMMARY_PREFIX
-                        + "\nGoal\n验证会话恢复。\n\nProgress\n- 已生成当前摘要。");
+                CompressionConstants.SUMMARY_PREFIX + "\nGoal\n验证会话恢复。\n\nProgress\n- 已生成当前摘要。");
         session.setNdjson(
                 MessageSupport.toNdjson(
                         Arrays.asList(
@@ -233,7 +235,6 @@ public class DashboardSessionServiceTest {
                 .contains("branch-token=***")
                 .doesNotContain("ghp_childbranchsecret12345")
                 .doesNotContain("ghp_childtitlesecret12345");
-
     }
 
     @Test
@@ -359,6 +360,230 @@ public class DashboardSessionServiceTest {
         assertThat(leaf.get("changed")).isEqualTo(Boolean.FALSE);
     }
 
+    /** 验证列表参数按对标契约过滤归档、来源、目录、消息数、子会话和排序。 */
+    @Test
+    void shouldApplyReferenceCompatibleSessionListParameters() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord oldRecent = env.sessionRepository.bindNewSession("MEMORY:list-old:user");
+        oldRecent.setTitle("old recent");
+        oldRecent.setCreatedAt(100L);
+        oldRecent.setUpdatedAt(900L);
+        oldRecent.setMetadataJson("{\"cwd\":\"/repo/app\"}");
+        oldRecent.setSystemPromptSnapshot("system snapshot");
+        oldRecent.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("old"))));
+        env.sessionRepository.save(oldRecent);
+
+        SessionRecord newer = env.sessionRepository.bindNewSession("FEISHU:list-new:user");
+        newer.setTitle("newer created");
+        newer.setCreatedAt(500L);
+        newer.setUpdatedAt(500L);
+        newer.setMetadataJson("{\"cwd\":\"/repo/other\"}");
+        newer.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("first"), ChatMessage.ofAssistant("second"))));
+        env.sessionRepository.save(newer);
+
+        SessionRecord archived = env.sessionRepository.bindNewSession("MEMORY:list-archived:user");
+        archived.setTitle("archived");
+        archived.setCreatedAt(300L);
+        archived.setUpdatedAt(300L);
+        archived.setMetadataJson("{\"archived\":true,\"cwd\":\"/repo/app/sub\"}");
+        archived.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("hidden"))));
+        env.sessionRepository.save(archived);
+
+        SessionRecord child =
+                env.sessionRepository.cloneSession(
+                        "MEMORY:list-child:user", newer.getSessionId(), "child");
+        child.setTitle("child");
+        child.setCreatedAt(700L);
+        child.setUpdatedAt(700L);
+        child.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("child"))));
+        env.sessionRepository.save(child);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+
+        assertThat(sessionTitles(service.getSessions(20, 0)))
+                .containsExactly("child", "newer created", "old recent");
+        DashboardSessionService.SessionListOptions recent =
+                new DashboardSessionService.SessionListOptions(
+                        20,
+                        0,
+                        0,
+                        "exclude",
+                        "recent",
+                        null,
+                        Collections.<String>emptyList(),
+                        null,
+                        false);
+        assertThat(sessionTitles(service.getSessions(recent)))
+                .containsExactly("old recent", "child", "newer created");
+
+        DashboardSessionService.SessionListOptions feishu =
+                new DashboardSessionService.SessionListOptions(
+                        20,
+                        0,
+                        2,
+                        "exclude",
+                        "created",
+                        "feishu",
+                        Collections.<String>emptyList(),
+                        null,
+                        false);
+        assertThat(sessionTitles(service.getSessions(feishu))).containsExactly("newer created");
+
+        DashboardSessionService.SessionListOptions cwdAndArchived =
+                new DashboardSessionService.SessionListOptions(
+                        20,
+                        0,
+                        0,
+                        "include",
+                        "created",
+                        null,
+                        Collections.singletonList("feishu"),
+                        "/repo/app",
+                        true);
+        Map<String, Object> cwdPage = service.getSessions(cwdAndArchived);
+        assertThat(sessionTitles(cwdPage)).containsExactly("archived", "old recent");
+        assertThat(sessions(cwdPage).get(0)).containsEntry("archived", Boolean.TRUE);
+        assertThat(sessions(cwdPage).get(1))
+                .containsEntry("system_prompt", "system snapshot")
+                .containsKey("model_config");
+    }
+
+    /** 验证消息分页、详情读取、归档更新和缺失会话 404 异常契约。 */
+    @Test
+    void shouldPageMessagesAndUpdateTitleOrArchivedState() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:message-page:user");
+        session.setTitle("before");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("one"),
+                                ChatMessage.ofAssistant("two"),
+                                ChatMessage.ofUser("three"))));
+        env.sessionRepository.save(session);
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+
+        Map<String, Object> page = service.getSessionMessages(session.getSessionId(), 1, 1);
+        assertThat(messages(page)).extracting(item -> item.get("content")).containsExactly("two");
+        Map<String, Object> expectedPagination = new java.util.LinkedHashMap<String, Object>();
+        expectedPagination.put("limit", Integer.valueOf(1));
+        expectedPagination.put("offset", Integer.valueOf(1));
+        expectedPagination.put("returned", Integer.valueOf(1));
+        assertThat(page.get("pagination")).isEqualTo(expectedPagination);
+        assertThat(service.getSessionDetail(session.getSessionId()))
+                .containsEntry("session_id", session.getSessionId())
+                .containsEntry("title", "before");
+
+        Map<String, Object> update = new java.util.LinkedHashMap<String, Object>();
+        update.put("title", "  renamed\n session  ");
+        update.put("archived", Boolean.TRUE);
+        assertThat(service.updateSession(session.getSessionId(), update))
+                .containsEntry("ok", Boolean.TRUE)
+                .containsEntry("title", "renamed session")
+                .containsEntry("archived", Boolean.TRUE);
+
+        DashboardSessionService.SessionListOptions archivedOnly =
+                new DashboardSessionService.SessionListOptions(
+                        20,
+                        0,
+                        0,
+                        "only",
+                        "created",
+                        null,
+                        Collections.<String>emptyList(),
+                        null,
+                        false);
+        assertThat(sessionTitles(service.getSessions(archivedOnly)))
+                .containsExactly("renamed session");
+        assertThatThrownBy(() -> service.getSessionMessages("missing", null, 0))
+                .isInstanceOf(DashboardSessionService.SessionNotFoundException.class);
+        assertThatThrownBy(() -> service.latestDescendant("missing"))
+                .isInstanceOf(DashboardSessionService.SessionNotFoundException.class);
+        assertThat(service.deleteSession("missing"))
+                .containsEntry("ok", Boolean.TRUE)
+                .containsEntry("already_absent", Boolean.TRUE);
+    }
+
+    /** 验证消息读取跟随普通延续链，但不会误入显式分支或委托子会话。 */
+    @Test
+    void shouldFollowResumeContinuationWithoutEnteringBranchOrDelegation() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord root = new SessionRecord();
+        root.setSessionId("resume-root");
+        root.setSourceKey("MEMORY:resume-root:user");
+        root.setTitle("root");
+        root.setCreatedAt(100L);
+        root.setUpdatedAt(100L);
+        root.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("root text"))));
+        env.sessionRepository.save(root);
+
+        SessionRecord continuation = new SessionRecord();
+        continuation.setSessionId("resume-continuation");
+        continuation.setSourceKey("MEMORY:resume-continuation:user");
+        continuation.setParentSessionId(root.getSessionId());
+        continuation.setCreatedAt(200L);
+        continuation.setUpdatedAt(200L);
+        continuation.setNdjson(
+                MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("continued text"))));
+        env.sessionRepository.save(continuation);
+
+        SessionRecord branch = new SessionRecord();
+        branch.setSessionId("resume-branch");
+        branch.setSourceKey("MEMORY:resume-branch:user");
+        branch.setParentSessionId(root.getSessionId());
+        branch.setBranchName("experiment");
+        branch.setTitle("branch");
+        branch.setCreatedAt(300L);
+        branch.setUpdatedAt(300L);
+        branch.setNdjson(MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("branch text"))));
+        env.sessionRepository.save(branch);
+
+        SessionRecord delegated = new SessionRecord();
+        delegated.setSessionId("resume-delegated");
+        delegated.setSourceKey("MEMORY:resume:delegate-subagent:user");
+        delegated.setParentSessionId(continuation.getSessionId());
+        delegated.setCreatedAt(400L);
+        delegated.setUpdatedAt(400L);
+        delegated.setNdjson(
+                MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("delegated text"))));
+        env.sessionRepository.save(delegated);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+        Map<String, Object> detail = service.getSessionMessages(root.getSessionId());
+
+        assertThat(detail.get("session_id")).isEqualTo(continuation.getSessionId());
+        assertThat(messages(detail))
+                .extracting(item -> item.get("content"))
+                .containsExactly("continued text");
+        assertThat(sessionTitles(service.getSessions(20, 0)))
+                .contains("root", "branch")
+                .doesNotContain("continued text", "delegated text");
+    }
+
+    /** 从会话页提取会话列表。 */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> sessions(Map<String, Object> page) {
+        return (List<Map<String, Object>>) page.get("sessions");
+    }
+
+    /** 从会话页提取标题列表。 */
+    private List<Object> sessionTitles(Map<String, Object> page) {
+        List<Object> titles = new java.util.ArrayList<Object>();
+        for (Map<String, Object> item : sessions(page)) {
+            titles.add(item.get("title"));
+        }
+        return titles;
+    }
+
+    /** 从消息详情提取消息列表。 */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> messages(Map<String, Object> page) {
+        return (List<Map<String, Object>>) page.get("messages");
+    }
+
     private static void insertCheckpoint(
             TestEnvironment env,
             String checkpointId,
@@ -375,7 +600,9 @@ public class DashboardSessionServiceTest {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert into checkpoints (checkpoint_id, source_key, session_id, checkpoint_dir, manifest_path, created_at, restored_at) values (?, ?, ?, ?, ?, ?, ?)");
+                            "insert into checkpoints (checkpoint_id, source_key, session_id,"
+                                    + " checkpoint_dir, manifest_path, created_at, restored_at) values"
+                                    + " (?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, checkpointId);
             statement.setString(2, sourceKey);
             statement.setString(3, sessionId);

@@ -69,6 +69,17 @@ public class RuntimeConfigResolver {
         }
     }
 
+    /**
+     * 为指定工作区创建独立解析器，不替换当前进程的全局解析器。
+     *
+     * @param workspaceHome 目标 Profile 工作区。
+     * @return 只绑定目标配置文件的解析器实例。
+     */
+    public static RuntimeConfigResolver open(String workspaceHome) {
+        File homeDir = resolveWorkspaceHome(workspaceHome);
+        return new RuntimeConfigResolver(FileUtil.file(homeDir, "config.yml"));
+    }
+
     /** 返回当前解析器；若尚未初始化，则使用默认工作区目录。 */
     public static RuntimeConfigResolver getInstance() {
         RuntimeConfigResolver instance = current;
@@ -532,6 +543,8 @@ public class RuntimeConfigResolver {
         addDynamicPrefix(prefixes, "solonclaw.scheduler.enabledToolsets");
         addDynamicPrefix(prefixes, "security.fileGuardrailMode");
         addDynamicPrefix(prefixes, "security.urlGuardrailMode");
+        addDynamicPrefix(prefixes, "security.websiteBlocklist.domains");
+        addDynamicPrefix(prefixes, "security.websiteBlocklist.sharedFiles");
         addDynamicPrefix(prefixes, "security.guardrailMode");
         addDynamicPrefix(prefixes, "security.guardrailCronMode");
         addDynamicPrefix(prefixes, "security.guardrailCronScope");

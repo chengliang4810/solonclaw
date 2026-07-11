@@ -2,18 +2,15 @@ package com.jimuqu.solon.claw.gateway.feedback;
 
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
-
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.ErrorTextSupport;
-
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.util.Map;
 
 /** 把 Agent 推理和工具调用中间态转成消息渠道可读的进度反馈。 */
 public class GatewayConversationFeedbackSink implements ConversationFeedbackSink {
@@ -326,5 +323,4 @@ public class GatewayConversationFeedbackSink implements ConversationFeedbackSink
         }
         return text.substring(0, Math.max(0, limit - 3)) + "...";
     }
-
 }

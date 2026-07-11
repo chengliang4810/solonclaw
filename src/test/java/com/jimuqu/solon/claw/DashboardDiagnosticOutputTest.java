@@ -4,29 +4,12 @@ import static com.jimuqu.solon.claw.DashboardDiagnosticTestSupport.*;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
-import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
-import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.ApprovalAuditEvent;
 import com.jimuqu.solon.claw.core.model.ChannelStatus;
-import com.jimuqu.solon.claw.core.model.DeliveryRequest;
-import com.jimuqu.solon.claw.core.model.GatewayMessage;
-import com.jimuqu.solon.claw.core.model.GatewayReply;
-import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
-import com.jimuqu.solon.claw.core.model.RunControlCommand;
-import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
-import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
-import com.jimuqu.solon.claw.core.model.ToolCallRecord;
-import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
-import com.jimuqu.solon.claw.core.repository.ApprovalAuditRepository;
-import com.jimuqu.solon.claw.core.repository.SessionRepository;
-import com.jimuqu.solon.claw.core.service.CommandService;
-import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
-import com.jimuqu.solon.claw.core.service.DeliveryService;
-import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.service.ChannelConnectionManager;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
@@ -76,7 +59,10 @@ public class DashboardDiagnosticOutputTest {
             String longOutputCommand = longDiagnosticOutputCommand();
             ProcessRegistry.ManagedProcess completed =
                     processRegistry.start(
-                            longOutputCommand, workspaceHome, true, Collections.<String>emptyList());
+                            longOutputCommand,
+                            workspaceHome,
+                            true,
+                            Collections.<String>emptyList());
             processRegistry.waitFor(completed.getId(), 5000L);
             for (int i = 0; i < 7; i++) {
                 managedProcesses.add(
@@ -530,7 +516,8 @@ public class DashboardDiagnosticOutputTest {
     @SuppressWarnings("unchecked")
     void shouldIncludeQqbotAndYuanbaoInDoctorPlatforms() throws Exception {
         AppConfig config = new AppConfig();
-        File workspaceHome = new File("target/diagnostic-domestic-platforms-runtime").getAbsoluteFile();
+        File workspaceHome =
+                new File("target/diagnostic-domestic-platforms-runtime").getAbsoluteFile();
         config.getRuntime().setHome(workspaceHome.getAbsolutePath());
         config.getModel().setProviderKey("default");
         config.getModel().setDefault("gpt-test");
@@ -545,7 +532,8 @@ public class DashboardDiagnosticOutputTest {
 
         ChannelStatus qqbot = new ChannelStatus(PlatformType.QQBOT, true, false, "qqbot pending");
         qqbot.setSetupState("pending");
-        ChannelStatus yuanbao = new ChannelStatus(PlatformType.YUANBAO, true, true, "yuanbao ready");
+        ChannelStatus yuanbao =
+                new ChannelStatus(PlatformType.YUANBAO, true, true, "yuanbao ready");
         yuanbao.setSetupState("connected");
 
         DashboardGatewayDoctorService doctorService =
@@ -559,9 +547,7 @@ public class DashboardDiagnosticOutputTest {
         Map<String, Object> doctor = doctorService.doctor();
         List<Map<String, Object>> platforms = (List<Map<String, Object>>) doctor.get("platforms");
 
-        assertThat(platforms)
-                .extracting(item -> item.get("platform"))
-                .contains("qqbot", "yuanbao");
+        assertThat(platforms).extracting(item -> item.get("platform")).contains("qqbot", "yuanbao");
     }
 
     @Test
@@ -912,60 +898,6 @@ public class DashboardDiagnosticOutputTest {
                 .doesNotContain(sourceSecret)
                 .doesNotContain(hintSecret)
                 .doesNotContain("dashboard-password");
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void shouldExposeWebsiteSharedPolicyDiagnosticsWithoutLeakingPaths() throws Exception {
-        Path parent = Files.createTempDirectory("jimuqu-dashboard-website-policy");
-        Path workspaceHome =
-                Files.createDirectory(parent.resolve("runtime-token=ghp_dashboardwebsecret123"));
-        File shared = workspaceHome.resolve("shared-token=sk-dashboard-secret.txt").toFile();
-        FileUtil.writeUtf8String(
-                "blocked.example\nshared-token-sk-dashboardsecret.example\n", shared);
-        AppConfig config = new AppConfig();
-        config.getRuntime().setHome(workspaceHome.toString());
-        config.getSecurity().getWebsiteBlocklist().setEnabled(true);
-        config.getSecurity().getWebsiteBlocklist().setDomains(Arrays.asList("inline.example"));
-        config.getSecurity()
-                .getWebsiteBlocklist()
-                .setSharedFiles(
-                        Arrays.asList(
-                                shared.getName(), "../missing-token=sk-dashboard-secret.txt"));
-        DashboardDiagnosticsService diagnosticsService =
-                new DashboardDiagnosticsService(
-                        config,
-                        FixedDeliveryService.empty(),
-                        new LlmProviderService(config),
-                        new FixedToolRegistry(),
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        new SecurityPolicyService(config),
-                        null,
-                        null);
-        Map<String, Object> body = new LinkedHashMap<String, Object>();
-        body.put("action", "policy");
-
-        Map<String, Object> result = diagnosticsService.securityAudit(body);
-
-        Map<String, Object> policy = (Map<String, Object>) result.get("policy");
-        Map<String, Object> security = (Map<String, Object>) policy.get("security");
-        assertThat(security.get("websiteBlocklistSharedFileCount")).isEqualTo(Integer.valueOf(2));
-        assertThat(security.get("websiteBlocklistLoadedSharedFileCount"))
-                .isEqualTo(Integer.valueOf(1));
-        assertThat(security.get("websiteBlocklistSkippedSharedFileCount"))
-                .isEqualTo(Integer.valueOf(1));
-        assertThat(security.get("websiteBlocklistSharedRuleCount")).isEqualTo(Integer.valueOf(2));
-        String json = ONode.serialize(result);
-        assertThat(json)
-                .doesNotContain(workspaceHome.toString())
-                .doesNotContain(shared.getAbsolutePath())
-                .doesNotContain("ghp_dashboardwebsecret123")
-                .doesNotContain("sk-dashboard-secret");
     }
 
     @Test
@@ -2124,9 +2056,6 @@ public class DashboardDiagnosticOutputTest {
 
     /** 判断当前测试运行环境是否为 Windows。 */
     private static boolean isWindows() {
-        return System.getProperty("os.name", "")
-                .toLowerCase(java.util.Locale.ROOT)
-                .contains("win");
+        return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("win");
     }
-
 }

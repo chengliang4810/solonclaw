@@ -294,7 +294,8 @@ public class SolonClawShellSkillTest {
         assertThat(nullByte.getMessage()).contains("\\u0000");
     }
 
-    // shouldRejectForegroundAndBackgroundCredentialWorkdirs 已删除：终端 workdir 解析走 checkPath(value, false)
+    // shouldRejectForegroundAndBackgroundCredentialWorkdirs 已删除：终端 workdir 解析走 checkPath(value,
+    // false)
     // 读路径，凭据目录读已放宽（对齐 外部对标仓库"读非安全边界"），现在放行。
 
     @Test
@@ -436,7 +437,7 @@ public class SolonClawShellSkillTest {
 
         assertThatThrownBy(() -> new SolonClawShellSkill("C:\\workspace; rm -rf runtime", config))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("Blocked")
+                .hasMessageContaining("Invalid workdir")
                 .hasMessageContaining("disallowed character");
     }
 
@@ -534,12 +535,12 @@ public class SolonClawShellSkillTest {
 
         assertThat(foreground.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(foreground.get("error").getString())
-                .contains("Blocked")
+                .contains("Invalid workdir")
                 .contains("disallowed character")
                 .contains("shell metacharacters");
         assertThat(background.get("status").getString()).isEqualTo("error");
         assertThat(background.get("error").getString())
-                .contains("Blocked")
+                .contains("Invalid workdir")
                 .contains("disallowed character")
                 .contains("shell metacharacters");
     }
@@ -573,7 +574,7 @@ public class SolonClawShellSkillTest {
                 .isEqualTo(fallback.toRealPath());
         assertThat(unsafeUnc.get("exit_code").getInt()).isEqualTo(-1);
         assertThat(unsafeUnc.get("error").getString())
-                .contains("Blocked")
+                .contains("Invalid workdir")
                 .contains("disallowed character");
     }
 
@@ -980,8 +981,9 @@ public class SolonClawShellSkillTest {
         assertThat(registry.stop(sessionId)).isTrue();
     }
 
+    /** 验证终端会话可进入凭据命名目录，并将该目录沿用到后续后台进程。 */
     @Test
-    void shouldNotPersistBlockedLiveTerminalCwd() throws Exception {
+    void shouldPersistLiveTerminalCwdInsideCredentialNamedDirectory() throws Exception {
         assumeTrue(!isWindows());
         AppConfig config = new AppConfig();
         ProcessRegistry registry = new ProcessRegistry();
@@ -1011,10 +1013,9 @@ public class SolonClawShellSkillTest {
 
         assertThat(cd.get("exit_code").getInt()).isEqualTo(0);
         assertThat(lastOutputLine(pwd.get("output").getString()))
-                .isEqualTo(workdir.toRealPath().toString());
+                .isEqualTo(credentialDir.toRealPath().toString());
         assertThat(registry.get(sessionId).getCwd())
-                .isEqualTo(workdir.toRealPath().toString())
-                .isNotEqualTo(credentialDir.toRealPath().toString());
+                .isEqualTo(credentialDir.toRealPath().toString());
         assertThat(registry.stop(sessionId)).isTrue();
     }
 

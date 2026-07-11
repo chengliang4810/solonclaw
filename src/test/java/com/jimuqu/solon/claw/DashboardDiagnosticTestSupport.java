@@ -38,8 +38,7 @@ import java.util.Map;
 final class DashboardDiagnosticTestSupport {
     private DashboardDiagnosticTestSupport() {}
 
-    static Map<String, Object> findApprovalItem(
-            List<Map<String, Object>> items, String sessionId) {
+    static Map<String, Object> findApprovalItem(List<Map<String, Object>> items, String sessionId) {
         for (Map<String, Object> item : items) {
             if (sessionId.equals(item.get("session_id"))) {
                 return item;

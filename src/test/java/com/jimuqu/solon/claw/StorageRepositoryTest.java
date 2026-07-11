@@ -138,7 +138,8 @@ public class StorageRepositoryTest {
     @Test
     void shouldExcludeDeniedToolCallsFromRunToolCallCount() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:run-denied-count:user");
+        SessionRecord session =
+                env.sessionRepository.bindNewSession("MEMORY:run-denied-count:user");
         AgentRunRecord run = new AgentRunRecord();
         run.setRunId("run-tool-denied-count-1");
         run.setSessionId(session.getSessionId());
@@ -148,10 +149,12 @@ public class StorageRepositoryTest {
         run.setLastActivityAt(run.getStartedAt());
         env.agentRunRepository.saveRun(run);
 
-        ToolCallRecord completed = toolCall(run, session, "tool-call-denied-count-1", "todo", "completed");
+        ToolCallRecord completed =
+                toolCall(run, session, "tool-call-denied-count-1", "todo", "completed");
         env.agentRunRepository.saveToolCall(completed);
 
-        ToolCallRecord denied = toolCall(run, session, "tool-call-denied-count-2", "todo", "denied");
+        ToolCallRecord denied =
+                toolCall(run, session, "tool-call-denied-count-2", "todo", "denied");
         env.agentRunRepository.saveToolCall(denied);
 
         run.setStatus("success");

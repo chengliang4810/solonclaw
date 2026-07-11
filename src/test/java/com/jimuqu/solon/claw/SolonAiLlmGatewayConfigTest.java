@@ -20,13 +20,17 @@ import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.content.ImageBlock;
+import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.UserMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
 
@@ -99,31 +103,8 @@ public class SolonAiLlmGatewayConfigTest {
                 .hasMessageContaining("占位符密钥");
     }
 
-    @Test
-    void shouldRejectMetadataApiUrlForRemoteProvider() {
-        AppConfig config = remoteProviderConfig("http://169.254.169.254/latest/meta-data");
-
-        assertThatThrownBy(() -> validateLlmConfig(config))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("LLM apiUrl 被安全策略阻断")
-                .hasMessageContaining("云元数据");
-    }
-
-    @Test
-    void shouldRejectPrivateApiUrlForRemoteProviderWhenStrictPolicyConfigured() {
-        AppConfig config = remoteProviderConfig("http://127.0.0.1:8080/v1/chat/completions");
-        config.getSecurity().setAllowPrivateUrls(false);
-
-        assertThatThrownBy(() -> validateLlmConfig(config))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("LLM apiUrl 被安全策略阻断")
-                .hasMessageContaining("内网/私有地址");
-    }
-
-    @Test
     void shouldAllowPrivateApiUrlForRemoteProviderWhenConfigured() throws Exception {
         AppConfig config = remoteProviderConfig("http://127.0.0.1:8080/v1/chat/completions");
-        config.getSecurity().setAllowPrivateUrls(true);
 
         validateLlmConfig(config);
     }
@@ -137,20 +118,6 @@ public class SolonAiLlmGatewayConfigTest {
         config.getLlm().setModel("llama3");
 
         validateLlmConfig(config);
-    }
-
-    @Test
-    void shouldRejectMetadataApiUrlForOllamaProvider() {
-        AppConfig config = new AppConfig();
-        config.getLlm().setProvider("ollama");
-        config.getLlm().setDialect("ollama");
-        config.getLlm().setApiUrl("http://169.254.169.254/latest/meta-data");
-        config.getLlm().setModel("llama3");
-
-        assertThatThrownBy(() -> validateLlmConfig(config))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("LLM apiUrl 被安全策略阻断")
-                .hasMessageContaining("云元数据");
     }
 
     @Test
@@ -206,7 +173,8 @@ public class SolonAiLlmGatewayConfigTest {
     void shouldFallbackForPlainSmartApprovalResponses() throws Exception {
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
         Method parse =
-                SolonAiLlmGateway.class.getDeclaredMethod("parseSmartApprovalResponse", String.class);
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "parseSmartApprovalResponse", String.class);
         parse.setAccessible(true);
         Object[][] cases =
                 new Object[][] {
@@ -230,7 +198,7 @@ public class SolonAiLlmGatewayConfigTest {
         AppConfig config = new AppConfig();
         config.getLlm().setProvider("openai");
         config.getLlm().setDialect("openai");
-        config.getLlm().setApiUrl("https://example.com/v1/chat/completions");
+        config.getLlm().setApiUrl("https://api.openai.com/v1/chat/completions");
         config.getLlm().setModel("gpt-5.4");
 
         SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
@@ -267,8 +235,109 @@ public class SolonAiLlmGatewayConfigTest {
         ChatConfig chatConfig =
                 (ChatConfig) buildChatConfig.invoke(gateway, config.getLlm(), session);
 
-        assertThat(chatConfig.getModelOptions().options())
-                .containsEntry("reasoning", Collections.singletonMap("effort", "high"));
+        Map<?, ?> reasoning = (Map<?, ?>) chatConfig.getModelOptions().options().get("reasoning");
+        assertThat(reasoning.get("effort")).isEqualTo("high");
+        assertThat(reasoning.get("summary")).isEqualTo("auto");
+    }
+
+    /** 验证五种已确认协议会把推理与快速模式转换为各自原生请求字段。 */
+    @Test
+    void shouldBuildProviderNativeReasoningAndFastOptions() throws Exception {
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("provider-native-options");
+        session.setReasoningEffortOverride("high");
+        session.setServiceTierOverride("priority");
+
+        ONode responses =
+                buildRequest(
+                        protocolConfig(
+                                "openai-responses",
+                                "https://api.openai.com/v1/responses",
+                                "gpt-5.4"),
+                        session);
+        assertThat(responses.get("stream").getBoolean()).isTrue();
+        assertThat(responses.get("reasoning").get("effort").getString()).isEqualTo("high");
+        assertThat(responses.get("service_tier").getString()).isEqualTo("priority");
+
+        ONode openai =
+                buildRequest(
+                        protocolConfig(
+                                "openai", "https://api.openai.com/v1/chat/completions", "o3-mini"),
+                        session);
+        assertThat(openai.get("reasoning_effort").getString()).isEqualTo("high");
+        assertThat(openai.get("service_tier").getString()).isEqualTo("priority");
+
+        ONode ollama =
+                buildRequest(
+                        protocolConfig("ollama", "http://localhost:11434/api/chat", "qwen3"),
+                        session);
+        assertThat(ollama.get("think").getBoolean()).isTrue();
+
+        ONode gemini =
+                buildRequest(
+                        protocolConfig(
+                                "gemini",
+                                "https://generativelanguage.googleapis.com/v1beta",
+                                "gemini-3-pro"),
+                        session);
+        assertThat(
+                        gemini.get("generationConfig")
+                                .get("thinkingConfig")
+                                .get("includeThoughts")
+                                .getBoolean())
+                .isTrue();
+        assertThat(
+                        gemini.get("generationConfig")
+                                .get("thinkingConfig")
+                                .get("thinkingLevel")
+                                .getString())
+                .isEqualTo("HIGH");
+
+        AppConfig anthropicConfig =
+                protocolConfig(
+                        "anthropic", "https://api.anthropic.com/v1/messages", "claude-opus-4-6");
+        ChatConfig anthropic = buildChatConfig(anthropicConfig, session);
+        ONode anthropicRequest = buildRequest(anthropic, true);
+        assertThat(anthropicRequest.get("thinking").get("type").getString()).isEqualTo("adaptive");
+        assertThat(anthropicRequest.get("output_config").get("effort").getString())
+                .isEqualTo("high");
+        assertThat(anthropicRequest.get("speed").getString()).isEqualTo("fast");
+        assertThat(anthropic.getHeaders().get("anthropic-beta")).contains("fast-mode-2026-02-01");
+    }
+
+    /** 验证 Anthropic 提示词缓存会标记 system 与最近三条非 system 消息。 */
+    @Test
+    void shouldApplyAnthropicPromptCacheLayoutToRequest() throws Exception {
+        AppConfig config =
+                protocolConfig(
+                        "anthropic", "https://api.anthropic.com/v1/messages", "claude-sonnet-4-5");
+        config.getLlm().getPromptCache().setEnabled(true);
+        config.getLlm().getPromptCache().setTtl("1h");
+        config.getLlm().getPromptCache().setLayout("system_and_3");
+        ChatConfig chatConfig = buildChatConfig(config, new SessionRecord());
+        List<ChatMessage> messages =
+                Arrays.asList(
+                        ChatMessage.ofSystem("system"),
+                        ChatMessage.ofUser("user-1"),
+                        ChatMessage.ofAssistant("assistant-1"),
+                        ChatMessage.ofUser("user-2"),
+                        ChatMessage.ofAssistant("assistant-2"));
+
+        ONode request =
+                chatConfig
+                        .toChatModel()
+                        .getDialect()
+                        .buildRequestJson(
+                                chatConfig, chatConfig.getModelOptions(), messages, false);
+
+        assertThat(request.get("system").isArray()).isTrue();
+        assertCacheMarker(request.get("system").get(0));
+        List<ONode> requestMessages = request.get("messages").getArray();
+        assertThat(requestMessages).hasSize(4);
+        assertThat(lastContent(requestMessages.get(0)).getOrNull("cache_control")).isNull();
+        assertCacheMarker(lastContent(requestMessages.get(1)));
+        assertCacheMarker(lastContent(requestMessages.get(2)));
+        assertCacheMarker(lastContent(requestMessages.get(3)));
     }
 
     @Test
@@ -459,6 +528,62 @@ public class SolonAiLlmGatewayConfigTest {
         assertThat(chatModel.getDialect()).isInstanceOf(RawResponseLoggingChatDialect.class);
         assertThat(((RawResponseLoggingChatDialect) chatModel.getDialect()).getDialectName())
                 .isEqualTo(provider);
+    }
+
+    /** 创建协议请求测试配置。 */
+    private AppConfig protocolConfig(String dialect, String apiUrl, String model) {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider(dialect);
+        config.getLlm().setDialect(dialect);
+        config.getLlm().setApiUrl(apiUrl);
+        config.getLlm().setModel(model);
+        config.getLlm().setReasoningEffort("medium");
+        config.getLlm().setTemperature(0.2D);
+        config.getLlm().setMaxTokens(8192);
+        return config;
+    }
+
+    /** 通过网关真实配置构建器生成协议请求体。 */
+    private ONode buildRequest(AppConfig config, SessionRecord session) throws Exception {
+        return buildRequest(buildChatConfig(config, session), true);
+    }
+
+    /** 调用网关内部配置构建器。 */
+    private ChatConfig buildChatConfig(AppConfig config, SessionRecord session) throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config);
+        Method method =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "buildChatConfig", AppConfig.LlmConfig.class, SessionRecord.class);
+        method.setAccessible(true);
+        return (ChatConfig) method.invoke(gateway, config.getLlm(), session);
+    }
+
+    /** 使用 Solon AI 官方方言生成最终请求 JSON。 */
+    private ONode buildRequest(ChatConfig chatConfig, boolean stream) {
+        return chatConfig
+                .toChatModel()
+                .getDialect()
+                .buildRequestJson(
+                        chatConfig,
+                        chatConfig.getModelOptions(),
+                        Arrays.asList(ChatMessage.ofSystem("system"), ChatMessage.ofUser("hello")),
+                        stream);
+    }
+
+    /** 返回 Anthropic 消息最后一个内容块。 */
+    private ONode lastContent(ONode message) {
+        ONode contentNode = message.get("content");
+        if (!contentNode.isArray()) {
+            return contentNode;
+        }
+        List<ONode> content = contentNode.getArray();
+        return content.get(content.size() - 1);
+    }
+
+    /** 断言缓存标记采用 Anthropic 1 小时临时缓存格式。 */
+    private void assertCacheMarker(ONode content) {
+        assertThat(content.get("cache_control").get("type").getString()).isEqualTo("ephemeral");
+        assertThat(content.get("cache_control").get("ttl").getString()).isEqualTo("1h");
     }
 
     private AppConfig remoteProviderConfig(String apiUrl) {

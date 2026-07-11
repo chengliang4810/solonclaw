@@ -467,6 +467,4 @@ final class SecurityPathExtractionSupport {
                 || "update".equals(value)
                 || "save".equals(value);
     }
-
-
 }

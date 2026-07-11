@@ -10,11 +10,13 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.tool.FunctionToolDesc;
 
 class ContextBudgetServiceTest {
     @Test
     void shouldNotTreatInlineImageDataUriAsLinearTextBudget() throws Exception {
         AppConfig config = config();
+        config.getLlm().setContextWindowTokens(4000);
         DefaultContextBudgetService service = new DefaultContextBudgetService(config);
         SessionRecord session = new SessionRecord();
         session.setSessionId("s-inline-image-budget");
@@ -45,6 +47,33 @@ class ContextBudgetServiceTest {
         assertThat(decision.isShouldCompress()).isTrue();
         assertThat(decision.getEstimatedTokens())
                 .isGreaterThanOrEqualTo(decision.getThresholdTokens());
+    }
+
+    @Test
+    void shouldIncludeEnabledToolSchemasInTheContextBudget() {
+        AppConfig config = config();
+        config.getLlm().setContextWindowTokens(8000);
+        DefaultContextBudgetService service = new DefaultContextBudgetService(config);
+        FunctionToolDesc tool =
+                new FunctionToolDesc("schema_heavy_tool")
+                        .description(repeat("tool description ", 80))
+                        .inputSchema(
+                                "{\"type\":\"object\",\"properties\":{\"payload\":{\"type\":\"string\",\"description\":\""
+                                        + repeat("schema field ", 160)
+                                        + "\"}},\"required\":[\"payload\"]}");
+
+        ContextBudgetDecision withoutTools =
+                service.decide(new SessionRecord(), "system", "继续", config.getLlm());
+        ContextBudgetDecision withTools =
+                service.decide(
+                        new SessionRecord(),
+                        "system",
+                        "继续",
+                        config.getLlm(),
+                        Arrays.<Object>asList(tool));
+
+        assertThat(withTools.getEstimatedTokens())
+                .isGreaterThan(withoutTools.getEstimatedTokens() + 400);
     }
 
     private AppConfig config() {

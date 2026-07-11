@@ -41,7 +41,9 @@ final class ToolWorkspacePathSupport {
         }
         String prefix = rootName + "/";
         if (normalized.length() > prefix.length()
-                && normalized.toLowerCase(Locale.ROOT).startsWith(prefix.toLowerCase(Locale.ROOT))) {
+                && normalized
+                        .toLowerCase(Locale.ROOT)
+                        .startsWith(prefix.toLowerCase(Locale.ROOT))) {
             return normalized.substring(prefix.length());
         }
         return value;

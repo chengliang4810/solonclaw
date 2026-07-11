@@ -106,7 +106,7 @@ final class TerminalPathSupport {
         SecurityPolicyService.FileVerdict verdict = SecurityPolicyService.checkWorkdirText(workDir);
         if (!verdict.isAllowed()) {
             throw new IllegalArgumentException(
-                    "Blocked: "
+                    "Invalid workdir: "
                             + verdict.getMessage()
                             + ". Use a simple filesystem path without shell metacharacters.");
         }

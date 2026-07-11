@@ -29,4 +29,10 @@ public class DelegationTask {
 
     /** 可写入范围说明。 */
     private String writeScope;
+
+    /** 子代理角色：leaf 或 orchestrator。 */
+    private String role;
+
+    /** 可选目标 Profile；为空时由运行时结合 Profile 名称和职责说明选择。 */
+    private String profile;
 }

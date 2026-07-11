@@ -15,19 +15,22 @@ import org.noear.solon.annotation.Component;
 public class TerminalUiHandshakeService {
     /** 终端 UI WebSocket 协议版本。 */
     public static final int PROTOCOL_VERSION = 1;
+
     /** 后端暴露给终端 UI 的 WebSocket 路径。 */
     public static final String WS_PATH = "/ws/tui";
+
     /** WebSocket 对外端口解析器，生产环境读取 Solon WebSocket 配置。 */
     private final IntSupplier websocketPortSupplier;
 
     /** 创建使用 Solon WebSocket 配置的握手服务。 */
     public TerminalUiHandshakeService() {
-        this(new IntSupplier() {
-            @Override
-            public int getAsInt() {
-                return 0;
-            }
-        });
+        this(
+                new IntSupplier() {
+                    @Override
+                    public int getAsInt() {
+                        return 0;
+                    }
+                });
     }
 
     /** 创建指定 WebSocket 端口解析器的握手服务，便于测试不同部署端口。 */
@@ -48,9 +51,7 @@ public class TerminalUiHandshakeService {
         result.put("mode", "server");
         result.put("protocol_version", Integer.valueOf(PROTOCOL_VERSION));
         result.put("ws_url", appendToken(toWebSocketUrl(base), accessToken));
-        result.put(
-                "features",
-                Arrays.asList("chat", "slash_commands", "sessions", "approvals"));
+        result.put("features", Arrays.asList("chat", "slash_commands", "sessions", "approvals"));
         return result;
     }
 

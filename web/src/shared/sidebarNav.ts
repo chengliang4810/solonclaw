@@ -23,11 +23,6 @@ export const PRIMARY_NAV_ITEMS: readonly SidebarNavItem[] = [
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>',
   },
   {
-    key: 'solonclaw.agents',
-    labelKey: 'sidebar.agents',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="4" /><path d="M5.5 21a6.5 6.5 0 0 1 13 0" /><path d="M17 11.5l2 2 3-4" /></svg>',
-  },
-  {
     key: 'solonclaw.skills',
     labelKey: 'sidebar.skills',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2" /><polyline points="2 17 12 22 22 17" /><polyline points="2 12 12 17 22 12" /></svg>',
@@ -124,6 +119,11 @@ export const MONITORING_NAV_ITEMS: readonly SidebarNavItem[] = [
  * 系统级入口在标题区用裸 SVG path 片段渲染，和侧栏整图标 SVG 保持不同数据边界。
  */
 export const SYSTEM_NAV_ITEMS: readonly SystemNavItem[] = [
+  {
+    key: 'solonclaw.profiles',
+    labelKey: 'sidebar.profiles',
+    icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />',
+  },
   {
     key: 'solonclaw.settings',
     labelKey: 'sidebar.settings',
