@@ -90,6 +90,38 @@ public class AgentRunSupervisorTest {
                         "run.success");
     }
 
+    /** 限流时立即切换备用模型，并从已写入的工具结果继续而不是重放整轮。 */
+    @Test
+    void shouldFallbackImmediatelyAndResumeAfterToolActivity() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTrace().setMaxAttempts(4);
+        SnapshotFailoverGateway gateway = new SnapshotFailoverGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:fallback:user");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "create file",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        assertThat(outcome.getFinalReply()).isEqualTo("backup continued");
+        assertThat(gateway.attempts)
+                .containsExactly("primary:gpt-5-mini", "backup:claude-sonnet-4");
+        assertThat(gateway.resumeFlags).containsExactly(false, true);
+        assertThat(MessageSupport.loadMessages(outcome.getResult().getNdjson()))
+                .filteredOn(message -> message.getRole() == org.noear.solon.ai.chat.ChatRole.TOOL)
+                .hasSize(1);
+    }
+
     @Test
     void shouldRecordCompressionDecisionBeforeAttempt() throws Exception {
         Fixture fixture = fixture();
@@ -966,6 +998,49 @@ public class AgentRunSupervisorTest {
                 throw new IllegalStateException("HTTP 401 unauthorized");
             }
             return resolvedResult(session, resolved, "backup ok");
+        }
+    }
+
+    /** 模拟工具已执行后主提供方限流，备用提供方应继续现有快照。 */
+    private static class SnapshotFailoverGateway extends ExecuteOnceOnlyGateway {
+        /** 记录提供方执行顺序。 */
+        private final List<String> attempts = new ArrayList<String>();
+
+        /** 记录每次调用是否以恢复模式继续。 */
+        private final List<Boolean> resumeFlags = new ArrayList<Boolean>();
+
+        /** 主提供方写入工具结果后限流，备用提供方直接收敛答复。 */
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext)
+                throws Exception {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            resumeFlags.add(Boolean.valueOf(resume));
+            if ("primary".equals(resolved.getProvider())) {
+                session.setNdjson(
+                        ChatMessage.toNdjson(
+                                java.util.Arrays.asList(
+                                        ChatMessage.ofUser(userMessage),
+                                        ChatMessage.ofAssistant("执行工具"),
+                                        ChatMessage.ofTool("created", "write_file", "call_1"))));
+                throw new IllegalStateException("HTTP 429 rate limit");
+            }
+            List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+            messages.add(ChatMessage.ofAssistant("backup continued"));
+            LlmResult result = new LlmResult();
+            result.setProvider(resolved.getProvider());
+            result.setModel(resolved.getModel());
+            result.setAssistantMessage(new AssistantMessage("backup continued"));
+            result.setNdjson(ChatMessage.toNdjson(messages));
+            return result;
         }
     }
 

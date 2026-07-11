@@ -186,6 +186,8 @@ export class GatewayClient extends EventEmitter {
   private stderrRl: ReturnType<typeof createInterface> | null = null
   private lastStartupFailureAt = 0
   private backendUnavailable = false
+  private replayGeneration = 0
+  private replaying = false
 
   constructor() {
     super()
@@ -210,7 +212,7 @@ export class GatewayClient extends EventEmitter {
       }
     }
 
-    if (this.subscribed) {
+    if (this.subscribed && !this.replaying) {
       return void this.emit('event', ev)
     }
 
@@ -261,6 +263,8 @@ export class GatewayClient extends EventEmitter {
     // attached to a discarded child / socket.
     this.rejectPending(new Error('gateway restarting'))
     this.ready = false
+    this.replayGeneration++
+    this.replaying = false
     this.bufferedEvents.clear()
     this.pendingExit = undefined
     this.stdoutRl?.close()
@@ -623,20 +627,36 @@ export class GatewayClient extends EventEmitter {
     }
   }
 
-  drain() {
-    this.subscribed = true
-    this.lifecycle(`[startup] drain buffered=${this.bufferedEvents.tail().length}`)
+  drain(): Promise<void> {
+    const generation = ++this.replayGeneration
 
-    for (const ev of this.bufferedEvents.drain()) {
-      this.emit('event', ev)
-    }
+    this.replaying = true
 
-    if (this.pendingExit !== undefined) {
-      const code = this.pendingExit
+    return new Promise(resolve => {
+      queueMicrotask(() => {
+        if (generation !== this.replayGeneration) {
+          return resolve()
+        }
 
-      this.pendingExit = undefined
-      this.emit('exit', code)
-    }
+        this.subscribed = true
+        this.lifecycle(`[startup] drain buffered=${this.bufferedEvents.tail().length}`)
+
+        for (const ev of this.bufferedEvents.drain()) {
+          this.emit('event', ev)
+        }
+
+        this.replaying = false
+
+        if (this.pendingExit !== undefined) {
+          const code = this.pendingExit
+
+          this.pendingExit = undefined
+          this.emit('exit', code)
+        }
+
+        resolve()
+      })
+    })
   }
 
   getLogTail(limit = 20): string {

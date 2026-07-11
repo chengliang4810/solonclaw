@@ -28,6 +28,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -71,6 +73,10 @@ public class AsyncSkillLearningService implements SkillLearningService {
     /** 保存auxiliary执行器服务执行组件，负责调度异步或定时任务。 */
     private final ExecutorService auxiliaryExecutorService =
             BoundedExecutorFactory.fixed("async-skill-auxiliary", 2, 16);
+
+    /** 记录每个会话已被技能学习消费的工具消息数量，避免同一批工具结果在后续回复中重复学习。 */
+    private final ConcurrentMap<String, Integer> consumedToolMessages =
+            new ConcurrentHashMap<String, Integer>();
 
     /**
      * 创建Async技能Learning服务实例，并注入运行所需依赖。
@@ -131,20 +137,24 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             public void run() {
                                 try {
                                     int toolMessages = countToolMessages(session);
+                                    int unconsumedToolMessages =
+                                            unconsumedToolMessages(session, toolMessages);
                                     boolean hasRecentCheckpoint =
                                             checkpointService.hasRecentCheckpoint(
                                                     message.sourceKey(),
-                                                    Math.max(
-                                                            session.getLastLearningAt(),
-                                                            session.getUpdatedAt() - 60_000L));
+                                                    session.getLastLearningAt());
 
-                                    if (toolMessages
+                                    if (unconsumedToolMessages
                                                     < appConfig.getLearning().getToolCallThreshold()
                                             && !hasRecentCheckpoint) {
                                         return;
                                     }
                                     runLearning(
-                                            session, message, toolMessages, hasRecentCheckpoint);
+                                            session,
+                                            message,
+                                            toolMessages,
+                                            unconsumedToolMessages,
+                                            hasRecentCheckpoint);
                                 } catch (Exception e) {
                                     log.warn(
                                             "Post-reply skill learning failed: sessionId={},"
@@ -163,23 +173,41 @@ public class AsyncSkillLearningService implements SkillLearningService {
      * @param session 会话参数。
      * @param message 平台消息或错误消息。
      * @param toolMessages 工具Messages参数。
+     * @param unconsumedToolMessages 本次尚未用于学习的工具消息数量。
      * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
      */
     private void runLearning(
             SessionRecord session,
             GatewayMessage message,
             int toolMessages,
+            int unconsumedToolMessages,
             boolean hasRecentCheckpoint)
             throws Exception {
-        if (toolMessages >= appConfig.getLearning().getToolCallThreshold()) {
+        if (unconsumedToolMessages >= appConfig.getLearning().getToolCallThreshold()) {
             learnSkill(session, message, hasRecentCheckpoint);
         } else if (hasRecentCheckpoint) {
             learnSkill(session, message, true);
         }
 
         long learnedAt = System.currentTimeMillis();
+        consumedToolMessages.put(session.getSessionId(), Integer.valueOf(toolMessages));
         session.setLastLearningAt(learnedAt);
         sessionRepository.setLastLearningAt(session.getSessionId(), learnedAt);
+    }
+
+    /** 计算当前会话中还未纳入学习闭环的工具消息数量。 */
+    private int unconsumedToolMessages(SessionRecord session, int toolMessages) {
+        String sessionId = session.getSessionId();
+        if (StrUtil.isBlank(sessionId)) {
+            return toolMessages;
+        }
+        Integer consumed =
+                consumedToolMessages.computeIfAbsent(
+                        sessionId,
+                        key ->
+                                Integer.valueOf(
+                                        session.getLastLearningAt() > 0L ? toolMessages : 0));
+        return Math.max(0, toolMessages - consumed.intValue());
     }
 
     /**

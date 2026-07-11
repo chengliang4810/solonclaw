@@ -33,8 +33,7 @@ class ProfileBundledSkillSeederTest {
         write(bundled.resolve("productivity/DESCRIPTION.md"), "# Productivity\n");
         ProfileManager manager = manager(ProfileBundledSkillSeeder.fromDirectory(bundled));
 
-        Path profile =
-                manager.createProfile("fresh", new ProfileCreateOptions().setNoAlias(true));
+        Path profile = manager.createProfile("fresh", new ProfileCreateOptions().setNoAlias(true));
 
         assertThat(profile.resolve("skills/productivity/notes/SKILL.md"))
                 .hasContent("---\nname: official-notes\n---\n# Notes v1\n");
@@ -53,8 +52,7 @@ class ProfileBundledSkillSeederTest {
                 System.getProperty(DefaultProfileBundledSkillSeeder.BUNDLED_SKILLS_PROPERTY);
         try {
             System.setProperty(
-                    DefaultProfileBundledSkillSeeder.BUNDLED_SKILLS_PROPERTY,
-                    bundled.toString());
+                    DefaultProfileBundledSkillSeeder.BUNDLED_SKILLS_PROPERTY, bundled.toString());
             ProfileManager manager =
                     new ProfileManager(
                             tempDir.resolve("production-workspace"),
@@ -67,8 +65,7 @@ class ProfileBundledSkillSeederTest {
 
             assertThat(profile.resolve("skills/core/doctor/SKILL.md")).hasContent("# Doctor\n");
         } finally {
-            restoreProperty(
-                    DefaultProfileBundledSkillSeeder.BUNDLED_SKILLS_PROPERTY, previous);
+            restoreProperty(DefaultProfileBundledSkillSeeder.BUNDLED_SKILLS_PROPERTY, previous);
         }
     }
 
@@ -96,8 +93,7 @@ class ProfileBundledSkillSeederTest {
 
         Path profile =
                 manager.createProfile(
-                        "optout",
-                        new ProfileCreateOptions().setNoAlias(true).setNoSkills(true));
+                        "optout", new ProfileCreateOptions().setNoAlias(true).setNoSkills(true));
 
         assertThat(profile.resolve(".no-bundled-skills")).isRegularFile();
         assertThat(profile.resolve("skills")).isEmptyDirectory();
@@ -141,8 +137,7 @@ class ProfileBundledSkillSeederTest {
         write(source, "# Builtin v2\n");
 
         assertThat(seeder.seed(profile)).containsExactly("builtin");
-        assertThat(profile.resolve("skills/core/builtin/SKILL.md"))
-                .hasContent("# Builtin v2\n");
+        assertThat(profile.resolve("skills/core/builtin/SKILL.md")).hasContent("# Builtin v2\n");
         assertThat(profile.resolve("skills/custom/SKILL.md")).hasContent("# Custom\n");
     }
 
@@ -213,8 +208,7 @@ class ProfileBundledSkillSeederTest {
         Path profile = tempDir.resolve("packaged-profile");
 
         assertThat(seeder.seed(profile)).contains("plan");
-        assertThat(profile.resolve("skills/software-development/plan/SKILL.md"))
-                .isRegularFile();
+        assertThat(profile.resolve("skills/software-development/plan/SKILL.md")).isRegularFile();
     }
 
     /** Jar 内 META-INF 正式技能根通过 NIO Jar 文件系统同步。 */
@@ -281,11 +275,7 @@ class ProfileBundledSkillSeederTest {
         Path root = tempDir.resolve("workspace");
         Files.createDirectories(root);
         return new ProfileManager(
-                root,
-                tempDir.resolve("bin"),
-                "solonclaw",
-                new ProfileDescriptionService(),
-                seeder);
+                root, tempDir.resolve("bin"), "solonclaw", new ProfileDescriptionService(), seeder);
     }
 
     /** 创建包含显式目录项的 Jar，确保类加载器可枚举正式技能根。 */
@@ -344,8 +334,7 @@ class ProfileBundledSkillSeederTest {
             return;
         }
         try (java.util.stream.Stream<Path> paths = Files.walk(root)) {
-            Path[] ordered =
-                    paths.sorted(Collections.reverseOrder()).toArray(Path[]::new);
+            Path[] ordered = paths.sorted(Collections.reverseOrder()).toArray(Path[]::new);
             for (Path path : ordered) {
                 Files.deleteIfExists(path);
             }

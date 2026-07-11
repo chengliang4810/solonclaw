@@ -72,6 +72,16 @@ describe('session setup failure recovery', () => {
     expect(resumeById).toContain("sys(`error: ${sessionLifecycleErrorMessage")
     expect(resumeById).toContain("patchUiState({ status: 'ready' })")
   })
+
+  it('keeps the current session until the requested session resumes successfully', () => {
+    const resumeById = blockBetween(source(), 'const resumeById = useCallback', 'const guardBusySessionSwitch = useCallback')
+
+    const requestIndex = resumeById.indexOf(".request<SessionResumeResponse>('session.resume'")
+    const closeIndex = resumeById.indexOf('void closeSession(previousSid === id ? null : previousSid)')
+
+    expect(requestIndex).toBeGreaterThanOrEqual(0)
+    expect(closeIndex).toBeGreaterThan(requestIndex)
+  })
 })
 
 const blockBetween = (source: string, start: string, end: string) => {

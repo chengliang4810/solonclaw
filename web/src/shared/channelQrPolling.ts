@@ -19,6 +19,7 @@ export interface ChannelQrPollingState {
   appId: string
   openId: string
   userId: string
+  botId: string
 }
 
 type MaybePromise<T> = T | Promise<T>
@@ -49,6 +50,7 @@ function createState(): ChannelQrPollingState {
     appId: '',
     openId: '',
     userId: '',
+    botId: '',
   }
 }
 
@@ -111,6 +113,7 @@ export function useChannelQrPolling<Key extends string>(
     state.appId = view.app_id || ''
     state.openId = view.open_id || ''
     state.userId = view.user_id || ''
+    state.botId = view.bot_id || ''
     await updateSource(state, view.qrcode_url || '')
     if (view.status === 'confirmed') {
       state.status = 'confirmed'

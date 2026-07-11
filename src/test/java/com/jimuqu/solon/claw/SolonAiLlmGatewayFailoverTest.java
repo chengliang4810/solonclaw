@@ -113,6 +113,27 @@ public class SolonAiLlmGatewayFailoverTest {
                         "primary:gpt-5-mini", "primary:gpt-5-mini", "backup:claude-sonnet-4");
     }
 
+    /** 限流不会耗尽同提供方重试预算，而是立即切换备用模型。 */
+    @Test
+    void shouldFallbackImmediatelyWhenPrimaryIsRateLimited() throws Exception {
+        AppConfig config = config();
+        config.getReact().setRetryMax(4);
+        RateLimitedGateway gateway = new RateLimitedGateway(config);
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("rate-limit");
+
+        gateway.chat(
+                session,
+                "system",
+                "hello",
+                Collections.emptyList(),
+                ConversationFeedbackSink.noop());
+
+        assertThat(gateway.attempts)
+                .containsExactly("primary:gpt-5-mini", "backup:claude-sonnet-4");
+        assertThat(gateway.resumeFlags).containsExactly(false, true);
+    }
+
     private AppConfig config() {
         AppConfig config = new AppConfig();
         isolateRuntime(config, "llm-failover");
@@ -199,14 +220,14 @@ public class SolonAiLlmGatewayFailoverTest {
     /** 让主提供方持续返回可重试错误，用于校验配置化重试次数。 */
     private static class RetryingGateway extends SolonAiLlmGateway {
         /** 记录每次实际执行的提供方和模型。 */
-        private final List<String> attempts = new ArrayList<String>();
+        protected final List<String> attempts = new ArrayList<String>();
 
         /** 创建配置化重试测试网关。 */
-        private RetryingGateway(AppConfig config) {
+        protected RetryingGateway(AppConfig config) {
             super(config);
         }
 
-        /** 模拟主提供方过载，备用提供方成功。 */
+        /** 模拟主提供方服务端错误，备用提供方成功。 */
         @Override
         protected LlmResult executeSingle(
                 SessionRecord session,
@@ -221,9 +242,47 @@ public class SolonAiLlmGatewayFailoverTest {
                 throws Exception {
             attempts.add(resolved.getProvider() + ":" + resolved.getModel());
             if ("primary".equals(resolved.getProvider())) {
-                throw new IllegalStateException("HTTP 503 overloaded");
+                throw new IllegalStateException("HTTP 500 server error");
             }
 
+            LlmResult result = new LlmResult();
+            result.setProvider(resolved.getProvider());
+            result.setModel(resolved.getModel());
+            result.setRawResponse("ok");
+            result.setAssistantMessage(new AssistantMessage("done"));
+            return result;
+        }
+    }
+
+    /** 模拟主提供方限流，备用提供方成功。 */
+    private static class RateLimitedGateway extends RetryingGateway {
+        /** 记录故障切换后是否从已有会话快照继续。 */
+        private final List<Boolean> resumeFlags = new ArrayList<Boolean>();
+
+        /** 创建限流故障切换测试网关。 */
+        private RateLimitedGateway(AppConfig config) {
+            super(config);
+        }
+
+        /** 主提供方返回限流错误。 */
+        @Override
+        protected LlmResult executeSingle(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                AgentRunContext runContext)
+                throws Exception {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            resumeFlags.add(Boolean.valueOf(resume));
+            if ("primary".equals(resolved.getProvider())) {
+                session.setNdjson("snapshot-after-tool");
+                throw new IllegalStateException("HTTP 429 rate limit");
+            }
             LlmResult result = new LlmResult();
             result.setProvider(resolved.getProvider());
             result.setModel(resolved.getModel());

@@ -119,6 +119,96 @@ public class GatewayAuthorizationService {
         return GatewayReply.error("不允许通过渠道消息认领平台管理员，请在本机或管理面完成配置。");
     }
 
+    /**
+     * 由可信本机或已认证管理面设置平台管理员。
+     *
+     * @param platform 目标平台。
+     * @param userId 管理员平台用户 ID。
+     * @param userName 管理员显示名称。
+     * @param chatId 管理员私聊会话 ID。
+     * @return 保存后的管理员记录。
+     */
+    public PlatformAdminRecord setPlatformAdmin(
+            PlatformType platform, String userId, String userName, String chatId) throws Exception {
+        if (platform == null || StrUtil.isBlank(userId)) {
+            throw new IllegalArgumentException("平台和管理员用户 ID 不能为空。");
+        }
+        PlatformAdminRecord record = new PlatformAdminRecord();
+        record.setPlatform(platform);
+        record.setUserId(userId.trim());
+        record.setUserName(blankToNull(userName));
+        record.setChatId(blankToNull(chatId));
+        record.setCreatedAt(System.currentTimeMillis());
+        repository.savePlatformAdmin(record);
+        return record;
+    }
+
+    /** 由可信本机或已认证管理面清除平台管理员。 */
+    public void clearPlatformAdmin(PlatformType platform) throws Exception {
+        if (platform == null) {
+            throw new IllegalArgumentException("平台不能为空。");
+        }
+        repository.deletePlatformAdmin(platform);
+    }
+
+    /** 返回平台管理员，供可信控制面展示。 */
+    public PlatformAdminRecord platformAdmin(PlatformType platform) throws Exception {
+        return repository.getPlatformAdmin(platform);
+    }
+
+    /** 返回未过期 pairing 请求，供可信控制面展示申请人信息。 */
+    public List<PairingRequestRecord> pendingPairings(PlatformType platform) throws Exception {
+        repository.deleteExpiredPairingRequests(platform, System.currentTimeMillis());
+        return repository.listPairingRequests(platform, false);
+    }
+
+    /** 返回已批准用户，供可信控制面展示。 */
+    public List<ApprovedUserRecord> approvedUsers(PlatformType platform) throws Exception {
+        return repository.listApprovedUsers(platform);
+    }
+
+    /**
+     * 由可信控制面批准用户提交的 pairing code。
+     *
+     * @param platform 目标平台。
+     * @param code 用户提交的临时 code。
+     * @param approvedBy 审批来源标识。
+     * @return 被批准的用户记录。
+     */
+    public ApprovedUserRecord approvePairing(PlatformType platform, String code, String approvedBy)
+            throws Exception {
+        if (platform == null || StrUtil.isBlank(code)) {
+            throw new IllegalArgumentException("平台和 pairing code 不能为空。");
+        }
+        long now = System.currentTimeMillis();
+        repository.deleteExpiredPairingRequests(platform, now);
+        PairingRequestRecord request = repository.getPairingRequest(platform, code.trim());
+        if (request == null || request.getExpiresAt() < now || isRetiredAdminClaim(request)) {
+            throw new IllegalArgumentException("pairing code 无效或已过期。");
+        }
+        ApprovedUserRecord approved = new ApprovedUserRecord();
+        approved.setPlatform(platform);
+        approved.setUserId(request.getUserId());
+        approved.setUserName(request.getUserName());
+        approved.setApprovedAt(now);
+        approved.setApprovedBy(blankToDefault(approvedBy, "trusted-control"));
+        repository.saveApprovedUser(approved);
+        repository.deletePairingRequest(platform, request.getCode());
+        return approved;
+    }
+
+    /** 由可信控制面撤销已批准用户，平台管理员不属于可撤销用户列表。 */
+    public void revokePairing(PlatformType platform, String userId) throws Exception {
+        if (platform == null || StrUtil.isBlank(userId)) {
+            throw new IllegalArgumentException("平台和用户 ID 不能为空。");
+        }
+        PlatformAdminRecord admin = repository.getPlatformAdmin(platform);
+        if (admin != null && sameUser(admin.getUserId(), userId.trim())) {
+            throw new IllegalArgumentException("平台管理员不能作为普通授权用户撤销。");
+        }
+        repository.revokeApprovedUser(platform, userId.trim());
+    }
+
     /** 将当前聊天设置为 home channel。 */
     public GatewayReply setHome(GatewayMessage message) throws Exception {
         if (!isAdmin(message)) {
@@ -157,12 +247,10 @@ public class GatewayAuthorizationService {
             if (buffer.length() > 0) {
                 buffer.append('\n');
             }
-            buffer.append(record.getCode())
-                    .append(" -> ")
-                    .append(blankToDefault(record.getUserName(), record.getUserId()))
+            buffer.append(blankToDefault(record.getUserName(), record.getUserId()))
                     .append(" [")
                     .append(record.getUserId())
-                    .append("]");
+                    .append("]，请向用户索取其 pairing code");
         }
         return GatewayReply.ok(buffer.toString());
     }
@@ -189,8 +277,6 @@ public class GatewayAuthorizationService {
             for (PairingRequestRecord record : pending) {
                 buffer.append('\n')
                         .append("- ")
-                        .append(record.getCode())
-                        .append(" -> ")
                         .append(blankToDefault(record.getUserName(), record.getUserId()))
                         .append(" [")
                         .append(record.getUserId())
@@ -238,25 +324,17 @@ public class GatewayAuthorizationService {
         }
 
         long now = System.currentTimeMillis();
-        repository.deleteExpiredPairingRequests(targetPlatform, now);
-        PairingRequestRecord request = repository.getPairingRequest(targetPlatform, code);
-        if (request == null || request.getExpiresAt() < now || isRetiredAdminClaim(request)) {
+        ApprovedUserRecord approvedUser;
+        try {
+            approvedUser = approvePairing(targetPlatform, code, message.getUserId());
+        } catch (IllegalArgumentException e) {
             recordFailure(targetPlatform, message.getUserId(), now);
             return GatewayReply.error("pairing code 无效或已过期。");
         }
-
-        ApprovedUserRecord approvedUser = new ApprovedUserRecord();
-        approvedUser.setPlatform(targetPlatform);
-        approvedUser.setUserId(request.getUserId());
-        approvedUser.setUserName(request.getUserName());
-        approvedUser.setApprovedAt(now);
-        approvedUser.setApprovedBy(message.getUserId());
-        repository.saveApprovedUser(approvedUser);
-        repository.deletePairingRequest(targetPlatform, code);
         clearFailure(targetPlatform, message.getUserId(), now);
         return GatewayReply.ok(
                 "已批准 "
-                        + blankToDefault(request.getUserName(), request.getUserId())
+                        + blankToDefault(approvedUser.getUserName(), approvedUser.getUserId())
                         + " 使用 "
                         + targetPlatform.name().toLowerCase()
                         + " 平台。");
@@ -269,12 +347,11 @@ public class GatewayAuthorizationService {
             return GatewayReply.error("只有平台管理员可以撤销已批准用户。");
         }
 
-        PlatformAdminRecord admin = repository.getPlatformAdmin(targetPlatform);
-        if (admin != null && sameUser(admin.getUserId(), userId)) {
-            return GatewayReply.error("平台管理员不能被撤销。");
+        try {
+            revokePairing(targetPlatform, userId);
+        } catch (IllegalArgumentException e) {
+            return GatewayReply.error(e.getMessage());
         }
-
-        repository.revokeApprovedUser(targetPlatform, userId);
         return GatewayReply.ok(
                 "已撤销 " + userId + " 在 " + targetPlatform.name().toLowerCase() + " 平台的使用权限。");
     }
@@ -362,13 +439,7 @@ public class GatewayAuthorizationService {
         PairingRequestRecord existing =
                 repository.getLatestUserPairingRequest(platform, message.getUserId());
         if (existing != null && existing.getExpiresAt() > now) {
-            saveRequestRate(
-                    platform,
-                    message.getUserId(),
-                    now,
-                    rateLimit == null ? 0 : rateLimit.getFailedAttempts(),
-                    rateLimit == null ? 0L : rateLimit.getLockoutUntil());
-            return pairingPrompt(platform, existing.getCode());
+            repository.deletePairingRequest(platform, existing.getCode());
         }
 
         PairingRequestRecord request = new PairingRequestRecord();

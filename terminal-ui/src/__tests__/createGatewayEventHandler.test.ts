@@ -244,6 +244,18 @@ describe('createGatewayEventHandler', () => {
     expect(appended[1]).toMatchObject({ role: 'assistant', text: 'final answer' })
   })
 
+  it('renders failed tool completion with an error marker', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    onEvent({ payload: { name: 'terminal', tool_id: 'tool-failed' }, type: 'tool.start' } as any)
+    onEvent({ payload: { error: 'command failed', name: 'terminal', tool_id: 'tool-failed' }, type: 'tool.complete' } as any)
+    onEvent({ payload: { text: 'final answer' }, type: 'message.complete' } as any)
+
+    expect(appended[0]?.tools?.[0]).toContain('command failed')
+    expect(appended[0]?.tools?.[0]).toMatch(/ ✗$/)
+  })
+
   it('groups sequential completed tools into one trail when the turn completes', () => {
     const appended: Msg[] = []
     const onEvent = createGatewayEventHandler(buildCtx(appended))

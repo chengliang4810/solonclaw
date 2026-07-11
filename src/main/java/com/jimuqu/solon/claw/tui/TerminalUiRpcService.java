@@ -365,14 +365,13 @@ public class TerminalUiRpcService {
     /** 恢复会话响应，绑定 source key 并返回持久化 transcript。 */
     public Map<String, Object> sessionResume(String sessionId) throws Exception {
         SessionRecord session = findSession(sessionId);
-        if (session != null) {
-            bindTerminalSource(session.getSessionId(), session.getSessionId());
-            rememberLiveSession(session.getSessionId());
+        if (session == null) {
+            throw new IllegalArgumentException(
+                    "session not found: " + StrUtil.nullToEmpty(sessionId));
         }
-        String effectiveSessionId =
-                session == null
-                        ? StrUtil.blankToDefault(sessionId, newSessionId())
-                        : session.getSessionId();
+        bindTerminalSource(session.getSessionId(), session.getSessionId());
+        rememberLiveSession(session.getSessionId());
+        String effectiveSessionId = session.getSessionId();
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("session_id", effectiveSessionId);
         result.put("info", sessionInfo(session));

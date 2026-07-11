@@ -48,7 +48,10 @@ public class DelegateTools {
                     List<DelegateTaskInput> tasks,
             @Param(name = "role", description = "子代理角色：leaf 或 orchestrator", required = false)
                     String role,
-            @Param(name = "profile", description = "目标 Profile 名；为空时按任务与 Profile 职责自动选择", required = false)
+            @Param(
+                            name = "profile",
+                            description = "目标 Profile 名；为空时按任务与 Profile 职责自动选择",
+                            required = false)
                     String profile,
             @Param(name = "background", description = "协议字段；执行方式由运行时决定，模型值不改变调度", required = false)
                     Boolean background)

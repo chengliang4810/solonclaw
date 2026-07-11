@@ -251,7 +251,7 @@ export interface DiagnosticsDoctor {
   model?: Record<string, unknown>
   last_shutdown?: Record<string, unknown>
   config?: Record<string, unknown>
-  platforms?: Array<Record<string, unknown>>
+  platforms?: PlatformDoctor[]
   summary?: {
     issueCount?: number
     warningCount?: number
@@ -259,6 +259,23 @@ export interface DiagnosticsDoctor {
     issues?: Array<Record<string, unknown>>
     nextActions?: string[]
   }
+}
+
+export interface PlatformDoctor {
+  platform?: string
+  enabled?: boolean
+  connected?: boolean
+  detail?: string
+  setup_state?: string
+  connection_mode?: string
+  missing_config?: string[]
+  features?: string[]
+  last_error_code?: string
+  last_error_message?: string
+  reconnecting?: boolean
+  reconnect_attempt?: number
+  last_reconnect_error?: string
+  next_step?: string
 }
 
 export interface ResolveSlashConfirmRequest {

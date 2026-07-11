@@ -27,6 +27,16 @@ public interface GatewayPolicyRepository {
     /** 在平台尚无管理员时创建管理员。 */
     boolean createPlatformAdminIfAbsent(PlatformAdminRecord record) throws Exception;
 
+    /** 由可信本机或已认证管理面设置平台管理员。 */
+    default void savePlatformAdmin(PlatformAdminRecord record) throws Exception {
+        throw new UnsupportedOperationException("当前仓储不支持设置平台管理员。");
+    }
+
+    /** 由可信本机或已认证管理面清除平台管理员。 */
+    default void deletePlatformAdmin(PlatformType platform) throws Exception {
+        throw new UnsupportedOperationException("当前仓储不支持清除平台管理员。");
+    }
+
     /** 查询已批准用户。 */
     ApprovedUserRecord getApprovedUser(PlatformType platform, String userId) throws Exception;
 

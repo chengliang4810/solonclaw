@@ -3,7 +3,14 @@ package com.jimuqu.solon.claw.cli;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.ApprovedUserRecord;
+import com.jimuqu.solon.claw.core.model.PairingRequestRecord;
+import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
+import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
+import com.jimuqu.solon.claw.storage.repository.SqliteGatewayPolicyRepository;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
 import com.jimuqu.solon.claw.support.ChannelConfigSupport;
 import com.jimuqu.solon.claw.support.RuntimeConfigResolverSupport;
@@ -133,7 +140,7 @@ public class TerminalSetupCommands {
             return renderLogout();
         }
         if ("pairing".equals(value) || value.startsWith("pairing ")) {
-            return renderPairingGuidance(rawValue);
+            return renderPairing(rawValue);
         }
         if ("gateway".equals(value)
                 || "gateway status".equals(value)
@@ -1408,30 +1415,103 @@ public class TerminalSetupCommands {
     }
 
     /**
-     * 渲染 pairing 管理说明；本地终端没有真实平台上下文，不能代替渠道管理员私聊执行授权。
+     * 在可信本机终端直接管理 pairing，不伪造任何渠道用户身份。
      *
      * @param rawValue 用户输入的 pairing 命令。
-     * @return pairing 管理说明。
+     * @return pairing 管理结果。
      */
-    private String renderPairingGuidance(String rawValue) {
+    private String renderPairing(String rawValue) {
         String command = commandText(rawValue);
-        if (StrUtil.isBlank(command) || "pairing".equalsIgnoreCase(command)) {
-            command = "pairing list";
+        String args = command.replaceFirst("(?i)^pairing\\s*", "").trim();
+        String[] parts = StrUtil.isBlank(args) ? new String[] {"list"} : args.split("\\s+");
+        SqliteDatabase database = null;
+        try {
+            database = new SqliteDatabase(appConfig);
+            GatewayAuthorizationService authorization =
+                    new GatewayAuthorizationService(
+                            new SqliteGatewayPolicyRepository(database), appConfig);
+            String action = parts[0].toLowerCase(java.util.Locale.ROOT);
+            if ("list".equals(action)) {
+                return renderPairingList(authorization, parts.length > 1 ? parts[1] : null);
+            }
+            if ("approve".equals(action) && parts.length == 3) {
+                ApprovedUserRecord approved =
+                        authorization.approvePairing(
+                                requireDomesticPlatform(parts[1]), parts[2], "local-cli");
+                return "已批准 " + approved.getUserId() + " 使用 " + parts[1] + "。";
+            }
+            if ("revoke".equals(action) && parts.length == 3) {
+                authorization.revokePairing(requireDomesticPlatform(parts[1]), parts[2]);
+                return "已撤销 " + parts[2] + " 在 " + parts[1] + " 的授权。";
+            }
+            if ("admin".equals(action) && parts.length >= 4 && "set".equalsIgnoreCase(parts[1])) {
+                authorization.setPlatformAdmin(
+                        requireDomesticPlatform(parts[2]),
+                        parts[3],
+                        parts.length > 4 ? parts[4] : null,
+                        parts.length > 5 ? parts[5] : null);
+                return "已设置 " + parts[2] + " 平台管理员为 " + parts[3] + "。";
+            }
+            if ("admin".equals(action) && parts.length == 3 && "clear".equalsIgnoreCase(parts[1])) {
+                authorization.clearPlatformAdmin(requireDomesticPlatform(parts[2]));
+                return "已清除 " + parts[2] + " 平台管理员。";
+            }
+            return pairingUsage();
+        } catch (Exception e) {
+            return "Pairing 管理失败：" + StrUtil.blankToDefault(e.getMessage(), "未知错误");
+        } finally {
+            if (database != null) {
+                database.shutdown();
+            }
         }
-        return "Pairing 管理\n"
-                + "支持渠道："
-                + String.join(",", DOMESTIC_CHANNELS)
-                + "\n本地终端只能展示管理路径，不能伪造平台管理员身份审批用户。\n"
-                + "请在对应平台管理员私聊中执行：/"
-                + command
-                + "\n常用命令：\n"
-                + "- 平台管理员必须通过本机或已认证的管理面显式配置\n"
-                + "- /pairing pending <platform> - 查看待处理 pairing code\n"
-                + "- /pairing approve <platform> <code> - 批准用户\n"
-                + "- /pairing approved <platform> - 查看授权用户列表\n"
-                + "- /pairing revoke <platform> <userId> - 撤销用户\n"
-                + "- /pairing clear-pending <platform> - 清理待处理请求\n"
-                + "平台值：feishu、dingtalk、wecom、weixin、qqbot、yuanbao。";
+    }
+
+    /** 渲染指定平台或全部国内平台的 pairing 状态。 */
+    private String renderPairingList(
+            GatewayAuthorizationService authorization, String requestedPlatform) throws Exception {
+        List<PlatformType> platforms =
+                StrUtil.isBlank(requestedPlatform)
+                        ? PlatformType.DOMESTIC_PLATFORMS
+                        : java.util.Collections.singletonList(
+                                requireDomesticPlatform(requestedPlatform));
+        StringBuilder result = new StringBuilder("Pairing 管理");
+        for (PlatformType platform : platforms) {
+            PlatformAdminRecord admin = authorization.platformAdmin(platform);
+            List<PairingRequestRecord> pending = authorization.pendingPairings(platform);
+            List<ApprovedUserRecord> approved = authorization.approvedUsers(platform);
+            result.append('\n')
+                    .append(platform.name().toLowerCase(java.util.Locale.ROOT))
+                    .append(" admin=")
+                    .append(admin == null ? "未设置" : admin.getUserId())
+                    .append(" pending=")
+                    .append(pending.size())
+                    .append(" approved=")
+                    .append(approved.size());
+            for (PairingRequestRecord request : pending) {
+                result.append("\n  待审批：")
+                        .append(StrUtil.blankToDefault(request.getUserName(), request.getUserId()))
+                        .append(" [")
+                        .append(request.getUserId())
+                        .append("]，请向用户索取 pairing code");
+            }
+        }
+        return result.toString();
+    }
+
+    /** 校验 CLI 仅管理已确认保留的国内渠道。 */
+    private PlatformType requireDomesticPlatform(String value) {
+        PlatformType platform = PlatformType.fromName(value);
+        if (!PlatformType.DOMESTIC_PLATFORMS.contains(platform)) {
+            throw new IllegalArgumentException("不支持的平台：" + value);
+        }
+        return platform;
+    }
+
+    /** 返回本机 pairing 命令用法。 */
+    private String pairingUsage() {
+        return "用法：pairing list [platform] | pairing approve <platform> <code> | "
+                + "pairing revoke <platform> <userId> | pairing admin set <platform> <userId> "
+                + "[userName] [chatId] | pairing admin clear <platform>";
     }
 
     /**

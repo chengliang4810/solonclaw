@@ -22,7 +22,7 @@ class TuiRuntimeProtocolServiceTest {
         assertThat(channel(channels, "weixin").get("qr_supported")).isEqualTo(Boolean.TRUE);
         assertThat(channel(channels, "feishu").get("qr_supported")).isEqualTo(Boolean.TRUE);
         assertThat(channel(channels, "dingtalk").get("qr_supported")).isEqualTo(Boolean.TRUE);
-        assertThat(channel(channels, "wecom").get("qr_supported")).isEqualTo(Boolean.FALSE);
+        assertThat(channel(channels, "wecom").get("qr_supported")).isEqualTo(Boolean.TRUE);
     }
 
     @Test

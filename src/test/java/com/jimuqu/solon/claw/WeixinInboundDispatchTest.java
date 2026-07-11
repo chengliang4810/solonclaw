@@ -8,10 +8,13 @@ import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.sun.net.httpserver.HttpServer;
 import java.io.File;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -519,6 +522,80 @@ public class WeixinInboundDispatchTest {
         assertThat(heartbeat.isCancelled()).isTrue();
 
         adapter.disconnect();
+    }
+
+    @Test
+    void shouldStartTypingBeforeBatchAndKeepItUntilHandlerCompletes() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        CountDownLatch firstTyping = new CountDownLatch(1);
+        CountDownLatch refreshedTyping = new CountDownLatch(2);
+        CountDownLatch stoppedTyping = new CountDownLatch(1);
+        server.createContext(
+                "/ilink/bot/getconfig",
+                exchange -> {
+                    byte[] response =
+                            "{\"typing_ticket\":\"ticket-1\"}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.createContext(
+                "/ilink/bot/sendtyping",
+                exchange -> {
+                    String body =
+                            new String(
+                                    exchange.getRequestBody().readAllBytes(),
+                                    StandardCharsets.UTF_8);
+                    int status = ONode.ofJson(body).get("status").getInt();
+                    if (status == 1) {
+                        firstTyping.countDown();
+                        refreshedTyping.countDown();
+                    } else if (status == 2) {
+                        stoppedTyping.countDown();
+                    }
+                    byte[] response = "{}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.start();
+
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setToken("token-1");
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(2.0D);
+        WeiXinChannelAdapter adapter = newAdapter(config);
+        CountDownLatch handlerStarted = new CountDownLatch(1);
+        adapter.setInboundMessageHandler(
+                message -> {
+                    handlerStarted.countDown();
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(2500L);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                });
+
+        try {
+            Method processInbound =
+                    WeiXinChannelAdapter.class.getDeclaredMethod(
+                            "processInboundMessage", ONode.class);
+            processInbound.setAccessible(true);
+            processInbound.invoke(adapter, inboundText("msg-typing", "", "wx-user", "hello"));
+
+            assertThat(firstTyping.await(1500L, TimeUnit.MILLISECONDS)).isTrue();
+            assertThat(handlerStarted.getCount()).isEqualTo(1L);
+            assertThat(handlerStarted.await(3L, TimeUnit.SECONDS)).isTrue();
+            assertThat(refreshedTyping.await(3L, TimeUnit.SECONDS)).isTrue();
+            assertThat(stoppedTyping.await(3L, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            adapter.disconnect();
+            server.stop(0);
+        }
     }
 
     @Test

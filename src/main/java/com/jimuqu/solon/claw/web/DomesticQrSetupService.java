@@ -30,6 +30,9 @@ public class DomesticQrSetupService {
     /** 平台飞书的统一常量值。 */
     private static final String PLATFORM_FEISHU = "feishu";
 
+    /** 平台企微的统一常量值。 */
+    private static final String PLATFORM_WECOM = "wecom";
+
     /** 默认钉钉基础URL的统一常量值。 */
     private static final String DEFAULT_DINGTALK_BASE_URL = "https://oapi.dingtalk.com";
 
@@ -41,6 +44,15 @@ public class DomesticQrSetupService {
 
     /** 飞书REGISTRATION路径的统一常量值。 */
     private static final String FEISHU_REGISTRATION_PATH = "/oauth/v1/app/registration";
+
+    /** 企微扫码生成接口路径。 */
+    private static final String WECOM_QR_GENERATE_PATH = "/ai/qc/generate?source=solonclaw";
+
+    /** 企微扫码结果查询接口路径。 */
+    private static final String WECOM_QR_QUERY_PATH = "/ai/qc/query_result?scode=";
+
+    /** 企微扫码服务默认基础地址。 */
+    private static final String DEFAULT_WECOM_QR_BASE_URL = "https://work.weixin.qq.com";
 
     /** 默认超时毫秒数的统一常量值。 */
     private static final long DEFAULT_TIMEOUT_MILLIS = 10L * 60L * 1000L;
@@ -126,6 +138,8 @@ public class DomesticQrSetupService {
                     public void run() {
                         if (PLATFORM_DINGTALK.equals(normalized)) {
                             runDingTalk(state);
+                        } else if (PLATFORM_WECOM.equals(normalized)) {
+                            runWecom(state);
                         } else {
                             runFeishu(state);
                         }
@@ -301,6 +315,53 @@ public class DomesticQrSetupService {
         }
     }
 
+    /** 运行企微扫码注册，成功后持久化机器人 ID 与密钥。 */
+    private void runWecom(TicketState state) {
+        try {
+            String baseUrl =
+                    normalizeBaseUrl(
+                            StrUtil.blankToDefault(
+                                    appConfig.getChannels().getWecom().getBaseUrl(),
+                                    DEFAULT_WECOM_QR_BASE_URL));
+            ONode generated = getJson(baseUrl + WECOM_QR_GENERATE_PATH);
+            ONode data = generated.get("data");
+            String scode = data.get("scode").getString();
+            String authUrl = data.get("auth_url").getString();
+            if (StrUtil.isBlank(scode) || StrUtil.isBlank(authUrl)) {
+                throw new IllegalStateException("企微扫码注册响应缺少二维码信息");
+            }
+            state.deviceCode = scode;
+            state.qrUrl = authUrl;
+            state.mark("pending", "请使用企业微信扫码授权");
+
+            while (System.currentTimeMillis() < state.expiresAt) {
+                ONode result = getJson(baseUrl + WECOM_QR_QUERY_PATH + urlEncode(scode));
+                ONode resultData = result.get("data");
+                String status = StrUtil.nullToEmpty(resultData.get("status").getString()).trim();
+                if ("success".equalsIgnoreCase(status)) {
+                    ONode botInfo = resultData.get("bot_info");
+                    String botId =
+                            StrUtil.blankToDefault(
+                                    botInfo.get("botid").getString(),
+                                    botInfo.get("bot_id").getString());
+                    String secret = botInfo.get("secret").getString();
+                    if (StrUtil.isBlank(botId) || StrUtil.isBlank(secret)) {
+                        throw new IllegalStateException("企微扫码成功，但返回的机器人凭证不完整。");
+                    }
+                    persistWecom(botId, secret);
+                    state.botId = botId;
+                    state.mark("confirmed", "企业微信连接成功");
+                    return;
+                }
+                state.mark("pending", "等待企业微信扫码授权");
+                sleepMillis(3000L);
+            }
+            state.fail("qr_timeout", "企业微信扫码登录超时。");
+        } catch (Exception e) {
+            state.fail("qr_failed", ErrorTextSupport.safeError(e));
+        }
+    }
+
     /**
      * 执行飞书Accounts基础URL相关逻辑。
      *
@@ -348,6 +409,16 @@ public class DomesticQrSetupService {
         configResolver.setFileValue(
                 "solonclaw.channels.feishu.domain",
                 "lark".equalsIgnoreCase(domain) ? "lark" : "feishu");
+        gatewayRuntimeRefreshService.refreshNow();
+    }
+
+    /** 持久化企微扫码授权结果并立即刷新该渠道连接。 */
+    private void persistWecom(String botId, String secret) {
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+        updates.put("channels.wecom.enabled", Boolean.TRUE);
+        configService.savePartialFlat(updates, false);
+        configResolver.setFileValue("solonclaw.channels.wecom.botId", botId);
+        configResolver.setFileValue("solonclaw.channels.wecom.secret", secret);
         gatewayRuntimeRefreshService.refreshNow();
     }
 
@@ -415,6 +486,18 @@ public class DomesticQrSetupService {
         }
     }
 
+    /** 执行扫码服务 GET 请求并限制响应体大小。 */
+    private ONode getJson(String url) {
+        HttpResponse response = HttpRequest.get(url).timeout(35_000).execute();
+        try {
+            return ONode.ofJson(
+                    BoundedAttachmentIO.readHutoolText(
+                            response, BoundedAttachmentIO.JSON_MAX_BYTES));
+        } finally {
+            response.close();
+        }
+    }
+
     /**
      * 确保Ding Talk Ok。
      *
@@ -463,6 +546,7 @@ public class DomesticQrSetupService {
         result.put("app_id", state.appId);
         result.put("open_id", state.openId);
         result.put("domain", state.domain);
+        result.put("bot_id", state.botId);
         return result;
     }
 
@@ -474,7 +558,9 @@ public class DomesticQrSetupService {
      */
     private String normalizePlatform(String platform) {
         String value = StrUtil.nullToEmpty(platform).trim().toLowerCase();
-        if (PLATFORM_DINGTALK.equals(value) || PLATFORM_FEISHU.equals(value)) {
+        if (PLATFORM_DINGTALK.equals(value)
+                || PLATFORM_FEISHU.equals(value)
+                || PLATFORM_WECOM.equals(value)) {
             return value;
         }
         throw new IllegalArgumentException("不支持的扫码平台：" + platform);
@@ -519,6 +605,15 @@ public class DomesticQrSetupService {
             }
         }
         return String.join("&", parts);
+    }
+
+    /** 编码查询参数，避免 scode 中的保留字符改变请求语义。 */
+    private String urlEncode(String value) {
+        try {
+            return URLEncoder.encode(StrUtil.nullToEmpty(value), "UTF-8");
+        } catch (Exception e) {
+            throw new IllegalStateException("查询参数编码失败", e);
+        }
     }
 
     /**
@@ -589,6 +684,9 @@ public class DomesticQrSetupService {
 
         /** 记录Ticket中的domain。 */
         private String domain;
+
+        /** 记录Ticket中的企微机器人标识。 */
+        private String botId;
 
         /**
          * 创建国内扫码 setup ticket 状态。

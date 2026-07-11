@@ -189,10 +189,7 @@ public class AgentRuntimeService {
         return AgentRuntimeScope.normalizeName(name);
     }
 
-    /**
-     * 校验命名 Agent 名称，防止路径穿越和不稳定文件名进入 runtime 目录。
-     *
-     */
+    /** 校验命名 Agent 名称，防止路径穿越和不稳定文件名进入 runtime 目录。 */
     public void validateName(String name) {
         String normalized = normalizeName(name);
         if (AgentRuntimeScope.DEFAULT_AGENT.equals(normalized)) {

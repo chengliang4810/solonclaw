@@ -212,9 +212,11 @@ public class DelegationServiceTest {
                 delegationInput("batch goal", "batch context", "orchestrator");
         DelegateTools.DelegateTaskInput second = delegationInput("default role", null, null);
 
-        tools.delegateTask("single goal", "single context", null, "leaf", "reviewer", Boolean.FALSE);
+        tools.delegateTask(
+                "single goal", "single context", null, "leaf", "reviewer", Boolean.FALSE);
         first.setProfile("backend");
-        tools.delegateTask(null, "shared context", Arrays.asList(first, second), "leaf", null, null);
+        tools.delegateTask(
+                null, "shared context", Arrays.asList(first, second), "leaf", null, null);
 
         assertThat(service.singleTask.getPrompt()).isEqualTo("single goal");
         assertThat(service.singleTask.getContext()).isEqualTo("single context");

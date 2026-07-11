@@ -89,4 +89,16 @@ public class DashboardGatewayController {
     public Map<String, Object> getDingTalkQr(String ticket) {
         return DashboardResponse.ok(domesticQrSetupService.get(ticket));
     }
+
+    /** 启动企微二维码。 */
+    @Mapping(value = "/api/gateway/setup/wecom/qr", method = MethodType.POST)
+    public Map<String, Object> startWecomQr() {
+        return DashboardResponse.ok(domesticQrSetupService.start("wecom"));
+    }
+
+    /** 读取企微二维码。 */
+    @Mapping(value = "/api/gateway/setup/wecom/qr/{ticket}", method = MethodType.GET)
+    public Map<String, Object> getWecomQr(String ticket) {
+        return DashboardResponse.ok(domesticQrSetupService.get(ticket));
+    }
 }

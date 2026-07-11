@@ -177,12 +177,32 @@ describe('GatewayClient solonclaw bridge', () => {
 
     await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1))
     FakeWebSocket.instances[0]!.open()
-    gw.drain()
+    await gw.drain()
 
     expect(globalThis.fetch).toHaveBeenCalledWith('http://127.0.0.1:8080/api/tui/handshake')
     expect(FakeWebSocket.instances[0]!.url).toBe('ws://127.0.0.1:18080/ws/tui')
     expect(FakeWebSocket.instances[0]!.sent[0]).toContain('client.hello')
     expect(events).toContain('gateway.ready')
+  })
+
+  it('replays startup events asynchronously in order and ignores an older drain generation', async () => {
+    const gw = new GatewayClient()
+    const events: string[] = []
+
+    gw.on('event', event => events.push(event.type))
+    gw.start()
+    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1))
+    const socket = FakeWebSocket.instances[0]!
+
+    socket.open()
+    socket.message(JSON.stringify({ jsonrpc: '2.0', method: 'event', params: { type: 'message.start' } }))
+    const staleDrain = gw.drain()
+    const currentDrain = gw.drain()
+
+    expect(events).toEqual([])
+    await Promise.all([staleDrain, currentDrain])
+    expect(events).toEqual(['gateway.ready', 'message.start'])
+    gw.kill()
   })
 
   it('sends dashboard token during handshake and redacts websocket token from logs', async () => {
@@ -266,7 +286,7 @@ describe('GatewayClient solonclaw bridge', () => {
     const socket = FakeWebSocket.instances[0]!
 
     socket.open()
-    gw.drain()
+    await gw.drain()
 
     const submitted = gw.request('prompt.submit', { session_id: 's1', text: '你好' })
     await vi.waitFor(() => expect(socket.sent.some(frame => frame.includes('"method":"prompt.submit"'))).toBe(true))
@@ -402,7 +422,7 @@ describe('GatewayClient solonclaw bridge', () => {
     const sidecarSocket = FakeWebSocket.instances[1]!
 
     sidecarSocket.open()
-    gw.drain()
+    await gw.drain()
 
     const eventFrame = JSON.stringify({
       jsonrpc: '2.0',
@@ -418,7 +438,7 @@ describe('GatewayClient solonclaw bridge', () => {
     gw.kill()
   })
 
-  it('emits exit when attached websocket closes', () => {
+  it('emits exit when attached websocket closes', async () => {
     process.env.SOLONCLAW_TUI_GATEWAY_URL = 'ws://gateway.test/api/ws?token=abc'
     const gw = new GatewayClient()
     const exits: Array<null | number> = []
@@ -429,7 +449,7 @@ describe('GatewayClient solonclaw bridge', () => {
     const gatewaySocket = FakeWebSocket.instances[0]!
 
     gatewaySocket.open()
-    gw.drain()
+    await gw.drain()
     gatewaySocket.close(1011)
 
     expect(exits).toEqual([1011])
@@ -445,7 +465,7 @@ describe('GatewayClient solonclaw bridge', () => {
     const gatewaySocket = FakeWebSocket.instances[0]!
 
     gatewaySocket.open()
-    gw.drain()
+    await gw.drain()
 
     const req = gw.request('session.create', {})
     await vi.waitFor(() => expect(findRpcFrame(gatewaySocket, 'session.create')).toBeTruthy())
@@ -463,7 +483,7 @@ describe('GatewayClient solonclaw bridge', () => {
     const gatewaySocket = FakeWebSocket.instances[0]!
 
     gatewaySocket.open()
-    gw.drain()
+    await gw.drain()
 
     const req = gw.request('session.create', {})
     await vi.waitFor(() => expect(findRpcFrame(gatewaySocket, 'session.create')).toBeTruthy())
@@ -482,7 +502,7 @@ describe('GatewayClient solonclaw bridge', () => {
     const firstSocket = FakeWebSocket.instances[0]!
 
     firstSocket.open()
-    gw.drain()
+    await gw.drain()
 
     const stale = gw.request('session.create', {})
     await vi.waitFor(() => expect(findRpcFrame(firstSocket, 'session.create')).toBeTruthy())
@@ -506,7 +526,7 @@ describe('GatewayClient solonclaw bridge', () => {
     gw.kill()
   })
 
-  it('redacts query string secrets in attach failure logs and events', () => {
+  it('redacts query string secrets in attach failure logs and events', async () => {
     process.env.SOLONCLAW_TUI_GATEWAY_URL = 'ws://gateway.test/api/ws?token=hunter2&channel=secret'
 
     // 使 WebSocket 构造函数抛错以模拟连接失败（ws 模块 fallback 使 "unavailable" 不再触发）
@@ -525,7 +545,7 @@ describe('GatewayClient solonclaw bridge', () => {
       }
     })
     gw.start()
-    gw.drain()
+    await gw.drain()
 
     expect(stderrLines.length).toBeGreaterThan(0)
 
@@ -540,7 +560,7 @@ describe('GatewayClient solonclaw bridge', () => {
     gw.kill()
   })
 
-  it('redacts attach URL secrets when the WebSocket constructor throws', () => {
+  it('redacts attach URL secrets when the WebSocket constructor throws', async () => {
     const secretUrl = 'ws://gateway.test/api/ws?token=hunter2&channel=secret'
 
     process.env.SOLONCLAW_TUI_GATEWAY_URL = secretUrl
@@ -553,7 +573,7 @@ describe('GatewayClient solonclaw bridge', () => {
     const gw = new GatewayClient()
 
     gw.start()
-    gw.drain()
+    await gw.drain()
 
     const tail = gw.getLogTail(20)
     expect(tail).not.toContain('hunter2')
@@ -595,7 +615,7 @@ describe('GatewayClient solonclaw bridge', () => {
     gw.kill()
   })
 
-  it('redacts user-info credentials even on URLs the WHATWG parser rejects', () => {
+  it('redacts user-info credentials even on URLs the WHATWG parser rejects', async () => {
     const fixture = 'ws://alice:hunter2@gateway.test:99999/api/ws?token=secret'
     expect(() => new URL(fixture)).toThrow()
 
@@ -617,7 +637,7 @@ describe('GatewayClient solonclaw bridge', () => {
       }
     })
     gw.start()
-    gw.drain()
+    await gw.drain()
 
     expect(stderrLines.length).toBeGreaterThan(0)
 
@@ -645,7 +665,7 @@ describe('GatewayClient solonclaw bridge', () => {
     const gw = new GatewayClient()
 
     gw.start()
-    gw.drain()
+    await gw.drain()
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
     await new Promise(resolve => setTimeout(resolve, 3100))
 

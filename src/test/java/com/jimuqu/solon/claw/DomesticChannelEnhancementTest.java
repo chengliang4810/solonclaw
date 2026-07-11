@@ -224,6 +224,47 @@ public class DomesticChannelEnhancementTest {
     }
 
     @Test
+    void shouldAssociateQqbotMediaReplyWithInboundMessage() {
+        AppConfig config = new AppConfig();
+        TestQQBotAdapter adapter = new TestQQBotAdapter(config);
+
+        ONode body = adapter.buildMediaBody("media-info", "msg-inbound");
+
+        assertThat(body.get("msg_type").getInt()).isEqualTo(7);
+        assertThat(body.get("media").get("file_info").getString()).isEqualTo("media-info");
+        assertThat(body.get("msg_id").getString()).isEqualTo("msg-inbound");
+    }
+
+    @Test
+    void shouldBuildFeishuReplyPayloadWithoutReceiveId() throws Throwable {
+        AppConfig config = new AppConfig();
+        TestFeishuAdapter adapter = new TestFeishuAdapter(config);
+        Method messageUrl =
+                FeishuChannelAdapter.class.getDeclaredMethod("messageUrl", String.class);
+        Method messageBody =
+                FeishuChannelAdapter.class.getDeclaredMethod(
+                        "messageBody", String.class, String.class, String.class, String.class);
+        messageUrl.setAccessible(true);
+        messageBody.setAccessible(true);
+
+        String url = String.valueOf(invoke(messageUrl, adapter, "om_inbound"));
+        ONode body =
+                ONode.ofJson(
+                        String.valueOf(
+                                invoke(
+                                        messageBody,
+                                        adapter,
+                                        "oc_chat",
+                                        "text",
+                                        "{\"text\":\"ok\"}",
+                                        "om_inbound")));
+
+        assertThat(url).endsWith("/im/v1/messages/om_inbound/reply");
+        assertThat(body.get("receive_id").isNull()).isTrue();
+        assertThat(body.get("msg_type").getString()).isEqualTo("text");
+    }
+
+    @Test
     void shouldBuildQqbotNativeApprovalKeyboardWithJimuquChoices() {
         AppConfig config = new AppConfig();
         TestQQBotAdapter adapter = new TestQQBotAdapter(config);
@@ -1106,6 +1147,10 @@ public class DomesticChannelEnhancementTest {
 
         private ONode buildUpdatePromptBody(DeliveryRequest request) {
             return buildUpdatePromptKeyboardBody(request);
+        }
+
+        protected ONode buildMediaBody(String fileInfo, String replyTo) {
+            return super.buildMediaBody(fileInfo, replyTo);
         }
     }
 

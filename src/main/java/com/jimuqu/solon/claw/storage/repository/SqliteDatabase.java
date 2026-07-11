@@ -6,10 +6,16 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermission;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.EnumSet;
 import java.util.concurrent.locks.ReentrantLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +27,9 @@ public class SqliteDatabase {
 
     /** 记录SQLite数据库中的jdbcURL。 */
     private final String jdbcUrl;
+
+    /** SQLite 主文件路径，用于同步收紧主库及 WAL/SHM 权限。 */
+    private final Path stateDbPath;
 
     /** 记录SQLite数据库中的连接Lock。 */
     private final ReentrantLock connectionLock = new ReentrantLock(true);
@@ -35,8 +44,10 @@ public class SqliteDatabase {
      */
     public SqliteDatabase(AppConfig appConfig) throws SQLException {
         FileUtil.mkParentDirs(appConfig.getRuntime().getStateDb());
+        this.stateDbPath = Paths.get(appConfig.getRuntime().getStateDb()).toAbsolutePath();
         this.jdbcUrl = "jdbc:sqlite:" + appConfig.getRuntime().getStateDb();
         initSchema();
+        hardenStateFiles();
     }
 
     /**
@@ -47,7 +58,9 @@ public class SqliteDatabase {
     public Connection openConnection() throws SQLException {
         connectionLock.lock();
         try {
-            return lockReleasingConnection(sharedConnection());
+            Connection connection = sharedConnection();
+            hardenStateFiles();
+            return lockReleasingConnection(connection);
         } catch (SQLException e) {
             connectionLock.unlock();
             throw e;
@@ -123,7 +136,11 @@ public class SqliteDatabase {
                                 && method.getParameterTypes().length == 0) {
                             if (!closed) {
                                 closed = true;
-                                connectionLock.unlock();
+                                try {
+                                    hardenStateFiles();
+                                } finally {
+                                    connectionLock.unlock();
+                                }
                             }
                             return null;
                         }
@@ -160,6 +177,39 @@ public class SqliteDatabase {
         } catch (SQLException | RuntimeException e) {
             log.debug(
                     "SQLite connection close failed; cleanup continues: error={}", errorSummary(e));
+        }
+    }
+
+    /** 将 SQLite 主库、WAL 和 SHM 文件限制为仅当前系统用户可读写。 */
+    private void hardenStateFiles() throws SQLException {
+        for (Path path :
+                new Path[] {
+                    stateDbPath,
+                    Paths.get(stateDbPath.toString() + "-wal"),
+                    Paths.get(stateDbPath.toString() + "-shm")
+                }) {
+            if (!Files.exists(path)) {
+                continue;
+            }
+            try {
+                if (Files.getFileAttributeView(path, PosixFileAttributeView.class) != null) {
+                    Files.setPosixFilePermissions(
+                            path,
+                            EnumSet.of(
+                                    PosixFilePermission.OWNER_READ,
+                                    PosixFilePermission.OWNER_WRITE));
+                } else {
+                    java.io.File file = path.toFile();
+                    if (!file.setReadable(false, false)
+                            || !file.setWritable(false, false)
+                            || !file.setReadable(true, true)
+                            || !file.setWritable(true, true)) {
+                        throw new IllegalStateException("无法设置文件权限。");
+                    }
+                }
+            } catch (Exception e) {
+                throw new SQLException("无法收紧 SQLite 状态文件权限：" + path, e);
+            }
         }
     }
 
@@ -402,6 +452,7 @@ public class SqliteDatabase {
                             + "expires_at integer not null,"
                             + "primary key (platform, code)"
                             + ")");
+            statement.execute("delete from pairing_requests where code not like 'pbkdf2-sha256$%'");
             statement.execute(
                     "create table if not exists pairing_rate_limits ("
                             + "platform text not null,"

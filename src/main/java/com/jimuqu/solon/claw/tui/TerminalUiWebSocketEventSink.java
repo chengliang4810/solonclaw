@@ -201,6 +201,10 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
             Map<String, Object> payload = pair("name", toolName);
             payload.put("tool_id", activeToolId(toolName));
             payload.put("result_text", result);
+            String error = toolError(result);
+            if (StrUtil.isNotBlank(error)) {
+                payload.put("error", error);
+            }
             payload.put("duration_s", Double.valueOf(durationMs / 1000.0D));
             send("tool.complete", payload, activeSessionId);
             activeToolIds.remove(toolName);
@@ -424,6 +428,23 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
      */
     private String safeToolName(String toolName) {
         return ObjectUtil.defaultIfNull(toolName, "tool");
+    }
+
+    /** 从统一工具结果中提取失败原因，供终端 UI 用失败状态渲染。 */
+    private String toolError(String result) {
+        if (StrUtil.isBlank(result)) {
+            return null;
+        }
+        try {
+            ONode node = ONode.ofJson(result);
+            if (!node.isObject() || !"error".equalsIgnoreCase(node.get("status").getString())) {
+                return null;
+            }
+            return StrUtil.blankToDefault(
+                    node.get("error").getString(), node.get("summary").getString());
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     /** 面向 JSON-RPC 事件的轻量 think 标签拆分器，仅处理模型输出开头或流中完整出现的 think 标签。 */

@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
+import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
 import com.jimuqu.solon.claw.gateway.command.SlashConfirmService;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService;
 import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
@@ -58,6 +59,7 @@ import com.jimuqu.solon.claw.web.DashboardInsightsService;
 import com.jimuqu.solon.claw.web.DashboardLogsService;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardMediaService;
+import com.jimuqu.solon.claw.web.DashboardPairingService;
 import com.jimuqu.solon.claw.web.DashboardPlatformToolsetsService;
 import com.jimuqu.solon.claw.web.DashboardPluginStatusService;
 import com.jimuqu.solon.claw.web.DashboardProfileService;
@@ -143,6 +145,20 @@ public class DashboardConfiguration {
     @Bean
     public Filter dashboardAuthFilter(DashboardAuthService dashboardAuthService) {
         return new DashboardAuthFilter(dashboardAuthService);
+    }
+
+    /**
+     * 创建已认证 Dashboard 的 pairing 管理服务。
+     *
+     * @param gatewayAuthorizationService 当前 Profile 授权服务。
+     * @param dashboardProfileContext Dashboard Profile 请求上下文。
+     * @return pairing 管理服务。
+     */
+    @Bean
+    public DashboardPairingService dashboardPairingService(
+            GatewayAuthorizationService gatewayAuthorizationService,
+            DashboardProfileContext dashboardProfileContext) {
+        return new DashboardPairingService(gatewayAuthorizationService, dashboardProfileContext);
     }
 
     /**

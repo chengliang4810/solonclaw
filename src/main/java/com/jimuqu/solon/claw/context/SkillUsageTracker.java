@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.logging.Logger;
 import org.noear.snack4.ONode;
 
-/** 承载技能用量Tracker相关状态和辅助逻辑。 */
+/** 读取并维护技能整理器使用的统一用量状态。 */
 public class SkillUsageTracker {
     /** 技能用量记录器的低敏日志记录器。 */
     private static final Logger LOG = Logger.getLogger(SkillUsageTracker.class.getName());
@@ -24,7 +24,7 @@ public class SkillUsageTracker {
     /** 状态ARCHIVED的统一常量值。 */
     public static final String STATE_ARCHIVED = "archived";
 
-    /** 记录技能用量Tracker中的用量文件。 */
+    /** 技能整理器状态文件，同时承载技能用量。 */
     private final File usageFile;
 
     /**
@@ -33,7 +33,7 @@ public class SkillUsageTracker {
      * @param appConfig 应用运行配置。
      */
     public SkillUsageTracker(AppConfig appConfig) {
-        this.usageFile = new File(appConfig.getRuntime().getSkillsDir(), ".usage.json");
+        this.usageFile = new File(appConfig.getRuntime().getSkillsDir(), ".curator_state");
     }
 
     /**
@@ -42,7 +42,7 @@ public class SkillUsageTracker {
      * @param skillName 技能名称参数。
      */
     public synchronized void bumpView(String skillName) {
-        bump(skillName, "viewCount", "lastViewedAt");
+        bump(skillName, "loadCount", "lastActivityAt");
     }
 
     /**
@@ -51,7 +51,7 @@ public class SkillUsageTracker {
      * @param skillName 技能名称参数。
      */
     public synchronized void bumpInvoke(String skillName) {
-        bump(skillName, "invokeCount", "lastInvokedAt");
+        bump(skillName, "callCount", "lastActivityAt");
     }
 
     /**
@@ -79,7 +79,7 @@ public class SkillUsageTracker {
     public synchronized void markState(String skillName, String state) {
         Map<String, Object> data = loadData();
         Map<String, Object> entry = ensureEntry(data, skillName);
-        entry.put("state", state);
+        entry.put("status", state);
         entry.put("stateChangedAt", Long.valueOf(System.currentTimeMillis()));
         saveData(data);
     }
@@ -118,9 +118,7 @@ public class SkillUsageTracker {
         Map<String, Object> data = loadData();
         @SuppressWarnings("unchecked")
         Map<String, Object> entry = (Map<String, Object>) data.get(skillName);
-        return entry == null
-                ? new LinkedHashMap<String, Object>()
-                : new LinkedHashMap<String, Object>(entry);
+        return entry == null ? new LinkedHashMap<String, Object>() : normalizedEntry(entry);
     }
 
     /**
@@ -129,7 +127,15 @@ public class SkillUsageTracker {
      * @return 返回读取到的全部Entries。
      */
     public synchronized Map<String, Object> getAllEntries() {
-        return new LinkedHashMap<String, Object>(loadData());
+        Map<String, Object> normalized = new LinkedHashMap<String, Object>();
+        for (Map.Entry<String, Object> entry : loadData().entrySet()) {
+            if (entry.getValue() instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> value = (Map<String, Object>) entry.getValue();
+                normalized.put(entry.getKey(), normalizedEntry(value));
+            }
+        }
+        return normalized;
     }
 
     /**
@@ -163,8 +169,8 @@ public class SkillUsageTracker {
      */
     public synchronized long getLastActivityAt(String skillName) {
         Map<String, Object> entry = getEntry(skillName);
-        long viewed = asLong(entry.get("lastViewedAt"));
-        long invoked = asLong(entry.get("lastInvokedAt"));
+        long viewed = asLong(entry.get("lastActivityAt"));
+        long invoked = asLong(entry.get("lastActivityAt"));
         long managed = asLong(entry.get("lastManagedAt"));
         return Math.max(viewed, Math.max(invoked, managed));
     }
@@ -182,8 +188,8 @@ public class SkillUsageTracker {
         long now = System.currentTimeMillis();
         entry.put(timestampField, Long.valueOf(now));
         increment(entry, countField);
-        if (!entry.containsKey("state")) {
-            entry.put("state", STATE_ACTIVE);
+        if (!entry.containsKey("status")) {
+            entry.put("status", STATE_ACTIVE);
         }
         saveData(data);
     }
@@ -202,10 +208,25 @@ public class SkillUsageTracker {
             return (Map<String, Object>) existing;
         }
         Map<String, Object> entry = new LinkedHashMap<String, Object>();
-        entry.put("state", STATE_ACTIVE);
+        entry.put("status", STATE_ACTIVE);
         entry.put("createdAt", Long.valueOf(System.currentTimeMillis()));
         data.put(skillName, entry);
         return entry;
+    }
+
+    /** 将整理器字段转换为控制台稳定展示字段。 */
+    private Map<String, Object> normalizedEntry(Map<String, Object> entry) {
+        Map<String, Object> normalized = new LinkedHashMap<String, Object>(entry);
+        Object status = entry.get("status");
+        normalized.put(
+                "state",
+                status == null
+                        ? STATE_ACTIVE
+                        : StrUtil.blankToDefault(String.valueOf(status), STATE_ACTIVE));
+        normalized.put(
+                "count",
+                Long.valueOf(asLong(entry.get("loadCount")) + asLong(entry.get("callCount"))));
+        return normalized;
     }
 
     /**
@@ -245,7 +266,10 @@ public class SkillUsageTracker {
                 if (StrUtil.isNotBlank(json)) {
                     Object parsed = ONode.deserialize(json, Object.class);
                     if (parsed instanceof Map) {
-                        return new LinkedHashMap<String, Object>((Map<String, Object>) parsed);
+                        Object skills = ((Map<String, Object>) parsed).get("skills");
+                        if (skills instanceof Map) {
+                            return new LinkedHashMap<String, Object>((Map<String, Object>) skills);
+                        }
                     }
                 }
             }
@@ -267,7 +291,9 @@ public class SkillUsageTracker {
     private void saveData(Map<String, Object> data) {
         try {
             FileUtil.mkParentDirs(usageFile);
-            String json = ONode.serialize(data);
+            Map<String, Object> state = loadState();
+            state.put("skills", data);
+            String json = ONode.serialize(state);
             FileUtil.writeString(json, usageFile, StandardCharsets.UTF_8);
         } catch (RuntimeException e) {
             LOG.fine(
@@ -276,5 +302,24 @@ public class SkillUsageTracker {
                             + ", errorType="
                             + e.getClass().getSimpleName());
         }
+    }
+
+    /** 读取完整整理器状态，写用量时保留暂停和巡检信息。 */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> loadState() {
+        try {
+            if (usageFile.isFile()) {
+                Object parsed =
+                        ONode.deserialize(
+                                FileUtil.readString(usageFile, StandardCharsets.UTF_8),
+                                Object.class);
+                if (parsed instanceof Map) {
+                    return new LinkedHashMap<String, Object>((Map<String, Object>) parsed);
+                }
+            }
+        } catch (RuntimeException e) {
+            LOG.fine("技能整理状态读取失败，已回退为空状态：file=" + usageFile.getName());
+        }
+        return new LinkedHashMap<String, Object>();
     }
 }

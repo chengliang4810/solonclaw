@@ -48,6 +48,7 @@ public class BuiltinMemoryProvider implements MemoryProvider {
         buffer.append("[Memory Guidance]\n").append(MEMORY_GUIDANCE);
 
         MemorySnapshot snapshot = memoryService.loadSnapshot();
+        appendBlock(buffer, "User", snapshot.getUserText());
         appendBlock(buffer, "Memory", snapshot.getMemoryText());
         appendBlock(buffer, "Today Memory", snapshot.getDailyMemoryText());
         return buffer.toString().trim();

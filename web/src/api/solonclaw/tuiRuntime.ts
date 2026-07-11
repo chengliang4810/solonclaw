@@ -135,6 +135,7 @@ export interface TuiChannelQrResult {
   readonly error_code?: string
   readonly error_message?: string
   readonly domain?: string
+  readonly bot_id?: string
   readonly [key: string]: unknown
 }
 

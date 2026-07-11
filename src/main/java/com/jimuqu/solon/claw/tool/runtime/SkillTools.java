@@ -152,6 +152,8 @@ public class SkillTools {
             SkillView view =
                     localSkillService.viewSkill(name, filePath, agentScope, currentSessionId());
             registerSkillEnvironmentPassthrough(filePath, view);
+            localSkillService.bumpUsage(view.getDescriptor().canonicalName(), "load");
+            localSkillService.bumpUsage(view.getDescriptor().canonicalName(), "call");
             return safeResult(ONode.serialize(view), 20000);
         } catch (Exception e) {
             return toolError(e.getMessage());

@@ -312,6 +312,35 @@ public final class LlmErrorClassifier {
         private final String message;
 
         /**
+         * 判断是否应跳过当前提供方剩余重试并立即切换备用模型。
+         *
+         * @return 限流、计费或不可重试且允许降级时返回 true。
+         */
+        public boolean isImmediateFallback() {
+            return shouldFallback
+                    && (!retryable
+                            || reason == FailoverReason.RATE_LIMIT
+                            || reason == FailoverReason.BILLING);
+        }
+
+        /**
+         * 判断当前提供方是否还应重试；传输故障最多额外重试一次，避免长时间卡在不可用提供方。
+         *
+         * @param attempt 当前提供方已执行次数，从 1 开始。
+         * @param maxAttempts 配置允许的最大执行次数。
+         * @return 仍应重试当前提供方时返回 true。
+         */
+        public boolean shouldRetrySameProvider(int attempt, int maxAttempts) {
+            if (!retryable || attempt >= maxAttempts || isImmediateFallback()) {
+                return false;
+            }
+            if (reason == FailoverReason.TIMEOUT || reason == FailoverReason.OVERLOADED) {
+                return attempt < 2;
+            }
+            return true;
+        }
+
+        /**
          * 创建模型失败分类结果。
          *
          * @param reason 失败原因。

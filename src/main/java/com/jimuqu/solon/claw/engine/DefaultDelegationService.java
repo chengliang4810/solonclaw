@@ -18,11 +18,11 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
-import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
-import com.jimuqu.solon.claw.profile.ProfileManager;
-import com.jimuqu.solon.claw.profile.ProfileView;
 import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.gateway.service.ProfileRuntimeBundle;
+import com.jimuqu.solon.claw.profile.ProfileManager;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import com.jimuqu.solon.claw.profile.ProfileView;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
@@ -435,20 +435,26 @@ public class DefaultDelegationService implements DelegationService {
         if (manager == null) {
             return null;
         }
-        String text = (StrUtil.nullToEmpty(task.getPrompt()) + " " + StrUtil.nullToEmpty(task.getContext()))
-                .toLowerCase(java.util.Locale.ROOT);
+        String text =
+                (StrUtil.nullToEmpty(task.getPrompt())
+                                + " "
+                                + StrUtil.nullToEmpty(task.getContext()))
+                        .toLowerCase(java.util.Locale.ROOT);
         try {
             for (ProfileView view : manager.listProfileViews()) {
                 String name = view.getName();
                 String description = view.getDescription();
-                if ((StrUtil.isNotBlank(name) && text.contains(name.toLowerCase(java.util.Locale.ROOT)))
+                if ((StrUtil.isNotBlank(name)
+                                && text.contains(name.toLowerCase(java.util.Locale.ROOT)))
                         || (StrUtil.isNotBlank(description)
                                 && text.contains(description.toLowerCase(java.util.Locale.ROOT)))) {
                     return name;
                 }
             }
         } catch (Exception e) {
-            log.debug("Profile delegation routing metadata unavailable: {}", EngineSupport.safeError(e));
+            log.debug(
+                    "Profile delegation routing metadata unavailable: {}",
+                    EngineSupport.safeError(e));
         }
         return null;
     }

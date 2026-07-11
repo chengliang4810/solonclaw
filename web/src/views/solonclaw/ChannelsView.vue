@@ -5,6 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { useSettingsStore } from '@/stores/solonclaw/settings'
 import { downloadMedia, fetchMedia, fetchMediaDetail, indexMedia, referenceMedia, refreshMedia, type ChannelMedia } from '@/api/solonclaw/media'
 import PlatformSettings from '@/components/solonclaw/settings/PlatformSettings.vue'
+import PairingControl from '@/components/solonclaw/channels/PairingControl.vue'
 import { formatFileSize } from '@/shared/fileSizeFormat'
 import { formatTimestampText } from '@/shared/timeFormat'
 
@@ -122,6 +123,8 @@ async function referenceSelectedMedia() {
       <Spin :spinning="settingsStore.loading || settingsStore.saving" size="large" :description="t('common.loading')">
         <PlatformSettings v-if="!settingsStore.loading" />
       </Spin>
+
+      <PairingControl />
 
       <section class="media-cache">
         <div class="section-head">

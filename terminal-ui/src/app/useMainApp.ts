@@ -826,7 +826,7 @@ export function useMainApp(gw: GatewayClient) {
 
     gw.on('event', handler)
     gw.on('exit', exitHandler)
-    gw.drain()
+    void gw.drain()
 
     // entry.tsx's setupGracefulExit handles process cleanup on real exit.
     return () => {

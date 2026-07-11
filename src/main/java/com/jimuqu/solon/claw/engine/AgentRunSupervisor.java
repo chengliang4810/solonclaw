@@ -805,11 +805,13 @@ public class AgentRunSupervisor implements AgentRunControlService {
             String compressionWarning = "";
             int contextEstimateTokens = 0;
             int contextWindowTokens = 0;
+            boolean continueFromSnapshot = resume;
 
             for (int candidateIndex = 0; candidateIndex < candidates.size(); candidateIndex++) {
                 checkCancellation(session.getSourceKey());
                 AppConfig.LlmConfig resolved = candidates.get(candidateIndex);
                 int maxAttempts = Math.max(1, appConfig.getTrace().getMaxAttempts());
+                boolean allowFallback = true;
                 for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                     checkCancellation(session.getSourceKey());
                     attemptNo++;
@@ -835,6 +837,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                     + resolved.getModel(),
                             attemptMetadata(resolved, attemptNo, candidateIndex));
 
+                    String previousNdjson = session.getNdjson();
                     try {
                         String steer = consumeSteerInstruction(runRecord.getRunId());
                         String effectiveUserMessage = userMessage;
@@ -869,7 +872,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         heartbeat(runRecord);
                         agentRunRepository.saveRun(runRecord);
                         checkCancellation(session.getSourceKey());
-                        String previousNdjson = session.getNdjson();
+                        previousNdjson = session.getNdjson();
                         LlmResult result =
                                 llmGateway.executeOnce(
                                         session,
@@ -878,7 +881,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                         tools,
                                         feedbackSink,
                                         eventSink,
-                                        resume,
+                                        resume || continueFromSnapshot,
                                         resolved,
                                         runContext);
                         checkCancellation(session.getSourceKey());
@@ -979,11 +982,22 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                 "第 " + attemptNo + " 次尝试失败：" + errorMessage,
                                 errorMetadata(e, resolved, attemptNo, candidateIndex));
                         if (isRequiredToolsMissing(e)) {
+                            allowFallback = false;
                             break;
                         }
-                        if (classifyRetryable(e) && attempt < maxAttempts) {
+                        if (!StrUtil.equals(previousNdjson, session.getNdjson())) {
+                            continueFromSnapshot = true;
+                            if (hasRecentToolActivity(previousNdjson, session.getNdjson())) {
+                                sessionRepository.save(session);
+                            }
+                        }
+                        LlmErrorClassifier.ClassifiedError classified =
+                                LlmErrorClassifier.classify(e);
+                        allowFallback = classified.isShouldFallback();
+                        if (classified.shouldRetrySameProvider(attempt, maxAttempts)) {
                             continue;
                         }
+                        break;
                     }
                 }
 
@@ -993,6 +1007,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
 
                 previousProvider = resolved.getProvider();
                 if (isRequiredToolsMissing(lastError)) {
+                    break;
+                }
+                if (!allowFallback) {
                     break;
                 }
                 if (candidateIndex + 1 < candidates.size()) {
@@ -1641,19 +1658,6 @@ public class AgentRunSupervisor implements AgentRunControlService {
         return normalized.startsWith("agent error: maximum steps reached")
                 || normalized.contains("maximum steps reached")
                 || replyText.contains("已达到硬性步数上限");
-    }
-
-    /**
-     * 执行classifyRetryable相关逻辑。
-     *
-     * @param error 错误参数。
-     * @return 返回classify Retryable结果。
-     */
-    private boolean classifyRetryable(Throwable error) {
-        if (isRequiredToolsMissing(error)) {
-            return false;
-        }
-        return LlmErrorClassifier.classify(error).isRetryable();
     }
 
     /**

@@ -32,6 +32,7 @@ import {
   type PendingApprovalsResult,
   type PendingSlashConfirm,
   type PendingSlashConfirmsResult,
+  type PlatformDoctor,
   type PlatformToolsetConfig,
   type PlatformToolsetsOverview,
   type PluginDiagnosticItem,
@@ -547,6 +548,7 @@ const approvalStatItems = computed(() => [
 const doctorSummary = computed(() => doctor.value?.summary || {})
 const doctorIssues = computed(() => doctor.value?.summary?.issues || [])
 const doctorNextActions = computed(() => doctor.value?.summary?.nextActions || [])
+const doctorPlatforms = computed<PlatformDoctor[]>(() => doctor.value?.platforms || [])
 const insightRuntime = computed(() => insightsOverview.value?.runtime || {})
 const insightSessions = computed(() => insightsOverview.value?.sessions || {})
 const insightSkills = computed(() => insightsOverview.value?.skills || {})
@@ -1034,6 +1036,25 @@ onMounted(load)
               <Tag size="small" :bordered="false">{{ t('diagnostics.doctorNextAction') }}</Tag>
               <span>{{ action }}</span>
             </div>
+          </div>
+          <div v-if="doctorPlatforms.length" class="doctor-platform-list">
+            <article v-for="platform in doctorPlatforms" :key="platform.platform" class="doctor-platform-item">
+              <div class="doctor-platform-head">
+                <strong>{{ platform.platform || '-' }}</strong>
+                <Tag size="small" :color="platform.enabled && platform.connected ? 'success' : 'warning'" :bordered="false">
+                  {{ platform.enabled ? (platform.connected ? '已连接' : '未连接') : '未启用' }}
+                </Tag>
+              </div>
+              <div class="doctor-platform-detail">
+                <span>配置：{{ platform.setup_state || '-' }}</span>
+                <span>连接：{{ platform.connection_mode || '-' }}</span>
+                <span v-if="platform.missing_config?.length">缺失：{{ platform.missing_config.join(', ') }}</span>
+                <span v-if="platform.last_error_message || platform.last_reconnect_error">
+                  错误：{{ platform.last_error_message || platform.last_reconnect_error }}
+                </span>
+                <span>下一步：{{ platform.next_step || '-' }}</span>
+              </div>
+            </article>
           </div>
         </section>
         <section class="panel">
@@ -1780,6 +1801,36 @@ onMounted(load)
 
 .doctor-panel {
   grid-column: 1 / -1;
+}
+
+.doctor-platform-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.doctor-platform-item {
+  border: 1px solid $border-color;
+  border-radius: $radius-sm;
+  padding: 10px;
+}
+
+.doctor-platform-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-transform: capitalize;
+}
+
+.doctor-platform-detail {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  color: $text-secondary;
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .audit-panel {

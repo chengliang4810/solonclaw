@@ -136,6 +136,42 @@ public class DomesticQrSetupServiceTest {
     }
 
     @Test
+    void shouldCompleteWecomQrLoginAndPersistCredentials() throws Exception {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/ai/qc/generate",
+                exchange ->
+                        writeJson(
+                                exchange,
+                                "{\"data\":{\"scode\":\"wecom-code\",\"auth_url\":\"https://work.weixin.qq.com/ai/qc/c?s=wecom-code\"}}"));
+        server.createContext(
+                "/ai/qc/query_result",
+                exchange ->
+                        writeJson(
+                                exchange,
+                                "{\"data\":{\"status\":\"success\",\"bot_info\":{\"botid\":\"wecom-bot\",\"secret\":\"wecom-secret\"}}}"));
+        server.start();
+
+        AppConfig config = testConfig();
+        File workspaceHome = new File(config.getRuntime().getHome());
+        config.getChannels()
+                .getWecom()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        DomesticQrSetupService service = service(config);
+
+        Map<String, Object> start = service.start("wecom");
+        Map<String, Object> current = waitForTerminal(service, String.valueOf(start.get("ticket")));
+
+        assertThat(current)
+                .containsEntry("status", "confirmed")
+                .containsEntry("bot_id", "wecom-bot");
+        assertThat(FileUtil.readUtf8String(new File(workspaceHome, "config.yml")))
+                .contains("botId: wecom-bot")
+                .contains("secret: wecom-secret")
+                .contains("enabled: true");
+    }
+
+    @Test
     void shouldSwitchFeishuDomainWhenTenantBrandIsLark() throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext(

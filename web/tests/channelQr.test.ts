@@ -19,6 +19,7 @@ assert.deepEqual(normalizeChannelQrStatus({
   open_id: undefined,
   user_id: undefined,
   domain: undefined,
+  bot_id: undefined,
 })
 
 assert.equal(normalizeChannelQrStatus({
@@ -57,6 +58,7 @@ assert.deepEqual(normalizeChannelQrStatus({
   open_id: undefined,
   user_id: undefined,
   domain: undefined,
+  bot_id: undefined,
 })
 
 assert.equal(normalizeChannelQrStatus({
@@ -86,3 +88,8 @@ assert.equal(normalizeChannelQrStatus({
   status: 'confirmed',
   user_id: 'wx-user',
 }).user_id, 'wx-user')
+
+assert.equal(normalizeChannelQrStatus({
+  status: 'confirmed',
+  bot_id: 'wecom-bot',
+}).bot_id, 'wecom-bot')

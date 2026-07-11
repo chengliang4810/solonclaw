@@ -64,6 +64,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final String SEND_URL =
             "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id";
 
+    /** 飞书原消息回复地址，threadId 承载入站 message_id 时必须使用此地址保持会话关联。 */
+    private static final String MESSAGE_REPLY_URL =
+            "https://open.feishu.cn/open-apis/im/v1/messages/%s/reply";
+
     /** 图片上传URL的统一常量值。 */
     private static final String IMAGE_UPLOAD_URL = "https://open.feishu.cn/open-apis/im/v1/images";
 
@@ -382,12 +386,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return;
             }
             if (StrUtil.isNotBlank(request.getText())) {
-                sendText(request.getChatId(), request.getText());
+                sendText(request.getChatId(), request.getText(), request.getThreadId());
             }
             List<MessageAttachment> attachments = request.getAttachments();
             if (attachments != null) {
                 for (MessageAttachment attachment : attachments) {
-                    sendAttachment(request.getChatId(), attachment);
+                    sendAttachment(request.getChatId(), request.getThreadId(), attachment);
                 }
             }
         } catch (Exception e) {
@@ -1422,9 +1426,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param chatId 聊天标识。
      * @param text 待处理文本。
      */
-    private void sendText(String chatId, String text) {
+    private void sendText(String chatId, String text, String replyTo) {
         for (String chunk : splitOutboundText(text, 5000)) {
-            sendTextChunk(chatId, chunk);
+            sendTextChunk(chatId, chunk, replyTo);
         }
     }
 
@@ -1434,16 +1438,26 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param chatId 聊天标识。
      * @param text 待处理文本。
      */
-    private void sendTextChunk(String chatId, String text) {
+    private void sendTextChunk(String chatId, String text, String replyTo) {
         String content = ONode.serialize(new FeishuTextMessage(text));
-        String body =
-                new ONode()
-                        .set("receive_id", chatId)
-                        .set("msg_type", "text")
-                        .set("content", content)
-                        .toJson();
-        ensureOk(postJson(SEND_URL, body), "Feishu text send failed");
+        ensureOk(
+                postJson(messageUrl(replyTo), messageBody(chatId, "text", content, replyTo)),
+                "Feishu text send failed");
         log.info("[FEISHU:{}] {}", chatId, text);
+    }
+
+    /** 构建飞书普通发送或原消息回复载荷；回复接口不能携带 receive_id。 */
+    private String messageBody(String chatId, String messageType, String content, String replyTo) {
+        ONode body = new ONode().set("msg_type", messageType).set("content", content);
+        if (StrUtil.isBlank(replyTo)) {
+            body.set("receive_id", chatId);
+        }
+        return body.toJson();
+    }
+
+    /** 根据入站 message_id 选择普通发送或原消息回复地址。 */
+    private String messageUrl(String replyTo) {
+        return StrUtil.isBlank(replyTo) ? SEND_URL : String.format(MESSAGE_REPLY_URL, replyTo);
     }
 
     /**
@@ -1619,7 +1633,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param chatId 聊天标识。
      * @param attachment 附件参数。
      */
-    private void sendAttachment(String chatId, MessageAttachment attachment) {
+    private void sendAttachment(String chatId, String replyTo, MessageAttachment attachment) {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
             throw new IllegalStateException(
@@ -1634,24 +1648,24 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         if ("image".equals(kind)) {
             String imageKey = uploadImage(file);
             String payload =
-                    new ONode()
-                            .set("receive_id", chatId)
-                            .set("msg_type", "image")
-                            .set("content", new ONode().set("image_key", imageKey).toJson())
-                            .toJson();
-            ensureOk(postJson(SEND_URL, payload), "Feishu image send failed");
+                    messageBody(
+                            chatId,
+                            "image",
+                            new ONode().set("image_key", imageKey).toJson(),
+                            replyTo);
+            ensureOk(postJson(messageUrl(replyTo), payload), "Feishu image send failed");
             return;
         }
 
         UploadRouting routing = resolveFileRouting(attachment);
         String fileKey = uploadFile(file, routing.uploadType);
         String payload =
-                new ONode()
-                        .set("receive_id", chatId)
-                        .set("msg_type", routing.messageType)
-                        .set("content", new ONode().set("file_key", fileKey).toJson())
-                        .toJson();
-        ensureOk(postJson(SEND_URL, payload), "Feishu file send failed");
+                messageBody(
+                        chatId,
+                        routing.messageType,
+                        new ONode().set("file_key", fileKey).toJson(),
+                        replyTo);
+        ensureOk(postJson(messageUrl(replyTo), payload), "Feishu file send failed");
     }
 
     /**
@@ -1673,12 +1687,11 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         ONode card = buildDangerousApprovalCard(request);
 
         String body =
-                new ONode()
-                        .set("receive_id", request.getChatId())
-                        .set("msg_type", "interactive")
-                        .set("content", card.toJson())
-                        .toJson();
-        ensureOk(postJson(SEND_URL, body), "Feishu approval card send failed");
+                messageBody(
+                        request.getChatId(), "interactive", card.toJson(), request.getThreadId());
+        ensureOk(
+                postJson(messageUrl(request.getThreadId()), body),
+                "Feishu approval card send failed");
     }
 
     /**

@@ -124,10 +124,7 @@ class ProfileMultiplexRuntimeManagerTest {
                         () ->
                                 alpha.handle(
                                         new GatewayMessage(
-                                                PlatformType.FEISHU,
-                                                "chat",
-                                                "user",
-                                                "hello")))
+                                                PlatformType.FEISHU, "chat", "user", "hello")))
                 .hasMessageContaining("already closed");
         manager.close();
     }

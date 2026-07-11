@@ -25,7 +25,7 @@ describe('channel QR setup helpers', () => {
     expect(channelSupportsQr({ key: 'weixin', label: 'Weixin', qr_supported: true })).toBe(true)
     expect(channelSupportsQr({ key: 'feishu', label: 'Feishu', qr_supported: true })).toBe(true)
     expect(channelSupportsQr({ key: 'dingtalk', label: 'DingTalk', qr_supported: true })).toBe(true)
-    expect(channelSupportsQr({ key: 'wecom', label: 'WeCom' })).toBe(false)
+    expect(channelSupportsQr({ key: 'wecom', label: 'WeCom', qr_supported: true })).toBe(true)
   })
 
   it('uses platform-specific QR URL fields for display', () => {

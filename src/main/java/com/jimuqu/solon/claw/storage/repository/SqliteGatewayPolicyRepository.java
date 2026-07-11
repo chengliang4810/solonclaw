@@ -148,6 +148,41 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public void savePlatformAdmin(PlatformAdminRecord record) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert or replace into platform_admins (platform, user_id, user_name, chat_id, created_at) values (?, ?, ?, ?, ?)");
+            statement.setString(1, key(record.getPlatform()));
+            statement.setString(2, record.getUserId());
+            statement.setString(3, record.getUserName());
+            statement.setString(4, record.getChatId());
+            statement.setLong(5, record.getCreatedAt());
+            statement.executeUpdate();
+            statement.close();
+        } finally {
+            connection.close();
+        }
+    }
+
+    /** {@inheritDoc} */
+    @Override
+    public void deletePlatformAdmin(PlatformType platform) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement("delete from platform_admins where platform = ?");
+            statement.setString(1, key(platform));
+            statement.executeUpdate();
+            statement.close();
+        } finally {
+            connection.close();
+        }
+    }
+
     /**
      * 读取Approved用户。
      *
@@ -287,12 +322,17 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? and code = ?");
+                            "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? order by created_at asc");
             statement.setString(1, key(platform));
-            statement.setString(2, code);
             ResultSet resultSet = statement.executeQuery();
             try {
-                return resultSet.next() ? mapPairing(resultSet) : null;
+                while (resultSet.next()) {
+                    PairingRequestRecord record = mapPairing(resultSet);
+                    if (PairingCodeHash.matches(code, record.getCode())) {
+                        return record;
+                    }
+                }
+                return null;
             } finally {
                 resultSet.close();
                 statement.close();
@@ -353,7 +393,11 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
                     connection.prepareStatement(
                             "insert or replace into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) values (?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, key(record.getPlatform()));
-            statement.setString(2, record.getCode());
+            statement.setString(
+                    2,
+                    PairingCodeHash.isHash(record.getCode())
+                            ? record.getCode()
+                            : PairingCodeHash.hash(record.getCode()));
             statement.setString(3, record.getUserId());
             statement.setString(4, record.getUserName());
             statement.setString(5, record.getChatId());

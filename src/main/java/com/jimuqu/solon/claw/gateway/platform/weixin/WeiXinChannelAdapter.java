@@ -78,8 +78,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** LONGPOLLTIMEOUTMS的统一常量值。 */
     private static final int LONG_POLL_TIMEOUT_MS = 35_000;
 
-    /** 配置TIMEOUTMS的统一常量值。 */
-    private static final int CONFIG_TIMEOUT_MS = 10_000;
+    /** 输入状态请求超时，必须短于心跳间隔，避免单次慢请求阻塞后续续期。 */
+    private static final int TYPING_REQUEST_TIMEOUT_MS = 1_500;
 
     /** 消息DEDUPTTLMILLIS的统一常量值。 */
     private static final int MESSAGE_DEDUP_TTL_MILLIS = 5 * 60 * 1000;
@@ -1312,11 +1312,45 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         gatewayMessage.setUserName(senderId);
         gatewayMessage.setAttachments(attachments);
         if (attachments.isEmpty() && StrUtil.isNotBlank(text)) {
+            if ("dm".equals(chatTarget.chatType)) {
+                primeTyping(chatTarget.chatId, contextToken);
+            }
             enqueueTextBatch(gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
             return;
         }
+        if ("dm".equals(chatTarget.chatType)) {
+            primeTyping(chatTarget.chatId, contextToken);
+        }
         dispatchInboundMessage(
                 gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
+    }
+
+    /**
+     * 入站消息确认有效后立即异步预取 ticket 并发送首次输入状态。
+     *
+     * <p>该操作不占用长轮询线程，也不等待文本合并或前序 Agent 任务完成；后续由处理期心跳继续续期。
+     *
+     * @param chatId 私聊用户标识。
+     * @param contextToken 当前消息上下文 token。
+     */
+    private void primeTyping(final String chatId, final String contextToken) {
+        try {
+            ensureTypingHeartbeatExecutor()
+                    .execute(
+                            new Runnable() {
+                                /** 预取有效 ticket 并立即发送首次输入状态。 */
+                                @Override
+                                public void run() {
+                                    maybeFetchTypingTicket(chatId, contextToken);
+                                    sendTyping(chatId, TYPING_START);
+                                }
+                            });
+        } catch (Exception e) {
+            log.debug(
+                    "[WEIXIN] typing prime failed: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
+        }
     }
 
     /**
@@ -1427,7 +1461,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     }
                                 }
                             },
-                            TYPING_HEARTBEAT_INTERVAL_SECONDS,
+                            0,
                             TYPING_HEARTBEAT_INTERVAL_SECONDS,
                             java.util.concurrent.TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -1484,8 +1518,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     java.util.concurrent.ScheduledFuture<?> typingHeartbeat = null;
                                     try {
                                         if ("dm".equals(chatType)) {
-                                            maybeFetchTypingTicket(chatId, contextToken);
-                                            sendTyping(chatId, TYPING_START);
                                             typingHeartbeat =
                                                     startTypingHeartbeat(chatId, contextToken);
                                         }
@@ -1500,7 +1532,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                             typingHeartbeat.cancel(false);
                                         }
                                         if ("dm".equals(chatType)) {
-                                            sendTyping(chatId, TYPING_STOP);
+                                            maybeFetchTypingTicket(chatId, contextToken);
+                                            if (!sendTyping(chatId, TYPING_STOP)) {
+                                                maybeFetchTypingTicket(chatId, contextToken);
+                                                sendTyping(chatId, TYPING_STOP);
+                                            }
                                         }
                                     }
                                 }
@@ -1840,7 +1876,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     .set("ilink_user_id", userId)
                                     .set("context_token", contextToken)
                                     .asObject(),
-                            CONFIG_TIMEOUT_MS);
+                            TYPING_REQUEST_TIMEOUT_MS);
             String typingTicket = response.get("typing_ticket").getString();
             if (StrUtil.isNotBlank(typingTicket)) {
                 typingTickets.put(
@@ -1861,26 +1897,32 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      *
      * @param userId 用户标识。
      * @param status 状态参数。
+     * @return 已成功发送时返回 true；缺少 ticket 或请求失败时返回 false。
      */
-    private void sendTyping(String userId, int status) {
+    private boolean sendTyping(String userId, int status) {
         TypingTicketState state = typingTickets.get(userId);
         if (state == null || !state.isValid()) {
-            return;
+            return false;
         }
         try {
-            apiPost(
-                    SEND_TYPING_ENDPOINT,
-                    new ONode()
-                            .set("ilink_user_id", userId)
-                            .set("typing_ticket", state.ticket)
-                            .set("status", status)
-                            .asObject(),
-                    CONFIG_TIMEOUT_MS);
+            ONode response =
+                    apiPost(
+                            SEND_TYPING_ENDPOINT,
+                            new ONode()
+                                    .set("ilink_user_id", userId)
+                                    .set("typing_ticket", state.ticket)
+                                    .set("status", status)
+                                    .asObject(),
+                            TYPING_REQUEST_TIMEOUT_MS);
+            ensureSuccess(response, "Weixin typing update failed");
+            return true;
         } catch (Exception e) {
+            typingTickets.remove(userId, state);
             log.debug(
                     "[WEIXIN] send typing failed: errorType={}, error={}",
                     errorType(e),
                     safeError(e));
+            return false;
         }
     }
 
@@ -2053,7 +2095,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         payload.set("base_info", new ONode().set("channel_version", "2.2.0").asObject());
         String body = payload.toJson();
         String url = normalizeBaseUrl(baseUrl) + "/" + endpoint;
-        HttpResponse response = executeApiPost(url, body, Math.max(20_000, timeoutMs), url, 0);
+        HttpResponse response = executeApiPost(url, body, Math.max(1_000, timeoutMs), url, 0);
         try {
             return ONode.ofJson(
                     BoundedAttachmentIO.readHutoolText(

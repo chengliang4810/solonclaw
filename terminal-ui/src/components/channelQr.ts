@@ -1,6 +1,6 @@
 import type { ChannelOption, ChannelQrResponse } from '../gatewayTypes.js'
 
-const QR_CHANNELS = ['weixin', 'feishu', 'dingtalk'] as const
+const QR_CHANNELS = ['weixin', 'feishu', 'dingtalk', 'wecom'] as const
 const ACTIVE_QR_STATUSES = ['wait', 'scaned', 'scaned_but_redirect'] as const
 
 export type ChannelQrStatus = 'confirmed' | 'error' | 'expired' | 'scaned' | 'scaned_but_redirect' | 'wait'

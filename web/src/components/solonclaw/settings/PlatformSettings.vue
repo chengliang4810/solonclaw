@@ -113,6 +113,7 @@ const primarySettingConfigs: Record<ChannelQrPlatform, PrimarySetting[]> = {
     { type: 'switch', field: 'requireMention', labelKey: 'platform.requireMention', hintKey: 'platform.requireMentionGroup' },
     { type: 'text', field: 'freeResponseChats', source: 'channelList', labelKey: 'platform.freeResponseChats', hintKey: 'platform.freeResponseChatsHint', placeholder: 'chat_id1,chat_id2' },
   ],
+  wecom: [],
   weixin: [
     { type: 'text', field: 'token', source: 'credentialRoot', labelKey: 'platform.weixinToken', hintKey: 'platform.weixinTokenHint', placeholder: '请输入令牌' },
     { type: 'text', field: 'account_id', source: 'credentials', labelKey: 'platform.accountId', hintKey: 'platform.accountIdHint', placeholder: '请输入账号 ID' },
@@ -169,7 +170,7 @@ function savePrimarySwitch(platform: string, field: PrimarySwitchSetting, value:
 }
 
 const { states: qrStates, start: startQrLogin } = useChannelQrPolling<ChannelQrPlatform>(
-  ['feishu', 'dingtalk', 'weixin'],
+  ['feishu', 'dingtalk', 'wecom', 'weixin'],
   {
     start: fetchPlatformQrCode,
     poll: pollPlatformQrStatus,
@@ -184,7 +185,7 @@ const { states: qrStates, start: startQrLogin } = useChannelQrPolling<ChannelQrP
 )
 
 function isQrPanelPlatform(platform: string): platform is ChannelQrPlatform {
-  return platform === 'feishu' || platform === 'dingtalk' || platform === 'weixin'
+  return platform === 'feishu' || platform === 'dingtalk' || platform === 'wecom' || platform === 'weixin'
 }
 
 function qrPanelDomain(platform: string) {

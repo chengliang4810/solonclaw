@@ -103,6 +103,7 @@ import reactor.core.publisher.Flux;
 public class SolonAiLlmGateway implements LlmGateway {
     /** 单次模型流最长等待时间，防止提供方不发送完成事件时会话永久卡住。 */
     private static final Duration MODEL_STREAM_TIMEOUT = Duration.ofMinutes(5);
+
     /** LLM 网关日志器。 */
     private static final Logger log = LoggerFactory.getLogger(SolonAiLlmGateway.class);
 
@@ -497,10 +498,13 @@ public class SolonAiLlmGateway implements LlmGateway {
         List<AppConfig.LlmConfig> candidates = buildCandidateConfigs(session);
         Throwable lastError = null;
         boolean primary = true;
+        boolean continueFromSnapshot = resume;
 
         for (AppConfig.LlmConfig resolved : candidates) {
             int maxAttempts = configuredRetryMax(session) + 1;
+            boolean allowFallback = true;
             for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+                String previousNdjson = session == null ? null : session.getNdjson();
                 try {
                     LlmResult result =
                             executeSingle(
@@ -510,9 +514,14 @@ public class SolonAiLlmGateway implements LlmGateway {
                                     toolObjects,
                                     feedbackSink,
                                     eventSink,
-                                    resume,
+                                    resume || continueFromSnapshot,
                                     resolved,
                                     null);
+                    continueFromSnapshot =
+                            continueFromSnapshot
+                                    || (session != null
+                                            && !StrUtil.equals(
+                                                    previousNdjson, session.getNdjson()));
                     if (hasVisibleContent(result.getAssistantMessage(), result.getRawResponse())) {
                         return result;
                     }
@@ -531,8 +540,14 @@ public class SolonAiLlmGateway implements LlmGateway {
                     throw e;
                 } catch (Exception e) {
                     lastError = e;
+                    continueFromSnapshot =
+                            continueFromSnapshot
+                                    || (session != null
+                                            && !StrUtil.equals(
+                                                    previousNdjson, session.getNdjson()));
                     LlmErrorClassifier.ClassifiedError classified = LlmErrorClassifier.classify(e);
-                    if (classified.isRetryable() && attempt < maxAttempts) {
+                    allowFallback = classified.isShouldFallback();
+                    if (classified.shouldRetrySameProvider(attempt, maxAttempts)) {
                         log.warn(
                                 "LLM request failed, retrying same provider: provider={}, dialect={}, model={}, attempt={}, message={}",
                                 resolved.getProvider(),
@@ -560,6 +575,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                             resolved.getModel(),
                             lastError == null ? "" : lastError.getMessage());
                 }
+                break;
+            }
+            if (!allowFallback) {
                 break;
             }
             primary = false;

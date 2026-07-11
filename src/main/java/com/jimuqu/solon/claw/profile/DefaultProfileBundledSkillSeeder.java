@@ -135,7 +135,8 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
             throw new IllegalArgumentException("Profile home is required.");
         }
         Path normalizedHome = profileHome.toAbsolutePath().normalize();
-        if (Files.exists(normalizedHome.resolve(NO_BUNDLED_SKILLS_FILE), LinkOption.NOFOLLOW_LINKS)) {
+        if (Files.exists(
+                normalizedHome.resolve(NO_BUNDLED_SKILLS_FILE), LinkOption.NOFOLLOW_LINKS)) {
             return Collections.emptyList();
         }
         try (SourceHandle source = sourceResolver.resolve()) {
@@ -228,8 +229,8 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                 new SimpleFileVisitor<Path>() {
                     /** 跳过依赖、缓存和版本控制目录。 */
                     @Override
-                    public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attrs)
-                            throws IOException {
+                    public FileVisitResult preVisitDirectory(
+                            Path directory, BasicFileAttributes attrs) throws IOException {
                         if (!directory.equals(sourceRoot)
                                 && EXCLUDED_DIRECTORIES.contains(
                                         directory.getFileName().toString())) {
@@ -258,7 +259,8 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                             validateRelativePath(relative, "Bundled skill path");
                             skills.add(
                                     new BundledSkill(
-                                            readSkillName(file, skillDirectory.getFileName().toString()),
+                                            readSkillName(
+                                                    file, skillDirectory.getFileName().toString()),
                                             skillDirectory,
                                             relative));
                         }
@@ -286,8 +288,8 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                 new SimpleFileVisitor<Path>() {
                     /** 跳过不属于正式发行内容的目录。 */
                     @Override
-                    public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attrs)
-                            throws IOException {
+                    public FileVisitResult preVisitDirectory(
+                            Path directory, BasicFileAttributes attrs) throws IOException {
                         if (!directory.equals(sourceRoot)
                                 && EXCLUDED_DIRECTORIES.contains(
                                         directory.getFileName().toString())) {
@@ -383,8 +385,8 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
     }
 
     /** 复制目标中尚不存在的分类说明，永远不覆盖用户修改。 */
-    private void copyMissingDescriptions(
-            Path sourceRoot, List<Path> descriptions, Path skillsRoot) throws IOException {
+    private void copyMissingDescriptions(Path sourceRoot, List<Path> descriptions, Path skillsRoot)
+            throws IOException {
         for (Path relative : descriptions) {
             Path destination = skillsRoot.resolve(relative).normalize();
             requireStrictChild(skillsRoot, destination, "Bundled skill description destination");
@@ -454,10 +456,11 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                 new SimpleFileVisitor<Path>() {
                     /** 哈希源和用户副本时都拒绝链接，避免读取技能根外内容。 */
                     @Override
-                    public FileVisitResult preVisitDirectory(Path current, BasicFileAttributes attrs)
-                            throws IOException {
+                    public FileVisitResult preVisitDirectory(
+                            Path current, BasicFileAttributes attrs) throws IOException {
                         if (attrs.isSymbolicLink()) {
-                            throw new IOException("Skill directory cannot contain symbolic links: " + current);
+                            throw new IOException(
+                                    "Skill directory cannot contain symbolic links: " + current);
                         }
                         return FileVisitResult.CONTINUE;
                     }
@@ -467,10 +470,12 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                             throws IOException {
                         if (attrs.isSymbolicLink()) {
-                            throw new IOException("Skill directory cannot contain symbolic links: " + file);
+                            throw new IOException(
+                                    "Skill directory cannot contain symbolic links: " + file);
                         }
                         if (!attrs.isRegularFile()) {
-                            throw new IOException("Skill directory contains unsupported file: " + file);
+                            throw new IOException(
+                                    "Skill directory contains unsupported file: " + file);
                         }
                         files.add(file);
                         return FileVisitResult.CONTINUE;
@@ -510,8 +515,10 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
             throws IOException {
         Files.createDirectories(destination.getParent());
         String nonce = UUID.randomUUID().toString();
-        Path staging = destination.resolveSibling("." + destination.getFileName() + "." + nonce + ".tmp");
-        Path backup = destination.resolveSibling("." + destination.getFileName() + "." + nonce + ".bak");
+        Path staging =
+                destination.resolveSibling("." + destination.getFileName() + "." + nonce + ".tmp");
+        Path backup =
+                destination.resolveSibling("." + destination.getFileName() + "." + nonce + ".bak");
         try {
             copyDirectory(source, staging);
             if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) {
@@ -547,8 +554,8 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                 new SimpleFileVisitor<Path>() {
                     /** 创建对应目录并拒绝链接。 */
                     @Override
-                    public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attrs)
-                            throws IOException {
+                    public FileVisitResult preVisitDirectory(
+                            Path directory, BasicFileAttributes attrs) throws IOException {
                         if (attrs.isSymbolicLink()) {
                             throw new IOException(
                                     "Bundled skills cannot contain symbolic links: " + directory);
@@ -563,11 +570,11 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                             throws IOException {
                         if (attrs.isSymbolicLink() || !attrs.isRegularFile()) {
-                            throw new IOException("Bundled skill contains unsupported file: " + file);
+                            throw new IOException(
+                                    "Bundled skill contains unsupported file: " + file);
                         }
                         Files.copy(
-                                file,
-                                destination.resolve(toManifestKey(source.relativize(file))));
+                                file, destination.resolve(toManifestKey(source.relativize(file))));
                         return FileVisitResult.CONTINUE;
                     }
                 });
@@ -806,7 +813,8 @@ final class DefaultProfileBundledSkillSeeder implements ProfileBundledSkillSeede
             List<Path> candidates = new ArrayList<Path>();
             String home = property(HOME_PROPERTY);
             if (home != null) {
-                candidates.add(Paths.get(home).toAbsolutePath().normalize().resolve("bundled-skills"));
+                candidates.add(
+                        Paths.get(home).toAbsolutePath().normalize().resolve("bundled-skills"));
             }
             Path codeSourceBase = codeSourceBase();
             if (codeSourceBase != null) {

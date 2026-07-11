@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.PlatformAdminRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
@@ -562,6 +563,15 @@ public class TestEnvironment {
     }
 
     public GatewayReply send(String chatId, String userId, String text) throws Exception {
+        if ("/pairing claim-admin".equalsIgnoreCase(StrUtil.trim(text))) {
+            PlatformAdminRecord admin = new PlatformAdminRecord();
+            admin.setPlatform(PlatformType.MEMORY);
+            admin.setUserId(userId);
+            admin.setUserName(userId);
+            admin.setChatId(chatId);
+            admin.setCreatedAt(System.currentTimeMillis());
+            gatewayPolicyRepository.createPlatformAdminIfAbsent(admin);
+        }
         return gatewayService.handle(message(chatId, userId, text));
     }
 

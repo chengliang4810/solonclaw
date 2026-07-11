@@ -485,14 +485,20 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             throw new IllegalStateException(
                     "QQBot media upload missing file_info: " + safeJson(uploaded));
         }
-        ONode body =
-                new ONode()
-                        .set("msg_type", Integer.valueOf(7))
-                        .getOrNew("media")
-                        .set("file_info", fileInfo)
-                        .parent()
-                        .set("msg_seq", Long.valueOf(System.currentTimeMillis()));
+        ONode body = buildMediaBody(fileInfo, request.getThreadId());
         postJson(resolveMessagePath(request), body.toJson());
+    }
+
+    /** 构建 QQBot 媒体消息，并沿用入站 msg_id 保持回复关联。 */
+    protected ONode buildMediaBody(String fileInfo, String replyTo) {
+        ONode body = new ONode();
+        body.set("msg_type", Integer.valueOf(7));
+        body.getOrNew("media").set("file_info", fileInfo);
+        body.set("msg_seq", Long.valueOf(System.currentTimeMillis()));
+        if (StrUtil.isNotBlank(replyTo)) {
+            body.set("msg_id", replyTo);
+        }
+        return body;
     }
 
     /**

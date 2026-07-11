@@ -175,6 +175,20 @@ class TerminalUiApprovalRespondTest {
     }
 
     @Test
+    void toolCompleteMarksErrorEnvelopeAsFailed() {
+        RecordingSocket socket = new RecordingSocket();
+        TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
+
+        sink.onRunStarted("tui-tool-error");
+        sink.onToolStarted("terminal", java.util.Collections.<String, Object>emptyMap());
+        sink.onToolCompleted(
+                "terminal", "{\"status\":\"error\",\"error\":\"command failed\"}", 12L);
+
+        ONode payload = eventPayload(socket.sentText(), "tool.complete");
+        assertThat(payload.get("error").getString()).isEqualTo("command failed");
+    }
+
+    @Test
     void sessionUndoReportsZeroRemovedForFreshTuiSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         TerminalUiWebSocketListener listener = newTuiListener(env);

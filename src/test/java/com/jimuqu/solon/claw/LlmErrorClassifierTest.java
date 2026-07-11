@@ -64,4 +64,18 @@ public class LlmErrorClassifierTest {
         assertThat(unknown.isRetryable()).isFalse();
         assertThat(transientError.isRetryable()).isTrue();
     }
+
+    /** 限流应直接切换备用模型，超时只允许当前提供方额外重试一次。 */
+    @Test
+    void shouldChooseTimelyProviderRecovery() {
+        LlmErrorClassifier.ClassifiedError rateLimit =
+                LlmErrorClassifier.classify(new IllegalStateException("HTTP 429 rate limit"));
+        LlmErrorClassifier.ClassifiedError timeout =
+                LlmErrorClassifier.classify(new IllegalStateException("connection timed out"));
+
+        assertThat(rateLimit.isImmediateFallback()).isTrue();
+        assertThat(rateLimit.shouldRetrySameProvider(1, 4)).isFalse();
+        assertThat(timeout.shouldRetrySameProvider(1, 4)).isTrue();
+        assertThat(timeout.shouldRetrySameProvider(2, 4)).isFalse();
+    }
 }

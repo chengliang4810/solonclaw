@@ -11,7 +11,7 @@ import org.noear.solon.core.Props;
 
 public class SkillUsageTrackerTest {
     @Test
-    void shouldTrackViewAndInvokeCounters() throws Exception {
+    void shouldTrackUnifiedLoadAndCallCounters() throws Exception {
         File tempDir = Files.createTempDirectory("skill-usage-test").toFile();
         AppConfig config = loadConfig(tempDir);
         SkillUsageTracker tracker = new SkillUsageTracker(config);
@@ -21,10 +21,10 @@ public class SkillUsageTrackerTest {
         tracker.bumpInvoke("my-skill");
 
         java.util.Map<String, Object> entry = tracker.getEntry("my-skill");
-        assertThat(((Number) entry.get("viewCount")).intValue()).isEqualTo(2);
-        assertThat(((Number) entry.get("invokeCount")).intValue()).isEqualTo(1);
-        assertThat(entry.get("lastViewedAt")).isNotNull();
-        assertThat(entry.get("lastInvokedAt")).isNotNull();
+        assertThat(((Number) entry.get("loadCount")).intValue()).isEqualTo(2);
+        assertThat(((Number) entry.get("callCount")).intValue()).isEqualTo(1);
+        assertThat(((Number) entry.get("count")).intValue()).isEqualTo(3);
+        assertThat(entry.get("lastActivityAt")).isNotNull();
     }
 
     @Test
@@ -68,7 +68,7 @@ public class SkillUsageTrackerTest {
 
         SkillUsageTracker tracker2 = new SkillUsageTracker(config);
         assertThat(tracker2.isPinned("persistent-skill")).isTrue();
-        assertThat(((Number) tracker2.getEntry("persistent-skill").get("invokeCount")).intValue())
+        assertThat(((Number) tracker2.getEntry("persistent-skill").get("callCount")).intValue())
                 .isEqualTo(1);
     }
 

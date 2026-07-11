@@ -32,6 +32,21 @@ import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
 class TerminalUiRpcServiceTest {
+    /** 验证恢复不存在的会话会明确失败，不伪造空会话响应。 */
+    @Test
+    void sessionResumeRejectsMissingSession() throws Exception {
+        AppConfig config = testConfig();
+        SqliteSessionRepository sessions = new SqliteSessionRepository(new SqliteDatabase(config));
+        TerminalUiRpcService service = new TerminalUiRpcService(config, sessions);
+
+        IllegalArgumentException error =
+                org.junit.jupiter.api.Assertions.assertThrows(
+                        IllegalArgumentException.class,
+                        () -> service.sessionResume("missing-session"));
+
+        assertThat(error.getMessage()).isEqualTo("session not found: missing-session");
+    }
+
     @Test
     void sessionResumeIncludesLiveRunFields() throws Exception {
         AppConfig config = testConfig();

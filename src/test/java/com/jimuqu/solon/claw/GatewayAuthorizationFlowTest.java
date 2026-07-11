@@ -11,8 +11,11 @@ public class GatewayAuthorizationFlowTest {
     void shouldRequirePairingForSecondUserAfterAdminBootstrap() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("admin-chat", "admin-user", "hello");
-        env.send("admin-chat", "admin-user", "/pairing claim-admin");
+        env.gatewayAuthorizationService.setPlatformAdmin(
+                com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                "admin-user",
+                "admin",
+                "admin-chat");
 
         GatewayReply pairPrompt = env.send("user-chat", "user-2", "hi there");
         assertThat(pairPrompt.getContent()).contains("pairing code");
@@ -25,7 +28,7 @@ public class GatewayAuthorizationFlowTest {
         assertThat(groupUnauthorized).isNull();
 
         GatewayReply pending = env.send("admin-chat", "admin-user", "/pairing pending memory");
-        assertThat(pending.getContent()).contains(code);
+        assertThat(pending.getContent()).contains("user-2").doesNotContain(code);
 
         GatewayReply approve =
                 env.send("admin-chat", "admin-user", "/pairing approve memory " + code);
@@ -39,17 +42,21 @@ public class GatewayAuthorizationFlowTest {
     void shouldSupportPairingListAndClearPendingAliases() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
-        env.send("admin-chat", "admin-user", "hello");
-        env.send("admin-chat", "admin-user", "/pairing claim-admin");
+        env.gatewayAuthorizationService.setPlatformAdmin(
+                com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                "admin-user",
+                "admin",
+                "admin-chat");
         GatewayReply pairPrompt = env.send("user-chat", "user-2", "hi there");
         String code = pairPrompt.getContent().split("`")[1];
 
         GatewayReply list = env.send("admin-chat", "admin-user", "/pairing list");
         assertThat(list.getContent())
                 .contains("待处理 pairing")
-                .contains(code)
+                .contains("user-2")
+                .doesNotContain(code)
                 .contains("已批准用户")
-                .contains("admin-user");
+                .contains("无");
 
         GatewayReply cleared = env.send("admin-chat", "admin-user", "/pairing clear-pending");
         assertThat(cleared.getContent()).contains("memory 平台待处理 pairing 请求已清理");

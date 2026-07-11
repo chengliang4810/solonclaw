@@ -247,8 +247,7 @@ class ProfileBootstrapTest {
 
         assertThat(result.result.isHandled()).isTrue();
         assertThat(result.result.getExitCode()).isZero();
-        assertThat(result.stdout)
-                .contains("Gateway Status", "Profile: default", "Profile: work");
+        assertThat(result.stdout).contains("Gateway Status", "Profile: default", "Profile: work");
         assertThat(result.stdout.indexOf("Profile: default"))
                 .isLessThan(result.stdout.indexOf("Profile: work"));
         assertThat(result.stderr).isEmpty();

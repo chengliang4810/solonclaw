@@ -315,6 +315,8 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
 
   const resumeById = useCallback(
     (id: string) => {
+      const previousSid = getUiState().sid
+
       patchOverlayState({ sessions: false })
       patchUiState({ status: 'resuming…' })
 
@@ -327,41 +329,42 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
             return
           }
 
-          return closeSession(getUiState().sid === id ? null : getUiState().sid).then(() =>
-            gw
-              .request<SessionResumeResponse>('session.resume', { cols: colsRef.current, session_id: id })
-              .then(raw => {
-                const r = asRpcResult<SessionResumeResponse>(raw)
+          return gw
+            .request<SessionResumeResponse>('session.resume', { cols: colsRef.current, session_id: id })
+            .then(raw => {
+              const r = asRpcResult<SessionResumeResponse>(raw)
 
-                if (!r) {
-                  sys('error: invalid response: session.resume')
+              if (!r) {
+                sys('error: invalid response: session.resume')
 
-                  return patchUiState({ status: 'ready' })
-                }
+                return patchUiState({ status: 'ready' })
+              }
 
-                resetSession()
-                const running = isLiveSessionRunning(r.running, r.status)
-                setSessionStartedAt(r.started_at ? r.started_at * 1000 : Date.now())
-
-                const resumed = [...toTranscriptMessages(r.messages), ...liveSessionInflightMessages(r.inflight)]
-                setLastUserMsg(lastUserTextFromMessages(resumed))
-                setHistoryItems(r.info ? [introMsg(r.info), ...resumed] : resumed)
-                writeActiveSessionFile(r.resumed ?? r.session_id)
-                patchUiState({
-                  busy: running,
-                  info: r.info ?? null,
-                  sid: r.session_id,
-                  status: statusFromLiveSession(r.status, running),
-                  usage: usageFrom(r.info ?? null)
-                })
-                hydrateLiveSessionInflight(r.inflight)
-                setTimeout(() => scrollRef.current?.scrollToBottom(), 0)
+              void closeSession(previousSid === id ? null : previousSid).catch((error: unknown) => {
+                sys(`warning: failed to close previous session: ${sessionLifecycleErrorMessage(error)}`)
               })
-              .catch((e: Error) => {
-                sys(`error: ${e.message}`)
-                patchUiState({ status: 'ready' })
+              resetSession()
+              const running = isLiveSessionRunning(r.running, r.status)
+              setSessionStartedAt(r.started_at ? r.started_at * 1000 : Date.now())
+
+              const resumed = [...toTranscriptMessages(r.messages), ...liveSessionInflightMessages(r.inflight)]
+              setLastUserMsg(lastUserTextFromMessages(resumed))
+              setHistoryItems(r.info ? [introMsg(r.info), ...resumed] : resumed)
+              writeActiveSessionFile(r.resumed ?? r.session_id)
+              patchUiState({
+                busy: running,
+                info: r.info ?? null,
+                sid: r.session_id,
+                status: statusFromLiveSession(r.status, running),
+                usage: usageFrom(r.info ?? null)
               })
-          )
+              hydrateLiveSessionInflight(r.inflight)
+              setTimeout(() => scrollRef.current?.scrollToBottom(), 0)
+            })
+            .catch((e: Error) => {
+              sys(`error: ${e.message}`)
+              patchUiState({ status: 'ready' })
+            })
         })
         .catch((error: unknown) => {
           sys(`error: ${sessionLifecycleErrorMessage(error)}`)

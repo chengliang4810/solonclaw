@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
-import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.bootstrap.ContextConfiguration;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
 import com.jimuqu.solon.claw.context.BuiltinMemoryProvider;
@@ -171,6 +170,11 @@ public class MemoryAndSkillsTest {
                 .contains("Session: " + session.getSessionId())
                 .contains("Unknown: ${SOLONCLAW_UNKNOWN}")
                 .contains("Inline shell stays literal: !`date +%s`");
+        Map<String, Object> usage =
+                new com.jimuqu.solon.claw.context.SkillUsageTracker(env.appConfig)
+                        .getEntry("template-skill");
+        assertThat(((Number) usage.get("loadCount")).intValue()).isEqualTo(1);
+        assertThat(((Number) usage.get("callCount")).intValue()).isEqualTo(1);
     }
 
     @Test
@@ -429,6 +433,17 @@ public class MemoryAndSkillsTest {
         env.memoryService.add("memory", "冻结测试记忆");
         env.send("admin-chat", "admin-user", "second round");
         assertThat(fake.lastSystemPrompt).contains("冻结测试记忆");
+    }
+
+    @Test
+    void shouldIncludeUserMemoryInSystemPrompt() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+
+        env.memoryService.add("user", "用户偏好：使用中文回答");
+
+        assertThat(env.memoryManager.buildSystemPrompt("MEMORY:user-room:user-id"))
+                .contains("[User]")
+                .contains("用户偏好：使用中文回答");
     }
 
     @Test
@@ -1593,6 +1608,42 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldNotLearnAgainWithoutNewToolMessages() throws Exception {
+        CountingSkillSummaryGateway gateway = new CountingSkillSummaryGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        env.appConfig.getLearning().setToolCallThreshold(1);
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room:user");
+        session.setTitle("deduplicated learning task");
+        session.setCompressedSummary("已完成一次可复用流程。");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Collections.singletonList(
+                                ChatMessage.ofTool("tool output", "shell", "1"))));
+        env.sessionRepository.save(session);
+        AsyncSkillLearningService learningService =
+                new AsyncSkillLearningService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.memoryService,
+                        env.localSkillService,
+                        env.checkpointService,
+                        gateway);
+        try {
+            GatewayMessage message = env.message("room", "user", "沉淀本次流程");
+            learningService.schedulePostReplyLearning(session, message, GatewayReply.ok("done"));
+            waitSkillContent(env, "deduplicated-learning-task", "模型总结出的发布流程");
+            int learnedCalls = gateway.callCount.get();
+
+            learningService.schedulePostReplyLearning(session, message, GatewayReply.ok("done"));
+            Thread.sleep(300L);
+
+            assertThat(gateway.callCount.get()).isEqualTo(learnedCalls);
+        } finally {
+            learningService.shutdown();
+        }
+    }
+
+    @Test
     void shouldCarryProfileScopeAcrossReusedLearningExecutors() throws Exception {
         ScopedSkillSummaryGateway gateway = new ScopedSkillSummaryGateway(4);
         TestEnvironment env = TestEnvironment.withLlm(gateway);
@@ -1799,6 +1850,22 @@ public class MemoryAndSkillsTest {
                 SessionRecord session, String systemPrompt, List<Object> toolObjects)
                 throws Exception {
             return chat(session, systemPrompt, "", toolObjects);
+        }
+    }
+
+    /** 统计技能学习辅助模型调用次数，验证同一工具批次不会被重复消费。 */
+    private static class CountingSkillSummaryGateway extends SkillSummaryGateway {
+        private final AtomicInteger callCount = new AtomicInteger();
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            callCount.incrementAndGet();
+            return super.chat(session, systemPrompt, userMessage, toolObjects);
         }
     }
 
