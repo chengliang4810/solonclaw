@@ -103,10 +103,14 @@ public class WeixinQrSetupServiceTest {
 
         assertThat(current.get("status")).isEqualTo("confirmed");
         assertThat(current.get("account_id")).isEqualTo("wx-bot");
-        assertThat(FileUtil.readUtf8String(new File(workspaceHome, "config.yml")))
+        assertThat(current.get("user_id")).isEqualTo("wx-user");
+        String configYaml = FileUtil.readUtf8String(new File(workspaceHome, "config.yml"));
+        assertThat(configYaml)
+                .contains("enabled: true")
                 .contains("accountId: wx-bot")
                 .contains("token: wx-token")
                 .contains("http://127.0.0.1:" + server.getAddress().getPort());
+        assertThat(configYaml).doesNotContain("allowedUsers:").doesNotContain("wx-user");
     }
 
     private AppConfig testConfig() throws Exception {

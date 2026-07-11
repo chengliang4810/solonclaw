@@ -17,6 +17,7 @@ assert.deepEqual(normalizeChannelQrStatus({
   client_id: undefined,
   app_id: undefined,
   open_id: undefined,
+  user_id: undefined,
   domain: undefined,
 })
 
@@ -54,6 +55,7 @@ assert.deepEqual(normalizeChannelQrStatus({
   client_id: undefined,
   app_id: undefined,
   open_id: undefined,
+  user_id: undefined,
   domain: undefined,
 })
 
@@ -79,3 +81,8 @@ assert.equal(normalizeChannelQrStatus({
   open_id: 'ou-owner',
   domain: 'lark',
 }).domain, 'lark')
+
+assert.equal(normalizeChannelQrStatus({
+  status: 'confirmed',
+  user_id: 'wx-user',
+}).user_id, 'wx-user')

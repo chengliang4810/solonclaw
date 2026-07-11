@@ -1794,6 +1794,7 @@ export default {
     qrExpired: '二维码已过期，请重新发起扫码。',
     qrFailed: '二维码获取失败，请稍后重试。',
     qrAccountId: '账号 ID',
+    qrUserId: '用户 ID',
     qrClientId: '客户端 ID',
     qrAppId: '应用 ID',
     qrOpenId: 'Open ID',

@@ -211,7 +211,7 @@ solonclaw.channels.wecom.toolProgress: all
 # 微信渠道
 solonclaw.channels.weixin.enabled: false
 solonclaw.channels.weixin.allowedUsers:
-solonclaw.channels.weixin.dmPolicy: open
+solonclaw.channels.weixin.dmPolicy: pairing
 solonclaw.channels.weixin.groupPolicy: disabled
 solonclaw.channels.weixin.groupAllowedUsers:
 solonclaw.channels.weixin.allowAllUsers: false

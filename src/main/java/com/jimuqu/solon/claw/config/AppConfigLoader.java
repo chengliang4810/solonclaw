@@ -745,7 +745,7 @@ final class AppConfigLoader {
                 props,
                 overrides,
                 "weixin",
-                GatewayBehaviorConstants.DM_POLICY_OPEN,
+                GatewayBehaviorConstants.DM_POLICY_PAIRING,
                 GatewayBehaviorConstants.GROUP_POLICY_DISABLED);
         config.getChannels()
                 .getWeixin()

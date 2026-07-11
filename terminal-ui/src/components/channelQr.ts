@@ -57,3 +57,7 @@ export const channelQrMessage = (qr: ChannelQrResponse | null): string => {
 
   return qr.error_message || qr.message || qr.error || ''
 }
+
+/** 仅在扫码确认后展示服务端返回的微信用户标识。 */
+export const channelQrConfirmedUserId = (qr: ChannelQrResponse | null): string =>
+  channelQrStatus(qr) === 'confirmed' ? qr?.user_id?.trim() || '' : ''

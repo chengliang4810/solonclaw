@@ -14,6 +14,7 @@ interface ChannelQrPanelState {
   readonly clientId?: string
   readonly appId?: string
   readonly openId?: string
+  readonly userId?: string
 }
 
 const props = withDefaults(defineProps<{
@@ -63,6 +64,7 @@ function isHttpUrl(value: string) {
 
 function qrContextRows(state: ChannelQrPanelState) {
   return [
+    { label: t('platform.qrUserId'), value: state.status === 'confirmed' ? state.userId : '' },
     { label: t('platform.qrAccountId'), value: state.accountId },
     { label: t('platform.qrClientId'), value: state.clientId },
     { label: t('platform.qrAppId'), value: state.appId },

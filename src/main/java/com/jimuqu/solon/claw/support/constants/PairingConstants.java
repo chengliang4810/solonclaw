@@ -1,15 +1,12 @@
 package com.jimuqu.solon.claw.support.constants;
 
-/** 管理员认领与 pairing 相关常量。 */
+/** pairing 相关常量。 */
 public interface PairingConstants {
     /** pairing code 的字符集，排除容易混淆的字符。 */
     String CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-    /** 管理员自动认领的内部 code。 */
-    String ADMIN_CLAIM_CODE = "__ADMIN_CLAIM__";
-
-    /** 首个管理员自动批准来源标记。 */
-    String SELF_ADMIN_CLAIM = "self-admin-claim";
+    /** 已停用的管理员认领 code，仅用于阻止历史残留记录被误批准。 */
+    String RETIRED_ADMIN_CLAIM_CODE = "__ADMIN_CLAIM__";
 
     /** pairing code 长度。 */
     int CODE_LENGTH = 8;

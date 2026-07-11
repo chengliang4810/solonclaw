@@ -3,7 +3,14 @@ import { Box, Link, Text } from '@solonclaw/ink'
 import type { ChannelOption, ChannelQrResponse, ChannelSetupField } from '../gatewayTypes.js'
 import type { Theme } from '../theme.js'
 
-import { channelQrMessage, channelQrResponseStatusActive, channelQrStatus, channelQrUrl, channelSupportsQr } from './channelQr.js'
+import {
+  channelQrConfirmedUserId,
+  channelQrMessage,
+  channelQrResponseStatusActive,
+  channelQrStatus,
+  channelQrUrl,
+  channelSupportsQr
+} from './channelQr.js'
 import { OverlayHint, windowItems } from './overlayControls.js'
 
 /** 通道设置视图只展示后端返回的通道状态，协议字段解释保持在 channelQr/RPC 层。 */
@@ -48,6 +55,7 @@ export function ChannelQrSetupView({ channel, err, qr, qrLoading, t, width }: Ch
   const qrUrl = channelQrUrl(qr)
   const status = qr ? channelQrStatus(qr) : (qrLoading ? 'starting' : 'wait')
   const message = err || channelQrMessage(qr) || '等待扫码绑定状态。'
+  const userId = channelQrConfirmedUserId(qr)
 
   return (
     <Box flexDirection="column" width={width}>
@@ -60,6 +68,11 @@ export function ChannelQrSetupView({ channel, err, qr, qrLoading, t, width }: Ch
       <Text color={err ? t.color.label : t.color.muted} wrap="truncate-end">
         {message}
       </Text>
+      {userId ? (
+        <Text color={t.color.muted} wrap="truncate-end">
+          user ID: {userId}
+        </Text>
+      ) : null}
       {qrUrl ? (
         <Link url={qrUrl}>
           <Text color={t.color.accent} wrap="truncate-end">

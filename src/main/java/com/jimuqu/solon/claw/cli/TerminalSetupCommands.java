@@ -1425,7 +1425,7 @@ public class TerminalSetupCommands {
                 + "请在对应平台管理员私聊中执行：/"
                 + command
                 + "\n常用命令：\n"
-                + "- /pairing claim-admin - 在渠道私聊中完成首个管理员认领\n"
+                + "- 平台管理员必须通过本机或已认证的管理面显式配置\n"
                 + "- /pairing pending <platform> - 查看待处理 pairing code\n"
                 + "- /pairing approve <platform> <code> - 批准用户\n"
                 + "- /pairing approved <platform> - 查看授权用户列表\n"

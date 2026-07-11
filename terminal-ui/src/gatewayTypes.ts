@@ -161,6 +161,7 @@ export interface ChannelQrResponse {
   session_id?: string
   status?: string
   ticket?: string
+  user_id?: string
 }
 
 // ── Session lifecycle ────────────────────────────────────────────────

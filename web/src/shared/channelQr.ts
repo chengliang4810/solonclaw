@@ -19,6 +19,7 @@ export interface ChannelQrStatusView {
   client_id?: string
   app_id?: string
   open_id?: string
+  user_id?: string
   domain?: string
 }
 
@@ -47,6 +48,7 @@ export function normalizeChannelQrStatus(res: Record<string, any>): ChannelQrSta
     client_id: res.client_id,
     app_id: res.app_id,
     open_id: res.open_id,
+    user_id: res.user_id,
     domain: res.domain,
   }
 }

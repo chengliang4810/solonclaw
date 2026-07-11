@@ -5,6 +5,7 @@ import React from 'react'
 import { describe, expect, it } from 'vitest'
 
 import {
+  channelQrConfirmedUserId,
   channelQrResponseStatusActive,
   channelQrStatus,
   channelQrStatusActive,
@@ -47,6 +48,11 @@ describe('channel QR setup helpers', () => {
     expect(channelQrResponseStatusActive({ status: 'failed', error_code: 'qr_timeout' })).toBe(false)
   })
 
+  it('exposes the confirmed Weixin user ID only after QR confirmation', () => {
+    expect(channelQrConfirmedUserId({ status: 'pending', user_id: 'wx-user' })).toBe('')
+    expect(channelQrConfirmedUserId({ status: 'confirmed', user_id: ' wx-user ' })).toBe('wx-user')
+  })
+
   it('labels channel setup rows with configured and QR capability state', () => {
     expect(channelSetupListRowLabel({ configured: true, key: 'feishu', label: 'Feishu', qr_supported: true })).toBe(
       'Feishu · configured · QR'
@@ -83,9 +89,15 @@ describe('channel QR setup helpers', () => {
     expect(output).toContain('polling every 1.5s')
     expect(lines.every(line => line.length <= 80)).toBe(true)
   })
+
+  it('renders the confirmed Weixin user ID', () => {
+    const output = renderQrView(80, { status: 'confirmed', user_id: 'wx-user' })
+
+    expect(output).toContain('user ID: wx-user')
+  })
 })
 
-const renderQrView = (columns: number): string => {
+const renderQrView = (columns: number, qrOverrides: Record<string, string> = {}): string => {
   const stdout = new PassThrough()
   const stdin = new PassThrough()
   const stderr = new PassThrough()
@@ -107,7 +119,8 @@ const renderQrView = (columns: number): string => {
         ok: true,
         qr_url: 'https://accounts.feishu.test/qr?code=1234567890&from=solonclaw&tp=solonclaw',
         status: 'pending',
-        ticket: 'ticket-1'
+        ticket: 'ticket-1',
+        ...qrOverrides
       },
       qrLoading: false,
       t: DEFAULT_THEME,

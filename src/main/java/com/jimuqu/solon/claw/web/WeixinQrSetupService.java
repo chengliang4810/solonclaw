@@ -300,14 +300,16 @@ public class WeixinQrSetupService {
         }
         baseUrl = normalizeBaseUrl(baseUrl);
         assertSafeBaseUrl(baseUrl, "微信 iLink baseurl");
+
+        // 扫码确认只表示机器人凭据有效；扫码用户身份仅回传给界面，由操作者显式决定配对或白名单。
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+        updates.put("channels.weixin.enabled", Boolean.TRUE);
+        if (!DEFAULT_BASE_URL.equals(baseUrl)) {
+            updates.put("channels.weixin.baseUrl", baseUrl);
+        }
+        configService.savePartialFlat(updates, false);
         configResolver.setFileValue("solonclaw.channels.weixin.accountId", accountId);
         configResolver.setFileValue("solonclaw.channels.weixin.token", token);
-
-        if (!DEFAULT_BASE_URL.equals(baseUrl)) {
-            Map<String, Object> updates = new LinkedHashMap<String, Object>();
-            updates.put("channels.weixin.baseUrl", baseUrl);
-            configService.savePartialFlat(updates);
-        }
         gatewayRuntimeRefreshService.refreshNow();
     }
 

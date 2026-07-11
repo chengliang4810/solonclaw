@@ -76,6 +76,6 @@ final class DefaultPairingCommandHandler {
     private String usage() {
         return "用法："
                 + GatewayCommandConstants.SLASH_PAIRING
-                + " [claim-admin|list|pending|approve|revoke|approved|clear-pending] ...";
+                + " [list|pending|approve|revoke|approved|clear-pending] ...";
     }
 }

@@ -19,7 +19,7 @@ import java.security.SecureRandom;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 
-/** 统一处理管理员认领、pairing 与 home channel 授权逻辑。 */
+/** 统一处理平台管理员、pairing 与 home channel 授权逻辑。 */
 @RequiredArgsConstructor
 public class GatewayAuthorizationService {
     /** 授权状态仓储。 */
@@ -44,58 +44,12 @@ public class GatewayAuthorizationService {
 
         PlatformType platform = message.getPlatform();
         PlatformAdminRecord admin = repository.getPlatformAdmin(platform);
-        String text = message.getText() == null ? "" : message.getText().trim();
 
         if (admin == null) {
             if (!isDm(message)) {
                 return null;
             }
-
-            if ((GatewayCommandConstants.SLASH_PAIRING
-                            + " "
-                            + GatewayCommandConstants.ACTION_CLAIM_ADMIN)
-                    .equalsIgnoreCase(text)) {
-                return claimAdmin(message);
-            }
-
-            PairingRequestRecord claim = repository.getAdminClaimRequest(platform);
-            long now = System.currentTimeMillis();
-            if (claim != null && claim.getExpiresAt() < now) {
-                repository.deletePairingRequest(platform, PairingConstants.ADMIN_CLAIM_CODE);
-                claim = null;
-            }
-            if (claim == null) {
-                PairingRequestRecord record = new PairingRequestRecord();
-                record.setPlatform(platform);
-                record.setCode(PairingConstants.ADMIN_CLAIM_CODE);
-                record.setUserId(message.getUserId());
-                record.setUserName(message.getUserName());
-                record.setChatId(message.getChatId());
-                record.setCreatedAt(now);
-                record.setExpiresAt(now + PairingConstants.CODE_TTL_MILLIS);
-                repository.createAdminClaimRequestIfAbsent(record);
-                claim = repository.getAdminClaimRequest(platform);
-            }
-
-            if (sameUser(claim.getUserId(), message.getUserId())) {
-                return GatewayReply.ok(
-                        "当前平台还没有管理员，你是当前认领人。\n"
-                                + "请在这个私聊里发送 `"
-                                + GatewayCommandConstants.SLASH_PAIRING
-                                + " "
-                                + GatewayCommandConstants.ACTION_CLAIM_ADMIN
-                                + "`，成为 "
-                                + platform.name().toLowerCase()
-                                + " 平台的唯一管理员。");
-            }
-
-            return GatewayReply.ok(
-                    "当前平台正在等待首个私聊认领人完成管理员初始化。\n"
-                            + "请让当前认领人发送 `"
-                            + GatewayCommandConstants.SLASH_PAIRING
-                            + " "
-                            + GatewayCommandConstants.ACTION_CLAIM_ADMIN
-                            + "` 完成初始化。");
+            return createPairingPrompt(message);
         }
 
         if (isAuthorized(message)) {
@@ -153,48 +107,16 @@ public class GatewayAuthorizationService {
         return admin != null && sameUser(admin.getUserId(), message.getUserId());
     }
 
-    /** 完成平台管理员认领。 */
+    /**
+     * 拒绝从未认证的入站消息自举平台管理员。
+     *
+     * <p>平台管理员只能由本机或已认证的管理面显式配置，渠道用户输入不能成为信任根。
+     *
+     * @param message 入站消息
+     * @return 固定拒绝回复
+     */
     public GatewayReply claimAdmin(GatewayMessage message) throws Exception {
-        if (!isDm(message)) {
-            return GatewayReply.error("管理员认领必须在私聊中完成。");
-        }
-
-        PlatformAdminRecord existing = repository.getPlatformAdmin(message.getPlatform());
-        if (existing != null) {
-            return GatewayReply.error("当前平台已经有管理员。");
-        }
-
-        PairingRequestRecord claim = repository.getAdminClaimRequest(message.getPlatform());
-        long now = System.currentTimeMillis();
-        if (claim == null || claim.getExpiresAt() < now) {
-            return GatewayReply.error("当前没有有效的管理员认领请求，请先在私聊里发送任意消息触发管理员初始化。");
-        }
-        if (!sameUser(claim.getUserId(), message.getUserId())) {
-            return GatewayReply.error("只有首个认领人可以完成管理员初始化。");
-        }
-
-        PlatformAdminRecord admin = new PlatformAdminRecord();
-        admin.setPlatform(message.getPlatform());
-        admin.setUserId(message.getUserId());
-        admin.setUserName(message.getUserName());
-        admin.setChatId(message.getChatId());
-        admin.setCreatedAt(now);
-
-        if (!repository.createPlatformAdminIfAbsent(admin)) {
-            return GatewayReply.error("当前平台已经有管理员。");
-        }
-
-        ApprovedUserRecord approvedUser = new ApprovedUserRecord();
-        approvedUser.setPlatform(message.getPlatform());
-        approvedUser.setUserId(message.getUserId());
-        approvedUser.setUserName(message.getUserName());
-        approvedUser.setApprovedAt(now);
-        approvedUser.setApprovedBy(PairingConstants.SELF_ADMIN_CLAIM);
-        repository.saveApprovedUser(approvedUser);
-        repository.deletePairingRequest(message.getPlatform(), PairingConstants.ADMIN_CLAIM_CODE);
-
-        return GatewayReply.ok(
-                "你现在已经是 " + message.getPlatform().name().toLowerCase() + " 平台的唯一管理员。");
+        return GatewayReply.error("不允许通过渠道消息认领平台管理员，请在本机或管理面完成配置。");
     }
 
     /** 将当前聊天设置为 home channel。 */
@@ -291,7 +213,7 @@ public class GatewayAuthorizationService {
         return GatewayReply.ok(buffer.toString());
     }
 
-    /** 清理平台待处理 pairing 请求，不影响已批准用户和管理员认领。 */
+    /** 清理平台待处理 pairing 请求，不影响已批准用户。 */
     public GatewayReply pairingClearPending(GatewayMessage message, PlatformType targetPlatform)
             throws Exception {
         if (!isAdminForPlatform(message, targetPlatform)) {
@@ -318,7 +240,7 @@ public class GatewayAuthorizationService {
         long now = System.currentTimeMillis();
         repository.deleteExpiredPairingRequests(targetPlatform, now);
         PairingRequestRecord request = repository.getPairingRequest(targetPlatform, code);
-        if (request == null || request.getExpiresAt() < now || isAdminClaim(request)) {
+        if (request == null || request.getExpiresAt() < now || isRetiredAdminClaim(request)) {
             recordFailure(targetPlatform, message.getUserId(), now);
             return GatewayReply.error("pairing code 无效或已过期。");
         }
@@ -592,9 +514,9 @@ public class GatewayAuthorizationService {
         return left != null && left.equals(right);
     }
 
-    /** 判断记录是否为管理员认领请求。 */
-    private boolean isAdminClaim(PairingRequestRecord record) {
-        return PairingConstants.ADMIN_CLAIM_CODE.equals(record.getCode());
+    /** 防止历史管理员认领记录被当作普通 pairing code 批准。 */
+    private boolean isRetiredAdminClaim(PairingRequestRecord record) {
+        return PairingConstants.RETIRED_ADMIN_CLAIM_CODE.equals(record.getCode());
     }
 
     /** 为空字符串提供默认值。 */

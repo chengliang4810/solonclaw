@@ -72,10 +72,12 @@ public class ChannelConfigPolicyLoadTest {
 
     @Test
     void shouldKeepMentionPolicyDefaultsWhenChannelPolicyFieldsAreAbsent() {
-        AppConfig.ChannelConfig channelConfig =
-                AppConfig.load(new Props()).getChannels().getFeishu();
+        AppConfig config = AppConfig.load(new Props());
+        AppConfig.ChannelConfig channelConfig = config.getChannels().getFeishu();
 
         assertThat(channelConfig.isRequireMention()).isTrue();
         assertThat(channelConfig.getFreeResponseChats()).isEmpty();
+        assertThat(config.getChannels().getWeixin().getDmPolicy()).isEqualTo("pairing");
+        assertThat(config.getChannels().getWeixin().getGroupPolicy()).isEqualTo("disabled");
     }
 }

@@ -1769,6 +1769,7 @@ export default {
     qrExpired: 'QR code expired. Start QR login again.',
     qrFailed: 'Failed to fetch QR code. Try again later.',
     qrAccountId: 'Account ID',
+    qrUserId: 'User ID',
     qrClientId: 'Client ID',
     qrAppId: 'App ID',
     qrOpenId: 'Open ID',
