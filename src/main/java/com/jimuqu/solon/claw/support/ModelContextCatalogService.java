@@ -15,6 +15,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.noear.snack4.ONode;
 
 /**
@@ -23,7 +27,7 @@ import org.noear.snack4.ONode;
  * <p>对齐外部对标仓库的在线探测能力：models.dev 覆盖 109 个提供方 4000+ 模型，OpenRouter 作为兜底。 采用三层缓存（内存 1 小时 → 磁盘 1 小时 →
  * 网络失败降级过期磁盘 5 分钟），首次查询时同步拉取， 后续命中内存缓存。查询按 dialect + providerKey + baseUrl 推断对应的在线 provider 标识。
  */
-public class ModelContextCatalogService {
+public class ModelContextCatalogService implements AutoCloseable {
     /** 日志记录器。 */
     private static final Log log = LogFactory.get();
 
@@ -377,18 +381,35 @@ public class ModelContextCatalogService {
     }
 
     /** 异步刷新标志，避免重复提交刷新任务。 */
-    private final java.util.concurrent.atomic.AtomicBoolean asyncRefreshScheduled =
-            new java.util.concurrent.atomic.AtomicBoolean(false);
+    private final AtomicBoolean asyncRefreshScheduled = new AtomicBoolean(false);
+
+    /** 生命周期锁，保证关闭和延迟创建执行器不会交叉产生新的线程。 */
+    private final Object executorLifecycleLock = new Object();
+
+    /** 服务关闭标志；Profile 运行时重载后禁止旧实例再次调度网络请求。 */
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /** 异步刷新执行器，daemon 线程，不阻止 JVM 退出。 */
-    private volatile java.util.concurrent.ExecutorService asyncRefreshExecutor;
+    private volatile ExecutorService asyncRefreshExecutor;
 
     /** 触发异步网络刷新，避免阻塞查询调用方。 */
     private void triggerAsyncRefresh() {
-        if (!asyncRefreshScheduled.compareAndSet(false, true)) {
+        if (closed.get() || !asyncRefreshScheduled.compareAndSet(false, true)) {
             return;
         }
-        getAsyncExecutor().submit(this::performAsyncRefresh);
+        ExecutorService executor = getAsyncExecutor();
+        if (executor == null) {
+            asyncRefreshScheduled.set(false);
+            return;
+        }
+        try {
+            executor.submit(this::performAsyncRefresh);
+        } catch (RejectedExecutionException e) {
+            asyncRefreshScheduled.set(false);
+            if (!closed.get()) {
+                log.debug("模型目录异步刷新任务被拒绝: {}", e.getMessage());
+            }
+        }
     }
 
     /**
@@ -396,28 +417,35 @@ public class ModelContextCatalogService {
      *
      * @return 返回异步执行器。
      */
-    private java.util.concurrent.ExecutorService getAsyncExecutor() {
-        if (asyncRefreshExecutor == null) {
-            synchronized (this) {
-                if (asyncRefreshExecutor == null) {
-                    asyncRefreshExecutor =
-                            java.util.concurrent.Executors.newSingleThreadExecutor(
-                                    r -> {
-                                        Thread t = new Thread(r, "model-context-catalog-refresh");
-                                        t.setDaemon(true);
-                                        return t;
-                                    });
-                }
+    private ExecutorService getAsyncExecutor() {
+        synchronized (executorLifecycleLock) {
+            if (closed.get()) {
+                return null;
             }
+            if (asyncRefreshExecutor == null) {
+                asyncRefreshExecutor =
+                        Executors.newSingleThreadExecutor(
+                                r -> {
+                                    Thread t = new Thread(r, "model-context-catalog-refresh");
+                                    t.setDaemon(true);
+                                    return t;
+                                });
+            }
+            return asyncRefreshExecutor;
         }
-        return asyncRefreshExecutor;
     }
 
     /** 执行异步网络刷新，拉取 models.dev 和 OpenRouter 数据并写入缓存。 */
     private void performAsyncRefresh() {
         try {
+            if (closed.get()) {
+                return;
+            }
             Map<String, Map<String, Integer>> freshModelsDev = fetchModelsDevFromRemote();
             Map<String, Integer> freshOpenRouter = fetchOpenRouterFromRemote();
+            if (closed.get()) {
+                return;
+            }
             if (!freshModelsDev.isEmpty()) {
                 modelsDevCache = freshModelsDev;
                 modelsDevCacheTime = System.currentTimeMillis();
@@ -434,6 +462,34 @@ public class ModelContextCatalogService {
         } finally {
             asyncRefreshScheduled.set(false);
         }
+    }
+
+    /**
+     * 关闭当前 Profile 的异步刷新线程，避免 Profile 重载后保留旧配置和缓存目录。
+     *
+     * <p>关闭幂等；与首次懒加载执行器的创建共享同一生命周期锁，防止关闭期间新建线程。
+     */
+    public void shutdown() {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+        asyncRefreshScheduled.set(false);
+        ExecutorService executor;
+        synchronized (executorLifecycleLock) {
+            executor = asyncRefreshExecutor;
+            asyncRefreshExecutor = null;
+        }
+        if (executor != null) {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * 供容器和手动资源管理使用的关闭入口。
+     */
+    @Override
+    public void close() {
+        shutdown();
     }
 
     /**

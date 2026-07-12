@@ -4,8 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.ModelMetadata;
+import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.ModelContextCacheStore;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
+import java.nio.file.Path;
+import java.util.Collections;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class ModelMetadataServiceTest {
     @Test
@@ -84,6 +89,67 @@ public class ModelMetadataServiceTest {
         assertThat(resolveContext(config, "gemini", "gemini-2.5-pro")).isEqualTo(1000000);
         assertThat(resolveContext(config, "openai", "deepseek-reasoner")).isEqualTo(1000000);
         assertThat(resolveContext(config, "openai", "grok-4-fast-reasoning")).isEqualTo(2000000);
+    }
+
+    /** 显式全局窗口必须覆盖运行时按模型解析。 */
+    @Test
+    void shouldKeepExplicitRuntimeContextWindowOverride() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setContextWindowTokens(123456);
+
+        int contextWindow =
+                new ModelMetadataService(config)
+                        .resolveContextWindowForRuntime(
+                                "backup",
+                                "anthropic",
+                                "https://api.anthropic.com",
+                                "anthropic/claude-sonnet-4");
+
+        assertThat(contextWindow).isEqualTo(123456);
+    }
+
+    /** fallback 必须跳过主模型显式窗口，并继续使用注入服务的持久化缓存解析链。 */
+    @Test
+    void shouldResolveFallbackWindowThroughInjectedMetadataChain(@TempDir Path tempDir) {
+        AppConfig config = new AppConfig();
+        config.getLlm().setContextWindowTokens(123456);
+        AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
+        provider.setBaseUrl("https://models.example.test/v1");
+        provider.setDialect("openai");
+        provider.setDefaultModel("unknown-runtime-model");
+        config.getProviders().put("main", provider);
+        AppConfig.FallbackProviderConfig fallback = new AppConfig.FallbackProviderConfig();
+        fallback.setProvider("main");
+        fallback.setModel("unknown-runtime-model");
+        config.setFallbackProviders(Collections.singletonList(fallback));
+        ModelContextCacheStore cacheStore = new ModelContextCacheStore(tempDir.toFile());
+        cacheStore.save("unknown-runtime-model", provider.getBaseUrl(), 777777);
+        LlmProviderService service =
+                new LlmProviderService(
+                        config, new ModelMetadataService(config, null, cacheStore));
+
+        assertThat(service.resolveProvider("main", null).getContextWindowTokens())
+                .isEqualTo(123456);
+        assertThat(service.resolveFallbackProviders().get(0).getContextWindowTokens())
+                .isEqualTo(777777);
+    }
+
+    /** 非法兜底值不得泄漏到运行时预算。 */
+    @Test
+    void shouldNormalizeInvalidRuntimeFallbackContextWindow() {
+        AppConfig config = new AppConfig();
+        config.getLlm().setContextWindowTokens(0);
+        config.getLlm().setContextFallbackTokens(-1);
+
+        int contextWindow =
+                new ModelMetadataService(config)
+                        .resolveContextWindowForRuntime(
+                                "custom",
+                                "openai",
+                                "https://models.example.test/v1",
+                                "unknown-runtime-model");
+
+        assertThat(contextWindow).isEqualTo(256000);
     }
 
     @Test

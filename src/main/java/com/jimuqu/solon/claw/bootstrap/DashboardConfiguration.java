@@ -423,53 +423,6 @@ public class DashboardConfiguration {
     }
 
     /**
-     * 创建模型上下文长度在线目录服务，负责 models.dev 和 OpenRouter 数据获取与缓存。
-     *
-     * @param appConfig 应用运行配置。
-     * @return 返回模型上下文目录服务。
-     */
-    @Bean
-    public com.jimuqu.solon.claw.support.ModelContextCatalogService modelContextCatalogService(
-            AppConfig appConfig) {
-        return new com.jimuqu.solon.claw.support.ModelContextCatalogService(appConfig);
-    }
-
-    /**
-     * 创建模型上下文长度持久化缓存，存储在线探测得到的 model@baseUrl 条目。
-     *
-     * @param appConfig 应用运行配置。
-     * @return 返回模型上下文缓存存储。
-     */
-    @Bean
-    public com.jimuqu.solon.claw.support.ModelContextCacheStore modelContextCacheStore(
-            AppConfig appConfig) {
-        java.io.File cacheDir =
-                appConfig.getRuntime() != null
-                                && cn.hutool.core.util.StrUtil.isNotBlank(
-                                        appConfig.getRuntime().getCacheDir())
-                        ? new java.io.File(appConfig.getRuntime().getCacheDir())
-                        : null;
-        return new com.jimuqu.solon.claw.support.ModelContextCacheStore(cacheDir);
-    }
-
-    /**
-     * 创建模型元数据解析服务，注入在线目录和持久化缓存。
-     *
-     * @param appConfig 应用运行配置。
-     * @param modelContextCatalogService 模型上下文在线目录服务。
-     * @param modelContextCacheStore 模型上下文持久化缓存。
-     * @return 返回模型元数据服务。
-     */
-    @Bean
-    public com.jimuqu.solon.claw.support.ModelMetadataService modelMetadataService(
-            AppConfig appConfig,
-            com.jimuqu.solon.claw.support.ModelContextCatalogService modelContextCatalogService,
-            com.jimuqu.solon.claw.support.ModelContextCacheStore modelContextCacheStore) {
-        return new com.jimuqu.solon.claw.support.ModelMetadataService(
-                appConfig, modelContextCatalogService, modelContextCacheStore);
-    }
-
-    /**
      * 执行控制台工作区服务相关逻辑。
      *
      * @param personaWorkspaceService persona工作区服务依赖。

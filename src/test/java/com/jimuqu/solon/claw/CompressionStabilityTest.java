@@ -399,6 +399,70 @@ public class CompressionStabilityTest {
         assertThat(parsed.get("content").getString()).endsWith("...[truncated]");
     }
 
+    /** 候选模型切换后，尾部保护预算必须随候选上下文窗口重新计算。 */
+    @Test
+    void shouldUseCandidateContextWindowForTailBudget() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        Method method =
+                DefaultContextCompressionService.class.getDeclaredMethod(
+                        "findTailStart", List.class, int.class);
+        method.setAccessible(true);
+        List<ChatMessage> messages =
+                Arrays.asList(
+                        ChatMessage.ofAssistant(repeat("a", 1000)),
+                        ChatMessage.ofAssistant(repeat("b", 1000)),
+                        ChatMessage.ofAssistant(repeat("c", 1000)));
+
+        int smallWindowStart = ((Integer) method.invoke(service, messages, 1024)).intValue();
+        int largeWindowStart = ((Integer) method.invoke(service, messages, 10000)).intValue();
+
+        assertThat(smallWindowStart).isGreaterThan(largeWindowStart);
+    }
+
+    /** 尾部保护预算必须基于扣除输出预留后的有效阈值。 */
+    @Test
+    void shouldUseEffectiveThresholdForTailBudget() throws Exception {
+        AppConfig config = config();
+        config.getCompression().setThresholdPercent(0.5D);
+        config.getCompression().setTailRatio(0.5D);
+        config.getLlm().setMaxTokens(8000);
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config);
+        Method method =
+                DefaultContextCompressionService.class.getDeclaredMethod(
+                        "findTailStart", List.class, int.class);
+        method.setAccessible(true);
+        List<ChatMessage> messages =
+                Arrays.asList(
+                        ChatMessage.ofAssistant(repeat("a", 1000)),
+                        ChatMessage.ofAssistant(repeat("b", 1000)),
+                        ChatMessage.ofAssistant(repeat("c", 1000)));
+
+        int tailStart = ((Integer) method.invoke(service, messages, 10000)).intValue();
+
+        assertThat(tailStart).isGreaterThan(0);
+    }
+
+    /** 输出上限占满或超过窗口时，压缩侧阈值必须保守钳制到最小输入预算。 */
+    @Test
+    void shouldClampThresholdWhenMaxTokensConsumesOrExceedsContextWindow()
+            throws Exception {
+        AppConfig config = config();
+        config.getCompression().setThresholdPercent(0.5D);
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config);
+        Method method =
+                DefaultContextCompressionService.class.getDeclaredMethod(
+                        "effectiveThresholdTokens", int.class);
+        method.setAccessible(true);
+
+        config.getLlm().setMaxTokens(10000);
+        int equalWindowThreshold = ((Integer) method.invoke(service, 10000)).intValue();
+        config.getLlm().setMaxTokens(12000);
+        int exceedsWindowThreshold = ((Integer) method.invoke(service, 10000)).intValue();
+
+        assertThat(equalWindowThreshold).isEqualTo(1);
+        assertThat(exceedsWindowThreshold).isEqualTo(1);
+    }
+
     @Test
     void shouldRepairCorruptedToolCallArgumentsBeforeCompression() throws Exception {
         DefaultContextCompressionService service = new DefaultContextCompressionService(config());

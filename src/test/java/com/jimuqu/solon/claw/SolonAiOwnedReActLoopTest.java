@@ -591,6 +591,71 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(result.getRawUsageJson()).contains("prompt_tokens");
     }
 
+    /** 流式正文中断后应保留已接收内容并结束本轮，不能重放同一请求。 */
+    @Test
+    void shouldKeepVisiblePartialResponseWhenStreamFails() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_PARTIAL_THEN_ERROR);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-stream-partial-session");
+        RecordingEventSink eventSink = new RecordingEventSink();
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请流式回复",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        eventSink,
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(model.calls).isEqualTo(1);
+        assertThat(result.getAssistantMessage().getResultContent())
+                .isEqualTo("已经完成一半\n\n（响应流意外中断，以上为已接收的部分内容）");
+        assertThat(eventSink.assistantDeltas)
+                .containsExactly("已经完成一半\n\n（响应流意外中断，以上为已接收的部分内容）");
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .anyMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && message.getContent().contains("响应流意外中断"));
+    }
+
+    /** 流中断前出现未完成工具调用时必须继续按失败处理，不能把工具前缀当成答复。 */
+    @Test
+    void shouldFailInterruptedStreamWithUnresolvedToolCall() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_TOOL_THEN_ERROR);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-stream-tool-error-session");
+        RecordingEventSink eventSink = new RecordingEventSink();
+
+        assertThatThrownBy(
+                        () ->
+                                invokeExecuteSingle(
+                                        gateway,
+                                        session,
+                                        "system",
+                                        "请调用工具",
+                                        Collections.emptyList(),
+                                        ConversationFeedbackSink.noop(),
+                                        eventSink,
+                                        false,
+                                        config.getLlm(),
+                                        null))
+                .hasRootCauseInstanceOf(IOException.class)
+                .hasRootCauseMessage("stream interrupted");
+        assertThat(eventSink.assistantDeltas).isEmpty();
+    }
+
     /** 验证 llm.stream=true 即使没有事件订阅也会走 Solon AI 流式请求。 */
     @Test
     void shouldHonorConfiguredStreamWithoutEventSink() throws Exception {
@@ -1210,6 +1275,8 @@ public class SolonAiOwnedReActLoopTest {
         HISTORY_FINAL,
         FAIL_FIRST_THEN_HISTORY_FINAL,
         STREAM_FINAL,
+        STREAM_PARTIAL_THEN_ERROR,
+        STREAM_TOOL_THEN_ERROR,
         STREAM_THINKING_TAGS_ONLY,
         STREAM_AGGREGATION_DIFFERS,
         STREAM_VISIBLE_TOOL_PREAMBLE
@@ -1394,6 +1461,8 @@ public class SolonAiOwnedReActLoopTest {
         public Flux<ChatResponse> stream() {
             try {
                 if (model.mode != FakeMode.STREAM_FINAL
+                        && model.mode != FakeMode.STREAM_PARTIAL_THEN_ERROR
+                        && model.mode != FakeMode.STREAM_TOOL_THEN_ERROR
                         && model.mode != FakeMode.STREAM_THINKING_TAGS_ONLY
                         && model.mode != FakeMode.STREAM_AGGREGATION_DIFFERS
                         && model.mode != FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE) {
@@ -1404,6 +1473,26 @@ public class SolonAiOwnedReActLoopTest {
                 }
                 model.calls++;
                 model.requestContents.add(messageContents(session.getMessages()));
+                if (model.mode == FakeMode.STREAM_PARTIAL_THEN_ERROR) {
+                    AssistantMessage partial = ChatMessage.ofAssistant("已经完成一半");
+                    return Flux.concat(
+                            Flux.just(new FakeResponse(model, options, partial, true)),
+                            Flux.error(new IOException("stream interrupted")));
+                }
+                if (model.mode == FakeMode.STREAM_TOOL_THEN_ERROR) {
+                    AssistantMessage visible = ChatMessage.ofAssistant("准备调用工具");
+                    AssistantMessage toolCall =
+                            assistantWithToolCall(
+                                    "准备调用工具",
+                                    "call_interrupted",
+                                    "echo_tool",
+                                    "{\"value\":\"native\"}");
+                    return Flux.concat(
+                            Flux.just(
+                                    new FakeResponse(model, options, visible, true),
+                                    new FakeResponse(model, options, visible, true, toolCall)),
+                            Flux.error(new IOException("stream interrupted")));
+                }
                 if (model.mode == FakeMode.STREAM_THINKING_TAGS_ONLY) {
                     AssistantMessage thinking = new AssistantMessage("<think>内部计划</think>", true);
                     return Flux.just(new FakeResponse(model, options, thinking, true));

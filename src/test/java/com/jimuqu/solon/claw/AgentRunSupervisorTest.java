@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
+import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.ContextBudgetDecision;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -159,6 +160,34 @@ public class AgentRunSupervisorTest {
                         "fallback",
                         "attempt.success",
                         "run.success");
+    }
+
+    /** fallback 切换后预算与压缩都必须使用候选模型窗口，且不能回写共享配置。 */
+    @Test
+    void shouldRecomputeFallbackContextWindowForBudgetAndCompression() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getLlm().setContextWindowTokens(400000);
+        CandidateBudgetService budgetService = new CandidateBudgetService();
+        CandidateCompressionService compressionService = new CandidateCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, new RecordingGateway(), budgetService, compressionService);
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:context:user");
+
+        supervisor.run(
+                session,
+                "system",
+                "hello",
+                Collections.emptyList(),
+                ConversationFeedbackSink.noop(),
+                ConversationEventSink.noop(),
+                false,
+                null,
+                Collections.emptyList(),
+                null);
+
+        assertThat(budgetService.contextWindows).containsExactly(400000, 200000);
+        assertThat(compressionService.contextWindows).containsExactly(400000, 200000);
+        assertThat(fixture.config.getLlm().getContextWindowTokens()).isEqualTo(400000);
     }
 
     /** 限流时立即切换备用模型，并从已写入的工具结果继续而不是重放整轮。 */
@@ -1701,6 +1730,43 @@ public class AgentRunSupervisorTest {
         public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus) {
             this.focus = focus;
             return super.compressNow(session, systemPrompt, focus);
+        }
+    }
+
+    /** 记录每个候选进入预算判断时携带的上下文窗口。 */
+    private static class CandidateBudgetService implements ContextBudgetService {
+        /** 按候选执行顺序记录上下文窗口。 */
+        private final List<Integer> contextWindows = new ArrayList<Integer>();
+
+        /** 返回固定的压缩决策并记录候选窗口。 */
+        @Override
+        public ContextBudgetDecision decide(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                AppConfig.LlmConfig resolved) {
+            contextWindows.add(Integer.valueOf(resolved.getContextWindowTokens()));
+            ContextBudgetDecision decision = new ContextBudgetDecision();
+            decision.setShouldCompress(true);
+            decision.setReason("candidate budget");
+            decision.setEstimatedTokens(2000);
+            decision.setThresholdTokens(1000);
+            decision.setContextWindowTokens(resolved.getContextWindowTokens());
+            return decision;
+        }
+    }
+
+    /** 记录实际压缩调用收到的候选上下文窗口。 */
+    private static class CandidateCompressionService extends CountingCompressionService {
+        /** 按候选执行顺序记录上下文窗口。 */
+        private final List<Integer> contextWindows = new ArrayList<Integer>();
+
+        /** 捕获候选窗口并保持会话不变。 */
+        @Override
+        public CompressionOutcome compressNowWithOutcome(
+                SessionRecord session, String systemPrompt, String focus, int contextWindowTokens) {
+            this.contextWindows.add(Integer.valueOf(contextWindowTokens));
+            return CompressionOutcome.skipped(session);
         }
     }
 

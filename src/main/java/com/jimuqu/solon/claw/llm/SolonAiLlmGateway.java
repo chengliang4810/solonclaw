@@ -753,6 +753,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                     OwnedModelResponse modelResponse =
                             executeOwnedModelRequest(
                                     requestDesc,
+                                    agentSession,
                                     feedbackSink,
                                     eventSink,
                                     usageCollector,
@@ -876,6 +877,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * 执行自有Loop模型请求，并在可用时转发流式文本事件。
      *
      * @param requestDesc 请求描述。
+     * @param agentSession 当前 Agent 会话，用于在流中断时保存已接收正文。
      * @param feedbackSink feedbackSink参数。
      * @param eventSink eventSink参数。
      * @param usageCollector 当前 ReAct 轮次的模型用量收集器。
@@ -884,6 +886,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      */
     private OwnedModelResponse executeOwnedModelRequest(
             ChatRequestDesc requestDesc,
+            SqliteAgentSession agentSession,
             ConversationFeedbackSink feedbackSink,
             ConversationEventSink eventSink,
             UsageCollector usageCollector,
@@ -906,6 +909,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         final StringBuilder emittedText = new StringBuilder();
         final StringBuilder bufferedVisibleText = new StringBuilder();
         final ChatResponse[] finalResponse = new ChatResponse[1];
+        final boolean[] observedToolCall = new boolean[1];
         final ThinkingStreamSplitter thinkingSplitter = new ThinkingStreamSplitter();
         final MemoryContextBoundary.StreamingScrubber memoryScrubber =
                 new MemoryContextBoundary.StreamingScrubber();
@@ -922,9 +926,37 @@ public class SolonAiLlmGateway implements LlmGateway {
                                             effectiveEventSink,
                                             feedbackSink,
                                             finalResponse,
+                                            observedToolCall,
                                             memoryScrubber))
                     .blockLast(MODEL_STREAM_TIMEOUT);
         } catch (Throwable e) {
+            emitThinking(
+                    thinkingSplitter.flushPending(),
+                    emittedText,
+                    bufferedVisibleText,
+                    effectiveEventSink,
+                    feedbackSink,
+                    memoryScrubber);
+            String remainingVisible = memoryScrubber.flush();
+            if (StrUtil.isNotBlank(remainingVisible)) {
+                bufferedVisibleText.append(remainingVisible);
+            }
+            String partial = visibleResponseText(bufferedVisibleText.toString());
+            boolean unresolvedToolCall =
+                    observedToolCall[0]
+                            || lastUnresolvedAssistantToolCall(agentSession.getMessages()) != null;
+            if (StrUtil.isNotBlank(partial) && !unresolvedToolCall) {
+                String interrupted = partial + "\n\n（响应流意外中断，以上为已接收的部分内容）";
+                AssistantMessage assistantMessage = ChatMessage.ofAssistant(interrupted);
+                recordOwnedPartialAssistant(agentSession, assistantMessage);
+                effectiveEventSink.onAssistantDelta(interrupted);
+                return new OwnedModelResponse(
+                        finalResponse[0],
+                        assistantMessage,
+                        interrupted,
+                        true,
+                        thinkingSplitter.reasoningText());
+            }
             if (e instanceof Exception) {
                 throw (Exception) e;
             }
@@ -1012,6 +1044,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param eventSink eventSink参数。
      * @param feedbackSink feedbackSink参数。
      * @param finalResponse 最终响应容器。
+     * @param observedToolCall 是否观察到未完成工具调用。
      * @param memoryScrubber 记忆边界过滤器。
      */
     private void handleOwnedStreamChunk(
@@ -1022,13 +1055,22 @@ public class SolonAiLlmGateway implements LlmGateway {
             ConversationEventSink eventSink,
             ConversationFeedbackSink feedbackSink,
             ChatResponse[] finalResponse,
+            boolean[] observedToolCall,
             MemoryContextBoundary.StreamingScrubber memoryScrubber) {
         if (chunk == null) {
             return;
         }
         finalResponse[0] = chunk;
+        AssistantMessage aggregationMessage = chunk.getAggregationMessage();
+        if (aggregationMessage != null && aggregationMessage.isToolCalls()) {
+            observedToolCall[0] = true;
+        }
         AssistantMessage message = chunk.getMessage();
-        if (message == null || message.isToolCalls()) {
+        if (message == null) {
+            return;
+        }
+        if (message.isToolCalls()) {
+            observedToolCall[0] = true;
             return;
         }
         String delta = message.getContent();
@@ -1042,6 +1084,23 @@ public class SolonAiLlmGateway implements LlmGateway {
                 eventSink,
                 feedbackSink,
                 memoryScrubber);
+    }
+
+    /**
+     * 将流中断前的部分正文写入当前会话，避免成功返回后持久化历史缺少该条答复。
+     *
+     * @param agentSession 当前 Agent 会话。
+     * @param assistantMessage 带中断说明的部分答复。
+     */
+    private void recordOwnedPartialAssistant(
+            SqliteAgentSession agentSession, AssistantMessage assistantMessage) {
+        List<ChatMessage> messages = agentSession.getMessages();
+        int assistantIndex = lastAssistantMessageIndex(messages);
+        if (assistantIndex >= 0) {
+            messages.set(assistantIndex, assistantMessage);
+        } else {
+            agentSession.addMessage(assistantMessage);
+        }
     }
 
     /**
@@ -2232,6 +2291,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         config.setApiUrl(StrUtil.nullToEmpty(resolved.getApiUrl()).trim());
         config.setApiKey(resolved.getApiKey());
         config.setModel(StrUtil.nullToEmpty(resolved.getModel()).trim());
+        config.setContextWindowTokens(resolved.getContextWindowTokens());
         return config;
     }
 
