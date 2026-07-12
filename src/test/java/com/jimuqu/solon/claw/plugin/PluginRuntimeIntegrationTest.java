@@ -46,6 +46,19 @@ class PluginRuntimeIntegrationTest {
         assertThat(bean.destroyMethod()).isEqualTo("shutdown");
     }
 
+    /** 插件 Bean 创建时必须立即完成发现，避免带参数的初始化方法被框架忽略。 */
+    @Test
+    void pluginManagerBeanLoadsBundledPluginsDuringCreation() {
+        PluginConfiguration plugins = new PluginConfiguration();
+        AgentPluginManager manager = plugins.agentPluginManager(new AppConfig());
+        try {
+            assertThat(manager.listPlugins()).isNotEmpty();
+            assertThat(manager.diagnostics()).isNotEmpty();
+        } finally {
+            manager.shutdown();
+        }
+    }
+
     @Test
     void pluginToolIsExposedByToolRegistryWithoutOverridingBuiltinTool() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();

@@ -19,8 +19,6 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.noear.solon.annotation.Bean;
 import org.noear.solon.annotation.Configuration;
-import org.noear.solon.annotation.Init;
-import org.noear.solon.annotation.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,16 +104,8 @@ public class PluginConfiguration implements PluginRegistrationSink {
                                 .toAbsolutePath()
                                 .normalize()
                         : Paths.get(configuredHome).toAbsolutePath().normalize().resolve("plugins");
-        return new AgentPluginManager(hookRegistry, enabled, disabled, profilePlugins, true);
-    }
-
-    /**
-     * 加载Plugins。
-     *
-     * @param manager manager 参数。
-     */
-    @Init
-    public void loadPlugins(@Inject AgentPluginManager manager) {
+        AgentPluginManager manager =
+                new AgentPluginManager(hookRegistry, enabled, disabled, profilePlugins, true);
         manager.discoverAndLoad(this);
         log.info(
                 "Plugin providers registered: websearch={}, image_gen={}, video_gen={}, browser={},"
@@ -125,6 +115,7 @@ public class PluginConfiguration implements PluginRegistrationSink {
                 videoGenProviders.size(),
                 browserProviders.size(),
                 pluginMemoryProviders.size());
+        return manager;
     }
 
     /**
