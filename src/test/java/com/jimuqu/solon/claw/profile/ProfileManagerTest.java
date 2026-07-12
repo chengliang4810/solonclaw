@@ -78,6 +78,7 @@ class ProfileManagerTest {
         write(root.resolve("config.yml"), "model:\n  default: source-model\n");
         write(root.resolve("memory/2026-07-11.md"), "source memory\n");
         write(root.resolve("logs/gateway.log"), "source log\n");
+        write(root.resolve("forensics/shutdown.json"), "runtime history\n");
         write(root.resolve("cache/model-context.json"), "reusable cache\n");
         write(root.resolve("workspace/project-notes.md"), "user workspace\n");
         write(root.resolve("data/state.db"), "source-state");
@@ -106,7 +107,8 @@ class ProfileManagerTest {
         Path backup = manager.profileHome("backup");
         assertThat(backup.resolve("config.yml")).exists();
         assertThat(backup.resolve("memory/2026-07-11.md")).exists();
-        assertThat(backup.resolve("logs/gateway.log")).exists();
+        assertThat(backup.resolve("logs")).doesNotExist();
+        assertThat(backup.resolve("forensics")).doesNotExist();
         assertThat(backup.resolve("cache/model-context.json")).exists();
         assertThat(backup.resolve("workspace/project-notes.md")).exists();
         assertThat(backup.resolve("data/state.db")).doesNotExist();
@@ -307,9 +309,9 @@ class ProfileManagerTest {
         assertThat(restored.resolve(".env.local")).doesNotExist();
     }
 
-    /** default 导出采用 Profile 工件白名单，并按输出参数统一补齐 tar.gz 后缀。 */
+    /** default 导出采用 Profile 工件白名单，并保留调用方指定的精确输出路径。 */
     @Test
-    void defaultExportUsesPortableAllowListAndNormalizesOutputSuffix() throws Exception {
+    void defaultExportUsesPortableAllowListAndPreservesOutputPath() throws Exception {
         write(root.resolve("config.yml"), "model:\n  default: portable\n");
         write(root.resolve("SOUL.md"), "portable soul\n");
         write(root.resolve("skills/demo/SKILL.md"), "# demo\n");
@@ -321,8 +323,8 @@ class ProfileManagerTest {
         Path caseSensitiveArchive =
                 manager.exportProfile("default", tempDir.resolve("portable.TGZ"));
 
-        assertThat(archive.getFileName().toString()).isEqualTo("portable.tar.gz");
-        assertThat(caseSensitiveArchive.getFileName().toString()).isEqualTo("portable.TGZ.tar.gz");
+        assertThat(archive.getFileName().toString()).isEqualTo("portable.tgz");
+        assertThat(caseSensitiveArchive.getFileName().toString()).isEqualTo("portable.TGZ");
         assertThat(archive).isRegularFile();
         Path extracted = tempDir.resolve("default-export");
         assertThat(ProfileArchive.extract(archive, extracted)).isEqualTo("default");

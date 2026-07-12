@@ -29,6 +29,7 @@ import com.jimuqu.solon.claw.tool.runtime.DelegateTools;
 import com.jimuqu.solon.claw.tool.runtime.TodoTools;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -624,6 +625,56 @@ public class DelegationServiceTest {
         assertThat(channelDelivery.get().getChatId()).isEqualTo("room-a");
         assertThat(channelDelivery.get().getThreadId()).isEqualTo("thread-a");
         assertThat(channelDelivery.get().getUserId()).isEqualTo("user-a");
+    }
+
+    /** 一次性 CLI 的顶层委派必须同步返回最终结果，不能留下会被进程退出中断的后台任务。 */
+    @Test
+    void oneShotCliDelegationShouldWaitForFinalResult() throws Exception {
+        AtomicBoolean backgroundCalled = new AtomicBoolean(false);
+        DelegationService service =
+                new DelegationService() {
+                    @Override
+                    public boolean shouldRunInBackground() {
+                        return true;
+                    }
+
+                    @Override
+                    public List<DelegationResult> delegateBatch(
+                            String sourceKey, List<DelegationTask> tasks) {
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("cli child result");
+                        return Arrays.asList(result);
+                    }
+
+                    @Override
+                    public DelegationResult delegateSingle(
+                            String sourceKey, String prompt, String context) {
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("cli child result");
+                        return result;
+                    }
+
+                    @Override
+                    public DelegationResult delegateSingle(String sourceKey, DelegationTask task) {
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("cli child result");
+                        return result;
+                    }
+
+                    @Override
+                    public Map<String, Object> delegateInBackground(
+                            String sourceKey, List<DelegationTask> tasks) {
+                        backgroundCalled.set(true);
+                        return Collections.emptyMap();
+                    }
+                };
+
+        String result =
+                new DelegateTools(service, "MEMORY:cli:default")
+                        .delegateTask("goal", null, null, null, Boolean.TRUE);
+
+        assertThat(result).isEqualTo("cli child result");
+        assertThat(backgroundCalled).isFalse();
     }
 
     /** 后台委派完成前父来源键切到新会话时，旧结果必须拒绝回流。 */

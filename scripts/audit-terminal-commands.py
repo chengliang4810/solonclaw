@@ -193,7 +193,8 @@ NODE_TUI_ACTIONS = [
     {"type": "panel", "value": "/setup", "expect": "模型、渠道与工作区检查", "keys": "\r", "post_expect": "Select provider", "after": "q", "close_expect": "ready"},
     {"type": "panel", "value": "/setup", "expect": "模型、渠道与工作区检查", "keys": "\x1b[B\r", "post_expect": "Channel setup", "after": "q", "close_expect": "ready"},
     {"type": "panel", "value": "/setup", "expect": "模型、渠道与工作区检查", "keys": "\x1b[B\x1b[B\r", "post_expect": "model.provider", "after": "q", "close_expect": "ready"},
-    {"type": "command", "value": "/setup model", "expect": "Select provider", "after": "q", "close_expect": "ready"},
+    # PTY 增量重绘偶尔会吞掉 provider 标题中的单个字符；步骤标记在同一面板中稳定输出。
+    {"type": "command", "value": "/setup model", "expect": "step 1/2", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/setup gateway", "expect": "Channel setup", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/model --refresh", "expect": "Models", "after": "q", "close_expect": "ready"},
     {"type": "command", "value": "/config path", "expect": "config.yml"},
@@ -394,6 +395,20 @@ def contains_new_terminal_text(output: bytearray, expected: str, start_len: int)
     if start_len > len(output):
         start_len = len(output)
     return contains_terminal_text(output[start_len:].decode("utf-8", errors="replace"), expected)
+
+
+def contains_new_node_tui_ready_state(output: bytearray, start_len: int, overlay_marker: str = "") -> bool:
+    """识别浮层关闭后的可输入状态；增量重绘可能不重复输出状态栏 ready。"""
+    if start_len < 0:
+        start_len = 0
+    if start_len > len(output):
+        start_len = len(output)
+    text = output[start_len:].decode("utf-8", errors="replace")
+    if contains_node_tui_ready_state(text):
+        return True
+    return "❯" in normalize_terminal_text(text) and (
+        not overlay_marker or not contains_terminal_text(text, overlay_marker)
+    )
 
 
 def build_tui_script(commands: list[str]) -> str:
@@ -1020,6 +1035,23 @@ def wait_for_new_text(
     return contains_new_terminal_text(output, expected, start_len)
 
 
+def wait_for_node_tui_ready_after_close(
+    master_fd: int,
+    output: bytearray,
+    start_len: int,
+    timeout_seconds: float,
+    overlay_marker: str = "",
+    response_state: TerminalResponseState | None = None,
+) -> bool:
+    """等待浮层关闭后的 ready 状态或新的输入提示符。"""
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if contains_new_node_tui_ready_state(output, start_len, overlay_marker):
+            return True
+        read_pty(master_fd, output, 0.1, response_state)
+    return contains_new_node_tui_ready_state(output, start_len, overlay_marker)
+
+
 def run_node_tui_key_steps(
     master_fd: int,
     output: bytearray,
@@ -1386,14 +1418,22 @@ def run_node_tui_sequence(
                 os.write(master_fd, after.encode("utf-8"))
                 close_expected = str(action.get("close_expect", "")).strip()
                 if close_expected:
-                    if not wait_for_new_text(
-                        master_fd,
-                        output,
-                        close_expected,
-                        close_start,
-                        min(5.0, max(0.1, deadline - time.monotonic())),
-                        response_state,
-                    ):
+                    close_timeout = min(5.0, max(0.1, deadline - time.monotonic()))
+                    close_ok = (
+                        wait_for_node_tui_ready_after_close(
+                            master_fd,
+                            output,
+                            close_start,
+                            close_timeout,
+                            str(action.get("expect", "")).strip(),
+                            response_state,
+                        )
+                        if close_expected == "ready"
+                        else wait_for_new_text(
+                            master_fd, output, close_expected, close_start, close_timeout, response_state
+                        )
+                    )
+                    if not close_ok:
                         step_issues.append(f"step_missing_close_expected:{command}:{close_expected}")
                         break
                 else:

@@ -1704,6 +1704,12 @@ public class TerminalUiRpcService {
             return new ArrayList<Map<String, Object>>();
         }
         SkillBrowseResult search = skillHubService.search(query, "all", 20);
+        if ((search.getItems() == null || search.getItems().isEmpty())
+                && search.getTimedOutSources() != null
+                && !search.getTimedOutSources().isEmpty()) {
+            throw new IllegalStateException(
+                    "技能来源暂时不可用：" + String.join(", ", search.getTimedOutSources()));
+        }
         return skillMetaItems(search.getItems());
     }
 

@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
@@ -819,6 +820,250 @@ public class WeixinInboundDispatchTest {
         }
     }
 
+    /** 当前消息缺少 token 时，typing ticket 应复用该用户已持久化的上下文 token。 */
+    @Test
+    void shouldUsePersistedContextTokenWhenFetchingTypingTicket() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicReference<String> requestBody = new AtomicReference<String>();
+        server.createContext(
+                "/ilink/bot/getconfig",
+                exchange -> {
+                    requestBody.set(
+                            new String(
+                                    exchange.getRequestBody().readAllBytes(),
+                                    StandardCharsets.UTF_8));
+                    byte[] response =
+                            "{\"typing_ticket\":\"ticket-persisted\"}"
+                                    .getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.start();
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        ChannelStateRepository repository =
+                new InMemoryChannelStateRepository() {
+                    @Override
+                    public String get(PlatformType platform, String scopeKey, String stateKey) {
+                        return "wx-bot:wx-user".equals(scopeKey) ? "persisted-token" : null;
+                    }
+                };
+        WeiXinChannelAdapter adapter =
+                new WeiXinChannelAdapter(
+                        config.getChannels().getWeixin(),
+                        repository,
+                        new AttachmentCacheService(config));
+
+        try {
+            invokePrivate(adapter, "maybeFetchTypingTicket", "wx-user", "");
+            assertThat(ONode.ofJson(requestBody.get()).get("context_token").getString())
+                    .isEqualTo("persisted-token");
+        } finally {
+            adapter.disconnect();
+            server.stop(0);
+        }
+    }
+
+    /** 瞬时传输失败不得丢弃仍有效的 ticket，下一次心跳应直接复用。 */
+    @Test
+    void shouldKeepTypingTicketAfterTransientSendFailure() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicInteger configRequests = new AtomicInteger();
+        AtomicInteger typingRequests = new AtomicInteger();
+        server.createContext(
+                "/ilink/bot/getconfig",
+                exchange -> {
+                    configRequests.incrementAndGet();
+                    byte[] response =
+                            "{\"typing_ticket\":\"ticket-stable\"}"
+                                    .getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.createContext(
+                "/ilink/bot/sendtyping",
+                exchange -> {
+                    int attempt = typingRequests.incrementAndGet();
+                    if (attempt == 1) {
+                        try {
+                            TimeUnit.SECONDS.sleep(2L);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    byte[] response = "{}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    try {
+                        exchange.getResponseBody().write(response);
+                    } catch (java.io.IOException ignored) {
+                        // 首次请求由客户端超时关闭，模拟瞬时传输失败。
+                    }
+                    exchange.close();
+                });
+        server.start();
+        AppConfig config = newConfig();
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        WeiXinChannelAdapter adapter = newAdapter(config);
+
+        try {
+            invokePrivate(adapter, "maybeFetchTypingTicket", "wx-user", "context-token");
+            assertThat((Boolean) invokePrivate(adapter, "sendTyping", "wx-user", 1)).isFalse();
+            invokePrivate(adapter, "maybeFetchTypingTicket", "wx-user", "context-token");
+            assertThat((Boolean) invokePrivate(adapter, "sendTyping", "wx-user", 1)).isTrue();
+            assertThat(configRequests.get()).isEqualTo(1);
+        } finally {
+            adapter.disconnect();
+            server.stop(0);
+        }
+    }
+
+    /** stop 与 ticket 刷新并发时，已停止的心跳不得在刷新完成后补发 START。 */
+    @Test
+    void shouldNotSendTypingStartAfterLifecycleStopsDuringTicketFetch() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        CountDownLatch fetchingTicket = new CountDownLatch(1);
+        CountDownLatch releaseTicket = new CountDownLatch(1);
+        AtomicInteger startRequests = new AtomicInteger();
+        server.createContext(
+                "/ilink/bot/getconfig",
+                exchange -> {
+                    fetchingTicket.countDown();
+                    try {
+                        releaseTicket.await(3L, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    byte[] response =
+                            "{\"typing_ticket\":\"ticket-race\"}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.createContext(
+                "/ilink/bot/sendtyping",
+                exchange -> {
+                    String body =
+                            new String(
+                                    exchange.getRequestBody().readAllBytes(),
+                                    StandardCharsets.UTF_8);
+                    if (ONode.ofJson(body).get("status").getInt() == 1) {
+                        startRequests.incrementAndGet();
+                    }
+                    byte[] response = "{}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.start();
+        AppConfig config = newConfig();
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        WeiXinChannelAdapter adapter = newAdapter(config);
+
+        try {
+            Object lifecycle = invokePrivate(adapter, "startTypingLifecycle", "wx-user", "token");
+            assertThat(fetchingTicket.await(2L, TimeUnit.SECONDS)).isTrue();
+            Thread stopper =
+                    new Thread(
+                            () -> {
+                                try {
+                                    invokePrivate(adapter, "stopTypingLifecycle", lifecycle, false);
+                                } catch (Exception e) {
+                                    throw new IllegalStateException(e);
+                                }
+                            });
+            stopper.start();
+            releaseTicket.countDown();
+            stopper.join(3_000L);
+            TimeUnit.MILLISECONDS.sleep(200L);
+            assertThat(startRequests.get()).isZero();
+        } finally {
+            releaseTicket.countDown();
+            adapter.disconnect();
+            server.stop(0);
+        }
+    }
+
+    /** 已进入网络请求的 START 必须先完成，STOP 随后发送，避免 STOP 后出现迟到的 START。 */
+    @Test
+    void shouldSerializeInFlightTypingStartBeforeStop() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        CountDownLatch startEntered = new CountDownLatch(1);
+        CountDownLatch releaseStart = new CountDownLatch(1);
+        List<Integer> statuses = Collections.synchronizedList(new ArrayList<Integer>());
+        server.createContext(
+                "/ilink/bot/getconfig",
+                exchange -> {
+                    byte[] response =
+                            "{\"typing_ticket\":\"ticket-serialized\"}"
+                                    .getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.createContext(
+                "/ilink/bot/sendtyping",
+                exchange -> {
+                    String body =
+                            new String(
+                                    exchange.getRequestBody().readAllBytes(),
+                                    StandardCharsets.UTF_8);
+                    int status = ONode.ofJson(body).get("status").getInt();
+                    if (status == 1) {
+                        startEntered.countDown();
+                        try {
+                            releaseStart.await(3L, TimeUnit.SECONDS);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    statuses.add(status);
+                    byte[] response = "{}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.start();
+        AppConfig config = newConfig();
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        WeiXinChannelAdapter adapter = newAdapter(config);
+
+        try {
+            Object lifecycle = invokePrivate(adapter, "startTypingLifecycle", "wx-user", "token");
+            assertThat(startEntered.await(2L, TimeUnit.SECONDS)).isTrue();
+            Thread stopper =
+                    new Thread(
+                            () -> {
+                                try {
+                                    invokePrivate(adapter, "stopTypingLifecycle", lifecycle, false);
+                                } catch (Exception e) {
+                                    throw new IllegalStateException(e);
+                                }
+                            });
+            stopper.start();
+            TimeUnit.MILLISECONDS.sleep(100L);
+            assertThat(stopper.isAlive()).isTrue();
+            releaseStart.countDown();
+            stopper.join(3_000L);
+            assertThat(stopper.isAlive()).isFalse();
+            assertThat(statuses).containsExactly(1, 2);
+        } finally {
+            releaseStart.countDown();
+            adapter.disconnect();
+            server.stop(0);
+        }
+    }
+
     @Test
     void shouldPreserveQuotedPlainTextContext() throws Exception {
         AppConfig config = newConfig();
@@ -913,6 +1158,25 @@ public class WeixinInboundDispatchTest {
         } catch (InvocationTargetException e) {
             throw e.getCause();
         }
+    }
+
+    /** 按方法名调用适配器私有方法，供 typing 生命周期回归测试复用。 */
+    private Object invokePrivate(WeiXinChannelAdapter adapter, String name, Object... args)
+            throws Exception {
+        for (Method method : WeiXinChannelAdapter.class.getDeclaredMethods()) {
+            if (method.getName().equals(name) && method.getParameterCount() == args.length) {
+                method.setAccessible(true);
+                try {
+                    return method.invoke(adapter, args);
+                } catch (InvocationTargetException e) {
+                    if (e.getCause() instanceof Exception) {
+                        throw (Exception) e.getCause();
+                    }
+                    throw e;
+                }
+            }
+        }
+        throw new NoSuchMethodException(name);
     }
 
     /** 读取适配器内部状态，验证断连后不会遗留或重建执行资源。 */

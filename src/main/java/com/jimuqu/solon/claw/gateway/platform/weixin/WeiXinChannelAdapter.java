@@ -1502,9 +1502,17 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 @Override
                                 public void run() {
                                     try {
+                                        if (lifecycle.stopped) {
+                                            return;
+                                        }
                                         maybeFetchTypingTicket(
                                                 lifecycle.chatId, lifecycle.contextToken);
-                                        sendTyping(lifecycle.chatId, TYPING_START);
+                                        synchronized (lifecycle) {
+                                            if (lifecycle.stopped) {
+                                                return;
+                                            }
+                                            sendTyping(lifecycle.chatId, TYPING_START);
+                                        }
                                     } catch (Exception e) {
                                         log.debug(
                                                 "[WEIXIN] typing heartbeat tick failed: errorType={}, error={}",
@@ -1633,13 +1641,16 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return;
             }
         }
-        if (lifecycle.heartbeat != null) {
-            lifecycle.heartbeat.cancel(true);
-        }
-        maybeFetchTypingTicket(lifecycle.chatId, lifecycle.contextToken);
-        if (!sendTyping(lifecycle.chatId, TYPING_STOP)) {
+        synchronized (lifecycle) {
+            lifecycle.stopped = true;
+            if (lifecycle.heartbeat != null) {
+                lifecycle.heartbeat.cancel(true);
+            }
             maybeFetchTypingTicket(lifecycle.chatId, lifecycle.contextToken);
-            sendTyping(lifecycle.chatId, TYPING_STOP);
+            if (!sendTyping(lifecycle.chatId, TYPING_STOP)) {
+                maybeFetchTypingTicket(lifecycle.chatId, lifecycle.contextToken);
+                sendTyping(lifecycle.chatId, TYPING_STOP);
+            }
         }
     }
 
@@ -1980,13 +1991,15 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (existing != null && existing.isValid()) {
             return;
         }
+        String effectiveContextToken =
+                StrUtil.isNotBlank(contextToken) ? contextToken : loadContextToken(userId);
         try {
             ONode response =
                     apiPost(
                             GET_CONFIG_ENDPOINT,
                             new ONode()
                                     .set("ilink_user_id", userId)
-                                    .set("context_token", contextToken)
+                                    .set("context_token", effectiveContextToken)
                                     .asObject(),
                             TYPING_REQUEST_TIMEOUT_MS);
             String typingTicket = response.get("typing_ticket").getString();
@@ -2026,10 +2039,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     .set("status", status)
                                     .asObject(),
                             TYPING_REQUEST_TIMEOUT_MS);
-            ensureSuccess(response, "Weixin typing update failed");
+            try {
+                ensureSuccess(response, "Weixin typing update failed");
+            } catch (Exception e) {
+                typingTickets.remove(userId, state);
+                throw e;
+            }
             return true;
         } catch (Exception e) {
-            typingTickets.remove(userId, state);
             log.debug(
                     "[WEIXIN] send typing failed: errorType={}, error={}",
                     errorType(e),
@@ -2423,6 +2440,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         /** 周期心跳句柄，用于任务结束和断连时取消。 */
         private volatile ScheduledFuture<?> heartbeat;
+
+        /** 生命周期已停止，防止取消时仍在途的心跳再次发送开始状态。 */
+        private volatile boolean stopped;
 
         /**
          * 创建输入状态生命周期。

@@ -54,7 +54,10 @@ public class DomesticCronApprovalCommandTest {
                         env.dangerousCommandApprovalService.getPendingApproval(
                                 new SqliteAgentSession(updated, env.sessionRepository)))
                 .isNull();
-        assertThat(reply.getRuntimeMetadata()).containsEntry("resumed_pending_run", Boolean.TRUE);
+        assertThat(reply.getContent()).contains("定时任务审批已通过");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("cron_approval_processed", Boolean.TRUE)
+                .doesNotContainKey("resumed_pending_run");
     }
 
     /** 国内渠道应能查看并拒绝自己来源的定时任务待审批项。 */
@@ -108,7 +111,10 @@ public class DomesticCronApprovalCommandTest {
                         env.sessionRepository);
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(reloadedCronSession))
                 .isNull();
-        assertThat(denied.getRuntimeMetadata()).containsEntry("resumed_pending_run", Boolean.TRUE);
+        assertThat(denied.getContent()).contains("任务保持暂停");
+        assertThat(denied.getRuntimeMetadata())
+                .containsEntry("cron_approval_processed", Boolean.TRUE)
+                .doesNotContainKey("resumed_pending_run");
     }
 
     /** 统一从国内渠道白名单派生测试参数，新增受支持渠道时自动纳入回归。 */

@@ -2619,6 +2619,11 @@ public class DefaultCommandService implements CommandService {
                 message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试原始请求。");
         }
+        if (isCronApprovalSession(approvalSession)) {
+            GatewayReply reply = GatewayReply.ok("定时任务审批已通过，调度器将恢复任务。");
+            reply.getRuntimeMetadata().put("cron_approval_processed", Boolean.TRUE);
+            return reply;
+        }
         GatewayReply reply =
                 conversationOrchestrator.resumePending(
                         String.valueOf(approvalSession.getContext().get("source_key")), eventSink);
@@ -2996,11 +3001,23 @@ public class DefaultCommandService implements CommandService {
                 approvalSession, selector, message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试。");
         }
+        if (isCronApprovalSession(approvalSession)) {
+            GatewayReply reply = GatewayReply.ok("已拒绝定时任务的危险操作，任务保持暂停。");
+            reply.getRuntimeMetadata().put("cron_approval_processed", Boolean.TRUE);
+            return reply;
+        }
         GatewayReply reply =
                 conversationOrchestrator.resumePending(
                         String.valueOf(approvalSession.getContext().get("source_key")), eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
+    }
+
+    /** 判断当前审批是否属于独立的定时任务会话，该会话由调度器观察器恢复。 */
+    private boolean isCronApprovalSession(SqliteAgentSession session) {
+        return session != null
+                && StrUtil.startWith(
+                        String.valueOf(session.getContext().get("source_key")), "CRON:");
     }
 
     /**

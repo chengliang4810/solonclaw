@@ -7,7 +7,10 @@ import com.jimuqu.solon.claw.cli.CliRunner;
 import com.jimuqu.solon.claw.cli.CliRuntime;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.io.ByteArrayOutputStream;
@@ -135,6 +138,30 @@ class CliRunnerTest {
     }
 
     @Test
+    void cliAndDerivedTuiRuntimeSchedulePostReplyLearning() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:cli:learning");
+        LearningOrchestrator orchestrator = new LearningOrchestrator(session.getSessionId());
+        AtomicInteger learned = new AtomicInteger();
+        SkillLearningService learningService =
+                (record, message, reply) -> learned.incrementAndGet();
+        CliRuntime runtime =
+                new CliRuntime(
+                        env.commandService,
+                        orchestrator,
+                        env.agentRunControlService,
+                        "MEMORY:cli:",
+                        env.sessionRepository,
+                        learningService);
+
+        runtime.send("learning", "hello", ConversationEventSink.noop());
+        runtime.withSourceKeyPrefix("MEMORY:terminal-ui:")
+                .send("learning", "hello again", ConversationEventSink.noop());
+
+        assertThat(learned.get()).isEqualTo(2);
+    }
+
+    @Test
     void bareJavaTuiModeGuidesUsersToNodeTuiEntry() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         CliRuntime runtime =
@@ -184,6 +211,34 @@ class CliRunnerTest {
         @Override
         public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
             return GatewayReply.ok("scheduled");
+        }
+
+        @Override
+        public GatewayReply resumePending(String sourceKey) {
+            return GatewayReply.ok("pending");
+        }
+    }
+
+    /** 返回指定会话的成功回复，用于验证 CLI/TUI 共用的回复后学习钩子。 */
+    private static class LearningOrchestrator implements ConversationOrchestrator {
+        /** 回复关联的持久化会话标识。 */
+        private final String sessionId;
+
+        /** 创建固定会话回复的测试编排器。 */
+        private LearningOrchestrator(String sessionId) {
+            this.sessionId = sessionId;
+        }
+
+        @Override
+        public GatewayReply handleIncoming(GatewayMessage message) {
+            GatewayReply reply = GatewayReply.ok("done");
+            reply.setSessionId(sessionId);
+            return reply;
+        }
+
+        @Override
+        public GatewayReply runScheduled(GatewayMessage syntheticMessage) {
+            return handleIncoming(syntheticMessage);
         }
 
         @Override

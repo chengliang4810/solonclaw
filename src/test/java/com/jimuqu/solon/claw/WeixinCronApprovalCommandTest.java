@@ -51,6 +51,9 @@ public class WeixinCronApprovalCommandTest {
                         env.dangerousCommandApprovalService.isAlwaysApproved(
                                 "execute_code", "network_external_operation", "request releases"))
                 .isTrue();
-        assertThat(reply.getRuntimeMetadata()).containsEntry("resumed_pending_run", Boolean.TRUE);
+        assertThat(reply.getContent()).contains("调度器将恢复任务");
+        assertThat(reply.getRuntimeMetadata())
+                .containsEntry("cron_approval_processed", Boolean.TRUE)
+                .doesNotContainKey("resumed_pending_run");
     }
 }

@@ -72,12 +72,15 @@ public class GitHubSkillSource implements SkillSource {
     public List<SkillMeta> search(String query, int limit) throws Exception {
         String normalizedQuery = StrUtil.nullToEmpty(query).trim().toLowerCase(Locale.ROOT);
         List<SkillMeta> results = new ArrayList<SkillMeta>();
+        int successfulTaps = 0;
+        Exception lastFailure = null;
         for (TapRecord tap : allTaps()) {
             List<SkillMeta> tapResults;
             try {
                 tapResults =
                         listSkillsInRepo(tap.getRepo(), StrUtil.blankToDefault(tap.getPath(), ""));
             } catch (Exception e) {
+                lastFailure = e;
                 log.warn(
                         "GitHub Skills Hub tap search failed, skipping tap: repo={}, path={}, query={}, limit={}, error={}",
                         tap.getRepo(),
@@ -92,6 +95,7 @@ public class GitHubSkillSource implements SkillSource {
                         ErrorTextSupport.safeError(e));
                 continue;
             }
+            successfulTaps++;
             for (SkillMeta meta : tapResults) {
                 String searchable =
                         (meta.getName()
@@ -107,6 +111,11 @@ public class GitHubSkillSource implements SkillSource {
                     }
                 }
             }
+        }
+        if (successfulTaps == 0 && lastFailure != null) {
+            throw new IllegalStateException(
+                    "GitHub Skills Hub source unavailable: all configured taps failed",
+                    lastFailure);
         }
         return dedupe(results);
     }

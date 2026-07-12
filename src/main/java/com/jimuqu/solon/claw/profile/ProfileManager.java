@@ -115,7 +115,9 @@ public class ProfileManager {
                     "sessions",
                     "backups",
                     "state-snapshots",
-                    "checkpoints");
+                    "checkpoints",
+                    "logs",
+                    "forensics");
 
     /** `--clone-all` 仅从 default 来源复制时排除的宿主基础设施。 */
     private static final Set<String> CLONE_ALL_DEFAULT_EXCLUDED =
@@ -3081,17 +3083,9 @@ public class ProfileManager {
         }
     }
 
-    /** 按导出约定补齐 tar.gz 后缀；tgz 输入统一生成同名 tar.gz。 */
+    /** 保留调用方指定的精确归档路径。 */
     private static Path normalizeArchiveOutput(Path rawOutput) {
-        Path absolute = rawOutput.toAbsolutePath().normalize();
-        String value = absolute.toString();
-        if (value.endsWith(".tar.gz")) {
-            return absolute;
-        }
-        if (value.endsWith(".tgz")) {
-            return Paths.get(value.substring(0, value.length() - 4) + ".tar.gz");
-        }
-        return Paths.get(value + ".tar.gz");
+        return rawOutput.toAbsolutePath().normalize();
     }
 
     /** 原子写入 UTF-8 文本，文件系统不支持原子移动时回退普通替换。 */
