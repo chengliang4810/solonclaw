@@ -780,11 +780,13 @@ public class DefaultCommandService implements CommandService {
                 return busyReply;
             }
             if ("latest".equalsIgnoreCase(args)) {
-                return GatewayReply.ok(
-                        "已回滚到最近一次 checkpoint："
-                                + checkpointService
-                                        .rollbackLatest(message.sourceKey())
-                                        .getCheckpointId());
+                List<CheckpointRecord> recent =
+                        checkpointService.listRecent(message.sourceKey(), 1);
+                if (recent.isEmpty()) {
+                    return GatewayReply.error("当前来源键没有可回滚的 checkpoint。");
+                }
+                return rollbackSessionReply(
+                        session, recent.get(0).getCheckpointId(), "已回滚到最近一次 checkpoint：");
             }
             try {
                 int index = Integer.parseInt(args);
@@ -793,16 +795,14 @@ public class DefaultCommandService implements CommandService {
                 if (index < 1 || index > recent.size()) {
                     return GatewayReply.error("checkpoint 序号无效，应在 1-" + recent.size() + " 之间。");
                 }
-                CheckpointRecord restored =
-                        checkpointService.rollback(recent.get(index - 1).getCheckpointId());
-                return GatewayReply.ok("已按列表序号回滚到 checkpoint：" + restored.getCheckpointId());
+                return rollbackSessionReply(
+                        session, recent.get(index - 1).getCheckpointId(), "已按列表序号回滚到 checkpoint：");
             } catch (NumberFormatException e) {
                 log.debug(
                         "Rollback checkpoint argument is not a list index; treating it as checkpoint id: {}",
                         exceptionSummary(e));
             }
-            return GatewayReply.ok(
-                    "已回滚到指定 checkpoint：" + checkpointService.rollback(args).getCheckpointId());
+            return rollbackSessionReply(session, args, "已回滚到指定 checkpoint：");
         }
 
         if (GatewayCommandConstants.COMMAND_PLATFORMS.equals(command)
@@ -1226,6 +1226,18 @@ public class DefaultCommandService implements CommandService {
         if (activeRun != null && activeRun.get("run_id") != null) {
             reply.getRuntimeMetadata().put("run_id", String.valueOf(activeRun.get("run_id")));
         }
+        return reply;
+    }
+
+    /** 完整恢复 checkpoint 并把真实会话历史裁剪数量写入回复元数据。 */
+    private GatewayReply rollbackSessionReply(
+            SessionRecord session, String checkpointId, String messagePrefix) throws Exception {
+        int historyRemoved =
+                checkpointService.rollbackSession(checkpointId, session, sessionRepository);
+        GatewayReply reply = GatewayReply.ok(messagePrefix + checkpointId);
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        reply.getRuntimeMetadata().put("history_removed", Integer.valueOf(historyRemoved));
         return reply;
     }
 

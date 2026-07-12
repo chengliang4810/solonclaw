@@ -42,6 +42,22 @@ public class GatewayAuthorizationServiceTest {
         assertThat(preAuth).isNull();
     }
 
+    /** 同一用户在限流窗口内重复申请时必须获得包含剩余分钟数的明确提示。 */
+    @Test
+    void shouldReturnRemainingWaitWhenPairingRequestIsRateLimited() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        GatewayMessage message =
+                new GatewayMessage(PlatformType.MEMORY, "pairing-chat", "pairing-user", "hello");
+
+        GatewayReply first = env.gatewayAuthorizationService.preAuthorize(message);
+        GatewayReply limited = env.gatewayAuthorizationService.preAuthorize(message);
+
+        assertThat(first).isNotNull();
+        assertThat(first.getContent()).contains("pairing code");
+        assertThat(limited).isNotNull();
+        assertThat(limited.getContent()).contains("请求过于频繁").contains("10 分钟后再试");
+    }
+
     private void createAdmin(TestEnvironment env, PlatformType platform) throws Exception {
         PlatformAdminRecord admin = new PlatformAdminRecord();
         admin.setPlatform(platform);

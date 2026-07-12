@@ -18,6 +18,8 @@ import java.io.RandomAccessFile;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.URI;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -206,6 +208,9 @@ public class ProfileManager {
 
     /** 每个 Profile 后台网关的合并日志相对路径。 */
     private static final String GATEWAY_LOG_FILE = "logs/gateway.log";
+
+    /** 所有 Profile 共用的网关启动锁，避免跨进程端口分配与启动竞争。 */
+    private static final String GATEWAY_START_LOCK_FILE = "profiles/.gateway-start.lock";
 
     /** 后台网关启动等待上限。 */
     private static final long GATEWAY_START_TIMEOUT_MILLIS = 30000L;
@@ -2205,6 +2210,21 @@ public class ProfileManager {
      */
     public List<String> gatewayServerArguments(String rawName, List<String> rawArgs)
             throws Exception {
+        synchronized (ProfileManager.class) {
+            Path lockFile = root.resolve(GATEWAY_START_LOCK_FILE);
+            Files.createDirectories(lockFile.getParent());
+            try (FileChannel channel =
+                            FileChannel.open(
+                                    lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                    FileLock ignored = channel.lock()) {
+                return gatewayServerArgumentsLocked(rawName, rawArgs);
+            }
+        }
+    }
+
+    /** 在网关启动锁内完成端口选择和元数据持久化。 */
+    private List<String> gatewayServerArgumentsLocked(String rawName, List<String> rawArgs)
+            throws Exception {
         String name = normalizeName(rawName);
         Path home = requireProfileHome(name);
         List<String> source = rawArgs == null ? Collections.<String>emptyList() : rawArgs;
@@ -2249,6 +2269,20 @@ public class ProfileManager {
      * @throws Exception 启动命令不可解析、子进程退出或超时。
      */
     public void startGateway(String rawName, List<String> serverArgs) throws Exception {
+        synchronized (ProfileManager.class) {
+            Path lockFile = root.resolve(GATEWAY_START_LOCK_FILE);
+            Files.createDirectories(lockFile.getParent());
+            try (FileChannel channel =
+                            FileChannel.open(
+                                    lockFile, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                    FileLock ignored = channel.lock()) {
+                startGatewayLocked(rawName, serverArgs);
+            }
+        }
+    }
+
+    /** 在工作区级启动锁内复核状态并等待独立网关完成启动。 */
+    private void startGatewayLocked(String rawName, List<String> serverArgs) throws Exception {
         String name = normalizeName(rawName);
         Path home = requireProfileHome(name);
         if (gatewayRunning(home)) {
@@ -2258,7 +2292,7 @@ public class ProfileManager {
         Files.deleteIfExists(home.resolve("gateway_state.json"));
         Path logFile = home.resolve(GATEWAY_LOG_FILE);
         Files.createDirectories(logFile.getParent());
-        List<String> effectiveArgs = gatewayServerArguments(name, serverArgs);
+        List<String> effectiveArgs = gatewayServerArgumentsLocked(name, serverArgs);
         List<String> command = gatewayLaunchCommand(name, home, effectiveArgs);
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.directory(new File(System.getProperty("user.dir", ".")));

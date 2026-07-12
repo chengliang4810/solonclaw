@@ -13,6 +13,19 @@ import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
 
 /** 基于文件系统拼装系统提示词的上下文服务。 */
 public class FileContextService implements ContextService {
+    /** 单个静态上下文块的默认字符上限，避免单一文件挤占系统提示词。 */
+    private static final int DEFAULT_BOOTSTRAP_PROMPT_FILE_CHAR_LIMIT = 12000;
+
+    /** 静态 bootstrap 提示词的默认总字符预算，独立于工具输出预算。 */
+    private static final int DEFAULT_BOOTSTRAP_PROMPT_TOTAL_CHAR_BUDGET = 48000;
+
+    /** 单文件截断时写入的可见标记。 */
+    private static final String FILE_TRUNCATION_MARKER = "\n[TRUNCATED: per-file character limit]";
+
+    /** 总预算耗尽时写入的可见标记。 */
+    private static final String TOTAL_TRUNCATION_MARKER =
+            "\n[TRUNCATED: bootstrap prompt total budget]";
+
     /** 应用配置。 */
     private final AppConfig appConfig;
 
@@ -64,15 +77,16 @@ public class FileContextService implements ContextService {
     @Override
     public String buildSystemPrompt(String sourceKey, AgentRuntimeScope agentScope) {
         StringBuilder buffer = new StringBuilder();
+        // AGENTS 先于可变记忆注入，确保当前工作区规则在预算不足时仍被优先保留。
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_AGENTS, "Workspace Rules");
+        appendProjectContextFiles(buffer, agentScope);
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_SOUL, "Soul");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_TOOLS, "Tools");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_IDENTITY, "Identity");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_USER, "User");
         appendPersonality(buffer);
-        appendMemoryBlock(buffer, sourceKey);
         appendAgentBlock(buffer, agentScope);
-        appendProjectContextFiles(buffer, agentScope);
+        appendMemoryBlock(buffer, sourceKey);
 
         try {
             String skillPrompt =
@@ -80,20 +94,19 @@ public class FileContextService implements ContextService {
                             ? localSkillService.renderSkillIndexPrompt(sourceKey)
                             : localSkillService.renderSkillIndexPrompt(sourceKey, agentScope);
             if (StrUtil.isNotBlank(skillPrompt)) {
-                buffer.append("\n\n").append(skillPrompt);
+                appendBlock(buffer, "Enabled Skills", skillPrompt);
             }
         } catch (Exception e) {
-            buffer.append("\n\n[Enabled Skills]\nFailed to load local skills: ")
-                    .append(safeError(e));
+            appendBlock(buffer, "Enabled Skills", "Failed to load local skills: " + safeError(e));
         }
 
-        return buffer.toString().trim();
+        return truncateToTotalBudget(buffer.toString());
     }
 
     /**
      * 追加Agent 块。
      *
-     * @param buffer buffer 参数。
+     * @param buffer 系统提示词缓冲区。
      * @param agentScope 当前运行冻结后的 Agent 范围。
      */
     private void appendAgentBlock(StringBuilder buffer, AgentRuntimeScope agentScope) {
@@ -118,7 +131,7 @@ public class FileContextService implements ContextService {
     /**
      * 追加Project上下文Files。
      *
-     * @param buffer buffer 参数。
+     * @param buffer 系统提示词缓冲区。
      * @param agentScope 当前运行冻结后的 Agent 范围。
      */
     private void appendProjectContextFiles(StringBuilder buffer, AgentRuntimeScope agentScope) {
@@ -137,7 +150,7 @@ public class FileContextService implements ContextService {
     /**
      * 追加Project文件。
      *
-     * @param buffer buffer 参数。
+     * @param buffer 系统提示词缓冲区。
      * @param workspaceDir 文件或目录路径参数。
      * @param fileName 文件或目录路径参数。
      * @param label label 参数。
@@ -201,11 +214,11 @@ public class FileContextService implements ContextService {
             if (personality == null) {
                 return;
             }
-            String prompt = personality.toPrompt();
-            if (StrUtil.isBlank(prompt)) {
+            String personalityPrompt = personality.toPrompt();
+            if (StrUtil.isBlank(personalityPrompt)) {
                 return;
             }
-            appendBlock(buffer, "Personality: " + active, prompt);
+            appendBlock(buffer, "Personality: " + active, personalityPrompt);
         } catch (Exception e) {
             appendBlock(
                     buffer, "Personality", "Failed to load active personality: " + safeError(e));
@@ -233,15 +246,53 @@ public class FileContextService implements ContextService {
         appendBlock(buffer, label, content);
     }
 
-    /** 追加指定文本块。 */
+    /** 获取单个静态上下文块的字符上限。 */
+    private int bootstrapPromptFileCharLimit() {
+        int value = appConfig.getTask().getBootstrapPromptFileCharLimit();
+        return value > 0 ? value : DEFAULT_BOOTSTRAP_PROMPT_FILE_CHAR_LIMIT;
+    }
+
+    /** 获取静态 bootstrap 提示词的总字符预算。 */
+    private int bootstrapPromptTotalCharBudget() {
+        int value = appConfig.getTask().getBootstrapPromptTotalCharBudget();
+        return value > 0 ? value : DEFAULT_BOOTSTRAP_PROMPT_TOTAL_CHAR_BUDGET;
+    }
+
+    /** 追加指定文本块，并在单文件字符预算内保留截断标记。 */
     private void appendBlock(StringBuilder buffer, String label, String content) {
         if (StrUtil.isBlank(content)) {
             return;
         }
+        String normalized = content.trim();
+        int limit = bootstrapPromptFileCharLimit();
+        if (normalized.length() > limit) {
+            int contentLength = Math.max(0, limit - FILE_TRUNCATION_MARKER.length());
+            normalized =
+                    normalized.substring(0, contentLength)
+                            + FILE_TRUNCATION_MARKER.substring(
+                                    0, Math.min(limit, FILE_TRUNCATION_MARKER.length()));
+        }
         if (buffer.length() > 0) {
             buffer.append("\n\n");
         }
-        buffer.append("[").append(label).append("]\n").append(content.trim());
+        buffer.append("[").append(label).append("]\n").append(normalized);
+    }
+
+    /** 对完整 bootstrap 提示词应用独立总字符预算，并保留截断标记。 */
+    private String truncateToTotalBudget(String prompt) {
+        String normalized = StrUtil.nullToEmpty(prompt).trim();
+        int limit = bootstrapPromptTotalCharBudget();
+        if (normalized.length() <= limit) {
+            return normalized;
+        }
+        String retainedMarker =
+                normalized.contains(FILE_TRUNCATION_MARKER) ? FILE_TRUNCATION_MARKER : "";
+        int markerLength = retainedMarker.length() + TOTAL_TRUNCATION_MARKER.length();
+        if (limit < markerLength) {
+            return TOTAL_TRUNCATION_MARKER.substring(0, limit);
+        }
+        int contentLength = limit - markerLength;
+        return normalized.substring(0, contentLength) + retainedMarker + TOTAL_TRUNCATION_MARKER;
     }
 
     /**

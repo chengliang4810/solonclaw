@@ -866,6 +866,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 AppConfig.LlmConfig resolved = candidates.get(candidateIndex);
                 int maxAttempts = Math.max(1, appConfig.getTrace().getMaxAttempts());
                 boolean allowFallback = true;
+                boolean compressionRecoveryAttempted = false;
+                boolean skipNextPreflightCompression = false;
+                List<MessageAttachment> candidateAttachments = runContext.getUserAttachments();
                 for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                     checkCancellation(session.getSourceKey());
                     attemptNo++;
@@ -902,16 +905,23 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             + steer;
                             runContext.event("run.steer.injected", "已将 steer 指令注入本轮模型调用");
                         }
-                        CompressionOutcome compression =
-                                compressBeforeAttempt(
-                                        session,
-                                        systemPrompt,
-                                        effectiveUserMessage,
-                                        resolved,
-                                        tools,
-                                        runContext,
-                                        eventSink,
-                                        runRecord);
+                        CompressionOutcome compression;
+                        if (skipNextPreflightCompression) {
+                            // 已因上一轮上下文溢出强制压缩，本次重试直接验证结果，避免重复压缩同一会话。
+                            compression = CompressionOutcome.skipped(session);
+                            skipNextPreflightCompression = false;
+                        } else {
+                            compression =
+                                    compressBeforeAttempt(
+                                            session,
+                                            systemPrompt,
+                                            effectiveUserMessage,
+                                            resolved,
+                                            tools,
+                                            runContext,
+                                            eventSink,
+                                            runRecord);
+                        }
                         session = compression.getSession();
                         if (StrUtil.isBlank(compressionWarning)
                                 && StrUtil.isNotBlank(compression.getWarning())) {
@@ -1048,12 +1058,49 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         LlmErrorClassifier.ClassifiedError classified =
                                 LlmErrorClassifier.classify(e);
                         allowFallback = classified.isShouldFallback();
-                        if (classified.shouldRetrySameProvider(attempt, maxAttempts)) {
+                        boolean retrySameProvider =
+                                classified.shouldRetrySameProvider(attempt, maxAttempts);
+                        if (retrySameProvider
+                                && classified.isShouldCompress()
+                                && !compressionRecoveryAttempted) {
+                            compressionRecoveryAttempted = true;
+                            if (classified.getReason()
+                                            == LlmErrorClassifier.FailoverReason.PAYLOAD_TOO_LARGE
+                                    && !candidateAttachments.isEmpty()) {
+                                runContext.setUserAttachments(
+                                        Collections.<MessageAttachment>emptyList());
+                                runContext.event(
+                                        "attachment.retry.unloaded",
+                                        "请求载荷过大，已移除本次重试的附件载荷",
+                                        runContext.metadata(
+                                                "attachmentCount",
+                                                Integer.valueOf(candidateAttachments.size())));
+                            } else {
+                                CompressionOutcome recoveryCompression =
+                                        compressAfterOverflow(
+                                                session,
+                                                systemPrompt,
+                                                resolved,
+                                                classified,
+                                                runContext,
+                                                eventSink,
+                                                runRecord);
+                                session = recoveryCompression.getSession();
+                                skipNextPreflightCompression = true;
+                                if (StrUtil.isBlank(compressionWarning)
+                                        && StrUtil.isNotBlank(recoveryCompression.getWarning())) {
+                                    compressionWarning = recoveryCompression.getWarning();
+                                }
+                            }
+                        }
+                        if (retrySameProvider) {
                             continue;
                         }
                         break;
                     }
                 }
+
+                runContext.setUserAttachments(candidateAttachments);
 
                 if (finalResult != null) {
                     break;
@@ -1252,6 +1299,53 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
         outcome.setEstimatedTokens(decision.getEstimatedTokens());
         outcome.setThresholdTokens(decision.getThresholdTokens());
+        return outcome;
+    }
+
+    /**
+     * 在提供方明确拒绝上下文或载荷后强制压缩一次，供同一提供方的下一次请求使用。
+     *
+     * @param session 当前会话。
+     * @param systemPrompt 当前系统提示词。
+     * @param resolved 当前模型配置。
+     * @param classified 提供方错误分类。
+     * @param runContext 当前运行上下文。
+     * @param eventSink 运行事件接收器。
+     * @param runRecord 当前运行记录。
+     * @return 压缩结果。
+     */
+    private CompressionOutcome compressAfterOverflow(
+            SessionRecord session,
+            String systemPrompt,
+            AppConfig.LlmConfig resolved,
+            LlmErrorClassifier.ClassifiedError classified,
+            AgentRunContext runContext,
+            ConversationEventSink eventSink,
+            AgentRunRecord runRecord)
+            throws Exception {
+        String runId = runRecord == null ? "" : runRecord.getRunId();
+        SessionRecord before = cloneSessionState(session);
+        runContext.setPhase("compression");
+        CompressionOutcome outcome =
+                contextCompressionService.compressNowWithOutcome(session, systemPrompt);
+        SessionRecord compressed = outcome.getSession();
+        boolean changed = !StrUtil.equals(before.getNdjson(), compressed.getNdjson());
+        String reason = "provider_" + classified.getReason().name().toLowerCase(Locale.ROOT);
+        eventSink.onCompressionDecision(runId, changed, reason, 0, 0);
+        runContext.event(
+                outcome.isFailed()
+                        ? "compression.retry.failed"
+                        : (changed ? "compression.retry.done" : "compression.retry.unchanged"),
+                outcome.isFailed() ? outcome.getErrorMessage() : reason,
+                runContext.metadata("provider", resolved.getProvider()));
+        if (changed) {
+            sessionRepository.save(compressed);
+        }
+        if (runRecord != null) {
+            runRecord.setCompressionCount(runRecord.getCompressionCount() + 1);
+            heartbeat(runRecord);
+            agentRunRepository.saveRun(runRecord);
+        }
         return outcome;
     }
 

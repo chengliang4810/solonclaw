@@ -76,10 +76,14 @@ public class RuntimeSettingsService {
                     "task.busyPolicy",
                     "task.toolOutputInlineLimit",
                     "task.toolOutputTurnBudget",
+                    "task.bootstrapPromptFileCharLimit",
+                    "task.bootstrapPromptTotalCharBudget",
                     "task.toolOutputMaxLines",
                     "task.toolOutputMaxLineLength",
                     "solonclaw.task.toolOutputInlineLimit",
                     "solonclaw.task.toolOutputTurnBudget",
+                    "solonclaw.task.bootstrapPromptFileCharLimit",
+                    "solonclaw.task.bootstrapPromptTotalCharBudget",
                     "solonclaw.task.toolOutputMaxLines",
                     "solonclaw.task.toolOutputMaxLineLength",
                     "agent.heartbeat.intervalMinutes",
@@ -614,6 +618,8 @@ public class RuntimeSettingsService {
                 || "solonclaw.terminal.processWaitTimeoutSeconds".equals(key)
                 || "solonclaw.task.toolOutputInlineLimit".equals(key)
                 || "solonclaw.task.toolOutputTurnBudget".equals(key)
+                || "solonclaw.task.bootstrapPromptFileCharLimit".equals(key)
+                || "solonclaw.task.bootstrapPromptTotalCharBudget".equals(key)
                 || "solonclaw.task.toolOutputMaxLines".equals(key)
                 || "solonclaw.task.toolOutputMaxLineLength".equals(key)) {
             return Integer.valueOf(value);

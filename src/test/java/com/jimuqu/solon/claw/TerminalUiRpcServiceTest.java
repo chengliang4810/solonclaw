@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
@@ -31,6 +32,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
 class TerminalUiRpcServiceTest {
@@ -450,6 +452,58 @@ class TerminalUiRpcServiceTest {
                 .containsEntry("success", Boolean.FALSE)
                 .containsEntry("status", "running");
         supervisor.releaseIncomingReservation(sourceKey);
+    }
+
+    /** TUI 完整 rollback 返回真实历史裁剪数量，并同步持久化会话。 */
+    @Test
+    void rollbackRestoreRemovesLastSessionTurn() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:terminal-ui:rollback";
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("change"), new AssistantMessage("done"))));
+        env.sessionRepository.save(session);
+        File file = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "tui-rollback.txt");
+        FileUtil.writeUtf8String("v1", file);
+        String checkpointId =
+                env.checkpointService
+                        .createCheckpoint(
+                                sourceKey, session.getSessionId(), Collections.singletonList(file))
+                        .getCheckpointId();
+        FileUtil.writeUtf8String("v2", file);
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.localSkillService,
+                        env.skillHubService,
+                        env.checkpointService,
+                        null,
+                        null,
+                        null,
+                        env.contextCompressionService,
+                        null,
+                        env.processRegistry,
+                        null,
+                        env.gatewayRuntimeRefreshService,
+                        env.delegationService,
+                        env.agentRunControlService,
+                        env.agentRunRepository,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        Map<String, Object> response =
+                service.rollbackRestore(session.getSessionId(), checkpointId, "");
+
+        assertThat(response)
+                .containsEntry("success", Boolean.TRUE)
+                .containsEntry("history_removed", Integer.valueOf(2));
+        assertThat(FileUtil.readUtf8String(file)).isEqualTo("v1");
+        assertThat(
+                        MessageSupport.countMessages(
+                                env.sessionRepository.findById(session.getSessionId()).getNdjson()))
+                .isZero();
     }
 
     @Test

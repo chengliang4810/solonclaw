@@ -116,6 +116,35 @@ public class DashboardRuntimeConfigController {
     }
 
     /**
+     * 持久化插件启用状态；插件管理器将在后续会话或进程重启时重新读取该配置。
+     *
+     * @param context 当前请求上下文。
+     * @param plugin 插件名称。
+     * @return Dashboard 响应包装后的持久化结果。
+     */
+    @Mapping(value = "/api/plugins/{plugin}/enabled", method = MethodType.PUT)
+    public Map<String, Object> setPluginEnabled(Context context, String plugin) throws Exception {
+        try {
+            Map<String, Object> body = DashboardRequestBodies.jsonObjectMap(context);
+            Object enabled = body.get("enabled");
+            if (!(enabled instanceof Boolean)) {
+                throw new IllegalArgumentException("enabled 必须是布尔值。");
+            }
+            return DashboardResponse.ok(
+                    runtimeConfigService.setPluginEnabled(
+                            plugin,
+                            ((Boolean) enabled).booleanValue(),
+                            DashboardProfileContext.requestedProfile(context, body)));
+        } catch (DashboardProfileNotFoundException e) {
+            return DashboardResponse.error(context, 404, "PROFILE_NOT_FOUND", e);
+        } catch (IllegalArgumentException e) {
+            return DashboardResponse.error(context, 400, "PLUGIN_CONFIG_BAD_REQUEST", e);
+        } catch (IllegalStateException e) {
+            return DashboardResponse.error(context, 400, "PLUGIN_CONFIG_BAD_REQUEST", e);
+        }
+    }
+
+    /**
      * 执行remove相关逻辑。
      *
      * @param context 当前请求或运行上下文。

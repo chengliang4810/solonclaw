@@ -44,7 +44,7 @@ public class PairingControlSecurityTest {
                                     .approvePairing(PlatformType.WEIXIN, "ABCD2345", "dashboard")
                                     .getUserId())
                     .isEqualTo("wx-user");
-            assertThat(repository.listPairingRequests(PlatformType.WEIXIN, false)).isEmpty();
+            assertThat(repository.listPairingRequests(PlatformType.WEIXIN)).isEmpty();
             assertThat(repository.getApprovedUser(PlatformType.WEIXIN, "wx-user")).isNotNull();
         } finally {
             database.shutdown();

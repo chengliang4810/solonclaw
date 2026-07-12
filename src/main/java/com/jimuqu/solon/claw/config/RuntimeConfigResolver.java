@@ -234,6 +234,27 @@ public class RuntimeConfigResolver {
     }
 
     /**
+     * 写入 workspace/config.yml 中的字符串列表，并保持 YAML 列表结构。
+     *
+     * @param key 配置键。
+     * @param values 待写入的字符串列表；空值元素会被忽略。
+     */
+    public synchronized void setFileStringList(String key, List<String> values) {
+        String path = requirePath(key);
+        List<Object> copy = new ArrayList<Object>();
+        if (values != null) {
+            for (String value : values) {
+                if (StrUtil.isNotBlank(value)) {
+                    copy.add(value.trim());
+                }
+            }
+        }
+        Map<String, Object> root = loadYamlRoot();
+        setNestedValue(root, path, copy);
+        write(root);
+    }
+
+    /**
      * 写入 workspace/config.yml 中的列表值，用于需要保留 YAML 结构的配置项。
      *
      * @param key 配置键。
@@ -1027,6 +1048,8 @@ public class RuntimeConfigResolver {
                 "solonclaw.task.subagentMaxDepth",
                 "solonclaw.task.toolOutputInlineLimit",
                 "solonclaw.task.toolOutputTurnBudget",
+                "solonclaw.task.bootstrapPromptFileCharLimit",
+                "solonclaw.task.bootstrapPromptTotalCharBudget",
                 "solonclaw.task.toolOutputMaxLines",
                 "solonclaw.task.toolOutputMaxLineLength",
                 "solonclaw.task.mediaCacheTtlHours",

@@ -86,6 +86,18 @@ public interface ConversationEventSink {
     /** 工具结束。 */
     default void onToolCompleted(String toolName, String result, long durationMs) {}
 
+    /**
+     * 工具结束并携带结构化失败原因，避免展示层从自由文本推断执行结果。
+     *
+     * @param toolName 工具名称。
+     * @param result 工具返回内容。
+     * @param error 明确的失败原因；成功时为 null。
+     * @param durationMs 工具执行耗时，单位毫秒。
+     */
+    default void onToolCompleted(String toolName, String result, String error, long durationMs) {
+        onToolCompleted(toolName, result, durationMs);
+    }
+
     /** 运行成功完成。 */
     default void onRunCompleted(String sessionId, String finalReply, LlmResult result) {}
 

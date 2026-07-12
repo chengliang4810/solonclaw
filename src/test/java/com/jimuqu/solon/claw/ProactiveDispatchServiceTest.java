@@ -211,11 +211,6 @@ public class ProactiveDispatchServiceTest {
         }
 
         @Override
-        public PairingRequestRecord getAdminClaimRequest(PlatformType platform) {
-            return null;
-        }
-
-        @Override
         public PairingRequestRecord getLatestUserPairingRequest(
                 PlatformType platform, String userId) {
             return null;
@@ -231,8 +226,7 @@ public class ProactiveDispatchServiceTest {
         public void deleteExpiredPairingRequests(PlatformType platform, long nowEpochMillis) {}
 
         @Override
-        public List<PairingRequestRecord> listPairingRequests(
-                PlatformType platform, boolean includeAdminClaim) {
+        public List<PairingRequestRecord> listPairingRequests(PlatformType platform) {
             return Collections.emptyList();
         }
 

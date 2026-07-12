@@ -4,6 +4,8 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.CheckpointRecord;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.constants.CheckpointConstants;
@@ -39,6 +41,17 @@ public class DefaultCheckpointService implements CheckpointService {
     @Override
     public CheckpointRecord createCheckpoint(String sourceKey, String sessionId, List<File> files)
             throws Exception {
+        return createCheckpoint(sourceKey, sessionId, files, true, true);
+    }
+
+    /** 创建文件 checkpoint；反向补偿快照不立即裁剪，避免提前删除本次目标 checkpoint。 */
+    private CheckpointRecord createCheckpoint(
+            String sourceKey,
+            String sessionId,
+            List<File> files,
+            boolean prune,
+            boolean applyExclusions)
+            throws Exception {
         if (!appConfig.getRollback().isEnabled()) {
             return null;
         }
@@ -64,7 +77,7 @@ public class DefaultCheckpointService implements CheckpointService {
                 continue;
             }
             File canonical = file.getCanonicalFile();
-            String skipReason = skipReason(canonical);
+            String skipReason = applyExclusions ? skipReason(canonical) : null;
             if (skipReason != null) {
                 ONode skipped = new ONode().asObject();
                 skipped.set("path", canonical.getAbsolutePath());
@@ -100,7 +113,9 @@ public class DefaultCheckpointService implements CheckpointService {
         record.setManifestPath(manifestFile.getAbsolutePath());
         record.setCreatedAt(System.currentTimeMillis());
         saveRecord(record);
-        pruneOldRecords(sourceKey);
+        if (prune) {
+            pruneOldRecords(sourceKey);
+        }
         return record;
     }
 
@@ -154,6 +169,70 @@ public class DefaultCheckpointService implements CheckpointService {
         record.setRestoredAt(System.currentTimeMillis());
         updateRestoredAt(record);
         return record;
+    }
+
+    /** 完整恢复工作区与会话历史；任何失败都会尽力恢复到调用前文件状态，并保留原历史。 */
+    @Override
+    public int rollbackSession(
+            String checkpointId, SessionRecord session, SessionRepository sessionRepository)
+            throws Exception {
+        if (session == null || sessionRepository == null) {
+            throw new IllegalArgumentException("完整 rollback 需要有效会话与会话仓储。");
+        }
+        CheckpointRecord target = findById(checkpointId);
+        if (target == null) {
+            throw new IllegalStateException("未找到 checkpoint：" + safeIdentifier(checkpointId));
+        }
+        if (!StrUtil.equals(target.getSourceKey(), session.getSourceKey())) {
+            throw new IllegalArgumentException("checkpoint 不属于当前会话来源。");
+        }
+
+        String originalHistory = session.getNdjson();
+        String rolledBackHistory = MessageSupport.removeLastTurn(originalHistory);
+        int removed =
+                Math.max(
+                        0,
+                        MessageSupport.countMessages(originalHistory)
+                                - MessageSupport.countMessages(rolledBackHistory));
+        CheckpointRecord reverse =
+                createCheckpoint(
+                        session.getSourceKey(),
+                        session.getSessionId(),
+                        checkpointFiles(target),
+                        false,
+                        false);
+        if (reverse == null) {
+            throw new IllegalStateException("无法创建 rollback 反向 checkpoint。");
+        }
+        try {
+            rollback(target.getCheckpointId());
+            if (removed > 0) {
+                session.setNdjson(rolledBackHistory);
+                session.setUpdatedAt(System.currentTimeMillis());
+                sessionRepository.save(session);
+            }
+            return removed;
+        } catch (Exception restoreError) {
+            session.setNdjson(originalHistory);
+            try {
+                rollback(reverse.getCheckpointId());
+            } catch (Exception compensationError) {
+                restoreError.addSuppressed(compensationError);
+            }
+            throw restoreError;
+        }
+    }
+
+    /** 从目标 checkpoint 清单读取原始文件路径，供反向 checkpoint 捕获当前状态。 */
+    private List<File> checkpointFiles(CheckpointRecord record) throws Exception {
+        ONode manifest =
+                ONode.ofJson(FileUtil.readUtf8String(FileUtil.file(record.getManifestPath())));
+        List<File> files = new ArrayList<File>();
+        ONode filesNode = manifest.get("files");
+        for (int i = 0; i < filesNode.size(); i++) {
+            files.add(requireSafeRollbackTarget(filesNode.get(i).get("path").getString()));
+        }
+        return files;
     }
 
     /**

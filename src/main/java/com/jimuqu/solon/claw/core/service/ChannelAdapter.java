@@ -34,6 +34,11 @@ public interface ChannelAdapter {
         // 留给具体渠道按需实现。
     }
 
+    /** 注册运行期断线后的重连请求处理器。 */
+    default void setReconnectHandler(Runnable reconnectHandler) {
+        // 留给具备长连接生命周期的渠道按需实现。
+    }
+
     /** 标记渠道已开始处理入站消息，用于添加“处理中”表情回应。 */
     default void onProcessingStart(GatewayMessage message) throws Exception {
         // 默认渠道不支持处理状态表情回应。

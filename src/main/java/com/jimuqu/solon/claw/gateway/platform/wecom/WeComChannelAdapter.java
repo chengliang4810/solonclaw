@@ -215,8 +215,9 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
-        ChannelConnectionSupport.disconnect(webSocket, callbackExecutor);
+        WebSocket current = webSocket;
         webSocket = null;
+        ChannelConnectionSupport.disconnect(current, callbackExecutor);
         callbackExecutor = null;
         // 关闭控制命令并发执行器，避免断开连接后线程泄漏
         shutdownControlExecutor();
@@ -338,6 +339,10 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+            if (WeComChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
+            boolean wasReady = isConnected();
             failPending(t == null ? new IllegalStateException("WeCom websocket failure") : t);
             WeComChannelAdapter.this.webSocket = null;
             markWebSocketFailure("wecom_websocket_failure", t);
@@ -346,6 +351,9 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                     "[WECOM] websocket failure: errorType={}, error={}",
                     errorType(t),
                     safeError(t));
+            if (wasReady) {
+                requestReconnect();
+            }
         }
 
         /**
@@ -357,10 +365,17 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
+            if (WeComChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
+            boolean wasReady = isConnected();
             failPending(
                     new IllegalStateException("WeCom websocket closed: " + code + " " + reason));
             WeComChannelAdapter.this.webSocket = null;
             markWebSocketClosed(code, reason);
+            if (wasReady) {
+                requestReconnect();
+            }
         }
     }
 

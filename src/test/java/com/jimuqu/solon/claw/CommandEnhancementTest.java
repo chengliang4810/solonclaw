@@ -112,12 +112,23 @@ public class CommandEnhancementTest {
         GatewayReply statusReply = env.send("admin-chat", "admin-user", "/rollback status");
         assertThat(statusReply.getContent()).contains("checkpoint_count=1").contains("total_size=");
 
+        SessionRecord bound = env.sessionRepository.getBoundSession(sourceKey);
+        bound.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("change"), new AssistantMessage("done"))));
+        env.sessionRepository.save(bound);
+
         GatewayReply rollbackReply = env.send("admin-chat", "admin-user", "/rollback 1");
         assertThat(rollbackReply.getContent()).contains("checkpoint");
+        assertThat(rollbackReply.getRuntimeMetadata()).containsEntry("history_removed", 2);
         assertThat(FileUtil.readUtf8String(file)).isEqualTo("v1");
+        assertThat(
+                        MessageSupport.countMessages(
+                                env.sessionRepository.findById(bound.getSessionId()).getNdjson()))
+                .isZero();
 
         GatewayReply pruneReply = env.send("admin-chat", "admin-user", "/rollback prune");
-        assertThat(pruneReply.getContent()).contains("deleted_missing=0").contains("remaining=1");
+        assertThat(pruneReply.getContent()).contains("deleted_missing=0").contains("remaining=2");
 
         GatewayReply clearWithoutConfirm = env.send("admin-chat", "admin-user", "/rollback clear");
         assertThat(clearWithoutConfirm.isError()).isFalse();
@@ -146,7 +157,7 @@ public class CommandEnhancementTest {
                         "admin-chat",
                         "admin-user",
                         "/approve " + extractSlashConfirmId(clearAlwaysPrompt));
-        assertThat(clearOnce.getContent()).contains("deleted=1").contains("remaining=0");
+        assertThat(clearOnce.getContent()).contains("deleted=2").contains("remaining=0");
 
         env.checkpointService.createCheckpoint(
                 sourceKey, session.getSessionId(), Collections.singletonList(file));

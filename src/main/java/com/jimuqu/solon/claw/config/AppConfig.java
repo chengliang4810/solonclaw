@@ -511,6 +511,8 @@ public class AppConfig {
         this.task.setSubagentMaxDepth(other.getSubagentMaxDepth());
         this.task.setToolOutputInlineLimit(other.getToolOutputInlineLimit());
         this.task.setToolOutputTurnBudget(other.getToolOutputTurnBudget());
+        this.task.setBootstrapPromptFileCharLimit(other.getBootstrapPromptFileCharLimit());
+        this.task.setBootstrapPromptTotalCharBudget(other.getBootstrapPromptTotalCharBudget());
         this.task.setToolOutputMaxLines(other.getToolOutputMaxLines());
         this.task.setToolOutputMaxLineLength(other.getToolOutputMaxLineLength());
         this.task.setMediaCacheTtlHours(other.getMediaCacheTtlHours());
@@ -1430,6 +1432,12 @@ public class AppConfig {
 
         /** 单轮工具输出累计超过该长度时，后续输出会落盘/摘要化。 */
         private int toolOutputTurnBudget = 200000;
+
+        /** 单个静态 bootstrap 上下文块的最大字符数，避免单一文件挤占系统提示词。 */
+        private int bootstrapPromptFileCharLimit = 12000;
+
+        /** 静态 bootstrap 系统提示词的总字符预算，与工具输出预算独立。 */
+        private int bootstrapPromptTotalCharBudget = 48000;
 
         /** 文件读取/分页输出的最大行数限制。 */
         private int toolOutputMaxLines = 2000;

@@ -163,7 +163,7 @@ public class GatewayAuthorizationService {
     /** 返回未过期 pairing 请求，供可信控制面展示申请人信息。 */
     public List<PairingRequestRecord> pendingPairings(PlatformType platform) throws Exception {
         repository.deleteExpiredPairingRequests(platform, System.currentTimeMillis());
-        return repository.listPairingRequests(platform, false);
+        return repository.listPairingRequests(platform);
     }
 
     /** 返回已批准用户，供可信控制面展示。 */
@@ -190,7 +190,7 @@ public class GatewayAuthorizationService {
         }
         repository.deleteExpiredPairingRequests(platform, now);
         PairingRequestRecord request = repository.getPairingRequest(platform, code.trim());
-        if (request == null || request.getExpiresAt() < now || isRetiredAdminClaim(request)) {
+        if (request == null || request.getExpiresAt() < now) {
             recordPlatformApprovalFailure(platform, now);
             throw new IllegalArgumentException("pairing code 无效或已过期。");
         }
@@ -246,7 +246,7 @@ public class GatewayAuthorizationService {
         }
 
         repository.deleteExpiredPairingRequests(targetPlatform, System.currentTimeMillis());
-        List<PairingRequestRecord> records = repository.listPairingRequests(targetPlatform, false);
+        List<PairingRequestRecord> records = repository.listPairingRequests(targetPlatform);
         if (records.isEmpty()) {
             return GatewayReply.ok(targetPlatform.name().toLowerCase() + " 平台当前没有待处理的 pairing 请求。");
         }
@@ -275,7 +275,7 @@ public class GatewayAuthorizationService {
         }
 
         repository.deleteExpiredPairingRequests(targetPlatform, System.currentTimeMillis());
-        List<PairingRequestRecord> pending = repository.listPairingRequests(targetPlatform, false);
+        List<PairingRequestRecord> pending = repository.listPairingRequests(targetPlatform);
         List<ApprovedUserRecord> approved = repository.listApprovedUsers(targetPlatform);
         String platformName = targetPlatform.name().toLowerCase();
         StringBuilder buffer = new StringBuilder();
@@ -433,11 +433,14 @@ public class GatewayAuthorizationService {
         if (rateLimit != null
                 && rateLimit.getRequestedAt() > 0
                 && now - rateLimit.getRequestedAt() < PairingConstants.RATE_LIMIT_MILLIS) {
-            return null;
+            long remainingMillis =
+                    PairingConstants.RATE_LIMIT_MILLIS - (now - rateLimit.getRequestedAt());
+            long remainingMinutes = Math.max(1L, (remainingMillis + 59_999L) / 60_000L);
+            return GatewayReply.ok("pairing 请求过于频繁，请 " + remainingMinutes + " 分钟后再试。");
         }
 
         repository.deleteExpiredPairingRequests(platform, now);
-        List<PairingRequestRecord> pending = repository.listPairingRequests(platform, false);
+        List<PairingRequestRecord> pending = repository.listPairingRequests(platform);
         if (pending.size() >= PairingConstants.MAX_PENDING_PER_PLATFORM) {
             return GatewayReply.ok("当前待处理的 pairing 请求过多，请稍后再试。");
         }
@@ -597,11 +600,6 @@ public class GatewayAuthorizationService {
     /** 比较两个用户是否相同。 */
     private boolean sameUser(String left, String right) {
         return left != null && left.equals(right);
-    }
-
-    /** 防止历史管理员认领记录被当作普通 pairing code 批准。 */
-    private boolean isRetiredAdminClaim(PairingRequestRecord record) {
-        return PairingConstants.RETIRED_ADMIN_CLAIM_CODE.equals(record.getCode());
     }
 
     /** 为空字符串提供默认值。 */

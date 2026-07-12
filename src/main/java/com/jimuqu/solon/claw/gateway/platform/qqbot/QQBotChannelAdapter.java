@@ -188,7 +188,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                             ? config.getWebsocketUrl().trim()
                             : fetchGatewayUrl();
             if (StrUtil.isBlank(gateway)) {
-                setConnected(true);
+                setConnected(false);
                 setSetupState("configured");
                 setDetail("REST ready; websocket gateway unavailable");
                 return true;
@@ -200,8 +200,8 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                             .header("Authorization", "QQBot " + accessToken)
                             .build();
             webSocket = client.newWebSocket(request, new Listener());
-            setConnected(true);
-            setSetupState("connected");
+            setConnected(false);
+            setSetupState("connecting");
             setMissingConfig(new String[0]);
             clearLastError();
             setDetail("websocket connecting");
@@ -219,8 +219,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
-        ChannelConnectionSupport.disconnect(webSocket, callbackExecutor);
+        WebSocket current = webSocket;
         webSocket = null;
+        ChannelConnectionSupport.disconnect(current, callbackExecutor);
         callbackExecutor = null;
         // 关闭控制命令并发执行器，避免断开连接后线程泄漏
         shutdownControlExecutor();
@@ -726,7 +727,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onOpen(WebSocket webSocket, Response response) {
-            markWebSocketConnected();
+            setConnected(false);
+            setSetupState("configured");
+            setLastError("qqbot_identify_not_implemented", "websocket Identify is not implemented");
+            setDetail("websocket open; Identify not implemented");
         }
 
         /**
@@ -760,8 +764,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+            if (QQBotChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
             QQBotChannelAdapter.this.webSocket = null;
             markWebSocketFailure("qqbot_websocket_failure", t);
+            requestReconnect();
         }
 
         /**
@@ -773,8 +781,12 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
+            if (QQBotChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
             QQBotChannelAdapter.this.webSocket = null;
             markWebSocketClosed(code, reason);
+            requestReconnect();
         }
     }
 

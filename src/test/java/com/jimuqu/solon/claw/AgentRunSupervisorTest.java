@@ -13,6 +13,7 @@ import com.jimuqu.solon.claw.core.model.ContextBudgetDecision;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
@@ -181,6 +182,82 @@ public class AgentRunSupervisorTest {
         assertThat(compressionService.compressCount).isEqualTo(1);
         assertThat(eventTypes(fixture.agentRunRepository.listEvents(persisted.getRunId())))
                 .contains("compression.done");
+    }
+
+    /** 上下文溢出后应先强制压缩一次，再由同一提供方重试。 */
+    @Test
+    void shouldCompressOnceBeforeRetryingContextOverflowOnSameProvider() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTrace().setMaxAttempts(3);
+        ContextOverflowRetryGateway gateway = new ContextOverflowRetryGateway();
+        CountingCompressionService compressionService = new CountingCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), compressionService);
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:context-overflow:user");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "hello",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        assertThat(outcome.getFinalReply()).isEqualTo("retry ok");
+        assertThat(gateway.attempts).containsExactly("primary:gpt-5-mini", "primary:gpt-5-mini");
+        assertThat(compressionService.compressCount).isEqualTo(1);
+        assertThat(outcome.getRunRecord().getCompressionCount()).isEqualTo(1);
+        assertThat(
+                        eventTypes(
+                                fixture.agentRunRepository.listEvents(
+                                        outcome.getRunRecord().getRunId())))
+                .contains("compression.retry.unchanged");
+    }
+
+    /** 413 且携带附件时优先移除附件后重试，避免无效重复压缩。 */
+    @Test
+    void shouldUnloadAttachmentsOnceBeforeRetryingPayloadTooLargeOnSameProvider() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTrace().setMaxAttempts(3);
+        PayloadTooLargeRetryGateway gateway = new PayloadTooLargeRetryGateway();
+        CountingCompressionService compressionService = new CountingCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), compressionService);
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:payload-too-large:user");
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind("image");
+        attachment.setMimeType("image/png");
+        attachment.setData("iVBORw0KGgo=");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "describe image",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.singletonList(attachment),
+                        null);
+
+        assertThat(outcome.getFinalReply()).isEqualTo("payload retry ok");
+        assertThat(gateway.attachmentCounts)
+                .containsExactly(Integer.valueOf(1), Integer.valueOf(0));
+        assertThat(compressionService.compressCount).isEqualTo(0);
+        assertThat(
+                        eventTypes(
+                                fixture.agentRunRepository.listEvents(
+                                        outcome.getRunRecord().getRunId())))
+                .contains("attachment.retry.unloaded");
     }
 
     @Test
@@ -1241,6 +1318,52 @@ public class AgentRunSupervisorTest {
                 AppConfig.LlmConfig resolved,
                 com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
             return resolvedResult(session, resolved, reply);
+        }
+    }
+
+    /** 首次上下文溢出、第二次成功的模型网关测试桩。 */
+    private static class ContextOverflowRetryGateway extends ExecuteOnceOnlyGateway {
+        private final List<String> attempts = new ArrayList<String>();
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            if (attempts.size() == 1) {
+                throw new IllegalStateException("HTTP 400 prompt exceeds max length");
+            }
+            return resolvedResult(session, resolved, "retry ok");
+        }
+    }
+
+    /** 首次 413、移除附件后成功的模型网关测试桩。 */
+    private static class PayloadTooLargeRetryGateway extends ExecuteOnceOnlyGateway {
+        private final List<Integer> attachmentCounts = new ArrayList<Integer>();
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
+            attachmentCounts.add(Integer.valueOf(runContext.getUserAttachments().size()));
+            if (attachmentCounts.size() == 1) {
+                throw new IllegalStateException("HTTP 413 payload too large");
+            }
+            return resolvedResult(session, resolved, "payload retry ok");
         }
     }
 

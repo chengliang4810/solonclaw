@@ -155,8 +155,8 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                             .header("X-Signature", sign(String.valueOf(System.currentTimeMillis())))
                             .build();
             webSocket = client.newWebSocket(request, new Listener());
-            setConnected(true);
-            setSetupState("connected");
+            setConnected(false);
+            setSetupState("connecting");
             setMissingConfig(new String[0]);
             clearLastError();
             setDetail("websocket connecting");
@@ -175,8 +175,9 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
-        ChannelConnectionSupport.disconnect(webSocket, callbackExecutor);
+        WebSocket current = webSocket;
         webSocket = null;
+        ChannelConnectionSupport.disconnect(current, callbackExecutor);
         callbackExecutor = null;
         setConnected(false);
         setDetail("disconnected");
@@ -387,8 +388,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+            if (YuanbaoChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
             YuanbaoChannelAdapter.this.webSocket = null;
             markWebSocketFailure("yuanbao_websocket_failure", t);
+            requestReconnect();
         }
 
         /**
@@ -400,8 +405,12 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
+            if (YuanbaoChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
             YuanbaoChannelAdapter.this.webSocket = null;
             markWebSocketClosed(code, reason);
+            requestReconnect();
         }
     }
 

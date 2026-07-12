@@ -1448,6 +1448,26 @@ final class AppConfigLoader {
                                                 200000)),
                                 200000));
         config.getTask()
+                .setBootstrapPromptFileCharLimit(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.task.bootstrapPromptFileCharLimit",
+                                                12000)),
+                                12000));
+        config.getTask()
+                .setBootstrapPromptTotalCharBudget(
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.task.bootstrapPromptTotalCharBudget",
+                                                48000)),
+                                48000));
+        config.getTask()
                 .setToolOutputMaxLines(
                         positiveInt(
                                 resolveInt(

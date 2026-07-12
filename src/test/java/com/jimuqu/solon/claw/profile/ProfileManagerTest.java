@@ -15,6 +15,12 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -890,6 +896,50 @@ class ProfileManagerTest {
                         manager.gatewayServerArguments(
                                 "alpha", java.util.Collections.<String>emptyList()))
                 .contains("--server.port=" + alphaPort);
+    }
+
+    /** 并发分配初始候选端口相同的 Profile 时，工作区文件锁必须保证元数据端口互斥。 */
+    @Test
+    void serializesConcurrentGatewayPortAllocation() throws Exception {
+        String firstProfile = "p1n";
+        String secondProfile = "p30";
+        assertThat(Math.floorMod(firstProfile.hashCode(), 1000))
+                .isEqualTo(Math.floorMod(secondProfile.hashCode(), 1000));
+        runOk("default", "create", firstProfile, "--no-alias");
+        runOk("default", "create", secondProfile, "--no-alias");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<List<String>> first =
+                    executor.submit(
+                            () -> {
+                                ready.countDown();
+                                start.await();
+                                return manager.gatewayServerArguments(
+                                        firstProfile, Collections.<String>emptyList());
+                            });
+            Future<List<String>> second =
+                    executor.submit(
+                            () -> {
+                                ready.countDown();
+                                start.await();
+                                return manager.gatewayServerArguments(
+                                        secondProfile, Collections.<String>emptyList());
+                            });
+            assertThat(ready.await(5L, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(first.get(10L, TimeUnit.SECONDS))
+                    .anyMatch(value -> value.startsWith("--server.port="));
+            assertThat(second.get(10L, TimeUnit.SECONDS))
+                    .anyMatch(value -> value.startsWith("--server.port="));
+            assertThat(manager.gatewayStatus(firstProfile).getPort())
+                    .isNotEqualTo(manager.gatewayStatus(secondProfile).getPort());
+            assertThat(root.resolve("profiles/.gateway-start.lock")).isRegularFile();
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     /** Profile 和别名名称只接受安全的单段标识符。 */

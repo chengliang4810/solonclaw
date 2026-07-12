@@ -175,17 +175,18 @@ class TerminalUiApprovalRespondTest {
     }
 
     @Test
-    void toolCompleteMarksErrorEnvelopeAsFailed() {
+    void toolCompleteMarksExplicitErrorAsFailed() {
         RecordingSocket socket = new RecordingSocket();
         TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
 
         sink.onRunStarted("tui-tool-error");
         sink.onToolStarted("terminal", java.util.Collections.<String, Object>emptyMap());
         sink.onToolCompleted(
-                "terminal", "{\"status\":\"error\",\"error\":\"command failed\"}", 12L);
+                "terminal", "tool arguments are invalid", "tool arguments are invalid", 12L);
 
         ONode payload = eventPayload(socket.sentText(), "tool.complete");
-        assertThat(payload.get("error").getString()).isEqualTo("command failed");
+        assertThat(payload.get("error").getString()).isEqualTo("tool arguments are invalid");
+        assertThat(payload.get("status").getString()).isEqualTo("error");
     }
 
     /** 验证同一轮同名工具并发启动时，完成事件仍按启动顺序配对各自的前端 ID。 */

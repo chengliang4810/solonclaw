@@ -47,6 +47,8 @@ public class CoreConfigOverrideLoadTest {
                         + "    subagentMaxDepth: 2\n"
                         + "    toolOutputInlineLimit: 8000\n"
                         + "    toolOutputTurnBudget: 160000\n"
+                        + "    bootstrapPromptFileCharLimit: 9000\n"
+                        + "    bootstrapPromptTotalCharBudget: 36000\n"
                         + "    toolOutputMaxLines: 5000\n"
                         + "    toolOutputMaxLineLength: 3000\n"
                         + "    mediaCacheTtlHours: 72\n"
@@ -141,6 +143,8 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getTask().getSubagentMaxDepth()).isEqualTo(2);
         assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(8000);
         assertThat(config.getTask().getToolOutputTurnBudget()).isEqualTo(160000);
+        assertThat(config.getTask().getBootstrapPromptFileCharLimit()).isEqualTo(9000);
+        assertThat(config.getTask().getBootstrapPromptTotalCharBudget()).isEqualTo(36000);
         assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(5000);
         assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(3000);
         assertThat(config.getTerminal().getEnvPassthrough()).containsExactly("TENOR_API_KEY");

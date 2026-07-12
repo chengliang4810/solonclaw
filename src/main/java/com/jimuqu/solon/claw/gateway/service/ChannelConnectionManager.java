@@ -72,6 +72,16 @@ public class ChannelConnectionManager {
                                 return thread;
                             }
                         });
+        for (final ChannelAdapter adapter : adapters.values()) {
+            adapter.setReconnectHandler(
+                    new Runnable() {
+                        /** 将适配器运行期断线交回统一退避调度器。 */
+                        @Override
+                        public void run() {
+                            scheduleReconnect(adapter.platform());
+                        }
+                    });
+        }
     }
 
     /**
@@ -137,6 +147,9 @@ public class ChannelConnectionManager {
      * @param platform 平台参数。
      */
     public void scheduleReconnect(final PlatformType platform) {
+        if (reconnectExecutor.isShutdown()) {
+            return;
+        }
         final ChannelAdapter adapter = adapters.get(platform);
         if (adapter == null) {
             return;
@@ -236,6 +249,7 @@ public class ChannelConnectionManager {
                             @Override
                             public void run() {
                                 if (!adapter.isConnected()) {
+                                    disconnectIsolated(adapter);
                                     connectIsolated(adapter, attempt + 1);
                                 }
                             }

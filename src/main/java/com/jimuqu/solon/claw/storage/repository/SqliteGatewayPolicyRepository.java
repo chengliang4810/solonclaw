@@ -17,9 +17,6 @@ import lombok.RequiredArgsConstructor;
 /** SqliteGatewayPolicyRepository 实现。 */
 @RequiredArgsConstructor
 public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
-    /** 管理员CLAIMCODE的统一常量值。 */
-    public static final String ADMIN_CLAIM_CODE = "__ADMIN_CLAIM__";
-
     /** 记录SQLite消息网关策略中的数据库。 */
     private final SqliteDatabase database;
 
@@ -343,16 +340,6 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
     }
 
     /**
-     * 读取管理员Claim请求。
-     *
-     * @param platform 平台参数。
-     * @return 返回读取到的管理员Claim请求。
-     */
-    public PairingRequestRecord getAdminClaimRequest(PlatformType platform) throws Exception {
-        return getPairingRequest(platform, ADMIN_CLAIM_CODE);
-    }
-
-    /**
      * 读取Latest用户配对请求。
      *
      * @param platform 平台参数。
@@ -365,10 +352,9 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? and user_id = ? and code <> ? order by created_at desc limit 1");
+                            "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? and user_id = ? order by created_at desc limit 1");
             statement.setString(1, key(platform));
             statement.setString(2, userId);
-            statement.setString(3, ADMIN_CLAIM_CODE);
             ResultSet resultSet = statement.executeQuery();
             try {
                 return resultSet.next() ? mapPairing(resultSet) : null;
@@ -411,35 +397,6 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
     }
 
     /**
-     * 创建管理员Claim请求If Absent。
-     *
-     * @param record 记录参数。
-     * @return 返回创建好的管理员Claim请求If Absent。
-     */
-    public boolean createAdminClaimRequestIfAbsent(PairingRequestRecord record) throws Exception {
-        Connection connection = database.openConnection();
-        try {
-            PreparedStatement statement =
-                    connection.prepareStatement(
-                            "insert or ignore into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) values (?, ?, ?, ?, ?, ?, ?)");
-            statement.setString(1, key(record.getPlatform()));
-            statement.setString(2, ADMIN_CLAIM_CODE);
-            statement.setString(3, record.getUserId());
-            statement.setString(4, record.getUserName());
-            statement.setString(5, record.getChatId());
-            statement.setLong(6, record.getCreatedAt());
-            statement.setLong(7, record.getExpiresAt());
-            try {
-                return statement.executeUpdate() > 0;
-            } finally {
-                statement.close();
-            }
-        } finally {
-            connection.close();
-        }
-    }
-
-    /**
      * 删除配对请求。
      *
      * @param platform 平台参数。
@@ -460,19 +417,13 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
-    /**
-     * 删除待处理配对请求，保留管理员认领请求。
-     *
-     * @param platform 平台参数。
-     */
+    /** 删除平台下全部待处理配对请求。 */
     public void deletePendingPairingRequests(PlatformType platform) throws Exception {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
-                    connection.prepareStatement(
-                            "delete from pairing_requests where platform = ? and code <> ?");
+                    connection.prepareStatement("delete from pairing_requests where platform = ?");
             statement.setString(1, key(platform));
-            statement.setString(2, ADMIN_CLAIM_CODE);
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -506,23 +457,16 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
      * 列出配对Requests。
      *
      * @param platform 平台参数。
-     * @param includeAdminClaim includeAdminClaim 参数。
      * @return 返回配对Requests列表。
      */
-    public List<PairingRequestRecord> listPairingRequests(
-            PlatformType platform, boolean includeAdminClaim) throws Exception {
+    public List<PairingRequestRecord> listPairingRequests(PlatformType platform) throws Exception {
         List<PairingRequestRecord> list = new ArrayList<PairingRequestRecord>();
         Connection connection = database.openConnection();
         try {
-            String sql =
-                    includeAdminClaim
-                            ? "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? order by created_at asc"
-                            : "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? and code <> ? order by created_at asc";
-            PreparedStatement statement = connection.prepareStatement(sql);
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? order by created_at asc");
             statement.setString(1, key(platform));
-            if (!includeAdminClaim) {
-                statement.setString(2, ADMIN_CLAIM_CODE);
-            }
             ResultSet resultSet = statement.executeQuery();
             try {
                 while (resultSet.next()) {

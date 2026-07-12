@@ -180,6 +180,8 @@ public class StorageRepositoryTest {
                 "rm -rf workspace/cache");
         env.dangerousCommandApprovalService.approve(
                 agentSession, DangerousCommandApprovalService.ApprovalScope.SESSION, "tester");
+        agentSession.pending(true, "restart_interrupted");
+        agentSession.updateSnapshot();
 
         SessionRecord clone =
                 env.sessionRepository.cloneSession(
@@ -194,6 +196,11 @@ public class StorageRepositoryTest {
                         env.dangerousCommandApprovalService.isSessionApproved(
                                 clonedSession, "recursive_delete"))
                 .isFalse();
+        assertThat(clonedSession.isPending()).isFalse();
+        assertThat(clonedSession.getPendingReason()).isNull();
+        assertThat(clonedSession.getPendingMarkedAt()).isZero();
+        assertThat(clonedSession.getPendingClearedAt()).isZero();
+        assertThat(clonedSession.getPendingLastReason()).isNull();
     }
 
     @Test

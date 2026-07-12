@@ -891,6 +891,8 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.task.subagentMaxDepth",
                     "solonclaw.task.toolOutputInlineLimit",
                     "solonclaw.task.toolOutputTurnBudget",
+                    "solonclaw.task.bootstrapPromptFileCharLimit",
+                    "solonclaw.task.bootstrapPromptTotalCharBudget",
                     "solonclaw.task.toolOutputMaxLines",
                     "solonclaw.task.toolOutputMaxLineLength",
                     "solonclaw.task.mediaCacheTtlHours",

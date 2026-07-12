@@ -261,6 +261,50 @@ public class DashboardControllerHttpTest {
         }
     }
 
+    /** 插件开关接口只保存后续会话或重启生效的 Profile 配置，不触发热重载。 */
+    @Test
+    void shouldPersistPluginEnablementForNextSessionOrRestart() throws Exception {
+        HttpResult enabled =
+                request(
+                        "PUT",
+                        "/api/plugins/browser-use/enabled",
+                        "{\"enabled\":true}",
+                        DASHBOARD_TEST_TOKEN);
+
+        assertThat(enabled.status).isEqualTo(200);
+        assertThat(enabled.body)
+                .contains("\"plugin\":\"browser-use\"")
+                .contains("\"enabled\":true")
+                .contains("\"effective_after\":\"next_session_or_restart\"")
+                .doesNotContain("reloaded");
+        assertThat(
+                        RuntimeConfigResolver.open(workspaceHome.getAbsolutePath())
+                                .getRaw("solonclaw.plugins.enabled"))
+                .isEqualTo(java.util.Collections.singletonList("browser-use"));
+
+        HttpResult disabled =
+                request(
+                        "PUT",
+                        "/api/plugins/browser-use/enabled",
+                        "{\"enabled\":false}",
+                        DASHBOARD_TEST_TOKEN);
+
+        assertThat(disabled.status).isEqualTo(200);
+        assertThat(
+                        RuntimeConfigResolver.open(workspaceHome.getAbsolutePath())
+                                .getRaw("solonclaw.plugins.disabled"))
+                .isEqualTo(java.util.Collections.singletonList("browser-use"));
+
+        HttpResult invalid =
+                request(
+                        "PUT",
+                        "/api/plugins/bad:name/enabled",
+                        "{\"enabled\":true}",
+                        DASHBOARD_TEST_TOKEN);
+        assertThat(invalid.status).isEqualTo(400);
+        assertThat(invalid.body).contains("\"code\":\"PLUGIN_CONFIG_BAD_REQUEST\"");
+    }
+
     @Test
     void shouldSetDashboardCacheHeadersForSpaAndStaticAssets() throws Exception {
         HttpResult index = request("GET", "/index.html", null, null);

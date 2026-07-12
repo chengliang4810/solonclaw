@@ -1321,9 +1321,11 @@ public class TerminalUiRpcService {
         if (busy != null) {
             return busy;
         }
-        CheckpointRecord restored;
+        SessionRecord session = findSession(sessionId);
+        int historyRemoved;
         try {
-            restored = checkpointService.rollback(checkpointId);
+            historyRemoved =
+                    checkpointService.rollbackSession(checkpointId, session, sessionRepository);
         } catch (Exception e) {
             result.put("success", Boolean.FALSE);
             result.put(
@@ -1332,9 +1334,9 @@ public class TerminalUiRpcService {
             return result;
         }
         result.put("success", Boolean.TRUE);
-        result.put("message", "restored checkpoint " + restored.getCheckpointId());
-        result.put("restored_to", restored.getCheckpointId());
-        result.put("history_removed", Integer.valueOf(0));
+        result.put("message", "restored checkpoint " + checkpointId);
+        result.put("restored_to", checkpointId);
+        result.put("history_removed", Integer.valueOf(historyRemoved));
         return result;
     }
 

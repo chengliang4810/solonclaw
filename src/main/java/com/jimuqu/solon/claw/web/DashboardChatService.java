@@ -769,6 +769,19 @@ public class DashboardChatService {
          */
         @Override
         public void onToolCompleted(String toolName, String result, long durationMs) {
+            onToolCompleted(toolName, result, null, durationMs);
+        }
+
+        /**
+         * 响应工具完成事件，并把执行层给出的失败原因原样编码为结构化字段。
+         *
+         * @param toolName 工具名称。
+         * @param result 工具返回内容。
+         * @param error 明确失败原因；成功时为 null。
+         * @param durationMs 执行耗时，单位毫秒。
+         */
+        @Override
+        public void onToolCompleted(String toolName, String result, String error, long durationMs) {
             if (state.completed || state.canceled) {
                 return;
             }
@@ -777,6 +790,10 @@ public class DashboardChatService {
             payload.put("duration_ms", durationMs);
             if (StrUtil.isNotBlank(result)) {
                 payload.put("preview", truncateInline(safeText(result, 1000), 80));
+            }
+            if (StrUtil.isNotBlank(error)) {
+                payload.put("error", safeText(error, 1000));
+                payload.put("status", "error");
             }
             enqueue(state, "tool.completed", payload);
         }
@@ -1142,6 +1159,12 @@ public class DashboardChatService {
         @Override
         public void onToolCompleted(String toolName, String result, long durationMs) {
             delegate.onToolCompleted(toolName, result, durationMs);
+        }
+
+        /** 工具结束并向下游保留结构化失败原因。 */
+        @Override
+        public void onToolCompleted(String toolName, String result, String error, long durationMs) {
+            delegate.onToolCompleted(toolName, result, error, durationMs);
         }
 
         /** 运行成功完成。 */

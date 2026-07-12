@@ -473,6 +473,15 @@ public class DashboardConfigService {
         addField(
                 new FieldDefinition(
                         "task.toolOutputTurnBudget", "number", "agent", "单轮工具输出累计预算字节"));
+        addField(
+                new FieldDefinition(
+                        "task.bootstrapPromptFileCharLimit", "number", "agent", "静态上下文单文件字符上限"));
+        addField(
+                new FieldDefinition(
+                        "task.bootstrapPromptTotalCharBudget",
+                        "number",
+                        "agent",
+                        "静态 bootstrap 提示词总字符预算"));
         addField(new FieldDefinition("task.toolOutputMaxLines", "number", "agent", "工具文件读取最大行数"));
         addField(
                 new FieldDefinition(

@@ -1066,7 +1066,12 @@ export const useChatStore = defineStore('chat', () => {
               )
               if (toolMsgs.length > 0) {
                 const last = toolMsgs[toolMsgs.length - 1]
-                updateMessage(sid, last.id, { toolStatus: 'done' })
+                const error = evt.status === 'error' ? (evt.error || evt.preview || 'Tool execution failed') : undefined
+                updateMessage(sid, last.id, {
+                  toolPreview: error || evt.preview,
+                  toolResult: error || undefined,
+                  toolStatus: error ? 'error' : 'done',
+                })
               }
               schedulePersist()
               break

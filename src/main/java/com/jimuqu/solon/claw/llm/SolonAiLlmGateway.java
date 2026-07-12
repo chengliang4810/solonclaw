@@ -1674,7 +1674,7 @@ public class SolonAiLlmGateway implements LlmGateway {
             appendOwnedToolMessage(trace, argumentsError, toolName, call, false);
             trace.incrementToolCallCount();
             if (eventSink != null) {
-                eventSink.onToolCompleted(toolName, argumentsError, 0L);
+                eventSink.onToolCompleted(toolName, argumentsError, argumentsError, 0L);
             }
             return;
         }
@@ -1746,7 +1746,40 @@ public class SolonAiLlmGateway implements LlmGateway {
         appendOwnedToolMessage(trace, finalObservation, toolName, call, tool.returnDirect());
         trace.incrementToolCallCount();
         if (eventSink != null) {
-            eventSink.onToolCompleted(toolName, finalObservation, durationMs);
+            eventSink.onToolCompleted(
+                    toolName,
+                    finalObservation,
+                    structuredToolError(toolResult, finalObservation),
+                    durationMs);
+        }
+    }
+
+    /**
+     * 从工具执行结果提取明确失败原因，供各交互端一致标记失败状态。
+     *
+     * <p>仅接受 Solon {@link ToolResult} 的 error 标志和本项目统一 envelope 的 JSON status， 不对普通文本做关键字推断。
+     *
+     * @param toolResult Solon 工具执行结果。
+     * @param observation 最终写回模型的工具观察文本。
+     * @return 工具失败原因；成功时返回 null。
+     */
+    static String structuredToolError(ToolResult toolResult, String observation) {
+        if (toolResult != null && toolResult.isError()) {
+            return StrUtil.blankToDefault(observation, "Tool execution failed");
+        }
+        if (StrUtil.isBlank(observation)) {
+            return null;
+        }
+        try {
+            ONode envelope = ONode.ofJson(observation);
+            if (!envelope.isObject()
+                    || !"error".equalsIgnoreCase(envelope.get("status").getString())) {
+                return null;
+            }
+            return StrUtil.blankToDefault(
+                    envelope.get("error").getString(), envelope.get("summary").getString());
+        } catch (RuntimeException ignored) {
+            return null;
         }
     }
 

@@ -55,9 +55,6 @@ public interface GatewayPolicyRepository {
     /** 通过 code 查询 pairing 请求。 */
     PairingRequestRecord getPairingRequest(PlatformType platform, String code) throws Exception;
 
-    /** 查询管理员认领请求。 */
-    PairingRequestRecord getAdminClaimRequest(PlatformType platform) throws Exception;
-
     /** 查询用户最近一次有效 pairing 请求。 */
     PairingRequestRecord getLatestUserPairingRequest(PlatformType platform, String userId)
             throws Exception;
@@ -65,27 +62,12 @@ public interface GatewayPolicyRepository {
     /** 保存 pairing 请求。 */
     void savePairingRequest(PairingRequestRecord record) throws Exception;
 
-    /**
-     * 创建管理员Claim请求If Absent。
-     *
-     * @param record 记录参数。
-     * @return 返回创建好的管理员Claim请求If Absent。
-     */
-    default boolean createAdminClaimRequestIfAbsent(PairingRequestRecord record) throws Exception {
-        savePairingRequest(record);
-        return true;
-    }
-
     /** 删除指定 pairing 请求。 */
     void deletePairingRequest(PlatformType platform, String code) throws Exception;
 
-    /**
-     * 删除平台下待处理 pairing 请求，但保留管理员认领请求。
-     *
-     * @param platform 平台参数。
-     */
+    /** 删除平台下全部待处理 pairing 请求。 */
     default void deletePendingPairingRequests(PlatformType platform) throws Exception {
-        List<PairingRequestRecord> records = listPairingRequests(platform, false);
+        List<PairingRequestRecord> records = listPairingRequests(platform);
         for (PairingRequestRecord record : records) {
             deletePairingRequest(platform, record.getCode());
         }
@@ -95,8 +77,7 @@ public interface GatewayPolicyRepository {
     void deleteExpiredPairingRequests(PlatformType platform, long nowEpochMillis) throws Exception;
 
     /** 列出平台待处理请求。 */
-    List<PairingRequestRecord> listPairingRequests(PlatformType platform, boolean includeAdminClaim)
-            throws Exception;
+    List<PairingRequestRecord> listPairingRequests(PlatformType platform) throws Exception;
 
     /** 读取用户 pairing 限流状态。 */
     PairingRateLimitRecord getPairingRateLimit(PlatformType platform, String userId)

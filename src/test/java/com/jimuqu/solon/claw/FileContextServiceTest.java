@@ -2,10 +2,15 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
+import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.context.FileContextService;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.core.service.MemoryManager;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
+import java.io.File;
+import java.nio.file.Files;
 import org.junit.jupiter.api.Test;
 
 public class FileContextServiceTest {
@@ -63,6 +68,70 @@ public class FileContextServiceTest {
         String prompt = service.buildSystemPrompt("MEMORY:chat:user");
 
         assertThat(prompt.indexOf(userPreference)).isEqualTo(prompt.lastIndexOf(userPreference));
+    }
+
+    /** 静态上下文必须对单文件和总量截断输出明确标记，且总长度不超过独立预算。 */
+    @Test
+    void shouldMarkPerFileAndTotalBootstrapPromptTruncation() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTask().setBootstrapPromptFileCharLimit(96);
+        env.appConfig.getTask().setBootstrapPromptTotalCharBudget(144);
+        new PersonaWorkspaceService(env.appConfig)
+                .write(ContextFileConstants.KEY_AGENTS, repeat("R", 200));
+        FileContextService service =
+                new FileContextService(
+                        env.appConfig,
+                        env.localSkillService,
+                        env.memoryManager,
+                        env.globalSettingRepository,
+                        new PersonaWorkspaceService(env.appConfig));
+
+        String prompt = service.buildSystemPrompt("MEMORY:chat:user");
+
+        assertThat(prompt.length()).isLessThanOrEqualTo(144);
+        assertThat(prompt)
+                .contains("[Workspace Rules]")
+                .contains("[TRUNCATED: per-file character limit]")
+                .contains("[TRUNCATED: bootstrap prompt total budget]");
+    }
+
+    /** 项目 AGENTS 属于当前规则，必须早于记忆注入，避免记忆在有限预算中覆盖规则。 */
+    @Test
+    void shouldPlaceProjectAgentsBeforeMemory() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTask().setBootstrapPromptFileCharLimit(400);
+        env.appConfig.getTask().setBootstrapPromptTotalCharBudget(4000);
+        new PersonaWorkspaceService(env.appConfig)
+                .write(ContextFileConstants.KEY_AGENTS, "WORKSPACE_CURRENT_RULE");
+        File projectDir = Files.createTempDirectory("solonclaw-project-context").toFile();
+        FileUtil.writeUtf8String("PROJECT_CURRENT_RULE", new File(projectDir, "AGENTS.md"));
+        String memory = "MEMORY_MUST_FOLLOW_CURRENT_RULES";
+        env.memoryService.add("user", memory);
+        AgentRuntimeScope scope = new AgentRuntimeScope();
+        scope.setAgentName("project-agent");
+        scope.setWorkspaceDir(projectDir.getAbsolutePath());
+        scope.setWorkspaceDirOverride(true);
+        FileContextService service =
+                new FileContextService(
+                        env.appConfig,
+                        env.localSkillService,
+                        env.memoryManager,
+                        env.globalSettingRepository,
+                        new PersonaWorkspaceService(env.appConfig));
+
+        String prompt = service.buildSystemPrompt("MEMORY:chat:user", scope);
+
+        assertThat(prompt).contains("WORKSPACE_CURRENT_RULE", "PROJECT_CURRENT_RULE", memory);
+        assertThat(prompt.indexOf("PROJECT_CURRENT_RULE")).isLessThan(prompt.indexOf(memory));
+    }
+
+    /** 兼容 Java 8 的简单重复文本构造，用于验证字符预算。 */
+    private static String repeat(String value, int count) {
+        StringBuilder result = new StringBuilder(value.length() * count);
+        for (int index = 0; index < count; index++) {
+            result.append(value);
+        }
+        return result.toString();
     }
 
     private static class FailingMemoryManager implements MemoryManager {
