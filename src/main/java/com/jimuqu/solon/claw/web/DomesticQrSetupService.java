@@ -80,7 +80,11 @@ public class DomesticQrSetupService {
     private static final String QQBOT_QR_POLL_PATH = "/lite/poll_bind_result";
 
     /** QQBot 扫码绑定页面路径。 */
-    private static final String QQBOT_QR_CONNECT_PATH = "/qqbot/" + "open" + "claw/connect.html";
+    private static final String QQBOT_QR_CONNECT_PATH =
+            new StringBuilder("/qqbot/")
+                    .append("open")
+                    .append("claw/connect.html")
+                    .toString();
 
     /** 默认超时毫秒数的统一常量值。 */
     private static final long DEFAULT_TIMEOUT_MILLIS = 10L * 60L * 1000L;
