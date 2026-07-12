@@ -14,11 +14,13 @@ import com.jimuqu.solon.claw.command.CommandDescriptor;
 import com.jimuqu.solon.claw.command.CommandRegistry;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.LocalSkillService;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.CheckpointRecord;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
+import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -2472,22 +2474,62 @@ public class DefaultCommandService implements CommandService {
         }
 
         ApprovalCommandArgs approvalArgs = parseApprovalCommandArgs(safeArgs);
+        SqliteAgentSession approvalSession =
+                resolveApprovalSession(message, agentSession, approvalArgs.getSelector());
         DangerousCommandApprovalService.PendingApproval pending =
-                selectPendingApproval(agentSession, approvalArgs.getSelector());
+                selectPendingApproval(approvalSession, approvalArgs.getSelector());
         if (pending == null) {
-            return GatewayReply.error("当前没有待审批的危险命令。若刚刚收到审批提示，请重试原始请求；也可以使用 /approve list 查看审批状态。");
+            return GatewayReply.error(
+                    "当前会话及该微信来源的定时任务中都没有匹配的待审批命令。请使用审批提示中的确认编号，或前往 Dashboard 查看待审批项。");
         }
 
         if (!dangerousCommandApprovalService.approve(
-                agentSession,
+                approvalSession,
                 approvalArgs.getSelector(),
                 approvalArgs.getScope(),
                 message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试原始请求。");
         }
-        GatewayReply reply = conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        GatewayReply reply =
+                conversationOrchestrator.resumePending(
+                        String.valueOf(approvalSession.getContext().get("source_key")), eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
+    }
+
+    /**
+     * 解析审批实际所属会话；微信主会话无匹配项时，回查同一来源创建的最近定时任务会话。
+     *
+     * @param message 当前渠道消息，用于限制只能审批当前微信用户创建的任务。
+     * @param boundSession 当前微信来源绑定的主会话。
+     * @param selector 用户指定的安全审批选择器；为空时选择最近待审批项。
+     * @return 包含匹配审批的会话；未找到时返回主会话。
+     */
+    private SqliteAgentSession resolveApprovalSession(
+            GatewayMessage message, SqliteAgentSession boundSession, String selector)
+            throws Exception {
+        if (selectPendingApproval(boundSession, selector) != null
+                || message.getPlatform() != PlatformType.WEIXIN) {
+            return boundSession;
+        }
+        SqliteAgentSession latest = null;
+        long latestUpdatedAt = Long.MIN_VALUE;
+        for (CronJobRecord job : cronJobRepository.listBySource(message.sourceKey())) {
+            if (job == null || StrUtil.isBlank(job.getJobId())) {
+                continue;
+            }
+            SessionRecord record = sessionRepository.getBoundSession("CRON:" + job.getJobId());
+            if (record == null) {
+                continue;
+            }
+            SqliteAgentSession candidate = new SqliteAgentSession(record, sessionRepository);
+            if (selectPendingApproval(candidate, selector) != null
+                    && record.getUpdatedAt() > latestUpdatedAt) {
+                latest = candidate;
+                latestUpdatedAt = record.getUpdatedAt();
+            }
+        }
+        return latest == null ? boundSession : latest;
     }
 
     /**
