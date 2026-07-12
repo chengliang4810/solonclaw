@@ -35,6 +35,7 @@ import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.ContextService;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
@@ -141,6 +142,9 @@ public class DefaultCommandService implements CommandService {
 
     /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
+
+    /** 后台委派服务，用于在父会话结束时取消其进程内任务。 */
+    private DelegationService delegationService;
 
     /** 注入Agent角色配置服务，用于调用对应业务能力。 */
     private final AgentProfileService agentProfileService;
@@ -315,6 +319,11 @@ public class DefaultCommandService implements CommandService {
         this.pluginManager = pluginManager;
     }
 
+    /** 接入后台委派生命周期；由 Bean 工厂在依赖装配完成后设置。 */
+    public void setDelegationService(DelegationService delegationService) {
+        this.delegationService = delegationService;
+    }
+
     /** 判断当前命令是否由默认命令服务承接。 */
     @Override
     public boolean supports(String commandName) {
@@ -377,6 +386,8 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_NEW.equals(command)
                 || GatewayCommandConstants.COMMAND_RESET.equals(command)) {
+            SessionRecord previous = sessionRepository.getBoundSession(message.sourceKey());
+            cancelBackgroundDelegations(previous);
             SessionRecord created = sessionRepository.bindNewSession(message.sourceKey());
             String title = normalizeSessionTitle(args);
             String content = "已创建新会话：" + created.getSessionId();
@@ -960,6 +971,8 @@ public class DefaultCommandService implements CommandService {
      * @return 返回Stop结果。
      */
     private GatewayReply handleStop(GatewayMessage message) throws Exception {
+        SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
+        cancelBackgroundDelegations(session);
         AgentRunStopResult stopResult =
                 agentRunControlService == null
                         ? AgentRunStopResult.none()
@@ -971,7 +984,6 @@ public class DefaultCommandService implements CommandService {
             stopResult = agentRunControlService.stopSiblingThreadRun(message, message.sourceKey());
         }
         int stoppedProcesses = processRegistry.stopAll();
-        SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (session != null && dangerousCommandApprovalService != null) {
             dangerousCommandApprovalService.clearSessionApprovals(
                     new SqliteAgentSession(session, sessionRepository));
@@ -991,6 +1003,13 @@ public class DefaultCommandService implements CommandService {
             reply.setBranchName(session.getBranchName());
         }
         return reply;
+    }
+
+    /** 取消父会话仍持有的后台委派；未接入服务或无会话时保持兼容。 */
+    private void cancelBackgroundDelegations(SessionRecord session) {
+        if (delegationService != null && session != null) {
+            delegationService.cancelBackgroundForSession(session.getSessionId());
+        }
     }
 
     /**

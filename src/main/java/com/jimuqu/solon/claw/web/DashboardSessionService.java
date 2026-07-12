@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SessionArtifactService;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
 import com.jimuqu.solon.claw.support.StructuredMetadataSupport;
+import com.jimuqu.solon.claw.support.ToolMessageStatusSupport;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileContext;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -453,6 +454,7 @@ public class DashboardSessionService {
                 ToolMessage toolMessage = (ToolMessage) message;
                 item.put("tool_name", safe(toolMessage.getName(), 400));
                 item.put("tool_call_id", safe(toolMessage.getToolCallId(), 400));
+                item.put("tool_status", ToolMessageStatusSupport.statusOf(toolMessage));
             }
 
             allMessages.add(item);

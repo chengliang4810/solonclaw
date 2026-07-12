@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.config.AppConfig.ProviderConfig;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
 import com.jimuqu.solon.claw.pricing.ModelPrice;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import com.jimuqu.solon.claw.support.BootstrapPromptBudgetSupport;
 import com.jimuqu.solon.claw.support.RuntimePathSupport;
 import com.jimuqu.solon.claw.support.constants.CheckpointConstants;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
@@ -1449,24 +1450,26 @@ final class AppConfigLoader {
                                 200000));
         config.getTask()
                 .setBootstrapPromptFileCharLimit(
-                        positiveInt(
-                                resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "solonclaw.task.bootstrapPromptFileCharLimit",
-                                                12000)),
-                                12000));
+                        BootstrapPromptBudgetSupport.normalizeFileCharLimit(
+                                positiveInt(
+                                        resolveInt(
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.task.bootstrapPromptFileCharLimit",
+                                                        12000)),
+                                        12000)));
         config.getTask()
                 .setBootstrapPromptTotalCharBudget(
-                        positiveInt(
-                                resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "solonclaw.task.bootstrapPromptTotalCharBudget",
-                                                48000)),
-                                48000));
+                        BootstrapPromptBudgetSupport.normalizeTotalCharBudget(
+                                positiveInt(
+                                        resolveInt(
+                                                readInt(
+                                                        props,
+                                                        overrides,
+                                                        "solonclaw.task.bootstrapPromptTotalCharBudget",
+                                                        48000)),
+                                        48000)));
         config.getTask()
                 .setToolOutputMaxLines(
                         positiveInt(

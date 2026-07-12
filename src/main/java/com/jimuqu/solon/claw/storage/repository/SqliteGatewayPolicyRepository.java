@@ -397,6 +397,80 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
     }
 
     /**
+     * 在同一写事务中清理过期请求、检查平台容量并保存新请求，防止多实例并发突破上限。
+     *
+     * @param record 待保存的 pairing 请求。
+     * @param nowEpochMillis 当前时间，用于排除已过期请求。
+     * @param maxPending 单平台最大待处理请求数。
+     * @return 容量允许且保存成功时返回 true；已达到上限时返回 false。
+     */
+    @Override
+    public boolean trySavePairingRequest(
+            PairingRequestRecord record, long nowEpochMillis, int maxPending) throws Exception {
+        String hashedCode =
+                PairingCodeHash.isHash(record.getCode())
+                        ? record.getCode()
+                        : PairingCodeHash.hash(record.getCode());
+        Connection connection = database.openConnection();
+        try {
+            connection.setAutoCommit(false);
+            PreparedStatement deleteExpired =
+                    connection.prepareStatement(
+                            "delete from pairing_requests where platform = ? and expires_at < ?");
+            deleteExpired.setString(1, key(record.getPlatform()));
+            deleteExpired.setLong(2, nowEpochMillis);
+            deleteExpired.executeUpdate();
+            deleteExpired.close();
+
+            PreparedStatement count =
+                    connection.prepareStatement(
+                            "select count(*) from pairing_requests where platform = ?");
+            count.setString(1, key(record.getPlatform()));
+            ResultSet countResult = count.executeQuery();
+            int pending;
+            try {
+                pending = countResult.next() ? countResult.getInt(1) : 0;
+            } finally {
+                countResult.close();
+                count.close();
+            }
+            if (pending >= maxPending) {
+                connection.commit();
+                return false;
+            }
+
+            PreparedStatement deleteExisting =
+                    connection.prepareStatement(
+                            "delete from pairing_requests where platform = ? and user_id = ?");
+            deleteExisting.setString(1, key(record.getPlatform()));
+            deleteExisting.setString(2, record.getUserId());
+            deleteExisting.executeUpdate();
+            deleteExisting.close();
+
+            PreparedStatement insert =
+                    connection.prepareStatement(
+                            "insert into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) values (?, ?, ?, ?, ?, ?, ?)");
+            insert.setString(1, key(record.getPlatform()));
+            insert.setString(2, hashedCode);
+            insert.setString(3, record.getUserId());
+            insert.setString(4, record.getUserName());
+            insert.setString(5, record.getChatId());
+            insert.setLong(6, record.getCreatedAt());
+            insert.setLong(7, record.getExpiresAt());
+            insert.executeUpdate();
+            insert.close();
+            connection.commit();
+            return true;
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
+        } finally {
+            connection.setAutoCommit(true);
+            connection.close();
+        }
+    }
+
+    /**
      * 删除配对请求。
      *
      * @param platform 平台参数。
@@ -528,6 +602,61 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
             statement.setLong(5, record.getLockoutUntil());
             statement.executeUpdate();
             statement.close();
+        } finally {
+            connection.close();
+        }
+    }
+
+    /**
+     * 使用单条 SQLite UPSERT 原子累计平台级 pairing 审批失败次数并设置锁定期。
+     *
+     * @return 更新后的平台级失败限制记录。
+     */
+    @Override
+    public PairingRateLimitRecord recordPairingApprovalFailure(
+            PlatformType platform,
+            String userId,
+            long nowEpochMillis,
+            int maxAttempts,
+            long lockoutMillis)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert into pairing_rate_limits (platform, user_id, requested_at, failed_attempts, lockout_until) "
+                                    + "values (?, ?, ?, case when ? <= 1 then 0 else 1 end, case when ? <= 1 then ? + ? else 0 end) "
+                                    + "on conflict(platform, user_id) do update set "
+                                    + "requested_at = excluded.requested_at, "
+                                    + "failed_attempts = case "
+                                    + "when pairing_rate_limits.lockout_until > excluded.requested_at then pairing_rate_limits.failed_attempts "
+                                    + "when pairing_rate_limits.failed_attempts + 1 >= ? then 0 "
+                                    + "else pairing_rate_limits.failed_attempts + 1 end, "
+                                    + "lockout_until = case "
+                                    + "when pairing_rate_limits.lockout_until > excluded.requested_at then pairing_rate_limits.lockout_until "
+                                    + "when pairing_rate_limits.failed_attempts + 1 >= ? then excluded.requested_at + ? "
+                                    + "else 0 end "
+                                    + "returning platform, user_id, requested_at, failed_attempts, lockout_until");
+            statement.setString(1, key(platform));
+            statement.setString(2, userId);
+            statement.setLong(3, nowEpochMillis);
+            statement.setInt(4, maxAttempts);
+            statement.setInt(5, maxAttempts);
+            statement.setLong(6, nowEpochMillis);
+            statement.setLong(7, lockoutMillis);
+            statement.setInt(8, maxAttempts);
+            statement.setInt(9, maxAttempts);
+            statement.setLong(10, lockoutMillis);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                if (!resultSet.next()) {
+                    throw new IllegalStateException("pairing 审批失败计数未返回更新结果。");
+                }
+                return mapRateLimit(resultSet);
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
         } finally {
             connection.close();
         }

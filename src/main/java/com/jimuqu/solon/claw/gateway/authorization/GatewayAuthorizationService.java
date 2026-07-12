@@ -439,18 +439,6 @@ public class GatewayAuthorizationService {
             return GatewayReply.ok("pairing 请求过于频繁，请 " + remainingMinutes + " 分钟后再试。");
         }
 
-        repository.deleteExpiredPairingRequests(platform, now);
-        List<PairingRequestRecord> pending = repository.listPairingRequests(platform);
-        if (pending.size() >= PairingConstants.MAX_PENDING_PER_PLATFORM) {
-            return GatewayReply.ok("当前待处理的 pairing 请求过多，请稍后再试。");
-        }
-
-        PairingRequestRecord existing =
-                repository.getLatestUserPairingRequest(platform, message.getUserId());
-        if (existing != null && existing.getExpiresAt() > now) {
-            repository.deletePairingRequest(platform, existing.getCode());
-        }
-
         PairingRequestRecord request = new PairingRequestRecord();
         request.setPlatform(platform);
         request.setCode(generateCode());
@@ -459,7 +447,10 @@ public class GatewayAuthorizationService {
         request.setChatId(message.getChatId());
         request.setCreatedAt(now);
         request.setExpiresAt(now + PairingConstants.CODE_TTL_MILLIS);
-        repository.savePairingRequest(request);
+        if (!repository.trySavePairingRequest(
+                request, now, PairingConstants.MAX_PENDING_PER_PLATFORM)) {
+            return GatewayReply.ok("当前待处理的 pairing 请求过多，请稍后再试。");
+        }
         saveRequestRate(
                 platform,
                 message.getUserId(),
@@ -497,22 +488,12 @@ public class GatewayAuthorizationService {
 
     /** 记录平台级审批失败，所有 Dashboard、CLI 与渠道审批入口共享同一计数。 */
     private void recordPlatformApprovalFailure(PlatformType platform, long now) throws Exception {
-        PairingRateLimitRecord record =
-                repository.getPairingRateLimit(platform, PLATFORM_APPROVAL_RATE_LIMIT_KEY);
-        if (record == null) {
-            record = new PairingRateLimitRecord();
-            record.setPlatform(platform);
-            record.setUserId(PLATFORM_APPROVAL_RATE_LIMIT_KEY);
-        }
-
-        int attempts = record.getFailedAttempts() + 1;
-        record.setRequestedAt(now);
-        record.setFailedAttempts(attempts >= PairingConstants.MAX_FAILED_ATTEMPTS ? 0 : attempts);
-        record.setLockoutUntil(
-                attempts >= PairingConstants.MAX_FAILED_ATTEMPTS
-                        ? now + PairingConstants.LOCKOUT_MILLIS
-                        : 0L);
-        repository.savePairingRateLimit(record);
+        repository.recordPairingApprovalFailure(
+                platform,
+                PLATFORM_APPROVAL_RATE_LIMIT_KEY,
+                now,
+                PairingConstants.MAX_FAILED_ATTEMPTS,
+                PairingConstants.LOCKOUT_MILLIS);
     }
 
     /** pairing 审批成功后清除平台级失败计数和锁定状态。 */

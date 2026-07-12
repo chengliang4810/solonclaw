@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.bootstrap.ToolConfiguration;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
@@ -39,6 +40,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
+import org.noear.solon.annotation.Bean;
 
 public class DelegationServiceTest {
     @Test
@@ -686,6 +688,99 @@ public class DelegationServiceTest {
         assertThat(completionDelivered.await(300, TimeUnit.MILLISECONDS)).isFalse();
     }
 
+    /** 按父会话取消后台委派时不得中断其他会话，也不得回流已取消结果。 */
+    @Test
+    void backgroundCancellationByParentSessionIsIsolated() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String firstSourceKey = "MEMORY:room-first:user";
+        String secondSourceKey = "MEMORY:room-second:user";
+        SessionRecord firstParent = env.sessionRepository.bindNewSession(firstSourceKey);
+        SessionRecord secondParent = env.sessionRepository.bindNewSession(secondSourceKey);
+        CountDownLatch firstStarted = new CountDownLatch(1);
+        CountDownLatch firstInterrupted = new CountDownLatch(1);
+        CountDownLatch secondStarted = new CountDownLatch(1);
+        CountDownLatch releaseSecond = new CountDownLatch(1);
+        CountDownLatch completionDelivered = new CountDownLatch(1);
+        AtomicReference<String> completion = new AtomicReference<String>();
+        ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
+        holder.set(
+                new ConversationOrchestrator() {
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply handleIncoming(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        completion.set(message.getText());
+                        completionDelivered.countDown();
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("continued");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply resumePending(
+                            String sourceKey) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("resumed");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply runScheduled(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("scheduled");
+                    }
+                });
+        DefaultDelegationService service =
+                new DefaultDelegationService(holder, null, env.sessionRepository) {
+                    @Override
+                    public List<DelegationResult> delegateBatch(
+                            String sourceKey, List<DelegationTask> tasks) throws Exception {
+                        if (sourceKey.contains("room-first")) {
+                            firstStarted.countDown();
+                            try {
+                                Thread.sleep(30000L);
+                            } catch (InterruptedException e) {
+                                firstInterrupted.countDown();
+                                throw e;
+                            }
+                        }
+                        secondStarted.countDown();
+                        releaseSecond.await(5L, TimeUnit.SECONDS);
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("second-result");
+                        return Arrays.asList(result);
+                    }
+                };
+        try {
+            dispatchBackgroundForSession(
+                    service, firstSourceKey, firstParent.getSessionId(), "first");
+            dispatchBackgroundForSession(
+                    service, secondSourceKey, secondParent.getSessionId(), "second");
+            assertThat(firstStarted.await(5L, TimeUnit.SECONDS)).isTrue();
+            assertThat(secondStarted.await(5L, TimeUnit.SECONDS)).isTrue();
+
+            assertThat(service.cancelBackgroundForSession(firstParent.getSessionId())).isEqualTo(1);
+            assertThat(service.cancelBackgroundForSession(firstParent.getSessionId())).isZero();
+            assertThat(firstInterrupted.await(5L, TimeUnit.SECONDS)).isTrue();
+            releaseSecond.countDown();
+
+            assertThat(completionDelivered.await(5L, TimeUnit.SECONDS)).isTrue();
+            assertThat(completion.get()).contains("second-result").doesNotContain("first");
+        } finally {
+            service.shutdown();
+        }
+    }
+
+    /** 委派服务必须随 Profile AppContext 关闭其进程内后台执行器。 */
+    @Test
+    void delegationBeanShutsDownWithProfileContext() {
+        java.lang.reflect.Method factory =
+                Arrays.stream(ToolConfiguration.class.getDeclaredMethods())
+                        .filter(method -> "delegationService".equals(method.getName()))
+                        .findFirst()
+                        .orElseThrow(AssertionError::new);
+
+        Bean bean = factory.getAnnotation(Bean.class);
+
+        assertThat(bean).isNotNull();
+        assertThat(bean.destroyMethod()).isEqualTo("shutdown");
+    }
+
     /** 子 Agent 内的 orchestrator 委派必须同步返回，便于在本轮汇总 worker 结果。 */
     @Test
     void delegateToolShouldRemainSynchronousInsideSubagent() throws Exception {
@@ -919,6 +1014,25 @@ public class DelegationServiceTest {
                         null)) {
             service.delegateInBackground(
                     "MEMORY:" + profile + "-room:" + profile + "-user", Arrays.asList(task));
+        }
+    }
+
+    /** 在指定父会话上下文中提交单个后台委派。 */
+    private void dispatchBackgroundForSession(
+            DefaultDelegationService service,
+            String sourceKey,
+            String parentSessionId,
+            String prompt) {
+        AgentRunContext parent =
+                new AgentRunContext(null, "parent-" + prompt, parentSessionId, sourceKey);
+        parent.setRunKind("conversation");
+        DelegationTask task = new DelegationTask();
+        task.setPrompt(prompt);
+        AgentRunContext.setCurrent(parent);
+        try {
+            service.delegateInBackground(sourceKey, Arrays.asList(task));
+        } finally {
+            AgentRunContext.setCurrent(null);
         }
     }
 

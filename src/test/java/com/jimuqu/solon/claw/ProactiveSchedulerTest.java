@@ -67,6 +67,38 @@ public class ProactiveSchedulerTest {
         assertThat(dispatchService.lastMessage).isEqualTo("主动协作：要不要继续？");
     }
 
+    /** 新候选与历史待处理候选在同一 tick 合并，并按候选 ID 去重。 */
+    @Test
+    void shouldMergeGeneratedAndPendingCandidatesWithoutDuplicates() throws Exception {
+        AppConfig config = config(true);
+        RecordingDecisionService decisionService = new RecordingDecisionService();
+        RecordingRepository repository = new RecordingRepository();
+        ProactiveCandidateRecord duplicate = new ProactiveCandidateRecord();
+        duplicate.setCandidateId("candidate-a");
+        duplicate.setSourceKey("WEIXIN:old-room:user");
+        ProactiveCandidateRecord pending = new ProactiveCandidateRecord();
+        pending.setCandidateId("candidate-pending");
+        pending.setSourceKey("WEIXIN:pending-room:user");
+        repository.pendingCandidates.add(duplicate);
+        repository.pendingCandidates.add(pending);
+
+        new ProactiveScheduler(
+                        config,
+                        new RecordingObservationService(),
+                        new RecordingCandidateService(),
+                        decisionService,
+                        new RecordingMessageComposer(),
+                        new RecordingDispatchService(),
+                        repository)
+                .tick();
+
+        assertThat(decisionService.lastCandidates)
+                .extracting(ProactiveCandidateRecord::getCandidateId)
+                .containsExactly("candidate-a", "candidate-pending");
+        assertThat(decisionService.lastCandidates.get(0).getSourceKey())
+                .isEqualTo("WEIXIN:room:user");
+    }
+
     @Test
     void shouldPersistFailureObservationWhenTickThrows() throws Exception {
         RecordingRepository repository = new RecordingRepository();
@@ -272,6 +304,10 @@ public class ProactiveSchedulerTest {
         private final List<ProactiveObservationRecord> savedObservations =
                 new ArrayList<ProactiveObservationRecord>();
 
+        /** 跨 tick 保留的待处理候选。 */
+        private final List<ProactiveCandidateRecord> pendingCandidates =
+                new ArrayList<ProactiveCandidateRecord>();
+
         @Override
         public void saveObservation(ProactiveObservationRecord observation) {
             savedObservations.add(observation);
@@ -288,7 +324,7 @@ public class ProactiveSchedulerTest {
 
         @Override
         public List<ProactiveCandidateRecord> listPendingCandidates(long nowMillis, int limit) {
-            return Collections.emptyList();
+            return pendingCandidates;
         }
 
         @Override

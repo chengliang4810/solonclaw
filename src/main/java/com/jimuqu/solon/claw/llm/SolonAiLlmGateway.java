@@ -25,6 +25,7 @@ import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
+import com.jimuqu.solon.claw.support.ToolMessageStatusSupport;
 import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
@@ -1671,7 +1672,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         String toolName = call.getName();
         String argumentsError = validateToolCallArguments(call);
         if (argumentsError != null) {
-            appendOwnedToolMessage(trace, argumentsError, toolName, call, false);
+            appendOwnedToolMessage(trace, argumentsError, toolName, call, false, true);
             trace.incrementToolCallCount();
             if (eventSink != null) {
                 eventSink.onToolCompleted(toolName, argumentsError, argumentsError, 0L);
@@ -1708,6 +1709,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                             ReActToolObservationSupport.get(trace, exchanger), skipped),
                     toolName,
                     call,
+                    false,
                     false);
             trace.incrementToolCallCount();
             return;
@@ -1715,7 +1717,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         if (tool == null) {
             String missing = "Tool call not found: " + toolName;
             ReActToolObservationSupport.set(trace, exchanger, missing);
-            appendOwnedToolMessage(trace, missing, toolName, call, false);
+            appendOwnedToolMessage(trace, missing, toolName, call, false, true);
             return;
         }
         if (eventSink != null) {
@@ -1743,14 +1745,12 @@ public class SolonAiLlmGateway implements LlmGateway {
         String finalObservation =
                 StrUtil.blankToDefault(
                         ReActToolObservationSupport.get(trace, exchanger), observation);
-        appendOwnedToolMessage(trace, finalObservation, toolName, call, tool.returnDirect());
+        String toolError = structuredToolError(toolResult, finalObservation);
+        appendOwnedToolMessage(
+                trace, finalObservation, toolName, call, tool.returnDirect(), toolError != null);
         trace.incrementToolCallCount();
         if (eventSink != null) {
-            eventSink.onToolCompleted(
-                    toolName,
-                    finalObservation,
-                    structuredToolError(toolResult, finalObservation),
-                    durationMs);
+            eventSink.onToolCompleted(toolName, finalObservation, toolError, durationMs);
         }
     }
 
@@ -1879,21 +1879,27 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param toolName 工具名。
      * @param call 工具调用。
      * @param returnDirect 是否直接返回。
+     * @param failed 是否为已确认的工具失败。
      */
     private void appendOwnedToolMessage(
             OwnedReActTrace trace,
             String observation,
             String toolName,
             ToolCall call,
-            boolean returnDirect) {
-        trace.getSession()
-                .addMessage(
-                        ChatMessage.ofTool(
-                                ToolResult.success(StrUtil.nullToEmpty(observation)),
-                                toolName,
-                                StrUtil.blankToDefault(
-                                        call == null ? null : call.getId(), toolName),
-                                returnDirect));
+            boolean returnDirect,
+            boolean failed) {
+        ToolResult result =
+                failed
+                        ? ToolResult.error(StrUtil.nullToEmpty(observation))
+                        : ToolResult.success(StrUtil.nullToEmpty(observation));
+        ToolMessage message =
+                ChatMessage.ofTool(
+                        result,
+                        toolName,
+                        StrUtil.blankToDefault(call == null ? null : call.getId(), toolName),
+                        returnDirect);
+        ToolMessageStatusSupport.mark(message, failed);
+        trace.getSession().addMessage(message);
     }
 
     /**

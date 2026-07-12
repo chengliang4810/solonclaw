@@ -282,6 +282,28 @@ public class RuntimeRefreshBehaviorTest {
         assertThat(new java.io.File(env.appConfig.getRuntime().getConfigFile())).doesNotExist();
     }
 
+    /** Dashboard 不允许写入会破坏静态上下文截断标记的极小预算。 */
+    @Test
+    void shouldRejectUndersizedBootstrapPromptBudgetsFromDashboardWrites() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        DashboardConfigService configService =
+                new DashboardConfigService(env.appConfig, env.gatewayRuntimeRefreshService);
+        Map<String, Object> updates = new LinkedHashMap<String, Object>();
+
+        updates.put("solonclaw.task.bootstrapPromptFileCharLimit", 255);
+        assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("solonclaw.task.bootstrapPromptFileCharLimit")
+                .hasMessageContaining("至少为 256");
+
+        updates.clear();
+        updates.put("solonclaw.task.bootstrapPromptTotalCharBudget", "1023");
+        assertThatThrownBy(() -> configService.savePartialFlat(updates, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("solonclaw.task.bootstrapPromptTotalCharBudget")
+                .hasMessageContaining("至少为 1024");
+    }
+
     @Test
     void shouldRefreshDirectConfigFileChangesAfterValidation() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -341,6 +363,30 @@ public class RuntimeRefreshBehaviorTest {
                 .doesNotContain(env.appConfig.getRuntime().getHome())
                 .doesNotContain(env.appConfig.getRuntime().getConfigFile());
         assertThat(env.appConfig.getReact().getMaxSteps()).isEqualTo(previousMaxSteps);
+    }
+
+    /** 直接编辑运行时配置时也必须拒绝低于静态上下文安全下限的预算。 */
+    @Test
+    void shouldRejectUndersizedBootstrapPromptBudgetsBeforeRefreshing() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        int previousFileLimit = env.appConfig.getTask().getBootstrapPromptFileCharLimit();
+        int previousTotalBudget = env.appConfig.getTask().getBootstrapPromptTotalCharBudget();
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  task:\n"
+                        + "    bootstrapPromptFileCharLimit: 255\n"
+                        + "    bootstrapPromptTotalCharBudget: 1023\n",
+                env.appConfig.getRuntime().getConfigFile());
+
+        GatewayRuntimeRefreshService.RefreshResult result =
+                env.gatewayRuntimeRefreshService.refreshConfigOnly();
+
+        assertThat(result.isSuccess()).isFalse();
+        assertThat(result.getMessage()).contains("solonclaw.task.bootstrapPromptFileCharLimit");
+        assertThat(env.appConfig.getTask().getBootstrapPromptFileCharLimit())
+                .isEqualTo(previousFileLimit);
+        assertThat(env.appConfig.getTask().getBootstrapPromptTotalCharBudget())
+                .isEqualTo(previousTotalBudget);
     }
 
     @Test

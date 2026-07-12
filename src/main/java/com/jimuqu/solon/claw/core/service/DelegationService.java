@@ -47,6 +47,19 @@ public interface DelegationService {
     }
 
     /**
+     * 取消指定父会话仍在执行或排队的后台委派。
+     *
+     * @param parentSessionId 发起委派的父会话标识。
+     * @return 本次新取消的后台委派数量。
+     */
+    default int cancelBackgroundForSession(String parentSessionId) {
+        return 0;
+    }
+
+    /** 关闭当前 Profile 内的后台委派执行资源。 */
+    default void shutdown() {}
+
+    /**
      * 写入Spawn Paused。
      *
      * @param paused paused 参数。

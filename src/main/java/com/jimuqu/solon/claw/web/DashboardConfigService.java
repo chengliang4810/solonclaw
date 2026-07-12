@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.ConfigFlattenSupport;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.support.BasicValueSupport;
+import com.jimuqu.solon.claw.support.BootstrapPromptBudgetSupport;
 import com.jimuqu.solon.claw.support.RuntimeSetupSpec;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
 import com.jimuqu.solon.claw.web.profile.DashboardProfileConfigFile;
@@ -1308,10 +1309,34 @@ public class DashboardConfigService {
      * @param values 待规范化或校验的原始值集合。
      */
     private void validateValues(Map<String, Object> values) {
+        validateBootstrapPromptBudget(
+                values.get("task.bootstrapPromptFileCharLimit"),
+                "solonclaw.task.bootstrapPromptFileCharLimit",
+                BootstrapPromptBudgetSupport.MIN_FILE_CHAR_LIMIT);
+        validateBootstrapPromptBudget(
+                values.get("task.bootstrapPromptTotalCharBudget"),
+                "solonclaw.task.bootstrapPromptTotalCharBudget",
+                BootstrapPromptBudgetSupport.MIN_TOTAL_CHAR_BUDGET);
         validateCredentialFiles(values.get("terminal.credentialFiles"));
         validateEnvPassthrough(
                 values.get("terminal.envPassthrough"), "solonclaw.terminal.envPassthrough");
         validateWebsiteSharedFiles(values.get("security.websiteBlocklist.sharedFiles"));
+    }
+
+    /** 校验静态上下文预算为整数且不低于保留完整截断标记所需的安全下限。 */
+    private void validateBootstrapPromptBudget(Object rawValue, String configKey, int minimum) {
+        if (rawValue == null) {
+            return;
+        }
+        final int value;
+        try {
+            value = Integer.parseInt(String.valueOf(rawValue).trim());
+        } catch (Exception e) {
+            throw new IllegalStateException(configKey + " 必须是整数。", e);
+        }
+        if (value < minimum) {
+            throw new IllegalStateException(configKey + " 至少为 " + minimum + "，当前值：" + value + "。");
+        }
     }
 
     /**

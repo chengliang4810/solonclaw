@@ -132,6 +132,8 @@ public class SolonAiOwnedReActLoopTest {
         ToolMessage observation = lastToolMessage(MessageSupport.loadMessages(result.getNdjson()));
         assertThat(observation).isNotNull();
         assertThat(observation.getContent()).contains("arguments must be a JSON object");
+        Object persistedStatus = observation.getMetadataAs("solonclaw.tool.status");
+        assertThat(persistedStatus).isEqualTo("error");
     }
 
     /** 缺失、截断、数组和标量 arguments 均应 fail-closed，只有 JSON 对象合法。 */

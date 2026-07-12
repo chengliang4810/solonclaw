@@ -39,7 +39,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.noear.snack4.ONode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,11 +96,18 @@ public class DefaultDelegationService implements DelegationService {
     private final ConcurrentMap<String, SubagentRunRecord> activeRegistry =
             new ConcurrentHashMap<String, SubagentRunRecord>();
 
+    /** 按委派标识保存当前 Profile 的后台任务归属与取消句柄。 */
+    private final ConcurrentMap<String, BackgroundDelegation> backgroundRegistry =
+            new ConcurrentHashMap<String, BackgroundDelegation>();
+
     /** 记录默认委托中的concurrencyLimiter。 */
     private final Semaphore concurrencyLimiter;
 
     /** 顶层委派后台执行器；有界队列防止模型连续委派造成无上限内存增长。 */
     private final ExecutorService backgroundExecutor;
+
+    /** Profile 运行时关闭后拒绝继续接收后台委派。 */
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     /** 是否启用spawnPaused。 */
     private volatile boolean spawnPaused;
@@ -216,16 +225,21 @@ public class DefaultDelegationService implements DelegationService {
         if (tasks == null || tasks.isEmpty()) {
             throw new IllegalArgumentException("No tasks provided");
         }
+        if (closed.get()) {
+            throw new IllegalStateException("Background delegation service is closed");
+        }
         final String delegationId = "dg-" + IdSupport.newId();
         final AgentRunContext parentContext = AgentRunContext.current();
         final String parentSessionId = parentContext == null ? null : parentContext.getSessionId();
-        try {
-            backgroundExecutor.submit(
-                    ProfileRuntimeScope.capture(
-                            new Runnable() {
-                                /** 执行后台委派并在全部子任务结束后回流一次汇总消息。 */
-                                @Override
-                                public void run() {
+        final BackgroundDelegation background =
+                new BackgroundDelegation(delegationId, sourceKey, parentSessionId);
+        Runnable scopedTask =
+                ProfileRuntimeScope.capture(
+                        new Runnable() {
+                            /** 执行后台委派并在全部子任务结束后回流一次汇总消息。 */
+                            @Override
+                            public void run() {
+                                try {
                                     List<DelegationResult> results;
                                     AgentRunContext previous = AgentRunContext.current();
                                     AgentRunContext.setCurrent(parentContext);
@@ -238,11 +252,21 @@ public class DefaultDelegationService implements DelegationService {
                                     } finally {
                                         AgentRunContext.setCurrent(previous);
                                     }
-                                    deliverBackgroundResult(
-                                            sourceKey, parentSessionId, delegationId, results);
+                                    if (!background.cancelRequested.get()) {
+                                        deliverBackgroundResult(background, results);
+                                    }
+                                } finally {
+                                    backgroundRegistry.remove(delegationId, background);
                                 }
-                            }));
+                            }
+                        });
+        FutureTask<Void> future = new FutureTask<Void>(scopedTask, null);
+        background.future = future;
+        backgroundRegistry.put(delegationId, background);
+        try {
+            backgroundExecutor.execute(future);
         } catch (java.util.concurrent.RejectedExecutionException e) {
+            backgroundRegistry.remove(delegationId, background);
             throw new IllegalStateException("Background delegation capacity is full");
         }
         Map<String, Object> handle = new LinkedHashMap<String, Object>();
@@ -256,10 +280,11 @@ public class DefaultDelegationService implements DelegationService {
 
     /** 把后台委派结果作为新一轮父会话输入，触发模型读取并继续回答。 */
     private void deliverBackgroundResult(
-            String sourceKey,
-            String parentSessionId,
-            String delegationId,
-            List<DelegationResult> results) {
+            BackgroundDelegation background, List<DelegationResult> results) {
+        if (background.cancelRequested.get()) {
+            return;
+        }
+        String sourceKey = background.sourceKey;
         if (conversationHolder.get() == null) {
             log.warn("Background delegation result dropped: orchestrator unavailable");
             return;
@@ -272,14 +297,17 @@ public class DefaultDelegationService implements DelegationService {
                         source[1],
                         source[2],
                         "[后台委派完成]\ndelegation_id: "
-                                + delegationId
+                                + background.delegationId
                                 + "\n请结合以下子任务结果继续处理原任务：\n"
                                 + payload);
         completion.setThreadId(StrUtil.blankToDefault(source[3], null));
         completion.setSourceKeyOverride(sourceKey);
         try {
             waitForParentRun(sourceKey);
-            if (!isParentSessionCurrent(sourceKey, parentSessionId)) {
+            if (background.cancelRequested.get()) {
+                return;
+            }
+            if (!isParentSessionCurrent(sourceKey, background.parentSessionId)) {
                 log.warn("Background delegation result dropped: parent session changed");
                 return;
             }
@@ -297,6 +325,40 @@ public class DefaultDelegationService implements DelegationService {
                     "Background delegation result delivery failed: error={}",
                     exceptionLogSummary(e));
         }
+    }
+
+    /** 取消属于指定父会话的后台委派；重复取消不会重复计数。 */
+    @Override
+    public int cancelBackgroundForSession(String parentSessionId) {
+        if (StrUtil.isBlank(parentSessionId)) {
+            return 0;
+        }
+        int cancelled = 0;
+        for (BackgroundDelegation background : backgroundRegistry.values()) {
+            if (!parentSessionId.equals(background.parentSessionId)
+                    || !background.cancelRequested.compareAndSet(false, true)) {
+                continue;
+            }
+            cancelled++;
+            background.future.cancel(true);
+            backgroundRegistry.remove(background.delegationId, background);
+        }
+        return cancelled;
+    }
+
+    /** 关闭当前 Profile 的后台委派池并取消全部未完成任务。 */
+    @Override
+    public void shutdown() {
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+        for (BackgroundDelegation background : backgroundRegistry.values()) {
+            if (background.cancelRequested.compareAndSet(false, true)) {
+                background.future.cancel(true);
+            }
+            backgroundRegistry.remove(background.delegationId, background);
+        }
+        backgroundExecutor.shutdownNow();
     }
 
     /** 核对后台委派仍归属于当前绑定会话；无法核实时拒绝回流。 */
@@ -1019,5 +1081,31 @@ public class DefaultDelegationService implements DelegationService {
         item.set("is_error", false);
         array.add(item);
         return array.toJson();
+    }
+
+    /** 单个后台委派的父会话归属与进程内取消句柄。 */
+    private static final class BackgroundDelegation {
+        /** 后台委派标识。 */
+        private final String delegationId;
+
+        /** 父会话来源键。 */
+        private final String sourceKey;
+
+        /** 发起委派时捕获的父会话标识。 */
+        private final String parentSessionId;
+
+        /** 是否已请求取消，确保取消和计数幂等。 */
+        private final AtomicBoolean cancelRequested = new AtomicBoolean(false);
+
+        /** 有界执行器中的实际任务句柄。 */
+        private FutureTask<Void> future;
+
+        /** 创建后台委派归属记录。 */
+        private BackgroundDelegation(
+                String delegationId, String sourceKey, String parentSessionId) {
+            this.delegationId = delegationId;
+            this.sourceKey = sourceKey;
+            this.parentSessionId = parentSessionId;
+        }
     }
 }

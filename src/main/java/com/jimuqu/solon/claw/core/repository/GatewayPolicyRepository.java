@@ -62,6 +62,26 @@ public interface GatewayPolicyRepository {
     /** 保存 pairing 请求。 */
     void savePairingRequest(PairingRequestRecord record) throws Exception;
 
+    /**
+     * 在单平台待处理数量未达到上限时保存 pairing 请求。
+     *
+     * <p>持久化仓储应覆盖此默认实现，以数据库事务保证容量检查与写入不可被并发穿透。
+     */
+    default boolean trySavePairingRequest(
+            PairingRequestRecord record, long nowEpochMillis, int maxPending) throws Exception {
+        deleteExpiredPairingRequests(record.getPlatform(), nowEpochMillis);
+        if (listPairingRequests(record.getPlatform()).size() >= maxPending) {
+            return false;
+        }
+        PairingRequestRecord existing =
+                getLatestUserPairingRequest(record.getPlatform(), record.getUserId());
+        if (existing != null && existing.getExpiresAt() > nowEpochMillis) {
+            deletePairingRequest(record.getPlatform(), existing.getCode());
+        }
+        savePairingRequest(record);
+        return true;
+    }
+
     /** 删除指定 pairing 请求。 */
     void deletePairingRequest(PlatformType platform, String code) throws Exception;
 
@@ -85,4 +105,33 @@ public interface GatewayPolicyRepository {
 
     /** 保存 pairing 限流状态。 */
     void savePairingRateLimit(PairingRateLimitRecord record) throws Exception;
+
+    /**
+     * 原子记录一次平台级 pairing 审批失败，并在达到阈值时进入锁定期。
+     *
+     * <p>持久化仓储应覆盖此默认实现，以数据库原子更新避免并发失败次数丢失。
+     */
+    default PairingRateLimitRecord recordPairingApprovalFailure(
+            PlatformType platform,
+            String userId,
+            long nowEpochMillis,
+            int maxAttempts,
+            long lockoutMillis)
+            throws Exception {
+        PairingRateLimitRecord record = getPairingRateLimit(platform, userId);
+        if (record == null) {
+            record = new PairingRateLimitRecord();
+            record.setPlatform(platform);
+            record.setUserId(userId);
+        }
+        if (record.getLockoutUntil() > nowEpochMillis) {
+            return record;
+        }
+        int attempts = record.getFailedAttempts() + 1;
+        record.setRequestedAt(nowEpochMillis);
+        record.setFailedAttempts(attempts >= maxAttempts ? 0 : attempts);
+        record.setLockoutUntil(attempts >= maxAttempts ? nowEpochMillis + lockoutMillis : 0L);
+        savePairingRateLimit(record);
+        return record;
+    }
 }

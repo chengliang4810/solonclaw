@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.service.ContextService;
 import com.jimuqu.solon.claw.core.service.MemoryManager;
+import com.jimuqu.solon.claw.support.BootstrapPromptBudgetSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.ContextFileConstants;
@@ -249,13 +250,15 @@ public class FileContextService implements ContextService {
     /** 获取单个静态上下文块的字符上限。 */
     private int bootstrapPromptFileCharLimit() {
         int value = appConfig.getTask().getBootstrapPromptFileCharLimit();
-        return value > 0 ? value : DEFAULT_BOOTSTRAP_PROMPT_FILE_CHAR_LIMIT;
+        return BootstrapPromptBudgetSupport.normalizeFileCharLimit(
+                value > 0 ? value : DEFAULT_BOOTSTRAP_PROMPT_FILE_CHAR_LIMIT);
     }
 
     /** 获取静态 bootstrap 提示词的总字符预算。 */
     private int bootstrapPromptTotalCharBudget() {
         int value = appConfig.getTask().getBootstrapPromptTotalCharBudget();
-        return value > 0 ? value : DEFAULT_BOOTSTRAP_PROMPT_TOTAL_CHAR_BUDGET;
+        return BootstrapPromptBudgetSupport.normalizeTotalCharBudget(
+                value > 0 ? value : DEFAULT_BOOTSTRAP_PROMPT_TOTAL_CHAR_BUDGET);
     }
 
     /** 追加指定文本块，并在单文件字符预算内保留截断标记。 */

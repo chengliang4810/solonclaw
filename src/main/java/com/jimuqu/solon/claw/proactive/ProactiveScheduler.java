@@ -12,7 +12,9 @@ import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -241,7 +243,7 @@ public class ProactiveScheduler {
     }
 
     /**
-     * 决策候选来源：优先使用本 tick 新候选，若本 tick 没有新候选则读取仍有效的待处理候选。
+     * 合并本 tick 新候选与仍有效的待处理候选，避免历史候选被持续产生的新候选饿死。
      *
      * @param context 当前 tick 上下文。
      * @param generated 本 tick 新生成候选。
@@ -251,16 +253,34 @@ public class ProactiveScheduler {
     private List<ProactiveCandidateRecord> candidatesForDecision(
             ProactiveTickContext context, List<ProactiveCandidateRecord> generated)
             throws Exception {
-        if (generated != null && !generated.isEmpty()) {
-            return generated;
-        }
         int limit =
                 appConfig == null || appConfig.getProactive() == null
                         ? 20
                         : Math.max(1, appConfig.getProactive().getMaxCandidatesPerTick());
         List<ProactiveCandidateRecord> pending =
                 repository.listPendingCandidates(context.getNowMillis(), limit);
-        return pending == null ? new ArrayList<ProactiveCandidateRecord>() : pending;
+        Map<String, ProactiveCandidateRecord> merged =
+                new LinkedHashMap<String, ProactiveCandidateRecord>();
+        mergeCandidates(merged, generated);
+        mergeCandidates(merged, pending);
+        return new ArrayList<ProactiveCandidateRecord>(merged.values());
+    }
+
+    /** 按候选 ID 合并列表，保留本 tick 生成的较新对象。 */
+    private void mergeCandidates(
+            Map<String, ProactiveCandidateRecord> merged,
+            List<ProactiveCandidateRecord> candidates) {
+        if (candidates == null) {
+            return;
+        }
+        for (ProactiveCandidateRecord candidate : candidates) {
+            if (candidate == null || StrUtil.isBlank(candidate.getCandidateId())) {
+                continue;
+            }
+            if (!merged.containsKey(candidate.getCandidateId())) {
+                merged.put(candidate.getCandidateId(), candidate);
+            }
+        }
     }
 
     /**

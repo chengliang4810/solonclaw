@@ -318,12 +318,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     })
                             .build();
             streamClient.start();
-            setConnected(true);
-            setSetupState("connected");
-            setMissingConfig(new String[0]);
-            clearLastError();
-            setDetail("stream mode connected");
-            log.info("[DINGTALK] stream mode connected");
+            markStreamClientStarted();
+            log.info("[DINGTALK] stream client started; connection health unavailable");
             return true;
         } catch (Exception e) {
             setConnected(false);
@@ -336,6 +332,19 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                     safeError(e));
             return false;
         }
+    }
+
+    /**
+     * 标记钉钉 Stream 客户端生命周期已启动。
+     *
+     * <p>当前 SDK 仅公开异步启动入口，没有可用于确认真实会话健康的回调或查询接口，因此保守保持未连接状态，并向 Doctor 明确暴露健康未知。
+     */
+    protected void markStreamClientStarted() {
+        setConnected(false);
+        setSetupState("configured");
+        setMissingConfig(new String[0]);
+        clearLastError();
+        setDetail("stream client started; connection health unavailable");
     }
 
     /** 断开当前组件持有的连接。 */

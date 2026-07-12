@@ -3,19 +3,53 @@ package com.jimuqu.solon.claw;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.DelegationResult;
+import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.DelegationService;
+import com.jimuqu.solon.claw.gateway.command.DefaultCommandService;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 public class GatewayCommandFlowTest {
+    /** 新建、重置和停止会话时只取消命令执行前绑定会话的后台委派。 */
+    @Test
+    void sessionLifecycleCommandsCancelBoundBackgroundDelegations() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        RecordingCancellationDelegationService recording =
+                new RecordingCancellationDelegationService();
+        ((DefaultCommandService) env.commandService).setDelegationService(recording);
+        String sourceKey = "MEMORY:room-cancel-background:user-cancel-background";
+        GatewayMessage message =
+                env.message("room-cancel-background", "user-cancel-background", "/new");
+        SessionRecord beforeNew = env.sessionRepository.bindNewSession(sourceKey);
+
+        GatewayReply newReply = env.commandService.handle(message, "/new");
+        SessionRecord beforeReset = env.sessionRepository.getBoundSession(sourceKey);
+        GatewayReply resetReply = env.commandService.handle(message, "/reset");
+        SessionRecord beforeStop = env.sessionRepository.getBoundSession(sourceKey);
+        env.commandService.handle(message, "/stop");
+
+        assertThat(recording.cancelledSessionIds)
+                .containsExactly(
+                        beforeNew.getSessionId(),
+                        beforeReset.getSessionId(),
+                        beforeStop.getSessionId());
+        assertThat(newReply.getSessionId()).isEqualTo(beforeReset.getSessionId());
+        assertThat(resetReply.getSessionId()).isEqualTo(beforeStop.getSessionId());
+        assertThat(beforeStop.getSessionId()).isNotEqualTo(beforeReset.getSessionId());
+    }
+
     @Test
     void shouldHandleBasicCommandsAndConversationFlow() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -433,5 +467,30 @@ public class GatewayCommandFlowTest {
                 .isTrue();
         assertThat(env.dangerousCommandApprovalService.getPendingApproval(untouchedSession))
                 .isNotNull();
+    }
+
+    /** 仅记录命令生命周期触发的父会话取消请求。 */
+    private static final class RecordingCancellationDelegationService implements DelegationService {
+        /** 收到的父会话标识，保留调用顺序便于核对命令行为。 */
+        private final List<String> cancelledSessionIds = new ArrayList<String>();
+
+        /** 当前测试不执行单任务委派。 */
+        @Override
+        public DelegationResult delegateSingle(String sourceKey, String prompt, String context) {
+            throw new UnsupportedOperationException("Delegation is not used in this test");
+        }
+
+        /** 当前测试不执行批量委派。 */
+        @Override
+        public List<DelegationResult> delegateBatch(String sourceKey, List<DelegationTask> tasks) {
+            throw new UnsupportedOperationException("Delegation is not used in this test");
+        }
+
+        /** 记录待取消后台委派所属的父会话。 */
+        @Override
+        public int cancelBackgroundForSession(String parentSessionId) {
+            cancelledSessionIds.add(parentSessionId);
+            return 1;
+        }
     }
 }

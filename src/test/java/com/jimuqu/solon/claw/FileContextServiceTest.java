@@ -74,10 +74,10 @@ public class FileContextServiceTest {
     @Test
     void shouldMarkPerFileAndTotalBootstrapPromptTruncation() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getTask().setBootstrapPromptFileCharLimit(96);
-        env.appConfig.getTask().setBootstrapPromptTotalCharBudget(144);
+        env.appConfig.getTask().setBootstrapPromptFileCharLimit(1);
+        env.appConfig.getTask().setBootstrapPromptTotalCharBudget(1);
         new PersonaWorkspaceService(env.appConfig)
-                .write(ContextFileConstants.KEY_AGENTS, repeat("R", 200));
+                .write(ContextFileConstants.KEY_AGENTS, repeat("R", 2000));
         FileContextService service =
                 new FileContextService(
                         env.appConfig,
@@ -88,7 +88,7 @@ public class FileContextServiceTest {
 
         String prompt = service.buildSystemPrompt("MEMORY:chat:user");
 
-        assertThat(prompt.length()).isLessThanOrEqualTo(144);
+        assertThat(prompt.length()).isEqualTo(1024);
         assertThat(prompt)
                 .contains("[Workspace Rules]")
                 .contains("[TRUNCATED: per-file character limit]")

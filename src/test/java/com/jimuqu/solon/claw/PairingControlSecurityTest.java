@@ -17,7 +17,13 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
 
 /** 验证可信 pairing 控制面不会把临时凭据明文落库。 */
@@ -85,6 +91,93 @@ public class PairingControlSecurityTest {
         }
     }
 
+    /** 多个 SQLite 实例并发记录错误审批时不得丢失失败次数或绕过平台锁定。 */
+    @Test
+    void shouldAtomicallyLockPairingApprovalAcrossSqliteInstances() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-concurrent-lock"));
+        List<SqliteDatabase> databases = databases(config, 5);
+        ExecutorService executor = Executors.newFixedThreadPool(5);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            List<Future<?>> futures = new ArrayList<Future<?>>();
+            for (SqliteDatabase database : databases) {
+                futures.add(
+                        executor.submit(
+                                () -> {
+                                    start.await();
+                                    new SqliteGatewayPolicyRepository(database)
+                                            .recordPairingApprovalFailure(
+                                                    PlatformType.WEIXIN,
+                                                    "solonclaw:pairing-platform-approval",
+                                                    System.currentTimeMillis(),
+                                                    5,
+                                                    60_000L);
+                                    return null;
+                                }));
+            }
+
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get();
+            }
+
+            assertThat(
+                            new SqliteGatewayPolicyRepository(databases.get(0))
+                                    .getPairingRateLimit(
+                                            PlatformType.WEIXIN,
+                                            "solonclaw:pairing-platform-approval")
+                                    .getLockoutUntil())
+                    .isGreaterThan(System.currentTimeMillis());
+        } finally {
+            executor.shutdownNow();
+            shutdown(databases);
+        }
+    }
+
+    /** 多个 SQLite 实例并发创建请求时，单平台待处理数量必须严格受容量上限约束。 */
+    @Test
+    void shouldAtomicallyLimitPendingPairingsAcrossSqliteInstances() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-concurrent-limit"));
+        List<SqliteDatabase> databases = databases(config, 8);
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            List<Future<Boolean>> futures = new ArrayList<Future<Boolean>>();
+            for (int i = 0; i < databases.size(); i++) {
+                final int userIndex = i;
+                final SqliteDatabase database = databases.get(i);
+                futures.add(
+                        executor.submit(
+                                () -> {
+                                    PairingRequestRecord candidate =
+                                            request(
+                                                    "CODE" + (2345 + userIndex),
+                                                    "wx-user-" + userIndex);
+                                    start.await();
+                                    return new SqliteGatewayPolicyRepository(database)
+                                            .trySavePairingRequest(
+                                                    candidate, System.currentTimeMillis(), 3);
+                                }));
+            }
+
+            start.countDown();
+            int saved = 0;
+            for (Future<Boolean> future : futures) {
+                if (future.get().booleanValue()) {
+                    saved++;
+                }
+            }
+
+            SqliteGatewayPolicyRepository repository =
+                    new SqliteGatewayPolicyRepository(databases.get(0));
+            assertThat(saved).isEqualTo(3);
+            assertThat(repository.listPairingRequests(PlatformType.WEIXIN)).hasSize(3);
+        } finally {
+            executor.shutdownNow();
+            shutdown(databases);
+        }
+    }
+
     /** 管理员设置和清除只能走可信控制服务，且 SQLite 主文件权限必须 owner-only。 */
     @Test
     void shouldManageAdminAndRestrictDatabasePermissions() throws Exception {
@@ -125,15 +218,36 @@ public class PairingControlSecurityTest {
 
     /** 创建一条待审批微信 pairing 请求。 */
     private PairingRequestRecord request(String code) {
+        return request(code, "wx-user");
+    }
+
+    /** 创建指定用户的待审批微信 pairing 请求。 */
+    private PairingRequestRecord request(String code, String userId) {
         PairingRequestRecord request = new PairingRequestRecord();
         request.setPlatform(PlatformType.WEIXIN);
         request.setCode(code);
-        request.setUserId("wx-user");
+        request.setUserId(userId);
         request.setUserName("微信用户");
         request.setChatId("wx-chat");
         request.setCreatedAt(System.currentTimeMillis());
         request.setExpiresAt(System.currentTimeMillis() + 60_000L);
         return request;
+    }
+
+    /** 创建多个独立数据库组件实例，共同指向同一状态库文件。 */
+    private List<SqliteDatabase> databases(AppConfig config, int count) throws Exception {
+        List<SqliteDatabase> databases = new ArrayList<SqliteDatabase>();
+        for (int i = 0; i < count; i++) {
+            databases.add(new SqliteDatabase(config));
+        }
+        return databases;
+    }
+
+    /** 关闭并发测试创建的全部数据库组件实例。 */
+    private void shutdown(List<SqliteDatabase> databases) {
+        for (SqliteDatabase database : databases) {
+            database.shutdown();
+        }
     }
 
     /** 直接读取数据库中的摘要文本，证明明文未落库。 */

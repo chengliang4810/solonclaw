@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.TimeSupport;
+import com.jimuqu.solon.claw.support.constants.MemoryConstants;
 import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -227,13 +228,47 @@ public class AsyncSkillLearningService implements SkillLearningService {
                 && ("new_skill".equals(decision) || "update_loaded_skill".equals(decision))) {
             decision = "update_existing_skill";
         }
-        if ("no_change".equals(decision) || "memory_only".equals(decision)) {
+        if ("no_change".equals(decision)) {
             writeImprovementReport(
                     session,
                     null,
                     decision,
                     "Rubric decision: " + decision,
                     Collections.<String>emptyList(),
+                    false);
+            return;
+        }
+        if ("memory_only".equals(decision)) {
+            String candidate = summarizeMemoryWithModel(session, message);
+            if (StrUtil.isBlank(candidate)) {
+                writeImprovementReport(
+                        session,
+                        null,
+                        decision,
+                        "No stable long-term memory candidate was produced; skipped.",
+                        Collections.<String>emptyList(),
+                        false);
+                return;
+            }
+            String result;
+            boolean written;
+            try {
+                result = memoryService.add(MemoryConstants.TARGET_MEMORY, candidate);
+                written = StrUtil.contains(result, "已写入");
+            } catch (Exception e) {
+                result = "memory write failed: " + SecretRedactor.redact(e.toString(), 200);
+                written = false;
+            }
+            writeImprovementReport(
+                    session,
+                    null,
+                    decision,
+                    "Long-term memory "
+                            + (written ? "written: " : "skipped by memory rules: ")
+                            + SecretRedactor.redact(result, 200),
+                    written
+                            ? Collections.singletonList(MemoryConstants.MEMORY_FILE_NAME)
+                            : Collections.<String>emptyList(),
                     false);
             return;
         }
@@ -613,6 +648,100 @@ public class AsyncSkillLearningService implements SkillLearningService {
                     e.toString());
             return null;
         }
+    }
+
+    /** 将一次会话归纳为可长期保留的一条稳定记忆，避免直接写入原始任务文本。 */
+    private String summarizeMemoryWithModel(SessionRecord session, GatewayMessage message) {
+        if (llmGateway == null) {
+            return null;
+        }
+        try {
+            SessionRecord memorySession = new SessionRecord();
+            memorySession.setSessionId(
+                    "memory-learning-"
+                            + StrUtil.blankToDefault(session.getSessionId(), "session")
+                            + "-"
+                            + System.currentTimeMillis());
+            memorySession.setSourceKey(session.getSourceKey());
+            LlmResult result =
+                    callAuxiliaryChat(
+                            memorySession,
+                            "你是 SolonClaw 的长期记忆整理器。只输出一条可长期保留的中文记忆，"
+                                    + "不要输出解释、Markdown、任务步骤、命令、密钥或用户原始请求。"
+                                    + "必须以“长期偏好：”“用户偏好：”“项目约定：”“环境细节：”"
+                                    + "“常见纠正：”或“工具怪癖：”开头；无法提炼时输出空内容。",
+                            buildMemoryLearningPrompt(session, message));
+            return normalizeMemoryCandidate(extractAssistantText(result));
+        } catch (Exception e) {
+            log.debug(
+                    "Model memory summarization failed, skipping memory-only learning: sessionId={}, error={}",
+                    session == null ? null : session.getSessionId(),
+                    e.toString());
+            return null;
+        }
+    }
+
+    /** 构造记忆归纳提示，仅提供脱敏摘要并明确禁止复述原始任务。 */
+    private String buildMemoryLearningPrompt(SessionRecord session, GatewayMessage message) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("请判断下列会话是否存在跨会话仍有价值的稳定记忆。\n");
+        prompt.append("只能提炼用户偏好、项目约定、环境细节、常见纠正或工具怪癖。\n");
+        prompt.append("不得复述完整用户请求，不得保留临时 TODO、进度、checkpoint、会话标识、命令或敏感信息。\n");
+        prompt.append("会话摘要：\n");
+        prompt.append(
+                        SecretRedactor.redact(
+                                StrUtil.blankToDefault(session.getCompressedSummary(), "无"), 2000))
+                .append("\n");
+        prompt.append("本轮请求仅供判断，不得在输出中复述：\n");
+        prompt.append(
+                        SecretRedactor.redact(
+                                StrUtil.blankToDefault(
+                                        message == null ? "" : message.getText(), ""),
+                                800))
+                .append("\n");
+        return prompt.toString();
+    }
+
+    /** 校验并规范化模型候选，确保只交给记忆服务一条短期外的稳定事实。 */
+    private String normalizeMemoryCandidate(String raw) {
+        String candidate = StrUtil.nullToEmpty(raw).replace("\r", "").trim();
+        if (candidate.indexOf('\n') >= 0 || candidate.startsWith("```")) {
+            return null;
+        }
+        if (candidate.startsWith("- ")) {
+            candidate = candidate.substring(2).trim();
+        }
+        candidate = SecretRedactor.redact(candidate, 300);
+        if (StrUtil.isBlank(candidate)
+                || candidate.length() > 300
+                || MemoryContextBoundary.containsFence(candidate)
+                || containsTransientMemoryState(candidate)
+                || !hasLongTermMemoryPrefix(candidate)) {
+            return null;
+        }
+        return candidate;
+    }
+
+    /** 拦截不应沉淀的短期执行状态。 */
+    private boolean containsTransientMemoryState(String candidate) {
+        String normalized = candidate.toLowerCase();
+        return normalized.contains("todo")
+                || normalized.contains("checkpoint")
+                || normalized.contains("sessionid")
+                || normalized.contains("session_id")
+                || normalized.contains("本会话")
+                || normalized.contains("临时");
+    }
+
+    /** 只接受文件记忆服务认可的长期语义前缀。 */
+    private boolean hasLongTermMemoryPrefix(String candidate) {
+        for (String prefix :
+                new String[] {"长期偏好：", "长期记忆：", "用户偏好：", "项目约定：", "环境细节：", "常见纠正：", "工具怪癖："}) {
+            if (candidate.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

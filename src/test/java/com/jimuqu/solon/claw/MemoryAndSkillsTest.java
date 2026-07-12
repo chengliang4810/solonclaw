@@ -1710,6 +1710,71 @@ public class MemoryAndSkillsTest {
         }
     }
 
+    @Test
+    void shouldWriteSanitizedStableMemoryForMemoryOnlyDecision() throws Exception {
+        TestEnvironment env = TestEnvironment.withLlm(new MemoryOnlyGateway("memory_only"));
+        env.appConfig.getLearning().setToolCallThreshold(1);
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room:user");
+        session.setTitle("memory only task");
+        session.setCompressedSummary("用户多次要求回答先给结论，再补充必要理由。");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Collections.singletonList(
+                                ChatMessage.ofTool("tool output", "shell", "1"))));
+        env.sessionRepository.save(session);
+        AsyncSkillLearningService learningService =
+                new AsyncSkillLearningService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.memoryService,
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.llmGateway);
+        try {
+            learningService.schedulePostReplyLearning(
+                    session,
+                    env.message("room", "user", "原始任务敏感标记：请检查发布步骤"),
+                    GatewayReply.ok("done"));
+
+            String memory = waitMemoryContent(env, "用户偏好：回答先给结论，再补充必要理由。");
+            assertThat(memory).contains("用户偏好：回答先给结论，再补充必要理由。").doesNotContain("原始任务敏感标记");
+            assertThat(env.localSkillService.listSkillNames()).doesNotContain("memory-only-task");
+        } finally {
+            learningService.shutdown();
+        }
+    }
+
+    @Test
+    void shouldNotWriteMemoryForNoChangeDecision() throws Exception {
+        TestEnvironment env = TestEnvironment.withLlm(new MemoryOnlyGateway("no_change"));
+        env.appConfig.getLearning().setToolCallThreshold(1);
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room:user");
+        session.setTitle("no change task");
+        session.setCompressedSummary("用户多次要求回答先给结论，再补充必要理由。");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Collections.singletonList(
+                                ChatMessage.ofTool("tool output", "shell", "1"))));
+        env.sessionRepository.save(session);
+        AsyncSkillLearningService learningService =
+                new AsyncSkillLearningService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.memoryService,
+                        env.localSkillService,
+                        env.checkpointService,
+                        env.llmGateway);
+        try {
+            learningService.schedulePostReplyLearning(
+                    session, env.message("room", "user", "不要沉淀技能"), GatewayReply.ok("done"));
+            Thread.sleep(300L);
+
+            assertThat(env.memoryService.read("memory")).isBlank();
+        } finally {
+            learningService.shutdown();
+        }
+    }
+
     private String waitSkillContent(TestEnvironment env, String name) throws Exception {
         return waitSkillContent(env, name, "当前任务验证点");
     }
@@ -1769,6 +1834,20 @@ public class MemoryAndSkillsTest {
             return content;
         }
         return env.localSkillService.viewSkill(name, null).getContent();
+    }
+
+    /** 等待异步学习线程写入指定长期记忆。 */
+    private String waitMemoryContent(TestEnvironment env, String expected) throws Exception {
+        long deadline = System.currentTimeMillis() + 2000L;
+        String content = "";
+        while (System.currentTimeMillis() < deadline) {
+            content = env.memoryService.read("memory");
+            if (content.contains(expected)) {
+                return content;
+            }
+            Thread.sleep(50L);
+        }
+        return content;
     }
 
     private String skill(String name, String description) {
@@ -1838,6 +1917,39 @@ public class MemoryAndSkillsTest {
                             + "- 不要把一次性寒暄或完整提示词写进 skill。\n\n"
                             + "# Verification\n"
                             + "- 检查 SKILL.md 没有代码围栏，且包含可复用步骤。\n";
+            LlmResult result = new LlmResult();
+            result.setAssistantMessage(ChatMessage.ofAssistant(content));
+            result.setRawResponse(content);
+            result.setNdjson("");
+            return result;
+        }
+
+        @Override
+        public LlmResult resume(
+                SessionRecord session, String systemPrompt, List<Object> toolObjects)
+                throws Exception {
+            return chat(session, systemPrompt, "", toolObjects);
+        }
+    }
+
+    /** 先返回学习分类，再为 memory_only 分支返回稳定记忆候选。 */
+    private static class MemoryOnlyGateway implements LlmGateway {
+        private final String decision;
+
+        /** 创建指定学习分类的模型桩。 */
+        private MemoryOnlyGateway(String decision) {
+            this.decision = decision;
+        }
+
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            String content =
+                    systemPrompt.contains("rubric 分类器") ? decision : "用户偏好：回答先给结论，再补充必要理由。";
             LlmResult result = new LlmResult();
             result.setAssistantMessage(ChatMessage.ofAssistant(content));
             result.setRawResponse(content);

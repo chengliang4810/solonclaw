@@ -5,6 +5,7 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.profile.ProfileEnvironmentLoader;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
+import com.jimuqu.solon.claw.support.BootstrapPromptBudgetSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.File;
@@ -356,23 +357,45 @@ public class GatewayRuntimeRefreshService {
      * @return 返回Integer结果。
      */
     private ValidationResult validateInteger(String key, Object value) {
+        Integer parsed = null;
         if (value instanceof Integer || value instanceof Long || value instanceof Short) {
             try {
-                Integer.parseInt(String.valueOf(value).trim());
-                return ValidationResult.success();
+                parsed = Integer.valueOf(Integer.parseInt(String.valueOf(value).trim()));
             } catch (Exception e) {
                 logConfigFallback("validate-integer-number", key, e);
             }
         }
-        if (value instanceof String) {
+        if (parsed == null && value instanceof String) {
             try {
-                Integer.parseInt(((String) value).trim());
-                return ValidationResult.success();
+                parsed = Integer.valueOf(Integer.parseInt(((String) value).trim()));
             } catch (Exception e) {
                 logConfigFallback("validate-integer-text", key, e);
             }
         }
-        return ValidationResult.failure(key + " 必须是整数。");
+        if (parsed == null) {
+            return ValidationResult.failure(key + " 必须是整数。");
+        }
+        if ("solonclaw.task.bootstrapPromptFileCharLimit".equals(key)
+                && parsed.intValue() < BootstrapPromptBudgetSupport.MIN_FILE_CHAR_LIMIT) {
+            return ValidationResult.failure(
+                    key
+                            + " 至少为 "
+                            + BootstrapPromptBudgetSupport.MIN_FILE_CHAR_LIMIT
+                            + "，当前值："
+                            + parsed
+                            + "。");
+        }
+        if ("solonclaw.task.bootstrapPromptTotalCharBudget".equals(key)
+                && parsed.intValue() < BootstrapPromptBudgetSupport.MIN_TOTAL_CHAR_BUDGET) {
+            return ValidationResult.failure(
+                    key
+                            + " 至少为 "
+                            + BootstrapPromptBudgetSupport.MIN_TOTAL_CHAR_BUDGET
+                            + "，当前值："
+                            + parsed
+                            + "。");
+        }
+        return ValidationResult.success();
     }
 
     /**

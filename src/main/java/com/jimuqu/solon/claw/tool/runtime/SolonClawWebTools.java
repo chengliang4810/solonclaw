@@ -240,7 +240,7 @@ public class SolonClawWebTools {
          * @param securityPolicyService 安全策略服务依赖。
          */
         public SafeWebfetchTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, new WebfetchTalent());
+            this(securityPolicyService, new GuardedWebfetchTalent(securityPolicyService));
         }
 
         /**
@@ -298,7 +298,7 @@ public class SolonClawWebTools {
          * @param securityPolicyService 安全策略服务依赖。
          */
         public SafeWebExtractTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, new WebfetchTalent());
+            this(securityPolicyService, new GuardedWebfetchTalent(securityPolicyService));
         }
 
         /**

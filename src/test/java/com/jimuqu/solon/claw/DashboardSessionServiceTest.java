@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.support.ToolMessageStatusSupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.web.DashboardSessionService;
 import java.io.File;
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
 
 public class DashboardSessionServiceTest {
     @Test
@@ -152,6 +154,28 @@ public class DashboardSessionServiceTest {
         assertThat(tool.get("tool_name")).isEqualTo("todo");
         assertThat(tool.get("tool_call_id")).isEqualTo("call_todo");
         assertThat(String.valueOf(tool.get("content"))).contains("\"status\":\"success\"");
+        assertThat(tool.get("tool_status")).isEqualTo("done");
+    }
+
+    @Test
+    void shouldExposePersistedToolFailureStatus() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:dash-tool-error:user");
+        ToolMessage failed = ChatMessage.ofTool("工具执行失败", "shell", "call_shell");
+        ToolMessageStatusSupport.mark(failed, true);
+        session.setNdjson(
+                MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("执行命令"), failed)));
+        env.sessionRepository.save(session);
+
+        DashboardSessionService service = new DashboardSessionService(env.sessionRepository);
+        Map<String, Object> detail = service.getSessionMessages(session.getSessionId());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> messages = (List<Map<String, Object>>) detail.get("messages");
+        assertThat(messages.get(1))
+                .containsEntry("tool_name", "shell")
+                .containsEntry("tool_call_id", "call_shell")
+                .containsEntry("tool_status", "error");
     }
 
     @Test

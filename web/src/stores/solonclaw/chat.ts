@@ -118,10 +118,16 @@ function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
       const toolArgs = toolArgsMap.get(tcId) || undefined
       // Extract a short preview from the content
       let preview = ''
+      let replayStatus: 'done' | 'error' = msg.tool_status === 'error' ? 'error' : 'done'
       if (msg.content) {
         try {
           const parsed = JSON.parse(msg.content)
           preview = parsed.url || parsed.title || parsed.preview || parsed.summary || ''
+          // 旧会话没有持久化状态字段时，兼容项目统一工具结果 envelope。
+          if (!msg.tool_status && parsed.status === 'error') {
+            replayStatus = 'error'
+            preview = parsed.error || parsed.summary || preview
+          }
         } catch {
           preview = msg.content.slice(0, 80)
         }
@@ -142,7 +148,7 @@ function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
         toolArgs,
         toolPreview: typeof preview === 'string' ? preview.slice(0, 100) || undefined : undefined,
         toolResult: msg.content || undefined,
-        toolStatus: 'done',
+        toolStatus: replayStatus,
       })
       continue
     }
