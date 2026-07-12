@@ -605,6 +605,37 @@ public class McpRuntimeServiceTest {
         mcpRuntimeService.shutdown();
     }
 
+    /** 验证旧 Profile 运行时被关闭后，忽略中断的发现任务不会覆盖替代运行时结果。 */
+    @Test
+    void shouldNotLetClosedMcpDiscoveryOverwriteReplacementProfileRuntime() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getMcp().setEnabled(true);
+        saveMcpServer(env.appConfig, env.sqliteDatabase);
+        SlowDiscoveryMcpFactory oldFactory = new SlowDiscoveryMcpFactory(true);
+        McpRuntimeService oldRuntime =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, oldFactory);
+        CompletableFuture<McpRuntimeService.McpToolRefreshResult> oldDiscovery =
+                oldRuntime.refreshLiveToolsAsync("local-docs", false);
+        SlowDiscoveryMcpClientProvider oldProvider = awaitSlowDiscoveryProvider(oldFactory);
+        assertThat(oldProvider.started.await(2, TimeUnit.SECONDS)).isTrue();
+
+        oldRuntime.shutdown();
+        McpRuntimeService replacementRuntime =
+                new McpRuntimeService(env.appConfig, env.sqliteDatabase, new FakeMcpFactory());
+        try {
+            replacementRuntime.refreshLiveTools("local-docs", false);
+            oldProvider.release.countDown();
+            assertThat(oldDiscovery.get(2, TimeUnit.SECONDS).getStatus()).isEqualTo("ready");
+
+            assertThat(readToolsJson(env.sqliteDatabase))
+                    .contains("mcp_local-docs_docs_fetch")
+                    .doesNotContain("mcp_local-docs_slow_tool");
+        } finally {
+            oldProvider.release.countDown();
+            replacementRuntime.shutdown();
+        }
+    }
+
     @Test
     void shouldRecordLastErrorForFailedDiscoveryAndRecoverOnLaterReload() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -1581,31 +1612,58 @@ public class McpRuntimeServiceTest {
     }
 
     private static class SlowDiscoveryMcpFactory implements McpClientProviderFactory {
+        /** 控制测试 provider 是否忽略关闭中断。 */
+        private final boolean ignoreInterrupts;
+
         private SlowDiscoveryMcpClientProvider provider;
+
+        /** 创建默认遵守中断的慢发现工厂。 */
+        private SlowDiscoveryMcpFactory() {
+            this(false);
+        }
+
+        /** 创建可选地忽略中断的慢发现 provider 工厂。 */
+        private SlowDiscoveryMcpFactory(boolean ignoreInterrupts) {
+            this.ignoreInterrupts = ignoreInterrupts;
+        }
 
         @Override
         public McpClientProvider create(McpRuntimeService.McpServerConfig config) {
-            provider = new SlowDiscoveryMcpClientProvider();
+            provider = new SlowDiscoveryMcpClientProvider(ignoreInterrupts);
             return provider;
         }
     }
 
     private static class SlowDiscoveryMcpClientProvider extends McpClientProvider {
+        /** 指示当前测试发现是否应当吞掉关闭中断。 */
+        private final boolean ignoreInterrupts;
         private final CountDownLatch started = new CountDownLatch(1);
         private final CountDownLatch release = new CountDownLatch(1);
 
-        private SlowDiscoveryMcpClientProvider() {
+        /** 创建可配置关闭中断行为的慢发现 provider。 */
+        private SlowDiscoveryMcpClientProvider(boolean ignoreInterrupts) {
             super(FakeMcpClientProvider.properties());
+            this.ignoreInterrupts = ignoreInterrupts;
         }
 
+        /** 在测试放行前阻塞，必要时模拟不合作的远端发现调用。 */
         @Override
         public Collection<FunctionTool> getTools() {
             started.countDown();
-            try {
-                release.await(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
+            boolean interrupted = false;
+            while (release.getCount() > 0L) {
+                try {
+                    release.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    if (!ignoreInterrupts) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException("interrupted", e);
+                    }
+                    interrupted = true;
+                }
+            }
+            if (interrupted) {
                 Thread.currentThread().interrupt();
-                throw new IllegalStateException("interrupted", e);
             }
             FunctionToolDesc slow = new FunctionToolDesc("slow_tool");
             slow.title("Slow Tool");
