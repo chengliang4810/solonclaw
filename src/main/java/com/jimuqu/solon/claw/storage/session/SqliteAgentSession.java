@@ -383,6 +383,9 @@ public class SqliteAgentSession implements AgentSession {
         if (message == null) {
             return false;
         }
+        if (message instanceof AssistantMessage) {
+            message = MessageSupport.assistantForPersistence((AssistantMessage) message);
+        }
         List<ChatMessage> messages = cache.getMessages();
         if (messages != null && !messages.isEmpty()) {
             int lastIndex = messages.size() - 1;

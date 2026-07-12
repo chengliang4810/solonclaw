@@ -18,6 +18,7 @@ import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
 import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
 import com.jimuqu.solon.claw.plugin.HookBridgeInterceptor;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
@@ -1739,13 +1740,18 @@ public class SolonAiLlmGateway implements LlmGateway {
         ReActToolObservationSupport.set(trace, exchanger, observation);
         ChatMessage toolMessage =
                 ChatMessage.ofTool(toolResult, toolName, call.getId(), tool.returnDirect());
+        String rawToolError = structuredToolError(toolResult, observation);
+        Throwable observationError =
+                rawToolError == null ? null : new IllegalStateException(rawToolError);
         for (ReActInterceptor interceptor : interceptors) {
-            interceptor.onObservation(trace, exchanger, toolMessage, null, durationMs);
+            interceptor.onObservation(trace, exchanger, toolMessage, observationError, durationMs);
         }
         String finalObservation =
                 StrUtil.blankToDefault(
                         ReActToolObservationSupport.get(trace, exchanger), observation);
-        String toolError = structuredToolError(toolResult, finalObservation);
+        String toolError =
+                StrUtil.blankToDefault(
+                        rawToolError, structuredToolError(toolResult, finalObservation));
         appendOwnedToolMessage(
                 trace, finalObservation, toolName, call, tool.returnDirect(), toolError != null);
         trace.incrementToolCallCount();
@@ -4210,6 +4216,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                     ToolResultStorageService.describeObservation(
                             StrUtil.blankToDefault(observation, result));
             boolean policyDenied = isPolicyDeniedObservation(observation);
+            boolean failed = error != null || structuredToolError(null, observation) != null;
             metadata.put("preview", output.getPreview());
             metadata.put("result_ref", output.getResultRef());
             runContext.event(
@@ -4233,7 +4240,13 @@ public class SolonAiLlmGateway implements LlmGateway {
                 record.setExecutionPolicy(
                         record.isSideEffecting() ? "serial" : "parallel_readonly");
             }
-            record.setStatus(policyDenied ? "denied" : "completed");
+            record.setStatus(policyDenied ? "denied" : failed ? "failed" : "completed");
+            if (failed) {
+                record.setError(
+                        error == null
+                                ? structuredToolError(null, observation)
+                                : ErrorTextSupport.safeError(error));
+            }
             record.setResultPreview(output.getPreview());
             record.setResultRef(output.getResultRef());
             record.setResultSizeBytes(output.getSizeBytes());

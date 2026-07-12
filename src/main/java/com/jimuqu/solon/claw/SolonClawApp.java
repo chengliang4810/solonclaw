@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.gateway.service.GatewayRuntimeStatusService;
 import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.profile.ProfileBootstrap;
+import com.jimuqu.solon.claw.support.ErrorTextSupport;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -48,7 +49,8 @@ public class SolonClawApp {
         final CliMode cliMode = CliModeParser.parse(startupArgs);
         StartupModeContext.set(cliMode);
         configureConsoleLogging(cliMode);
-        if (runLocalSetupCommand(cliMode)) {
+        if (cliMode.isConsoleMode()) {
+            runConsoleMode(effectiveArgs, cliMode);
             return;
         }
         Solon.start(
@@ -60,22 +62,32 @@ public class SolonClawApp {
                         app.enableHttp(false);
                     }
                 });
-        if (!cliMode.isConsoleMode()) {
-            registerGatewayRuntimeStatus();
+        registerGatewayRuntimeStatus();
+    }
+
+    /** 在统一异常边界内完成本地命令与一次性对话，避免向终端用户暴露 Java 堆栈。 */
+    private static void runConsoleMode(String[] effectiveArgs, CliMode cliMode) {
+        int exitCode = 0;
+        try {
+            if (runLocalSetupCommand(cliMode)) {
+                return;
+            }
+            Solon.start(
+                    SolonClawApp.class,
+                    effectiveArgs,
+                    app -> {
+                        app.enableWebSocket(false);
+                        app.enableHttp(false);
+                    });
+            exitCode = Solon.context().getBean(CliRunner.class).run(cliMode);
+        } catch (Throwable e) {
+            System.err.println("运行失败：" + ErrorTextSupport.safeError(e));
+            exitCode = 1;
+        } finally {
+            Solon.stopBlock(false, 0);
         }
-        if (cliMode.isConsoleMode()) {
-            int exitCode = 0;
-            try {
-                exitCode = Solon.context().getBean(CliRunner.class).run(cliMode);
-            } catch (Throwable e) {
-                e.printStackTrace(System.err);
-                exitCode = 1;
-            } finally {
-                Solon.stopBlock(false, 0);
-            }
-            if (exitCode != 0) {
-                System.exit(exitCode);
-            }
+        if (exitCode != 0) {
+            System.exit(exitCode);
         }
     }
 
