@@ -663,6 +663,42 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
     }
 
     /**
+     * 仅在当前平台未出现审批开始后的新锁时清除失败状态，防止正确 code 覆盖并发安全锁。
+     *
+     * @param platform pairing 所属平台。
+     * @param userId 平台级失败状态内部键。
+     * @param approvalStartedAt 本次正确 code 审批开始时间。
+     * @return 未锁定并完成清理时返回 true；存在并发新锁时返回 false。
+     */
+    @Override
+    public boolean clearPairingApprovalFailureIfUnlocked(
+            PlatformType platform, String userId, long approvalStartedAt) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert into pairing_rate_limits (platform, user_id, requested_at, failed_attempts, lockout_until) "
+                                    + "values (?, ?, 0, 0, 0) "
+                                    + "on conflict(platform, user_id) do update set "
+                                    + "requested_at = 0, failed_attempts = 0, lockout_until = 0 "
+                                    + "where pairing_rate_limits.lockout_until <= ? "
+                                    + "returning platform");
+            statement.setString(1, key(platform));
+            statement.setString(2, userId);
+            statement.setLong(3, approvalStartedAt);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next();
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    /**
      * 执行键相关逻辑。
      *
      * @param platform 平台参数。

@@ -169,6 +169,9 @@ public class ProactiveScheduler {
             log.debug("Proactive tick skipped: disabled");
             return;
         }
+        if (repository != null) {
+            repository.recoverInterruptedDeliveries(System.currentTimeMillis());
+        }
         ProactiveTickContext context = context();
         log.info("Proactive tick started: tickId={}", context.getTickId());
         List<ProactiveObservationRecord> observations = observationService.collectAll(context);
@@ -182,9 +185,6 @@ public class ProactiveScheduler {
                 continue;
             }
             String message = messageComposer.compose(context, decision);
-            if (StrUtil.isBlank(message)) {
-                continue;
-            }
             dispatchService.dispatch(decision, message);
         }
         log.info(

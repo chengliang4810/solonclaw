@@ -2054,21 +2054,13 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @return 返回模型请求使用的用户文本。
      */
     private String userPromptText(String userMessage, AgentRunContext runContext) {
-        if (runContext == null || StrUtil.isBlank(runContext.getMemoryPrefetchContext())) {
+        if (runContext == null) {
             return userMessage;
         }
-        if (!StrUtil.equals(userMessage, runContext.getMemoryPrefetchUserMessage())) {
-            return userMessage;
-        }
-        String rawContext = runContext.getMemoryPrefetchContext();
-        String memoryContext =
-                MemoryContextBoundary.containsFence(rawContext)
-                        ? rawContext.trim()
-                        : MemoryContextBoundary.ensureContextBlock(rawContext);
-        if (StrUtil.isBlank(memoryContext)) {
-            return userMessage;
-        }
-        return StrUtil.nullToEmpty(userMessage) + "\n\n" + memoryContext;
+        return MemoryContextBoundary.appendPrefetchedContext(
+                userMessage,
+                runContext.getMemoryPrefetchUserMessage(),
+                runContext.getMemoryPrefetchContext());
     }
 
     /**

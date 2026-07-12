@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.bootstrap.ToolConfiguration;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
@@ -764,6 +765,118 @@ public class DelegationServiceTest {
         } finally {
             service.shutdown();
         }
+    }
+
+    /** 取消尚未运行的后台委派后必须立即释放有界队列容量。 */
+    @Test
+    void cancellingQueuedBackgroundDelegationsReleasesExecutorCapacity() throws Exception {
+        com.jimuqu.solon.claw.config.AppConfig config =
+                new com.jimuqu.solon.claw.config.AppConfig();
+        config.getTask().setSubagentMaxConcurrency(1);
+        CountDownLatch runningStarted = new CountDownLatch(1);
+        CountDownLatch releaseRunning = new CountDownLatch(1);
+        DefaultDelegationService service =
+                new DefaultDelegationService(
+                        new ConversationOrchestratorHolder(),
+                        null,
+                        null,
+                        null,
+                        config,
+                        null,
+                        null) {
+                    @Override
+                    public List<DelegationResult> delegateBatch(
+                            String sourceKey, List<DelegationTask> tasks) throws Exception {
+                        if (sourceKey.contains("room-running")) {
+                            runningStarted.countDown();
+                            releaseRunning.await(5L, TimeUnit.SECONDS);
+                        }
+                        return java.util.Collections.emptyList();
+                    }
+                };
+        try {
+            dispatchBackgroundForSession(
+                    service, "MEMORY:room-running:user", "session-running", "running");
+            assertThat(runningStarted.await(5L, TimeUnit.SECONDS)).isTrue();
+            dispatchBackgroundForSession(
+                    service, "MEMORY:room-queued-one:user", "session-queued", "queued-one");
+            dispatchBackgroundForSession(
+                    service, "MEMORY:room-queued-two:user", "session-queued", "queued-two");
+
+            assertThat(service.cancelBackgroundForSession("session-queued")).isEqualTo(2);
+            assertThat(service.cancelBackgroundForSession("session-queued")).isZero();
+
+            dispatchBackgroundForSession(
+                    service, "MEMORY:room-replacement:user", "session-replacement", "replacement");
+        } finally {
+            releaseRunning.countDown();
+            service.shutdown();
+        }
+    }
+
+    /** Profile 关闭必须中断已登记任务、禁止新提交，并阻止被中断任务结果回流。 */
+    @Test
+    void shutdownConvergesRegisteredBackgroundDelegationAndRejectsNewDispatch() throws Exception {
+        CountDownLatch runningStarted = new CountDownLatch(1);
+        CountDownLatch runningInterrupted = new CountDownLatch(1);
+        CountDownLatch releaseRunning = new CountDownLatch(1);
+        CountDownLatch completionDelivered = new CountDownLatch(1);
+        ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
+        holder.set(
+                new ConversationOrchestrator() {
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply handleIncoming(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        completionDelivered.countDown();
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("continued");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply resumePending(
+                            String sourceKey) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("resumed");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply runScheduled(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("scheduled");
+                    }
+                });
+        DefaultDelegationService service =
+                new DefaultDelegationService(holder, null, null) {
+                    @Override
+                    public List<DelegationResult> delegateBatch(
+                            String sourceKey, List<DelegationTask> tasks) throws Exception {
+                        runningStarted.countDown();
+                        while (releaseRunning.getCount() > 0L) {
+                            try {
+                                releaseRunning.await(5L, TimeUnit.SECONDS);
+                            } catch (InterruptedException e) {
+                                runningInterrupted.countDown();
+                            }
+                        }
+                        return java.util.Collections.emptyList();
+                    }
+                };
+        dispatchBackgroundForSession(
+                service, "MEMORY:room-shutdown:user", "session-shutdown", "running");
+        assertThat(runningStarted.await(5L, TimeUnit.SECONDS)).isTrue();
+
+        service.shutdown();
+
+        assertThat(runningInterrupted.await(5L, TimeUnit.SECONDS)).isTrue();
+        assertThatThrownBy(
+                        () ->
+                                dispatchBackgroundForSession(
+                                        service,
+                                        "MEMORY:room-after-shutdown:user",
+                                        "session-after-shutdown",
+                                        "rejected"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("closed");
+        releaseRunning.countDown();
+        assertThat(completionDelivered.await(300L, TimeUnit.MILLISECONDS)).isFalse();
     }
 
     /** 委派服务必须随 Profile AppContext 关闭其进程内后台执行器。 */

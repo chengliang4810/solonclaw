@@ -290,6 +290,8 @@ public final class BoundedAttachmentIO {
                 String nextUrl =
                         HttpRedirectSupport.resolveLocation(
                                 url, location, "Download redirect URL is invalid");
+                // 下一跳建立前主动释放当前 3xx 响应，避免重定向链同时占用多个连接。
+                response.close();
                 return downloadHutoolWithRedirectGuard(
                         initialUrl,
                         nextUrl,
@@ -472,6 +474,8 @@ public final class BoundedAttachmentIO {
                 String nextUrl =
                         HttpRedirectSupport.resolveLocation(
                                 url, location, "Download redirect URL is invalid");
+                // 下一跳建立前主动释放当前 3xx 响应，避免重定向链同时占用多个连接。
+                response.close();
                 return downloadOkHttpWithRedirectGuard(
                         client, nextUrl, maxBytes, securityPolicyService, redirectCount + 1);
             }

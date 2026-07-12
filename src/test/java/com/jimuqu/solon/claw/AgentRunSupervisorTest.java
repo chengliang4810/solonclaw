@@ -6,6 +6,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
@@ -182,6 +183,40 @@ public class AgentRunSupervisorTest {
         assertThat(compressionService.compressCount).isEqualTo(1);
         assertThat(eventTypes(fixture.agentRunRepository.listEvents(persisted.getRunId())))
                 .contains("compression.done");
+    }
+
+    @Test
+    void shouldIncludeMatchedPrefetchedMemoryInBudgetButNotCompressionInput() throws Exception {
+        Fixture fixture = fixture();
+        CapturingBudgetService budgetService = new CapturingBudgetService();
+        CapturingCompressionService compressionService = new CapturingCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, new SuccessfulGateway("ok"), budgetService, compressionService);
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:prefetch:user");
+
+        supervisor.run(
+                session,
+                "system",
+                "当前问题",
+                Collections.emptyList(),
+                ConversationFeedbackSink.noop(),
+                ConversationEventSink.noop(),
+                false,
+                null,
+                Collections.emptyList(),
+                "召回记忆：用户偏好中文短答");
+
+        assertThat(budgetService.userMessage)
+                .contains("当前问题", MemoryContextBoundary.OPEN_TAG, "召回记忆：用户偏好中文短答");
+        assertThat(compressionService.focus).isEqualTo("当前问题");
+    }
+
+    @Test
+    void shouldNotAppendPrefetchedMemoryWhenUserMessageDoesNotMatch() {
+        String prompt =
+                MemoryContextBoundary.appendPrefetchedContext("运行中追加指令", "原始问题", "召回记忆：只应给原始问题使用");
+
+        assertThat(prompt).isEqualTo("运行中追加指令").doesNotContain(MemoryContextBoundary.OPEN_TAG);
     }
 
     /** 上下文溢出后应先强制压缩一次，再由同一提供方重试。 */
@@ -1556,6 +1591,47 @@ public class AgentRunSupervisorTest {
         public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus) {
             compressCount++;
             return session;
+        }
+    }
+
+    /** 捕获预算收到的用户文本，验证预算与真实模型请求采用同一记忆拼接规则。 */
+    private static class CapturingBudgetService implements ContextBudgetService {
+        private String userMessage;
+
+        @Override
+        public ContextBudgetDecision decide(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                AppConfig.LlmConfig resolved) {
+            return decide(session, systemPrompt, userMessage, resolved, Collections.emptyList());
+        }
+
+        @Override
+        public ContextBudgetDecision decide(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                AppConfig.LlmConfig resolved,
+                List<Object> tools) {
+            this.userMessage = userMessage;
+            ContextBudgetDecision decision = new ContextBudgetDecision();
+            decision.setShouldCompress(true);
+            decision.setReason("prefetch budget");
+            decision.setEstimatedTokens(2000);
+            decision.setThresholdTokens(1000);
+            return decision;
+        }
+    }
+
+    /** 捕获压缩焦点，确保仅请求期记忆不会进入压缩输入。 */
+    private static class CapturingCompressionService extends CountingCompressionService {
+        private String focus;
+
+        @Override
+        public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus) {
+            this.focus = focus;
+            return super.compressNow(session, systemPrompt, focus);
         }
     }
 

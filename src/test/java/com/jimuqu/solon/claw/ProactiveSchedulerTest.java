@@ -57,10 +57,12 @@ public class ProactiveSchedulerTest {
                         decisionService,
                         messageComposer,
                         dispatchService,
-                        new RecordingRepository())
+                        new RecordingRepository(events))
                 .tick();
 
-        assertThat(events).containsExactly("observe", "candidate", "decide", "compose", "dispatch");
+        assertThat(events)
+                .containsExactly(
+                        "recover", "observe", "candidate", "decide", "compose", "dispatch");
         assertThat(observationService.lastContext.getTickId()).startsWith("proactive-");
         assertThat(candidateService.lastObservations).hasSize(1);
         assertThat(decisionService.lastCandidates).hasSize(1);
@@ -97,6 +99,26 @@ public class ProactiveSchedulerTest {
                 .containsExactly("candidate-a", "candidate-pending");
         assertThat(decisionService.lastCandidates.get(0).getSourceKey())
                 .isEqualTo("WEIXIN:room:user");
+    }
+
+    @Test
+    void shouldDispatchBlankComposedMessageForFailureRecording() throws Exception {
+        AppConfig config = config(true);
+        RecordingMessageComposer composer = new RecordingMessageComposer();
+        composer.message = "";
+        RecordingDispatchService dispatchService = new RecordingDispatchService();
+
+        new ProactiveScheduler(
+                        config,
+                        new RecordingObservationService(),
+                        new RecordingCandidateService(),
+                        new RecordingDecisionService(),
+                        composer,
+                        dispatchService,
+                        new RecordingRepository())
+                .tick();
+
+        assertThat(dispatchService.lastMessage).isEmpty();
     }
 
     @Test
@@ -250,6 +272,9 @@ public class ProactiveSchedulerTest {
         /** 调用事件。 */
         private final List<String> events;
 
+        /** 固定返回的文案。 */
+        private String message = "主动协作：要不要继续？";
+
         /** 创建无事件记录的文案服务。 */
         private RecordingMessageComposer() {
             this(new ArrayList<String>());
@@ -263,7 +288,7 @@ public class ProactiveSchedulerTest {
         @Override
         public String compose(ProactiveTickContext context, ProactiveDecision decision) {
             events.add("compose");
-            return "主动协作：要不要继续？";
+            return message;
         }
     }
 
@@ -308,6 +333,19 @@ public class ProactiveSchedulerTest {
         private final List<ProactiveCandidateRecord> pendingCandidates =
                 new ArrayList<ProactiveCandidateRecord>();
 
+        /** tick 编排事件。 */
+        private final List<String> events;
+
+        /** 创建不记录事件的仓储。 */
+        private RecordingRepository() {
+            this(new ArrayList<String>());
+        }
+
+        /** 创建记录 tick 编排事件的仓储。 */
+        private RecordingRepository(List<String> events) {
+            this.events = events;
+        }
+
         @Override
         public void saveObservation(ProactiveObservationRecord observation) {
             savedObservations.add(observation);
@@ -333,6 +371,12 @@ public class ProactiveSchedulerTest {
 
         @Override
         public void saveDecision(ProactiveDecisionRecord decision) {}
+
+        @Override
+        public int recoverInterruptedDeliveries(long recoveredAt) {
+            events.add("recover");
+            return 0;
+        }
 
         @Override
         public int countSentSince(String sourceKey, long sinceMillis) {

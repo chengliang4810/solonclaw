@@ -1313,10 +1313,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         ONode itemList = message.get("item_list");
         String text = extractInboundText(itemList);
-        // 平台已提供消息标识时只能按消息标识去重，避免用户主动重复文本或相同说明的不同附件被误丢弃。
-        if (!hasMessageId && isDuplicateText(chatTarget.chatId, senderId, text)) {
-            return;
-        }
         java.util.ArrayList<MessageAttachment> attachments =
                 new java.util.ArrayList<MessageAttachment>();
         for (int i = 0; i < itemList.size(); i++) {
@@ -1327,6 +1323,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
         }
         if (StrUtil.isBlank(text) && attachments.isEmpty()) {
+            return;
+        }
+        // 缺少平台消息标识时，只对纯文本使用兜底去重，避免相同说明的不同附件被误丢弃。
+        if (!hasMessageId
+                && attachments.isEmpty()
+                && isDuplicateText(chatTarget.chatId, senderId, text)) {
             return;
         }
 
@@ -2440,6 +2442,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         private void retain(String nextContextToken) {
             references++;
+            updateContextToken(nextContextToken);
+        }
+
+        /** 更新最近一条消息的上下文 token，供后续输入状态 ticket 刷新使用。 */
+        private void updateContextToken(String nextContextToken) {
             if (StrUtil.isNotBlank(nextContextToken)) {
                 contextToken = nextContextToken;
             }
@@ -2514,6 +2521,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             this.chatType = nextChatType;
             this.chatId = nextChatId;
             this.contextToken = nextContextToken;
+            if (typingLifecycle != null) {
+                typingLifecycle.updateContextToken(nextContextToken);
+            }
             this.lastChunkLength = StrUtil.length(nextText);
         }
 

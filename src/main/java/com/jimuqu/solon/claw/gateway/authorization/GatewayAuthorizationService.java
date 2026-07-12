@@ -194,6 +194,10 @@ public class GatewayAuthorizationService {
             recordPlatformApprovalFailure(platform, now);
             throw new IllegalArgumentException("pairing code 无效或已过期。");
         }
+        if (!repository.clearPairingApprovalFailureIfUnlocked(
+                platform, PLATFORM_APPROVAL_RATE_LIMIT_KEY, now)) {
+            throw new IllegalArgumentException("pairing 审批失败次数过多，请稍后再试。");
+        }
         ApprovedUserRecord approved = new ApprovedUserRecord();
         approved.setPlatform(platform);
         approved.setUserId(request.getUserId());
@@ -202,7 +206,6 @@ public class GatewayAuthorizationService {
         approved.setApprovedBy(blankToDefault(approvedBy, "trusted-control"));
         repository.saveApprovedUser(approved);
         repository.deletePairingRequest(platform, request.getCode());
-        clearPlatformApprovalFailure(platform);
         return approved;
     }
 
@@ -494,11 +497,6 @@ public class GatewayAuthorizationService {
                 now,
                 PairingConstants.MAX_FAILED_ATTEMPTS,
                 PairingConstants.LOCKOUT_MILLIS);
-    }
-
-    /** pairing 审批成功后清除平台级失败计数和锁定状态。 */
-    private void clearPlatformApprovalFailure(PlatformType platform) throws Exception {
-        saveRequestRate(platform, PLATFORM_APPROVAL_RATE_LIMIT_KEY, 0L, 0, 0L);
     }
 
     /** 保存 pairing 请求速率记录。 */

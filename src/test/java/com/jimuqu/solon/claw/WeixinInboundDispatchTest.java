@@ -441,6 +441,65 @@ public class WeixinInboundDispatchTest {
         adapter.disconnect();
     }
 
+    /** 缺少平台消息标识时，相同文字附带的不同附件仍必须分别进入入站处理。 */
+    @Test
+    void shouldKeepDistinctAttachmentsWithSameTextWithoutPlatformMessageId() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/image-a",
+                exchange -> {
+                    byte[] response = "image-a".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.createContext(
+                "/image-b",
+                exchange -> {
+                    byte[] response = "image-b".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.start();
+
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setGroupPolicy("open");
+        WeiXinChannelAdapter adapter = newAdapter(config);
+        CountDownLatch latch = new CountDownLatch(2);
+        List<GatewayMessage> messages =
+                Collections.synchronizedList(new ArrayList<GatewayMessage>());
+        adapter.setInboundMessageHandler(
+                message -> {
+                    messages.add(message);
+                    latch.countDown();
+                });
+
+        try {
+            Method processInbound =
+                    WeiXinChannelAdapter.class.getDeclaredMethod(
+                            "processInboundMessage", ONode.class);
+            processInbound.setAccessible(true);
+            String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+            processInbound.invoke(
+                    adapter,
+                    inboundTextWithImage("", "room-1", "wx-user", "查看附件", baseUrl + "/image-a"));
+            processInbound.invoke(
+                    adapter,
+                    inboundTextWithImage("", "room-1", "wx-user", "查看附件", baseUrl + "/image-b"));
+
+            assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(messages).hasSize(2);
+            assertThat(messages)
+                    .allSatisfy(message -> assertThat(message.getAttachments()).hasSize(1));
+        } finally {
+            adapter.disconnect();
+            server.stop(0);
+        }
+    }
+
     @Test
     void shouldDispatchPendingTextBeforeFollowingAttachmentMessage() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -711,6 +770,55 @@ public class WeixinInboundDispatchTest {
         }
     }
 
+    /** 合并同一私聊文本批次时，输入状态心跳必须使用最近一条消息的上下文 token。 */
+    @Test
+    void shouldUpdateTypingLifecycleContextTokenWhenMergingTextBatch() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(
+                "/ilink/bot/getconfig",
+                exchange -> {
+                    byte[] response = "{}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.start();
+
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setToken("token-1");
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(5.0D);
+        WeiXinChannelAdapter adapter = newAdapter(config);
+
+        try {
+            Method processInbound =
+                    WeiXinChannelAdapter.class.getDeclaredMethod(
+                            "processInboundMessage", ONode.class);
+            processInbound.setAccessible(true);
+            processInbound.invoke(
+                    adapter,
+                    inboundTextWithContext("msg-token-1", "", "wx-user", "第一段", "context-token-1"));
+            processInbound.invoke(
+                    adapter,
+                    inboundTextWithContext("msg-token-2", "", "wx-user", "第二段", "context-token-2"));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> lifecycles =
+                    (Map<String, Object>) fieldValue(adapter, "activeTypingLifecycles");
+            Object lifecycle = lifecycles.get("wx-user");
+            Field contextToken = lifecycle.getClass().getDeclaredField("contextToken");
+            contextToken.setAccessible(true);
+            assertThat(contextToken.get(lifecycle)).isEqualTo("context-token-2");
+        } finally {
+            adapter.disconnect();
+            server.stop(0);
+        }
+    }
+
     @Test
     void shouldPreserveQuotedPlainTextContext() throws Exception {
         AppConfig config = newConfig();
@@ -875,6 +983,51 @@ public class WeixinInboundDispatchTest {
                         + "\"item_list\":[{\"type\":2,\"image_item\":{\"media\":{\"full_url\":\""
                         + fullUrl
                         + "\"}}}]"
+                        + "}");
+    }
+
+    /** 构造同时携带文本和图片附件的微信入站消息，用于验证无消息标识时的附件去重边界。 */
+    private ONode inboundTextWithImage(
+            String messageId, String roomId, String userId, String text, String fullUrl) {
+        return ONode.ofJson(
+                "{"
+                        + "\"from_user_id\":\""
+                        + userId
+                        + "\","
+                        + "\"message_id\":\""
+                        + messageId
+                        + "\","
+                        + "\"room_id\":\""
+                        + roomId
+                        + "\","
+                        + "\"item_list\":[{\"type\":1,\"text_item\":{\"text\":\""
+                        + text
+                        + "\"}},{\"type\":2,\"image_item\":{\"media\":{\"full_url\":\""
+                        + fullUrl
+                        + "\"}}}]"
+                        + "}");
+    }
+
+    /** 构造携带上下文 token 的微信文本消息，用于验证输入状态心跳的批次上下文更新。 */
+    private ONode inboundTextWithContext(
+            String messageId, String roomId, String userId, String text, String contextToken) {
+        return ONode.ofJson(
+                "{"
+                        + "\"from_user_id\":\""
+                        + userId
+                        + "\","
+                        + "\"message_id\":\""
+                        + messageId
+                        + "\","
+                        + "\"room_id\":\""
+                        + roomId
+                        + "\","
+                        + "\"context_token\":\""
+                        + contextToken
+                        + "\","
+                        + "\"item_list\":[{\"type\":1,\"text_item\":{\"text\":\""
+                        + text
+                        + "\"}}]"
                         + "}");
     }
 

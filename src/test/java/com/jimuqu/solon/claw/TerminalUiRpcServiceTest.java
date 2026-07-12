@@ -21,6 +21,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.support.ToolMessageStatusSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tui.TerminalUiPendingAttachmentService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
@@ -34,6 +35,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
 
 class TerminalUiRpcServiceTest {
     /** 验证恢复不存在的会话会明确失败，不伪造空会话响应。 */
@@ -85,6 +87,36 @@ class TerminalUiRpcServiceTest {
                 .containsEntry("user", "等待审批的用户请求")
                 .containsEntry("assistant", "已生成的回复片段")
                 .containsEntry("streaming", Boolean.FALSE);
+    }
+
+    /** 会话恢复必须保留持久化工具失败状态和用于终端展示的错误摘要。 */
+    @Test
+    void sessionResumePreservesPersistedToolFailureStatus() throws Exception {
+        AppConfig config = testConfig();
+        SqliteSessionRepository sessions = new SqliteSessionRepository(new SqliteDatabase(config));
+        SessionRecord session =
+                session("session-tool-error", "MEMORY:terminal-ui:session-tool-error");
+        ToolMessage failed =
+                ChatMessage.ofTool(
+                        "{\"status\":\"error\",\"summary\":\"command failed\",\"error\":\"command failed\"}",
+                        "execute_shell",
+                        "call-shell");
+        ToolMessageStatusSupport.mark(failed, true);
+        session.setNdjson(
+                MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("run command"), failed)));
+        sessions.save(session);
+
+        Map<String, Object> response =
+                new TerminalUiRpcService(config, sessions).sessionResume(session.getSessionId());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> messages = (List<Map<String, Object>>) response.get("messages");
+        assertThat(messages.get(1))
+                .containsEntry("role", "tool")
+                .containsEntry("name", "execute_shell")
+                .containsEntry("status", "error")
+                .containsEntry("preview", "command failed")
+                .containsEntry("error", "command failed");
     }
 
     @Test

@@ -36,6 +36,7 @@ import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
+import com.jimuqu.solon.claw.support.ToolMessageStatusSupport;
 import com.jimuqu.solon.claw.support.TuiRuntimeProtocolService;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
@@ -61,6 +62,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -2808,6 +2810,17 @@ public class TerminalUiRpcService {
                 Map<String, Object> item = new LinkedHashMap<String, Object>();
                 item.put("role", role(message));
                 item.put("text", messageText(message));
+                if (message instanceof ToolMessage) {
+                    ToolMessage toolMessage = (ToolMessage) message;
+                    String status = ToolMessageStatusSupport.statusOf(toolMessage);
+                    String preview = toolResultPreview(toolMessage, status);
+                    item.put("name", StrUtil.nullToEmpty(toolMessage.getName()));
+                    item.put("status", status);
+                    item.put("preview", preview);
+                    if (ToolMessageStatusSupport.STATUS_ERROR.equals(status)) {
+                        item.put("error", preview);
+                    }
+                }
                 result.add(item);
             }
         } catch (IOException e) {
@@ -2869,6 +2882,37 @@ public class TerminalUiRpcService {
             return StrUtil.nullToEmpty(((AssistantMessage) message).getResultContent());
         }
         return StrUtil.nullToEmpty(message.getContent());
+    }
+
+    /**
+     * 提取工具结果的紧凑展示文本；统一 envelope 优先展示 error 或 preview，旧的纯文本结果保持可见。
+     *
+     * @param message 已持久化的工具消息。
+     * @param status 工具终态。
+     * @return 适合 TUI 工具轨迹展示的结果预览。
+     */
+    private String toolResultPreview(ToolMessage message, String status) {
+        String content = messageText(message);
+        try {
+            Object parsed = ONode.deserialize(content, Object.class);
+            if (parsed instanceof Map) {
+                Map<?, ?> values = (Map<?, ?>) parsed;
+                String primary =
+                        ToolMessageStatusSupport.STATUS_ERROR.equals(status)
+                                ? stringFrom(values.get("error"))
+                                : stringFrom(values.get("preview"));
+                if (StrUtil.isNotBlank(primary)) {
+                    return primary;
+                }
+                String summary = stringFrom(values.get("summary"));
+                if (StrUtil.isNotBlank(summary)) {
+                    return summary;
+                }
+            }
+        } catch (Exception ignored) {
+            // 旧会话允许保存纯文本工具结果，无需因为无法解析 envelope 而中断 transcript 回放。
+        }
+        return content;
     }
 
     /** 截断较长文本，避免 session overlay 被历史长消息撑开。 */

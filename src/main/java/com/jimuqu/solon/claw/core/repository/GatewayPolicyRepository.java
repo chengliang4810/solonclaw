@@ -134,4 +134,25 @@ public interface GatewayPolicyRepository {
         savePairingRateLimit(record);
         return record;
     }
+
+    /**
+     * 在审批开始后没有形成新平台锁时清除失败状态，作为正确 code 写入授权前的最终门禁。
+     *
+     * <p>持久化仓储应覆盖此默认实现，以数据库条件更新避免成功路径覆盖并发新锁。
+     */
+    default boolean clearPairingApprovalFailureIfUnlocked(
+            PlatformType platform, String userId, long approvalStartedAt) throws Exception {
+        PairingRateLimitRecord record = getPairingRateLimit(platform, userId);
+        if (record != null && record.getLockoutUntil() > approvalStartedAt) {
+            return false;
+        }
+        PairingRateLimitRecord cleared = new PairingRateLimitRecord();
+        cleared.setPlatform(platform);
+        cleared.setUserId(userId);
+        cleared.setRequestedAt(0L);
+        cleared.setFailedAttempts(0);
+        cleared.setLockoutUntil(0L);
+        savePairingRateLimit(cleared);
+        return true;
+    }
 }

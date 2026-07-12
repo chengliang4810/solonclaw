@@ -39,6 +39,11 @@ public interface ProactiveRepository {
     /** 保存决策记录。 */
     void saveDecision(ProactiveDecisionRecord decision) throws Exception;
 
+    /** 恢复上次 tick 未完整收敛的已批准候选；返回修复数量。 */
+    default int recoverInterruptedDeliveries(long recoveredAt) throws Exception {
+        return 0;
+    }
+
     /** 统计窗口内成功发送次数。 */
     int countSentSince(String sourceKey, long sinceMillis) throws Exception;
 

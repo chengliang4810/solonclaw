@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -159,7 +160,7 @@ public class ProactiveRepositoryTest {
         sent.setDeliveryPlatform("wecom");
         sent.setDeliveryChatId("chat-a");
         sent.setDeliveryThreadId("thread-a");
-        sent.setDeliveryStatus("SUCCESS");
+        sent.setDeliveryStatus("SENT");
         Map<String, Object> metadata = new LinkedHashMap<String, Object>();
         metadata.put("score", Integer.valueOf(91));
         sent.setMetadata(metadata);
@@ -205,7 +206,7 @@ public class ProactiveRepositoryTest {
     }
 
     @Test
-    void shouldTreatBlankOrNullDeliveryStatusAsSuccessfulSentDecision() throws Exception {
+    void shouldCountOnlyExplicitSentDeliveryStatus() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         ProactiveRepository repository = new SqliteProactiveRepository(env.sqliteDatabase);
         long now = System.currentTimeMillis();
@@ -228,9 +229,65 @@ public class ProactiveRepositoryTest {
         missingStatus.setDeliveryStatus(null);
         missingStatus.setCreatedAt(now - 50L);
         repository.saveDecision(missingStatus);
+        ProactiveDecisionRecord legacySuccess = new ProactiveDecisionRecord();
+        legacySuccess.setDecisionId("decision-legacy-success");
+        legacySuccess.setTickId("tick-success");
+        legacySuccess.setSourceKey("MEMORY:team:a");
+        legacySuccess.setDecision("SEND");
+        legacySuccess.setDeliveryStatus("SUCCESS");
+        legacySuccess.setCreatedAt(now - 25L);
+        repository.saveDecision(legacySuccess);
+        ProactiveDecisionRecord sent = new ProactiveDecisionRecord();
+        sent.setDecisionId("decision-sent");
+        sent.setTickId("tick-sent");
+        sent.setSourceKey("MEMORY:team:a");
+        sent.setDecision("SEND");
+        sent.setDeliveryStatus("SENT");
+        sent.setCreatedAt(now);
+        repository.saveDecision(sent);
 
-        assertThat(repository.countSentSince("MEMORY:team:a", now - 1000L)).isEqualTo(2);
-        assertThat(repository.findLastSentAt("MEMORY:team:a")).isEqualTo(Long.valueOf(now - 50L));
+        assertThat(repository.countSentSince("MEMORY:team:a", now - 1000L)).isEqualTo(1);
+        assertThat(repository.findLastSentAt("MEMORY:team:a")).isEqualTo(Long.valueOf(now));
+    }
+
+    @Test
+    void shouldRecoverApprovedCandidatesFromLastDeliveryState() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProactiveRepository repository = new SqliteProactiveRepository(env.sqliteDatabase);
+        long now = System.currentTimeMillis();
+        List<String> deliveryStatuses = Arrays.asList("SENT", "FAILED", "DELIVERY_PENDING", null);
+        List<String> expectedCandidateStatuses =
+                Arrays.asList("SENT", "PENDING", "PENDING", "PENDING");
+
+        for (int i = 0; i < deliveryStatuses.size(); i++) {
+            String suffix = String.valueOf(i);
+            ProactiveCandidateRecord candidate =
+                    baseCandidate("candidate-recovery-" + suffix, now - 1000L);
+            candidate.setDedupKey("dedup-recovery-" + suffix);
+            candidate.setStateHash("state-recovery-" + suffix);
+            repository.saveCandidate(candidate);
+            ProactiveDecisionRecord decision = new ProactiveDecisionRecord();
+            decision.setDecisionId("decision-recovery-" + suffix);
+            decision.setTickId("tick-recovery");
+            decision.setCandidateId(candidate.getCandidateId());
+            decision.setSourceKey(candidate.getSourceKey());
+            decision.setDecision("SEND");
+            decision.setDeliveryStatus(deliveryStatuses.get(i));
+            decision.setCreatedAt(now - 500L);
+            repository.saveDecision(decision);
+            repository.markCandidateStatus(
+                    candidate.getCandidateId(), "APPROVED", decision.getDecisionId(), now - 400L);
+        }
+
+        int recovered = repository.recoverInterruptedDeliveries(now);
+
+        assertThat(recovered).isEqualTo(4);
+        for (int i = 0; i < expectedCandidateStatuses.size(); i++) {
+            ProactiveCandidateRecord recoveredCandidate =
+                    repository.findRecentCandidateByDedup(
+                            "dedup-recovery-" + i, "state-recovery-" + i, now);
+            assertThat(recoveredCandidate.getStatus()).isEqualTo(expectedCandidateStatuses.get(i));
+        }
     }
 
     @Test

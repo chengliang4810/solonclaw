@@ -41,6 +41,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.noear.snack4.ONode;
 import org.slf4j.Logger;
@@ -108,6 +109,9 @@ public class DefaultDelegationService implements DelegationService {
 
     /** Profile 运行时关闭后拒绝继续接收后台委派。 */
     private final AtomicBoolean closed = new AtomicBoolean(false);
+
+    /** 串行化后台任务提交与 Profile 关闭，避免关闭过程中遗漏新登记任务。 */
+    private final Object backgroundLifecycleLock = new Object();
 
     /** 是否启用spawnPaused。 */
     private volatile boolean spawnPaused;
@@ -225,9 +229,6 @@ public class DefaultDelegationService implements DelegationService {
         if (tasks == null || tasks.isEmpty()) {
             throw new IllegalArgumentException("No tasks provided");
         }
-        if (closed.get()) {
-            throw new IllegalStateException("Background delegation service is closed");
-        }
         final String delegationId = "dg-" + IdSupport.newId();
         final AgentRunContext parentContext = AgentRunContext.current();
         final String parentSessionId = parentContext == null ? null : parentContext.getSessionId();
@@ -239,35 +240,36 @@ public class DefaultDelegationService implements DelegationService {
                             /** 执行后台委派并在全部子任务结束后回流一次汇总消息。 */
                             @Override
                             public void run() {
+                                List<DelegationResult> results;
+                                AgentRunContext previous = AgentRunContext.current();
+                                AgentRunContext.setCurrent(parentContext);
                                 try {
-                                    List<DelegationResult> results;
-                                    AgentRunContext previous = AgentRunContext.current();
-                                    AgentRunContext.setCurrent(parentContext);
-                                    try {
-                                        results = delegateBatch(sourceKey, tasks);
-                                    } catch (Exception e) {
-                                        results =
-                                                java.util.Collections.singletonList(
-                                                        failureResult("delegate", e.getMessage()));
-                                    } finally {
-                                        AgentRunContext.setCurrent(previous);
-                                    }
-                                    if (!background.cancelRequested.get()) {
-                                        deliverBackgroundResult(background, results);
-                                    }
+                                    results = delegateBatch(sourceKey, tasks);
+                                } catch (Exception e) {
+                                    results =
+                                            java.util.Collections.singletonList(
+                                                    failureResult("delegate", e.getMessage()));
                                 } finally {
-                                    backgroundRegistry.remove(delegationId, background);
+                                    AgentRunContext.setCurrent(previous);
+                                }
+                                if (!background.cancelRequested.get()) {
+                                    deliverBackgroundResult(background, results);
                                 }
                             }
                         });
-        FutureTask<Void> future = new FutureTask<Void>(scopedTask, null);
+        FutureTask<Void> future = backgroundFuture(background, scopedTask);
         background.future = future;
-        backgroundRegistry.put(delegationId, background);
-        try {
-            backgroundExecutor.execute(future);
-        } catch (java.util.concurrent.RejectedExecutionException e) {
-            backgroundRegistry.remove(delegationId, background);
-            throw new IllegalStateException("Background delegation capacity is full");
+        synchronized (backgroundLifecycleLock) {
+            if (closed.get()) {
+                throw new IllegalStateException("Background delegation service is closed");
+            }
+            backgroundRegistry.put(delegationId, background);
+            try {
+                backgroundExecutor.execute(future);
+            } catch (java.util.concurrent.RejectedExecutionException e) {
+                future.cancel(false);
+                throw new IllegalStateException("Background delegation capacity is full");
+            }
         }
         Map<String, Object> handle = new LinkedHashMap<String, Object>();
         handle.put("status", "dispatched");
@@ -341,7 +343,7 @@ public class DefaultDelegationService implements DelegationService {
             }
             cancelled++;
             background.future.cancel(true);
-            backgroundRegistry.remove(background.delegationId, background);
+            removeCancelledBackgroundFuture(background.future);
         }
         return cancelled;
     }
@@ -349,16 +351,52 @@ public class DefaultDelegationService implements DelegationService {
     /** 关闭当前 Profile 的后台委派池并取消全部未完成任务。 */
     @Override
     public void shutdown() {
-        if (!closed.compareAndSet(false, true)) {
-            return;
-        }
-        for (BackgroundDelegation background : backgroundRegistry.values()) {
-            if (background.cancelRequested.compareAndSet(false, true)) {
-                background.future.cancel(true);
+        synchronized (backgroundLifecycleLock) {
+            if (!closed.compareAndSet(false, true)) {
+                return;
             }
-            backgroundRegistry.remove(background.delegationId, background);
+            for (BackgroundDelegation background : backgroundRegistry.values()) {
+                if (background.cancelRequested.compareAndSet(false, true)) {
+                    background.future.cancel(true);
+                    removeCancelledBackgroundFuture(background.future);
+                }
+            }
+            backgroundExecutor.shutdownNow();
         }
-        backgroundExecutor.shutdownNow();
+    }
+
+    /** 创建同时覆盖正常完成、运行中取消和排队取消的后台任务终结钩子。 */
+    private FutureTask<Void> backgroundFuture(
+            final BackgroundDelegation background, Runnable scopedTask) {
+        return new FutureTask<Void>(scopedTask, null) {
+            /** 标记任务已被执行器取出；运行结束后再释放 ownership。 */
+            @Override
+            public void run() {
+                background.started.set(true);
+                try {
+                    super.run();
+                } finally {
+                    backgroundRegistry.remove(background.delegationId, background);
+                }
+            }
+
+            /** 排队阶段取消的任务不会进入 run，由完成钩子负责释放 ownership。 */
+            @Override
+            protected void done() {
+                if (!background.started.get()) {
+                    backgroundRegistry.remove(background.delegationId, background);
+                }
+            }
+        };
+    }
+
+    /** 从有界队列移除已取消任务，避免取消项继续占用后台委派容量。 */
+    private void removeCancelledBackgroundFuture(FutureTask<Void> future) {
+        if (backgroundExecutor instanceof ThreadPoolExecutor) {
+            ThreadPoolExecutor executor = (ThreadPoolExecutor) backgroundExecutor;
+            executor.remove(future);
+            executor.purge();
+        }
     }
 
     /** 核对后台委派仍归属于当前绑定会话；无法核实时拒绝回流。 */
@@ -1096,6 +1134,9 @@ public class DefaultDelegationService implements DelegationService {
 
         /** 是否已请求取消，确保取消和计数幂等。 */
         private final AtomicBoolean cancelRequested = new AtomicBoolean(false);
+
+        /** 任务是否已由执行器取出，用于区分排队取消与运行中取消。 */
+        private final AtomicBoolean started = new AtomicBoolean(false);
 
         /** 有界执行器中的实际任务句柄。 */
         private FutureTask<Void> future;

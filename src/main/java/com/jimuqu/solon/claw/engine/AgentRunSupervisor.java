@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.engine;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
@@ -1256,8 +1257,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
             AgentRunRecord runRecord)
             throws Exception {
         String runId = runRecord == null ? "" : runRecord.getRunId();
+        String budgetUserMessage =
+                MemoryContextBoundary.appendPrefetchedContext(
+                        userMessage,
+                        runContext == null ? null : runContext.getMemoryPrefetchUserMessage(),
+                        runContext == null ? null : runContext.getMemoryPrefetchContext());
         ContextBudgetDecision decision =
-                contextBudgetService.decide(session, systemPrompt, userMessage, resolved, tools);
+                contextBudgetService.decide(
+                        session, systemPrompt, budgetUserMessage, resolved, tools);
         if (!decision.isShouldCompress()) {
             runContext.setPhase("compression");
             eventSink.onCompressionDecision(

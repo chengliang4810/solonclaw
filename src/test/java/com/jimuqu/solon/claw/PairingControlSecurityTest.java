@@ -134,6 +134,74 @@ public class PairingControlSecurityTest {
         }
     }
 
+    /** 正确 code 审批不得清除其执行期间由另一 SQLite 实例建立的平台锁。 */
+    @Test
+    void shouldKeepConcurrentPlatformLockBeforeApprovingCorrectCode() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-final-lock-gate"));
+        List<SqliteDatabase> databases = databases(config, 2);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        CountDownLatch requestLoaded = new CountDownLatch(1);
+        CountDownLatch continueApproval = new CountDownLatch(1);
+        try {
+            SqliteGatewayPolicyRepository approvalRepository =
+                    new SqliteGatewayPolicyRepository(databases.get(0)) {
+                        /** 在正确请求读取后暂停，稳定复现另一实例并发建立平台锁的时序。 */
+                        @Override
+                        public PairingRequestRecord getPairingRequest(
+                                PlatformType platform, String code) throws Exception {
+                            PairingRequestRecord record = super.getPairingRequest(platform, code);
+                            requestLoaded.countDown();
+                            continueApproval.await();
+                            return record;
+                        }
+                    };
+            approvalRepository.savePairingRequest(request("RACE2345"));
+            GatewayAuthorizationService authorization =
+                    new GatewayAuthorizationService(approvalRepository, config);
+            Future<String> approval =
+                    executor.submit(
+                            () -> {
+                                try {
+                                    authorization.approvePairing(
+                                            PlatformType.WEIXIN, "RACE2345", "dashboard");
+                                    return "approved";
+                                } catch (IllegalArgumentException e) {
+                                    return e.getMessage();
+                                }
+                            });
+
+            requestLoaded.await();
+            SqliteGatewayPolicyRepository concurrentRepository =
+                    new SqliteGatewayPolicyRepository(databases.get(1));
+            for (int i = 0; i < 5; i++) {
+                concurrentRepository.recordPairingApprovalFailure(
+                        PlatformType.WEIXIN,
+                        "solonclaw:pairing-platform-approval",
+                        System.currentTimeMillis(),
+                        5,
+                        60_000L);
+            }
+            continueApproval.countDown();
+
+            assertThat(approval.get()).contains("失败次数过多");
+            assertThat(
+                            concurrentRepository
+                                    .getPairingRateLimit(
+                                            PlatformType.WEIXIN,
+                                            "solonclaw:pairing-platform-approval")
+                                    .getLockoutUntil())
+                    .isGreaterThan(System.currentTimeMillis());
+            assertThat(concurrentRepository.getApprovedUser(PlatformType.WEIXIN, "wx-user"))
+                    .isNull();
+            assertThat(concurrentRepository.getPairingRequest(PlatformType.WEIXIN, "RACE2345"))
+                    .isNotNull();
+        } finally {
+            continueApproval.countDown();
+            executor.shutdownNow();
+            shutdown(databases);
+        }
+    }
+
     /** 多个 SQLite 实例并发创建请求时，单平台待处理数量必须严格受容量上限约束。 */
     @Test
     void shouldAtomicallyLimitPendingPairingsAcrossSqliteInstances() throws Exception {
