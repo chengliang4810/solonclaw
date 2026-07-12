@@ -221,7 +221,7 @@ public class SolonClawWebTools {
         if (securityPolicyService == null) {
             return;
         }
-        for (String url : securityPolicyService.extractUrlishValues(text)) {
+        for (String url : securityPolicyService.extractReturnedTextUrls(text)) {
             checkUrl(securityPolicyService, url);
         }
     }

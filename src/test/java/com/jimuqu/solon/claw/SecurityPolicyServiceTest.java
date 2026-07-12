@@ -505,6 +505,20 @@ public class SecurityPolicyServiceTest {
         assertThat(metadataVerdict.getMessage()).containsAnyOf("元数据", "内网");
     }
 
+    /** 工具返回正文只扫描显式 URL，避免把状态码、编号和 GitHub 展示名误当主机。 */
+    @Test
+    void shouldIgnoreBareNumbersAndDisplayTextInReturnedContent() {
+        SecurityPolicyService policy =
+                new FixedDnsSecurityPolicyService(new AppConfig(), "0.0.1.199");
+        String content =
+                "status 455, actor github-actions[bot], "
+                        + "source https://github.com/example/project";
+
+        assertThat(policy.extractReturnedTextUrls(content))
+                .containsExactly("https://github.com/example/project");
+        assertThat(policy.extractReturnedTextUrls("455 github.com/github-actions[bot]")).isEmpty();
+    }
+
     @Test
     void shouldExtractSchemelessRedirectTargetsFromReturnedContent() {
         AppConfig config = new AppConfig();
