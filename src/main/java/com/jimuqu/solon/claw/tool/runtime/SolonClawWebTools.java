@@ -144,7 +144,7 @@ public class SolonClawWebTools {
         if (document == null) {
             return;
         }
-        checkReturnedTextUrls(securityPolicyService, document.getContent());
+        // 正文链接只是已下载内容的一部分，不会在此处触发网络访问；后续真正访问时仍会重新校验。
         for (String url : securityPolicyService.extractUrlishValues(document.getMetadata())) {
             checkUrl(securityPolicyService, url);
         }

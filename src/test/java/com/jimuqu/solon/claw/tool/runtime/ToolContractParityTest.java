@@ -367,6 +367,26 @@ class ToolContractParityTest {
         assertThat(reread.get("content").getString()).contains(middle);
     }
 
+    /** 网页正文中的失效、畸形或私网引用链接不能让已抓取的正文整体失败。 */
+    @Test
+    void shouldKeepFetchedContentWhenBodyContainsReferenceLinks() throws Exception {
+        SolonClawWebTools.SafeWebfetchTool tool =
+                new SolonClawWebTools.SafeWebfetchTool(
+                        new SecurityPolicyService(new AppConfig()),
+                        new WebfetchTalent() {
+                            @Override
+                            public String webfetch(
+                                    String url, String format, Integer timeoutSeconds) {
+                                return "正文引用 https://without-a-comma.example.com/path、"
+                                        + "https://www.iana.org/assignments/http-fields]. 和"
+                                        + " http://169.254.169.254/latest/meta-data 仍应可读";
+                            }
+                        });
+
+        assertThat(tool.webfetch("https://example.com", "text", null).getContent())
+                .contains("仍应可读");
+    }
+
     /** web_extract 超出五项时必须整体拒绝，不能静默丢弃尾部输入。 */
     @Test
     void shouldRejectWebExtractInputBeyondFiveItems() {
