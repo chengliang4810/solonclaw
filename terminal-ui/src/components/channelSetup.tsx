@@ -1,5 +1,5 @@
 import { useStdout } from '@solonclaw/ink'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import type { GatewayClient } from '../gatewayClient.js'
 import type { ChannelOption, ChannelQrResponse } from '../gatewayTypes.js'
@@ -36,6 +36,7 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
   const [saving, setSaving] = useState(false)
   const [stage, setStage] = useState<ChannelSetupStage>('channel')
   const [values, setValues] = useState<Record<string, string>>({})
+  const qrGeneration = useRef(0)
 
   const { stdout } = useStdout()
   const width = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, (stdout?.columns ?? 80) - 6))
@@ -83,6 +84,7 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
     }
 
     if (stage === 'qr') {
+      qrGeneration.current += 1
       setStage('channel')
       setQr(null)
 
@@ -126,16 +128,19 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
     }
 
     setQrLoading(true)
+    const generation = ++qrGeneration.current
     setErr('')
     setQr(null)
     setStage('qr')
     startChannelQr(gw, channel.key, sessionId)
       .then(r => {
+        if (qrGeneration.current !== generation) return
         setQr(r)
         setErr(r.ok === false ? channelQrMessage(r) || 'failed to start QR setup' : '')
         setQrLoading(false)
       })
       .catch((e: unknown) => {
+        if (qrGeneration.current !== generation) return
         setErr(rpcErrorMessage(e))
         setQrLoading(false)
       })
@@ -147,14 +152,17 @@ export function ChannelSetup({ gw, onClose, sessionId, t }: ChannelSetupProps) {
     }
 
     const ticket = qr.ticket
+    const generation = qrGeneration.current
 
     const timer = setTimeout(() => {
       refreshChannelQr(gw, channel.key, ticket, sessionId)
         .then(r => {
+          if (qrGeneration.current !== generation) return
           setQr(r)
           setErr(r.ok === false ? channelQrMessage(r) || 'failed to refresh QR setup' : '')
         })
         .catch((e: unknown) => {
+          if (qrGeneration.current !== generation) return
           setErr(rpcErrorMessage(e))
         })
     }, 1500)

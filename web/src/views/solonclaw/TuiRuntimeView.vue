@@ -239,7 +239,7 @@ async function saveChannelConfig(channel: TuiChannelStatus): Promise<void> {
 }
 
 function isQrPlatform(value: string): value is ChannelQrPlatform {
-  return value === 'weixin' || value === 'feishu' || value === 'dingtalk' || value === 'wecom'
+  return value === 'weixin' || value === 'feishu' || value === 'dingtalk' || value === 'wecom' || value === 'qqbot'
 }
 
 function qrStateFor(channel: TuiChannelStatus): ChannelQrPollingState {

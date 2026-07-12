@@ -851,7 +851,13 @@ public class AgentRunSupervisor implements AgentRunControlService {
             runContext.event("run.start", resume ? "恢复挂起会话" : "开始执行用户请求");
             eventSink.onRunStarted(session.getSessionId());
 
-            List<AppConfig.LlmConfig> candidates = buildCandidateConfigs(session, agentScope);
+            CandidatePlan candidatePlan = buildCandidateConfigs(session, agentScope);
+            List<AppConfig.LlmConfig> candidates = candidatePlan.candidates;
+            List<CandidateFailure> candidateFailures = candidatePlan.failures;
+            for (CandidateFailure skipped : candidateFailures) {
+                runContext.event(
+                        "fallback.skipped", "跳过不可用模型候选：" + skipped.display(), skipped.metadata());
+            }
             Throwable lastError = null;
             LlmResult finalResult = null;
             String replyText = "";
@@ -1117,6 +1123,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
                     break;
                 }
 
+                candidateFailures.add(
+                        CandidateFailure.attempted(
+                                resolved,
+                                lastError == null ? "EMPTY_RESPONSE" : classifiedReason(lastError),
+                                lastError == null ? "模型返回空内容" : safeError(lastError)));
+
                 previousProvider = resolved.getProvider();
                 if (isRequiredToolsMissing(lastError)) {
                     break;
@@ -1149,10 +1161,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 runRecord.setExitReason("failed");
                 runRecord.setFinishedAt(System.currentTimeMillis());
                 runRecord.setError(
-                        lastError == null ? "LLM execution failed" : safeError(lastError));
+                        isRequiredToolsMissing(lastError)
+                                ? safeError(lastError)
+                                : candidateFailureSummary(candidateFailures));
                 agentRunRepository.saveRun(runRecord);
                 runContext.event("run.failed", runRecord.getError());
-                if (lastError instanceof Exception) {
+                if (isRequiredToolsMissing(lastError) && lastError instanceof Exception) {
                     throw (Exception) lastError;
                 }
                 throw new IllegalStateException(runRecord.getError(), lastError);
@@ -1436,24 +1450,89 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param agentScope 当前运行冻结后的 Agent 范围。
      * @return 返回创建好的Candidate Configs。
      */
-    private List<AppConfig.LlmConfig> buildCandidateConfigs(
+    private CandidatePlan buildCandidateConfigs(
             SessionRecord session, AgentRuntimeScope agentScope) {
-        List<AppConfig.LlmConfig> candidates = new java.util.ArrayList<AppConfig.LlmConfig>();
+        CandidatePlan plan = new CandidatePlan();
         LinkedHashSet<String> seen = new LinkedHashSet<String>();
-        AppConfig.LlmConfig primary =
-                toLlmConfig(
-                        llmProviderService.resolveEffectiveProvider(
-                                session, agentScope == null ? null : agentScope.getDefaultModel()));
-        candidates.add(primary);
-        seen.add(providerSignature(primary));
-        for (LlmProviderService.ResolvedProvider fallback :
-                llmProviderService.resolveFallbackProviders()) {
-            AppConfig.LlmConfig candidate = toLlmConfig(fallback);
-            if (seen.add(providerSignature(candidate))) {
-                candidates.add(candidate);
+        try {
+            addCandidate(
+                    plan,
+                    seen,
+                    llmProviderService.resolveEffectiveProvider(
+                            session, agentScope == null ? null : agentScope.getDefaultModel()));
+        } catch (Exception e) {
+            plan.failures.add(
+                    CandidateFailure.skipped(
+                            StrUtil.blankToDefault(
+                                    session == null ? "" : session.getTransientProviderOverride(),
+                                    appConfig.getModel().getProviderKey()),
+                            session == null ? "" : session.getTransientModelOverride(),
+                            "CONFIGURATION",
+                            safeError(e)));
+        }
+        List<AppConfig.FallbackProviderConfig> fallbackProviders = appConfig.getFallbackProviders();
+        if (fallbackProviders == null) {
+            fallbackProviders = Collections.emptyList();
+        }
+        for (AppConfig.FallbackProviderConfig fallback : fallbackProviders) {
+            if (fallback == null || StrUtil.isBlank(fallback.getProvider())) {
+                continue;
+            }
+            try {
+                addCandidate(
+                        plan,
+                        seen,
+                        llmProviderService.resolveProvider(
+                                fallback.getProvider().trim(), fallback.getModel()));
+            } catch (Exception e) {
+                plan.failures.add(
+                        CandidateFailure.skipped(
+                                fallback.getProvider(),
+                                fallback.getModel(),
+                                "CONFIGURATION",
+                                safeError(e)));
             }
         }
-        return candidates;
+        return plan;
+    }
+
+    /** 将通过本地预检且未重复的模型候选加入执行计划。 */
+    private void addCandidate(
+            CandidatePlan plan,
+            LinkedHashSet<String> seen,
+            LlmProviderService.ResolvedProvider resolved) {
+        String failure = llmProviderService.preflightFailure(resolved);
+        if (StrUtil.isNotBlank(failure)) {
+            plan.failures.add(
+                    CandidateFailure.skipped(
+                            resolved.getProviderKey(), resolved.getModel(), "PREFLIGHT", failure));
+            return;
+        }
+        AppConfig.LlmConfig candidate = toLlmConfig(resolved);
+        if (seen.add(providerSignature(candidate))) {
+            plan.candidates.add(candidate);
+        }
+    }
+
+    /** 返回分类器的稳定原因名，供最终错误逐候选展示。 */
+    private String classifiedReason(Throwable error) {
+        return LlmErrorClassifier.classify(error).getReason().name();
+    }
+
+    /** 汇总所有候选的安全失败原因，避免最终界面只显示最后一次异常。 */
+    private String candidateFailureSummary(List<CandidateFailure> failures) {
+        if (failures == null || failures.isEmpty()) {
+            return "所有模型候选均不可用；请检查 provider、模型、凭据与协议配置。";
+        }
+        StringBuilder summary = new StringBuilder("所有模型候选均失败：");
+        for (int i = 0; i < failures.size(); i++) {
+            if (i > 0) {
+                summary.append("；");
+            }
+            summary.append(failures.get(i).display());
+        }
+        summary.append("。请检查 provider 凭据、模型名、协议配置和服务状态。");
+        return SecretRedactor.redact(summary.toString());
     }
 
     /**
@@ -2661,6 +2740,68 @@ public class AgentRunSupervisor implements AgentRunControlService {
      */
     private String safeText(String value) {
         return SecretRedactor.redact(AgentRunContext.safe(value, 1000), 1000);
+    }
+
+    /** 单次运行冻结后的候选执行计划，同时保留未进入远程调用的配置失败。 */
+    private static final class CandidatePlan {
+        /** 可实际调用的候选，保持用户配置顺序。 */
+        private final List<AppConfig.LlmConfig> candidates = new ArrayList<AppConfig.LlmConfig>();
+
+        /** 每个候选的失败或跳过原因，用于最终错误汇总。 */
+        private final List<CandidateFailure> failures = new ArrayList<CandidateFailure>();
+    }
+
+    /** 不含密钥的单候选失败摘要。 */
+    private static final class CandidateFailure {
+        /** provider 配置键。 */
+        private final String provider;
+
+        /** 模型名。 */
+        private final String model;
+
+        /** 稳定失败分类。 */
+        private final String reason;
+
+        /** 可行动的安全错误说明。 */
+        private final String detail;
+
+        private CandidateFailure(String provider, String model, String reason, String detail) {
+            this.provider = StrUtil.blankToDefault(provider, "unknown");
+            this.model = StrUtil.blankToDefault(model, "unknown");
+            this.reason = StrUtil.blankToDefault(reason, "UNKNOWN");
+            this.detail = StrUtil.blankToDefault(detail, "未知错误");
+        }
+
+        /** 创建本地预检跳过记录。 */
+        private static CandidateFailure skipped(
+                String provider, String model, String reason, String detail) {
+            return new CandidateFailure(provider, model, reason, detail);
+        }
+
+        /** 创建已发起远程调用的失败记录。 */
+        private static CandidateFailure attempted(
+                AppConfig.LlmConfig config, String reason, String detail) {
+            return new CandidateFailure(
+                    config == null ? "" : config.getProvider(),
+                    config == null ? "" : config.getModel(),
+                    reason,
+                    detail);
+        }
+
+        /** 返回单行用户可见摘要。 */
+        private String display() {
+            return provider + "/" + model + " [" + reason + "] " + detail;
+        }
+
+        /** 返回事件元数据，不包含 API key 或完整请求地址。 */
+        private Map<String, Object> metadata() {
+            Map<String, Object> metadata = new java.util.LinkedHashMap<String, Object>();
+            metadata.put("provider", provider);
+            metadata.put("model", model);
+            metadata.put("reason", reason);
+            metadata.put("detail", detail);
+            return metadata;
+        }
     }
 
     /**

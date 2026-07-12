@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -924,6 +926,57 @@ public class WeixinInboundDispatchTest {
         }
     }
 
+    /** 首次取票失败后，下一次心跳应重新取票并恢复输入状态。 */
+    @Test
+    void shouldRecoverTypingOnNextHeartbeatAfterInitialTicketFailure() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicInteger configRequests = new AtomicInteger();
+        CountDownLatch typingStarted = new CountDownLatch(1);
+        server.createContext(
+                "/ilink/bot/getconfig",
+                exchange -> {
+                    int attempt = configRequests.incrementAndGet();
+                    byte[] response =
+                            (attempt == 1 ? "{}" : "{\"typing_ticket\":\"ticket-recovered\"}")
+                                    .getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.createContext(
+                "/ilink/bot/sendtyping",
+                exchange -> {
+                    String body =
+                            new String(
+                                    exchange.getRequestBody().readAllBytes(),
+                                    StandardCharsets.UTF_8);
+                    if (ONode.ofJson(body).get("status").getInt() == 1) {
+                        typingStarted.countDown();
+                    }
+                    byte[] response = "{}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.start();
+        AppConfig config = newConfig();
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        WeiXinChannelAdapter adapter = newAdapter(config);
+
+        try {
+            Object lifecycle = invokePrivate(adapter, "startTypingLifecycle", "wx-user", "token");
+
+            assertThat(typingStarted.await(3L, TimeUnit.SECONDS)).isTrue();
+            assertThat(configRequests.get()).isGreaterThanOrEqualTo(2);
+            invokePrivate(adapter, "stopTypingLifecycle", lifecycle, false);
+        } finally {
+            adapter.disconnect();
+            server.stop(0);
+        }
+    }
+
     /** stop 与 ticket 刷新并发时，已停止的心跳不得在刷新完成后补发 START。 */
     @Test
     void shouldNotSendTypingStartAfterLifecycleStopsDuringTicketFetch() throws Exception {
@@ -1061,6 +1114,73 @@ public class WeixinInboundDispatchTest {
             releaseStart.countDown();
             adapter.disconnect();
             server.stop(0);
+        }
+    }
+
+    /** 慢用户的 sendtyping 请求不得阻塞其他私聊用户及时显示输入状态。 */
+    @Test
+    void shouldKeepTypingResponsiveAcrossUsersWhenSendTypingIsSlow() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        ExecutorService serverExecutor = Executors.newCachedThreadPool();
+        server.setExecutor(serverExecutor);
+        CountDownLatch typingStarted = new CountDownLatch(2);
+        server.createContext(
+                "/ilink/bot/getconfig",
+                exchange -> {
+                    try {
+                        TimeUnit.MILLISECONDS.sleep(400L);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    byte[] response =
+                            ("{\"typing_ticket\":\"ticket-" + System.nanoTime() + "\"}")
+                                    .getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                });
+        server.createContext(
+                "/ilink/bot/sendtyping",
+                exchange -> {
+                    String body =
+                            new String(
+                                    exchange.getRequestBody().readAllBytes(),
+                                    StandardCharsets.UTF_8);
+                    if (ONode.ofJson(body).get("status").getInt() == 1) {
+                        typingStarted.countDown();
+                        try {
+                            TimeUnit.MILLISECONDS.sleep(1200L);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                    byte[] response = "{}".getBytes(StandardCharsets.UTF_8);
+                    exchange.sendResponseHeaders(200, response.length);
+                    try {
+                        exchange.getResponseBody().write(response);
+                    } catch (java.io.IOException ignored) {
+                        // 客户端可能在请求超时后关闭连接。
+                    }
+                    exchange.close();
+                });
+        server.start();
+        AppConfig config = newConfig();
+        config.getChannels()
+                .getWeixin()
+                .setBaseUrl("http://127.0.0.1:" + server.getAddress().getPort());
+        WeiXinChannelAdapter adapter = newAdapter(config);
+
+        try {
+            Object first = invokePrivate(adapter, "startTypingLifecycle", "wx-user-1", "token-1");
+            Object second = invokePrivate(adapter, "startTypingLifecycle", "wx-user-2", "token-2");
+
+            assertThat(typingStarted.await(1000L, TimeUnit.MILLISECONDS)).isTrue();
+            invokePrivate(adapter, "stopTypingLifecycle", first, false);
+            invokePrivate(adapter, "stopTypingLifecycle", second, false);
+        } finally {
+            adapter.disconnect();
+            server.stop(0);
+            serverExecutor.shutdownNow();
         }
     }
 

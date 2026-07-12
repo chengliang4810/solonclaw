@@ -65,6 +65,7 @@ public class SkillUsageTracker {
                     Map<String, Object> entry = ensureEntry(data, skillName);
                     long now = System.currentTimeMillis();
                     entry.put("lastManagedAt", Long.valueOf(now));
+                    entry.put("lastActivityAt", Long.valueOf(now));
                     entry.put("lastManageAction", StrUtil.blankToDefault(action, "unknown"));
                     increment(entry, "manageCount");
                 });
@@ -219,10 +220,16 @@ public class SkillUsageTracker {
                 status == null
                         ? STATE_ACTIVE
                         : StrUtil.blankToDefault(String.valueOf(status), STATE_ACTIVE));
-        normalized.put(
-                "count",
-                Long.valueOf(asLong(entry.get("loadCount")) + asLong(entry.get("callCount"))));
+        // 对外统一暴露全部活动次数，管理/编辑技能同样会刷新整理器活跃度。
+        normalized.put("count", Long.valueOf(activityCount(entry)));
         return normalized;
+    }
+
+    /** 计算技能查看、调用和管理活动的统一次数。 */
+    private long activityCount(Map<String, Object> entry) {
+        return asLong(entry.get("loadCount"))
+                + asLong(entry.get("callCount"))
+                + asLong(entry.get("manageCount"));
     }
 
     /**

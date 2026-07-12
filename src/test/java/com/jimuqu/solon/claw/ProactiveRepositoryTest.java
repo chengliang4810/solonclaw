@@ -278,16 +278,71 @@ public class ProactiveRepositoryTest {
             repository.markCandidateStatus(
                     candidate.getCandidateId(), "APPROVED", decision.getDecisionId(), now - 400L);
         }
+        ProactiveCandidateRecord retrying = baseCandidate("candidate-recovery-retry", now - 1000L);
+        retrying.setDedupKey("dedup-recovery-retry");
+        retrying.setStateHash("state-recovery-retry");
+        retrying.setStatus("DELIVERY_RETRYING");
+        repository.saveCandidate(retrying);
 
         int recovered = repository.recoverInterruptedDeliveries(now);
 
-        assertThat(recovered).isEqualTo(4);
+        assertThat(recovered).isEqualTo(5);
         for (int i = 0; i < expectedCandidateStatuses.size(); i++) {
             ProactiveCandidateRecord recoveredCandidate =
                     repository.findRecentCandidateByDedup(
                             "dedup-recovery-" + i, "state-recovery-" + i, now);
             assertThat(recoveredCandidate.getStatus()).isEqualTo(expectedCandidateStatuses.get(i));
         }
+        assertThat(repository.listPendingCandidates(now, 10))
+                .extracting(ProactiveCandidateRecord::getCandidateId)
+                .doesNotContain("candidate-recovery-2");
+        assertThat(repository.findCandidate(retrying.getCandidateId()).getStatus())
+                .isEqualTo("DELIVERY_UNKNOWN");
+    }
+
+    @Test
+    void shouldExposeAndAtomicallyClaimUnknownDeliveryForManualRetry() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProactiveRepository repository = new SqliteProactiveRepository(env.sqliteDatabase);
+        long now = System.currentTimeMillis();
+        ProactiveCandidateRecord candidate = baseCandidate("candidate-manual-retry", now);
+        candidate.setStatus("DELIVERY_UNKNOWN");
+        candidate.setLastDecisionId("decision-unknown");
+        repository.saveCandidate(candidate);
+        ProactiveDecisionRecord decision = new ProactiveDecisionRecord();
+        decision.setDecisionId("decision-unknown");
+        decision.setTickId("tick-unknown");
+        decision.setCandidateId(candidate.getCandidateId());
+        decision.setSourceKey(candidate.getSourceKey());
+        decision.setDecision("SEND");
+        decision.setDeliveryStatus("DELIVERY_PENDING");
+        decision.setCreatedAt(now);
+        repository.saveDecision(decision);
+
+        assertThat(repository.listDeliveryUnknownCandidates(10))
+                .extracting(ProactiveCandidateRecord::getCandidateId)
+                .containsExactly(candidate.getCandidateId());
+        assertThat(repository.findDecision(decision.getDecisionId())).isNotNull();
+        assertThat(
+                        repository.claimDeliveryUnknownRetry(
+                                candidate.getCandidateId(),
+                                decision.getDecisionId(),
+                                candidate.getSourceKey(),
+                                "decision-retry",
+                                now + 1L))
+                .isTrue();
+        assertThat(
+                        repository.claimDeliveryUnknownRetry(
+                                candidate.getCandidateId(),
+                                decision.getDecisionId(),
+                                candidate.getSourceKey(),
+                                "decision-retry-duplicate",
+                                now + 2L))
+                .isFalse();
+        assertThat(repository.findCandidate(candidate.getCandidateId()).getStatus())
+                .isEqualTo("DELIVERY_RETRYING");
+        assertThat(repository.findCandidate(candidate.getCandidateId()).getLastDecisionId())
+                .isEqualTo("decision-retry");
     }
 
     @Test
@@ -473,7 +528,8 @@ public class ProactiveRepositoryTest {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update proactive_candidates set evidence_json = ? where candidate_id = ?");
+                            "update proactive_candidates set evidence_json = ? where candidate_id ="
+                                    + " ?");
             try {
                 statement.setString(1, evidenceJson);
                 statement.setString(2, candidateId);

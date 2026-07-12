@@ -26,6 +26,7 @@ describe('channel QR setup helpers', () => {
     expect(channelSupportsQr({ key: 'feishu', label: 'Feishu', qr_supported: true })).toBe(true)
     expect(channelSupportsQr({ key: 'dingtalk', label: 'DingTalk', qr_supported: true })).toBe(true)
     expect(channelSupportsQr({ key: 'wecom', label: 'WeCom', qr_supported: true })).toBe(true)
+    expect(channelSupportsQr({ key: 'qqbot', label: 'QQBot', qr_supported: true })).toBe(true)
   })
 
   it('uses platform-specific QR URL fields for display', () => {
@@ -51,6 +52,7 @@ describe('channel QR setup helpers', () => {
   it('exposes the confirmed Weixin user ID only after QR confirmation', () => {
     expect(channelQrConfirmedUserId({ status: 'pending', user_id: 'wx-user' })).toBe('')
     expect(channelQrConfirmedUserId({ status: 'confirmed', user_id: ' wx-user ' })).toBe('wx-user')
+    expect(channelQrConfirmedUserId({ status: 'confirmed', user_openid: ' qq-owner ' })).toBe('qq-owner')
   })
 
   it('labels channel setup rows with configured and QR capability state', () => {

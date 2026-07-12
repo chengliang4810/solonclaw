@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.cli.CliMode;
 import com.jimuqu.solon.claw.cli.CliRunner;
 import com.jimuqu.solon.claw.cli.CliRuntime;
+import com.jimuqu.solon.claw.cli.TerminalSessionBrowser;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -137,6 +138,45 @@ class CliRunnerTest {
         }
     }
 
+    /** 一次性 CLI 没有列表上下文时，pick 必须本地失败，不能把未知编号发给模型。 */
+    @Test
+    void cliSessionPickWithoutChoicesFailsLocally() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        CountingOrchestrator orchestrator = new CountingOrchestrator();
+        CliRunner runner =
+                new CliRunner(
+                        new CliRuntime(
+                                env.commandService, orchestrator, env.agentRunControlService),
+                        env.sessionRepository,
+                        env.appConfig,
+                        null,
+                        new LlmProviderService(env.appConfig));
+
+        assertLocalOutput(runner, "/session pick unknown", "当前 CLI 没有可用的会话编号");
+        assertThat(orchestrator.calls.get()).isZero();
+    }
+
+    /** 来源和内部记录过滤应发生在截取默认 10 条之前。 */
+    @Test
+    void sessionBrowserBackfillsTenVisibleChoicesAfterFiltering() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        long now = System.currentTimeMillis();
+        for (int i = 0; i < 12; i++) {
+            env.sessionRepository.save(
+                    session("visible-" + i, "MEMORY:cli:list", "Visible " + i, now - i));
+            env.sessionRepository.save(
+                    session("other-" + i, "MEMORY:cli:other", "Other " + i, now + i));
+        }
+
+        String output =
+                new TerminalSessionBrowser(env.sessionRepository)
+                        .render("/sessions", "MEMORY:cli:list", "current");
+
+        assertThat(output).contains("Visible 0").contains("Visible 9").doesNotContain("Other ");
+        assertThat(output.lines().filter(line -> line.matches("\\d+\\. .*Visible .*")).count())
+                .isEqualTo(10L);
+    }
+
     @Test
     void cliAndDerivedTuiRuntimeSchedulePostReplyLearning() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -217,6 +257,18 @@ class CliRunnerTest {
         public GatewayReply resumePending(String sourceKey) {
             return GatewayReply.ok("pending");
         }
+    }
+
+    /** 构造会话浏览测试记录。 */
+    private static SessionRecord session(
+            String id, String sourceKey, String title, long updatedAt) {
+        SessionRecord record = new SessionRecord();
+        record.setSessionId(id);
+        record.setSourceKey(sourceKey);
+        record.setTitle(title);
+        record.setCreatedAt(updatedAt);
+        record.setUpdatedAt(updatedAt);
+        return record;
     }
 
     /** 返回指定会话的成功回复，用于验证 CLI/TUI 共用的回复后学习钩子。 */

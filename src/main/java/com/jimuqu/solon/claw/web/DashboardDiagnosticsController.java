@@ -1,5 +1,8 @@
 package com.jimuqu.solon.claw.web;
 
+import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord;
+import com.jimuqu.solon.claw.proactive.ProactiveDispatchService;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.snack4.ONode;
@@ -22,17 +25,23 @@ public class DashboardDiagnosticsController {
     /** 注入诊断服务，用于调用对应业务能力。 */
     private final DashboardGatewayDoctorService doctorService;
 
+    /** 主动协作投递服务，仅处理用户明确确认的结果不确定重试。 */
+    private final ProactiveDispatchService proactiveDispatchService;
+
     /**
      * 创建控制台诊断控制器实例，并注入运行所需依赖。
      *
      * @param diagnosticsService diagnostics服务依赖。
      * @param doctorService doctor服务依赖。
+     * @param proactiveDispatchService 主动协作人工重试服务。
      */
     public DashboardDiagnosticsController(
             DashboardDiagnosticsService diagnosticsService,
-            DashboardGatewayDoctorService doctorService) {
+            DashboardGatewayDoctorService doctorService,
+            ProactiveDispatchService proactiveDispatchService) {
         this.diagnosticsService = diagnosticsService;
         this.doctorService = doctorService;
+        this.proactiveDispatchService = proactiveDispatchService;
     }
 
     /**
@@ -57,6 +66,46 @@ public class DashboardDiagnosticsController {
             return DashboardResponse.error("DIAGNOSTICS_DOCTOR_UNAVAILABLE", "Doctor 诊断服务尚未启用。");
         }
         return DashboardResponse.ok(service.doctor());
+    }
+
+    /**
+     * 对用户明确选择的投递结果不确定记录执行一次人工重试，不接受批量或自动重试。
+     *
+     * @param context 当前 Dashboard 请求上下文。
+     * @return 重试结果；候选已变化时返回冲突状态。
+     */
+    @Mapping(value = "/api/diagnostics/proactive/retry", method = MethodType.POST)
+    public Map<String, Object> retryProactiveDelivery(Context context) {
+        PayloadResult payload = payload(context);
+        if (!payload.isSuccess()) {
+            return DashboardResponse.error(
+                    context, 400, "PROACTIVE_RETRY_BAD_REQUEST", payload.message);
+        }
+        String candidateId = String.valueOf(payload.getPayload().get("candidateId"));
+        if (StrUtil.isBlank(candidateId) || "null".equals(candidateId)) {
+            return DashboardResponse.error(
+                    context, 400, "PROACTIVE_RETRY_BAD_REQUEST", "缺少 candidateId。");
+        }
+        if (proactiveDispatchService == null) {
+            return DashboardResponse.error(
+                    context, 503, "PROACTIVE_RETRY_UNAVAILABLE", "主动协作人工重试服务尚未启用。");
+        }
+        try {
+            ProactiveDecisionRecord record =
+                    proactiveDispatchService.retryUnknown(candidateId.trim(), null);
+            Map<String, Object> result = new LinkedHashMap<String, Object>();
+            result.put("candidate_id", record.getCandidateId());
+            result.put("decision_id", record.getDecisionId());
+            result.put("delivery_status", record.getDeliveryStatus());
+            result.put("manual_retry", Boolean.TRUE);
+            return DashboardResponse.ok(result);
+        } catch (IllegalArgumentException e) {
+            return DashboardResponse.error(context, 404, "PROACTIVE_RETRY_NOT_FOUND", e);
+        } catch (IllegalStateException e) {
+            return DashboardResponse.error(context, 409, "PROACTIVE_RETRY_CONFLICT", e);
+        } catch (Exception e) {
+            return DashboardResponse.error(context, 500, "PROACTIVE_RETRY_FAILED", e);
+        }
     }
 
     /**

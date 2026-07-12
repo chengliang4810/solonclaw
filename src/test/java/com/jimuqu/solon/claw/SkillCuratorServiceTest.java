@@ -66,6 +66,19 @@ public class SkillCuratorServiceTest {
         assertThat(item(report, "recently-used-skill").get("ageDays")).isEqualTo(0L);
     }
 
+    /** 首次整理没有历史状态的技能时，对外 previousStatus 应保持 active。 */
+    @Test
+    void shouldDefaultMissingPreviousStatusToActive() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getCurator().setEnabled(true);
+        createSkill(env, "first-review-skill", false);
+
+        Map<String, Object> report =
+                new SkillCuratorService(env.appConfig, env.localSkillService).runOnce(true);
+
+        assertThat(item(report, "first-review-skill").get("previousStatus")).isEqualTo("active");
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> item(Map<String, Object> report, String name) {
         for (Object value : (Iterable<?>) report.get("items")) {

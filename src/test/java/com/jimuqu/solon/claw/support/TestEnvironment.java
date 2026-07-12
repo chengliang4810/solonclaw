@@ -590,7 +590,8 @@ public class TestEnvironment {
         config.getWorkspace().setDir(workspaceHome.getAbsolutePath());
         AppConfig.ProviderConfig provider = new AppConfig.ProviderConfig();
         provider.setName("DefaultProvider");
-        provider.setBaseUrl("https://api.openai.com");
+        // 测试网关不会发起网络请求；使用明确的本机地址，使生产候选预检仍能识别这是无密钥本地 provider。
+        provider.setBaseUrl("http://127.0.0.1:1/v1");
         provider.setApiKey("");
         provider.setDefaultModel("gpt-5.4");
         provider.setDialect("openai");
@@ -599,7 +600,7 @@ public class TestEnvironment {
         config.getModel().setDefault("");
         config.getLlm().setProvider("default");
         config.getLlm().setDialect("openai");
-        config.getLlm().setApiUrl("https://api.openai.com/v1/chat/completions");
+        config.getLlm().setApiUrl("http://127.0.0.1:1/v1/chat/completions");
         config.getLlm().setModel("gpt-5.4");
         config.getLlm().setReasoningEffort("medium");
         config.getLlm().setTemperature(0.2D);

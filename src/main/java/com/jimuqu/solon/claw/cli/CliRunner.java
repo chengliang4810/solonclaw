@@ -107,6 +107,18 @@ public class CliRunner {
         if (modelPicker != null && modelPicker.isPickerCommand(input)) {
             return modelPicker.render();
         }
+        // 会话浏览与恢复属于本地 CLI 命令，不能落入模型对话，避免列表参数被当成普通问题。
+        if (sessionBrowser != null && sessionBrowser.isBrowserCommand(input)) {
+            String resolved = sessionBrowser.resolveCommand(input);
+            if (StrUtil.isBlank(resolved)) {
+                if (input.toLowerCase(java.util.Locale.ROOT).startsWith("/session pick")) {
+                    return "无法恢复会话：当前 CLI 没有可用的会话编号。请先运行 /sessions，或使用 /resume <session-id|title>。";
+                }
+                return sessionBrowser.render(
+                        input, cliRuntime.sourceKey(mode.getSessionId()), mode.getSessionId());
+            }
+            return null;
+        }
         if (TerminalSecurityPolicyView.isSecurityCommand(input)) {
             return TerminalSecurityPolicyView.render(appConfig, input);
         }
@@ -159,8 +171,15 @@ public class CliRunner {
             System.err.println("缺少输入内容。示例：solonclaw --cli -p /help");
             return 1;
         }
+        String prompt = mode.getInput();
+        if (sessionBrowser != null && sessionBrowser.isBrowserCommand(prompt)) {
+            String resolved = sessionBrowser.resolveCommand(prompt);
+            if (StrUtil.isNotBlank(resolved)) {
+                prompt = resolved;
+            }
+        }
         GatewayReply reply =
-                cliRuntime.send(mode.getSessionId(), mode.getInput(), ConversationEventSink.noop());
+                cliRuntime.send(mode.getSessionId(), prompt, ConversationEventSink.noop());
         String content = reply == null ? "" : reply.getContent();
         if (content != null && !content.isEmpty()) {
             if (reply != null && reply.isError()) {

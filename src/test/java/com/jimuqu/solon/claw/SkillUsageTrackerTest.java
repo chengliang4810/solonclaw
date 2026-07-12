@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
+import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.tool.runtime.SkillTools;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.concurrent.CountDownLatch;
@@ -30,6 +32,52 @@ public class SkillUsageTrackerTest {
         assertThat(((Number) entry.get("callCount")).intValue()).isEqualTo(1);
         assertThat(((Number) entry.get("count")).intValue()).isEqualTo(3);
         assertThat(entry.get("lastActivityAt")).isNotNull();
+    }
+
+    /** 管理/编辑活动也必须进入对外统一的技能活动计数。 */
+    @Test
+    void shouldIncludeManageActivityInUnifiedCount() throws Exception {
+        File tempDir = Files.createTempDirectory("skill-usage-manage").toFile();
+        SkillUsageTracker tracker = new SkillUsageTracker(loadConfig(tempDir));
+
+        tracker.bumpView("managed-skill");
+        tracker.bumpManage("managed-skill", "patch");
+        tracker.bumpManage("managed-skill", "archive");
+
+        java.util.Map<String, Object> entry = tracker.getEntry("managed-skill");
+        assertThat(((Number) entry.get("manageCount")).intValue()).isEqualTo(2);
+        assertThat(((Number) entry.get("count")).intValue()).isEqualTo(3);
+        assertThat(entry.get("lastActivityAt")).isEqualTo(entry.get("lastManagedAt"));
+    }
+
+    /** 真实技能工具成功后应各记录一次查看或管理活动。 */
+    @Test
+    void shouldTrackSuccessfulSkillToolActionsOnce() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SkillTools tools =
+                new SkillTools(
+                        env.localSkillService,
+                        null,
+                        env.sessionRepository,
+                        "MEMORY:skill-usage:user");
+
+        tools.skillManage(
+                "create",
+                "tracked-tool-skill",
+                null,
+                "---\nname: tracked-tool-skill\ndescription: test\n---\n\n# Test\n",
+                null,
+                null,
+                null,
+                null);
+        tools.skillView("tracked-tool-skill", null);
+
+        java.util.Map<String, Object> entry =
+                new SkillUsageTracker(env.appConfig).getEntry("tracked-tool-skill");
+        assertThat(((Number) entry.get("manageCount")).intValue()).isEqualTo(1);
+        assertThat(((Number) entry.get("loadCount")).intValue()).isEqualTo(1);
+        assertThat(((Number) entry.get("callCount")).intValue()).isEqualTo(1);
+        assertThat(((Number) entry.get("count")).intValue()).isEqualTo(3);
     }
 
     @Test

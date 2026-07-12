@@ -492,7 +492,8 @@ public class DashboardDiagnosticOutputTest {
                                 null,
                                 new SecurityPolicyService(config),
                                 null),
-                        doctorService);
+                        doctorService,
+                        null);
 
         Map<String, Object> response = controller.doctor();
         assertThat(response.get("success")).isEqualTo(Boolean.TRUE);
@@ -1617,7 +1618,8 @@ public class DashboardDiagnosticOutputTest {
                 .contains("api%255Fkey=***")
                 .contains("\"pattern_key\":\"url_policy?api%255Fkey=***\"")
                 .contains(
-                        "\"command_preview\":\"curl https://example.test/callback?api%255Fkey=***\"")
+                        "\"command_preview\":\"curl"
+                                + " https://example.test/callback?api%255Fkey=***\"")
                 .doesNotContain("\"approval_key\":")
                 .doesNotContain("diagnostic-secret");
     }
@@ -1653,7 +1655,8 @@ public class DashboardDiagnosticOutputTest {
 
         assertThat(json)
                 .contains(
-                        "\"command_preview\":\"/reload-mcp https://example.test/callback?api%255Fkey=***\"")
+                        "\"command_preview\":\"/reload-mcp"
+                                + " https://example.test/callback?api%255Fkey=***\"")
                 .contains(
                         "\"prompt_preview\":\"确认执行 https://example.test/callback?api%255Fkey=***\"")
                 .doesNotContain("slash-secret");
@@ -1801,9 +1804,11 @@ public class DashboardDiagnosticOutputTest {
         event.setApprovalKey("execute_shell:recursive_delete:hash");
         event.setCommandHash("hash");
         event.setCommandPreview(
-                "printf api_key=sk-history-secret && curl https://example.test/callback?api%255Fkey=history-encoded-secret");
+                "printf api_key=sk-history-secret && curl"
+                        + " https://example.test/callback?api%255Fkey=history-encoded-secret");
         event.setDescription(
-                "history password=history-secret https://example.test/callback?api%255Fkey=history-encoded-secret");
+                "history password=history-secret"
+                        + " https://example.test/callback?api%255Fkey=history-encoded-secret");
         event.setPatternKeysJson(
                 "[\"recursive_delete\u202E\",\"token_ghp_historypattern123\",\"url_policy?api%255Fkey=history-encoded-secret\"]");
         event.setCreatedAt(1700000000002L);
@@ -2045,13 +2050,15 @@ public class DashboardDiagnosticOutputTest {
     /** 构建跨平台长输出命令，避免 Windows 测试依赖 POSIX printf。 */
     private static String longDiagnosticOutputCommand() {
         if (isWindows()) {
-            return "powershell -NoProfile -Command \"[Console]::Write(('diagnostic-output-' + 'unbounded-marker')); "
-                    + "[Console]::Write(('0' * 4096)); "
-                    + "[Console]::Write('tail-preview token=ghp_diagnosticlongsecret12345')\"";
+            return "powershell -NoProfile -Command \"[Console]::Write(('diagnostic-output-' +"
+                    + " 'unbounded-marker')); [Console]::Write(('0' * 4096));"
+                    + " [Console]::Write('tail-preview token=ghp_diagnosticlongsecret12345')\"";
         }
-        return "printf '\\144\\151\\141\\147\\156\\157\\163\\164\\151\\143\\055\\157\\165\\164\\160\\165\\164\\055\\165\\156\\142\\157\\165\\156\\144\\145\\144\\055\\155\\141\\162\\153\\145\\162'; "
-                + "printf '%04096d' 0; "
-                + "printf 'tail-preview token=ghp_diagnosticlongsecret12345\\n'";
+        return "printf"
+                + " '\\144\\151\\141\\147\\156\\157\\163\\164\\151\\143\\055\\157\\165\\164\\160\\165\\164\\055\\165\\156\\142\\157\\165\\156\\144\\145\\144\\055\\155\\141\\162\\153\\145\\162';"
+                + " printf '%04096d' 0; printf 'tail-preview"
+                + " token=ghp_diagnosticlongsecret12345\\n"
+                + "'";
     }
 
     /** 判断当前测试运行环境是否为 Windows。 */

@@ -31,6 +31,16 @@ public class ProactiveDashboardDiagnosticTest {
         repository.saveCandidate(candidate("candidate-1", now - 10_000L));
         repository.saveDecision(
                 decision("decision-1", "SKIP", "缺少 home channel，无法主动联系。", now - 8_000L));
+        ProactiveCandidateRecord unknown = candidate("candidate-unknown", now - 7_000L);
+        unknown.setStatus("DELIVERY_UNKNOWN");
+        unknown.setLastDecisionId("decision-unknown");
+        unknown.setTitle("待确认投递");
+        repository.saveCandidate(unknown);
+        ProactiveDecisionRecord unknownDecision =
+                decision("decision-unknown", "SEND", "已进入渠道投递。", now - 6_000L);
+        unknownDecision.setCandidateId(unknown.getCandidateId());
+        unknownDecision.setDeliveryStatus("DELIVERY_PENDING");
+        repository.saveDecision(unknownDecision);
 
         ProactiveDiagnosticsService proactiveDiagnosticsService =
                 new ProactiveDiagnosticsService(env.appConfig, repository);
@@ -77,6 +87,7 @@ public class ProactiveDashboardDiagnosticTest {
         assertThat(status)
                 .containsEntry("enabled", Boolean.TRUE)
                 .containsEntry("pending_candidate_count", Integer.valueOf(1))
+                .containsEntry("delivery_unknown_count", Integer.valueOf(1))
                 .containsEntry("sent_today", Integer.valueOf(0))
                 .containsEntry("last_skip_reason", "缺少 home channel，无法主动联系。");
         assertThat(status)
@@ -85,8 +96,9 @@ public class ProactiveDashboardDiagnosticTest {
         assertThat(diagnostics)
                 .containsEntry("scheduler_ran", Boolean.TRUE)
                 .containsEntry("candidates_generated", Boolean.TRUE)
+                .containsEntry("delivery_unknown", Boolean.TRUE)
                 .containsEntry("missing_home_channel", Boolean.TRUE);
-        assertThat(String.valueOf(diagnostics.get("why_none_sent"))).contains("home channel");
+        assertThat(String.valueOf(diagnostics.get("why_none_sent"))).contains("不会自动重复投递");
         assertThat(ONode.serialize(diagnostics))
                 .contains("缺少 home channel")
                 .doesNotContain("token=");

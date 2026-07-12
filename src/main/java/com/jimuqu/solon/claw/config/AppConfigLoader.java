@@ -1883,6 +1883,13 @@ final class AppConfigLoader {
             String channelName,
             String defaultDmPolicy,
             String defaultGroupPolicy) {
+        channelConfig.setBaseUrl(
+                resolveConfigString(
+                        readString(
+                                props,
+                                overrides,
+                                "solonclaw.channels." + channelName + ".baseUrl",
+                                "")));
         channelConfig.setAllowedUsers(
                 resolveList(
                         readRaw(

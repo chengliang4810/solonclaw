@@ -50,8 +50,6 @@ const textFieldConfigs: Record<OptionalPlatform, OptionalTextField[]> = {
     { field: 'secret', source: 'credentials', labelKey: 'platform.appSecret', hintKey: 'platform.wecomSecretHint', placeholder: '请输入密钥' },
   ],
   qqbot: [
-    { field: 'app_id', source: 'credentials', label: '应用 ID', hint: 'QQBot 机器人应用 ID', placeholder: '请输入 QQBot App ID' },
-    { field: 'client_secret', source: 'credentials', label: '客户端密钥', hint: 'QQBot 机器人 Client Secret', placeholder: '请输入 QQBot Client Secret' },
     { field: 'apiDomain', source: 'channel', label: 'API 域名', hint: 'QQBot REST API 地址，默认可保持官方域名', placeholder: '例如 https://api.sgroup.qq.com' },
     { field: 'websocketUrl', source: 'channel', label: 'WebSocket 地址', hint: '留空时自动从 gateway 接口获取', placeholder: '留空时自动获取' },
   ],

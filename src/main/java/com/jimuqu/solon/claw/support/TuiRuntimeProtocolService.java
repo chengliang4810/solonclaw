@@ -204,7 +204,7 @@ public class TuiRuntimeProtocolService {
     /**
      * 启动国内渠道二维码绑定流程。
      *
-     * @param channel 渠道标识；当前支持 weixin、feishu、dingtalk、wecom。
+     * @param channel 渠道标识；当前支持 weixin、feishu、dingtalk、wecom、qqbot。
      * @param sessionId 可选会话标识，回传给 TUI 便于关联请求。
      * @return 二维码绑定启动状态；服务未注入或渠道不支持时返回安全错误对象。
      */
@@ -230,7 +230,7 @@ public class TuiRuntimeProtocolService {
     /**
      * 查询国内渠道二维码绑定状态。
      *
-     * @param channel 渠道标识；当前支持 weixin、feishu、dingtalk、wecom。
+     * @param channel 渠道标识；当前支持 weixin、feishu、dingtalk、wecom、qqbot。
      * @param ticket 二维码绑定票据。
      * @param sessionId 可选会话标识，回传给 TUI 便于关联请求。
      * @return 当前二维码绑定状态；票据无效或服务不可用时返回安全错误对象。
@@ -451,7 +451,8 @@ public class TuiRuntimeProtocolService {
         return "weixin".equals(channel)
                 || "feishu".equals(channel)
                 || "dingtalk".equals(channel)
-                || "wecom".equals(channel);
+                || "wecom".equals(channel)
+                || "qqbot".equals(channel);
     }
 
     /** 判断渠道对应的二维码 setup 服务是否已注入。 */

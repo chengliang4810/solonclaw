@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.ApprovedUserRecord;
@@ -118,6 +119,77 @@ public class ProactiveDispatchServiceTest {
         assertThat(missingHome.getDeliveryStatus()).isEqualTo("FAILED");
         assertThat(missingHome.getDeliveryError()).isEqualTo("no_home_channel");
         assertThat(missingHomeRepository.candidateStatuses).containsExactly("PENDING");
+    }
+
+    @Test
+    void shouldRetryUnknownDeliveryOnlyOnceWithOriginalTarget() throws Exception {
+        InMemoryProactiveRepository repository = new InMemoryProactiveRepository();
+        ProactiveCandidateRecord candidate = new ProactiveCandidateRecord();
+        candidate.setCandidateId("candidate-unknown");
+        candidate.setSourceKey("WEIXIN:source-room:user");
+        candidate.setStatus("DELIVERY_UNKNOWN");
+        candidate.setLastDecisionId("decision-unknown");
+        repository.saveCandidate(candidate);
+
+        ProactiveDecisionRecord original = new ProactiveDecisionRecord();
+        original.setDecisionId("decision-unknown");
+        original.setCandidateId(candidate.getCandidateId());
+        original.setSourceKey("WEIXIN:source-room:user");
+        original.setDecision("SEND");
+        original.setMessage("可能已经送达的消息");
+        original.setDeliveryPlatform("WEIXIN");
+        original.setDeliveryChatId("original-room");
+        original.setDeliveryThreadId("original-thread");
+        original.setDeliveryStatus("DELIVERY_PENDING");
+        repository.saveDecision(original);
+        CapturingDeliveryService deliveryService = new CapturingDeliveryService();
+        ProactiveDispatchService service =
+                new ProactiveDispatchService(null, deliveryService, repository);
+
+        ProactiveDecisionRecord retried =
+                service.retryUnknown(candidate.getCandidateId(), original.getSourceKey());
+
+        assertThat(retried.getDeliveryStatus()).isEqualTo("SENT");
+        assertThat(deliveryService.requests).hasSize(1);
+        assertThat(deliveryService.requests.get(0).getChatId()).isEqualTo("original-room");
+        assertThat(deliveryService.requests.get(0).getText()).isEqualTo("可能已经送达的消息");
+        assertThat(repository.candidate.getStatus()).isEqualTo("SENT");
+        assertThatThrownBy(
+                        () ->
+                                service.retryUnknown(
+                                        candidate.getCandidateId(), original.getSourceKey()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("不再处于投递结果待确认状态");
+        assertThat(deliveryService.requests).hasSize(1);
+    }
+
+    @Test
+    void shouldRestoreUnknownWhenRetryAuditSaveFails() throws Exception {
+        InMemoryProactiveRepository repository = new InMemoryProactiveRepository();
+        ProactiveCandidateRecord candidate = new ProactiveCandidateRecord();
+        candidate.setCandidateId("candidate-audit-failure");
+        candidate.setSourceKey("WEIXIN:room:user");
+        candidate.setStatus("DELIVERY_UNKNOWN");
+        candidate.setLastDecisionId("decision-audit-failure");
+        repository.saveCandidate(candidate);
+        ProactiveDecisionRecord original = new ProactiveDecisionRecord();
+        original.setDecisionId(candidate.getLastDecisionId());
+        original.setCandidateId(candidate.getCandidateId());
+        original.setSourceKey(candidate.getSourceKey());
+        original.setDecision("SEND");
+        original.setMessage("重试审计失败测试");
+        original.setDeliveryPlatform("WEIXIN");
+        original.setDeliveryChatId("room");
+        original.setDeliveryStatus("DELIVERY_PENDING");
+        repository.saveDecision(original);
+        repository.failPendingAudit = true;
+
+        ProactiveDecisionRecord result =
+                new ProactiveDispatchService(null, new CapturingDeliveryService(), repository)
+                        .retryUnknown(candidate.getCandidateId(), candidate.getSourceKey());
+
+        assertThat(result.getDeliveryStatus()).isEqualTo("FAILED");
+        assertThat(repository.candidate.getStatus()).isEqualTo("DELIVERY_UNKNOWN");
     }
 
     /** 构造测试 home channel。 */
@@ -285,6 +357,9 @@ public class ProactiveDispatchServiceTest {
 
     /** 内存版主动协作仓储。 */
     private static class InMemoryProactiveRepository implements ProactiveRepository {
+        /** 当前候选，供人工重试状态机测试。 */
+        private ProactiveCandidateRecord candidate;
+
         /** 保存的决策记录。 */
         private final List<ProactiveDecisionRecord> savedDecisions =
                 new ArrayList<ProactiveDecisionRecord>();
@@ -297,6 +372,9 @@ public class ProactiveDispatchServiceTest {
 
         /** 投递状态机事件。 */
         private final List<String> events;
+
+        /** 是否模拟人工重试进入投递前的审计写入失败。 */
+        private boolean failPendingAudit;
 
         /** 创建不记录事件的仓储。 */
         private InMemoryProactiveRepository() {
@@ -312,7 +390,27 @@ public class ProactiveDispatchServiceTest {
         public void saveObservation(ProactiveObservationRecord observation) {}
 
         @Override
-        public void saveCandidate(ProactiveCandidateRecord candidate) {}
+        public void saveCandidate(ProactiveCandidateRecord candidate) {
+            this.candidate = candidate;
+        }
+
+        @Override
+        public ProactiveCandidateRecord findCandidate(String candidateId) {
+            return candidate != null && candidate.getCandidateId().equals(candidateId)
+                    ? candidate
+                    : null;
+        }
+
+        @Override
+        public ProactiveDecisionRecord findDecision(String decisionId) {
+            for (int index = savedDecisions.size() - 1; index >= 0; index--) {
+                ProactiveDecisionRecord decision = savedDecisions.get(index);
+                if (decisionId.equals(decision.getDecisionId())) {
+                    return decision;
+                }
+            }
+            return null;
+        }
 
         @Override
         public ProactiveCandidateRecord findRecentCandidateByDedup(
@@ -341,12 +439,41 @@ public class ProactiveDispatchServiceTest {
                 String expectedDecisionId,
                 String status,
                 long updatedAt) {
+            if (candidate != null) {
+                candidate.setStatus(status);
+            }
             markCandidateStatus(candidateId, status, expectedDecisionId, updatedAt);
             return true;
         }
 
         @Override
+        public boolean claimDeliveryUnknownRetry(
+                String candidateId,
+                String expectedDecisionId,
+                String expectedSourceKey,
+                String retryDecisionId,
+                long updatedAt) {
+            if (candidate == null
+                    || !candidateId.equals(candidate.getCandidateId())
+                    || !"DELIVERY_UNKNOWN".equals(candidate.getStatus())
+                    || !expectedDecisionId.equals(candidate.getLastDecisionId())) {
+                return false;
+            }
+            if (expectedSourceKey != null && !expectedSourceKey.equals(candidate.getSourceKey())) {
+                return false;
+            }
+            candidate.setStatus("DELIVERY_RETRYING");
+            candidate.setLastDecisionId(retryDecisionId);
+            candidate.setUpdatedAt(updatedAt);
+            return true;
+        }
+
+        @Override
         public void saveDecision(ProactiveDecisionRecord decision) {
+            if (failPendingAudit
+                    && "DELIVERY_PENDING".equalsIgnoreCase(decision.getDeliveryStatus())) {
+                throw new IllegalStateException("audit unavailable");
+            }
             savedDecisions.add(decision);
             savedStatuses.add(decision.getDeliveryStatus());
             if (events != null) {

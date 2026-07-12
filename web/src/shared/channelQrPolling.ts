@@ -19,7 +19,10 @@ export interface ChannelQrPollingState {
   appId: string
   openId: string
   userId: string
+  userOpenId: string
   botId: string
+  generation: number
+  cancelled: boolean
 }
 
 type MaybePromise<T> = T | Promise<T>
@@ -50,7 +53,10 @@ function createState(): ChannelQrPollingState {
     appId: '',
     openId: '',
     userId: '',
+    userOpenId: '',
     botId: '',
+    generation: 0,
+    cancelled: false,
   }
 }
 
@@ -88,6 +94,10 @@ export function useChannelQrPolling<Key extends string>(
 
   function stop(key: Key): void {
     const state = states[key]
+    if (state) {
+      state.cancelled = true
+      state.generation += 1
+    }
     if (state?.timer) {
       clearTimeout(state.timer)
       state.timer = null
@@ -95,14 +105,16 @@ export function useChannelQrPolling<Key extends string>(
   }
 
   function reset(key: Key): ChannelQrPollingState {
-    stop(key)
     const state = stateFor(key)
-    Object.assign(state, createState(), { status: 'loading' })
+    if (state.timer) clearTimeout(state.timer)
+    const generation = state.generation + 1
+    Object.assign(state, createState(), { status: 'loading', generation })
     return state
   }
 
-  async function applyPayload(key: Key, payload: object): Promise<void> {
+  async function applyPayload(key: Key, payload: object, generation: number): Promise<void> {
     const state = stateFor(key)
+    if (state.cancelled || state.generation !== generation) return
     const view = normalizeChannelQrStatus(payload as Record<string, any>)
     state.id = view.qrcode || state.id
     state.message = view.error_message || view.message || ''
@@ -113,8 +125,10 @@ export function useChannelQrPolling<Key extends string>(
     state.appId = view.app_id || ''
     state.openId = view.open_id || ''
     state.userId = view.user_id || ''
+    state.userOpenId = view.user_openid || ''
     state.botId = view.bot_id || ''
     await updateSource(state, view.qrcode_url || '')
+    if (state.cancelled || state.generation !== generation) return
     if (view.status === 'confirmed') {
       state.status = 'confirmed'
       await options.onConfirmed?.(key, state)
@@ -131,35 +145,42 @@ export function useChannelQrPolling<Key extends string>(
     state.status = view.status === 'scaned' || view.status === 'scaned_but_redirect'
       ? 'scaned'
       : (state.url ? 'waiting' : 'loading')
-    poll(key)
+    poll(key, generation)
   }
 
   async function start(key: Key): Promise<void> {
     const state = reset(key)
+    const generation = state.generation
     try {
-      await applyPayload(key, await options.start(key))
+      const payload = await options.start(key)
+      if (state.cancelled || state.generation !== generation) return
+      await applyPayload(key, payload, generation)
     } catch (error) {
+      if (state.cancelled || state.generation !== generation) return
       state.status = 'error'
       state.message = errorMessage(error, options.startErrorMessage)
       options.onError?.(state.message, key)
     }
   }
 
-  function poll(key: Key): void {
+  function poll(key: Key, generation = stateFor(key).generation): void {
     const state = states[key]
-    if (!state?.id) return
+    if (!state?.id || state.cancelled || state.generation !== generation) return
     state.timer = setTimeout(async () => {
       try {
-        await applyPayload(key, await options.poll(key, state.id))
+        const payload = await options.poll(key, state.id)
+        if (state.cancelled || state.generation !== generation) return
+        await applyPayload(key, payload, generation)
         state.failures = 0
       } catch (error) {
+        if (state.cancelled || state.generation !== generation) return
         state.failures += 1
         if (state.failures >= 3) {
           state.status = 'error'
           state.message = errorMessage(error, options.pollErrorMessage)
           return
         }
-        poll(key)
+        poll(key, generation)
       }
     }, 3000)
   }

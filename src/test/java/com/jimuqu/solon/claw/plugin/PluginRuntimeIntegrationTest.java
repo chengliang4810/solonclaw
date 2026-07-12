@@ -17,6 +17,7 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
 import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
@@ -93,7 +94,7 @@ class PluginRuntimeIntegrationTest {
                         null,
                         null,
                         env.gatewayRuntimeRefreshService,
-                        null,
+                        new SecurityPolicyService(env.appConfig),
                         env.processRegistry,
                         null,
                         plugins.pluginTools());
@@ -142,7 +143,7 @@ class PluginRuntimeIntegrationTest {
                         null,
                         null,
                         env.gatewayRuntimeRefreshService,
-                        null,
+                        new SecurityPolicyService(env.appConfig),
                         env.processRegistry,
                         null,
                         plugins.pluginTools());
