@@ -1,14 +1,11 @@
 package com.jimuqu.solon.claw.context;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.logging.Logger;
-import org.noear.snack4.ONode;
 
 /** 读取并维护技能整理器使用的统一用量状态。 */
 public class SkillUsageTracker {
@@ -24,8 +21,8 @@ public class SkillUsageTracker {
     /** 状态ARCHIVED的统一常量值。 */
     public static final String STATE_ARCHIVED = "archived";
 
-    /** 技能整理器状态文件，同时承载技能用量。 */
-    private final File usageFile;
+    /** 技能整理状态存储，负责跨统计与整理服务的共享锁和原子写入。 */
+    private final CuratorStateStore stateStore;
 
     /**
      * 创建技能用量Tracker实例，并注入运行所需依赖。
@@ -33,7 +30,9 @@ public class SkillUsageTracker {
      * @param appConfig 应用运行配置。
      */
     public SkillUsageTracker(AppConfig appConfig) {
-        this.usageFile = new File(appConfig.getRuntime().getSkillsDir(), ".curator_state");
+        this.stateStore =
+                new CuratorStateStore(
+                        new File(appConfig.getRuntime().getSkillsDir(), ".curator_state"));
     }
 
     /**
@@ -61,13 +60,14 @@ public class SkillUsageTracker {
      * @param action 操作参数。
      */
     public synchronized void bumpManage(String skillName, String action) {
-        Map<String, Object> data = loadData();
-        Map<String, Object> entry = ensureEntry(data, skillName);
-        long now = System.currentTimeMillis();
-        entry.put("lastManagedAt", Long.valueOf(now));
-        entry.put("lastManageAction", StrUtil.blankToDefault(action, "unknown"));
-        increment(entry, "manageCount");
-        saveData(data);
+        updateSkills(
+                data -> {
+                    Map<String, Object> entry = ensureEntry(data, skillName);
+                    long now = System.currentTimeMillis();
+                    entry.put("lastManagedAt", Long.valueOf(now));
+                    entry.put("lastManageAction", StrUtil.blankToDefault(action, "unknown"));
+                    increment(entry, "manageCount");
+                });
     }
 
     /**
@@ -77,11 +77,12 @@ public class SkillUsageTracker {
      * @param state 状态参数。
      */
     public synchronized void markState(String skillName, String state) {
-        Map<String, Object> data = loadData();
-        Map<String, Object> entry = ensureEntry(data, skillName);
-        entry.put("status", state);
-        entry.put("stateChangedAt", Long.valueOf(System.currentTimeMillis()));
-        saveData(data);
+        updateSkills(
+                data -> {
+                    Map<String, Object> entry = ensureEntry(data, skillName);
+                    entry.put("status", state);
+                    entry.put("stateChangedAt", Long.valueOf(System.currentTimeMillis()));
+                });
     }
 
     /**
@@ -90,10 +91,7 @@ public class SkillUsageTracker {
      * @param skillName 技能名称参数。
      */
     public synchronized void pin(String skillName) {
-        Map<String, Object> data = loadData();
-        Map<String, Object> entry = ensureEntry(data, skillName);
-        entry.put("pinned", Boolean.TRUE);
-        saveData(data);
+        updateSkills(data -> ensureEntry(data, skillName).put("pinned", Boolean.TRUE));
     }
 
     /**
@@ -102,10 +100,7 @@ public class SkillUsageTracker {
      * @param skillName 技能名称参数。
      */
     public synchronized void unpin(String skillName) {
-        Map<String, Object> data = loadData();
-        Map<String, Object> entry = ensureEntry(data, skillName);
-        entry.remove("pinned");
-        saveData(data);
+        updateSkills(data -> ensureEntry(data, skillName).remove("pinned"));
     }
 
     /**
@@ -115,7 +110,7 @@ public class SkillUsageTracker {
      * @return 返回读取到的Entry。
      */
     public synchronized Map<String, Object> getEntry(String skillName) {
-        Map<String, Object> data = loadData();
+        Map<String, Object> data = skillsFromState(stateStore.read());
         @SuppressWarnings("unchecked")
         Map<String, Object> entry = (Map<String, Object>) data.get(skillName);
         return entry == null ? new LinkedHashMap<String, Object>() : normalizedEntry(entry);
@@ -128,7 +123,7 @@ public class SkillUsageTracker {
      */
     public synchronized Map<String, Object> getAllEntries() {
         Map<String, Object> normalized = new LinkedHashMap<String, Object>();
-        for (Map.Entry<String, Object> entry : loadData().entrySet()) {
+        for (Map.Entry<String, Object> entry : skillsFromState(stateStore.read()).entrySet()) {
             if (entry.getValue() instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> value = (Map<String, Object>) entry.getValue();
@@ -183,15 +178,16 @@ public class SkillUsageTracker {
      * @param timestampField 时间戳Field参数。
      */
     private void bump(String skillName, String countField, String timestampField) {
-        Map<String, Object> data = loadData();
-        Map<String, Object> entry = ensureEntry(data, skillName);
-        long now = System.currentTimeMillis();
-        entry.put(timestampField, Long.valueOf(now));
-        increment(entry, countField);
-        if (!entry.containsKey("status")) {
-            entry.put("status", STATE_ACTIVE);
-        }
-        saveData(data);
+        updateSkills(
+                data -> {
+                    Map<String, Object> entry = ensureEntry(data, skillName);
+                    long now = System.currentTimeMillis();
+                    entry.put(timestampField, Long.valueOf(now));
+                    increment(entry, countField);
+                    if (!entry.containsKey("status")) {
+                        entry.put("status", STATE_ACTIVE);
+                    }
+                });
     }
 
     /**
@@ -253,73 +249,39 @@ public class SkillUsageTracker {
         return 0L;
     }
 
-    /**
-     * 加载Data。
-     *
-     * @return 返回Data结果。
-     */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> loadData() {
-        try {
-            if (usageFile.isFile()) {
-                String json = FileUtil.readString(usageFile, StandardCharsets.UTF_8);
-                if (StrUtil.isNotBlank(json)) {
-                    Object parsed = ONode.deserialize(json, Object.class);
-                    if (parsed instanceof Map) {
-                        Object skills = ((Map<String, Object>) parsed).get("skills");
-                        if (skills instanceof Map) {
-                            return new LinkedHashMap<String, Object>((Map<String, Object>) skills);
-                        }
-                    }
-                }
-            }
-        } catch (RuntimeException e) {
-            LOG.fine(
-                    "技能用量文件读取失败，已回退为空用量：file="
-                            + usageFile.getName()
-                            + ", errorType="
-                            + e.getClass().getSimpleName());
-        }
-        return new LinkedHashMap<String, Object>();
+    private Map<String, Object> skillsFromState(Map<String, Object> state) {
+        Object skills = state == null ? null : state.get("skills");
+        return skills instanceof Map
+                ? new LinkedHashMap<String, Object>((Map<String, Object>) skills)
+                : new LinkedHashMap<String, Object>();
     }
 
-    /**
-     * 保存Data。
-     *
-     * @param data 数据参数。
-     */
-    private void saveData(Map<String, Object> data) {
+    /** 在共享锁内修改技能统计，保留整理器管理的其他状态字段。 */
+    private void updateSkills(SkillMutation mutation) {
         try {
-            FileUtil.mkParentDirs(usageFile);
-            Map<String, Object> state = loadState();
-            state.put("skills", data);
-            String json = ONode.serialize(state);
-            FileUtil.writeString(json, usageFile, StandardCharsets.UTF_8);
+            stateStore.update(
+                    state -> {
+                        Map<String, Object> skills = skillsFromState(state);
+                        mutation.apply(skills);
+                        state.put("skills", skills);
+                        return null;
+                    });
         } catch (RuntimeException e) {
             LOG.fine(
-                    "技能用量文件保存失败，已跳过本次写入：file="
-                            + usageFile.getName()
+                    "技能用量状态写入失败，已跳过本次写入：file=.curator_state"
                             + ", errorType="
                             + e.getClass().getSimpleName());
         }
     }
 
-    /** 读取完整整理器状态，写用量时保留暂停和巡检信息。 */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> loadState() {
-        try {
-            if (usageFile.isFile()) {
-                Object parsed =
-                        ONode.deserialize(
-                                FileUtil.readString(usageFile, StandardCharsets.UTF_8),
-                                Object.class);
-                if (parsed instanceof Map) {
-                    return new LinkedHashMap<String, Object>((Map<String, Object>) parsed);
-                }
-            }
-        } catch (RuntimeException e) {
-            LOG.fine("技能整理状态读取失败，已回退为空状态：file=" + usageFile.getName());
-        }
-        return new LinkedHashMap<String, Object>();
+    /** 在状态锁内修改单个技能统计字段的回调。 */
+    private interface SkillMutation {
+        /**
+         * 修改 skills 节点。
+         *
+         * @param skills 技能统计映射。
+         */
+        void apply(Map<String, Object> skills);
     }
 }

@@ -57,6 +57,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -77,6 +78,10 @@ import org.noear.snack4.ONode;
 
 /** DingTalkChannelAdapter 实现。 */
 public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 抑制钉钉 Stream 重投的相同消息标识。 */
+    private final BoundedMessageDeduplicator inboundMessageDeduplicator =
+            new BoundedMessageDeduplicator();
+
     /** 媒体上传URL的统一常量值。 */
     private static final String MEDIA_UPLOAD_URL = "https://oapi.dingtalk.com/media/upload";
 
@@ -455,6 +460,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private void handleInbound(final ChatbotMessage message) {
         if (callbackExecutor == null || inboundMessageHandler() == null || message == null) {
+            return;
+        }
+        if (inboundMessageDeduplicator.isDuplicate(message.getMsgId())) {
             return;
         }
         // 控制命令（/stop、/cancel）走并发执行器，避免被串行回调队列中运行中的任务阻塞而错过取消时机

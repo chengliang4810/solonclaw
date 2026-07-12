@@ -656,6 +656,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                         drainQueue(key, sessionId, runner);
                                     } finally {
                                         draining.set(false);
+                                        if (!isRunning(key) && hasQueuedMessage(key, sessionId)) {
+                                            onRunFinished(key, sessionId, runner);
+                                        }
                                     }
                                 }),
                         "jimuqu-run-queue-" + Math.abs(key.hashCode()));
@@ -1999,18 +2002,27 @@ public class AgentRunSupervisor implements AgentRunControlService {
         long now = System.currentTimeMillis();
         long before = now - Math.max(60_000L, staleAfterMillis);
         try {
-            List<AgentRunRecord> staleRuns = agentRunRepository.listActiveBefore(before, 200);
-            agentRunRepository.markStaleRuns(before, now);
-            for (AgentRunRecord staleRun : staleRuns) {
-                String kind = StrUtil.blankToDefault(staleRun.getRunKind(), "");
-                String status = StrUtil.blankToDefault(staleRun.getStatus(), "");
-                if (("conversation".equals(kind) || "resume".equals(kind))
-                        && !"queued".equals(status)
-                        && !"waiting_approval".equals(status)) {
-                    markSessionResumePending(
-                            staleRun.getSourceKey(),
-                            staleRun.getSessionId(),
-                            "restart_interrupted");
+            agentRunRepository.requeueStaleRunningMessages(before);
+            while (true) {
+                List<AgentRunRecord> staleRuns = agentRunRepository.listActiveBefore(before, 200);
+                if (staleRuns.isEmpty()) {
+                    break;
+                }
+                agentRunRepository.markStaleRuns(before, now);
+                for (AgentRunRecord staleRun : staleRuns) {
+                    String kind = StrUtil.blankToDefault(staleRun.getRunKind(), "");
+                    String status = StrUtil.blankToDefault(staleRun.getStatus(), "");
+                    if (("conversation".equals(kind) || "resume".equals(kind))
+                            && !"queued".equals(status)
+                            && !"waiting_approval".equals(status)) {
+                        markSessionResumePending(
+                                staleRun.getSourceKey(),
+                                staleRun.getSessionId(),
+                                "restart_interrupted");
+                    }
+                }
+                if (staleRuns.size() < 200) {
+                    break;
                 }
             }
         } catch (Exception e) {
@@ -2271,29 +2283,46 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 releaseIncomingReservation(sourceKey);
                 return;
             }
+            boolean claimed = false;
             try {
-                agentRunRepository.markQueuedMessage(
-                        queued.getQueueId(), "running", System.currentTimeMillis(), null);
+                claimed =
+                        agentRunRepository.markQueuedMessage(
+                                queued.getQueueId(),
+                                "queued",
+                                "running",
+                                System.currentTimeMillis(),
+                                null);
+                if (!claimed) {
+                    continue;
+                }
                 markQueuedRunStarted(queued);
                 GatewayReply reply = runner.apply(deserializeMessage(queued));
-                agentRunRepository.markQueuedMessage(
-                        queued.getQueueId(), "success", System.currentTimeMillis(), null);
-                markQueuedRunFinished(
-                        queued, "success", reply == null ? null : reply.getContent(), null);
+                if (agentRunRepository.markQueuedMessage(
+                        queued.getQueueId(),
+                        "running",
+                        "success",
+                        System.currentTimeMillis(),
+                        null)) {
+                    markQueuedRunFinished(
+                            queued, "success", reply == null ? null : reply.getContent(), null);
+                }
             } catch (Exception e) {
                 try {
-                    agentRunRepository.markQueuedMessage(
-                            queued.getQueueId(),
-                            "failed",
-                            System.currentTimeMillis(),
-                            safeError(e));
+                    if (claimed
+                            && agentRunRepository.markQueuedMessage(
+                                    queued.getQueueId(),
+                                    "running",
+                                    "failed",
+                                    System.currentTimeMillis(),
+                                    safeError(e))) {
+                        markQueuedRunFinished(queued, "failed", null, safeError(e));
+                    }
                 } catch (Exception markFailedError) {
                     log.warn(
                             "mark queued message failed status failed: queueId={}, error={}",
                             queued.getQueueId(),
                             safeError(markFailedError));
                 }
-                markQueuedRunFinished(queued, "failed", null, safeError(e));
                 log.warn(
                         "queued run failed: queueId={}, error={}",
                         queued.getQueueId(),
@@ -2301,6 +2330,16 @@ public class AgentRunSupervisor implements AgentRunControlService {
             } finally {
                 releaseIncomingReservation(sourceKey);
             }
+        }
+    }
+
+    /** 判断当前来源会话是否仍有 queued 消息，用于补偿 drain 结束窗口内丢失的唤醒。 */
+    private boolean hasQueuedMessage(String sourceKey, String sessionId) {
+        try {
+            return agentRunRepository.findNextQueuedMessage(sourceKey, sessionId) != null;
+        } catch (Exception e) {
+            log.warn("check queued run failed: sourceKey={}, error={}", sourceKey, safeError(e));
+            return false;
         }
     }
 

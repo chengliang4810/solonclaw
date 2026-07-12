@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
 import com.jimuqu.solon.claw.support.GatewayApprovalCardSupport;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
@@ -56,6 +57,10 @@ import org.noear.snack4.ONode;
 
 /** FeishuChannelAdapter 实现。 */
 public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 抑制飞书 WebSocket 重投的相同消息标识。 */
+    private final BoundedMessageDeduplicator inboundMessageDeduplicator =
+            new BoundedMessageDeduplicator();
+
     /** tokenURL的统一常量值。 */
     private static final String TOKEN_URL =
             "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
@@ -240,6 +245,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                             if (controlMessage != null
                                                     && inboundMessageHandler() != null
                                                     && isControlCommand(controlMessage.getText())) {
+                                                if (inboundMessageDeduplicator.isDuplicate(
+                                                        data.getMessage().getMessageId())) {
+                                                    return;
+                                                }
                                                 dispatchInboundControl(controlMessage);
                                                 return;
                                             }
@@ -417,6 +426,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 toGatewayMessage(
                         event == null ? null : event.getMessage(),
                         event == null ? null : event.getSender());
+        if (message != null
+                && inboundMessageDeduplicator.isDuplicate(message.getReplyToMessageId())) {
+            return;
+        }
         if (message != null && inboundMessageHandler() != null) {
             // 控制命令已在 handle(P2MessageReceiveV1) 提交串行队列前分流到并发执行器，
             // 这里只处理普通消息；保留防御性判定以防外部直接调用本方法时仍能正确分流。

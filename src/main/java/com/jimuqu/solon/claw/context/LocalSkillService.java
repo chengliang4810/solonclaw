@@ -592,25 +592,31 @@ public class LocalSkillService implements SkillCatalogService {
                 return;
             }
             File stateFile = FileUtil.file(appConfig.getRuntime().getSkillsDir(), ".curator_state");
-            Map<String, Object> state = readMap(stateFile);
-            @SuppressWarnings("unchecked")
-            Map<String, Object> skills =
-                    state.get("skills") instanceof Map
-                            ? (Map<String, Object>) state.get("skills")
-                            : new LinkedHashMap<String, Object>();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> record =
-                    skills.get(descriptor.canonicalName()) instanceof Map
-                            ? (Map<String, Object>) skills.get(descriptor.canonicalName())
-                            : new LinkedHashMap<String, Object>();
-            String counter =
-                    "call".equalsIgnoreCase(StrUtil.nullToEmpty(kind)) ? "callCount" : "loadCount";
-            record.put(counter, Long.valueOf(asLong(record.get(counter)) + 1L));
-            record.put("lastActivityAt", Long.valueOf(System.currentTimeMillis()));
-            skills.put(descriptor.canonicalName(), record);
-            state.put("skills", skills);
-            FileUtil.mkParentDirs(stateFile);
-            FileUtil.writeUtf8String(ONode.serialize(state), stateFile);
+            new CuratorStateStore(stateFile)
+                    .update(
+                            state -> {
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> skills =
+                                        state.get("skills") instanceof Map
+                                                ? (Map<String, Object>) state.get("skills")
+                                                : new LinkedHashMap<String, Object>();
+                                @SuppressWarnings("unchecked")
+                                Map<String, Object> record =
+                                        skills.get(descriptor.canonicalName()) instanceof Map
+                                                ? (Map<String, Object>)
+                                                        skills.get(descriptor.canonicalName())
+                                                : new LinkedHashMap<String, Object>();
+                                String counter =
+                                        "call".equalsIgnoreCase(StrUtil.nullToEmpty(kind))
+                                                ? "callCount"
+                                                : "loadCount";
+                                record.put(counter, Long.valueOf(asLong(record.get(counter)) + 1L));
+                                record.put(
+                                        "lastActivityAt", Long.valueOf(System.currentTimeMillis()));
+                                skills.put(descriptor.canonicalName(), record);
+                                state.put("skills", skills);
+                                return null;
+                            });
         } catch (Exception e) {
             log.debug(
                     "Skill usage counter update failed; normal skill loading continues: {}",

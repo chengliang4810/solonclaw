@@ -320,6 +320,13 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
         })
         .catch((e: Error) => {
           sys(`error: ${e.message}`)
+
+          if (isMissingSessionError(e)) {
+            resetSession()
+            clearActiveSessionFile()
+            patchUiState({ busy: false })
+          }
+
           patchUiState({ status: 'ready' })
         })
     },

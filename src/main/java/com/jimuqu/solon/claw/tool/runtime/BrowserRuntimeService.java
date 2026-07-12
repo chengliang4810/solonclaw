@@ -32,6 +32,9 @@ public class BrowserRuntimeService {
     /** 默认超时时间秒数的统一常量值。 */
     private static final int DEFAULT_TIMEOUT_SECONDS = 60;
 
+    /** 发现不安全跳转后清空页面时允许的最长等待秒数。 */
+    private static final int UNSAFE_PAGE_CLEAR_TIMEOUT_SECONDS = 10;
+
     /** 浏览器快照和正文返回给模型的最大字符数。 */
     private static final int MAX_BROWSER_CONTENT_CHARS = 8000;
 
@@ -928,6 +931,7 @@ public class BrowserRuntimeService {
         }
         SecurityPolicyService.UrlVerdict verdict = checkProviderUrl(actionResult.getCurrentUrl());
         if (!verdict.isAllowed()) {
+            clearUnsafePage(lease);
             close(lease.id);
             return BrowserResult.error(
                     "security_blocked",
@@ -947,6 +951,26 @@ public class BrowserRuntimeService {
         refreshLease(lease);
         return BrowserResult.success(
                 lease.id, StrUtil.blankToDefault(actionResult.getStatus(), defaultStatus), details);
+    }
+
+    /**
+     * 在关闭租约前将浏览器切离不安全页面，避免远端会话关闭存在延迟时继续保留敏感页面状态。
+     *
+     * @param lease 已进入不安全最终 URL 的浏览器租约。
+     */
+    private void clearUnsafePage(Lease lease) {
+        try {
+            BrowserProvider.BrowserActionResult result =
+                    lease.provider.navigate(
+                            lease.providerSession.getSessionId(),
+                            "about:blank",
+                            UNSAFE_PAGE_CLEAR_TIMEOUT_SECONDS);
+            if (result == null || !result.isSuccess()) {
+                log.warn("浏览器不安全页面清理未完成：stage=clear_unsafe_page");
+            }
+        } catch (Exception e) {
+            log.warn("浏览器不安全页面清理失败：stage=clear_unsafe_page, error={}", exceptionSummary(e));
+        }
     }
 
     /**
@@ -1311,7 +1335,7 @@ public class BrowserRuntimeService {
         try {
             provider.closeSession(providerSessionId);
         } catch (Exception e) {
-            logRecoverableBrowserFailure("close_session", e);
+            log.warn("浏览器会话关闭失败：stage=close_session, error={}", exceptionSummary(e));
         }
     }
 

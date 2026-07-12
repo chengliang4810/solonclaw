@@ -352,7 +352,7 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.COMMAND_SESSIONS.equals(command)) {
-            return handleSessions(args);
+            return handleSessions(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_WHOAMI.equals(command)) {
@@ -421,6 +421,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_UNDO.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "撤销上一轮对话");
+            if (busyReply != null) {
+                return busyReply;
+            }
             String lastUser = MessageSupport.getLastUserMessage(session.getNdjson());
             if (StrUtil.isBlank(lastUser)) {
                 GatewayReply reply = GatewayReply.error("没有可撤销的上一轮对话。");
@@ -440,6 +444,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_BRANCH.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "创建会话分支");
+            if (busyReply != null) {
+                return busyReply;
+            }
             String branchName =
                     StrUtil.isBlank(args) ? "branch-" + System.currentTimeMillis() : args;
             SessionRecord clone =
@@ -459,7 +467,7 @@ public class DefaultCommandService implements CommandService {
                                 + GatewayCommandConstants.SLASH_RESUME
                                 + " <session-id|id-prefix|title|branch>");
             }
-            ResumeLookup lookup = resolveResumeTarget(message.sourceKey(), args);
+            ResumeLookup lookup = resolveResumeTarget(message, args);
             SessionRecord session = lookup.getSession();
             if (session == null) {
                 return GatewayReply.error(lookup.getMessage());
@@ -765,6 +773,11 @@ public class DefaultCommandService implements CommandService {
                 return GatewayReply.ok(
                         SlashCommandStatusRenderer.checkpointClear(
                                 checkpointService, message.sourceKey()));
+            }
+            SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "回滚 checkpoint");
+            if (busyReply != null) {
+                return busyReply;
             }
             if ("latest".equalsIgnoreCase(args)) {
                 return GatewayReply.ok(
@@ -1196,6 +1209,26 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /** 运行中拒绝会改写会话或工作区历史的命令，并返回当前运行摘要。 */
+    private GatewayReply runningSessionMutationReply(
+            GatewayMessage message, SessionRecord session, String action) {
+        if (agentRunControlService == null
+                || !agentRunControlService.isRunning(message.sourceKey())) {
+            return null;
+        }
+        GatewayReply reply =
+                GatewayReply.error("当前会话正在运行任务，无法" + action + "。请等待任务完成后重试，或先使用 /stop 停止当前任务。");
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        reply.getRuntimeMetadata().put("busy_status", "running");
+        Map<String, Object> activeRun =
+                agentRunControlService.activeRunSummary(message.sourceKey());
+        if (activeRun != null && activeRun.get("run_id") != null) {
+            reply.getRuntimeMetadata().put("run_id", String.valueOf(activeRun.get("run_id")));
+        }
+        return reply;
+    }
+
     /**
      * 读取配置中的默认目标轮次预算。
      *
@@ -1279,17 +1312,23 @@ public class DefaultCommandService implements CommandService {
     /**
      * 执行Sessions相关逻辑。
      *
+     * @param message 当前渠道消息，用于限制只能查看同一来源的会话。
      * @param args 工具或命令参数。
      * @return 返回Sessions结果。
      */
-    private GatewayReply handleSessions(String args) throws Exception {
+    private GatewayReply handleSessions(GatewayMessage message, String args) throws Exception {
         String query = StrUtil.nullToEmpty(args).trim();
-        List<SessionRecord> records =
-                StrUtil.isBlank(query)
-                        ? sessionRepository.listRecent(10)
-                        : sessionRepository.search(query, 10);
-        if (StrUtil.isNotBlank(query) && (records == null || records.isEmpty())) {
-            records = filterRecentSessions(query, 10);
+        List<SessionRecord> records;
+        if (requiresSourceScope(message)) {
+            records = listSourceSessions(message.sourceKey(), query, 10);
+        } else {
+            records =
+                    StrUtil.isBlank(query)
+                            ? sessionRepository.listRecent(10)
+                            : sessionRepository.search(query, 10);
+            if (StrUtil.isNotBlank(query) && (records == null || records.isEmpty())) {
+                records = filterRecentSessions(query, 10);
+            }
         }
         GatewayReply reply = GatewayReply.ok(formatSessions(records, query));
         reply.getRuntimeMetadata().put("command_status", "handled");
@@ -1301,12 +1340,41 @@ public class DefaultCommandService implements CommandService {
     }
 
     /**
-     * 执行过滤器RecentSessions相关逻辑。
+     * 分页扫描并筛选当前渠道来源的会话，避免全局搜索暴露其他用户或渠道的会话。
      *
+     * @param sourceKey 当前渠道来源键。
      * @param query 查询参数。
      * @param limit 最大返回数量。
-     * @return 返回filter Recent Sessions结果。
+     * @return 当前来源下匹配的最近会话。
      */
+    private List<SessionRecord> listSourceSessions(String sourceKey, String query, int limit)
+            throws Exception {
+        List<SessionRecord> result = new ArrayList<SessionRecord>();
+        int offset = 0;
+        final int pageSize = 100;
+        while (result.size() < limit) {
+            List<SessionRecord> records = sessionRepository.listRecent(pageSize, offset);
+            if (records == null || records.isEmpty()) {
+                break;
+            }
+            for (SessionRecord record : records) {
+                if (sameSource(record, sourceKey)
+                        && (StrUtil.isBlank(query) || sessionMatches(record, query))) {
+                    result.add(record);
+                    if (result.size() >= limit) {
+                        break;
+                    }
+                }
+            }
+            if (records.size() < pageSize) {
+                break;
+            }
+            offset += records.size();
+        }
+        return result;
+    }
+
+    /** 从可信本机控制面使用的全局会话集合中执行兼容搜索。 */
     private List<SessionRecord> filterRecentSessions(String query, int limit) throws Exception {
         List<SessionRecord> records = sessionRepository.listRecent(50);
         List<SessionRecord> result = new ArrayList<SessionRecord>();
@@ -1322,6 +1390,18 @@ public class DefaultCommandService implements CommandService {
             }
         }
         return result;
+    }
+
+    /** 仅真实国内渠道消息需要按来源隔离，Dashboard 和本机 CLI 保持可信全局控制能力。 */
+    private boolean requiresSourceScope(GatewayMessage message) {
+        return message != null && PlatformType.DOMESTIC_PLATFORMS.contains(message.getPlatform());
+    }
+
+    /** 判断会话是否由当前渠道来源创建，来源键必须完整一致。 */
+    private boolean sameSource(SessionRecord record, String sourceKey) {
+        return record != null
+                && StrUtil.isNotBlank(sourceKey)
+                && sourceKey.equals(record.getSourceKey());
     }
 
     /**
@@ -1525,12 +1605,14 @@ public class DefaultCommandService implements CommandService {
     /**
      * 解析Resume Target。
      *
-     * @param sourceKey 渠道来源键。
+     * @param message 当前消息，用于区分渠道来源和可信本机控制面。
      * @param rawReference 原始引用参数。
      * @return 返回解析后的Resume Target。
      */
-    private ResumeLookup resolveResumeTarget(String sourceKey, String rawReference)
+    private ResumeLookup resolveResumeTarget(GatewayMessage message, String rawReference)
             throws Exception {
+        String sourceKey = message.sourceKey();
+        boolean sourceScoped = requiresSourceScope(message);
         String reference = normalizeResumeReference(rawReference);
         if (StrUtil.isBlank(reference)) {
             return ResumeLookup.error(
@@ -1539,14 +1621,17 @@ public class DefaultCommandService implements CommandService {
                             + " <session-id|id-prefix|title|branch>");
         }
         SessionRecord session = sessionRepository.findById(reference);
-        if (session != null) {
+        if (session != null && (!sourceScoped || sameSource(session, sourceKey))) {
             return ResumeLookup.found(session);
         }
         session = sessionRepository.findBySourceAndBranch(sourceKey, reference);
         if (session != null) {
             return ResumeLookup.found(session);
         }
-        List<SessionRecord> candidates = sessionRepository.findResumeCandidates(reference, 3);
+        List<SessionRecord> candidates =
+                sourceScoped
+                        ? listSourceSessions(sourceKey, reference, 3)
+                        : sessionRepository.findResumeCandidates(reference, 3);
         if (candidates.size() == 1) {
             return ResumeLookup.found(candidates.get(0));
         }

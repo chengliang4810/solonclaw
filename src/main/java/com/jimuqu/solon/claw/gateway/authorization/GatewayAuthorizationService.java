@@ -22,6 +22,10 @@ import lombok.RequiredArgsConstructor;
 /** 统一处理平台管理员、pairing 与 home channel 授权逻辑。 */
 @RequiredArgsConstructor
 public class GatewayAuthorizationService {
+    /** 平台审批失败状态使用独立内部键，避免与单个渠道用户的请求限流混用。 */
+    private static final String PLATFORM_APPROVAL_RATE_LIMIT_KEY =
+            "solonclaw:pairing-platform-approval";
+
     /** 授权状态仓储。 */
     private final GatewayPolicyRepository repository;
 
@@ -181,9 +185,13 @@ public class GatewayAuthorizationService {
             throw new IllegalArgumentException("平台和 pairing code 不能为空。");
         }
         long now = System.currentTimeMillis();
+        if (isPlatformApprovalLocked(platform, now)) {
+            throw new IllegalArgumentException("pairing 审批失败次数过多，请稍后再试。");
+        }
         repository.deleteExpiredPairingRequests(platform, now);
         PairingRequestRecord request = repository.getPairingRequest(platform, code.trim());
         if (request == null || request.getExpiresAt() < now || isRetiredAdminClaim(request)) {
+            recordPlatformApprovalFailure(platform, now);
             throw new IllegalArgumentException("pairing code 无效或已过期。");
         }
         ApprovedUserRecord approved = new ApprovedUserRecord();
@@ -194,6 +202,7 @@ public class GatewayAuthorizationService {
         approved.setApprovedBy(blankToDefault(approvedBy, "trusted-control"));
         repository.saveApprovedUser(approved);
         repository.deletePairingRequest(platform, request.getCode());
+        clearPlatformApprovalFailure(platform);
         return approved;
     }
 
@@ -323,15 +332,12 @@ public class GatewayAuthorizationService {
             return GatewayReply.error("pairing 批准必须在私聊中执行。");
         }
 
-        long now = System.currentTimeMillis();
         ApprovedUserRecord approvedUser;
         try {
             approvedUser = approvePairing(targetPlatform, code, message.getUserId());
         } catch (IllegalArgumentException e) {
-            recordFailure(targetPlatform, message.getUserId(), now);
             return GatewayReply.error("pairing code 无效或已过期。");
         }
-        clearFailure(targetPlatform, message.getUserId(), now);
         return GatewayReply.ok(
                 "已批准 "
                         + blankToDefault(approvedUser.getUserName(), approvedUser.getUserId())
@@ -419,11 +425,11 @@ public class GatewayAuthorizationService {
     private GatewayReply createPairingPrompt(GatewayMessage message) throws Exception {
         PlatformType platform = message.getPlatform();
         long now = System.currentTimeMillis();
-        PairingRateLimitRecord rateLimit =
-                repository.getPairingRateLimit(platform, message.getUserId());
-        if (rateLimit != null && rateLimit.getLockoutUntil() > now) {
+        if (isPlatformApprovalLocked(platform, now)) {
             return GatewayReply.ok("pairing 失败次数过多，请稍后再试。");
         }
+        PairingRateLimitRecord rateLimit =
+                repository.getPairingRateLimit(platform, message.getUserId());
         if (rateLimit != null
                 && rateLimit.getRequestedAt() > 0
                 && now - rateLimit.getRequestedAt() < PairingConstants.RATE_LIMIT_MILLIS) {
@@ -479,13 +485,21 @@ public class GatewayAuthorizationService {
                         + "`");
     }
 
-    /** 记录管理员审批时的失败次数。 */
-    private void recordFailure(PlatformType platform, String userId, long now) throws Exception {
-        PairingRateLimitRecord record = repository.getPairingRateLimit(platform, userId);
+    /** 判断平台是否因连续错误 pairing 审批而处于锁定期。 */
+    private boolean isPlatformApprovalLocked(PlatformType platform, long now) throws Exception {
+        PairingRateLimitRecord record =
+                repository.getPairingRateLimit(platform, PLATFORM_APPROVAL_RATE_LIMIT_KEY);
+        return record != null && record.getLockoutUntil() > now;
+    }
+
+    /** 记录平台级审批失败，所有 Dashboard、CLI 与渠道审批入口共享同一计数。 */
+    private void recordPlatformApprovalFailure(PlatformType platform, long now) throws Exception {
+        PairingRateLimitRecord record =
+                repository.getPairingRateLimit(platform, PLATFORM_APPROVAL_RATE_LIMIT_KEY);
         if (record == null) {
             record = new PairingRateLimitRecord();
             record.setPlatform(platform);
-            record.setUserId(userId);
+            record.setUserId(PLATFORM_APPROVAL_RATE_LIMIT_KEY);
         }
 
         int attempts = record.getFailedAttempts() + 1;
@@ -498,9 +512,9 @@ public class GatewayAuthorizationService {
         repository.savePairingRateLimit(record);
     }
 
-    /** 清理失败计数。 */
-    private void clearFailure(PlatformType platform, String userId, long now) throws Exception {
-        saveRequestRate(platform, userId, now, 0, 0L);
+    /** pairing 审批成功后清除平台级失败计数和锁定状态。 */
+    private void clearPlatformApprovalFailure(PlatformType platform) throws Exception {
+        saveRequestRate(platform, PLATFORM_APPROVAL_RATE_LIMIT_KEY, 0L, 0, 0L);
     }
 
     /** 保存 pairing 请求速率记录。 */

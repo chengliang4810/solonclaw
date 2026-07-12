@@ -14,12 +14,14 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.support.BlockingLlmGateway;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.web.DashboardMcpService;
 import com.jimuqu.solon.claw.web.DashboardRunService;
@@ -38,6 +40,7 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatRole;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 
 public class CommandEnhancementTest {
@@ -195,6 +198,58 @@ public class CommandEnhancementTest {
 
         GatewayReply help = env.send("admin-chat", "admin-user", "/help");
         assertThat(help.getContent()).contains("/busy [status|queue|steer|interrupt|reject]");
+    }
+
+    /** 运行中禁止 undo、branch 与完整回滚，但只读 rollback 子命令仍可使用。 */
+    @Test
+    void shouldGuardDestructiveSessionCommandsWhileRunIsActive() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        bootstrapAdmin(env);
+        String sourceKey = "MEMORY:admin-chat:admin-user";
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("before"), new AssistantMessage("reply"))));
+        env.sessionRepository.save(session);
+        File file = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "busy-rollback.txt");
+        FileUtil.writeUtf8String("v1", file);
+        env.checkpointService.createCheckpoint(
+                sourceKey, session.getSessionId(), Collections.singletonList(file));
+        FileUtil.writeUtf8String("v2", file);
+        AgentRunSupervisor supervisor = (AgentRunSupervisor) env.agentRunControlService;
+        supervisor.coordinateIncoming(
+                sourceKey, session.getSessionId(), env.message("admin-chat", "admin-user", "run"));
+
+        GatewayReply undo =
+                env.commandService.handle(
+                        env.message("admin-chat", "admin-user", "/undo"), "/undo");
+        GatewayReply branch =
+                env.commandService.handle(
+                        env.message("admin-chat", "admin-user", "/branch busy"), "/branch busy");
+        GatewayReply rollback =
+                env.commandService.handle(
+                        env.message("admin-chat", "admin-user", "/rollback latest"),
+                        "/rollback latest");
+        GatewayReply list =
+                env.commandService.handle(
+                        env.message("admin-chat", "admin-user", "/rollback list"),
+                        "/rollback list");
+        GatewayReply status =
+                env.commandService.handle(
+                        env.message("admin-chat", "admin-user", "/rollback status"),
+                        "/rollback status");
+
+        assertThat(undo.isError()).isTrue();
+        assertThat(branch.isError()).isTrue();
+        assertThat(rollback.isError()).isTrue();
+        assertThat(undo.getRuntimeMetadata()).containsEntry("busy_status", "running");
+        assertThat(env.sessionRepository.findById(session.getSessionId()).getNdjson())
+                .isEqualTo(session.getNdjson());
+        assertThat(FileUtil.readUtf8String(file)).isEqualTo("v2");
+        assertThat(list.isError()).isFalse();
+        assertThat(status.isError()).isFalse();
+        supervisor.releaseIncomingReservation(sourceKey);
     }
 
     @Test

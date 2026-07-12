@@ -6,6 +6,11 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
 import java.io.File;
 import java.nio.file.Files;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.core.Props;
 
@@ -84,6 +89,55 @@ public class SkillUsageTrackerTest {
 
         long lastActivity = tracker.getLastActivityAt("active-skill");
         assertThat(lastActivity).isBetween(before, after);
+    }
+
+    /** 多个 Tracker 实例必须通过共享状态锁保留全部并发计数。 */
+    @Test
+    void shouldKeepConcurrentUpdatesFromSeparateTrackers() throws Exception {
+        File tempDir = Files.createTempDirectory("skill-usage-concurrent").toFile();
+        AppConfig config = loadConfig(tempDir);
+        SkillUsageTracker first = new SkillUsageTracker(config);
+        SkillUsageTracker second = new SkillUsageTracker(config);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> firstTask =
+                    executor.submit(
+                            () -> {
+                                await(start);
+                                for (int i = 0; i < 100; i++) {
+                                    first.bumpView("shared-skill");
+                                }
+                            });
+            Future<?> secondTask =
+                    executor.submit(
+                            () -> {
+                                await(start);
+                                for (int i = 0; i < 100; i++) {
+                                    second.bumpInvoke("shared-skill");
+                                }
+                            });
+            start.countDown();
+            firstTask.get(10, TimeUnit.SECONDS);
+            secondTask.get(10, TimeUnit.SECONDS);
+            executor.shutdown();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        } finally {
+            executor.shutdownNow();
+        }
+
+        java.util.Map<String, Object> entry = first.getEntry("shared-skill");
+        assertThat(((Number) entry.get("loadCount")).intValue()).isEqualTo(100);
+        assertThat(((Number) entry.get("callCount")).intValue()).isEqualTo(100);
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for shared state test", e);
+        }
     }
 
     private static AppConfig loadConfig(File workspaceHome) {

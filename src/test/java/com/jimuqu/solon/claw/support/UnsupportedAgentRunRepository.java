@@ -128,6 +128,17 @@ public abstract class UnsupportedAgentRunRepository implements AgentRunRepositor
     }
 
     @Override
+    public boolean markQueuedMessage(
+            String queueId, String expectedStatus, String status, long timestamp, String error) {
+        throw unsupported();
+    }
+
+    @Override
+    public int requeueStaleRunningMessages(long beforeEpochMillis) {
+        throw unsupported();
+    }
+
+    @Override
     public void saveToolCall(ToolCallRecord record) {
         throw unsupported();
     }

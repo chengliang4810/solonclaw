@@ -18,6 +18,7 @@ const attachments = ref<Attachment[]>([])
 const isDragging = ref(false)
 const dragCounter = ref(0)
 const isComposing = ref(false)
+const isSending = ref(false)
 
 const canSend = computed(() => !!(inputText.value.trim() || attachments.value.length > 0))
 
@@ -130,16 +131,24 @@ function handleDrop(e: DragEvent) {
 
 // --- Send ---
 
-function handleSend() {
+async function handleSend() {
   const text = inputText.value.trim()
-  if (!text && attachments.value.length === 0) return
+  if ((!text && attachments.value.length === 0) || isSending.value) return
 
-  chatStore.sendMessage(text, attachments.value.length > 0 ? attachments.value : undefined)
-  inputText.value = ''
-  attachments.value = []
+  isSending.value = true
+  try {
+    const sent = await chatStore.sendMessage(text, attachments.value.length > 0 ? attachments.value : undefined)
 
-  if (textareaRef.value) {
-    textareaRef.value.style.height = 'auto'
+    if (!sent) return
+
+    inputText.value = ''
+    attachments.value = []
+
+    if (textareaRef.value) {
+      textareaRef.value.style.height = 'auto'
+    }
+  } finally {
+    isSending.value = false
   }
 }
 
@@ -273,7 +282,7 @@ function isImage(type: string): boolean {
         <Button
           size="small"
           type="primary"
-          :disabled="!canSend || chatStore.isStreaming"
+          :disabled="!canSend || chatStore.isStreaming || isSending"
           @click="handleSend"
         >
           <template #icon>

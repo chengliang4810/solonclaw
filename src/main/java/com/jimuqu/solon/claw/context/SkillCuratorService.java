@@ -42,7 +42,20 @@ public class SkillCuratorService {
      * @return 返回Once结果。
      */
     public synchronized Map<String, Object> runOnce(boolean force) throws Exception {
-        Map<String, Object> state = readState();
+        return stateStore()
+                .update(
+                        state -> {
+                            try {
+                                return runOnceLocked(state, force);
+                            } catch (Exception e) {
+                                throw new IllegalStateException("Failed to run skill curator", e);
+                            }
+                        });
+    }
+
+    /** 在共享状态锁内执行整理，保证统计更新不会被本轮巡检覆盖。 */
+    private Map<String, Object> runOnceLocked(Map<String, Object> state, boolean force)
+            throws Exception {
         long now = System.currentTimeMillis();
         if (Boolean.TRUE.equals(state.get("paused")) && !force) {
             return report(state, now, "paused", new ArrayList<Map<String, Object>>());
@@ -83,22 +96,27 @@ public class SkillCuratorService {
                 });
 
         state.put("lastRunAt", Long.valueOf(now));
-        writeState(state);
         return report(state, now, "ok", items);
     }
 
     /** 执行pause相关逻辑。 */
     public synchronized void pause() {
-        Map<String, Object> state = readState();
-        state.put("paused", Boolean.TRUE);
-        writeState(state);
+        stateStore()
+                .update(
+                        state -> {
+                            state.put("paused", Boolean.TRUE);
+                            return null;
+                        });
     }
 
     /** 执行resume相关逻辑。 */
     public synchronized void resume() {
-        Map<String, Object> state = readState();
-        state.put("paused", Boolean.FALSE);
-        writeState(state);
+        stateStore()
+                .update(
+                        state -> {
+                            state.put("paused", Boolean.FALSE);
+                            return null;
+                        });
     }
 
     /**
@@ -107,7 +125,7 @@ public class SkillCuratorService {
      * @return 返回状态。
      */
     public synchronized Map<String, Object> status() {
-        Map<String, Object> state = readState();
+        Map<String, Object> state = stateStore().read();
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("enabled", Boolean.valueOf(appConfig.getCurator().isEnabled()));
         result.put(
@@ -143,7 +161,10 @@ public class SkillCuratorService {
                         ? (Map<String, Object>) skillsState.get(name)
                         : new LinkedHashMap<String, Object>();
         long touchedAt = lastTouchedAt(FileUtil.file(descriptor.getSkillDir()));
-        long ageDays = Math.max(0L, (now - touchedAt) / (24L * 60L * 60L * 1000L));
+        long lastActivityAt =
+                Math.max(asLong(record.get("lastActivityAt")), asLong(record.get("lastManagedAt")));
+        long relevantActivityAt = Math.max(touchedAt, lastActivityAt);
+        long ageDays = Math.max(0L, (now - relevantActivityAt) / (24L * 60L * 60L * 1000L));
         boolean pinned = isPinned(descriptor);
         long loadCount = asLong(record.get("loadCount"));
         long callCount = asLong(record.get("callCount"));
@@ -175,6 +196,7 @@ public class SkillCuratorService {
         record.put("status", status);
         record.put("lastSeenAt", Long.valueOf(now));
         record.put("lastTouchedAt", Long.valueOf(touchedAt));
+        record.put("lastRelevantActivityAt", Long.valueOf(relevantActivityAt));
         record.put("ageDays", Long.valueOf(ageDays));
         record.put("pinned", Boolean.valueOf(pinned));
         record.put("archiveKind", archiveKind);
@@ -233,24 +255,26 @@ public class SkillCuratorService {
     @SuppressWarnings("unchecked")
     private Map<String, Object> recordSuggestionState(
             String skillName, String suggestion, String status) {
-        Map<String, Object> state = readState();
-        Map<String, Object> audit = ensureMap(state, "suggestionAudit");
-        List<Map<String, Object>> rows =
-                audit.get(skillName) instanceof List
-                        ? (List<Map<String, Object>>) audit.get(skillName)
-                        : new ArrayList<Map<String, Object>>();
-        Map<String, Object> row = new LinkedHashMap<String, Object>();
-        row.put("suggestion", suggestion);
-        row.put("status", status);
-        row.put("at", Long.valueOf(System.currentTimeMillis()));
-        rows.add(row);
-        audit.put(skillName, rows);
-        writeState(state);
-        Map<String, Object> result = new LinkedHashMap<String, Object>();
-        result.put("skill", skillName);
-        result.put("suggestion", suggestion);
-        result.put("status", status);
-        return result;
+        return stateStore()
+                .update(
+                        state -> {
+                            Map<String, Object> audit = ensureMap(state, "suggestionAudit");
+                            List<Map<String, Object>> rows =
+                                    audit.get(skillName) instanceof List
+                                            ? (List<Map<String, Object>>) audit.get(skillName)
+                                            : new ArrayList<Map<String, Object>>();
+                            Map<String, Object> row = new LinkedHashMap<String, Object>();
+                            row.put("suggestion", suggestion);
+                            row.put("status", status);
+                            row.put("at", Long.valueOf(System.currentTimeMillis()));
+                            rows.add(row);
+                            audit.put(skillName, rows);
+                            Map<String, Object> result = new LinkedHashMap<String, Object>();
+                            result.put("skill", skillName);
+                            result.put("suggestion", suggestion);
+                            result.put("status", status);
+                            return result;
+                        });
     }
 
     /**
@@ -348,39 +372,6 @@ public class SkillCuratorService {
     }
 
     /**
-     * 读取状态。
-     *
-     * @return 返回读取到的状态。
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> readState() {
-        File stateFile = stateFile();
-        if (!stateFile.isFile()) {
-            return new LinkedHashMap<String, Object>();
-        }
-        try {
-            Object parsed = ONode.deserialize(FileUtil.readUtf8String(stateFile), Object.class);
-            if (parsed instanceof Map) {
-                return (Map<String, Object>) parsed;
-            }
-        } catch (Exception e) {
-            log.debug("读取技能整理状态失败，使用空状态: file={}, error={}", stateFile, e.toString());
-        }
-        return new LinkedHashMap<String, Object>();
-    }
-
-    /**
-     * 写入状态。
-     *
-     * @param state 状态参数。
-     */
-    private void writeState(Map<String, Object> state) {
-        File file = stateFile();
-        FileUtil.mkParentDirs(file);
-        FileUtil.writeUtf8String(ONode.serialize(state), file);
-    }
-
-    /**
      * 确保Map。
      *
      * @param state 状态参数。
@@ -403,8 +394,9 @@ public class SkillCuratorService {
      *
      * @return 返回状态文件结果。
      */
-    private File stateFile() {
-        return FileUtil.file(appConfig.getRuntime().getSkillsDir(), ".curator_state");
+    private CuratorStateStore stateStore() {
+        return new CuratorStateStore(
+                FileUtil.file(appConfig.getRuntime().getSkillsDir(), ".curator_state"));
     }
 
     /**

@@ -1300,8 +1300,8 @@ public class TerminalUiRpcService {
     }
 
     /** 恢复指定 checkpoint；文件级恢复等待后端提供独立 API 后再接入。 */
-    public Map<String, Object> rollbackRestore(String checkpointId, String filePath)
-            throws Exception {
+    public Map<String, Object> rollbackRestore(
+            String sessionId, String checkpointId, String filePath) throws Exception {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (checkpointService == null) {
             result.put("success", Boolean.FALSE);
@@ -1316,6 +1316,10 @@ public class TerminalUiRpcService {
                     "file-level checkpoint restore is not available in this backend yet");
             result.put("history_removed", Integer.valueOf(0));
             return result;
+        }
+        Map<String, Object> busy = runningSessionMutation(sessionId, "restore checkpoint");
+        if (busy != null) {
+            return busy;
         }
         CheckpointRecord restored;
         try {
@@ -1529,6 +1533,10 @@ public class TerminalUiRpcService {
     /** 创建当前会话分支并返回新会话 ID。 */
     public Map<String, Object> sessionBranch(String sessionId, String name) throws Exception {
         SessionRecord source = findSession(sessionId);
+        Map<String, Object> busy = runningSessionMutation(sessionId, "create session branch");
+        if (busy != null) {
+            return busy;
+        }
         if (sessionRepository == null || source == null) {
             return sessionCreate(
                     "MEMORY:terminal-ui:" + StrUtil.blankToDefault(sessionId, "terminal-ui"));
@@ -1545,6 +1553,23 @@ public class TerminalUiRpcService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("session_id", branch.getSessionId());
         result.put("title", title(branch));
+        return result;
+    }
+
+    /** 运行中拒绝会改写会话或工作区历史的 TUI 直连操作。 */
+    private Map<String, Object> runningSessionMutation(String sessionId, String action)
+            throws Exception {
+        String sourceKey = sourceKeyForSession(sessionId);
+        if (agentRunControlService == null
+                || StrUtil.isBlank(sourceKey)
+                || !agentRunControlService.isRunning(sourceKey)) {
+            return null;
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("success", Boolean.FALSE);
+        result.put("status", "running");
+        result.put("error", "session is running; cannot " + action);
+        result.put("message", "stop the active run or wait for it to finish");
         return result;
     }
 

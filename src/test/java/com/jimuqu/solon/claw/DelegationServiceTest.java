@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
@@ -194,6 +195,47 @@ public class DelegationServiceTest {
 
         assertThat(result.isError()).isTrue();
         assertThat(result.getContent()).contains("depth limit exceeded");
+    }
+
+    /** 启动时只能收敛遗留的活动记录，不能改写已正常结束的子 Agent。 */
+    @Test
+    void shouldReconcileStaleActiveSubagentsAsInterrupted() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SubagentRunRecord stale = subagent("stale", "parent", "running", true, 0L);
+        SubagentRunRecord completed = subagent("completed", "parent", "success", false, 123L);
+        env.agentRunRepository.saveSubagentRun(stale);
+        env.agentRunRepository.saveSubagentRun(completed);
+        DefaultDelegationService service =
+                new DefaultDelegationService(
+                        new ConversationOrchestratorHolder(),
+                        null,
+                        env.sessionRepository,
+                        env.agentRunRepository,
+                        env.appConfig,
+                        null);
+        long before = System.currentTimeMillis();
+
+        int reconciled = service.reconcileStaleSubagents();
+
+        assertThat(reconciled).isEqualTo(1);
+        List<SubagentRunRecord> records = env.agentRunRepository.listSubagents("parent");
+        SubagentRunRecord reconciledRecord =
+                records.stream()
+                        .filter(record -> "stale".equals(record.getSubagentId()))
+                        .findFirst()
+                        .orElseThrow(AssertionError::new);
+        SubagentRunRecord completedRecord =
+                records.stream()
+                        .filter(record -> "completed".equals(record.getSubagentId()))
+                        .findFirst()
+                        .orElseThrow(AssertionError::new);
+        assertThat(reconciledRecord.getStatus()).isEqualTo("interrupted");
+        assertThat(reconciledRecord.isActive()).isFalse();
+        assertThat(reconciledRecord.isInterruptRequested()).isTrue();
+        assertThat(reconciledRecord.getFinishedAt()).isGreaterThanOrEqualTo(before);
+        assertThat(reconciledRecord.getHeartbeatAt()).isEqualTo(reconciledRecord.getFinishedAt());
+        assertThat(completedRecord.getStatus()).isEqualTo("success");
+        assertThat(completedRecord.getFinishedAt()).isEqualTo(123L);
     }
 
     /** batch 等待线程被取消后必须保留中断标记，并停止等待其余子任务。 */
@@ -666,6 +708,20 @@ public class DelegationServiceTest {
         record.setRunKind(runKind);
         record.setParentRunId(parentRunId);
         record.setStatus("success");
+        return record;
+    }
+
+    /** 构造持久化子 Agent 记录，供启动收敛测试复用。 */
+    private static SubagentRunRecord subagent(
+            String subagentId, String parentRunId, String status, boolean active, long finishedAt) {
+        SubagentRunRecord record = new SubagentRunRecord();
+        record.setSubagentId(subagentId);
+        record.setParentRunId(parentRunId);
+        record.setStatus(status);
+        record.setActive(active);
+        record.setStartedAt(1L);
+        record.setFinishedAt(finishedAt);
+        record.setHeartbeatAt(1L);
         return record;
     }
 

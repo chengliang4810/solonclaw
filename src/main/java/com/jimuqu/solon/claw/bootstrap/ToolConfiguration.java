@@ -451,14 +451,17 @@ public class ToolConfiguration {
             AgentRunRepository agentRunRepository,
             AgentRunControlService agentRunControlService,
             DeliveryService deliveryService) {
-        return new DefaultDelegationService(
-                holder,
-                preferenceStore,
-                sessionRepository,
-                agentRunRepository,
-                appConfig,
-                agentRunControlService,
-                deliveryService);
+        DefaultDelegationService service =
+                new DefaultDelegationService(
+                        holder,
+                        preferenceStore,
+                        sessionRepository,
+                        agentRunRepository,
+                        appConfig,
+                        agentRunControlService,
+                        deliveryService);
+        service.reconcileStaleSubagents();
+        return service;
     }
 
     /**

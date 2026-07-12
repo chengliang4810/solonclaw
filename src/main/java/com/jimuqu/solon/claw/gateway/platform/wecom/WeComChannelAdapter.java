@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -30,6 +31,10 @@ import org.noear.snack4.ONode;
 
 /** WeComChannelAdapter 实现。 */
 public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 抑制企微 WebSocket 重投的相同消息标识。 */
+    private final BoundedMessageDeduplicator inboundMessageDeduplicator =
+            new BoundedMessageDeduplicator();
+
     /** 默认WSURL的统一常量值。 */
     private static final String DEFAULT_WS_URL = "wss://openws.work.weixin.qq.com";
 
@@ -366,6 +371,9 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private void handleInbound(final ONode payload) {
         if (callbackExecutor == null || inboundMessageHandler() == null) {
+            return;
+        }
+        if (inboundMessageDeduplicator.isDuplicate(payload.get("body").get("msgid").getString())) {
             return;
         }
         // 先解析入站消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞而错过取消时机

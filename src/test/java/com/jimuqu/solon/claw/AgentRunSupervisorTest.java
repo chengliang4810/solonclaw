@@ -783,6 +783,76 @@ public class AgentRunSupervisorTest {
                 .isFalse();
     }
 
+    /** stale 恢复必须持续处理后续批次，不能把第 201 条以后永久留在活动态。 */
+    @Test
+    void shouldRecoverStaleRunsBeyondSingleBatch() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        long staleAt = System.currentTimeMillis() - 120_000L;
+        for (int index = 0; index < 205; index++) {
+            AgentRunRecord run = new AgentRunRecord();
+            run.setRunId("stale-batch-" + index);
+            run.setSessionId("stale-session-" + index);
+            run.setSourceKey("MEMORY:stale-batch:" + index);
+            run.setRunKind("scheduled");
+            run.setStatus("running");
+            run.setStartedAt(staleAt);
+            run.setLastActivityAt(staleAt);
+            fixture.agentRunRepository.saveRun(run);
+        }
+
+        supervisor.recoverStaleRuns(60_000L);
+
+        assertThat(fixture.agentRunRepository.findRun("stale-batch-0").getStatus())
+                .isEqualTo("recoverable");
+        assertThat(fixture.agentRunRepository.findRun("stale-batch-204").getStatus())
+                .isEqualTo("recoverable");
+    }
+
+    /** 队列领取与终态更新使用 CAS，启动恢复会把遗留 running 项退回 queued。 */
+    @Test
+    void shouldClaimAndRecoverQueuedMessageWithExpectedStatus() throws Exception {
+        Fixture fixture = fixture();
+        QueuedRunMessage queued = new QueuedRunMessage();
+        queued.setQueueId("queue-cas");
+        queued.setRunId("run-cas");
+        queued.setSessionId("session-cas");
+        queued.setSourceKey("MEMORY:queue-cas:user");
+        queued.setMessageText("queued");
+        queued.setMessageJson("{}");
+        queued.setStatus("queued");
+        queued.setBusyPolicy("queue");
+        queued.setCreatedAt(System.currentTimeMillis() - 120_000L);
+        fixture.agentRunRepository.saveQueuedMessage(queued);
+
+        assertThat(
+                        fixture.agentRunRepository.markQueuedMessage(
+                                "queue-cas", "queued", "running", System.currentTimeMillis(), null))
+                .isTrue();
+        assertThat(
+                        fixture.agentRunRepository.markQueuedMessage(
+                                "queue-cas", "queued", "running", System.currentTimeMillis(), null))
+                .isFalse();
+        assertThat(
+                        fixture.agentRunRepository.markQueuedMessage(
+                                "queue-cas", "queued", "success", System.currentTimeMillis(), null))
+                .isFalse();
+
+        assertThat(
+                        fixture.agentRunRepository.requeueStaleRunningMessages(
+                                System.currentTimeMillis() + 1L))
+                .isEqualTo(1);
+        assertThat(
+                        fixture.agentRunRepository.findNextQueuedMessage(
+                                queued.getSourceKey(), queued.getSessionId()))
+                .isNotNull();
+    }
+
     @Test
     void shouldCarryProfileScopeIntoQueuedRunDrainThread() throws Exception {
         Fixture fixture = fixture();

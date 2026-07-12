@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelInboundPolicySupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
 import com.jimuqu.solon.claw.support.GatewayApprovalCardSupport;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -46,6 +47,10 @@ import org.noear.snack4.ONode;
 
 /** QQBot 官方 API v2 适配器。当前覆盖文本、媒体传输与附件感知主链。 */
 public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 抑制 QQBot 网关重投的相同消息标识。 */
+    private final BoundedMessageDeduplicator inboundMessageDeduplicator =
+            new BoundedMessageDeduplicator();
+
     /** tokenURL的统一常量值。 */
     private static final String TOKEN_URL = "https://bots.qq.com/app/getAppAccessToken";
 
@@ -787,6 +792,9 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         // 先解析入站消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞而错过取消时机
         final GatewayMessage message = toGatewayMessage(raw);
         if (message == null) {
+            return;
+        }
+        if (inboundMessageDeduplicator.isDuplicate(message.getReplyToMessageId())) {
             return;
         }
         if (isControlCommand(message.getText())) {

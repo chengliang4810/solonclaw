@@ -245,6 +245,28 @@ public interface AgentRunRepository {
             throws Exception;
 
     /**
+     * 按预期状态原子更新排队消息，避免多个 drain 重复领取或覆盖终态。
+     *
+     * @param queueId 队列标识。
+     * @param expectedStatus 更新前必须匹配的状态。
+     * @param status 目标状态。
+     * @param timestamp 状态变更时间戳。
+     * @param error 失败原因；无失败时传 null。
+     * @return 成功更新一条记录时返回 true。
+     */
+    boolean markQueuedMessage(
+            String queueId, String expectedStatus, String status, long timestamp, String error)
+            throws Exception;
+
+    /**
+     * 将服务异常退出前遗留的 running 队列项退回 queued，供启动恢复后重新领取。
+     *
+     * @param beforeEpochMillis 仅恢复早于该时间的队列项。
+     * @return 恢复为 queued 的记录数量。
+     */
+    int requeueStaleRunningMessages(long beforeEpochMillis) throws Exception;
+
+    /**
      * 保存工具Call。
      *
      * @param record 记录参数。
@@ -297,6 +319,16 @@ public interface AgentRunRepository {
      * @return 返回Subagents列表。
      */
     List<SubagentRunRecord> listSubagents(String parentRunId) throws Exception;
+
+    /**
+     * 将当前进程无法继续控制的活动子 Agent 收敛为已中断状态。
+     *
+     * @param now 当前时间戳，用作遗留记录的结束时间和最后心跳时间。
+     * @return 被收敛的子 Agent 记录数量。
+     */
+    default int markActiveSubagentsInterrupted(long now) throws Exception {
+        return 0;
+    }
 
     /**
      * 保存Recovery。

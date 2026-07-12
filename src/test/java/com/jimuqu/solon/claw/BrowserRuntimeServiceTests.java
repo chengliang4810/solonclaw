@@ -582,6 +582,8 @@ public class BrowserRuntimeServiceTests {
 
         assertThat(clicked.isSuccess()).isFalse();
         assertThat(clicked.getError().getCode()).isEqualTo("security_blocked");
+        assertThat(provider.navigateCount.get()).isEqualTo(1);
+        assertThat(provider.lastNavigatedUrl).isEqualTo("about:blank");
         assertThat(service.activeLeaseCount()).isZero();
         assertThat(provider.closeCount.get()).isEqualTo(1);
     }

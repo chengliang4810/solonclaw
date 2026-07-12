@@ -51,6 +51,40 @@ public class PairingControlSecurityTest {
         }
     }
 
+    /** Dashboard、CLI 和渠道审批必须共享平台级失败锁定，锁定期间正确 code 也不能通过。 */
+    @Test
+    void shouldEnforcePlatformApprovalLockoutAcrossTrustedControls() throws Exception {
+        AppConfig config = config(Files.createTempDirectory("solonclaw-pairing-lockout"));
+        SqliteDatabase database = new SqliteDatabase(config);
+        try {
+            SqliteGatewayPolicyRepository repository = new SqliteGatewayPolicyRepository(database);
+            GatewayAuthorizationService authorization =
+                    new GatewayAuthorizationService(repository, config);
+            repository.savePairingRequest(request("LOCK2345"));
+
+            for (int i = 0; i < 5; i++) {
+                String approvedBy = i % 2 == 0 ? "dashboard" : "local-cli";
+                assertThatThrownBy(
+                                () ->
+                                        authorization.approvePairing(
+                                                PlatformType.WEIXIN, "WRONG234", approvedBy))
+                        .isInstanceOf(IllegalArgumentException.class)
+                        .hasMessageContaining("无效或已过期");
+            }
+
+            assertThatThrownBy(
+                            () ->
+                                    authorization.approvePairing(
+                                            PlatformType.WEIXIN, "LOCK2345", "dashboard"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("失败次数过多");
+            assertThat(repository.getApprovedUser(PlatformType.WEIXIN, "wx-user")).isNull();
+            assertThat(repository.getPairingRequest(PlatformType.WEIXIN, "LOCK2345")).isNotNull();
+        } finally {
+            database.shutdown();
+        }
+    }
+
     /** 管理员设置和清除只能走可信控制服务，且 SQLite 主文件权限必须 owner-only。 */
     @Test
     void shouldManageAdminAndRestrictDatabasePermissions() throws Exception {

@@ -2,6 +2,8 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
@@ -234,6 +236,40 @@ public class GatewayCommandFlowTest {
                 .contains(firstNew.getSessionId())
                 .doesNotContain("研发计划")
                 .doesNotContain(secondNew.getSessionId());
+    }
+
+    /** 国内渠道只能枚举和恢复同一来源会话，已知其他来源会话 ID 也不能越权绑定。 */
+    @Test
+    void shouldScopeDomesticChannelSessionCommandsBySource() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "FEISHU:room-resume-guard:user-resume-guard";
+        SessionRecord own = env.sessionRepository.bindNewSession(sourceKey);
+        own.setTitle("当前来源会话");
+        env.sessionRepository.save(own);
+        SessionRecord foreign =
+                env.sessionRepository.bindNewSession("WEIXIN:other-room:other-user");
+        foreign.setTitle("其他渠道机密会话");
+        env.sessionRepository.save(foreign);
+        GatewayMessage message =
+                new GatewayMessage(
+                        PlatformType.FEISHU, "room-resume-guard", "user-resume-guard", "/sessions");
+
+        GatewayReply listReply = env.commandService.handle(message, "/sessions");
+        GatewayReply searchReply = env.commandService.handle(message, "/sessions 机密会话");
+        GatewayReply resumeReply =
+                env.commandService.handle(message, "/resume " + foreign.getSessionId());
+
+        assertThat(listReply.getContent())
+                .contains("当前来源会话")
+                .doesNotContain("其他渠道机密会话")
+                .doesNotContain(foreign.getSessionId());
+        assertThat(searchReply.getContent())
+                .contains("没有找到匹配的会话")
+                .doesNotContain(foreign.getSessionId());
+        assertThat(resumeReply.isError()).isTrue();
+        assertThat(resumeReply.getContent()).contains("未找到对应会话");
+        assertThat(env.sessionRepository.getBoundSession(sourceKey).getSessionId())
+                .isEqualTo(own.getSessionId());
     }
 
     @Test

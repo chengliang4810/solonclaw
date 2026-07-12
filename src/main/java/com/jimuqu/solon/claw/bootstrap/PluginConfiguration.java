@@ -86,7 +86,7 @@ public class PluginConfiguration implements PluginRegistrationSink {
      * @param appConfig 当前 Profile 的应用配置。
      * @return 返回Agent插件管理器结果。
      */
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     public AgentPluginManager agentPluginManager(AppConfig appConfig) {
         Set<String> enabled =
                 appConfig == null

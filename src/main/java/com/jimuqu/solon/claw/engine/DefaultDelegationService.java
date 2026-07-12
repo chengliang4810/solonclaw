@@ -166,6 +166,32 @@ public class DefaultDelegationService implements DelegationService {
                         "solonclaw-delegation", maxConcurrency, Math.max(1, maxConcurrency * 2));
     }
 
+    /**
+     * 收敛上一次进程退出后遗留的活动子 Agent 记录。
+     *
+     * <p>当前进程没有旧线程和控制句柄，因此这些记录只能标记为已中断，不能恢复到内存活动表。
+     *
+     * @return 被收敛的子 Agent 记录数量；仓储不可用或收敛失败时返回零。
+     */
+    public int reconcileStaleSubagents() {
+        if (agentRunRepository == null) {
+            return 0;
+        }
+        try {
+            int reconciled =
+                    agentRunRepository.markActiveSubagentsInterrupted(System.currentTimeMillis());
+            if (reconciled > 0) {
+                log.warn("Marked {} stale subagent run(s) as interrupted", reconciled);
+            }
+            return reconciled;
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to reconcile stale subagent runs: {}",
+                    SecretRedactor.redact(e.getMessage(), 1000));
+            return 0;
+        }
+    }
+
     /** 当前调用是否来自顶层会话；子 Agent 内的 orchestrator 需要同步拿到工作结果。 */
     @Override
     public boolean shouldRunInBackground() {

@@ -16,6 +16,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelInboundPolicySupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -40,6 +41,10 @@ import org.noear.snack4.ONode;
 
 /** 腾讯元宝 Bot 渠道适配器。协议层保留 JSON/REST 可测边界，媒体只做传输与附件感知。 */
 public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 抑制元宝 WebSocket 重投的相同消息标识。 */
+    private final BoundedMessageDeduplicator inboundMessageDeduplicator =
+            new BoundedMessageDeduplicator();
+
     /** 默认WSURL的统一常量值。 */
     private static final String DEFAULT_WS_URL = "wss://bot-wss.yuanbao.tencent.com/wss/connection";
 
@@ -416,6 +421,9 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                     public void run() {
                         GatewayMessage message = toGatewayMessage(raw);
                         if (message == null) {
+                            return;
+                        }
+                        if (inboundMessageDeduplicator.isDuplicate(message.getThreadId())) {
                             return;
                         }
                         try {

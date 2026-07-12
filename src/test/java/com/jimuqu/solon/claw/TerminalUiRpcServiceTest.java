@@ -11,6 +11,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
+import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
@@ -18,6 +19,7 @@ import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tui.TerminalUiPendingAttachmentService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
@@ -402,6 +404,52 @@ class TerminalUiRpcServiceTest {
         assertThat(compression.compressNowCalls).isZero();
         assertThat(response.get("removed")).isEqualTo(0);
         assertThat(response.get("summary").toString()).contains("headline=nothing to compress");
+    }
+
+    /** TUI 直连入口在会话运行中不得创建分支或恢复完整 checkpoint。 */
+    @Test
+    void destructiveSessionRpcRejectsActiveRun() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sessionId = "tui-busy";
+        String sourceKey = "MEMORY:terminal-ui:" + sessionId;
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setSessionId(sessionId);
+        session.setSourceKey(sourceKey);
+        env.sessionRepository.save(session);
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.localSkillService,
+                        env.skillHubService,
+                        env.checkpointService,
+                        null,
+                        null,
+                        null,
+                        env.contextCompressionService,
+                        null,
+                        env.processRegistry,
+                        null,
+                        env.gatewayRuntimeRefreshService,
+                        env.delegationService,
+                        env.agentRunControlService,
+                        env.agentRunRepository,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+        AgentRunSupervisor supervisor = (AgentRunSupervisor) env.agentRunControlService;
+        supervisor.coordinateIncoming(
+                sourceKey, sessionId, env.message("terminal-ui", sessionId, "run"));
+
+        Map<String, Object> branch = service.sessionBranch(sessionId, "blocked");
+        Map<String, Object> rollback = service.rollbackRestore(sessionId, "missing", "");
+
+        assertThat(branch)
+                .containsEntry("success", Boolean.FALSE)
+                .containsEntry("status", "running");
+        assertThat(rollback)
+                .containsEntry("success", Boolean.FALSE)
+                .containsEntry("status", "running");
+        supervisor.releaseIncomingReservation(sourceKey);
     }
 
     @Test

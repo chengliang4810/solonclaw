@@ -623,7 +623,9 @@ public class TerminalUiWebSocketListener implements WebSocketListener {
         }
         if ("rollback.restore".equals(method)) {
             return rpcService.rollbackRestore(
-                    checkpointId(params), params.get("file_path").getString());
+                    params.get("session_id").getString(),
+                    checkpointId(params),
+                    params.get("file_path").getString());
         }
         if ("skills.manage".equals(method)) {
             return rpcService.skillsManage(

@@ -48,6 +48,35 @@ public class SkillCuratorServiceTest {
         assertThat(service.runOnce(true).get("status")).isEqualTo("ok");
     }
 
+    /** 近期调用的旧技能应按最近活动时间保留为 active，而不是按文件时间误判陈旧。 */
+    @Test
+    void shouldKeepRecentlyUsedOldSkillActive() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getCurator().setEnabled(true);
+        env.appConfig.getCurator().setStaleAfterDays(1);
+        env.appConfig.getCurator().setArchiveAfterDays(2);
+        File skill = createSkill(env, "recently-used-skill", false);
+        touch(skill, System.currentTimeMillis() - 3L * 24L * 60L * 60L * 1000L);
+        env.localSkillService.bumpUsage("recently-used-skill", "call");
+
+        Map<String, Object> report =
+                new SkillCuratorService(env.appConfig, env.localSkillService).runOnce(true);
+
+        assertThat(item(report, "recently-used-skill").get("status")).isEqualTo("active");
+        assertThat(item(report, "recently-used-skill").get("ageDays")).isEqualTo(0L);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> item(Map<String, Object> report, String name) {
+        for (Object value : (Iterable<?>) report.get("items")) {
+            Map<String, Object> item = (Map<String, Object>) value;
+            if (name.equals(item.get("name"))) {
+                return item;
+            }
+        }
+        throw new AssertionError("Missing curator item: " + name);
+    }
+
     private File createSkill(TestEnvironment env, String name, boolean pinned) {
         File dir = new File(env.appConfig.getRuntime().getSkillsDir(), name);
         FileUtil.mkdir(dir);
