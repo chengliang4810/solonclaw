@@ -50,37 +50,74 @@ public class ProactiveDispatchService {
             throws Exception {
         ProactiveDecisionRecord record = baseRecord(decision, message);
         if (decision == null
-                || !"SEND".equalsIgnoreCase(StrUtil.nullToEmpty(decision.getDecision()))
-                || StrUtil.isBlank(message)) {
+                || !"SEND".equalsIgnoreCase(StrUtil.nullToEmpty(decision.getDecision()))) {
             record.setDeliveryStatus("SKIPPED");
             record.setDeliveryError("not_send_decision_or_empty_message");
             save(record);
             return record;
         }
-        HomeChannelRecord home = resolveHomeChannel(decision);
+        if (StrUtil.isBlank(message)) {
+            return fail(record, decision, "empty_message");
+        }
+        HomeChannelRecord home;
+        try {
+            home = resolveHomeChannel(decision);
+        } catch (Exception e) {
+            return fail(record, decision, safeError(e));
+        }
         if (home == null) {
-            record.setDeliveryStatus("FAILED");
-            record.setDeliveryError("no_home_channel");
-            save(record);
-            return record;
+            return fail(record, decision, "no_home_channel");
         }
         record.setDeliveryPlatform(home.getPlatform().name());
         record.setDeliveryChatId(home.getChatId());
         record.setDeliveryThreadId(home.getThreadId());
+        record.setDeliveryStatus("DELIVERY_PENDING");
+        record.setDeliveryError(null);
+        save(record);
         try {
             DeliveryRequest request = new DeliveryRequest();
             request.setPlatform(home.getPlatform());
             request.setChatId(home.getChatId());
             request.setThreadId(home.getThreadId());
+            if (home.getPlatform() == PlatformType.FEISHU
+                    && StrUtil.isNotBlank(home.getThreadId())) {
+                request.setReplyToMessageId(home.getThreadId());
+            }
             request.setText(message);
             deliveryService.deliver(request);
-            record.setDeliveryStatus("SENT");
         } catch (Exception e) {
-            record.setDeliveryStatus("FAILED");
-            record.setDeliveryError(safeError(e));
+            return fail(record, decision, safeError(e));
         }
+        record.setDeliveryStatus("SENT");
+        record.setDeliveryError(null);
         save(record);
+        markCandidate(decision, "SENT");
         return record;
+    }
+
+    /** 记录投递失败，并把候选退回待处理状态。 */
+    private ProactiveDecisionRecord fail(
+            ProactiveDecisionRecord record, ProactiveDecision decision, String error)
+            throws Exception {
+        record.setDeliveryStatus("FAILED");
+        record.setDeliveryError(StrUtil.nullToEmpty(error));
+        save(record);
+        markCandidate(decision, "PENDING");
+        return record;
+    }
+
+    /** 同步候选投递终态或重试状态。 */
+    private void markCandidate(ProactiveDecision decision, String status) throws Exception {
+        if (proactiveRepository == null
+                || decision == null
+                || StrUtil.isBlank(decision.getCandidateId())) {
+            return;
+        }
+        proactiveRepository.markCandidateStatus(
+                decision.getCandidateId(),
+                status,
+                decision.getDecisionId(),
+                System.currentTimeMillis());
     }
 
     /**

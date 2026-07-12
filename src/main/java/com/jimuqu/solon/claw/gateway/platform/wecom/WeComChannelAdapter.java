@@ -10,6 +10,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelConnectionSupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
@@ -30,6 +31,10 @@ import org.noear.snack4.ONode;
 
 /** WeComChannelAdapter 实现。 */
 public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 抑制企微 WebSocket 重投的相同消息标识。 */
+    private final BoundedMessageDeduplicator inboundMessageDeduplicator =
+            new BoundedMessageDeduplicator();
+
     /** 默认WSURL的统一常量值。 */
     private static final String DEFAULT_WS_URL = "wss://openws.work.weixin.qq.com";
 
@@ -210,8 +215,9 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
-        ChannelConnectionSupport.disconnect(webSocket, callbackExecutor);
+        WebSocket current = webSocket;
         webSocket = null;
+        ChannelConnectionSupport.disconnect(current, callbackExecutor);
         callbackExecutor = null;
         // 关闭控制命令并发执行器，避免断开连接后线程泄漏
         shutdownControlExecutor();
@@ -231,7 +237,8 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         if (StrUtil.isNotBlank(request.getText())) {
             ONode response =
-                    sendTextMessage(request.getChatId(), request.getText(), request.getThreadId());
+                    sendTextMessage(
+                            request.getChatId(), request.getText(), request.getReplyToMessageId());
             int ret = response.get("ret").getInt(0);
             if (ret != 0) {
                 throw new IllegalStateException("WeCom send failed: " + safeJson(response));
@@ -239,7 +246,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         if (request.getAttachments() != null) {
             for (MessageAttachment attachment : request.getAttachments()) {
-                sendAttachment(request.getChatId(), attachment, request.getThreadId());
+                sendAttachment(request.getChatId(), attachment, request.getReplyToMessageId());
             }
         }
     }
@@ -333,6 +340,10 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
+            if (WeComChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
+            boolean wasReady = isConnected();
             failPending(t == null ? new IllegalStateException("WeCom websocket failure") : t);
             WeComChannelAdapter.this.webSocket = null;
             markWebSocketFailure("wecom_websocket_failure", t);
@@ -341,6 +352,9 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                     "[WECOM] websocket failure: errorType={}, error={}",
                     errorType(t),
                     safeError(t));
+            if (wasReady) {
+                requestReconnect();
+            }
         }
 
         /**
@@ -352,10 +366,17 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
+            if (WeComChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
+            boolean wasReady = isConnected();
             failPending(
                     new IllegalStateException("WeCom websocket closed: " + code + " " + reason));
             WeComChannelAdapter.this.webSocket = null;
             markWebSocketClosed(code, reason);
+            if (wasReady) {
+                requestReconnect();
+            }
         }
     }
 
@@ -366,6 +387,9 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private void handleInbound(final ONode payload) {
         if (callbackExecutor == null || inboundMessageHandler() == null) {
+            return;
+        }
+        if (inboundMessageDeduplicator.isDuplicate(payload.get("body").get("msgid").getString())) {
             return;
         }
         // 先解析入站消息，便于识别控制命令；控制命令走并发执行器避免被运行中的任务阻塞而错过取消时机
@@ -432,7 +456,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatType(chatType);
         message.setChatName(chatId);
         message.setUserName(userId);
-        message.setThreadId(msgId);
+        message.setReplyToMessageId(msgId);
         message.setAttachments(attachments);
         return message;
     }

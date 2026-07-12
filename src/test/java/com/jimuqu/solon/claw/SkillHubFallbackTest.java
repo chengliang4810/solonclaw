@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.core.service.SkillGuardService;
 import com.jimuqu.solon.claw.core.service.SkillImportService;
@@ -54,6 +55,19 @@ public class SkillHubFallbackTest {
         List<SkillMeta> results = source.search("demo", 10);
 
         assertThat(results).extracting(SkillMeta::getName).containsExactly("demo-skill");
+    }
+
+    @Test
+    void githubSearchShouldReportSourceFailureWhenEveryTapFails() throws Exception {
+        GitHubSkillSource source =
+                new GitHubSkillSource(
+                        new GitHubAuth(new FixtureSkillHubHttpClient()),
+                        new FixtureSkillHubHttpClient(),
+                        newStateStore());
+
+        assertThatThrownBy(() -> source.search("demo", 10))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("all configured taps failed");
     }
 
     private SkillSource failingSource() {

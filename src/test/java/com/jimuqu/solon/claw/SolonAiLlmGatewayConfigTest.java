@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.llm.dialect.RawResponseLoggingChatDialect;
 import com.jimuqu.solon.claw.media.MediaInputBoundaryService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.tool.runtime.SmartApprovalDecision;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -30,6 +31,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatConfig;
 import org.noear.solon.ai.chat.ChatModel;
 import org.noear.solon.ai.chat.content.ImageBlock;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.message.UserMessage;
 import org.noear.solon.ai.chat.prompt.Prompt;
@@ -303,6 +305,39 @@ public class SolonAiLlmGatewayConfigTest {
                 .isEqualTo("high");
         assertThat(anthropicRequest.get("speed").getString()).isEqualTo("fast");
         assertThat(anthropic.getHeaders().get("anthropic-beta")).contains("fast-mode-2026-02-01");
+    }
+
+    /** 验证 Gemini 未配置最大输出 token 时仍发送项目默认值。 */
+    @Test
+    void shouldUseDefaultGeminiMaxOutputTokensWhenUnset() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getLlm().setProvider("gemini");
+        config.getLlm().setDialect("gemini");
+        config.getLlm().setApiUrl("https://generativelanguage.googleapis.com/v1beta");
+        config.getLlm().setModel("gemini-3-pro");
+
+        ONode request = buildRequest(config, new SessionRecord());
+
+        assertThat(request.get("generationConfig").get("maxOutputTokens").getInt())
+                .isEqualTo(RuntimePathConstants.DEFAULT_MAX_TOKENS);
+    }
+
+    /** 验证没有被协议层解析为工具调用的工具 XML 不会作为可见回复返回。 */
+    @Test
+    void shouldSuppressUnrecognizedToolXmlFromVisibleText() throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
+        Method extractText =
+                SolonAiLlmGateway.class.getDeclaredMethod("extractText", AssistantMessage.class);
+        extractText.setAccessible(true);
+
+        String visible =
+                (String)
+                        extractText.invoke(
+                                gateway,
+                                ChatMessage.ofAssistant(
+                                        "已完成。<tool_call>{\"name\":\"terminal\",\"arguments\":{\"command\":\"secret\"}}</tool_call>"));
+
+        assertThat(visible).isEqualTo("已完成。");
     }
 
     /** 验证 Anthropic 提示词缓存会标记 system 与最近三条非 system 消息。 */

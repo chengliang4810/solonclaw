@@ -612,6 +612,27 @@ public final class MessageSupport {
     }
 
     /**
+     * 生成可安全持久化的助手消息副本，剥离供应商混入正文或原始载荷的私有推理内容。
+     *
+     * <p>工具调用与搜索结果必须保留，确保恢复后的工具协议序列仍然完整。
+     *
+     * @param message 原始助手消息。
+     * @return 不含私有推理载荷的持久化消息。
+     */
+    public static AssistantMessage assistantForPersistence(AssistantMessage message) {
+        if (message == null) {
+            return null;
+        }
+        return new AssistantMessage(
+                visibleText(message.getContent()),
+                false,
+                null,
+                message.getToolCallsRaw(),
+                message.getToolCalls(),
+                message.getSearchResultsRaw());
+    }
+
+    /**
      * 提取 assistant 正文中可见给用户的部分，去掉模型历史里遗留的内部思考块。
      *
      * @param content assistant 原始正文。

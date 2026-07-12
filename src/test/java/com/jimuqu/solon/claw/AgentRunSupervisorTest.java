@@ -6,6 +6,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
@@ -13,6 +14,7 @@ import com.jimuqu.solon.claw.core.model.ContextBudgetDecision;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
+import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
@@ -181,6 +183,154 @@ public class AgentRunSupervisorTest {
         assertThat(compressionService.compressCount).isEqualTo(1);
         assertThat(eventTypes(fixture.agentRunRepository.listEvents(persisted.getRunId())))
                 .contains("compression.done");
+    }
+
+    @Test
+    void shouldIncludeMatchedPrefetchedMemoryInBudgetButNotCompressionInput() throws Exception {
+        Fixture fixture = fixture();
+        CapturingBudgetService budgetService = new CapturingBudgetService();
+        CapturingCompressionService compressionService = new CapturingCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, new SuccessfulGateway("ok"), budgetService, compressionService);
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:prefetch:user");
+
+        supervisor.run(
+                session,
+                "system",
+                "当前问题",
+                Collections.emptyList(),
+                ConversationFeedbackSink.noop(),
+                ConversationEventSink.noop(),
+                false,
+                null,
+                Collections.emptyList(),
+                "召回记忆：用户偏好中文短答");
+
+        assertThat(budgetService.userMessage)
+                .contains("当前问题", MemoryContextBoundary.OPEN_TAG, "召回记忆：用户偏好中文短答");
+        assertThat(compressionService.focus).isEqualTo("当前问题");
+    }
+
+    @Test
+    void shouldNotAppendPrefetchedMemoryWhenUserMessageDoesNotMatch() {
+        String prompt =
+                MemoryContextBoundary.appendPrefetchedContext("运行中追加指令", "原始问题", "召回记忆：只应给原始问题使用");
+
+        assertThat(prompt).isEqualTo("运行中追加指令").doesNotContain(MemoryContextBoundary.OPEN_TAG);
+    }
+
+    /** 上下文溢出后应先强制压缩一次，再由同一提供方重试。 */
+    @Test
+    void shouldCompressOnceBeforeRetryingContextOverflowOnSameProvider() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTrace().setMaxAttempts(3);
+        ContextOverflowRetryGateway gateway = new ContextOverflowRetryGateway();
+        CountingCompressionService compressionService = new CountingCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), compressionService);
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:context-overflow:user");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "hello",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        assertThat(outcome.getFinalReply()).isEqualTo("retry ok");
+        assertThat(gateway.attempts).containsExactly("primary:gpt-5-mini", "primary:gpt-5-mini");
+        assertThat(compressionService.compressCount).isEqualTo(1);
+        assertThat(outcome.getRunRecord().getCompressionCount()).isEqualTo(1);
+        assertThat(
+                        eventTypes(
+                                fixture.agentRunRepository.listEvents(
+                                        outcome.getRunRecord().getRunId())))
+                .contains("compression.retry.unchanged");
+    }
+
+    /** 上下文压缩后的同一提供方重试仍溢出时，应切换备用模型。 */
+    @Test
+    void shouldFallbackAfterCompressedContextOverflowRetryAlsoFails() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTrace().setMaxAttempts(3);
+        ContextOverflowFallbackGateway gateway = new ContextOverflowFallbackGateway();
+        CountingCompressionService compressionService = new CountingCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), compressionService);
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:context-overflow-fallback:user");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "hello",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        assertThat(outcome.getFinalReply()).isEqualTo("backup context ok");
+        assertThat(gateway.attempts)
+                .containsExactly(
+                        "primary:gpt-5-mini", "primary:gpt-5-mini", "backup:claude-sonnet-4");
+        assertThat(compressionService.compressCount).isEqualTo(1);
+        assertThat(outcome.getRunRecord().getFallbackCount()).isEqualTo(1);
+        assertThat(
+                        eventTypes(
+                                fixture.agentRunRepository.listEvents(
+                                        outcome.getRunRecord().getRunId())))
+                .contains("fallback");
+    }
+
+    /** 413 且携带附件时优先移除附件后重试，避免无效重复压缩。 */
+    @Test
+    void shouldUnloadAttachmentsOnceBeforeRetryingPayloadTooLargeOnSameProvider() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTrace().setMaxAttempts(3);
+        PayloadTooLargeRetryGateway gateway = new PayloadTooLargeRetryGateway();
+        CountingCompressionService compressionService = new CountingCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), compressionService);
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:payload-too-large:user");
+        MessageAttachment attachment = new MessageAttachment();
+        attachment.setKind("image");
+        attachment.setMimeType("image/png");
+        attachment.setData("iVBORw0KGgo=");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "describe image",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.singletonList(attachment),
+                        null);
+
+        assertThat(outcome.getFinalReply()).isEqualTo("payload retry ok");
+        assertThat(gateway.attachmentCounts)
+                .containsExactly(Integer.valueOf(1), Integer.valueOf(0));
+        assertThat(compressionService.compressCount).isEqualTo(0);
+        assertThat(
+                        eventTypes(
+                                fixture.agentRunRepository.listEvents(
+                                        outcome.getRunRecord().getRunId())))
+                .contains("attachment.retry.unloaded");
     }
 
     @Test
@@ -783,6 +933,76 @@ public class AgentRunSupervisorTest {
                 .isFalse();
     }
 
+    /** stale 恢复必须持续处理后续批次，不能把第 201 条以后永久留在活动态。 */
+    @Test
+    void shouldRecoverStaleRunsBeyondSingleBatch() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        long staleAt = System.currentTimeMillis() - 120_000L;
+        for (int index = 0; index < 205; index++) {
+            AgentRunRecord run = new AgentRunRecord();
+            run.setRunId("stale-batch-" + index);
+            run.setSessionId("stale-session-" + index);
+            run.setSourceKey("MEMORY:stale-batch:" + index);
+            run.setRunKind("scheduled");
+            run.setStatus("running");
+            run.setStartedAt(staleAt);
+            run.setLastActivityAt(staleAt);
+            fixture.agentRunRepository.saveRun(run);
+        }
+
+        supervisor.recoverStaleRuns(60_000L);
+
+        assertThat(fixture.agentRunRepository.findRun("stale-batch-0").getStatus())
+                .isEqualTo("recoverable");
+        assertThat(fixture.agentRunRepository.findRun("stale-batch-204").getStatus())
+                .isEqualTo("recoverable");
+    }
+
+    /** 队列领取与终态更新使用 CAS，启动恢复会把遗留 running 项退回 queued。 */
+    @Test
+    void shouldClaimAndRecoverQueuedMessageWithExpectedStatus() throws Exception {
+        Fixture fixture = fixture();
+        QueuedRunMessage queued = new QueuedRunMessage();
+        queued.setQueueId("queue-cas");
+        queued.setRunId("run-cas");
+        queued.setSessionId("session-cas");
+        queued.setSourceKey("MEMORY:queue-cas:user");
+        queued.setMessageText("queued");
+        queued.setMessageJson("{}");
+        queued.setStatus("queued");
+        queued.setBusyPolicy("queue");
+        queued.setCreatedAt(System.currentTimeMillis() - 120_000L);
+        fixture.agentRunRepository.saveQueuedMessage(queued);
+
+        assertThat(
+                        fixture.agentRunRepository.markQueuedMessage(
+                                "queue-cas", "queued", "running", System.currentTimeMillis(), null))
+                .isTrue();
+        assertThat(
+                        fixture.agentRunRepository.markQueuedMessage(
+                                "queue-cas", "queued", "running", System.currentTimeMillis(), null))
+                .isFalse();
+        assertThat(
+                        fixture.agentRunRepository.markQueuedMessage(
+                                "queue-cas", "queued", "success", System.currentTimeMillis(), null))
+                .isFalse();
+
+        assertThat(
+                        fixture.agentRunRepository.requeueStaleRunningMessages(
+                                System.currentTimeMillis() + 1L))
+                .isEqualTo(1);
+        assertThat(
+                        fixture.agentRunRepository.findNextQueuedMessage(
+                                queued.getSourceKey(), queued.getSessionId()))
+                .isNotNull();
+    }
+
     @Test
     void shouldCarryProfileScopeIntoQueuedRunDrainThread() throws Exception {
         Fixture fixture = fixture();
@@ -1174,6 +1394,75 @@ public class AgentRunSupervisorTest {
         }
     }
 
+    /** 首次上下文溢出、第二次成功的模型网关测试桩。 */
+    private static class ContextOverflowRetryGateway extends ExecuteOnceOnlyGateway {
+        private final List<String> attempts = new ArrayList<String>();
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            if (attempts.size() == 1) {
+                throw new IllegalStateException("HTTP 400 prompt exceeds max length");
+            }
+            return resolvedResult(session, resolved, "retry ok");
+        }
+    }
+
+    /** 主提供方持续上下文溢出，备用提供方成功的模型网关测试桩。 */
+    private static class ContextOverflowFallbackGateway extends ExecuteOnceOnlyGateway {
+        private final List<String> attempts = new ArrayList<String>();
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            if ("primary".equals(resolved.getProvider())) {
+                throw new IllegalStateException("HTTP 400 prompt exceeds max length");
+            }
+            return resolvedResult(session, resolved, "backup context ok");
+        }
+    }
+
+    /** 首次 413、移除附件后成功的模型网关测试桩。 */
+    private static class PayloadTooLargeRetryGateway extends ExecuteOnceOnlyGateway {
+        private final List<Integer> attachmentCounts = new ArrayList<Integer>();
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
+            attachmentCounts.add(Integer.valueOf(runContext.getUserAttachments().size()));
+            if (attachmentCounts.size() == 1) {
+                throw new IllegalStateException("HTTP 413 payload too large");
+            }
+            return resolvedResult(session, resolved, "payload retry ok");
+        }
+    }
+
     private static class ThrowingGateway extends ExecuteOnceOnlyGateway {
         private final String leakedToken;
 
@@ -1302,6 +1591,47 @@ public class AgentRunSupervisorTest {
         public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus) {
             compressCount++;
             return session;
+        }
+    }
+
+    /** 捕获预算收到的用户文本，验证预算与真实模型请求采用同一记忆拼接规则。 */
+    private static class CapturingBudgetService implements ContextBudgetService {
+        private String userMessage;
+
+        @Override
+        public ContextBudgetDecision decide(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                AppConfig.LlmConfig resolved) {
+            return decide(session, systemPrompt, userMessage, resolved, Collections.emptyList());
+        }
+
+        @Override
+        public ContextBudgetDecision decide(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                AppConfig.LlmConfig resolved,
+                List<Object> tools) {
+            this.userMessage = userMessage;
+            ContextBudgetDecision decision = new ContextBudgetDecision();
+            decision.setShouldCompress(true);
+            decision.setReason("prefetch budget");
+            decision.setEstimatedTokens(2000);
+            decision.setThresholdTokens(1000);
+            return decision;
+        }
+    }
+
+    /** 捕获压缩焦点，确保仅请求期记忆不会进入压缩输入。 */
+    private static class CapturingCompressionService extends CountingCompressionService {
+        private String focus;
+
+        @Override
+        public SessionRecord compressNow(SessionRecord session, String systemPrompt, String focus) {
+            this.focus = focus;
+            return super.compressNow(session, systemPrompt, focus);
         }
     }
 

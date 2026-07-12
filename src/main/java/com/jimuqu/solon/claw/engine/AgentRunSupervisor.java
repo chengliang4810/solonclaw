@@ -3,6 +3,7 @@ package com.jimuqu.solon.claw.engine;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.agent.AgentRuntimeScope;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.MemoryContextBoundary;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.AgentRunEventRecord;
 import com.jimuqu.solon.claw.core.model.AgentRunOutcome;
@@ -656,6 +657,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                         drainQueue(key, sessionId, runner);
                                     } finally {
                                         draining.set(false);
+                                        if (!isRunning(key) && hasQueuedMessage(key, sessionId)) {
+                                            onRunFinished(key, sessionId, runner);
+                                        }
                                     }
                                 }),
                         "jimuqu-run-queue-" + Math.abs(key.hashCode()));
@@ -863,6 +867,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 AppConfig.LlmConfig resolved = candidates.get(candidateIndex);
                 int maxAttempts = Math.max(1, appConfig.getTrace().getMaxAttempts());
                 boolean allowFallback = true;
+                boolean compressionRecoveryAttempted = false;
+                boolean skipNextPreflightCompression = false;
+                List<MessageAttachment> candidateAttachments = runContext.getUserAttachments();
                 for (int attempt = 1; attempt <= maxAttempts; attempt++) {
                     checkCancellation(session.getSourceKey());
                     attemptNo++;
@@ -899,16 +906,23 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                             + steer;
                             runContext.event("run.steer.injected", "已将 steer 指令注入本轮模型调用");
                         }
-                        CompressionOutcome compression =
-                                compressBeforeAttempt(
-                                        session,
-                                        systemPrompt,
-                                        effectiveUserMessage,
-                                        resolved,
-                                        tools,
-                                        runContext,
-                                        eventSink,
-                                        runRecord);
+                        CompressionOutcome compression;
+                        if (skipNextPreflightCompression) {
+                            // 已因上一轮上下文溢出强制压缩，本次重试直接验证结果，避免重复压缩同一会话。
+                            compression = CompressionOutcome.skipped(session);
+                            skipNextPreflightCompression = false;
+                        } else {
+                            compression =
+                                    compressBeforeAttempt(
+                                            session,
+                                            systemPrompt,
+                                            effectiveUserMessage,
+                                            resolved,
+                                            tools,
+                                            runContext,
+                                            eventSink,
+                                            runRecord);
+                        }
                         session = compression.getSession();
                         if (StrUtil.isBlank(compressionWarning)
                                 && StrUtil.isNotBlank(compression.getWarning())) {
@@ -1045,12 +1059,59 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         LlmErrorClassifier.ClassifiedError classified =
                                 LlmErrorClassifier.classify(e);
                         allowFallback = classified.isShouldFallback();
-                        if (classified.shouldRetrySameProvider(attempt, maxAttempts)) {
+                        boolean retrySameProvider =
+                                classified.shouldRetrySameProvider(attempt, maxAttempts);
+                        boolean overflowRetryFailed =
+                                classified.getReason()
+                                                == LlmErrorClassifier.FailoverReason
+                                                        .CONTEXT_OVERFLOW
+                                        && compressionRecoveryAttempted;
+                        if (retrySameProvider
+                                && classified.isShouldCompress()
+                                && !compressionRecoveryAttempted) {
+                            compressionRecoveryAttempted = true;
+                            if (classified.getReason()
+                                            == LlmErrorClassifier.FailoverReason.PAYLOAD_TOO_LARGE
+                                    && !candidateAttachments.isEmpty()) {
+                                runContext.setUserAttachments(
+                                        Collections.<MessageAttachment>emptyList());
+                                runContext.event(
+                                        "attachment.retry.unloaded",
+                                        "请求载荷过大，已移除本次重试的附件载荷",
+                                        runContext.metadata(
+                                                "attachmentCount",
+                                                Integer.valueOf(candidateAttachments.size())));
+                            } else {
+                                CompressionOutcome recoveryCompression =
+                                        compressAfterOverflow(
+                                                session,
+                                                systemPrompt,
+                                                resolved,
+                                                classified,
+                                                runContext,
+                                                eventSink,
+                                                runRecord);
+                                session = recoveryCompression.getSession();
+                                skipNextPreflightCompression = true;
+                                if (StrUtil.isBlank(compressionWarning)
+                                        && StrUtil.isNotBlank(recoveryCompression.getWarning())) {
+                                    compressionWarning = recoveryCompression.getWarning();
+                                }
+                            }
+                        }
+                        if (overflowRetryFailed) {
+                            // 已完成一次压缩且同一提供方重试仍溢出时，交由后续候选模型尝试更大的上下文窗口。
+                            allowFallback = true;
+                            retrySameProvider = false;
+                        }
+                        if (retrySameProvider) {
                             continue;
                         }
                         break;
                     }
                 }
+
+                runContext.setUserAttachments(candidateAttachments);
 
                 if (finalResult != null) {
                     break;
@@ -1196,8 +1257,14 @@ public class AgentRunSupervisor implements AgentRunControlService {
             AgentRunRecord runRecord)
             throws Exception {
         String runId = runRecord == null ? "" : runRecord.getRunId();
+        String budgetUserMessage =
+                MemoryContextBoundary.appendPrefetchedContext(
+                        userMessage,
+                        runContext == null ? null : runContext.getMemoryPrefetchUserMessage(),
+                        runContext == null ? null : runContext.getMemoryPrefetchContext());
         ContextBudgetDecision decision =
-                contextBudgetService.decide(session, systemPrompt, userMessage, resolved, tools);
+                contextBudgetService.decide(
+                        session, systemPrompt, budgetUserMessage, resolved, tools);
         if (!decision.isShouldCompress()) {
             runContext.setPhase("compression");
             eventSink.onCompressionDecision(
@@ -1249,6 +1316,53 @@ public class AgentRunSupervisor implements AgentRunControlService {
         }
         outcome.setEstimatedTokens(decision.getEstimatedTokens());
         outcome.setThresholdTokens(decision.getThresholdTokens());
+        return outcome;
+    }
+
+    /**
+     * 在提供方明确拒绝上下文或载荷后强制压缩一次，供同一提供方的下一次请求使用。
+     *
+     * @param session 当前会话。
+     * @param systemPrompt 当前系统提示词。
+     * @param resolved 当前模型配置。
+     * @param classified 提供方错误分类。
+     * @param runContext 当前运行上下文。
+     * @param eventSink 运行事件接收器。
+     * @param runRecord 当前运行记录。
+     * @return 压缩结果。
+     */
+    private CompressionOutcome compressAfterOverflow(
+            SessionRecord session,
+            String systemPrompt,
+            AppConfig.LlmConfig resolved,
+            LlmErrorClassifier.ClassifiedError classified,
+            AgentRunContext runContext,
+            ConversationEventSink eventSink,
+            AgentRunRecord runRecord)
+            throws Exception {
+        String runId = runRecord == null ? "" : runRecord.getRunId();
+        SessionRecord before = cloneSessionState(session);
+        runContext.setPhase("compression");
+        CompressionOutcome outcome =
+                contextCompressionService.compressNowWithOutcome(session, systemPrompt);
+        SessionRecord compressed = outcome.getSession();
+        boolean changed = !StrUtil.equals(before.getNdjson(), compressed.getNdjson());
+        String reason = "provider_" + classified.getReason().name().toLowerCase(Locale.ROOT);
+        eventSink.onCompressionDecision(runId, changed, reason, 0, 0);
+        runContext.event(
+                outcome.isFailed()
+                        ? "compression.retry.failed"
+                        : (changed ? "compression.retry.done" : "compression.retry.unchanged"),
+                outcome.isFailed() ? outcome.getErrorMessage() : reason,
+                runContext.metadata("provider", resolved.getProvider()));
+        if (changed) {
+            sessionRepository.save(compressed);
+        }
+        if (runRecord != null) {
+            runRecord.setCompressionCount(runRecord.getCompressionCount() + 1);
+            heartbeat(runRecord);
+            agentRunRepository.saveRun(runRecord);
+        }
         return outcome;
     }
 
@@ -1999,18 +2113,27 @@ public class AgentRunSupervisor implements AgentRunControlService {
         long now = System.currentTimeMillis();
         long before = now - Math.max(60_000L, staleAfterMillis);
         try {
-            List<AgentRunRecord> staleRuns = agentRunRepository.listActiveBefore(before, 200);
-            agentRunRepository.markStaleRuns(before, now);
-            for (AgentRunRecord staleRun : staleRuns) {
-                String kind = StrUtil.blankToDefault(staleRun.getRunKind(), "");
-                String status = StrUtil.blankToDefault(staleRun.getStatus(), "");
-                if (("conversation".equals(kind) || "resume".equals(kind))
-                        && !"queued".equals(status)
-                        && !"waiting_approval".equals(status)) {
-                    markSessionResumePending(
-                            staleRun.getSourceKey(),
-                            staleRun.getSessionId(),
-                            "restart_interrupted");
+            agentRunRepository.requeueStaleRunningMessages(before);
+            while (true) {
+                List<AgentRunRecord> staleRuns = agentRunRepository.listActiveBefore(before, 200);
+                if (staleRuns.isEmpty()) {
+                    break;
+                }
+                agentRunRepository.markStaleRuns(before, now);
+                for (AgentRunRecord staleRun : staleRuns) {
+                    String kind = StrUtil.blankToDefault(staleRun.getRunKind(), "");
+                    String status = StrUtil.blankToDefault(staleRun.getStatus(), "");
+                    if (("conversation".equals(kind) || "resume".equals(kind))
+                            && !"queued".equals(status)
+                            && !"waiting_approval".equals(status)) {
+                        markSessionResumePending(
+                                staleRun.getSourceKey(),
+                                staleRun.getSessionId(),
+                                "restart_interrupted");
+                    }
+                }
+                if (staleRuns.size() < 200) {
+                    break;
                 }
             }
         } catch (Exception e) {
@@ -2271,29 +2394,46 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 releaseIncomingReservation(sourceKey);
                 return;
             }
+            boolean claimed = false;
             try {
-                agentRunRepository.markQueuedMessage(
-                        queued.getQueueId(), "running", System.currentTimeMillis(), null);
+                claimed =
+                        agentRunRepository.markQueuedMessage(
+                                queued.getQueueId(),
+                                "queued",
+                                "running",
+                                System.currentTimeMillis(),
+                                null);
+                if (!claimed) {
+                    continue;
+                }
                 markQueuedRunStarted(queued);
                 GatewayReply reply = runner.apply(deserializeMessage(queued));
-                agentRunRepository.markQueuedMessage(
-                        queued.getQueueId(), "success", System.currentTimeMillis(), null);
-                markQueuedRunFinished(
-                        queued, "success", reply == null ? null : reply.getContent(), null);
+                if (agentRunRepository.markQueuedMessage(
+                        queued.getQueueId(),
+                        "running",
+                        "success",
+                        System.currentTimeMillis(),
+                        null)) {
+                    markQueuedRunFinished(
+                            queued, "success", reply == null ? null : reply.getContent(), null);
+                }
             } catch (Exception e) {
                 try {
-                    agentRunRepository.markQueuedMessage(
-                            queued.getQueueId(),
-                            "failed",
-                            System.currentTimeMillis(),
-                            safeError(e));
+                    if (claimed
+                            && agentRunRepository.markQueuedMessage(
+                                    queued.getQueueId(),
+                                    "running",
+                                    "failed",
+                                    System.currentTimeMillis(),
+                                    safeError(e))) {
+                        markQueuedRunFinished(queued, "failed", null, safeError(e));
+                    }
                 } catch (Exception markFailedError) {
                     log.warn(
                             "mark queued message failed status failed: queueId={}, error={}",
                             queued.getQueueId(),
                             safeError(markFailedError));
                 }
-                markQueuedRunFinished(queued, "failed", null, safeError(e));
                 log.warn(
                         "queued run failed: queueId={}, error={}",
                         queued.getQueueId(),
@@ -2301,6 +2441,16 @@ public class AgentRunSupervisor implements AgentRunControlService {
             } finally {
                 releaseIncomingReservation(sourceKey);
             }
+        }
+    }
+
+    /** 判断当前来源会话是否仍有 queued 消息，用于补偿 drain 结束窗口内丢失的唤醒。 */
+    private boolean hasQueuedMessage(String sourceKey, String sessionId) {
+        try {
+            return agentRunRepository.findNextQueuedMessage(sourceKey, sessionId) != null;
+        } catch (Exception e) {
+            log.warn("check queued run failed: sourceKey={}, error={}", sourceKey, safeError(e));
+            return false;
         }
     }
 

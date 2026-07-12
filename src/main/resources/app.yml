@@ -105,6 +105,10 @@ solonclaw.task.busyPolicy: interrupt
 solonclaw.task.restartDrainTimeoutSeconds: 180
 solonclaw.task.toolOutputInlineLimit: 4000
 solonclaw.task.toolOutputTurnBudget: 200000
+# 单个静态上下文文件/块可注入系统提示词的最大字符数。
+solonclaw.task.bootstrapPromptFileCharLimit: 12000
+# 静态 bootstrap 系统提示词的总字符预算，独立于工具输出预算。
+solonclaw.task.bootstrapPromptTotalCharBudget: 48000
 
 # 内置 OpenAI 兼容 TTS；默认关闭，配置完整端点后显式启用。
 solonclaw.speech.tts.enabled: false

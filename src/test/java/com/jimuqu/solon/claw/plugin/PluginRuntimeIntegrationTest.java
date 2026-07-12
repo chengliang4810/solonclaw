@@ -20,6 +20,7 @@ import com.jimuqu.solon.claw.tool.runtime.DefaultToolRegistry;
 import com.jimuqu.solon.claw.web.DashboardConfigService;
 import com.jimuqu.solon.claw.web.DashboardProviderService;
 import com.jimuqu.solon.claw.web.DashboardRuntimeConfigService;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -28,10 +29,22 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.noear.solon.ai.chat.tool.FunctionTool;
+import org.noear.solon.annotation.Bean;
 import org.noear.solon.core.Props;
 
 class PluginRuntimeIntegrationTest {
     @TempDir Path tempDir;
+
+    /** 插件管理器必须随所属应用上下文关闭，避免插件资源跨 Profile 生命周期残留。 */
+    @Test
+    void pluginManagerBeanShutsDownWithItsApplicationContext() throws Exception {
+        Method factory = PluginConfiguration.class.getMethod("agentPluginManager", AppConfig.class);
+
+        Bean bean = factory.getAnnotation(Bean.class);
+
+        assertThat(bean).isNotNull();
+        assertThat(bean.destroyMethod()).isEqualTo("shutdown");
+    }
 
     @Test
     void pluginToolIsExposedByToolRegistryWithoutOverridingBuiltinTool() throws Throwable {

@@ -48,10 +48,12 @@ export const toTranscriptMessages = (rows: unknown): Msg[] => {
       continue
     }
 
-    const { context, name, role, text } = row as TranscriptRow
+    const { context, error, name, preview, role, status, text } = row as TranscriptRow
 
     if (role === 'tool') {
-      pending.push(buildToolTrailLine(name ?? 'tool', context ?? ''))
+      pending.push(
+        buildToolTrailLine(name ?? 'tool', context ?? '', status === 'error', error ?? preview ?? text ?? '')
+      )
 
       continue
     }
@@ -89,7 +91,10 @@ interface ImageMeta {
 
 interface TranscriptRow {
   context?: string
+  error?: string
   name?: string
+  preview?: string
   role?: string
+  status?: 'done' | 'error'
   text?: string
 }

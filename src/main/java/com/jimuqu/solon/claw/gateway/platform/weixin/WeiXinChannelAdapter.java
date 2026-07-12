@@ -1293,7 +1293,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             return;
         }
         String messageId = message.get("message_id").getString();
-        if (isDuplicate(messageId)) {
+        boolean hasMessageId = StrUtil.isNotBlank(messageId);
+        if (hasMessageId && isDuplicate(messageId)) {
             return;
         }
 
@@ -1312,9 +1313,6 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         ONode itemList = message.get("item_list");
         String text = extractInboundText(itemList);
-        if (isDuplicateText(chatTarget.chatId, senderId, text)) {
-            return;
-        }
         java.util.ArrayList<MessageAttachment> attachments =
                 new java.util.ArrayList<MessageAttachment>();
         for (int i = 0; i < itemList.size(); i++) {
@@ -1325,6 +1323,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             }
         }
         if (StrUtil.isBlank(text) && attachments.isEmpty()) {
+            return;
+        }
+        // 缺少平台消息标识时，只对纯文本使用兜底去重，避免相同说明的不同附件被误丢弃。
+        if (!hasMessageId
+                && attachments.isEmpty()
+                && isDuplicateText(chatTarget.chatId, senderId, text)) {
             return;
         }
 
@@ -1338,6 +1342,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             enqueueTextBatch(gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
             return;
         }
+        // 附件消息需要保持用户发送顺序，先将同一会话待去抖的文本投递到串行入站队列。
+        flushTextBatchBeforeImmediateDispatch(gatewayMessage);
         dispatchInboundMessage(
                 gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken, null);
     }
@@ -1496,9 +1502,17 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 @Override
                                 public void run() {
                                     try {
+                                        if (lifecycle.stopped) {
+                                            return;
+                                        }
                                         maybeFetchTypingTicket(
                                                 lifecycle.chatId, lifecycle.contextToken);
-                                        sendTyping(lifecycle.chatId, TYPING_START);
+                                        synchronized (lifecycle) {
+                                            if (lifecycle.stopped) {
+                                                return;
+                                            }
+                                            sendTyping(lifecycle.chatId, TYPING_START);
+                                        }
                                     } catch (Exception e) {
                                         log.debug(
                                                 "[WEIXIN] typing heartbeat tick failed: errorType={}, error={}",
@@ -1524,7 +1538,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      *
      * @param key 配置键或映射键。
      */
-    private void flushTextBatch(String key) {
+    private synchronized void flushTextBatch(String key) {
         pendingTextBatchTasks.remove(key);
         PendingTextBatch batch = pendingTextBatches.remove(key);
         if (batch == null) {
@@ -1533,6 +1547,28 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         GatewayMessage message = batch.toGatewayMessage();
         dispatchInboundMessage(
                 message, batch.chatType, batch.chatId, batch.contextToken, batch.typingLifecycle);
+    }
+
+    /**
+     * 在立即分派附件消息前清空同一会话的文本去抖批次，确保入站顺序不会被延迟文本反转。
+     *
+     * @param gatewayMessage 即将立即分派的渠道消息。
+     */
+    private synchronized void flushTextBatchBeforeImmediateDispatch(GatewayMessage gatewayMessage) {
+        if (gatewayMessage == null) {
+            return;
+        }
+        String key =
+                String.valueOf(gatewayMessage.getPlatform())
+                        + ":"
+                        + StrUtil.nullToEmpty(gatewayMessage.getChatId())
+                        + ":"
+                        + StrUtil.nullToEmpty(gatewayMessage.getUserId());
+        ScheduledFuture<?> scheduled = pendingTextBatchTasks.get(key);
+        if (scheduled != null) {
+            scheduled.cancel(false);
+        }
+        flushTextBatch(key);
     }
 
     /**
@@ -1605,13 +1641,16 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return;
             }
         }
-        if (lifecycle.heartbeat != null) {
-            lifecycle.heartbeat.cancel(true);
-        }
-        maybeFetchTypingTicket(lifecycle.chatId, lifecycle.contextToken);
-        if (!sendTyping(lifecycle.chatId, TYPING_STOP)) {
+        synchronized (lifecycle) {
+            lifecycle.stopped = true;
+            if (lifecycle.heartbeat != null) {
+                lifecycle.heartbeat.cancel(true);
+            }
             maybeFetchTypingTicket(lifecycle.chatId, lifecycle.contextToken);
-            sendTyping(lifecycle.chatId, TYPING_STOP);
+            if (!sendTyping(lifecycle.chatId, TYPING_STOP)) {
+                maybeFetchTypingTicket(lifecycle.chatId, lifecycle.contextToken);
+                sendTyping(lifecycle.chatId, TYPING_STOP);
+            }
         }
     }
 
@@ -1952,13 +1991,15 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (existing != null && existing.isValid()) {
             return;
         }
+        String effectiveContextToken =
+                StrUtil.isNotBlank(contextToken) ? contextToken : loadContextToken(userId);
         try {
             ONode response =
                     apiPost(
                             GET_CONFIG_ENDPOINT,
                             new ONode()
                                     .set("ilink_user_id", userId)
-                                    .set("context_token", contextToken)
+                                    .set("context_token", effectiveContextToken)
                                     .asObject(),
                             TYPING_REQUEST_TIMEOUT_MS);
             String typingTicket = response.get("typing_ticket").getString();
@@ -1998,10 +2039,14 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     .set("status", status)
                                     .asObject(),
                             TYPING_REQUEST_TIMEOUT_MS);
-            ensureSuccess(response, "Weixin typing update failed");
+            try {
+                ensureSuccess(response, "Weixin typing update failed");
+            } catch (Exception e) {
+                typingTickets.remove(userId, state);
+                throw e;
+            }
             return true;
         } catch (Exception e) {
-            typingTickets.remove(userId, state);
             log.debug(
                     "[WEIXIN] send typing failed: errorType={}, error={}",
                     errorType(e),
@@ -2396,6 +2441,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         /** 周期心跳句柄，用于任务结束和断连时取消。 */
         private volatile ScheduledFuture<?> heartbeat;
 
+        /** 生命周期已停止，防止取消时仍在途的心跳再次发送开始状态。 */
+        private volatile boolean stopped;
+
         /**
          * 创建输入状态生命周期。
          *
@@ -2414,6 +2462,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         private void retain(String nextContextToken) {
             references++;
+            updateContextToken(nextContextToken);
+        }
+
+        /** 更新最近一条消息的上下文 token，供后续输入状态 ticket 刷新使用。 */
+        private void updateContextToken(String nextContextToken) {
             if (StrUtil.isNotBlank(nextContextToken)) {
                 contextToken = nextContextToken;
             }
@@ -2488,6 +2541,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             this.chatType = nextChatType;
             this.chatId = nextChatId;
             this.contextToken = nextContextToken;
+            if (typingLifecycle != null) {
+                typingLifecycle.updateContextToken(nextContextToken);
+            }
             this.lastChunkLength = StrUtil.length(nextText);
         }
 

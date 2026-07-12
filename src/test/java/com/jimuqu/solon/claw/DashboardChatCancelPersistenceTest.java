@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
@@ -77,6 +78,48 @@ public class DashboardChatCancelPersistenceTest {
         }
     }
 
+    /** 取消终态事件必须先于可能阻塞的会话持久化可见，避免 SSE 提前结束并丢失终态。 */
+    @Test
+    void shouldPublishCanceledEventBeforePersistingCanceledTurn() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-chat-cancel-event").toFile();
+        SqliteDatabase database = null;
+        DashboardChatService service = null;
+        BlockingSaveSessionRepository sessionRepository = null;
+        try {
+            database = new SqliteDatabase(testConfig(workspaceHome));
+            sessionRepository = new BlockingSaveSessionRepository(database);
+            BlockingConversationOrchestrator orchestrator = new BlockingConversationOrchestrator();
+            service = new DashboardChatService(sessionRepository, orchestrator, null, null);
+            Map<String, Object> start =
+                    service.startRun(
+                            ONode.ofJson(
+                                    "{\"input\":\"取消终态顺序验证\",\"session_id\":\"cancel-event-session\"}"));
+            String runId = String.valueOf(start.get("run_id"));
+            orchestrator.awaitStarted();
+            sessionRepository.blockNextSave();
+            DashboardChatService testedService = service;
+            FutureTask<Map<String, Object>> cancel =
+                    new FutureTask<Map<String, Object>>(() -> testedService.cancelRun(runId));
+            new Thread(cancel, "dashboard-cancel-test").start();
+
+            sessionRepository.awaitSaveBlocked();
+            assertThat(eventNames(service, runId)).contains("run.failed");
+            sessionRepository.releaseSave();
+            assertThat(cancel.get(3, TimeUnit.SECONDS).get("status")).isEqualTo("canceled");
+        } finally {
+            if (sessionRepository != null) {
+                sessionRepository.releaseSave();
+            }
+            if (service != null) {
+                service.shutdown();
+            }
+            if (database != null) {
+                database.shutdown();
+            }
+            FileUtil.del(workspaceHome);
+        }
+    }
+
     /** 覆盖 Web 端直连 slash 命令，确保刷新页面后能恢复命令输入和可见结果。 */
     @Test
     void shouldPersistDirectSlashCommandForSessionRecovery() throws Exception {
@@ -112,6 +155,51 @@ public class DashboardChatCancelPersistenceTest {
             assertThat(messages.get(0).getContent()).isEqualTo("/status");
             assertThat(messages.get(1).getRole().name()).isEqualTo("ASSISTANT");
             assertThat(messages.get(1).getContent()).contains("session=dashboard-command-session");
+        } finally {
+            if (service != null) {
+                service.shutdown();
+            }
+            if (database != null) {
+                database.shutdown();
+            }
+            FileUtil.del(workspaceHome);
+        }
+    }
+
+    /** 已完成运行重复取消必须保持完成态，不能追加取消事件或覆盖已写入的会话轮次。 */
+    @Test
+    void shouldKeepCompletedRunUnchangedWhenCanceledAgain() throws Exception {
+        File workspaceHome = Files.createTempDirectory("solonclaw-chat-completed-cancel").toFile();
+        SqliteDatabase database = null;
+        DashboardChatService service = null;
+        try {
+            database = new SqliteDatabase(testConfig(workspaceHome));
+            SqliteSessionRepository sessionRepository = new SqliteSessionRepository(database);
+            service =
+                    new DashboardChatService(
+                            sessionRepository,
+                            new BlockingConversationOrchestrator(),
+                            new StubCommandService(),
+                            null);
+            String sessionId = "dashboard-completed-session";
+            Map<String, Object> start =
+                    service.startRun(
+                            ONode.ofJson(
+                                    "{\"input\":\"/status\",\"session_id\":\""
+                                            + sessionId
+                                            + "\"}"));
+            String runId = String.valueOf(start.get("run_id"));
+            assertThat(completedEvent(service, runId)).isEqualTo("run.completed");
+
+            Map<String, Object> canceled = service.cancelRun(runId);
+
+            assertThat(canceled.get("status")).isEqualTo("completed");
+            assertThat(eventQueue(service, runId)).isEmpty();
+            assertThat(
+                            MessageSupport.loadMessages(
+                                    sessionRepository.findById(sessionId).getNdjson()))
+                    .extracting(ChatMessage::getContent)
+                    .containsExactly("/status", "status session=" + sessionId);
         } finally {
             if (service != null) {
                 service.shutdown();
@@ -242,6 +330,24 @@ public class DashboardChatCancelPersistenceTest {
     }
 
     /**
+     * 读取当前尚未消费的事件名称，用于验证终态发布顺序。
+     *
+     * @param service Web chat 服务。
+     * @param runId 运行标识。
+     * @return 返回事件名称列表。
+     */
+    private static java.util.List<String> eventNames(DashboardChatService service, String runId)
+            throws Exception {
+        java.util.List<String> names = new java.util.ArrayList<String>();
+        for (Object event : eventQueue(service, runId)) {
+            Field nameField = event.getClass().getDeclaredField("name");
+            nameField.setAccessible(true);
+            names.add(String.valueOf(nameField.get(event)));
+        }
+        return names;
+    }
+
+    /**
      * 读取取消事件中的错误文本，验证前端兼容的 run.failed 事件仍然存在。
      *
      * @param service Web chat 服务。
@@ -327,6 +433,51 @@ public class DashboardChatCancelPersistenceTest {
         /** 等待异步运行进入编排器，保证取消发生在真实运行窗口内。 */
         private void awaitStarted() throws InterruptedException {
             assertThat(started.await(3, TimeUnit.SECONDS)).isTrue();
+        }
+    }
+
+    /** 会话保存代理，可稳定阻塞取消轮次写入以验证终态事件的发布顺序。 */
+    private static class BlockingSaveSessionRepository extends SqliteSessionRepository {
+        /** 标记下一次保存是否需要阻塞。 */
+        private volatile boolean blockNextSave;
+
+        /** 通知测试保存已进入阻塞点。 */
+        private final CountDownLatch saveBlocked = new CountDownLatch(1);
+
+        /** 允许被阻塞的保存继续执行。 */
+        private final CountDownLatch saveReleased = new CountDownLatch(1);
+
+        /** 注入测试数据库。 */
+        private BlockingSaveSessionRepository(SqliteDatabase database) {
+            super(database);
+        }
+
+        /** 让下一次保存停在写库之前。 */
+        private void blockNextSave() {
+            blockNextSave = true;
+        }
+
+        /** 等待取消流程进入会话保存。 */
+        private void awaitSaveBlocked() throws InterruptedException {
+            assertThat(saveBlocked.await(3, TimeUnit.SECONDS)).isTrue();
+        }
+
+        /** 释放被阻塞的会话保存。 */
+        private void releaseSave() {
+            saveReleased.countDown();
+        }
+
+        /** 保存会话，并在测试要求时放大终态发布与持久化之间的竞态窗口。 */
+        @Override
+        public void save(SessionRecord sessionRecord) throws Exception {
+            if (blockNextSave) {
+                blockNextSave = false;
+                saveBlocked.countDown();
+                if (!saveReleased.await(3, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("等待释放会话保存超时");
+                }
+            }
+            super.save(sessionRecord);
         }
     }
 

@@ -15,6 +15,12 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -72,6 +78,7 @@ class ProfileManagerTest {
         write(root.resolve("config.yml"), "model:\n  default: source-model\n");
         write(root.resolve("memory/2026-07-11.md"), "source memory\n");
         write(root.resolve("logs/gateway.log"), "source log\n");
+        write(root.resolve("forensics/shutdown.json"), "runtime history\n");
         write(root.resolve("cache/model-context.json"), "reusable cache\n");
         write(root.resolve("workspace/project-notes.md"), "user workspace\n");
         write(root.resolve("data/state.db"), "source-state");
@@ -100,7 +107,8 @@ class ProfileManagerTest {
         Path backup = manager.profileHome("backup");
         assertThat(backup.resolve("config.yml")).exists();
         assertThat(backup.resolve("memory/2026-07-11.md")).exists();
-        assertThat(backup.resolve("logs/gateway.log")).exists();
+        assertThat(backup.resolve("logs")).doesNotExist();
+        assertThat(backup.resolve("forensics")).doesNotExist();
         assertThat(backup.resolve("cache/model-context.json")).exists();
         assertThat(backup.resolve("workspace/project-notes.md")).exists();
         assertThat(backup.resolve("data/state.db")).doesNotExist();
@@ -301,9 +309,9 @@ class ProfileManagerTest {
         assertThat(restored.resolve(".env.local")).doesNotExist();
     }
 
-    /** default 导出采用 Profile 工件白名单，并按输出参数统一补齐 tar.gz 后缀。 */
+    /** default 导出采用 Profile 工件白名单，并保留调用方指定的精确输出路径。 */
     @Test
-    void defaultExportUsesPortableAllowListAndNormalizesOutputSuffix() throws Exception {
+    void defaultExportUsesPortableAllowListAndPreservesOutputPath() throws Exception {
         write(root.resolve("config.yml"), "model:\n  default: portable\n");
         write(root.resolve("SOUL.md"), "portable soul\n");
         write(root.resolve("skills/demo/SKILL.md"), "# demo\n");
@@ -315,8 +323,8 @@ class ProfileManagerTest {
         Path caseSensitiveArchive =
                 manager.exportProfile("default", tempDir.resolve("portable.TGZ"));
 
-        assertThat(archive.getFileName().toString()).isEqualTo("portable.tar.gz");
-        assertThat(caseSensitiveArchive.getFileName().toString()).isEqualTo("portable.TGZ.tar.gz");
+        assertThat(archive.getFileName().toString()).isEqualTo("portable.tgz");
+        assertThat(caseSensitiveArchive.getFileName().toString()).isEqualTo("portable.TGZ");
         assertThat(archive).isRegularFile();
         Path extracted = tempDir.resolve("default-export");
         assertThat(ProfileArchive.extract(archive, extracted)).isEqualTo("default");
@@ -890,6 +898,50 @@ class ProfileManagerTest {
                         manager.gatewayServerArguments(
                                 "alpha", java.util.Collections.<String>emptyList()))
                 .contains("--server.port=" + alphaPort);
+    }
+
+    /** 并发分配初始候选端口相同的 Profile 时，工作区文件锁必须保证元数据端口互斥。 */
+    @Test
+    void serializesConcurrentGatewayPortAllocation() throws Exception {
+        String firstProfile = "p1n";
+        String secondProfile = "p30";
+        assertThat(Math.floorMod(firstProfile.hashCode(), 1000))
+                .isEqualTo(Math.floorMod(secondProfile.hashCode(), 1000));
+        runOk("default", "create", firstProfile, "--no-alias");
+        runOk("default", "create", secondProfile, "--no-alias");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try {
+            Future<List<String>> first =
+                    executor.submit(
+                            () -> {
+                                ready.countDown();
+                                start.await();
+                                return manager.gatewayServerArguments(
+                                        firstProfile, Collections.<String>emptyList());
+                            });
+            Future<List<String>> second =
+                    executor.submit(
+                            () -> {
+                                ready.countDown();
+                                start.await();
+                                return manager.gatewayServerArguments(
+                                        secondProfile, Collections.<String>emptyList());
+                            });
+            assertThat(ready.await(5L, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            assertThat(first.get(10L, TimeUnit.SECONDS))
+                    .anyMatch(value -> value.startsWith("--server.port="));
+            assertThat(second.get(10L, TimeUnit.SECONDS))
+                    .anyMatch(value -> value.startsWith("--server.port="));
+            assertThat(manager.gatewayStatus(firstProfile).getPort())
+                    .isNotEqualTo(manager.gatewayStatus(secondProfile).getPort());
+            assertThat(root.resolve("profiles/.gateway-start.lock")).isRegularFile();
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     /** Profile 和别名名称只接受安全的单段标识符。 */

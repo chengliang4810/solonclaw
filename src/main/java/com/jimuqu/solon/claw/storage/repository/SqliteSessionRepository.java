@@ -22,6 +22,7 @@ import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
 import org.noear.solon.ai.chat.tool.ToolCall;
 import org.noear.solon.flow.FlowContext;
+import org.noear.solon.flow.FlowContextInternal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,6 +69,21 @@ public class SqliteSessionRepository implements SessionRepository {
     /** 会话级自动审批状态键，分支复制时必须清理以避免安全状态串联。 */
     private static final String CONTEXT_SESSION_AUTO_APPROVAL =
             "_dangerous_command_session_auto_approval_";
+
+    /** Agent 待恢复状态键；创建分支时不得继承父会话的运行中断状态。 */
+    private static final String CONTEXT_AGENT_PENDING = "_agent_pending_";
+
+    /** Agent 待恢复原因键。 */
+    private static final String CONTEXT_PENDING_REASON = "_pending_reason_";
+
+    /** Agent 待恢复标记时间键。 */
+    private static final String CONTEXT_PENDING_MARKED_AT = "_pending_marked_at_";
+
+    /** Agent 待恢复清理时间键。 */
+    private static final String CONTEXT_PENDING_CLEARED_AT = "_pending_cleared_at_";
+
+    /** Agent 最近待恢复原因键。 */
+    private static final String CONTEXT_PENDING_LAST_REASON = "_pending_last_reason_";
 
     /** 数据库访问对象。 */
     private final SqliteDatabase database;
@@ -177,7 +193,8 @@ public class SqliteSessionRepository implements SessionRepository {
         clone.setCompressedSummary(source.getCompressedSummary());
         clone.setSystemPromptSnapshot(source.getSystemPromptSnapshot());
         clone.setAgentSnapshotJson(sanitizeAgentSnapshotForBranch(source.getAgentSnapshotJson()));
-        clone.setGoalStateJson(source.getGoalStateJson());
+        // 分支只复制对话上下文，不继承父会话的自动续轮运行态。
+        clone.setGoalStateJson(null);
         clone.setLastCompressionAt(source.getLastCompressionAt());
         clone.setLastCompressionInputTokens(source.getLastCompressionInputTokens());
         clone.setCompressionFailureCount(source.getCompressionFailureCount());
@@ -206,6 +223,14 @@ public class SqliteSessionRepository implements SessionRepository {
             context.remove(CONTEXT_SESSION_APPROVALS);
             context.remove(CONTEXT_PENDING_APPROVAL_QUEUE);
             context.remove(CONTEXT_SESSION_AUTO_APPROVAL);
+            context.remove(CONTEXT_AGENT_PENDING);
+            context.remove(CONTEXT_PENDING_REASON);
+            context.remove(CONTEXT_PENDING_MARKED_AT);
+            context.remove(CONTEXT_PENDING_CLEARED_AT);
+            context.remove(CONTEXT_PENDING_LAST_REASON);
+            if (context instanceof FlowContextInternal) {
+                ((FlowContextInternal) context).stopped(false);
+            }
             return context.toJson();
         } catch (RuntimeException e) {
             log.warn(

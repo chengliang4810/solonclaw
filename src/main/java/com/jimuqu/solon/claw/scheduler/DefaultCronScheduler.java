@@ -1398,8 +1398,8 @@ public class DefaultCronScheduler {
             request.setText(removeResolvedMediaTags(payload.text, resolvedMedia.resolved));
             request.setAttachments(resolvedMedia.attachments);
             try {
-                if (deliverDashboardMemoryOrigin(target, request)) {
-                    // Web 控制台来源没有外部渠道适配器，直接写入会话历史作为可恢复回投。
+                if (deliverLocalMemoryOrigin(job, target, request)) {
+                    // 本地交互来源没有外部渠道适配器，直接写入会话历史作为可恢复回投。
                 } else {
                     deliveryService.deliver(request);
                 }
@@ -1429,29 +1429,40 @@ public class DefaultCronScheduler {
     }
 
     /**
-     * 将 Web 控制台来源的定时任务结果写回会话或保留在定时任务历史，避免内部 MEMORY 来源走外部渠道适配器。
+     * 将 Dashboard、CLI 和 TUI 来源的定时任务结果写回会话或保留在运行历史。
      *
+     * @param job 当前定时任务，用于定位 CLI/TUI 绑定会话。
      * @param target 投递目标。
      * @param request 投递请求。
-     * @return 如果已完成内部 Web 回投则返回 true。
+     * @return 如果已完成本地回投则返回 true。
      */
-    private boolean deliverDashboardMemoryOrigin(CronDeliveryTarget target, DeliveryRequest request)
+    private boolean deliverLocalMemoryOrigin(
+            CronJobRecord job, CronDeliveryTarget target, DeliveryRequest request)
             throws Exception {
-        if (target == null
-                || target.platform != PlatformType.MEMORY
-                || !"dashboard".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId))) {
+        if (target == null || target.platform != PlatformType.MEMORY) {
             return false;
         }
-        if (StrUtil.isBlank(target.threadId)) {
+        boolean dashboard = "dashboard".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId));
+        boolean localTerminal =
+                "cli".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId))
+                        || "terminal-ui".equalsIgnoreCase(StrUtil.nullToEmpty(target.chatId));
+        if (!dashboard && !localTerminal) {
+            return false;
+        }
+        if (dashboard && StrUtil.isBlank(target.threadId)) {
             // 控制台本地投递没有可写入的会话线程，运行输出由定时任务历史承担恢复与审计职责。
             return true;
         }
         if (sessionRepository == null) {
-            throw new IllegalStateException("Dashboard session repository is not configured");
+            throw new IllegalStateException("Local session repository is not configured");
         }
-        SessionRecord session = sessionRepository.findById(target.threadId);
+        SessionRecord session =
+                dashboard
+                        ? sessionRepository.findById(target.threadId)
+                        : sessionRepository.getBoundSession(job.getSourceKey());
         if (session == null) {
-            throw new IllegalStateException("Dashboard session not found: " + target.threadId);
+            // CLI/TUI 会话可能已被用户删除，此时运行历史仍保留完整结果。
+            return true;
         }
         List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
         String text = StrUtil.nullToEmpty(request == null ? null : request.getText()).trim();
@@ -2623,12 +2634,13 @@ public class DefaultCronScheduler {
      * @return 可持久化审批状态的会话；依赖缺失时返回 null。
      */
     private SqliteAgentSession resolveCronApprovalSession(CronJobRecord job) throws Exception {
-        if (sessionRepository == null || job == null || StrUtil.isBlank(job.getSourceKey())) {
+        if (sessionRepository == null || job == null || StrUtil.isBlank(job.getJobId())) {
             return null;
         }
-        SessionRecord record = sessionRepository.getBoundSession(job.getSourceKey());
+        String sourceKey = cronExecutionSourceKey(job);
+        SessionRecord record = sessionRepository.getBoundSession(sourceKey);
         if (record == null) {
-            record = sessionRepository.bindNewSession(job.getSourceKey());
+            record = sessionRepository.bindNewSession(sourceKey);
         }
         return new SqliteAgentSession(record, sessionRepository);
     }

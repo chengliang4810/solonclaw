@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
 import com.jimuqu.solon.claw.support.GatewayApprovalCardSupport;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
@@ -56,6 +57,13 @@ import org.noear.snack4.ONode;
 
 /** FeishuChannelAdapter 实现。 */
 public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 等待飞书 WebSocket 首次握手完成的最长时间，避免客户端启动后立即误报已连接。 */
+    private static final long WEBSOCKET_READY_TIMEOUT_MILLIS = 10_000L;
+
+    /** 抑制飞书 WebSocket 重投的相同消息标识。 */
+    private final BoundedMessageDeduplicator inboundMessageDeduplicator =
+            new BoundedMessageDeduplicator();
+
     /** tokenURL的统一常量值。 */
     private static final String TOKEN_URL =
             "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal";
@@ -240,6 +248,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                                             if (controlMessage != null
                                                     && inboundMessageHandler() != null
                                                     && isControlCommand(controlMessage.getText())) {
+                                                if (inboundMessageDeduplicator.isDuplicate(
+                                                        data.getMessage().getMessageId())) {
+                                                    return;
+                                                }
                                                 dispatchInboundControl(controlMessage);
                                                 return;
                                             }
@@ -320,13 +332,16 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                             .build();
             wsClient = createWebsocketClient(dispatcher);
             wsClient.start();
-            setConnected(true);
-            setSetupState("connected");
+            wsClient.awaitReady(WEBSOCKET_READY_TIMEOUT_MILLIS);
             setMissingConfig(new String[0]);
-            clearLastError();
-            setDetail("websocket connected");
+            markWebsocketReconnected();
             return true;
         } catch (Exception e) {
+            shutdownWebsocketClient();
+            if (inboundExecutor != null) {
+                inboundExecutor.shutdownNow();
+                inboundExecutor = null;
+            }
             setConnected(false);
             setSetupState("error");
             setLastError("feishu_connect_failed", safeError(e));
@@ -348,7 +363,38 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         return new com.lark.oapi.ws.Client.Builder(config.getAppId(), config.getAppSecret())
                 .eventHandler(dispatcher)
                 .source("channel")
+                .onReconnecting(
+                        new Runnable() {
+                            /** 在 SDK 开始自动重连时同步渠道运行状态。 */
+                            @Override
+                            public void run() {
+                                markWebsocketReconnecting();
+                            }
+                        })
+                .onReconnected(
+                        new Runnable() {
+                            /** 在 SDK 自动重连成功后恢复渠道健康状态。 */
+                            @Override
+                            public void run() {
+                                markWebsocketReconnected();
+                            }
+                        })
                 .build();
+    }
+
+    /** 标记飞书 SDK 正在执行自动重连，此状态不额外触发连接管理器的第二套重连。 */
+    protected void markWebsocketReconnecting() {
+        setConnected(false);
+        setSetupState("reconnecting");
+        setDetail("websocket reconnecting");
+    }
+
+    /** 标记飞书 WebSocket 已完成首次握手或自动重连，并清理旧连接错误。 */
+    protected void markWebsocketReconnected() {
+        setConnected(true);
+        setSetupState("connected");
+        clearLastError();
+        setDetail("websocket connected");
     }
 
     /** 断开当前组件持有的连接。 */
@@ -417,6 +463,10 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 toGatewayMessage(
                         event == null ? null : event.getMessage(),
                         event == null ? null : event.getSender());
+        if (message != null
+                && inboundMessageDeduplicator.isDuplicate(message.getReplyToMessageId())) {
+            return;
+        }
         if (message != null && inboundMessageHandler() != null) {
             // 控制命令已在 handle(P2MessageReceiveV1) 提交串行队列前分流到并发执行器，
             // 这里只处理普通消息；保留防御性判定以防外部直接调用本方法时仍能正确分流。

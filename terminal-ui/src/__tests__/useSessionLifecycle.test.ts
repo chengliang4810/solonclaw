@@ -98,6 +98,15 @@ describe('session setup failure recovery', () => {
     expect(resumeById).toContain('clearActiveSessionFile()')
     expect(resumeById).toContain('patchUiState({ busy: false })')
   })
+
+  it('also removes local state when live-session activation finds a deleted session', () => {
+    const activateLiveSession = blockBetween(source(), 'const activateLiveSession = useCallback', 'const resumeById = useCallback')
+
+    expect(activateLiveSession).toContain('if (isMissingSessionError(e))')
+    expect(activateLiveSession).toContain('resetSession()')
+    expect(activateLiveSession).toContain('clearActiveSessionFile()')
+    expect(activateLiveSession).toContain('patchUiState({ busy: false })')
+  })
 })
 
 const blockBetween = (source: string, start: string, end: string) => {

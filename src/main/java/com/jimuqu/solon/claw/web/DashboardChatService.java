@@ -253,29 +253,45 @@ public class DashboardChatService {
             throw new IllegalArgumentException("Run not found: " + runId);
         }
 
-        state.canceled = true;
-        state.completed = true;
-        state.status = "canceled";
-        state.updatedAt = System.currentTimeMillis();
-        persistCanceledTurnSafely(state);
-        enqueue(
-                state,
-                "run.failed",
-                new LinkedHashMap<String, Object>() {
-                    {
-                        put("error", "Run canceled");
-                    }
-                });
+        Future<?> future;
+        synchronized (state) {
+            if (state.completed) {
+                return cancelResponse(runId, state.status);
+            }
+            state.canceled = true;
+            state.status = "canceled";
+            state.updatedAt = System.currentTimeMillis();
+            enqueue(
+                    state,
+                    "run.failed",
+                    new LinkedHashMap<String, Object>() {
+                        {
+                            put("error", "Run canceled");
+                        }
+                    });
+            state.completed = true;
+            future = state.future;
+        }
 
-        Future<?> future = state.future;
         if (future != null) {
             future.cancel(true);
         }
+        persistCanceledTurnSafely(state);
+        return cancelResponse(runId, "canceled");
+    }
 
+    /**
+     * 构造取消接口响应，完成态重复请求必须返回既有状态而不是伪造取消成功。
+     *
+     * @param runId 运行标识。
+     * @param status 当前持久化运行状态。
+     * @return 返回接口响应。
+     */
+    private Map<String, Object> cancelResponse(String runId, String status) {
         Map<String, Object> response = new LinkedHashMap<String, Object>();
         response.put("ok", true);
         response.put("run_id", runId);
-        response.put("status", "canceled");
+        response.put("status", status);
         return response;
     }
 
@@ -329,10 +345,12 @@ public class DashboardChatService {
         try {
             SessionRecord session = prepareSession(request);
             state.sessionId = session.getSessionId();
-            if (state.canceled) {
-                return;
+            synchronized (state) {
+                if (state.canceled || state.completed) {
+                    return;
+                }
+                state.status = "running";
             }
-            state.status = "running";
             eventSink.onRunStarted(state.sessionId);
             if (state.canceled) {
                 return;
@@ -769,6 +787,19 @@ public class DashboardChatService {
          */
         @Override
         public void onToolCompleted(String toolName, String result, long durationMs) {
+            onToolCompleted(toolName, result, null, durationMs);
+        }
+
+        /**
+         * 响应工具完成事件，并把执行层给出的失败原因原样编码为结构化字段。
+         *
+         * @param toolName 工具名称。
+         * @param result 工具返回内容。
+         * @param error 明确失败原因；成功时为 null。
+         * @param durationMs 执行耗时，单位毫秒。
+         */
+        @Override
+        public void onToolCompleted(String toolName, String result, String error, long durationMs) {
             if (state.completed || state.canceled) {
                 return;
             }
@@ -777,6 +808,10 @@ public class DashboardChatService {
             payload.put("duration_ms", durationMs);
             if (StrUtil.isNotBlank(result)) {
                 payload.put("preview", truncateInline(safeText(result, 1000), 80));
+            }
+            if (StrUtil.isNotBlank(error)) {
+                payload.put("error", safeText(error, 1000));
+                payload.put("status", "error");
             }
             enqueue(state, "tool.completed", payload);
         }
@@ -889,30 +924,35 @@ public class DashboardChatService {
          */
         @Override
         public void onRunCompleted(String sessionId, String finalReply, LlmResult result) {
-            state.sessionId = StrUtil.blankToDefault(sessionId, state.sessionId);
-            if (!assistantDeltaEmitted && StrUtil.isNotBlank(finalReply) && !state.canceled) {
-                Map<String, Object> finalReplyPayload = new LinkedHashMap<String, Object>();
-                finalReplyPayload.put("delta", finalReply);
-                enqueue(state, "message.delta", finalReplyPayload);
-                assistantDeltaEmitted = true;
-            }
-            state.status = "completed";
-            state.completed = true;
-            state.updatedAt = System.currentTimeMillis();
-
-            Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            if (result != null) {
-                Map<String, Object> usage = new LinkedHashMap<String, Object>();
-                usage.put("input_tokens", result.getInputTokens());
-                usage.put("output_tokens", result.getOutputTokens());
-                usage.put("reasoning_tokens", result.getReasoningTokens());
-                usage.put("total_tokens", result.getTotalTokens());
-                payload.put("usage", usage);
-                if (StrUtil.isNotBlank(result.getReasoningText())) {
-                    payload.put("reasoning", safeText(result.getReasoningText(), 4000));
+            synchronized (state) {
+                if (state.completed) {
+                    return;
                 }
+                state.sessionId = StrUtil.blankToDefault(sessionId, state.sessionId);
+                if (!assistantDeltaEmitted && StrUtil.isNotBlank(finalReply) && !state.canceled) {
+                    Map<String, Object> finalReplyPayload = new LinkedHashMap<String, Object>();
+                    finalReplyPayload.put("delta", finalReply);
+                    enqueue(state, "message.delta", finalReplyPayload);
+                    assistantDeltaEmitted = true;
+                }
+                state.status = "completed";
+                state.updatedAt = System.currentTimeMillis();
+
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                if (result != null) {
+                    Map<String, Object> usage = new LinkedHashMap<String, Object>();
+                    usage.put("input_tokens", result.getInputTokens());
+                    usage.put("output_tokens", result.getOutputTokens());
+                    usage.put("reasoning_tokens", result.getReasoningTokens());
+                    usage.put("total_tokens", result.getTotalTokens());
+                    payload.put("usage", usage);
+                    if (StrUtil.isNotBlank(result.getReasoningText())) {
+                        payload.put("reasoning", safeText(result.getReasoningText(), 4000));
+                    }
+                }
+                enqueue(state, "run.completed", payload);
+                state.completed = true;
             }
-            enqueue(state, "run.completed", payload);
         }
 
         /**
@@ -923,21 +963,27 @@ public class DashboardChatService {
          */
         @Override
         public void onRunFailed(String sessionId, Throwable error) {
-            state.sessionId = StrUtil.blankToDefault(sessionId, state.sessionId);
-            state.status = "failed";
-            state.completed = true;
-            state.updatedAt = System.currentTimeMillis();
+            synchronized (state) {
+                if (state.completed) {
+                    return;
+                }
+                state.sessionId = StrUtil.blankToDefault(sessionId, state.sessionId);
+                state.status = "failed";
+                state.updatedAt = System.currentTimeMillis();
 
-            Map<String, Object> payload = new LinkedHashMap<String, Object>();
-            payload.put(
-                    "error",
-                    SecretRedactor.redact(
-                            error == null
-                                    ? "Run failed"
-                                    : StrUtil.blankToDefault(
-                                            error.getMessage(), error.getClass().getSimpleName()),
-                            1000));
-            enqueue(state, "run.failed", payload);
+                Map<String, Object> payload = new LinkedHashMap<String, Object>();
+                payload.put(
+                        "error",
+                        SecretRedactor.redact(
+                                error == null
+                                        ? "Run failed"
+                                        : StrUtil.blankToDefault(
+                                                error.getMessage(),
+                                                error.getClass().getSimpleName()),
+                                1000));
+                enqueue(state, "run.failed", payload);
+                state.completed = true;
+            }
         }
 
         /**
@@ -1142,6 +1188,12 @@ public class DashboardChatService {
         @Override
         public void onToolCompleted(String toolName, String result, long durationMs) {
             delegate.onToolCompleted(toolName, result, durationMs);
+        }
+
+        /** 工具结束并向下游保留结构化失败原因。 */
+        @Override
+        public void onToolCompleted(String toolName, String result, String error, long durationMs) {
+            delegate.onToolCompleted(toolName, result, error, durationMs);
         }
 
         /** 运行成功完成。 */

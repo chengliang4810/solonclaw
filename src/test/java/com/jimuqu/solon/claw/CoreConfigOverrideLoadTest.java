@@ -47,6 +47,8 @@ public class CoreConfigOverrideLoadTest {
                         + "    subagentMaxDepth: 2\n"
                         + "    toolOutputInlineLimit: 8000\n"
                         + "    toolOutputTurnBudget: 160000\n"
+                        + "    bootstrapPromptFileCharLimit: 9000\n"
+                        + "    bootstrapPromptTotalCharBudget: 36000\n"
                         + "    toolOutputMaxLines: 5000\n"
                         + "    toolOutputMaxLineLength: 3000\n"
                         + "    mediaCacheTtlHours: 72\n"
@@ -141,6 +143,8 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getTask().getSubagentMaxDepth()).isEqualTo(2);
         assertThat(config.getTask().getToolOutputInlineLimit()).isEqualTo(8000);
         assertThat(config.getTask().getToolOutputTurnBudget()).isEqualTo(160000);
+        assertThat(config.getTask().getBootstrapPromptFileCharLimit()).isEqualTo(9000);
+        assertThat(config.getTask().getBootstrapPromptTotalCharBudget()).isEqualTo(36000);
         assertThat(config.getTask().getToolOutputMaxLines()).isEqualTo(5000);
         assertThat(config.getTask().getToolOutputMaxLineLength()).isEqualTo(3000);
         assertThat(config.getTerminal().getEnvPassthrough()).containsExactly("TENOR_API_KEY");
@@ -194,6 +198,26 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getChannels().getWeixin().getTextBatchSplitDelaySeconds())
                 .isEqualTo(1.6D);
         assertThat(config.getChannels().getWeixin().getSendChunkRetries()).isEqualTo(9);
+    }
+
+    /** 静态上下文预算不能低于保留完整截断标记所需的安全下限。 */
+    @Test
+    void shouldClampBootstrapPromptBudgetsToSafeMinimums() throws Exception {
+        File workspaceHome =
+                Files.createTempDirectory("solonclaw-bootstrap-prompt-budget").toFile();
+        FileUtil.writeUtf8String(
+                "solonclaw:\n"
+                        + "  task:\n"
+                        + "    bootstrapPromptFileCharLimit: 1\n"
+                        + "    bootstrapPromptTotalCharBudget: 1\n",
+                new File(workspaceHome, "config.yml"));
+        Props props = new Props();
+        props.put("solonclaw.workspace", workspaceHome.getAbsolutePath());
+
+        AppConfig config = AppConfig.load(props);
+
+        assertThat(config.getTask().getBootstrapPromptFileCharLimit()).isEqualTo(256);
+        assertThat(config.getTask().getBootstrapPromptTotalCharBudget()).isEqualTo(1024);
     }
 
     /** 安全 URL 配置必须从 Profile 的 config.yml 进入真实策略，而不是只出现在配置模型中。 */

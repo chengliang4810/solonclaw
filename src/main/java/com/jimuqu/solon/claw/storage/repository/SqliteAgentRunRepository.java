@@ -768,11 +768,19 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
     @Override
     public void markQueuedMessage(String queueId, String status, long timestamp, String error)
             throws Exception {
+        markQueuedMessage(queueId, null, status, timestamp, error);
+    }
+
+    /** 按预期状态原子更新排队消息，返回值用于确认当前 drain 是否取得状态所有权。 */
+    @Override
+    public boolean markQueuedMessage(
+            String queueId, String expectedStatus, String status, long timestamp, String error)
+            throws Exception {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update queued_run_messages set status = ?, started_at = case when ? = 'running' then ? else started_at end, finished_at = case when ? in ('success','failed','cancelled') then ? else finished_at end, error = ? where queue_id = ?");
+                            "update queued_run_messages set status = ?, started_at = case when ? = 'running' then ? else started_at end, finished_at = case when ? in ('success','failed','cancelled') then ? else finished_at end, error = ? where queue_id = ? and (? is null or status = ?)");
             statement.setString(1, status);
             statement.setString(2, status);
             statement.setLong(3, timestamp);
@@ -780,8 +788,32 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             statement.setLong(5, timestamp);
             statement.setString(6, redact(error, 2000));
             statement.setString(7, queueId);
-            statement.executeUpdate();
-            statement.close();
+            statement.setString(8, expectedStatus);
+            statement.setString(9, expectedStatus);
+            try {
+                return statement.executeUpdate() == 1;
+            } finally {
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    /** 将超过恢复阈值的 running 队列项退回 queued，并清理上次执行痕迹。 */
+    @Override
+    public int requeueStaleRunningMessages(long beforeEpochMillis) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update queued_run_messages set status = 'queued', started_at = 0, finished_at = 0, error = null where status = 'running' and coalesce(nullif(started_at, 0), created_at) < ?");
+            statement.setLong(1, beforeEpochMillis);
+            try {
+                return statement.executeUpdate();
+            } finally {
+                statement.close();
+            }
         } finally {
             connection.close();
         }
@@ -1007,6 +1039,31 @@ public class SqliteAgentRunRepository implements AgentRunRepository {
             connection.close();
         }
         return records;
+    }
+
+    /**
+     * 将数据库中仍标记为活动、但已没有当前进程控制句柄的子 Agent 收敛为已中断。
+     *
+     * @param now 当前时间戳，用作遗留记录的结束时间和最后心跳时间。
+     * @return 被收敛的子 Agent 记录数量。
+     */
+    @Override
+    public int markActiveSubagentsInterrupted(long now) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update subagent_runs set status = 'interrupted', active = 0, interrupt_requested = 1, finished_at = ?, heartbeat_at = ? where active = 1");
+            statement.setLong(1, now);
+            statement.setLong(2, now);
+            try {
+                return statement.executeUpdate();
+            } finally {
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
     }
 
     /**

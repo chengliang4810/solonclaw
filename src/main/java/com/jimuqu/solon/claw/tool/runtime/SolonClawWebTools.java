@@ -221,7 +221,7 @@ public class SolonClawWebTools {
         if (securityPolicyService == null) {
             return;
         }
-        for (String url : securityPolicyService.extractUrlishValues(text)) {
+        for (String url : securityPolicyService.extractReturnedTextUrls(text)) {
             SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkReturnedUrl(url);
             if (!verdict.isAllowed() && !"URL 解析失败".equals(verdict.getMessage())) {
                 throw new IllegalArgumentException(blockedMessage(verdict));
@@ -243,7 +243,7 @@ public class SolonClawWebTools {
          * @param securityPolicyService 安全策略服务依赖。
          */
         public SafeWebfetchTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, new WebfetchTalent());
+            this(securityPolicyService, new GuardedWebfetchTalent(securityPolicyService));
         }
 
         /**
@@ -301,7 +301,7 @@ public class SolonClawWebTools {
          * @param securityPolicyService 安全策略服务依赖。
          */
         public SafeWebExtractTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, new WebfetchTalent());
+            this(securityPolicyService, new GuardedWebfetchTalent(securityPolicyService));
         }
 
         /**

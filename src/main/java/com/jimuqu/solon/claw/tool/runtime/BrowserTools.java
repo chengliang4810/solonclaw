@@ -1,5 +1,7 @@
 package com.jimuqu.solon.claw.tool.runtime;
 
+import cn.hutool.core.util.StrUtil;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -33,18 +35,50 @@ public class BrowserTools {
     /**
      * 导航浏览器会话到目标地址。
      *
-     * @param sessionId 当前会话标识。
+     * @param sessionId 当前会话标识；省略时为本次导航自动创建会话。
      * @param url 待校验或访问的 URL。
      * @param timeoutSeconds 超时时间，单位为秒。
      * @return 返回navigate结果。
      */
-    @ToolMapping(name = "browser_navigate", description = "在受管浏览器会话中访问 URL。")
+    @ToolMapping(
+            name = "browser_navigate",
+            description = "访问 URL；可省略 sessionId 自动创建会话，成功后返回页面快照和 @eN 引用。")
     public BrowserRuntimeService.BrowserResult navigate(
-            @Param(name = "sessionId", description = "浏览器会话 ID") String sessionId,
+            @Param(name = "sessionId", required = false, description = "浏览器会话 ID") String sessionId,
             @Param(name = "url", description = "目标 URL") String url,
             @Param(name = "timeoutSeconds", required = false, description = "超时时间，单位秒")
                     Integer timeoutSeconds) {
-        return browserRuntimeService.navigate(sessionId, url, timeoutSeconds);
+        boolean autoCreated = StrUtil.isBlank(sessionId);
+        if (autoCreated) {
+            BrowserRuntimeService.BrowserResult created = browserRuntimeService.create(null);
+            if (!created.isSuccess()) {
+                return created;
+            }
+            sessionId = created.getSessionId();
+        }
+        BrowserRuntimeService.BrowserResult navigated =
+                browserRuntimeService.navigate(sessionId, url, timeoutSeconds);
+        if (!navigated.isSuccess()) {
+            if (autoCreated) {
+                browserRuntimeService.close(sessionId);
+            }
+            return navigated;
+        }
+        BrowserRuntimeService.BrowserResult snapshot =
+                browserRuntimeService.snapshot(sessionId, Boolean.FALSE);
+        if (!snapshot.isSuccess()) {
+            if (autoCreated) {
+                browserRuntimeService.close(sessionId);
+            }
+            return snapshot;
+        }
+        Map<String, Object> details = new LinkedHashMap<String, Object>(navigated.getDetails());
+        details.putAll(snapshot.getDetails());
+        if (autoCreated) {
+            details.put("autoCreated", Boolean.TRUE);
+        }
+        return BrowserRuntimeService.BrowserResult.success(
+                sessionId, navigated.getStatus(), details);
     }
 
     /**

@@ -153,6 +153,45 @@ class ToolRegistryWebAndCodeToolsTest {
                 .doesNotContain("sk-websearch-meta");
     }
 
+    /** 搜索正文中的编号和展示名不能被误判为 URL 并触发 SSRF 阻断。 */
+    @Test
+    void shouldIgnoreNonUrlTextInWebsearchResults() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SecurityPolicyService policy =
+                new SecurityPolicyService(env.appConfig) {
+                    @Override
+                    protected java.net.InetAddress[] resolveHost(String host) throws Exception {
+                        return new java.net.InetAddress[] {
+                            java.net.InetAddress.getByName("0.0.1.199")
+                        };
+                    }
+                };
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        policy,
+                        new WebsearchTalent() {
+                            @Override
+                            public String websearch(
+                                    String query,
+                                    Integer numResults,
+                                    String livecrawl,
+                                    String type,
+                                    Integer contextMaxCharacters) {
+                                return "status 455, actor github-actions[bot]";
+                            }
+                        });
+
+        Document document =
+                websearch.websearch(
+                        "allowed search",
+                        Integer.valueOf(1),
+                        "fallback",
+                        "auto",
+                        Integer.valueOf(1000));
+
+        assertThat(document.getContent()).contains("455", "github-actions[bot]");
+    }
+
     @Test
     void shouldRedactSecretsFromCodesearchSuccessContainers() throws Throwable {
         TestEnvironment env = TestEnvironment.withFakeLlm();

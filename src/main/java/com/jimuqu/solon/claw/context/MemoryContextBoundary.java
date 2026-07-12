@@ -64,6 +64,27 @@ public final class MemoryContextBoundary {
         return buildContextBlock(rawContext);
     }
 
+    /**
+     * 仅在当前请求仍对应预取时，将记忆上下文追加到模型请求文本。
+     *
+     * @param userMessage 当前模型调用的用户消息。
+     * @param prefetchUserMessage 触发记忆预取的原始用户消息。
+     * @param rawContext 预取到的原始记忆上下文。
+     * @return 返回可发送给模型或用于预算估算的完整用户文本。
+     */
+    public static String appendPrefetchedContext(
+            String userMessage, String prefetchUserMessage, String rawContext) {
+        if (StrUtil.isBlank(rawContext) || !StrUtil.equals(userMessage, prefetchUserMessage)) {
+            return userMessage;
+        }
+        String memoryContext =
+                containsFence(rawContext) ? rawContext.trim() : ensureContextBlock(rawContext);
+        if (StrUtil.isBlank(memoryContext)) {
+            return userMessage;
+        }
+        return StrUtil.nullToEmpty(userMessage) + "\n\n" + memoryContext;
+    }
+
     /** 清理普通可见回复，避免 memory-context block 混入用户可见流。 */
     public static String scrubVisibleText(String text) {
         return sanitizeContext(text);

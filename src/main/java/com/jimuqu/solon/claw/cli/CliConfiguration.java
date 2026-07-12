@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.LlmProviderService;
@@ -26,8 +27,16 @@ public class CliConfiguration {
     public CliRuntime cliRuntime(
             CommandService commandService,
             ConversationOrchestrator conversationOrchestrator,
-            AgentRunControlService agentRunControlService) {
-        return new CliRuntime(commandService, conversationOrchestrator, agentRunControlService);
+            AgentRunControlService agentRunControlService,
+            SessionRepository sessionRepository,
+            SkillLearningService skillLearningService) {
+        return new CliRuntime(
+                commandService,
+                conversationOrchestrator,
+                agentRunControlService,
+                "MEMORY:cli:",
+                sessionRepository,
+                skillLearningService);
     }
 
     /**

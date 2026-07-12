@@ -36,7 +36,7 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
     private final AppConfig.ChannelConfig channelConfig;
 
     /** 当前连接状态。 */
-    private boolean connected;
+    private volatile boolean connected;
 
     /** 当前详情描述。 */
     private String detail;
@@ -61,6 +61,9 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
 
     /** 入站消息处理器。 */
     private InboundMessageHandler inboundMessageHandler;
+
+    /** 运行期连接终止时通知统一连接管理器安排重连。 */
+    private volatile Runnable reconnectHandler;
 
     /**
      * 控制命令专用并发执行器（懒加载）。
@@ -149,9 +152,23 @@ public abstract class AbstractConfigurableChannelAdapter implements ChannelAdapt
         this.inboundMessageHandler = inboundMessageHandler;
     }
 
+    /** 注册运行期断线后的统一重连处理器。 */
+    @Override
+    public void setReconnectHandler(Runnable reconnectHandler) {
+        this.reconnectHandler = reconnectHandler;
+    }
+
     /** 供子类读取当前入站处理器。 */
     protected InboundMessageHandler inboundMessageHandler() {
         return inboundMessageHandler;
+    }
+
+    /** 通知连接管理器按统一退避策略安排重连。 */
+    protected void requestReconnect() {
+        Runnable handler = reconnectHandler;
+        if (handler != null) {
+            handler.run();
+        }
     }
 
     /**

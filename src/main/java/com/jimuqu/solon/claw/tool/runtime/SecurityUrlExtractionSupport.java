@@ -56,6 +56,22 @@ final class SecurityUrlExtractionSupport {
         return urls;
     }
 
+    /** 从工具返回正文中只提取显式 HTTP(S) 或协议相对 URL，避免把编号和展示文本当成网络目标。 */
+    List<String> extractExplicitUrlishValues(String text) {
+        List<String> urls = new ArrayList<String>();
+        if (StrUtil.isBlank(text)) {
+            return urls;
+        }
+        Matcher matcher = URLISH_PATTERN.matcher(normalizeUrlText(text));
+        while (matcher.find()) {
+            String value = matcher.group();
+            if (value.contains("://") || value.startsWith("//")) {
+                urls.add(value);
+            }
+        }
+        return urls;
+    }
+
     /**
      * 收集Urls。
      *

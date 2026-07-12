@@ -36,6 +36,7 @@ import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
+import com.jimuqu.solon.claw.support.ToolMessageStatusSupport;
 import com.jimuqu.solon.claw.support.TuiRuntimeProtocolService;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import com.jimuqu.solon.claw.support.constants.SkillConstants;
@@ -61,6 +62,7 @@ import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -847,6 +849,10 @@ public class TerminalUiRpcService {
     public Map<String, Object> sessionCompress(String sessionId, String focusTopic)
             throws Exception {
         SessionRecord session = findSession(sessionId);
+        Map<String, Object> busy = runningSessionMutation(sessionId, "compress session");
+        if (busy != null) {
+            return busy;
+        }
         int beforeMessages = messageCount(session);
         int beforeTokens = session == null ? 0 : (int) session.getCumulativeTotalTokens();
         CompressionOutcome outcome = null;
@@ -1300,8 +1306,8 @@ public class TerminalUiRpcService {
     }
 
     /** 恢复指定 checkpoint；文件级恢复等待后端提供独立 API 后再接入。 */
-    public Map<String, Object> rollbackRestore(String checkpointId, String filePath)
-            throws Exception {
+    public Map<String, Object> rollbackRestore(
+            String sessionId, String checkpointId, String filePath) throws Exception {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         if (checkpointService == null) {
             result.put("success", Boolean.FALSE);
@@ -1317,9 +1323,15 @@ public class TerminalUiRpcService {
             result.put("history_removed", Integer.valueOf(0));
             return result;
         }
-        CheckpointRecord restored;
+        Map<String, Object> busy = runningSessionMutation(sessionId, "restore checkpoint");
+        if (busy != null) {
+            return busy;
+        }
+        SessionRecord session = findSession(sessionId);
+        int historyRemoved;
         try {
-            restored = checkpointService.rollback(checkpointId);
+            historyRemoved =
+                    checkpointService.rollbackSession(checkpointId, session, sessionRepository);
         } catch (Exception e) {
             result.put("success", Boolean.FALSE);
             result.put(
@@ -1328,9 +1340,9 @@ public class TerminalUiRpcService {
             return result;
         }
         result.put("success", Boolean.TRUE);
-        result.put("message", "restored checkpoint " + restored.getCheckpointId());
-        result.put("restored_to", restored.getCheckpointId());
-        result.put("history_removed", Integer.valueOf(0));
+        result.put("message", "restored checkpoint " + checkpointId);
+        result.put("restored_to", checkpointId);
+        result.put("history_removed", Integer.valueOf(historyRemoved));
         return result;
     }
 
@@ -1529,6 +1541,10 @@ public class TerminalUiRpcService {
     /** 创建当前会话分支并返回新会话 ID。 */
     public Map<String, Object> sessionBranch(String sessionId, String name) throws Exception {
         SessionRecord source = findSession(sessionId);
+        Map<String, Object> busy = runningSessionMutation(sessionId, "create session branch");
+        if (busy != null) {
+            return busy;
+        }
         if (sessionRepository == null || source == null) {
             return sessionCreate(
                     "MEMORY:terminal-ui:" + StrUtil.blankToDefault(sessionId, "terminal-ui"));
@@ -1545,6 +1561,23 @@ public class TerminalUiRpcService {
         Map<String, Object> result = new LinkedHashMap<String, Object>();
         result.put("session_id", branch.getSessionId());
         result.put("title", title(branch));
+        return result;
+    }
+
+    /** 运行中拒绝会改写会话或工作区历史的 TUI 直连操作。 */
+    private Map<String, Object> runningSessionMutation(String sessionId, String action)
+            throws Exception {
+        String sourceKey = sourceKeyForSession(sessionId);
+        if (agentRunControlService == null
+                || StrUtil.isBlank(sourceKey)
+                || !agentRunControlService.isRunning(sourceKey)) {
+            return null;
+        }
+        Map<String, Object> result = new LinkedHashMap<String, Object>();
+        result.put("success", Boolean.FALSE);
+        result.put("status", "running");
+        result.put("error", "session is running; cannot " + action);
+        result.put("message", "stop the active run or wait for it to finish");
         return result;
     }
 
@@ -1671,6 +1704,12 @@ public class TerminalUiRpcService {
             return new ArrayList<Map<String, Object>>();
         }
         SkillBrowseResult search = skillHubService.search(query, "all", 20);
+        if ((search.getItems() == null || search.getItems().isEmpty())
+                && search.getTimedOutSources() != null
+                && !search.getTimedOutSources().isEmpty()) {
+            throw new IllegalStateException(
+                    "技能来源暂时不可用：" + String.join(", ", search.getTimedOutSources()));
+        }
         return skillMetaItems(search.getItems());
     }
 
@@ -2777,6 +2816,17 @@ public class TerminalUiRpcService {
                 Map<String, Object> item = new LinkedHashMap<String, Object>();
                 item.put("role", role(message));
                 item.put("text", messageText(message));
+                if (message instanceof ToolMessage) {
+                    ToolMessage toolMessage = (ToolMessage) message;
+                    String status = ToolMessageStatusSupport.statusOf(toolMessage);
+                    String preview = toolResultPreview(toolMessage, status);
+                    item.put("name", StrUtil.nullToEmpty(toolMessage.getName()));
+                    item.put("status", status);
+                    item.put("preview", preview);
+                    if (ToolMessageStatusSupport.STATUS_ERROR.equals(status)) {
+                        item.put("error", preview);
+                    }
+                }
                 result.add(item);
             }
         } catch (IOException e) {
@@ -2838,6 +2888,37 @@ public class TerminalUiRpcService {
             return StrUtil.nullToEmpty(((AssistantMessage) message).getResultContent());
         }
         return StrUtil.nullToEmpty(message.getContent());
+    }
+
+    /**
+     * 提取工具结果的紧凑展示文本；统一 envelope 优先展示 error 或 preview，旧的纯文本结果保持可见。
+     *
+     * @param message 已持久化的工具消息。
+     * @param status 工具终态。
+     * @return 适合 TUI 工具轨迹展示的结果预览。
+     */
+    private String toolResultPreview(ToolMessage message, String status) {
+        String content = messageText(message);
+        try {
+            Object parsed = ONode.deserialize(content, Object.class);
+            if (parsed instanceof Map) {
+                Map<?, ?> values = (Map<?, ?>) parsed;
+                String primary =
+                        ToolMessageStatusSupport.STATUS_ERROR.equals(status)
+                                ? stringFrom(values.get("error"))
+                                : stringFrom(values.get("preview"));
+                if (StrUtil.isNotBlank(primary)) {
+                    return primary;
+                }
+                String summary = stringFrom(values.get("summary"));
+                if (StrUtil.isNotBlank(summary)) {
+                    return summary;
+                }
+            }
+        } catch (Exception ignored) {
+            // 旧会话允许保存纯文本工具结果，无需因为无法解析 envelope 而中断 transcript 回放。
+        }
+        return content;
     }
 
     /** 截断较长文本，避免 session overlay 被历史长消息撑开。 */

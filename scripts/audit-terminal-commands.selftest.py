@@ -413,6 +413,21 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
         self.assertFalse(mod.contains_new_terminal_text(output, "ready", len(output)))
         self.assertFalse(mod.contains_new_terminal_text(output, "Select provider", len(output)))
 
+    def test_overlay_close_accepts_new_input_prompt_when_ready_status_is_not_repainted(self) -> None:
+        mod = load_module()
+
+        output = bytearray("ready\nSelect prvider (step 1/2)\n❯ Ask me anything…\n".encode("utf-8"))
+        close_start = len("ready\nSelect prvider (step 1/2)\n".encode("utf-8"))
+
+        self.assertTrue(mod.contains_new_node_tui_ready_state(output, close_start))
+
+    def test_overlay_close_rejects_prompt_while_overlay_marker_is_still_repainted(self) -> None:
+        mod = load_module()
+
+        output = bytearray("❯ Select prvider (step 1/2)\n".encode("utf-8"))
+
+        self.assertFalse(mod.contains_new_node_tui_ready_state(output, 0, "step 1/2"))
+
     def test_wait_child_exit_reading_is_available_for_exit_diagnostics(self) -> None:
         mod = load_module()
 
@@ -471,7 +486,7 @@ class AuditTerminalCommandsSelfTest(unittest.TestCase):
                 {
                     "type": "command",
                     "value": "/setup model",
-                    "expect": "Select provider",
+                    "expect": "step 1/2",
                     "after": "q",
                     "close_expect": "ready",
                 },

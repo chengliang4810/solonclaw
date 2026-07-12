@@ -26,6 +26,22 @@ describe('toTranscriptMessages', () => {
     ])
     expect(toTranscriptMessages(rows)[1]?.tools?.[0]).toContain('Search Files')
   })
+
+  it('restores persisted tool failures with their error marker and preview', () => {
+    const rows = [
+      { role: 'user', text: 'run command' },
+      {
+        error: 'command failed',
+        name: 'execute_shell',
+        preview: 'command failed',
+        role: 'tool',
+        status: 'error'
+      },
+      { role: 'assistant', text: 'the command did not run' }
+    ]
+
+    expect(toTranscriptMessages(rows)[1]?.tools).toEqual(['Execute Shell :: command failed ✗'])
+  })
 })
 
 describe('MessageLine', () => {

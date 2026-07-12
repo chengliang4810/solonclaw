@@ -299,6 +299,11 @@ final class DefaultSkillCommandHandler {
                     .append(" -> ")
                     .append(item.getIdentifier());
         }
+        if (buffer.length() == 0
+                && result.getTimedOutSources() != null
+                && !result.getTimedOutSources().isEmpty()) {
+            return "技能来源暂时不可用：" + String.join(", ", result.getTimedOutSources()) + "。请稍后重试。";
+        }
         return buffer.length() == 0 ? "未找到匹配技能。" : buffer.toString();
     }
 

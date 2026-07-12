@@ -17,9 +17,6 @@ import lombok.RequiredArgsConstructor;
 /** SqliteGatewayPolicyRepository 实现。 */
 @RequiredArgsConstructor
 public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
-    /** 管理员CLAIMCODE的统一常量值。 */
-    public static final String ADMIN_CLAIM_CODE = "__ADMIN_CLAIM__";
-
     /** 记录SQLite消息网关策略中的数据库。 */
     private final SqliteDatabase database;
 
@@ -343,16 +340,6 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
     }
 
     /**
-     * 读取管理员Claim请求。
-     *
-     * @param platform 平台参数。
-     * @return 返回读取到的管理员Claim请求。
-     */
-    public PairingRequestRecord getAdminClaimRequest(PlatformType platform) throws Exception {
-        return getPairingRequest(platform, ADMIN_CLAIM_CODE);
-    }
-
-    /**
      * 读取Latest用户配对请求。
      *
      * @param platform 平台参数。
@@ -365,10 +352,9 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? and user_id = ? and code <> ? order by created_at desc limit 1");
+                            "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? and user_id = ? order by created_at desc limit 1");
             statement.setString(1, key(platform));
             statement.setString(2, userId);
-            statement.setString(3, ADMIN_CLAIM_CODE);
             ResultSet resultSet = statement.executeQuery();
             try {
                 return resultSet.next() ? mapPairing(resultSet) : null;
@@ -411,30 +397,75 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
     }
 
     /**
-     * 创建管理员Claim请求If Absent。
+     * 在同一写事务中清理过期请求、检查平台容量并保存新请求，防止多实例并发突破上限。
      *
-     * @param record 记录参数。
-     * @return 返回创建好的管理员Claim请求If Absent。
+     * @param record 待保存的 pairing 请求。
+     * @param nowEpochMillis 当前时间，用于排除已过期请求。
+     * @param maxPending 单平台最大待处理请求数。
+     * @return 容量允许且保存成功时返回 true；已达到上限时返回 false。
      */
-    public boolean createAdminClaimRequestIfAbsent(PairingRequestRecord record) throws Exception {
+    @Override
+    public boolean trySavePairingRequest(
+            PairingRequestRecord record, long nowEpochMillis, int maxPending) throws Exception {
+        String hashedCode =
+                PairingCodeHash.isHash(record.getCode())
+                        ? record.getCode()
+                        : PairingCodeHash.hash(record.getCode());
         Connection connection = database.openConnection();
         try {
-            PreparedStatement statement =
+            connection.setAutoCommit(false);
+            PreparedStatement deleteExpired =
                     connection.prepareStatement(
-                            "insert or ignore into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) values (?, ?, ?, ?, ?, ?, ?)");
-            statement.setString(1, key(record.getPlatform()));
-            statement.setString(2, ADMIN_CLAIM_CODE);
-            statement.setString(3, record.getUserId());
-            statement.setString(4, record.getUserName());
-            statement.setString(5, record.getChatId());
-            statement.setLong(6, record.getCreatedAt());
-            statement.setLong(7, record.getExpiresAt());
+                            "delete from pairing_requests where platform = ? and expires_at < ?");
+            deleteExpired.setString(1, key(record.getPlatform()));
+            deleteExpired.setLong(2, nowEpochMillis);
+            deleteExpired.executeUpdate();
+            deleteExpired.close();
+
+            PreparedStatement count =
+                    connection.prepareStatement(
+                            "select count(*) from pairing_requests where platform = ?");
+            count.setString(1, key(record.getPlatform()));
+            ResultSet countResult = count.executeQuery();
+            int pending;
             try {
-                return statement.executeUpdate() > 0;
+                pending = countResult.next() ? countResult.getInt(1) : 0;
             } finally {
-                statement.close();
+                countResult.close();
+                count.close();
             }
+            if (pending >= maxPending) {
+                connection.commit();
+                return false;
+            }
+
+            PreparedStatement deleteExisting =
+                    connection.prepareStatement(
+                            "delete from pairing_requests where platform = ? and user_id = ?");
+            deleteExisting.setString(1, key(record.getPlatform()));
+            deleteExisting.setString(2, record.getUserId());
+            deleteExisting.executeUpdate();
+            deleteExisting.close();
+
+            PreparedStatement insert =
+                    connection.prepareStatement(
+                            "insert into pairing_requests (platform, code, user_id, user_name, chat_id, created_at, expires_at) values (?, ?, ?, ?, ?, ?, ?)");
+            insert.setString(1, key(record.getPlatform()));
+            insert.setString(2, hashedCode);
+            insert.setString(3, record.getUserId());
+            insert.setString(4, record.getUserName());
+            insert.setString(5, record.getChatId());
+            insert.setLong(6, record.getCreatedAt());
+            insert.setLong(7, record.getExpiresAt());
+            insert.executeUpdate();
+            insert.close();
+            connection.commit();
+            return true;
+        } catch (Exception e) {
+            connection.rollback();
+            throw e;
         } finally {
+            connection.setAutoCommit(true);
             connection.close();
         }
     }
@@ -460,19 +491,13 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
         }
     }
 
-    /**
-     * 删除待处理配对请求，保留管理员认领请求。
-     *
-     * @param platform 平台参数。
-     */
+    /** 删除平台下全部待处理配对请求。 */
     public void deletePendingPairingRequests(PlatformType platform) throws Exception {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
-                    connection.prepareStatement(
-                            "delete from pairing_requests where platform = ? and code <> ?");
+                    connection.prepareStatement("delete from pairing_requests where platform = ?");
             statement.setString(1, key(platform));
-            statement.setString(2, ADMIN_CLAIM_CODE);
             statement.executeUpdate();
             statement.close();
         } finally {
@@ -506,23 +531,16 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
      * 列出配对Requests。
      *
      * @param platform 平台参数。
-     * @param includeAdminClaim includeAdminClaim 参数。
      * @return 返回配对Requests列表。
      */
-    public List<PairingRequestRecord> listPairingRequests(
-            PlatformType platform, boolean includeAdminClaim) throws Exception {
+    public List<PairingRequestRecord> listPairingRequests(PlatformType platform) throws Exception {
         List<PairingRequestRecord> list = new ArrayList<PairingRequestRecord>();
         Connection connection = database.openConnection();
         try {
-            String sql =
-                    includeAdminClaim
-                            ? "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? order by created_at asc"
-                            : "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? and code <> ? order by created_at asc";
-            PreparedStatement statement = connection.prepareStatement(sql);
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select platform, code, user_id, user_name, chat_id, created_at, expires_at from pairing_requests where platform = ? order by created_at asc");
             statement.setString(1, key(platform));
-            if (!includeAdminClaim) {
-                statement.setString(2, ADMIN_CLAIM_CODE);
-            }
             ResultSet resultSet = statement.executeQuery();
             try {
                 while (resultSet.next()) {
@@ -584,6 +602,97 @@ public class SqliteGatewayPolicyRepository implements GatewayPolicyRepository {
             statement.setLong(5, record.getLockoutUntil());
             statement.executeUpdate();
             statement.close();
+        } finally {
+            connection.close();
+        }
+    }
+
+    /**
+     * 使用单条 SQLite UPSERT 原子累计平台级 pairing 审批失败次数并设置锁定期。
+     *
+     * @return 更新后的平台级失败限制记录。
+     */
+    @Override
+    public PairingRateLimitRecord recordPairingApprovalFailure(
+            PlatformType platform,
+            String userId,
+            long nowEpochMillis,
+            int maxAttempts,
+            long lockoutMillis)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert into pairing_rate_limits (platform, user_id, requested_at, failed_attempts, lockout_until) "
+                                    + "values (?, ?, ?, case when ? <= 1 then 0 else 1 end, case when ? <= 1 then ? + ? else 0 end) "
+                                    + "on conflict(platform, user_id) do update set "
+                                    + "requested_at = excluded.requested_at, "
+                                    + "failed_attempts = case "
+                                    + "when pairing_rate_limits.lockout_until > excluded.requested_at then pairing_rate_limits.failed_attempts "
+                                    + "when pairing_rate_limits.failed_attempts + 1 >= ? then 0 "
+                                    + "else pairing_rate_limits.failed_attempts + 1 end, "
+                                    + "lockout_until = case "
+                                    + "when pairing_rate_limits.lockout_until > excluded.requested_at then pairing_rate_limits.lockout_until "
+                                    + "when pairing_rate_limits.failed_attempts + 1 >= ? then excluded.requested_at + ? "
+                                    + "else 0 end "
+                                    + "returning platform, user_id, requested_at, failed_attempts, lockout_until");
+            statement.setString(1, key(platform));
+            statement.setString(2, userId);
+            statement.setLong(3, nowEpochMillis);
+            statement.setInt(4, maxAttempts);
+            statement.setInt(5, maxAttempts);
+            statement.setLong(6, nowEpochMillis);
+            statement.setLong(7, lockoutMillis);
+            statement.setInt(8, maxAttempts);
+            statement.setInt(9, maxAttempts);
+            statement.setLong(10, lockoutMillis);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                if (!resultSet.next()) {
+                    throw new IllegalStateException("pairing 审批失败计数未返回更新结果。");
+                }
+                return mapRateLimit(resultSet);
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    /**
+     * 仅在当前平台未出现审批开始后的新锁时清除失败状态，防止正确 code 覆盖并发安全锁。
+     *
+     * @param platform pairing 所属平台。
+     * @param userId 平台级失败状态内部键。
+     * @param approvalStartedAt 本次正确 code 审批开始时间。
+     * @return 未锁定并完成清理时返回 true；存在并发新锁时返回 false。
+     */
+    @Override
+    public boolean clearPairingApprovalFailureIfUnlocked(
+            PlatformType platform, String userId, long approvalStartedAt) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "insert into pairing_rate_limits (platform, user_id, requested_at, failed_attempts, lockout_until) "
+                                    + "values (?, ?, 0, 0, 0) "
+                                    + "on conflict(platform, user_id) do update set "
+                                    + "requested_at = 0, failed_attempts = 0, lockout_until = 0 "
+                                    + "where pairing_rate_limits.lockout_until <= ? "
+                                    + "returning platform");
+            statement.setString(1, key(platform));
+            statement.setString(2, userId);
+            statement.setLong(3, approvalStartedAt);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next();
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
         } finally {
             connection.close();
         }

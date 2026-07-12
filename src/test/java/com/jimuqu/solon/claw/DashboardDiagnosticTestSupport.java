@@ -434,6 +434,21 @@ final class DashboardDiagnosticTestSupport {
                 String queueId, String status, long timestamp, String error) {}
 
         @Override
+        public boolean markQueuedMessage(
+                String queueId,
+                String expectedStatus,
+                String status,
+                long timestamp,
+                String error) {
+            return false;
+        }
+
+        @Override
+        public int requeueStaleRunningMessages(long beforeEpochMillis) {
+            return 0;
+        }
+
+        @Override
         public void saveToolCall(ToolCallRecord record) {}
 
         @Override

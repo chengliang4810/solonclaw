@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.io.File;
 import java.sql.Connection;
@@ -12,8 +13,43 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.noear.solon.ai.chat.message.ChatMessage;
 
 public class CheckpointRollbackTest {
+    /** 完整 rollback 同步裁剪最后一轮，并保留可恢复调用前文件状态的反向 checkpoint。 */
+    @Test
+    void shouldRollbackSessionHistoryAndCreateReverseCheckpoint() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:rollback-session:user";
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Arrays.asList(
+                                ChatMessage.ofUser("change file"), new AssistantMessage("done"))));
+        env.sessionRepository.save(session);
+        File file = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "session.txt");
+        FileUtil.writeUtf8String("v1", file);
+        String checkpointId =
+                env.checkpointService
+                        .createCheckpoint(
+                                sourceKey, session.getSessionId(), Collections.singletonList(file))
+                        .getCheckpointId();
+        FileUtil.writeUtf8String("v2", file);
+
+        int removed =
+                env.checkpointService.rollbackSession(checkpointId, session, env.sessionRepository);
+
+        assertThat(removed).isEqualTo(2);
+        assertThat(FileUtil.readUtf8String(file)).isEqualTo("v1");
+        assertThat(
+                        MessageSupport.countMessages(
+                                env.sessionRepository.findById(session.getSessionId()).getNdjson()))
+                .isZero();
+        env.checkpointService.rollbackLatest(sourceKey);
+        assertThat(FileUtil.readUtf8String(file)).isEqualTo("v2");
+    }
+
     @Test
     void shouldRollbackLatestStructuredFileWrite() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

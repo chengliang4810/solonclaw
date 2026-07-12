@@ -118,10 +118,16 @@ function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
       const toolArgs = toolArgsMap.get(tcId) || undefined
       // Extract a short preview from the content
       let preview = ''
+      let replayStatus: 'done' | 'error' = msg.tool_status === 'error' ? 'error' : 'done'
       if (msg.content) {
         try {
           const parsed = JSON.parse(msg.content)
           preview = parsed.url || parsed.title || parsed.preview || parsed.summary || ''
+          // 旧会话没有持久化状态字段时，兼容项目统一工具结果 envelope。
+          if (!msg.tool_status && parsed.status === 'error') {
+            replayStatus = 'error'
+            preview = parsed.error || parsed.summary || preview
+          }
         } catch {
           preview = msg.content.slice(0, 80)
         }
@@ -142,7 +148,7 @@ function mapSolonClawMessages(msgs: SolonClawMessage[]): Message[] {
         toolArgs,
         toolPreview: typeof preview === 'string' ? preview.slice(0, 100) || undefined : undefined,
         toolResult: msg.content || undefined,
-        toolStatus: 'done',
+        toolStatus: replayStatus,
       })
       continue
     }
@@ -1064,9 +1070,26 @@ export const useChatStore = defineStore('chat', () => {
               const toolMsgs = msgs.filter(
                 m => m.role === 'tool' && m.toolStatus === 'running',
               )
+              const error = evt.status === 'error' ? (evt.error || evt.preview || 'Tool execution failed') : undefined
               if (toolMsgs.length > 0) {
                 const last = toolMsgs[toolMsgs.length - 1]
-                updateMessage(sid, last.id, { toolStatus: 'done' })
+                updateMessage(sid, last.id, {
+                  toolPreview: error || evt.preview,
+                  toolResult: error || undefined,
+                  toolStatus: error ? 'error' : 'done',
+                })
+              } else if (error) {
+                // 参数校验等失败会直接发送 completed，前端仍需保留可见错误块。
+                addMessage(sid, {
+                  id: uid(),
+                  role: 'tool',
+                  content: '',
+                  timestamp: Date.now(),
+                  toolName: evt.tool || evt.name || 'tool',
+                  toolPreview: error,
+                  toolResult: error,
+                  toolStatus: 'error',
+                })
               }
               schedulePersist()
               break
@@ -1177,10 +1200,9 @@ export const useChatStore = defineStore('chat', () => {
         // onError
         // Mobile browsers drop EventSource when the tab backgrounds / screen
         // locks / network flips. The backend run usually completes anyway, so
-        // rather than injecting a stale "SSE connection error" bubble we mark
-        // streaming as done and silently re-sync from the server, which has
-        // the real final answer. If the server fetch itself fails, we leave
-        // whatever text we already streamed in place — no visible error.
+        // rather than injecting a stale "SSE connection error" bubble we end
+        // text streaming and silently re-sync from the server. 工具状态在服务端
+        // 确认前保持运行中，避免把未知结果误标为成功。
         (err) => {
           console.warn('SSE connection dropped, resyncing from server:', err.message)
           const msgs = getSessionMsgs(sid)
@@ -1188,13 +1210,6 @@ export const useChatStore = defineStore('chat', () => {
           if (last?.isStreaming) {
             updateMessage(sid, last.id, { isStreaming: false })
           }
-          // Any tool messages still marked 'running' will be replaced by the
-          // server's view after refresh; clear their spinner state now.
-          msgs.forEach((m, i) => {
-            if (m.role === 'tool' && m.toolStatus === 'running') {
-              msgs[i] = { ...m, toolStatus: 'done' }
-            }
-          })
           cleanup()
           persistSessionMessages(sid)
           if (sid === activeSessionKey.value) {

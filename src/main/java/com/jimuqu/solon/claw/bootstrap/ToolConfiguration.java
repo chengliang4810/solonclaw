@@ -442,7 +442,7 @@ public class ToolConfiguration {
      * @param agentRunControlService Agent运行控制服务依赖。
      * @return 返回委托服务结果。
      */
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     public DelegationService delegationService(
             AppConfig appConfig,
             ConversationOrchestratorHolder holder,
@@ -451,14 +451,17 @@ public class ToolConfiguration {
             AgentRunRepository agentRunRepository,
             AgentRunControlService agentRunControlService,
             DeliveryService deliveryService) {
-        return new DefaultDelegationService(
-                holder,
-                preferenceStore,
-                sessionRepository,
-                agentRunRepository,
-                appConfig,
-                agentRunControlService,
-                deliveryService);
+        DefaultDelegationService service =
+                new DefaultDelegationService(
+                        holder,
+                        preferenceStore,
+                        sessionRepository,
+                        agentRunRepository,
+                        appConfig,
+                        agentRunControlService,
+                        deliveryService);
+        service.reconcileStaleSubagents();
+        return service;
     }
 
     /**

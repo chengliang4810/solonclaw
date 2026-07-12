@@ -35,6 +35,7 @@ import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.ContextService;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
@@ -141,6 +142,9 @@ public class DefaultCommandService implements CommandService {
 
     /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
+
+    /** 后台委派服务，用于在父会话结束时取消其进程内任务。 */
+    private DelegationService delegationService;
 
     /** 注入Agent角色配置服务，用于调用对应业务能力。 */
     private final AgentProfileService agentProfileService;
@@ -315,6 +319,11 @@ public class DefaultCommandService implements CommandService {
         this.pluginManager = pluginManager;
     }
 
+    /** 接入后台委派生命周期；由 Bean 工厂在依赖装配完成后设置。 */
+    public void setDelegationService(DelegationService delegationService) {
+        this.delegationService = delegationService;
+    }
+
     /** 判断当前命令是否由默认命令服务承接。 */
     @Override
     public boolean supports(String commandName) {
@@ -352,7 +361,7 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.COMMAND_SESSIONS.equals(command)) {
-            return handleSessions(args);
+            return handleSessions(message, args);
         }
 
         if (GatewayCommandConstants.COMMAND_WHOAMI.equals(command)) {
@@ -377,6 +386,8 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_NEW.equals(command)
                 || GatewayCommandConstants.COMMAND_RESET.equals(command)) {
+            SessionRecord previous = sessionRepository.getBoundSession(message.sourceKey());
+            cancelBackgroundDelegations(previous);
             SessionRecord created = sessionRepository.bindNewSession(message.sourceKey());
             String title = normalizeSessionTitle(args);
             String content = "已创建新会话：" + created.getSessionId();
@@ -397,6 +408,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_RETRY.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "重试上一轮对话");
+            if (busyReply != null) {
+                return busyReply;
+            }
             String lastUser = MessageSupport.getLastUserMessage(session.getNdjson());
             if (StrUtil.isBlank(lastUser)) {
                 return GatewayReply.error("没有可重试的上一条用户消息。");
@@ -421,6 +436,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_UNDO.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "撤销上一轮对话");
+            if (busyReply != null) {
+                return busyReply;
+            }
             String lastUser = MessageSupport.getLastUserMessage(session.getNdjson());
             if (StrUtil.isBlank(lastUser)) {
                 GatewayReply reply = GatewayReply.error("没有可撤销的上一轮对话。");
@@ -440,6 +459,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_BRANCH.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "创建会话分支");
+            if (busyReply != null) {
+                return busyReply;
+            }
             String branchName =
                     StrUtil.isBlank(args) ? "branch-" + System.currentTimeMillis() : args;
             SessionRecord clone =
@@ -459,7 +482,7 @@ public class DefaultCommandService implements CommandService {
                                 + GatewayCommandConstants.SLASH_RESUME
                                 + " <session-id|id-prefix|title|branch>");
             }
-            ResumeLookup lookup = resolveResumeTarget(message.sourceKey(), args);
+            ResumeLookup lookup = resolveResumeTarget(message, args);
             SessionRecord session = lookup.getSession();
             if (session == null) {
                 return GatewayReply.error(lookup.getMessage());
@@ -766,12 +789,19 @@ public class DefaultCommandService implements CommandService {
                         SlashCommandStatusRenderer.checkpointClear(
                                 checkpointService, message.sourceKey()));
             }
+            SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "回滚 checkpoint");
+            if (busyReply != null) {
+                return busyReply;
+            }
             if ("latest".equalsIgnoreCase(args)) {
-                return GatewayReply.ok(
-                        "已回滚到最近一次 checkpoint："
-                                + checkpointService
-                                        .rollbackLatest(message.sourceKey())
-                                        .getCheckpointId());
+                List<CheckpointRecord> recent =
+                        checkpointService.listRecent(message.sourceKey(), 1);
+                if (recent.isEmpty()) {
+                    return GatewayReply.error("当前来源键没有可回滚的 checkpoint。");
+                }
+                return rollbackSessionReply(
+                        session, recent.get(0).getCheckpointId(), "已回滚到最近一次 checkpoint：");
             }
             try {
                 int index = Integer.parseInt(args);
@@ -780,16 +810,14 @@ public class DefaultCommandService implements CommandService {
                 if (index < 1 || index > recent.size()) {
                     return GatewayReply.error("checkpoint 序号无效，应在 1-" + recent.size() + " 之间。");
                 }
-                CheckpointRecord restored =
-                        checkpointService.rollback(recent.get(index - 1).getCheckpointId());
-                return GatewayReply.ok("已按列表序号回滚到 checkpoint：" + restored.getCheckpointId());
+                return rollbackSessionReply(
+                        session, recent.get(index - 1).getCheckpointId(), "已按列表序号回滚到 checkpoint：");
             } catch (NumberFormatException e) {
                 log.debug(
                         "Rollback checkpoint argument is not a list index; treating it as checkpoint id: {}",
                         exceptionSummary(e));
             }
-            return GatewayReply.ok(
-                    "已回滚到指定 checkpoint：" + checkpointService.rollback(args).getCheckpointId());
+            return rollbackSessionReply(session, args, "已回滚到指定 checkpoint：");
         }
 
         if (GatewayCommandConstants.COMMAND_PLATFORMS.equals(command)
@@ -855,6 +883,11 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.COMMAND_RETRY.equals(command)) {
             recordSlashCommand(message, command, args);
             SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "重试上一轮对话");
+            if (busyReply != null) {
+                emitDirectReply(busyReply, eventSink, session.getSessionId());
+                return busyReply;
+            }
             String lastUser = MessageSupport.getLastUserMessage(session.getNdjson());
             if (StrUtil.isBlank(lastUser)) {
                 GatewayReply reply = GatewayReply.error("没有可重试的上一条用户消息。");
@@ -938,6 +971,8 @@ public class DefaultCommandService implements CommandService {
      * @return 返回Stop结果。
      */
     private GatewayReply handleStop(GatewayMessage message) throws Exception {
+        SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
+        cancelBackgroundDelegations(session);
         AgentRunStopResult stopResult =
                 agentRunControlService == null
                         ? AgentRunStopResult.none()
@@ -949,7 +984,6 @@ public class DefaultCommandService implements CommandService {
             stopResult = agentRunControlService.stopSiblingThreadRun(message, message.sourceKey());
         }
         int stoppedProcesses = processRegistry.stopAll();
-        SessionRecord session = sessionRepository.getBoundSession(message.sourceKey());
         if (session != null && dangerousCommandApprovalService != null) {
             dangerousCommandApprovalService.clearSessionApprovals(
                     new SqliteAgentSession(session, sessionRepository));
@@ -969,6 +1003,13 @@ public class DefaultCommandService implements CommandService {
             reply.setBranchName(session.getBranchName());
         }
         return reply;
+    }
+
+    /** 取消父会话仍持有的后台委派；未接入服务或无会话时保持兼容。 */
+    private void cancelBackgroundDelegations(SessionRecord session) {
+        if (delegationService != null && session != null) {
+            delegationService.cancelBackgroundForSession(session.getSessionId());
+        }
     }
 
     /**
@@ -1196,6 +1237,38 @@ public class DefaultCommandService implements CommandService {
         return reply;
     }
 
+    /** 运行中拒绝会改写会话或工作区历史的命令，并返回当前运行摘要。 */
+    private GatewayReply runningSessionMutationReply(
+            GatewayMessage message, SessionRecord session, String action) {
+        if (agentRunControlService == null
+                || !agentRunControlService.isRunning(message.sourceKey())) {
+            return null;
+        }
+        GatewayReply reply =
+                GatewayReply.error("当前会话正在运行任务，无法" + action + "。请等待任务完成后重试，或先使用 /stop 停止当前任务。");
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        reply.getRuntimeMetadata().put("busy_status", "running");
+        Map<String, Object> activeRun =
+                agentRunControlService.activeRunSummary(message.sourceKey());
+        if (activeRun != null && activeRun.get("run_id") != null) {
+            reply.getRuntimeMetadata().put("run_id", String.valueOf(activeRun.get("run_id")));
+        }
+        return reply;
+    }
+
+    /** 完整恢复 checkpoint 并把真实会话历史裁剪数量写入回复元数据。 */
+    private GatewayReply rollbackSessionReply(
+            SessionRecord session, String checkpointId, String messagePrefix) throws Exception {
+        int historyRemoved =
+                checkpointService.rollbackSession(checkpointId, session, sessionRepository);
+        GatewayReply reply = GatewayReply.ok(messagePrefix + checkpointId);
+        reply.setSessionId(session.getSessionId());
+        reply.setBranchName(session.getBranchName());
+        reply.getRuntimeMetadata().put("history_removed", Integer.valueOf(historyRemoved));
+        return reply;
+    }
+
     /**
      * 读取配置中的默认目标轮次预算。
      *
@@ -1279,17 +1352,23 @@ public class DefaultCommandService implements CommandService {
     /**
      * 执行Sessions相关逻辑。
      *
+     * @param message 当前渠道消息，用于限制只能查看同一来源的会话。
      * @param args 工具或命令参数。
      * @return 返回Sessions结果。
      */
-    private GatewayReply handleSessions(String args) throws Exception {
+    private GatewayReply handleSessions(GatewayMessage message, String args) throws Exception {
         String query = StrUtil.nullToEmpty(args).trim();
-        List<SessionRecord> records =
-                StrUtil.isBlank(query)
-                        ? sessionRepository.listRecent(10)
-                        : sessionRepository.search(query, 10);
-        if (StrUtil.isNotBlank(query) && (records == null || records.isEmpty())) {
-            records = filterRecentSessions(query, 10);
+        List<SessionRecord> records;
+        if (requiresSourceScope(message)) {
+            records = listSourceSessions(message.sourceKey(), query, 10);
+        } else {
+            records =
+                    StrUtil.isBlank(query)
+                            ? sessionRepository.listRecent(10)
+                            : sessionRepository.search(query, 10);
+            if (StrUtil.isNotBlank(query) && (records == null || records.isEmpty())) {
+                records = filterRecentSessions(query, 10);
+            }
         }
         GatewayReply reply = GatewayReply.ok(formatSessions(records, query));
         reply.getRuntimeMetadata().put("command_status", "handled");
@@ -1301,12 +1380,41 @@ public class DefaultCommandService implements CommandService {
     }
 
     /**
-     * 执行过滤器RecentSessions相关逻辑。
+     * 分页扫描并筛选当前渠道来源的会话，避免全局搜索暴露其他用户或渠道的会话。
      *
+     * @param sourceKey 当前渠道来源键。
      * @param query 查询参数。
      * @param limit 最大返回数量。
-     * @return 返回filter Recent Sessions结果。
+     * @return 当前来源下匹配的最近会话。
      */
+    private List<SessionRecord> listSourceSessions(String sourceKey, String query, int limit)
+            throws Exception {
+        List<SessionRecord> result = new ArrayList<SessionRecord>();
+        int offset = 0;
+        final int pageSize = 100;
+        while (result.size() < limit) {
+            List<SessionRecord> records = sessionRepository.listRecent(pageSize, offset);
+            if (records == null || records.isEmpty()) {
+                break;
+            }
+            for (SessionRecord record : records) {
+                if (sameSource(record, sourceKey)
+                        && (StrUtil.isBlank(query) || sessionMatches(record, query))) {
+                    result.add(record);
+                    if (result.size() >= limit) {
+                        break;
+                    }
+                }
+            }
+            if (records.size() < pageSize) {
+                break;
+            }
+            offset += records.size();
+        }
+        return result;
+    }
+
+    /** 从可信本机控制面使用的全局会话集合中执行兼容搜索。 */
     private List<SessionRecord> filterRecentSessions(String query, int limit) throws Exception {
         List<SessionRecord> records = sessionRepository.listRecent(50);
         List<SessionRecord> result = new ArrayList<SessionRecord>();
@@ -1322,6 +1430,18 @@ public class DefaultCommandService implements CommandService {
             }
         }
         return result;
+    }
+
+    /** 仅真实国内渠道消息需要按来源隔离，Dashboard 和本机 CLI 保持可信全局控制能力。 */
+    private boolean requiresSourceScope(GatewayMessage message) {
+        return message != null && PlatformType.DOMESTIC_PLATFORMS.contains(message.getPlatform());
+    }
+
+    /** 判断会话是否由当前渠道来源创建，来源键必须完整一致。 */
+    private boolean sameSource(SessionRecord record, String sourceKey) {
+        return record != null
+                && StrUtil.isNotBlank(sourceKey)
+                && sourceKey.equals(record.getSourceKey());
     }
 
     /**
@@ -1525,12 +1645,14 @@ public class DefaultCommandService implements CommandService {
     /**
      * 解析Resume Target。
      *
-     * @param sourceKey 渠道来源键。
+     * @param message 当前消息，用于区分渠道来源和可信本机控制面。
      * @param rawReference 原始引用参数。
      * @return 返回解析后的Resume Target。
      */
-    private ResumeLookup resolveResumeTarget(String sourceKey, String rawReference)
+    private ResumeLookup resolveResumeTarget(GatewayMessage message, String rawReference)
             throws Exception {
+        String sourceKey = message.sourceKey();
+        boolean sourceScoped = requiresSourceScope(message);
         String reference = normalizeResumeReference(rawReference);
         if (StrUtil.isBlank(reference)) {
             return ResumeLookup.error(
@@ -1539,14 +1661,17 @@ public class DefaultCommandService implements CommandService {
                             + " <session-id|id-prefix|title|branch>");
         }
         SessionRecord session = sessionRepository.findById(reference);
-        if (session != null) {
+        if (session != null && (!sourceScoped || sameSource(session, sourceKey))) {
             return ResumeLookup.found(session);
         }
         session = sessionRepository.findBySourceAndBranch(sourceKey, reference);
         if (session != null) {
             return ResumeLookup.found(session);
         }
-        List<SessionRecord> candidates = sessionRepository.findResumeCandidates(reference, 3);
+        List<SessionRecord> candidates =
+                sourceScoped
+                        ? listSourceSessions(sourceKey, reference, 3)
+                        : sessionRepository.findResumeCandidates(reference, 3);
         if (candidates.size() == 1) {
             return ResumeLookup.found(candidates.get(0));
         }
@@ -2467,7 +2592,8 @@ public class DefaultCommandService implements CommandService {
             return handleSessionAutoApproval(message, SlashCommandLine.remainingTokens(safeArgs));
         }
         if ("list".equals(normalizedArgs) || "status".equals(normalizedArgs)) {
-            return GatewayReply.ok(formatApprovalList(agentSession));
+            return GatewayReply.ok(
+                    formatApprovalList(visibleApprovalSessions(message, agentSession)));
         }
         if (normalizedArgs.startsWith("clear")) {
             return clearApprovals(agentSession, normalizedArgs);
@@ -2492,6 +2618,11 @@ public class DefaultCommandService implements CommandService {
                 approvalArgs.getScope(),
                 message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试原始请求。");
+        }
+        if (isCronApprovalSession(approvalSession)) {
+            GatewayReply reply = GatewayReply.ok("定时任务审批已通过，调度器将恢复任务。");
+            reply.getRuntimeMetadata().put("cron_approval_processed", Boolean.TRUE);
+            return reply;
         }
         GatewayReply reply =
                 conversationOrchestrator.resumePending(
@@ -2533,6 +2664,43 @@ public class DefaultCommandService implements CommandService {
             }
         }
         return latest == null ? boundSession : latest;
+    }
+
+    /**
+     * 列出当前渠道来源可见的审批会话，包含主会话及该来源创建的定时任务隔离会话。
+     *
+     * @param message 当前渠道消息，来源键用于限制定时任务查询边界。
+     * @param boundSession 当前渠道来源绑定的主会话。
+     * @return 当前来源有权查看的审批会话列表，主会话固定排在首位。
+     */
+    private List<SqliteAgentSession> visibleApprovalSessions(
+            GatewayMessage message, SqliteAgentSession boundSession) throws Exception {
+        List<SqliteAgentSession> sessions = new ArrayList<SqliteAgentSession>();
+        sessions.add(boundSession);
+        if (!PlatformType.DOMESTIC_PLATFORMS.contains(message.getPlatform())) {
+            return sessions;
+        }
+        for (CronJobRecord job : cronJobRepository.listBySource(message.sourceKey())) {
+            if (job == null || StrUtil.isBlank(job.getJobId())) {
+                continue;
+            }
+            SessionRecord record = sessionRepository.getBoundSession("CRON:" + job.getJobId());
+            if (record == null || containsSession(sessions, record.getSessionId())) {
+                continue;
+            }
+            sessions.add(new SqliteAgentSession(record, sessionRepository));
+        }
+        return sessions;
+    }
+
+    /** 判断审批会话列表是否已经包含指定持久化会话，避免重复展示同一待审批项。 */
+    private boolean containsSession(List<SqliteAgentSession> sessions, String sessionId) {
+        for (SqliteAgentSession session : sessions) {
+            if (session != null && StrUtil.equals(session.getSessionId(), sessionId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -2605,48 +2773,57 @@ public class DefaultCommandService implements CommandService {
     }
 
     /**
-     * 格式化审批List。
+     * 汇总多个同来源会话的待审批状态；每个会话内的序号保持原有选择语义。
      *
-     * @param agentSession Agent会话参数。
-     * @return 返回审批List结果。
+     * @param sessions 当前来源有权查看的审批会话。
+     * @return 可直接返回给渠道用户的审批状态文本。
      */
-    private String formatApprovalList(SqliteAgentSession agentSession) {
-        java.util.List<DangerousCommandApprovalService.PendingApproval> pendingApprovals =
-                dangerousCommandApprovalService.listPendingApprovals(agentSession);
+    private String formatApprovalList(List<SqliteAgentSession> sessions) {
+        List<List<DangerousCommandApprovalService.PendingApproval>> pendingBySession =
+                new ArrayList<List<DangerousCommandApprovalService.PendingApproval>>();
+        int pendingCount = 0;
+        int sessionApprovalCount = 0;
+        for (SqliteAgentSession session : sessions) {
+            List<DangerousCommandApprovalService.PendingApproval> pending =
+                    dangerousCommandApprovalService.listPendingApprovals(session);
+            pendingBySession.add(pending);
+            pendingCount += pending.size();
+            sessionApprovalCount +=
+                    dangerousCommandApprovalService.listSessionApprovals(session).size();
+        }
         StringBuilder buffer = new StringBuilder();
         buffer.append("pending=")
-                .append(
-                        pendingApprovals.isEmpty()
-                                ? "none"
-                                : String.valueOf(pendingApprovals.size()))
+                .append(pendingCount == 0 ? "none" : String.valueOf(pendingCount))
                 .append('\n');
-        for (int i = 0; i < pendingApprovals.size(); i++) {
-            DangerousCommandApprovalService.PendingApproval pending = pendingApprovals.get(i);
-            buffer.append('#')
-                    .append(i + 1)
-                    .append(' ')
-                    .append(
-                            safeApprovalPreview(
-                                    DangerousCommandApprovalService.approvalSelector(pending), 120))
-                    .append(" tool=")
-                    .append(safeApprovalPreview(pending.getToolName(), 120))
-                    .append(" pattern=")
-                    .append(safeApprovalPreview(pending.getPatternKey(), 240))
-                    .append(" reason=")
-                    .append(safeApprovalPreview(pending.getDescription(), 1000))
-                    .append(" command_preview=")
-                    .append(safeApprovalPreview(pending.getCommand(), 800))
-                    .append(" scopes=")
-                    .append(approvalScopes(pending))
-                    .append(" expires_in=")
-                    .append(TimeSupport.expiresInSeconds(pending.getExpiresAt()))
-                    .append("s expired=")
-                    .append(isExpired(pending.getExpiresAt()))
-                    .append('\n');
+        for (List<DangerousCommandApprovalService.PendingApproval> pendingApprovals :
+                pendingBySession) {
+            for (int i = 0; i < pendingApprovals.size(); i++) {
+                DangerousCommandApprovalService.PendingApproval pending = pendingApprovals.get(i);
+                buffer.append('#')
+                        .append(i + 1)
+                        .append(' ')
+                        .append(
+                                safeApprovalPreview(
+                                        DangerousCommandApprovalService.approvalSelector(pending),
+                                        120))
+                        .append(" tool=")
+                        .append(safeApprovalPreview(pending.getToolName(), 120))
+                        .append(" pattern=")
+                        .append(safeApprovalPreview(pending.getPatternKey(), 240))
+                        .append(" reason=")
+                        .append(safeApprovalPreview(pending.getDescription(), 1000))
+                        .append(" command_preview=")
+                        .append(safeApprovalPreview(pending.getCommand(), 800))
+                        .append(" scopes=")
+                        .append(approvalScopes(pending))
+                        .append(" expires_in=")
+                        .append(TimeSupport.expiresInSeconds(pending.getExpiresAt()))
+                        .append("s expired=")
+                        .append(isExpired(pending.getExpiresAt()))
+                        .append('\n');
+            }
         }
-        buffer.append("session_approvals_count=")
-                .append(dangerousCommandApprovalService.listSessionApprovals(agentSession).size())
-                .append('\n');
+        buffer.append("session_approvals_count=").append(sessionApprovalCount).append('\n');
         buffer.append("always_approvals_count=")
                 .append(dangerousCommandApprovalService.listAlwaysApprovals().size());
         return buffer.toString();
@@ -2798,7 +2975,8 @@ public class DefaultCommandService implements CommandService {
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
         if ("list".equalsIgnoreCase(selector) || "status".equalsIgnoreCase(selector)) {
-            return GatewayReply.ok(formatApprovalList(agentSession));
+            return GatewayReply.ok(
+                    formatApprovalList(visibleApprovalSessions(message, agentSession)));
         }
         if ("all".equalsIgnoreCase(selector)) {
             int rejected =
@@ -2811,19 +2989,35 @@ public class DefaultCommandService implements CommandService {
             reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
             return reply;
         }
+        SqliteAgentSession approvalSession =
+                resolveApprovalSession(message, agentSession, selector);
         DangerousCommandApprovalService.PendingApproval pending =
-                selectPendingApproval(agentSession, selector);
+                selectPendingApproval(approvalSession, selector);
         if (pending == null) {
             return GatewayReply.error("当前没有待审批的危险命令。");
         }
 
         if (!dangerousCommandApprovalService.reject(
-                agentSession, selector, message.getUserName())) {
+                approvalSession, selector, message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试。");
         }
-        GatewayReply reply = conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        if (isCronApprovalSession(approvalSession)) {
+            GatewayReply reply = GatewayReply.ok("已拒绝定时任务的危险操作，任务保持暂停。");
+            reply.getRuntimeMetadata().put("cron_approval_processed", Boolean.TRUE);
+            return reply;
+        }
+        GatewayReply reply =
+                conversationOrchestrator.resumePending(
+                        String.valueOf(approvalSession.getContext().get("source_key")), eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
+    }
+
+    /** 判断当前审批是否属于独立的定时任务会话，该会话由调度器观察器恢复。 */
+    private boolean isCronApprovalSession(SqliteAgentSession session) {
+        return session != null
+                && StrUtil.startWith(
+                        String.valueOf(session.getContext().get("source_key")), "CRON:");
     }
 
     /**

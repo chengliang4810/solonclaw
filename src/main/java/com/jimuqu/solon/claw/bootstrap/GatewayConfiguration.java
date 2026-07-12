@@ -18,6 +18,7 @@ import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
@@ -372,43 +373,47 @@ public class GatewayConfiguration {
             BrowserRuntimeService browserRuntimeService,
             ProactiveDiagnosticsService proactiveDiagnosticsService,
             ProactiveRepository proactiveRepository,
+            DelegationService delegationService,
             Map<String, CommandHandler> pluginCommands) {
-        return new DefaultCommandService(
-                sessionRepository,
-                toolRegistry,
-                localSkillService,
-                cronJobRepository,
-                conversationOrchestrator,
-                contextService,
-                contextCompressionService,
-                deliveryService,
-                gatewayAuthorizationService,
-                checkpointService,
-                skillHubService,
-                appConfig,
-                globalSettingRepository,
-                processRegistry,
-                runtimeSettingsService,
-                displaySettingsService,
-                appUpdateService,
-                dangerousCommandApprovalService,
-                agentRunControlService,
-                agentProfileService,
-                agentRunRepository,
-                dashboardMcpService,
-                goalService,
-                goalContractDrafter,
-                sessionArtifactService,
-                defaultCronScheduler,
-                gatewayRestartCoordinator,
-                slashConfirmService,
-                pluginCommands,
-                pluginManager,
-                dashboardCuratorService,
-                dashboardSkillsService,
-                browserRuntimeService,
-                proactiveDiagnosticsService,
-                proactiveRepository);
+        DefaultCommandService service =
+                new DefaultCommandService(
+                        sessionRepository,
+                        toolRegistry,
+                        localSkillService,
+                        cronJobRepository,
+                        conversationOrchestrator,
+                        contextService,
+                        contextCompressionService,
+                        deliveryService,
+                        gatewayAuthorizationService,
+                        checkpointService,
+                        skillHubService,
+                        appConfig,
+                        globalSettingRepository,
+                        processRegistry,
+                        runtimeSettingsService,
+                        displaySettingsService,
+                        appUpdateService,
+                        dangerousCommandApprovalService,
+                        agentRunControlService,
+                        agentProfileService,
+                        agentRunRepository,
+                        dashboardMcpService,
+                        goalService,
+                        goalContractDrafter,
+                        sessionArtifactService,
+                        defaultCronScheduler,
+                        gatewayRestartCoordinator,
+                        slashConfirmService,
+                        pluginCommands,
+                        pluginManager,
+                        dashboardCuratorService,
+                        dashboardSkillsService,
+                        browserRuntimeService,
+                        proactiveDiagnosticsService,
+                        proactiveRepository);
+        service.setDelegationService(delegationService);
+        return service;
     }
 
     /**

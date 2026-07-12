@@ -177,6 +177,47 @@ public class SqliteProactiveRepository implements ProactiveRepository {
     }
 
     @Override
+    public int recoverInterruptedDeliveries(long recoveredAt) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            connection.setAutoCommit(false);
+            try {
+                int sent =
+                        updateApprovedCandidates(
+                                connection,
+                                "SENT",
+                                recoveredAt,
+                                " and exists (select 1 from proactive_decisions d where d.decision_id = proactive_candidates.last_decision_id and upper(coalesce(d.delivery_status, '')) = 'SENT')");
+                int pending = updateApprovedCandidates(connection, "PENDING", recoveredAt, "");
+                connection.commit();
+                return sent + pending;
+            } catch (Exception e) {
+                connection.rollback();
+                throw e;
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    /** 在恢复事务中批量收敛仍处于 APPROVED 的候选。 */
+    private int updateApprovedCandidates(
+            Connection connection, String status, long updatedAt, String condition)
+            throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "update proactive_candidates set status = ?, updated_at = ? where status = 'APPROVED'"
+                                + condition);
+        try {
+            statement.setString(1, status);
+            statement.setLong(2, updatedAt);
+            return statement.executeUpdate();
+        } finally {
+            statement.close();
+        }
+    }
+
+    @Override
     public int countSentSince(String sourceKey, long sinceMillis) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -184,8 +225,8 @@ public class SqliteProactiveRepository implements ProactiveRepository {
             PreparedStatement statement =
                     connection.prepareStatement(
                             filterSource
-                                    ? "select count(*) from proactive_decisions where source_key = ? and decision = 'SEND' and created_at >= ? and (delivery_status is null or delivery_status = '' or upper(delivery_status) in ('SUCCESS', 'SENT', 'DELIVERED', 'OK'))"
-                                    : "select count(*) from proactive_decisions where decision = 'SEND' and created_at >= ? and (delivery_status is null or delivery_status = '' or upper(delivery_status) in ('SUCCESS', 'SENT', 'DELIVERED', 'OK'))");
+                                    ? "select count(*) from proactive_decisions where source_key = ? and decision = 'SEND' and created_at >= ? and upper(delivery_status) = 'SENT'"
+                                    : "select count(*) from proactive_decisions where decision = 'SEND' and created_at >= ? and upper(delivery_status) = 'SENT'");
             if (filterSource) {
                 statement.setString(1, sourceKey);
                 statement.setLong(2, sinceMillis);
@@ -212,8 +253,8 @@ public class SqliteProactiveRepository implements ProactiveRepository {
             PreparedStatement statement =
                     connection.prepareStatement(
                             filterSource
-                                    ? "select max(created_at) from proactive_decisions where source_key = ? and decision = 'SEND' and (delivery_status is null or delivery_status = '' or upper(delivery_status) in ('SUCCESS', 'SENT', 'DELIVERED', 'OK'))"
-                                    : "select max(created_at) from proactive_decisions where decision = 'SEND' and (delivery_status is null or delivery_status = '' or upper(delivery_status) in ('SUCCESS', 'SENT', 'DELIVERED', 'OK'))");
+                                    ? "select max(created_at) from proactive_decisions where source_key = ? and decision = 'SEND' and upper(delivery_status) = 'SENT'"
+                                    : "select max(created_at) from proactive_decisions where decision = 'SEND' and upper(delivery_status) = 'SENT'");
             if (filterSource) {
                 statement.setString(1, sourceKey);
             }

@@ -161,6 +161,58 @@ public class BrowserRuntimeServiceTests {
     }
 
     @Test
+    void shouldCreateNavigateAndSnapshotWhenToolSessionIsOmitted() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(true);
+        RecordingProvider provider = new RecordingProvider(true);
+        BrowserRuntimeService service =
+                new BrowserRuntimeService(
+                        config,
+                        Collections.<BrowserProvider>singletonList(provider),
+                        new SecurityPolicyService(config),
+                        1);
+
+        BrowserRuntimeService.BrowserResult result =
+                new BrowserTools(service).navigate(null, "http://127.0.0.1/start", 7);
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getSessionId()).isNotBlank();
+        assertThat(result.getDetails()).containsEntry("autoCreated", Boolean.TRUE);
+        assertThat(result.getDetails().get("snapshot")).isEqualTo("page snapshot");
+        assertThat(result.getDetails().get("refs").toString()).contains("@e1");
+        assertThat(provider.createCount.get()).isEqualTo(1);
+        assertThat(provider.navigateCount.get()).isEqualTo(1);
+        assertThat(provider.snapshotCount.get()).isEqualTo(1);
+    }
+
+    @Test
+    void shouldReturnSnapshotWhenToolNavigatesExistingSession() {
+        AppConfig config = new AppConfig();
+        config.getSecurity().setAllowPrivateUrls(true);
+        RecordingProvider provider = new RecordingProvider(true);
+        BrowserRuntimeService service =
+                new BrowserRuntimeService(
+                        config,
+                        Collections.<BrowserProvider>singletonList(provider),
+                        new SecurityPolicyService(config),
+                        1);
+        String sessionId = service.create("task-1").getSessionId();
+
+        BrowserRuntimeService.BrowserResult result =
+                new BrowserTools(service).navigate(sessionId, "http://127.0.0.1/start", 7);
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getSessionId()).isEqualTo(sessionId);
+        assertThat(result.getDetails()).doesNotContainKey("autoCreated");
+        assertThat(result.getDetails().get("snapshot")).isEqualTo("page snapshot");
+        assertThat(result.getDetails().get("refs").toString()).contains("@e1");
+        assertThat(provider.createCount.get()).isEqualTo(1);
+        assertThat(provider.navigateCount.get()).isEqualTo(1);
+        assertThat(provider.snapshotCount.get()).isEqualTo(1);
+        assertThat(service.activeLeaseCount()).isEqualTo(1);
+    }
+
+    @Test
     void shouldExecuteProductionBrowserActionsThroughCdp() throws Exception {
         try (FakeCdpServer server = new FakeCdpServer(false)) {
             CdpTestProvider provider = new CdpTestProvider(server.connectUrl());
@@ -582,6 +634,8 @@ public class BrowserRuntimeServiceTests {
 
         assertThat(clicked.isSuccess()).isFalse();
         assertThat(clicked.getError().getCode()).isEqualTo("security_blocked");
+        assertThat(provider.navigateCount.get()).isEqualTo(1);
+        assertThat(provider.lastNavigatedUrl).isEqualTo("about:blank");
         assertThat(service.activeLeaseCount()).isZero();
         assertThat(provider.closeCount.get()).isEqualTo(1);
     }
@@ -1121,6 +1175,7 @@ public class BrowserRuntimeServiceTests {
         private final AtomicInteger navigateCount = new AtomicInteger();
         private final AtomicInteger clickCount = new AtomicInteger();
         private final AtomicInteger typeCount = new AtomicInteger();
+        private final AtomicInteger snapshotCount = new AtomicInteger();
         private final AtomicInteger screenshotCount = new AtomicInteger();
         private final AtomicInteger extractCount = new AtomicInteger();
         private String nextUrl = "http://127.0.0.1/after-action";
@@ -1185,6 +1240,15 @@ public class BrowserRuntimeServiceTests {
             details.put("text", text);
             details.put("timeoutSeconds", timeoutSeconds);
             return BrowserActionResult.ok("typed", nextUrl, details);
+        }
+
+        @Override
+        public BrowserActionResult snapshot(String sessionId, boolean full) {
+            snapshotCount.incrementAndGet();
+            Map<String, Object> details = new LinkedHashMap<String, Object>();
+            details.put("snapshot", "page snapshot");
+            details.put("refs", Collections.singletonMap("@e1", "button"));
+            return BrowserActionResult.ok("snapshot", nextUrl, details);
         }
 
         @Override

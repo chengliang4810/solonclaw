@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import cn.hutool.core.io.FileUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.CompressionOutcome;
@@ -11,6 +12,7 @@ import com.jimuqu.solon.claw.core.model.MessageAttachment;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.service.ContextCompressionService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
+import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.storage.repository.SqliteAgentRunRepository;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqliteGlobalSettingRepository;
@@ -18,6 +20,8 @@ import com.jimuqu.solon.claw.storage.repository.SqliteSessionRepository;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.TestEnvironment;
+import com.jimuqu.solon.claw.support.ToolMessageStatusSupport;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tui.TerminalUiPendingAttachmentService;
 import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
@@ -29,7 +33,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
 
 class TerminalUiRpcServiceTest {
     /** 验证恢复不存在的会话会明确失败，不伪造空会话响应。 */
@@ -81,6 +87,36 @@ class TerminalUiRpcServiceTest {
                 .containsEntry("user", "等待审批的用户请求")
                 .containsEntry("assistant", "已生成的回复片段")
                 .containsEntry("streaming", Boolean.FALSE);
+    }
+
+    /** 会话恢复必须保留持久化工具失败状态和用于终端展示的错误摘要。 */
+    @Test
+    void sessionResumePreservesPersistedToolFailureStatus() throws Exception {
+        AppConfig config = testConfig();
+        SqliteSessionRepository sessions = new SqliteSessionRepository(new SqliteDatabase(config));
+        SessionRecord session =
+                session("session-tool-error", "MEMORY:terminal-ui:session-tool-error");
+        ToolMessage failed =
+                ChatMessage.ofTool(
+                        "{\"status\":\"error\",\"summary\":\"command failed\",\"error\":\"command failed\"}",
+                        "execute_shell",
+                        "call-shell");
+        ToolMessageStatusSupport.mark(failed, true);
+        session.setNdjson(
+                MessageSupport.toNdjson(Arrays.asList(ChatMessage.ofUser("run command"), failed)));
+        sessions.save(session);
+
+        Map<String, Object> response =
+                new TerminalUiRpcService(config, sessions).sessionResume(session.getSessionId());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> messages = (List<Map<String, Object>>) response.get("messages");
+        assertThat(messages.get(1))
+                .containsEntry("role", "tool")
+                .containsEntry("name", "execute_shell")
+                .containsEntry("status", "error")
+                .containsEntry("preview", "command failed")
+                .containsEntry("error", "command failed");
     }
 
     @Test
@@ -402,6 +438,108 @@ class TerminalUiRpcServiceTest {
         assertThat(compression.compressNowCalls).isZero();
         assertThat(response.get("removed")).isEqualTo(0);
         assertThat(response.get("summary").toString()).contains("headline=nothing to compress");
+    }
+
+    /** TUI 直连入口在会话运行中不得压缩、创建分支或恢复完整 checkpoint。 */
+    @Test
+    void destructiveSessionRpcRejectsActiveRun() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sessionId = "tui-busy";
+        String sourceKey = "MEMORY:terminal-ui:" + sessionId;
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setSessionId(sessionId);
+        session.setSourceKey(sourceKey);
+        env.sessionRepository.save(session);
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.localSkillService,
+                        env.skillHubService,
+                        env.checkpointService,
+                        null,
+                        null,
+                        null,
+                        env.contextCompressionService,
+                        null,
+                        env.processRegistry,
+                        null,
+                        env.gatewayRuntimeRefreshService,
+                        env.delegationService,
+                        env.agentRunControlService,
+                        env.agentRunRepository,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+        AgentRunSupervisor supervisor = (AgentRunSupervisor) env.agentRunControlService;
+        supervisor.coordinateIncoming(
+                sourceKey, sessionId, env.message("terminal-ui", sessionId, "run"));
+
+        Map<String, Object> compress = service.sessionCompress(sessionId, "");
+        Map<String, Object> branch = service.sessionBranch(sessionId, "blocked");
+        Map<String, Object> rollback = service.rollbackRestore(sessionId, "missing", "");
+
+        assertThat(compress)
+                .containsEntry("success", Boolean.FALSE)
+                .containsEntry("status", "running");
+        assertThat(branch)
+                .containsEntry("success", Boolean.FALSE)
+                .containsEntry("status", "running");
+        assertThat(rollback)
+                .containsEntry("success", Boolean.FALSE)
+                .containsEntry("status", "running");
+        supervisor.releaseIncomingReservation(sourceKey);
+    }
+
+    /** TUI 完整 rollback 返回真实历史裁剪数量，并同步持久化会话。 */
+    @Test
+    void rollbackRestoreRemovesLastSessionTurn() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:terminal-ui:rollback";
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofUser("change"), new AssistantMessage("done"))));
+        env.sessionRepository.save(session);
+        File file = FileUtil.file(env.appConfig.getRuntime().getCacheDir(), "tui-rollback.txt");
+        FileUtil.writeUtf8String("v1", file);
+        String checkpointId =
+                env.checkpointService
+                        .createCheckpoint(
+                                sourceKey, session.getSessionId(), Collections.singletonList(file))
+                        .getCheckpointId();
+        FileUtil.writeUtf8String("v2", file);
+        TerminalUiRpcService service =
+                new TerminalUiRpcService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.localSkillService,
+                        env.skillHubService,
+                        env.checkpointService,
+                        null,
+                        null,
+                        null,
+                        env.contextCompressionService,
+                        null,
+                        env.processRegistry,
+                        null,
+                        env.gatewayRuntimeRefreshService,
+                        env.delegationService,
+                        env.agentRunControlService,
+                        env.agentRunRepository,
+                        env.runtimeSettingsService,
+                        env.globalSettingRepository);
+
+        Map<String, Object> response =
+                service.rollbackRestore(session.getSessionId(), checkpointId, "");
+
+        assertThat(response)
+                .containsEntry("success", Boolean.TRUE)
+                .containsEntry("history_removed", Integer.valueOf(2));
+        assertThat(FileUtil.readUtf8String(file)).isEqualTo("v1");
+        assertThat(
+                        MessageSupport.countMessages(
+                                env.sessionRepository.findById(session.getSessionId()).getNdjson()))
+                .isZero();
     }
 
     @Test

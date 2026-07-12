@@ -822,6 +822,50 @@ public class DefaultCronSchedulerTest {
     }
 
     @Test
+    void shouldDeliverCliMemoryOriginToBoundSessionWithoutChannelAdapter() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:cli:cli-cron-origin";
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+
+        File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
+        FileUtil.mkdir(scriptsDir);
+        File script = FileUtil.file(scriptsDir, "cli-origin.py");
+        FileUtil.writeString("print('cli origin ok')", script, StandardCharsets.UTF_8);
+
+        CronJobRecord job = job("job-cli-origin", sourceKey);
+        job.setDeliverPlatform("origin");
+        job.setOriginJson(
+                "{\"platform\":\"MEMORY\",\"chat_id\":\"cli\",\"user_id\":\"cli-cron-origin\"}");
+        job.setNoAgent(true);
+        job.setWrapResponse(false);
+        job.setScript(script.getName());
+        env.cronJobRepository.save(job);
+
+        DefaultCronScheduler scheduler =
+                new DefaultCronScheduler(
+                        env.appConfig,
+                        env.cronJobRepository,
+                        new CronJobService(env.appConfig, env.cronJobRepository),
+                        env.conversationOrchestrator,
+                        new FailingDeliveryService("MEMORY adapter should not be called"),
+                        env.gatewayPolicyRepository,
+                        env.dangerousCommandApprovalService,
+                        new AttachmentCacheService(env.appConfig),
+                        env.localSkillService,
+                        env.agentRunControlService,
+                        null,
+                        env.sessionRepository);
+        scheduler.tick();
+
+        CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
+        assertThat(updated.getLastDeliveryError()).isNull();
+        List<ChatMessage> messages =
+                MessageSupport.loadMessages(
+                        env.sessionRepository.findById(session.getSessionId()).getNdjson());
+        assertThat(messages.get(messages.size() - 1).getContent()).contains("cli origin ok");
+    }
+
+    @Test
     void shouldKeepBareDashboardMemoryDeliveryInCronHistoryWithoutChannelAdapter()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -1701,6 +1745,8 @@ public class DefaultCronSchedulerTest {
     void shouldPauseDangerousCronScriptBeforeExecution() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getSecurity().setGuardrailCronMode("approval");
+        String sourceKey = "WEIXIN:cron-approval:user";
+        env.sessionRepository.bindNewSession(sourceKey);
         File scriptsDir = FileUtil.file(env.appConfig.getRuntime().getHome(), "scripts");
         FileUtil.mkdir(scriptsDir);
         File script = FileUtil.file(scriptsDir, "danger-approval.sh");
@@ -1715,7 +1761,7 @@ public class DefaultCronSchedulerTest {
         body.put("prompt", "汇总脚本输出");
         env.dangerousCommandApprovalService.addApprovalObserver(
                 new CronApprovalResumeObserver(service));
-        CronJobRecord job = service.create("MEMORY:cron-approval:user", body);
+        CronJobRecord job = service.create(sourceKey, body);
         job.setNextRunAt(System.currentTimeMillis() - 1000L);
         env.cronJobRepository.update(job);
         DefaultCronScheduler scheduler =
@@ -1741,7 +1787,7 @@ public class DefaultCronSchedulerTest {
         assertThat(pendingJob.getPausedReason()).contains("waiting for approval");
         SqliteAgentSession session =
                 new SqliteAgentSession(
-                        env.sessionRepository.getBoundSession("MEMORY:cron-approval:user"),
+                        env.sessionRepository.getBoundSession("CRON:" + job.getJobId()),
                         env.sessionRepository);
         DangerousCommandApprovalService.PendingApproval approval =
                 env.dangerousCommandApprovalService.getPendingApproval(session);
@@ -1749,12 +1795,16 @@ public class DefaultCronSchedulerTest {
         assertThat(approval.getPatternKey()).startsWith("cron-job:" + job.getJobId() + ":");
         assertThat(approval.getCommand()).contains("rm -rf workspace/cache");
 
-        assertThat(
-                        env.dangerousCommandApprovalService.approve(
-                                session,
-                                DangerousCommandApprovalService.ApprovalScope.SESSION,
-                                "test"))
-                .isTrue();
+        String selector = DangerousCommandApprovalService.approvalSelector(approval);
+        GatewayReply approved =
+                env.commandService.handle(
+                        new GatewayMessage(
+                                PlatformType.WEIXIN, "cron-approval", "user", "/approve"),
+                        "/approve " + selector + " session");
+        assertThat(approved.getContent()).contains("调度器将恢复任务");
+        assertThat(approved.getRuntimeMetadata())
+                .containsEntry("cron_approval_processed", Boolean.TRUE)
+                .doesNotContainKey("resumed_pending_run");
         CronJobRecord resumedJob = env.cronJobRepository.findById(job.getJobId());
         assertThat(resumedJob.getStatus()).isEqualTo("ACTIVE");
         resumedJob.setNextRunAt(System.currentTimeMillis() - 1000L);

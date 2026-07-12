@@ -1,6 +1,8 @@
 package com.jimuqu.solon.claw.core.service;
 
 import com.jimuqu.solon.claw.core.model.CheckpointRecord;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import java.io.File;
 import java.util.List;
 import java.util.Map;
@@ -16,6 +18,18 @@ public interface CheckpointService {
 
     /** 回滚指定快照。 */
     CheckpointRecord rollback(String checkpointId) throws Exception;
+
+    /**
+     * 完整恢复 checkpoint，并在成功后移除会话最后一轮；失败时使用反向 checkpoint 补偿工作区。
+     *
+     * @param checkpointId 待恢复的 checkpoint 标识。
+     * @param session 待同步裁剪历史的会话。
+     * @param sessionRepository 会话持久化仓储。
+     * @return 实际从会话历史移除的消息条数。
+     */
+    int rollbackSession(
+            String checkpointId, SessionRecord session, SessionRepository sessionRepository)
+            throws Exception;
 
     /** 判断来源键最近是否发生过结构化文件修改。 */
     boolean hasRecentCheckpoint(String sourceKey, long sinceEpochMillis) throws Exception;

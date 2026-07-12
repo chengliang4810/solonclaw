@@ -54,7 +54,7 @@ public class DelegateTools {
                 if (items == null) {
                     return error("each task requires a goal and role must be leaf or orchestrator");
                 }
-                if (delegationService.shouldRunInBackground()) {
+                if (shouldRunInBackground()) {
                     return SecretRedactor.redact(
                             ONode.serialize(
                                     delegationService.delegateInBackground(sourceKey, items)),
@@ -71,7 +71,7 @@ public class DelegateTools {
             task.setPrompt(goal.trim());
             task.setContext(context);
             task.setRole(topRole);
-            if (delegationService.shouldRunInBackground()) {
+            if (shouldRunInBackground()) {
                 return SecretRedactor.redact(
                         ONode.serialize(
                                 delegationService.delegateInBackground(
@@ -83,6 +83,12 @@ public class DelegateTools {
         } catch (Exception e) {
             return error(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
         }
+    }
+
+    /** 一次性 CLI 必须同步等待委派结果，避免 JVM 退出时中断尚未完成的子 Agent。 */
+    private boolean shouldRunInBackground() {
+        return delegationService.shouldRunInBackground()
+                && !StrUtil.startWith(sourceKey, "MEMORY:cli:");
     }
 
     /**

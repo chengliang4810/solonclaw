@@ -1967,6 +1967,11 @@ public class SecurityPolicyService {
         return urlExtractionSupport().extractUrlishValues(args);
     }
 
+    /** 从工具返回正文中提取显式 URL；正文不接受裸主机和纯数字候选。 */
+    public List<String> extractReturnedTextUrls(String text) {
+        return urlExtractionSupport().extractExplicitUrlishValues(text);
+    }
+
     /**
      * 提取Urls。
      *

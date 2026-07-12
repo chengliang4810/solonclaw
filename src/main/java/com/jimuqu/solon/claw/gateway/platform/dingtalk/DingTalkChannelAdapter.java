@@ -57,6 +57,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelAllowListSupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
 import com.jimuqu.solon.claw.support.HutoolHttpErrorFormatter;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -77,6 +78,10 @@ import org.noear.snack4.ONode;
 
 /** DingTalkChannelAdapter 实现。 */
 public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
+    /** 抑制钉钉 Stream 重投的相同消息标识。 */
+    private final BoundedMessageDeduplicator inboundMessageDeduplicator =
+            new BoundedMessageDeduplicator();
+
     /** 媒体上传URL的统一常量值。 */
     private static final String MEDIA_UPLOAD_URL = "https://oapi.dingtalk.com/media/upload";
 
@@ -313,12 +318,8 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     })
                             .build();
             streamClient.start();
-            setConnected(true);
-            setSetupState("connected");
-            setMissingConfig(new String[0]);
-            clearLastError();
-            setDetail("stream mode connected");
-            log.info("[DINGTALK] stream mode connected");
+            markStreamClientStarted();
+            log.info("[DINGTALK] stream client started; connection health unavailable");
             return true;
         } catch (Exception e) {
             setConnected(false);
@@ -331,6 +332,19 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                     safeError(e));
             return false;
         }
+    }
+
+    /**
+     * 标记钉钉 Stream 客户端生命周期已启动。
+     *
+     * <p>当前 SDK 仅公开异步启动入口，没有可用于确认真实会话健康的回调或查询接口，因此保守保持未连接状态，并向 Doctor 明确暴露健康未知。
+     */
+    protected void markStreamClientStarted() {
+        setConnected(false);
+        setSetupState("configured");
+        setMissingConfig(new String[0]);
+        clearLastError();
+        setDetail("stream client started; connection health unavailable");
     }
 
     /** 断开当前组件持有的连接。 */
@@ -418,9 +432,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message == null ? "" : StrUtil.nullToEmpty(message.getChatId()).trim();
     }
 
-    /** 返回入站原始消息 ID，当前统一承载在 threadId。 */
+    /** 返回入站原始消息 ID，用于钉钉原消息处理状态回应。 */
     private String inboundMessageId(GatewayMessage message) {
-        return message == null ? "" : StrUtil.nullToEmpty(message.getThreadId()).trim();
+        return message == null ? "" : StrUtil.nullToEmpty(message.getReplyToMessageId()).trim();
     }
 
     /** 生成处理状态缓存键，避免同一条原消息重复添加或重复完成。 */
@@ -457,6 +471,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (callbackExecutor == null || inboundMessageHandler() == null || message == null) {
             return;
         }
+        if (inboundMessageDeduplicator.isDuplicate(message.getMsgId())) {
+            return;
+        }
         // 控制命令（/stop、/cancel）走并发执行器，避免被串行回调队列中运行中的任务阻塞而错过取消时机
         if (isControlCommand(extractText(message))) {
             // 复用现有转换逻辑构造网关消息后再投递到控制执行器
@@ -480,7 +497,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                             : conversationId);
             gatewayMessage.setUserName(
                     notBlank(message.getSenderNick()) ? message.getSenderNick() : userId);
-            gatewayMessage.setThreadId(message.getMsgId());
+            gatewayMessage.setReplyToMessageId(message.getMsgId());
             dispatchInboundControl(gatewayMessage);
             return;
         }
@@ -549,7 +566,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     notBlank(message.getSenderNick())
                                             ? message.getSenderNick()
                                             : userId);
-                            gatewayMessage.setThreadId(message.getMsgId());
+                            gatewayMessage.setReplyToMessageId(message.getMsgId());
                             gatewayMessage.setAttachments(attachments);
                             inboundMessageHandler().handle(gatewayMessage);
                         } catch (Exception e) {

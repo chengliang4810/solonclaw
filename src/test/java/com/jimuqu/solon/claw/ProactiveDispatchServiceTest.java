@@ -33,8 +33,9 @@ public class ProactiveDispatchServiceTest {
         InMemoryGatewayPolicyRepository gatewayRepository = new InMemoryGatewayPolicyRepository();
         gatewayRepository.saveHomeChannel(home(PlatformType.WEIXIN, "wx-room", "wx-thread"));
         gatewayRepository.saveHomeChannel(home(PlatformType.FEISHU, "fs-room", "fs-thread"));
-        CapturingDeliveryService deliveryService = new CapturingDeliveryService();
-        InMemoryProactiveRepository proactiveRepository = new InMemoryProactiveRepository();
+        List<String> events = new ArrayList<String>();
+        CapturingDeliveryService deliveryService = new CapturingDeliveryService(events);
+        InMemoryProactiveRepository proactiveRepository = new InMemoryProactiveRepository(events);
         ProactiveDecision decision = decision("WEIXIN:source-room:user");
 
         ProactiveDecisionRecord record =
@@ -49,9 +50,9 @@ public class ProactiveDispatchServiceTest {
         assertThat(request.getThreadId()).isEqualTo("wx-thread");
         assertThat(record.getDeliveryStatus()).isEqualTo("SENT");
         assertThat(record.getDeliveryPlatform()).isEqualTo("WEIXIN");
-        assertThat(proactiveRepository.savedDecisions)
-                .extracting(ProactiveDecisionRecord::getMessage)
-                .containsExactly("主动协作：要不要我看一下？");
+        assertThat(record.getMessage()).isEqualTo("主动协作：要不要我看一下？");
+        assertThat(events)
+                .containsExactly("save:DELIVERY_PENDING", "deliver", "save:SENT", "candidate:SENT");
     }
 
     @Test
@@ -68,8 +69,11 @@ public class ProactiveDispatchServiceTest {
                                 new InMemoryProactiveRepository())
                         .dispatch(decision("WEIXIN:source-room:user"), "主动协作：要不要继续？");
 
-        assertThat(deliveryService.requests.get(0).getPlatform()).isEqualTo(PlatformType.FEISHU);
-        assertThat(deliveryService.requests.get(0).getChatId()).isEqualTo("fs-room");
+        DeliveryRequest request = deliveryService.requests.get(0);
+        assertThat(request.getPlatform()).isEqualTo(PlatformType.FEISHU);
+        assertThat(request.getChatId()).isEqualTo("fs-room");
+        assertThat(request.getThreadId()).isEqualTo("fs-thread");
+        assertThat(request.getReplyToMessageId()).isEqualTo("fs-thread");
         assertThat(record.getDeliveryStatus()).isEqualTo("SENT");
     }
 
@@ -87,9 +91,33 @@ public class ProactiveDispatchServiceTest {
 
         assertThat(record.getDeliveryStatus()).isEqualTo("FAILED");
         assertThat(record.getDeliveryError()).contains("boom");
-        assertThat(proactiveRepository.savedDecisions)
-                .extracting(ProactiveDecisionRecord::getDeliveryStatus)
-                .containsExactly("FAILED");
+        assertThat(proactiveRepository.savedStatuses).containsExactly("DELIVERY_PENDING", "FAILED");
+        assertThat(proactiveRepository.candidateStatuses).containsExactly("PENDING");
+    }
+
+    @Test
+    void shouldReturnCandidateToPendingWhenMessageOrHomeIsMissing() throws Exception {
+        InMemoryGatewayPolicyRepository gatewayRepository = new InMemoryGatewayPolicyRepository();
+        InMemoryProactiveRepository blankRepository = new InMemoryProactiveRepository();
+        InMemoryProactiveRepository missingHomeRepository = new InMemoryProactiveRepository();
+
+        ProactiveDecisionRecord blank =
+                new ProactiveDispatchService(
+                                gatewayRepository, new CapturingDeliveryService(), blankRepository)
+                        .dispatch(decision("WEIXIN:source-room:user"), "");
+        ProactiveDecisionRecord missingHome =
+                new ProactiveDispatchService(
+                                gatewayRepository,
+                                new CapturingDeliveryService(),
+                                missingHomeRepository)
+                        .dispatch(decision("WEIXIN:source-room:user"), "主动协作：继续吗？");
+
+        assertThat(blank.getDeliveryStatus()).isEqualTo("FAILED");
+        assertThat(blank.getDeliveryError()).isEqualTo("empty_message");
+        assertThat(blankRepository.candidateStatuses).containsExactly("PENDING");
+        assertThat(missingHome.getDeliveryStatus()).isEqualTo("FAILED");
+        assertThat(missingHome.getDeliveryError()).isEqualTo("no_home_channel");
+        assertThat(missingHomeRepository.candidateStatuses).containsExactly("PENDING");
     }
 
     /** 构造测试 home channel。 */
@@ -134,9 +162,25 @@ public class ProactiveDispatchServiceTest {
         /** 收到的投递请求。 */
         private final List<DeliveryRequest> requests = new ArrayList<DeliveryRequest>();
 
+        /** 投递状态机事件。 */
+        private final List<String> events;
+
+        /** 创建不记录事件的投递服务。 */
+        private CapturingDeliveryService() {
+            this(null);
+        }
+
+        /** 创建记录状态机事件的投递服务。 */
+        private CapturingDeliveryService(List<String> events) {
+            this.events = events;
+        }
+
         @Override
         public void deliver(DeliveryRequest request) throws Exception {
             requests.add(request);
+            if (events != null) {
+                events.add("deliver");
+            }
         }
 
         @Override
@@ -211,11 +255,6 @@ public class ProactiveDispatchServiceTest {
         }
 
         @Override
-        public PairingRequestRecord getAdminClaimRequest(PlatformType platform) {
-            return null;
-        }
-
-        @Override
         public PairingRequestRecord getLatestUserPairingRequest(
                 PlatformType platform, String userId) {
             return null;
@@ -231,8 +270,7 @@ public class ProactiveDispatchServiceTest {
         public void deleteExpiredPairingRequests(PlatformType platform, long nowEpochMillis) {}
 
         @Override
-        public List<PairingRequestRecord> listPairingRequests(
-                PlatformType platform, boolean includeAdminClaim) {
+        public List<PairingRequestRecord> listPairingRequests(PlatformType platform) {
             return Collections.emptyList();
         }
 
@@ -250,6 +288,25 @@ public class ProactiveDispatchServiceTest {
         /** 保存的决策记录。 */
         private final List<ProactiveDecisionRecord> savedDecisions =
                 new ArrayList<ProactiveDecisionRecord>();
+
+        /** 每次保存时的投递状态快照。 */
+        private final List<String> savedStatuses = new ArrayList<String>();
+
+        /** 候选状态变更快照。 */
+        private final List<String> candidateStatuses = new ArrayList<String>();
+
+        /** 投递状态机事件。 */
+        private final List<String> events;
+
+        /** 创建不记录事件的仓储。 */
+        private InMemoryProactiveRepository() {
+            this(null);
+        }
+
+        /** 创建记录状态机事件的仓储。 */
+        private InMemoryProactiveRepository(List<String> events) {
+            this.events = events;
+        }
 
         @Override
         public void saveObservation(ProactiveObservationRecord observation) {}
@@ -270,11 +327,20 @@ public class ProactiveDispatchServiceTest {
 
         @Override
         public void markCandidateStatus(
-                String candidateId, String status, String decisionId, long updatedAt) {}
+                String candidateId, String status, String decisionId, long updatedAt) {
+            candidateStatuses.add(status);
+            if (events != null) {
+                events.add("candidate:" + status);
+            }
+        }
 
         @Override
         public void saveDecision(ProactiveDecisionRecord decision) {
             savedDecisions.add(decision);
+            savedStatuses.add(decision.getDeliveryStatus());
+            if (events != null) {
+                events.add("save:" + decision.getDeliveryStatus());
+            }
         }
 
         @Override

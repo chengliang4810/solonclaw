@@ -17,8 +17,11 @@ export interface GatewayCompletionItem {
 
 export interface GatewayTranscriptMessage {
   context?: string
+  error?: string
   name?: string
+  preview?: string
   role: 'assistant' | 'system' | 'tool' | 'user'
+  status?: 'done' | 'error'
   text?: string
 }
 

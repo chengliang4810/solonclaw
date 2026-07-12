@@ -55,9 +55,6 @@ public interface GatewayPolicyRepository {
     /** 通过 code 查询 pairing 请求。 */
     PairingRequestRecord getPairingRequest(PlatformType platform, String code) throws Exception;
 
-    /** 查询管理员认领请求。 */
-    PairingRequestRecord getAdminClaimRequest(PlatformType platform) throws Exception;
-
     /** 查询用户最近一次有效 pairing 请求。 */
     PairingRequestRecord getLatestUserPairingRequest(PlatformType platform, String userId)
             throws Exception;
@@ -66,12 +63,21 @@ public interface GatewayPolicyRepository {
     void savePairingRequest(PairingRequestRecord record) throws Exception;
 
     /**
-     * 创建管理员Claim请求If Absent。
+     * 在单平台待处理数量未达到上限时保存 pairing 请求。
      *
-     * @param record 记录参数。
-     * @return 返回创建好的管理员Claim请求If Absent。
+     * <p>持久化仓储应覆盖此默认实现，以数据库事务保证容量检查与写入不可被并发穿透。
      */
-    default boolean createAdminClaimRequestIfAbsent(PairingRequestRecord record) throws Exception {
+    default boolean trySavePairingRequest(
+            PairingRequestRecord record, long nowEpochMillis, int maxPending) throws Exception {
+        deleteExpiredPairingRequests(record.getPlatform(), nowEpochMillis);
+        if (listPairingRequests(record.getPlatform()).size() >= maxPending) {
+            return false;
+        }
+        PairingRequestRecord existing =
+                getLatestUserPairingRequest(record.getPlatform(), record.getUserId());
+        if (existing != null && existing.getExpiresAt() > nowEpochMillis) {
+            deletePairingRequest(record.getPlatform(), existing.getCode());
+        }
         savePairingRequest(record);
         return true;
     }
@@ -79,13 +85,9 @@ public interface GatewayPolicyRepository {
     /** 删除指定 pairing 请求。 */
     void deletePairingRequest(PlatformType platform, String code) throws Exception;
 
-    /**
-     * 删除平台下待处理 pairing 请求，但保留管理员认领请求。
-     *
-     * @param platform 平台参数。
-     */
+    /** 删除平台下全部待处理 pairing 请求。 */
     default void deletePendingPairingRequests(PlatformType platform) throws Exception {
-        List<PairingRequestRecord> records = listPairingRequests(platform, false);
+        List<PairingRequestRecord> records = listPairingRequests(platform);
         for (PairingRequestRecord record : records) {
             deletePairingRequest(platform, record.getCode());
         }
@@ -95,8 +97,7 @@ public interface GatewayPolicyRepository {
     void deleteExpiredPairingRequests(PlatformType platform, long nowEpochMillis) throws Exception;
 
     /** 列出平台待处理请求。 */
-    List<PairingRequestRecord> listPairingRequests(PlatformType platform, boolean includeAdminClaim)
-            throws Exception;
+    List<PairingRequestRecord> listPairingRequests(PlatformType platform) throws Exception;
 
     /** 读取用户 pairing 限流状态。 */
     PairingRateLimitRecord getPairingRateLimit(PlatformType platform, String userId)
@@ -104,4 +105,54 @@ public interface GatewayPolicyRepository {
 
     /** 保存 pairing 限流状态。 */
     void savePairingRateLimit(PairingRateLimitRecord record) throws Exception;
+
+    /**
+     * 原子记录一次平台级 pairing 审批失败，并在达到阈值时进入锁定期。
+     *
+     * <p>持久化仓储应覆盖此默认实现，以数据库原子更新避免并发失败次数丢失。
+     */
+    default PairingRateLimitRecord recordPairingApprovalFailure(
+            PlatformType platform,
+            String userId,
+            long nowEpochMillis,
+            int maxAttempts,
+            long lockoutMillis)
+            throws Exception {
+        PairingRateLimitRecord record = getPairingRateLimit(platform, userId);
+        if (record == null) {
+            record = new PairingRateLimitRecord();
+            record.setPlatform(platform);
+            record.setUserId(userId);
+        }
+        if (record.getLockoutUntil() > nowEpochMillis) {
+            return record;
+        }
+        int attempts = record.getFailedAttempts() + 1;
+        record.setRequestedAt(nowEpochMillis);
+        record.setFailedAttempts(attempts >= maxAttempts ? 0 : attempts);
+        record.setLockoutUntil(attempts >= maxAttempts ? nowEpochMillis + lockoutMillis : 0L);
+        savePairingRateLimit(record);
+        return record;
+    }
+
+    /**
+     * 在审批开始后没有形成新平台锁时清除失败状态，作为正确 code 写入授权前的最终门禁。
+     *
+     * <p>持久化仓储应覆盖此默认实现，以数据库条件更新避免成功路径覆盖并发新锁。
+     */
+    default boolean clearPairingApprovalFailureIfUnlocked(
+            PlatformType platform, String userId, long approvalStartedAt) throws Exception {
+        PairingRateLimitRecord record = getPairingRateLimit(platform, userId);
+        if (record != null && record.getLockoutUntil() > approvalStartedAt) {
+            return false;
+        }
+        PairingRateLimitRecord cleared = new PairingRateLimitRecord();
+        cleared.setPlatform(platform);
+        cleared.setUserId(userId);
+        cleared.setRequestedAt(0L);
+        cleared.setFailedAttempts(0);
+        cleared.setLockoutUntil(0L);
+        savePairingRateLimit(cleared);
+        return true;
+    }
 }

@@ -6,10 +6,13 @@ import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.MessageAttachment;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.CommandService;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
+import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.support.constants.GatewayBehaviorConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.List;
@@ -28,6 +31,12 @@ public class CliRuntime {
 
     /** 注入Agent运行控制服务，用于调用对应业务能力。 */
     private final AgentRunControlService agentRunControlService;
+
+    /** 会话仓储，用于在真实 CLI/TUI 回复完成后定位学习目标会话。 */
+    private final SessionRepository sessionRepository;
+
+    /** 任务后学习服务，由 CLI 与 TUI 共用的运行时统一触发。 */
+    private final SkillLearningService skillLearningService;
 
     /** 来源键前缀，决定 send/stop 把会话绑定到哪个 source 命名空间；默认 cli，终端 UI 注入 terminal-ui。 */
     private final String sourceKeyPrefix;
@@ -58,7 +67,9 @@ public class CliRuntime {
                 commandService,
                 conversationOrchestrator,
                 agentRunControlService,
-                DEFAULT_SOURCE_KEY_PREFIX);
+                DEFAULT_SOURCE_KEY_PREFIX,
+                null,
+                null);
     }
 
     /**
@@ -77,9 +88,37 @@ public class CliRuntime {
             ConversationOrchestrator conversationOrchestrator,
             AgentRunControlService agentRunControlService,
             String sourceKeyPrefix) {
+        this(
+                commandService,
+                conversationOrchestrator,
+                agentRunControlService,
+                sourceKeyPrefix,
+                null,
+                null);
+    }
+
+    /**
+     * 创建可在回复后触发技能学习的 CLI/TUI 共享运行时。
+     *
+     * @param commandService 命令服务依赖。
+     * @param conversationOrchestrator 对话编排器。
+     * @param agentRunControlService Agent运行控制服务依赖。
+     * @param sourceKeyPrefix 来源键前缀。
+     * @param sessionRepository 会话仓储依赖。
+     * @param skillLearningService 任务后学习服务。
+     */
+    public CliRuntime(
+            CommandService commandService,
+            ConversationOrchestrator conversationOrchestrator,
+            AgentRunControlService agentRunControlService,
+            String sourceKeyPrefix,
+            SessionRepository sessionRepository,
+            SkillLearningService skillLearningService) {
         this.commandService = commandService;
         this.conversationOrchestrator = conversationOrchestrator;
         this.agentRunControlService = agentRunControlService;
+        this.sessionRepository = sessionRepository;
+        this.skillLearningService = skillLearningService;
         this.sourceKeyPrefix =
                 StrUtil.isBlank(sourceKeyPrefix) ? DEFAULT_SOURCE_KEY_PREFIX : sourceKeyPrefix;
     }
@@ -98,7 +137,9 @@ public class CliRuntime {
                 this.commandService,
                 this.conversationOrchestrator,
                 this.agentRunControlService,
-                newSourceKeyPrefix);
+                newSourceKeyPrefix,
+                this.sessionRepository,
+                this.skillLearningService);
     }
 
     /**
@@ -164,7 +205,28 @@ public class CliRuntime {
             return GatewayReply.error(
                     "unknown command: " + text.split("\\s+", 2)[0] + " — try /help");
         }
-        return conversationOrchestrator.handleIncoming(message, sink);
+        GatewayReply reply = conversationOrchestrator.handleIncoming(message, sink);
+        scheduleLearning(message, reply);
+        return reply;
+    }
+
+    /** 在成功的普通对话回复后调度学习；学习调度失败不影响用户已得到的回复。 */
+    private void scheduleLearning(GatewayMessage message, GatewayReply reply) {
+        if (sessionRepository == null
+                || skillLearningService == null
+                || reply == null
+                || reply.isError()
+                || reply.getSessionId() == null) {
+            return;
+        }
+        try {
+            SessionRecord session = sessionRepository.findById(reply.getSessionId());
+            if (session != null) {
+                skillLearningService.schedulePostReplyLearning(session, message, reply);
+            }
+        } catch (Exception ignored) {
+            // 学习是回复后的旁路任务，不得让其故障覆盖已成功的用户回复。
+        }
     }
 
     /**

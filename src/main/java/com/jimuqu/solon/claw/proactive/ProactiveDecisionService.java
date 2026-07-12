@@ -318,10 +318,28 @@ public class ProactiveDecisionService {
         if (StrUtil.isNotBlank(decision.getCandidateId())) {
             repository.markCandidateStatus(
                     decision.getCandidateId(),
-                    "SEND".equals(decision.getDecision()) ? "APPROVED" : "SKIPPED",
+                    candidateStatus(decision),
                     decision.getDecisionId(),
                     decision.getCreatedAt());
         }
+    }
+
+    /** 暂时门控只延后候选，条件恢复后仍允许再次决策。 */
+    private String candidateStatus(ProactiveDecision decision) {
+        if ("SEND".equals(decision.getDecision())) {
+            return "APPROVED";
+        }
+        String reason = StrUtil.nullToEmpty(decision.getReason());
+        if ("proactive_disabled".equals(reason)
+                || "no_home_channel".equals(reason)
+                || "quiet_hours".equals(reason)
+                || "daily_limit_reached".equals(reason)
+                || "cooldown_active".equals(reason)
+                || "active_run_for_source".equals(reason)
+                || "contact_limit_reached".equals(reason)) {
+            return "PENDING";
+        }
+        return "SKIPPED";
     }
 
     /**

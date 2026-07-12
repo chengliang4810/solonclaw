@@ -46,6 +46,8 @@ public class ProactiveDecisionServiceTest {
         assertThat(repository.savedDecisions)
                 .extracting(ProactiveDecisionRecord::getReason)
                 .containsExactly("proactive_disabled");
+        assertThat(repository.savedDecisions.get(0).getMetadata())
+                .containsEntry("candidateStatus", "PENDING");
     }
 
     @Test
@@ -73,6 +75,8 @@ public class ProactiveDecisionServiceTest {
                                 Arrays.asList(gate(false, "source-a")))
                         .get(0);
         assertThat(dailyDecision.getReason()).isEqualTo("daily_limit_reached");
+        assertThat(dailyRepository.savedDecisions.get(0).getMetadata())
+                .containsEntry("candidateStatus", "PENDING");
 
         InMemoryProactiveRepository cooldownRepository = new InMemoryProactiveRepository();
         ProactiveTickContext cooldownContext = contextAt(10, 0);
@@ -87,6 +91,8 @@ public class ProactiveDecisionServiceTest {
                                 Arrays.asList(gate(false, "source-a")))
                         .get(0);
         assertThat(cooldownDecision.getReason()).isEqualTo("cooldown_active");
+        assertThat(cooldownRepository.savedDecisions.get(0).getMetadata())
+                .containsEntry("candidateStatus", "PENDING");
 
         ProactiveCandidateRecord expired = candidate("candidate-expired", 90, 0.9D, "source-a");
         expired.setExpiresAt(contextAt(10, 0).getNowMillis() - 1L);
@@ -95,14 +101,17 @@ public class ProactiveDecisionServiceTest {
         ProactiveCandidateRecord lowConfidence = candidate("candidate-low", 90, 0.2D, "source-a");
         assertGateReason(contextAt(10, 0), lowConfidence, "confidence_below_threshold");
 
+        InMemoryProactiveRepository activeRunRepository = new InMemoryProactiveRepository();
         ProactiveDecision activeRunDecision =
-                new ProactiveDecisionService(new InMemoryProactiveRepository())
+                new ProactiveDecisionService(activeRunRepository)
                         .decide(
                                 contextAt(10, 0),
                                 Arrays.asList(candidate("candidate-active", 80, 0.9D, "source-a")),
                                 Arrays.asList(gate(false, "source-a")))
                         .get(0);
         assertThat(activeRunDecision.getReason()).isEqualTo("active_run_for_source");
+        assertThat(activeRunRepository.savedDecisions.get(0).getMetadata())
+                .containsEntry("candidateStatus", "PENDING");
     }
 
     @Test
@@ -156,6 +165,33 @@ public class ProactiveDecisionServiceTest {
                 .extracting(ProactiveDecision::getReason)
                 .containsExactly(
                         "deterministic_allow", "contact_limit_reached", "contact_limit_reached");
+    }
+
+    /** 单 tick 上限只暂缓其余候选，下一 tick 仍可继续发送。 */
+    @Test
+    void shouldRetryContactLimitedCandidateOnNextTick() throws Exception {
+        InMemoryProactiveRepository repository = new InMemoryProactiveRepository();
+        ProactiveDecisionService service = new ProactiveDecisionService(repository);
+        ProactiveTickContext firstTick = contextAt(10, 0);
+        firstTick.getConfig().getProactive().setMaxContactsPerTick(1);
+        ProactiveCandidateRecord first = candidate("candidate-first", 90, 0.9D, "source-first");
+        ProactiveCandidateRecord deferred =
+                candidate("candidate-deferred", 80, 0.9D, "source-deferred");
+
+        service.decide(firstTick, Arrays.asList(first, deferred), Arrays.asList(gate(false)));
+
+        assertThat(repository.savedDecisions)
+                .extracting(decision -> decision.getMetadata().get("candidateStatus"))
+                .containsExactly("APPROVED", "PENDING");
+
+        ProactiveTickContext secondTick = contextAt(10, 30);
+        secondTick.setTickId("tick-decision-next");
+        List<ProactiveDecision> retried =
+                service.decide(secondTick, Arrays.asList(deferred), Arrays.asList(gate(false)));
+
+        assertThat(retried).extracting(ProactiveDecision::getDecision).containsExactly("SEND");
+        assertThat(repository.savedDecisions.get(2).getMetadata())
+                .containsEntry("candidateStatus", "APPROVED");
     }
 
     @Test
@@ -287,6 +323,12 @@ public class ProactiveDecisionServiceTest {
         assertThat(repository.savedDecisions)
                 .extracting(ProactiveDecisionRecord::getReason)
                 .containsExactly(reason);
+        String expectedStatus =
+                "candidate_expired".equals(reason) || "confidence_below_threshold".equals(reason)
+                        ? "SKIPPED"
+                        : "PENDING";
+        assertThat(repository.savedDecisions.get(0).getMetadata())
+                .containsEntry("candidateStatus", expectedStatus);
     }
 
     /** 构造工作时间上下文。 */
