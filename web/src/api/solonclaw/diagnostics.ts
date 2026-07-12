@@ -22,6 +22,23 @@ export interface Diagnostics {
   }
 }
 
+export interface ProactiveUnknownCandidate {
+  candidate_id: string
+  title?: string
+  summary?: string
+  status: 'DELIVERY_UNKNOWN'
+  last_decision_id?: string
+  updated_at?: number
+  manual_retry_required: true
+}
+
+export interface ProactiveRetryResult {
+  candidate_id: string
+  decision_id: string
+  delivery_status: string
+  manual_retry: true
+}
+
 export interface SecurityPolicyProbe {
   key?: string
   label?: string
@@ -304,6 +321,13 @@ export interface ResolveApprovalResult {
 
 export async function fetchDiagnostics(): Promise<Diagnostics> {
   return request<Diagnostics>('/api/diagnostics')
+}
+
+export async function retryProactiveDelivery(candidateId: string): Promise<ProactiveRetryResult> {
+  return request<ProactiveRetryResult>('/api/diagnostics/proactive/retry', {
+    method: 'POST',
+    body: JSON.stringify({ candidateId }),
+  })
 }
 
 export async function fetchApprovalStats(): Promise<ApprovalStats> {

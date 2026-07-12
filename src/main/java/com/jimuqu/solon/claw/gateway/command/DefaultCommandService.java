@@ -713,7 +713,7 @@ public class DefaultCommandService implements CommandService {
         }
 
         if (GatewayCommandConstants.COMMAND_PROACTIVE.equals(command)) {
-            return handleProactive(args);
+            return handleProactive(args, message.sourceKey());
         }
 
         if (GatewayCommandConstants.COMMAND_COMPACT.equals(command)) {
@@ -814,7 +814,8 @@ public class DefaultCommandService implements CommandService {
                         session, recent.get(index - 1).getCheckpointId(), "已按列表序号回滚到 checkpoint：");
             } catch (NumberFormatException e) {
                 log.debug(
-                        "Rollback checkpoint argument is not a list index; treating it as checkpoint id: {}",
+                        "Rollback checkpoint argument is not a list index; treating it as"
+                                + " checkpoint id: {}",
                         exceptionSummary(e));
             }
             return rollbackSessionReply(session, args, "已回滚到指定 checkpoint：");
@@ -1223,8 +1224,11 @@ public class DefaultCommandService implements CommandService {
                                 + (state.hasContract()
                                         ? "\n" + state.getContract().renderBlock()
                                         : "")
-                                + "\nI'll keep working until the goal is done, you pause/clear it, or the budget is exhausted.\n"
-                                + "Controls: /goal status · /goal pause · /goal resume · /goal clear · /subgoal <text>");
+                                + "\n"
+                                + "I'll keep working until the goal is done, you pause/clear it, or"
+                                + " the budget is exhausted.\n"
+                                + "Controls: /goal status · /goal pause · /goal resume · /goal"
+                                + " clear · /subgoal <text>");
         reply.getRuntimeMetadata().put("goal_kickoff", state.getGoal());
         return reply;
     }
@@ -2316,7 +2320,8 @@ public class DefaultCommandService implements CommandService {
         } catch (Exception e) {
             restoreInterruptIfNeeded(e);
             log.debug(
-                    "MCP reload history notice append failed; continuing without history notice: {}",
+                    "MCP reload history notice append failed; continuing without history notice:"
+                            + " {}",
                     exceptionSummary(e));
         }
     }
@@ -2362,7 +2367,8 @@ public class DefaultCommandService implements CommandService {
             } catch (Exception e) {
                 restoreInterruptIfNeeded(e);
                 log.warn(
-                        "MCP reload confirmation setting persistence failed; in-memory setting remains active: error={}",
+                        "MCP reload confirmation setting persistence failed; in-memory setting"
+                                + " remains active: error={}",
                         exceptionSummary(e));
             }
         }
@@ -2516,13 +2522,14 @@ public class DefaultCommandService implements CommandService {
     }
 
     /**
-     * 执行主动协作命令相关逻辑；命令只改变控制面设置或候选状态，不触发调度、投递或工具执行。
+     * 执行主动协作命令；人工 retry 子命令会显式触发一次投递。
      *
      * @param args 工具或命令参数。
+     * @param sourceKey 当前渠道用户来源键。
      * @return 返回主动协作命令结果。
      */
-    private GatewayReply handleProactive(String args) throws Exception {
-        return newRuntimeCommandHandler().handleProactive(args);
+    private GatewayReply handleProactive(String args, String sourceKey) throws Exception {
+        return newRuntimeCommandHandler().handleProactive(args, sourceKey);
     }
 
     /** 创建运行时控制面命令处理器。 */
@@ -2532,7 +2539,8 @@ public class DefaultCommandService implements CommandService {
                 globalSettingRepository,
                 pluginManager,
                 proactiveDiagnosticsService,
-                proactiveRepository);
+                proactiveRepository,
+                deliveryService);
     }
 
     /** 执行定时任务命令相关逻辑。 */

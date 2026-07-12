@@ -4,11 +4,14 @@ import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
+import com.jimuqu.solon.claw.core.model.ProactiveCandidateRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveDecision;
 import com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 
 /** 主动协作投递服务，负责选择 home channel、发送最终文案并记录投递结果。 */
@@ -93,6 +96,132 @@ public class ProactiveDispatchService {
         save(record);
         markCandidate(decision, "SENT");
         return record;
+    }
+
+    /**
+     * 显式重试一次结果不确定的投递；复用原目标与原文案，并用原子认领阻止并发重复发送。
+     *
+     * @param candidateId 用户明确选择的候选 ID。
+     * @param expectedSourceKey 渠道命令调用者来源键；Dashboard 可信入口传空。
+     * @return 新的人工重试审计记录。
+     * @throws Exception 候选不可重试、审计保存或渠道投递失败时抛出异常。
+     */
+    public ProactiveDecisionRecord retryUnknown(String candidateId, String expectedSourceKey)
+            throws Exception {
+        if (proactiveRepository == null || deliveryService == null) {
+            throw new IllegalStateException("主动协作人工重试服务尚未启用。");
+        }
+        ProactiveCandidateRecord candidate =
+                proactiveRepository.findCandidate(StrUtil.nullToEmpty(candidateId).trim());
+        if (candidate == null) {
+            throw new IllegalArgumentException("未找到主动协作候选。");
+        }
+        if (!"DELIVERY_UNKNOWN".equalsIgnoreCase(StrUtil.nullToEmpty(candidate.getStatus()))) {
+            throw new IllegalStateException("该候选不再处于投递结果待确认状态，未执行重试。");
+        }
+        if (StrUtil.isNotBlank(expectedSourceKey)
+                && !expectedSourceKey.equals(candidate.getSourceKey())) {
+            throw new IllegalArgumentException("未找到当前用户可重试的主动协作候选。");
+        }
+        ProactiveDecisionRecord original =
+                proactiveRepository.findDecision(candidate.getLastDecisionId());
+        if (original == null
+                || !StrUtil.nullToEmpty(candidate.getSourceKey())
+                        .equals(StrUtil.nullToEmpty(original.getSourceKey()))
+                || StrUtil.isBlank(original.getMessage())
+                || StrUtil.isBlank(original.getDeliveryPlatform())
+                || StrUtil.isBlank(original.getDeliveryChatId())) {
+            throw new IllegalStateException("原投递记录不完整，无法可信重试。");
+        }
+        PlatformType platform;
+        try {
+            platform =
+                    PlatformType.valueOf(original.getDeliveryPlatform().toUpperCase(Locale.ROOT));
+        } catch (Exception e) {
+            throw new IllegalStateException("原投递平台无效，无法可信重试。");
+        }
+        if (!PlatformType.DOMESTIC_PLATFORMS.contains(platform)) {
+            throw new IllegalStateException("原投递平台不在当前渠道范围内，无法重试。");
+        }
+
+        String retryDecisionId = IdSupport.newId();
+        ProactiveDecisionRecord retry = manualRetryRecord(original, retryDecisionId);
+        retry.setDeliveryStatus("RETRY_REQUESTED");
+        save(retry);
+        boolean claimed =
+                proactiveRepository.claimDeliveryUnknownRetry(
+                        candidate.getCandidateId(),
+                        candidate.getLastDecisionId(),
+                        StrUtil.blankToDefault(expectedSourceKey, null),
+                        retryDecisionId,
+                        retry.getCreatedAt());
+        if (!claimed) {
+            retry.setDeliveryStatus("RETRY_REJECTED");
+            retry.setDeliveryError("candidate_state_changed");
+            save(retry);
+            throw new IllegalStateException("该候选已被处理，未执行重复投递。");
+        }
+
+        try {
+            retry.setDeliveryStatus("DELIVERY_PENDING");
+            save(retry);
+            DeliveryRequest request = new DeliveryRequest();
+            request.setPlatform(platform);
+            request.setChatId(original.getDeliveryChatId());
+            request.setThreadId(original.getDeliveryThreadId());
+            if (platform == PlatformType.FEISHU
+                    && StrUtil.isNotBlank(original.getDeliveryThreadId())) {
+                request.setReplyToMessageId(original.getDeliveryThreadId());
+            }
+            request.setText(original.getMessage());
+            deliveryService.deliver(request);
+            retry.setDeliveryStatus("SENT");
+            retry.setDeliveryError(null);
+            save(retry);
+            proactiveRepository.compareAndSetCandidateStatus(
+                    candidate.getCandidateId(),
+                    "DELIVERY_RETRYING",
+                    retryDecisionId,
+                    "SENT",
+                    System.currentTimeMillis());
+            return retry;
+        } catch (Exception e) {
+            retry.setDeliveryStatus("FAILED");
+            retry.setDeliveryError(safeError(e));
+            try {
+                save(retry);
+            } finally {
+                proactiveRepository.compareAndSetCandidateStatus(
+                        candidate.getCandidateId(),
+                        "DELIVERY_RETRYING",
+                        retryDecisionId,
+                        "DELIVERY_UNKNOWN",
+                        System.currentTimeMillis());
+            }
+            return retry;
+        }
+    }
+
+    /** 由原审计记录创建独立的人工重试记录，保留原投递目标但不覆盖原始证据。 */
+    private ProactiveDecisionRecord manualRetryRecord(
+            ProactiveDecisionRecord original, String retryDecisionId) {
+        ProactiveDecisionRecord retry = new ProactiveDecisionRecord();
+        retry.setDecisionId(retryDecisionId);
+        retry.setTickId("manual-retry-" + retryDecisionId);
+        retry.setCandidateId(original.getCandidateId());
+        retry.setSourceKey(original.getSourceKey());
+        retry.setDecision("SEND");
+        retry.setReason("manual_delivery_retry");
+        retry.setMessage(original.getMessage());
+        retry.setDeliveryPlatform(original.getDeliveryPlatform());
+        retry.setDeliveryChatId(original.getDeliveryChatId());
+        retry.setDeliveryThreadId(original.getDeliveryThreadId());
+        LinkedHashMap<String, Object> metadata = new LinkedHashMap<String, Object>();
+        metadata.put("manual_retry", Boolean.TRUE);
+        metadata.put("retry_of_decision_id", original.getDecisionId());
+        retry.setMetadata(metadata);
+        retry.setCreatedAt(System.currentTimeMillis());
+        return retry;
     }
 
     /** 记录投递失败，并把候选退回待处理状态。 */

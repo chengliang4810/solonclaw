@@ -4,6 +4,7 @@ import com.jimuqu.solon.claw.core.model.ProactiveCandidateRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveObservationRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveSourceSnapshotRecord;
+import java.util.Collections;
 import java.util.List;
 
 /** 主动协作持久化仓储接口。 */
@@ -42,6 +43,33 @@ public interface ProactiveRepository {
             String expectedStatus,
             String expectedDecisionId,
             String status,
+            long updatedAt)
+            throws Exception {
+        return false;
+    }
+
+    /** 按候选 ID 读取主动协作候选，供显式人工恢复使用。 */
+    default ProactiveCandidateRecord findCandidate(String candidateId) throws Exception {
+        return null;
+    }
+
+    /** 按决策 ID 读取投递审计记录，供人工重试复用原目标和原文案。 */
+    default ProactiveDecisionRecord findDecision(String decisionId) throws Exception {
+        return null;
+    }
+
+    /** 列出投递结果不确定且必须由用户决定是否重试的候选。 */
+    default List<ProactiveCandidateRecord> listDeliveryUnknownCandidates(int limit)
+            throws Exception {
+        return Collections.emptyList();
+    }
+
+    /** 原子认领一次人工重试，并把候选绑定到新的重试决策，避免并发点击造成重复投递。 */
+    default boolean claimDeliveryUnknownRetry(
+            String candidateId,
+            String expectedDecisionId,
+            String expectedSourceKey,
+            String retryDecisionId,
             long updatedAt)
             throws Exception {
         return false;

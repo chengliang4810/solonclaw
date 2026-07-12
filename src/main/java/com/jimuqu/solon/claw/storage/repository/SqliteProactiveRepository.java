@@ -28,7 +28,9 @@ public class SqliteProactiveRepository implements ProactiveRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into proactive_observations (observation_id, tick_id, collector, source_key, summary, payload_json, status, error, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into proactive_observations (observation_id,"
+                                    + " tick_id, collector, source_key, summary, payload_json, status,"
+                                    + " error, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, observation.getObservationId());
             statement.setString(2, observation.getTickId());
             statement.setString(3, observation.getCollector());
@@ -51,7 +53,12 @@ public class SqliteProactiveRepository implements ProactiveRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into proactive_candidates (candidate_id, source_type, source_ref, source_key, subject_type, subject_ref, topic, title, summary, reason, action_offer, evidence_json, confidence, priority, dedup_key, state_hash, created_at, expires_at, status, last_decision_id, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into proactive_candidates (candidate_id,"
+                                    + " source_type, source_ref, source_key, subject_type, subject_ref,"
+                                    + " topic, title, summary, reason, action_offer, evidence_json,"
+                                    + " confidence, priority, dedup_key, state_hash, created_at,"
+                                    + " expires_at, status, last_decision_id, updated_at) values (?, ?,"
+                                    + " ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, candidate.getCandidateId());
             statement.setString(2, candidate.getSourceType());
             statement.setString(3, candidate.getSourceRef());
@@ -87,7 +94,9 @@ public class SqliteProactiveRepository implements ProactiveRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select * from proactive_candidates where dedup_key = ? and state_hash = ? and (expires_at is null or expires_at = 0 or expires_at > ?) order by created_at desc limit 1");
+                            "select * from proactive_candidates where dedup_key = ? and state_hash"
+                                    + " = ? and (expires_at is null or expires_at = 0 or expires_at >"
+                                    + " ?) order by created_at desc limit 1");
             statement.setString(1, dedupKey);
             statement.setString(2, stateHash);
             statement.setLong(3, nowMillis);
@@ -111,7 +120,9 @@ public class SqliteProactiveRepository implements ProactiveRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select * from proactive_candidates where status = 'PENDING' and (expires_at is null or expires_at = 0 or expires_at > ?) order by priority desc, created_at asc limit ?");
+                            "select * from proactive_candidates where status = 'PENDING' and"
+                                    + " (expires_at is null or expires_at = 0 or expires_at > ?) order"
+                                    + " by priority desc, created_at asc limit ?");
             statement.setLong(1, nowMillis);
             statement.setInt(2, Math.max(1, Math.min(limit <= 0 ? 100 : limit, 1000)));
             ResultSet resultSet = statement.executeQuery();
@@ -136,7 +147,8 @@ public class SqliteProactiveRepository implements ProactiveRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update proactive_candidates set status = ?, last_decision_id = ?, updated_at = ? where candidate_id = ?");
+                            "update proactive_candidates set status = ?, last_decision_id = ?,"
+                                    + " updated_at = ? where candidate_id = ?");
             statement.setString(1, status);
             statement.setString(2, decisionId);
             statement.setLong(3, updatedAt);
@@ -160,7 +172,8 @@ public class SqliteProactiveRepository implements ProactiveRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "update proactive_candidates set status = ?, updated_at = ? where candidate_id = ? and status = ? and last_decision_id = ?");
+                            "update proactive_candidates set status = ?, updated_at = ? where"
+                                    + " candidate_id = ? and status = ? and last_decision_id = ?");
             try {
                 statement.setString(1, status);
                 statement.setLong(2, updatedAt);
@@ -177,12 +190,114 @@ public class SqliteProactiveRepository implements ProactiveRepository {
     }
 
     @Override
+    public ProactiveCandidateRecord findCandidate(String candidateId) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from proactive_candidates where candidate_id = ? limit 1");
+            statement.setString(1, candidateId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? mapCandidate(resultSet) : null;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public ProactiveDecisionRecord findDecision(String decisionId) throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from proactive_decisions where decision_id = ? limit 1");
+            statement.setString(1, decisionId);
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                return resultSet.next() ? mapDecision(resultSet) : null;
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
+    public List<ProactiveCandidateRecord> listDeliveryUnknownCandidates(int limit)
+            throws Exception {
+        List<ProactiveCandidateRecord> candidates = new ArrayList<ProactiveCandidateRecord>();
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "select * from proactive_candidates where status = 'DELIVERY_UNKNOWN'"
+                                    + " order by updated_at desc limit ?");
+            statement.setInt(1, Math.max(1, Math.min(limit <= 0 ? 20 : limit, 100)));
+            ResultSet resultSet = statement.executeQuery();
+            try {
+                while (resultSet.next()) {
+                    candidates.add(mapCandidate(resultSet));
+                }
+            } finally {
+                resultSet.close();
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+        return candidates;
+    }
+
+    @Override
+    public boolean claimDeliveryUnknownRetry(
+            String candidateId,
+            String expectedDecisionId,
+            String expectedSourceKey,
+            String retryDecisionId,
+            long updatedAt)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update proactive_candidates set status = 'DELIVERY_RETRYING', last_decision_id"
+                                    + " = ?, updated_at = ? where candidate_id = ? and status ="
+                                    + " 'DELIVERY_UNKNOWN' and last_decision_id = ? and (? is null or"
+                                    + " source_key = ?)");
+            try {
+                statement.setString(1, retryDecisionId);
+                statement.setLong(2, updatedAt);
+                statement.setString(3, candidateId);
+                statement.setString(4, expectedDecisionId);
+                statement.setString(5, expectedSourceKey);
+                statement.setString(6, expectedSourceKey);
+                return statement.executeUpdate() == 1;
+            } finally {
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
     public void saveDecision(ProactiveDecisionRecord decision) throws Exception {
         Connection connection = database.openConnection();
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into proactive_decisions (decision_id, tick_id, candidate_id, source_key, decision, reason, message, delivery_platform, delivery_chat_id, delivery_thread_id, delivery_status, delivery_error, metadata_json, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                            "insert or replace into proactive_decisions (decision_id, tick_id,"
+                                    + " candidate_id, source_key, decision, reason, message,"
+                                    + " delivery_platform, delivery_chat_id, delivery_thread_id,"
+                                    + " delivery_status, delivery_error, metadata_json, created_at)"
+                                    + " values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
             statement.setString(1, decision.getDecisionId());
             statement.setString(2, decision.getTickId());
             statement.setString(3, decision.getCandidateId());
@@ -215,16 +330,24 @@ public class SqliteProactiveRepository implements ProactiveRepository {
                                 connection,
                                 "SENT",
                                 recoveredAt,
-                                " and exists (select 1 from proactive_decisions d where d.decision_id = proactive_candidates.last_decision_id and upper(coalesce(d.delivery_status, '')) = 'SENT')");
+                                " and exists (select 1 from proactive_decisions d where"
+                                        + " d.decision_id = proactive_candidates.last_decision_id and"
+                                        + " upper(coalesce(d.delivery_status, '')) = 'SENT')");
                 int unknown =
                         updateApprovedCandidates(
                                 connection,
                                 "DELIVERY_UNKNOWN",
                                 recoveredAt,
-                                " and exists (select 1 from proactive_decisions d where d.decision_id = proactive_candidates.last_decision_id and upper(coalesce(d.delivery_status, '')) = 'DELIVERY_PENDING')");
+                                " and exists (select 1 from proactive_decisions d where"
+                                        + " d.decision_id = proactive_candidates.last_decision_id and"
+                                        + " upper(coalesce(d.delivery_status, '')) ="
+                                        + " 'DELIVERY_PENDING')");
                 int pending = updateApprovedCandidates(connection, "PENDING", recoveredAt, "");
+                int retrying =
+                        updateCandidateStatus(
+                                connection, "DELIVERY_RETRYING", "DELIVERY_UNKNOWN", recoveredAt);
                 connection.commit();
-                return sent + unknown + pending;
+                return sent + unknown + pending + retrying;
             } catch (Exception e) {
                 connection.rollback();
                 throw e;
@@ -240,11 +363,29 @@ public class SqliteProactiveRepository implements ProactiveRepository {
             throws Exception {
         PreparedStatement statement =
                 connection.prepareStatement(
-                        "update proactive_candidates set status = ?, updated_at = ? where status = 'APPROVED'"
+                        "update proactive_candidates set status = ?, updated_at = ? where status ="
+                                + " 'APPROVED'"
                                 + condition);
         try {
             statement.setString(1, status);
             statement.setLong(2, updatedAt);
+            return statement.executeUpdate();
+        } finally {
+            statement.close();
+        }
+    }
+
+    /** 将人工重试中断状态恢复为结果不确定，确保只能再次由用户显式触发。 */
+    private int updateCandidateStatus(
+            Connection connection, String expectedStatus, String status, long updatedAt)
+            throws Exception {
+        PreparedStatement statement =
+                connection.prepareStatement(
+                        "update proactive_candidates set status = ?, updated_at = ? where status = ?");
+        try {
+            statement.setString(1, status);
+            statement.setLong(2, updatedAt);
+            statement.setString(3, expectedStatus);
             return statement.executeUpdate();
         } finally {
             statement.close();
@@ -259,8 +400,12 @@ public class SqliteProactiveRepository implements ProactiveRepository {
             PreparedStatement statement =
                     connection.prepareStatement(
                             filterSource
-                                    ? "select count(*) from proactive_decisions where source_key = ? and decision = 'SEND' and created_at >= ? and upper(delivery_status) = 'SENT'"
-                                    : "select count(*) from proactive_decisions where decision = 'SEND' and created_at >= ? and upper(delivery_status) = 'SENT'");
+                                    ? "select count(*) from proactive_decisions where source_key ="
+                                            + " ? and decision = 'SEND' and created_at >= ? and"
+                                            + " upper(delivery_status) = 'SENT'"
+                                    : "select count(*) from proactive_decisions where decision ="
+                                            + " 'SEND' and created_at >= ? and upper(delivery_status)"
+                                            + " = 'SENT'");
             if (filterSource) {
                 statement.setString(1, sourceKey);
                 statement.setLong(2, sinceMillis);
@@ -287,8 +432,12 @@ public class SqliteProactiveRepository implements ProactiveRepository {
             PreparedStatement statement =
                     connection.prepareStatement(
                             filterSource
-                                    ? "select max(created_at) from proactive_decisions where source_key = ? and decision = 'SEND' and upper(delivery_status) = 'SENT'"
-                                    : "select max(created_at) from proactive_decisions where decision = 'SEND' and upper(delivery_status) = 'SENT'");
+                                    ? "select max(created_at) from proactive_decisions where"
+                                            + " source_key = ? and decision = 'SEND' and"
+                                            + " upper(delivery_status) = 'SENT'"
+                                    : "select max(created_at) from proactive_decisions where"
+                                            + " decision = 'SEND' and upper(delivery_status) ="
+                                            + " 'SENT'");
             if (filterSource) {
                 statement.setString(1, sourceKey);
             }
@@ -315,7 +464,8 @@ public class SqliteProactiveRepository implements ProactiveRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "select * from proactive_source_snapshots where source_type = ? and source_ref = ?");
+                            "select * from proactive_source_snapshots where source_type = ? and"
+                                    + " source_ref = ?");
             statement.setString(1, sourceType);
             statement.setString(2, sourceRef);
             ResultSet resultSet = statement.executeQuery();
@@ -336,7 +486,9 @@ public class SqliteProactiveRepository implements ProactiveRepository {
         try {
             PreparedStatement statement =
                     connection.prepareStatement(
-                            "insert or replace into proactive_source_snapshots (source_type, source_ref, state_hash, payload_json, checked_at) values (?, ?, ?, ?, ?)");
+                            "insert or replace into proactive_source_snapshots (source_type,"
+                                    + " source_ref, state_hash, payload_json, checked_at) values (?, ?,"
+                                    + " ?, ?, ?)");
             statement.setString(1, snapshot.getSourceType());
             statement.setString(2, snapshot.getSourceRef());
             statement.setString(3, snapshot.getStateHash());

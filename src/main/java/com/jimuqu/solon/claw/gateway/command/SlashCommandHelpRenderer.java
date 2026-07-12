@@ -64,7 +64,8 @@ final class SlashCommandHelpRenderer {
         put(
                 usages,
                 "goal",
-                "/goal [status|show|pause|resume|clear|stop|done|wait <pid>|unwait|<目标> --max-turns N|--max N]");
+                "/goal [status|show|pause|resume|clear|stop|done|wait <pid>|unwait|<目标> --max-turns"
+                        + " N|--max N]");
         put(usages, "subgoal", "/subgoal [<text>|remove <n>|clear]");
         put(usages, "busy", "/busy [status|queue|steer|interrupt|reject]");
         put(usages, "queue", "/queue <prompt>");
@@ -83,7 +84,8 @@ final class SlashCommandHelpRenderer {
         put(
                 usages,
                 "skills",
-                "/skills [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]");
+                "/skills"
+                        + " [list|browse|search|install|inspect|check|update|audit|uninstall|tap|enable|disable|reload]");
         put(usages, "curator", "/curator [status|list|improvements|run|pause|resume]");
         put(
                 usages,
@@ -92,8 +94,9 @@ final class SlashCommandHelpRenderer {
         put(
                 usages,
                 "cron",
-                "/cron [list [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
-        put(usages, "proactive", "/proactive [status|pause|resume|tick|config]");
+                "/cron [list"
+                        + " [--all]|inspect|show|next|upcoming|guide|tutorial|capabilities|policy|add|edit|pause|disable|stop|resume|enable|start|remove|delete|run|trigger|retry|rerun|history|status|tick]");
+        put(usages, "proactive", "/proactive [status|pause|resume|why|less|more|ignore|retry]");
         put(usages, "recap", "/recap [limit]");
         put(
                 usages,

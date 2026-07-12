@@ -72,6 +72,10 @@ public class ProactiveDiagnosticsService {
         status.put("interval_minutes", Integer.valueOf(config().getIntervalMinutes()));
         status.put("last_tick_at", millisOrNull(snapshot.lastTickAt));
         status.put("pending_candidate_count", Integer.valueOf(snapshot.pendingCandidateCount));
+        status.put(
+                "delivery_unknown_count",
+                Integer.valueOf(snapshot.deliveryUnknownCandidates.size()));
+        status.put("delivery_unknown_candidates", snapshot.deliveryUnknownCandidates);
         status.put("sent_today", Integer.valueOf(snapshot.sentToday));
         status.put("last_sent_at", millisOrNull(snapshot.lastSentAt));
         status.put("last_skip_reason", safeText(snapshot.lastSkipReason, 500));
@@ -108,6 +112,12 @@ public class ProactiveDiagnosticsService {
         diagnostics.put(
                 "candidates_generated", Boolean.valueOf(snapshot.pendingCandidateCount > 0));
         diagnostics.put("pending_candidate_count", Integer.valueOf(snapshot.pendingCandidateCount));
+        diagnostics.put(
+                "delivery_unknown_count",
+                Integer.valueOf(snapshot.deliveryUnknownCandidates.size()));
+        diagnostics.put(
+                "delivery_unknown", Boolean.valueOf(!snapshot.deliveryUnknownCandidates.isEmpty()));
+        diagnostics.put("delivery_unknown_candidates", snapshot.deliveryUnknownCandidates);
         diagnostics.put("why_none_sent", safeText(whyNoneSent, 800));
         diagnostics.put("missing_home_channel", Boolean.valueOf(!snapshot.homeChannelReady));
         diagnostics.put("quiet_hours_blocked", Boolean.valueOf(quietHours));
@@ -144,6 +154,8 @@ public class ProactiveDiagnosticsService {
                 + state
                 + "，待处理候选 "
                 + snapshot.pendingCandidateCount
+                + " 个，投递结果待确认 "
+                + snapshot.deliveryUnknownCandidates.size()
                 + " 个，今日已联系 "
                 + snapshot.sentToday
                 + " 次，"
@@ -168,6 +180,7 @@ public class ProactiveDiagnosticsService {
             List<ProactiveCandidateRecord> pending =
                     proactiveRepository.listPendingCandidates(now, 1000);
             snapshot.pendingCandidateCount = pending.size();
+            snapshot.deliveryUnknownCandidates = loadDeliveryUnknownCandidates();
             snapshot.sentToday = proactiveRepository.countSentSince(null, startOfTodayMillis());
             snapshot.lastSentAt = proactiveRepository.findLastSentAt(null);
             List<ProactiveDecisionRecord> decisions = proactiveRepository.listRecentDecisions(20);
@@ -248,6 +261,9 @@ public class ProactiveDiagnosticsService {
             boolean deliveryFailed) {
         if (!config().isEnabled()) {
             return "主动协作当前已暂停。";
+        }
+        if (!snapshot.deliveryUnknownCandidates.isEmpty()) {
+            return "存在投递结果不确定的记录。系统不会自动重复投递，请在 Dashboard 或使用 /proactive retry <candidateId> 明确重试。";
         }
         if (StrUtil.isNotBlank(snapshot.lastSkipReason)) {
             return snapshot.lastSkipReason;
@@ -343,6 +359,24 @@ public class ProactiveDiagnosticsService {
         return item;
     }
 
+    /** 读取并脱敏输出投递结果不确定的候选，供 Dashboard 提供显式人工操作。 */
+    private List<Map<String, Object>> loadDeliveryUnknownCandidates() throws Exception {
+        List<Map<String, Object>> result = new ArrayList<Map<String, Object>>();
+        for (ProactiveCandidateRecord candidate :
+                proactiveRepository.listDeliveryUnknownCandidates(20)) {
+            Map<String, Object> item = new LinkedHashMap<String, Object>();
+            item.put("candidate_id", safeText(candidate.getCandidateId(), 160));
+            item.put("title", safeText(candidate.getTitle(), 300));
+            item.put("summary", safeText(candidate.getSummary(), 500));
+            item.put("status", "DELIVERY_UNKNOWN");
+            item.put("last_decision_id", safeText(candidate.getLastDecisionId(), 160));
+            item.put("updated_at", millisOrNull(Long.valueOf(candidate.getUpdatedAt())));
+            item.put("manual_retry_required", Boolean.TRUE);
+            result.add(item);
+        }
+        return result;
+    }
+
     /**
      * 获取主动协作配置对象，避免测试构造中配置为空。
      *
@@ -387,6 +421,10 @@ public class ProactiveDiagnosticsService {
 
         /** 当前仍待处理的候选数量。 */
         private int pendingCandidateCount;
+
+        /** 必须由用户明确决定是否重试的投递结果不确定候选。 */
+        private List<Map<String, Object>> deliveryUnknownCandidates =
+                new ArrayList<Map<String, Object>>();
 
         /** 今日成功主动联系次数。 */
         private int sentToday;
