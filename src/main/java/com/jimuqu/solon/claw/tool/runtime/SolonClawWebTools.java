@@ -10,8 +10,14 @@ import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SecretValueGuard;
 import com.jimuqu.solon.claw.support.constants.ToolNameConstants;
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.LinkOption;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -23,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
@@ -39,6 +46,15 @@ import org.slf4j.LoggerFactory;
 public class SolonClawWebTools {
     /** 记录 Web 工具中的可降级异常，日志不输出 URL、查询内容或网页正文。 */
     private static final Logger log = LoggerFactory.getLogger(SolonClawWebTools.class);
+
+    /** 网页提取完整正文在工作区中的受限缓存目录。 */
+    private static final String WEB_EXTRACT_CACHE_DIR = ".solonclaw/cache/web-extract";
+
+    /** 每个工作区最多保留的网页提取正文数量，按最近写入淘汰。 */
+    private static final int WEB_EXTRACT_CACHE_MAX_FILES = 20;
+
+    /** 保护网页提取缓存清理过程，避免同一 JVM 的并发调用误删刚写入的文件。 */
+    private static final Object WEB_EXTRACT_CACHE_LOCK = new Object();
 
     /** BRAVEFREEBACKEND的统一常量值。 */
     private static final String BRAVE_FREE_BACKEND = "brave-free";
@@ -292,13 +308,16 @@ public class SolonClawWebTools {
         /** 单页网页提取工具。 */
         private final SafeWebfetchTool webfetchTool;
 
+        /** 文件工具可读取的工作区根目录；为空时保留直接构造工具的无落盘行为。 */
+        private final Path workspaceRoot;
+
         /**
          * 创建批量网页提取工具。
          *
          * @param securityPolicyService 安全策略服务依赖。
          */
         public SafeWebExtractTool(SecurityPolicyService securityPolicyService) {
-            this(securityPolicyService, new GuardedWebfetchTalent(securityPolicyService));
+            this(securityPolicyService, new GuardedWebfetchTalent(securityPolicyService), null);
         }
 
         /**
@@ -309,7 +328,35 @@ public class SolonClawWebTools {
          */
         public SafeWebExtractTool(
                 SecurityPolicyService securityPolicyService, WebfetchTalent delegate) {
-            this.webfetchTool = new SafeWebfetchTool(securityPolicyService, delegate);
+            this(securityPolicyService, delegate, null);
+        }
+
+        /**
+         * 创建可将截断正文保存至工作区的批量提取工具。
+         *
+         * @param securityPolicyService 安全策略服务依赖。
+         * @param delegate 单页网页提取后端。
+         * @param workspaceDir 文件工具允许读取的工作区根目录。
+         */
+        public SafeWebExtractTool(
+                SecurityPolicyService securityPolicyService,
+                WebfetchTalent delegate,
+                String workspaceDir) {
+            this(new SafeWebfetchTool(securityPolicyService, delegate), workspaceDir);
+        }
+
+        /**
+         * 复用同一安全网页抓取工具，并将截断正文保存到对应工作区。
+         *
+         * @param webfetchTool 已配置的单页网页提取工具。
+         * @param workspaceDir 文件工具允许读取的工作区根目录。
+         */
+        public SafeWebExtractTool(SafeWebfetchTool webfetchTool, String workspaceDir) {
+            if (webfetchTool == null) {
+                throw new IllegalArgumentException("webfetchTool is required");
+            }
+            this.webfetchTool = webfetchTool;
+            this.workspaceRoot = resolveWorkspaceRoot(workspaceDir);
         }
 
         /**
@@ -383,7 +430,24 @@ public class SolonClawWebTools {
                     if (StrUtil.isBlank(content)) {
                         result.put("error", "Content was inaccessible or not found");
                     } else {
-                        result.put("content", truncateExtractContent(content, safeCharLimit));
+                        String safeContent = SecretRedactor.redact(content);
+                        String contentPath =
+                                safeContent.length() > safeCharLimit
+                                        ? persistFullContent(safeContent)
+                                        : null;
+                        result.put(
+                                "content",
+                                truncateExtractContent(safeContent, safeCharLimit, contentPath));
+                        result.put("content_chars", Integer.valueOf(safeContent.length()));
+                        if (StrUtil.isNotBlank(contentPath)) {
+                            result.put("content_path", contentPath);
+                            result.put("content_truncated", Boolean.TRUE);
+                            result.put(
+                                    "hint",
+                                    "Full content is saved at "
+                                            + contentPath
+                                            + ". Use read_file with offset and limit to continue.");
+                        }
                         result.put("error", null);
                     }
                 } catch (Exception e) {
@@ -428,16 +492,136 @@ public class SolonClawWebTools {
          * @param charLimit 字符预算。
          * @return 完整或截断后的正文。
          */
-        private static String truncateExtractContent(String content, int charLimit) {
+        private static String truncateExtractContent(
+                String content, int charLimit, String contentPath) {
             String safe = SecretRedactor.redact(StrUtil.nullToEmpty(content));
             if (safe.length() <= charLimit) {
                 return safe;
             }
-            String marker = "\n\n[content truncated]\n\n";
+            String marker =
+                    StrUtil.isBlank(contentPath)
+                            ? "\n\n[content truncated]\n\n"
+                            : "\n\n[content truncated; full content saved at "
+                                    + contentPath
+                                    + "; use read_file with offset and limit]\n\n";
             int payload = Math.max(0, charLimit - marker.length());
             int head = payload * 3 / 4;
             int tail = payload - head;
             return safe.substring(0, head) + marker + safe.substring(safe.length() - tail);
+        }
+
+        /**
+         * 将完整且已脱敏的网页正文写入工作区缓存，使模型可通过文件工具分段继续读取。
+         *
+         * @param content 已完成安全处理的网页正文。
+         * @return 相对工作区的可读取路径；无法安全落盘时返回空值。
+         */
+        private String persistFullContent(String content) {
+            if (workspaceRoot == null) {
+                return null;
+            }
+            synchronized (WEB_EXTRACT_CACHE_LOCK) {
+                try {
+                    Path cacheDir = resolveCacheDirectory();
+                    if (cacheDir == null) {
+                        return null;
+                    }
+                    Path file =
+                            cacheDir.resolve("web-extract-" + UUID.randomUUID().toString() + ".txt")
+                                    .normalize();
+                    if (!file.startsWith(cacheDir)) {
+                        return null;
+                    }
+                    Files.write(file, content.getBytes(StandardCharsets.UTF_8));
+                    pruneCache(cacheDir, file);
+                    return workspaceRoot.relativize(file).toString().replace('\\', '/');
+                } catch (Exception e) {
+                    log.warn("网页提取正文缓存失败 error={}", e.getClass().getSimpleName());
+                    return null;
+                }
+            }
+        }
+
+        /**
+         * 解析并验证缓存目录，拒绝通过工作区内符号链接把网页正文写到工作区外。
+         *
+         * @return 已解析的工作区内缓存目录；不安全或不可用时返回空值。
+         */
+        private Path resolveCacheDirectory() throws IOException {
+            Path root = workspaceRoot.toRealPath();
+            Path cacheDir = root.resolve(WEB_EXTRACT_CACHE_DIR).normalize();
+            if (!cacheDir.startsWith(root)) {
+                return null;
+            }
+            Path current = root;
+            for (Path part : Paths.get(WEB_EXTRACT_CACHE_DIR)) {
+                current = current.resolve(part);
+                if (Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+                    if (Files.isSymbolicLink(current)
+                            || !Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)) {
+                        return null;
+                    }
+                } else {
+                    Files.createDirectory(current);
+                }
+            }
+            Path realCacheDir = cacheDir.toRealPath();
+            return realCacheDir.startsWith(root) ? realCacheDir : null;
+        }
+
+        /**
+         * 删除最早的缓存文件，确保网页正文缓存数量有上限且不跟随符号链接。
+         *
+         * @param cacheDir 已验证的缓存目录。
+         * @param retained 刚写入且必须保留的文件。
+         */
+        private void pruneCache(Path cacheDir, Path retained) throws IOException {
+            List<Path> files = new ArrayList<Path>();
+            try (java.util.stream.Stream<Path> entries = Files.list(cacheDir)) {
+                entries.filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                        .forEach(files::add);
+            }
+            files.sort(
+                    (left, right) -> {
+                        try {
+                            return Files.getLastModifiedTime(left, LinkOption.NOFOLLOW_LINKS)
+                                    .compareTo(
+                                            Files.getLastModifiedTime(
+                                                    right, LinkOption.NOFOLLOW_LINKS));
+                        } catch (IOException e) {
+                            return 0;
+                        }
+                    });
+            int excess = files.size() - WEB_EXTRACT_CACHE_MAX_FILES;
+            for (Path file : files) {
+                if (excess <= 0) {
+                    break;
+                }
+                if (!file.equals(retained)) {
+                    Files.deleteIfExists(file);
+                    excess--;
+                }
+            }
+        }
+
+        /**
+         * 规范化工作区根目录，仅接受存在的目录以避免写入当前进程的任意相对位置。
+         *
+         * @param workspaceDir 运行时提供的工作区目录。
+         * @return 规范化后的工作区目录；不可用时返回空值。
+         */
+        private static Path resolveWorkspaceRoot(String workspaceDir) {
+            if (StrUtil.isBlank(workspaceDir)) {
+                return null;
+            }
+            try {
+                Path root = Paths.get(workspaceDir).toAbsolutePath().normalize();
+                return Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)
+                        ? root.toRealPath()
+                        : null;
+            } catch (Exception e) {
+                return null;
+            }
         }
     }
 
@@ -632,22 +816,59 @@ public class SolonClawWebTools {
             }
             for (com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider :
                     webSearchProviders) {
-                if (!backend.equals(provider.name())) {
+                if (provider == null || !backend.equals(normalizedProviderName(provider))) {
                     continue;
                 }
-                try {
-                    if (!provider.isAvailable()) {
-                        continue;
-                    }
-                    List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult>
-                            results = provider.search(query, limit);
-                    return toProviderDocument(results, query, backend);
-                } catch (RuntimeException e) {
-                    // 插件探测或搜索失败时，必须回落到既有内置后端链。
-                    log.warn("Web 搜索插件调用失败，继续使用后备后端: {}", e.getClass().getSimpleName());
+                Document result = tryProvider(provider, query, limit);
+                if (result != null) {
+                    return result;
                 }
             }
+            if (BRAVE_FREE_BACKEND.equals(backend)
+                    || DDGS_BACKEND.equals(backend)
+                    || "solon-ai".equals(backend)) {
+                return null;
+            }
             return null;
+        }
+
+        /**
+         * 尝试调用单个插件搜索提供方；不可用或调用失败时返回空，由调用方继续后备链。
+         *
+         * @param provider 搜索提供方。
+         * @param query 查询文本。
+         * @param limit 最大返回数量。
+         * @return 成功时返回搜索文档，否则返回空。
+         */
+        private Document tryProvider(
+                com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider,
+                String query,
+                int limit) {
+            try {
+                if (!provider.isAvailable()) {
+                    return null;
+                }
+                List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult> results =
+                        provider.search(query, limit);
+                return toProviderDocument(results, query, normalizedProviderName(provider));
+            } catch (RuntimeException e) {
+                log.warn("Web 搜索插件调用失败，继续使用后备后端: {}", e.getClass().getSimpleName());
+                return null;
+            }
+        }
+
+        /** 将插件提供方名称统一为配置使用的后端格式。 */
+        private String normalizedProviderName(
+                com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider) {
+            try {
+                return StrUtil.nullToEmpty(provider == null ? null : provider.name())
+                        .trim()
+                        .replace('_', '-')
+                        .toLowerCase(Locale.ROOT);
+            } catch (RuntimeException e) {
+                log.warn("Web 搜索插件名称读取失败，继续使用后备后端: {}", e.getClass().getSimpleName());
+                return "";
+            }
         }
 
         /**

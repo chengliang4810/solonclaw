@@ -309,6 +309,95 @@ class ToolRegistryWebAndCodeToolsTest {
                 .isEqualTo("https://example.com/builtin");
     }
 
+    @Test
+    void shouldNotSendQueryToUnselectedPluginWhenConfiguredPluginIsUnavailable() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getWeb().setSearchBackend("primary-search");
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        new SecurityPolicyService(env.appConfig),
+                        new WebsearchTalent() {
+                            @Override
+                            public String websearch(
+                                    String query,
+                                    Integer numResults,
+                                    String livecrawl,
+                                    String type,
+                                    Integer contextMaxCharacters) {
+                                return "Built-in fallback https://example.com/builtin-fallback";
+                            }
+                        },
+                        env.appConfig);
+        websearch.setWebSearchProviders(
+                Arrays.asList(
+                        new WebSearchProvider() {
+                            @Override
+                            public String name() {
+                                throw new IllegalStateException("broken provider metadata");
+                            }
+
+                            @Override
+                            public boolean isAvailable() {
+                                return true;
+                            }
+
+                            @Override
+                            public List<SearchResult> search(String query, int limit) {
+                                throw new AssertionError("元数据损坏的插件不应执行搜索");
+                            }
+                        },
+                        unavailableWebSearchProvider("primary-search"),
+                        successfulWebSearchProvider("backup_search")));
+
+        Document document =
+                websearch.websearch(
+                        "solon ai", Integer.valueOf(2), "fallback", "auto", Integer.valueOf(1000));
+        assertThat(document.getContent())
+                .contains("Built-in fallback", "https://example.com/builtin-fallback")
+                .doesNotContain("https://example.com/backup");
+    }
+
+    /** 构造不可用的搜索插件，验证显式配置失败后不会把查询转发给未选择插件。 */
+    private static WebSearchProvider unavailableWebSearchProvider(String name) {
+        return new WebSearchProvider() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public boolean isAvailable() {
+                return false;
+            }
+
+            @Override
+            public List<SearchResult> search(String query, int limit) {
+                throw new AssertionError("不可用插件不应执行搜索");
+            }
+        };
+    }
+
+    /** 构造可用的搜索插件，返回固定公开 URL。 */
+    private static WebSearchProvider successfulWebSearchProvider(String name) {
+        return new WebSearchProvider() {
+            @Override
+            public String name() {
+                return name;
+            }
+
+            @Override
+            public boolean isAvailable() {
+                return true;
+            }
+
+            @Override
+            public List<SearchResult> search(String query, int limit) {
+                return Arrays.asList(
+                        new SearchResult("Backup", "https://example.com/backup", "备用搜索结果"));
+            }
+        };
+    }
+
     /** 构造在可用性检查或搜索阶段失败的匹配插件，以验证后备链不会被中断。 */
     private static WebSearchProvider failingWebSearchProvider(boolean failAvailability) {
         return new WebSearchProvider() {

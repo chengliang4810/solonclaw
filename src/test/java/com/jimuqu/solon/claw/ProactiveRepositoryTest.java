@@ -257,7 +257,7 @@ public class ProactiveRepositoryTest {
         long now = System.currentTimeMillis();
         List<String> deliveryStatuses = Arrays.asList("SENT", "FAILED", "DELIVERY_PENDING", null);
         List<String> expectedCandidateStatuses =
-                Arrays.asList("SENT", "PENDING", "PENDING", "PENDING");
+                Arrays.asList("SENT", "PENDING", "DELIVERY_UNKNOWN", "PENDING");
 
         for (int i = 0; i < deliveryStatuses.size(); i++) {
             String suffix = String.valueOf(i);
@@ -288,6 +288,35 @@ public class ProactiveRepositoryTest {
                             "dedup-recovery-" + i, "state-recovery-" + i, now);
             assertThat(recoveredCandidate.getStatus()).isEqualTo(expectedCandidateStatuses.get(i));
         }
+    }
+
+    @Test
+    void shouldNotOverwriteIgnoredCandidateWithConcurrentDeliveryResult() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        ProactiveRepository repository = new SqliteProactiveRepository(env.sqliteDatabase);
+        long now = System.currentTimeMillis();
+        ProactiveCandidateRecord candidate = baseCandidate("candidate-ignore-race", now - 1000L);
+        candidate.setDedupKey("dedup-ignore-race");
+        candidate.setStateHash("state-ignore-race");
+        candidate.setStatus("APPROVED");
+        candidate.setLastDecisionId("decision-ignore-race");
+        repository.saveCandidate(candidate);
+
+        repository.markCandidateStatus(candidate.getCandidateId(), "IGNORED", "user-command", now);
+        boolean updated =
+                repository.compareAndSetCandidateStatus(
+                        candidate.getCandidateId(),
+                        "APPROVED",
+                        "decision-ignore-race",
+                        "SENT",
+                        now + 1L);
+
+        assertThat(updated).isFalse();
+        ProactiveCandidateRecord stored =
+                repository.findRecentCandidateByDedup(
+                        candidate.getDedupKey(), candidate.getStateHash(), now);
+        assertThat(stored.getStatus()).isEqualTo("IGNORED");
+        assertThat(stored.getLastDecisionId()).isEqualTo("user-command");
     }
 
     @Test

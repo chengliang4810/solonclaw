@@ -1581,7 +1581,7 @@ public class DefaultToolRegistry implements ToolRegistry {
         SolonClawWebTools.SafeWebfetchTool webfetchTool =
                 new SolonClawWebTools.SafeWebfetchTool(securityPolicyService);
         SolonClawWebTools.SafeWebExtractTool webExtractTool =
-                new SolonClawWebTools.SafeWebExtractTool(securityPolicyService);
+                new SolonClawWebTools.SafeWebExtractTool(webfetchTool, sysWorkDir);
         SolonClawWebTools.SafeCodeSearchTool codeSearchTool =
                 new SolonClawWebTools.SafeCodeSearchTool(securityPolicyService);
         BrowserTools browserTools = new BrowserTools(browserRuntimeService);

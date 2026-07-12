@@ -335,6 +335,17 @@ public class ProactiveDispatchServiceTest {
         }
 
         @Override
+        public boolean compareAndSetCandidateStatus(
+                String candidateId,
+                String expectedStatus,
+                String expectedDecisionId,
+                String status,
+                long updatedAt) {
+            markCandidateStatus(candidateId, status, expectedDecisionId, updatedAt);
+            return true;
+        }
+
+        @Override
         public void saveDecision(ProactiveDecisionRecord decision) {
             savedDecisions.add(decision);
             savedStatuses.add(decision.getDeliveryStatus());

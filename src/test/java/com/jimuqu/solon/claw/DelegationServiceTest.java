@@ -172,6 +172,30 @@ public class DelegationServiceTest {
                 .isEqualTo(parent.getSessionId());
     }
 
+    /** 临时批量委派线程必须是守护线程，避免忽略中断的子任务阻塞进程退出。 */
+    @Test
+    void batchDelegationUsesDaemonWorkers() throws Exception {
+        AtomicBoolean daemonWorker = new AtomicBoolean(false);
+        DefaultDelegationService service =
+                new DefaultDelegationService(new ConversationOrchestratorHolder(), null, null) {
+                    @Override
+                    public DelegationResult delegateSingle(String sourceKey, DelegationTask task) {
+                        daemonWorker.set(Thread.currentThread().isDaemon());
+                        DelegationResult result = new DelegationResult();
+                        result.setContent("done");
+                        return result;
+                    }
+                };
+        DelegationTask task = new DelegationTask();
+        task.setPrompt("check worker lifecycle");
+
+        List<DelegationResult> results =
+                service.delegateBatch("MEMORY:room-a:user-a", Arrays.asList(task));
+
+        assertThat(results).hasSize(1);
+        assertThat(daemonWorker.get()).isTrue();
+    }
+
     /** 深层 orchestrator 必须沿父运行链累计深度，不能把三层以后继续视为第二层。 */
     @Test
     void shouldRejectDelegationBeyondRecursiveParentDepth() throws Exception {

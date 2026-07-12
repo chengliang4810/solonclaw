@@ -37,7 +37,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.Semaphore;
@@ -337,13 +336,19 @@ public class DefaultDelegationService implements DelegationService {
         }
         int cancelled = 0;
         for (BackgroundDelegation background : backgroundRegistry.values()) {
-            if (!parentSessionId.equals(background.parentSessionId)
-                    || !background.cancelRequested.compareAndSet(false, true)) {
+            if (!parentSessionId.equals(background.parentSessionId)) {
                 continue;
             }
-            cancelled++;
-            background.future.cancel(true);
-            removeCancelledBackgroundFuture(background.future);
+            if (!background.cancelRequested.compareAndSet(false, true)) {
+                continue;
+            }
+            if (background.future.cancel(true)) {
+                cancelled++;
+                removeCancelledBackgroundFuture(background.future);
+            } else {
+                // 任务已自然结束时不把它误报为取消成功，也不遗留取消标记影响完成回流。
+                background.cancelRequested.compareAndSet(true, false);
+            }
         }
         return cancelled;
     }
@@ -357,8 +362,9 @@ public class DefaultDelegationService implements DelegationService {
             }
             for (BackgroundDelegation background : backgroundRegistry.values()) {
                 if (background.cancelRequested.compareAndSet(false, true)) {
-                    background.future.cancel(true);
-                    removeCancelledBackgroundFuture(background.future);
+                    if (background.future.cancel(true)) {
+                        removeCancelledBackgroundFuture(background.future);
+                    }
                 }
             }
             backgroundExecutor.shutdownNow();
@@ -395,7 +401,6 @@ public class DefaultDelegationService implements DelegationService {
         if (backgroundExecutor instanceof ThreadPoolExecutor) {
             ThreadPoolExecutor executor = (ThreadPoolExecutor) backgroundExecutor;
             executor.remove(future);
-            executor.purge();
         }
     }
 
@@ -674,14 +679,15 @@ public class DefaultDelegationService implements DelegationService {
             return results;
         }
 
+        int concurrency =
+                Math.min(
+                        appConfig == null
+                                ? 3
+                                : Math.max(1, appConfig.getTask().getSubagentMaxConcurrency()),
+                        tasks.size());
         ExecutorService executorService =
-                Executors.newFixedThreadPool(
-                        Math.min(
-                                appConfig == null
-                                        ? 3
-                                        : Math.max(
-                                                1, appConfig.getTask().getSubagentMaxConcurrency()),
-                                tasks.size()));
+                BoundedExecutorFactory.fixed(
+                        "solonclaw-delegation-batch", concurrency, Math.max(1, tasks.size()));
         try {
             final AgentRunContext parentContext = AgentRunContext.current();
             List<Future<DelegationResult>> futures = new ArrayList<Future<DelegationResult>>();
