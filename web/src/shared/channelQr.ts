@@ -1,4 +1,4 @@
-export type ChannelQrPlatform = 'weixin' | 'feishu' | 'dingtalk' | 'wecom'
+export type ChannelQrPlatform = 'weixin' | 'feishu' | 'dingtalk' | 'wecom' | 'qqbot'
 
 export type ChannelQrStatus =
   | 'wait'
@@ -22,6 +22,7 @@ export interface ChannelQrStatusView {
   user_id?: string
   domain?: string
   bot_id?: string
+  user_openid?: string
 }
 
 export function normalizeChannelQrStatus(res: Record<string, any>): ChannelQrStatusView {
@@ -52,5 +53,6 @@ export function normalizeChannelQrStatus(res: Record<string, any>): ChannelQrSta
     user_id: res.user_id,
     domain: res.domain,
     bot_id: res.bot_id,
+    user_openid: res.user_openid,
   }
 }

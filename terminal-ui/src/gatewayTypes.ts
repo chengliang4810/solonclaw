@@ -165,6 +165,7 @@ export interface ChannelQrResponse {
   status?: string
   ticket?: string
   user_id?: string
+  user_openid?: string
   bot_id?: string
 }
 

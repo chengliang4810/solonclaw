@@ -579,12 +579,18 @@ public class DashboardConfiguration {
             AppConfig appConfig,
             DashboardConfigService dashboardConfigService,
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
-            com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService) {
+            com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService,
+            DashboardProfileContext dashboardProfileContext,
+            ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager,
+            ProfileManager profileManager) {
         return new com.jimuqu.solon.claw.web.DomesticQrSetupService(
                 appConfig,
                 dashboardConfigService,
                 gatewayRuntimeRefreshService,
-                securityPolicyService);
+                securityPolicyService,
+                dashboardProfileContext,
+                profileMultiplexRuntimeManager,
+                profileManager);
     }
 
     /**

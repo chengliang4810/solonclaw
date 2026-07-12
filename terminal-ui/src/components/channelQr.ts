@@ -1,6 +1,6 @@
 import type { ChannelOption, ChannelQrResponse } from '../gatewayTypes.js'
 
-const QR_CHANNELS = ['weixin', 'feishu', 'dingtalk', 'wecom'] as const
+const QR_CHANNELS = ['weixin', 'feishu', 'dingtalk', 'wecom', 'qqbot'] as const
 const ACTIVE_QR_STATUSES = ['wait', 'scaned', 'scaned_but_redirect'] as const
 
 export type ChannelQrStatus = 'confirmed' | 'error' | 'expired' | 'scaned' | 'scaned_but_redirect' | 'wait'
@@ -58,6 +58,6 @@ export const channelQrMessage = (qr: ChannelQrResponse | null): string => {
   return qr.error_message || qr.message || qr.error || ''
 }
 
-/** 仅在扫码确认后展示服务端返回的微信用户标识。 */
+/** 仅在扫码确认后展示服务端返回的国内渠道扫码用户标识。 */
 export const channelQrConfirmedUserId = (qr: ChannelQrResponse | null): string =>
-  channelQrStatus(qr) === 'confirmed' ? qr?.user_id?.trim() || '' : ''
+  channelQrStatus(qr) === 'confirmed' ? qr?.user_id?.trim() || qr?.user_openid?.trim() || '' : ''

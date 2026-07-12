@@ -15,6 +15,7 @@ interface ChannelQrPanelState {
   readonly appId?: string
   readonly openId?: string
   readonly userId?: string
+  readonly userOpenId?: string
   readonly botId?: string
 }
 
@@ -66,6 +67,7 @@ function isHttpUrl(value: string) {
 function qrContextRows(state: ChannelQrPanelState) {
   return [
     { label: t('platform.qrUserId'), value: state.status === 'confirmed' ? state.userId : '' },
+    { label: t('platform.qrOpenId'), value: state.status === 'confirmed' ? state.userOpenId : '' },
     { label: 'Bot ID', value: state.status === 'confirmed' ? state.botId : '' },
     { label: t('platform.qrAccountId'), value: state.accountId },
     { label: t('platform.qrClientId'), value: state.clientId },

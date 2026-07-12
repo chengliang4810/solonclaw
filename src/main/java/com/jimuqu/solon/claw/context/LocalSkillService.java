@@ -591,6 +591,28 @@ public class LocalSkillService implements SkillCatalogService {
             if (descriptor == null) {
                 return;
             }
+            updateUsage(
+                    descriptor.canonicalName(),
+                    "call".equalsIgnoreCase(StrUtil.nullToEmpty(kind)) ? "callCount" : "loadCount",
+                    null);
+        } catch (Exception e) {
+            log.debug(
+                    "Skill usage counter update failed; normal skill loading continues: {}",
+                    safeError(e));
+        }
+    }
+
+    /** 记录一次成功的技能管理操作；删除后仍可使用操作前取得的规范技能名。 */
+    public synchronized void bumpManage(String canonicalName, String action) {
+        updateUsage(canonicalName, "manageCount", StrUtil.blankToDefault(action, "unknown"));
+    }
+
+    /** 在整理器共享状态中原子增加一种技能活动。 */
+    private void updateUsage(String canonicalName, String counter, String manageAction) {
+        if (StrUtil.isBlank(canonicalName)) {
+            return;
+        }
+        try {
             File stateFile = FileUtil.file(appConfig.getRuntime().getSkillsDir(), ".curator_state");
             new CuratorStateStore(stateFile)
                     .update(
@@ -602,24 +624,23 @@ public class LocalSkillService implements SkillCatalogService {
                                                 : new LinkedHashMap<String, Object>();
                                 @SuppressWarnings("unchecked")
                                 Map<String, Object> record =
-                                        skills.get(descriptor.canonicalName()) instanceof Map
-                                                ? (Map<String, Object>)
-                                                        skills.get(descriptor.canonicalName())
+                                        skills.get(canonicalName) instanceof Map
+                                                ? (Map<String, Object>) skills.get(canonicalName)
                                                 : new LinkedHashMap<String, Object>();
-                                String counter =
-                                        "call".equalsIgnoreCase(StrUtil.nullToEmpty(kind))
-                                                ? "callCount"
-                                                : "loadCount";
+                                long now = System.currentTimeMillis();
                                 record.put(counter, Long.valueOf(asLong(record.get(counter)) + 1L));
-                                record.put(
-                                        "lastActivityAt", Long.valueOf(System.currentTimeMillis()));
-                                skills.put(descriptor.canonicalName(), record);
+                                record.put("lastActivityAt", Long.valueOf(now));
+                                if (manageAction != null) {
+                                    record.put("lastManagedAt", Long.valueOf(now));
+                                    record.put("lastManageAction", manageAction);
+                                }
+                                skills.put(canonicalName, record);
                                 state.put("skills", skills);
                                 return null;
                             });
         } catch (Exception e) {
             log.debug(
-                    "Skill usage counter update failed; normal skill loading continues: {}",
+                    "Skill usage counter update failed; normal skill operation continues: {}",
                     safeError(e));
         }
     }

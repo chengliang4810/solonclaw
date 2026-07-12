@@ -156,7 +156,7 @@ public class McpRuntimeServiceTest {
                         null,
                         null,
                         env.gatewayRuntimeRefreshService,
-                        null,
+                        new SecurityPolicyService(env.appConfig),
                         env.processRegistry,
                         mcpRuntimeService);
         List<Object> tools = registry.resolveEnabledTools("MEMORY:room-1:user-1");
@@ -1637,6 +1637,7 @@ public class McpRuntimeServiceTest {
     private static class SlowDiscoveryMcpClientProvider extends McpClientProvider {
         /** 指示当前测试发现是否应当吞掉关闭中断。 */
         private final boolean ignoreInterrupts;
+
         private final CountDownLatch started = new CountDownLatch(1);
         private final CountDownLatch release = new CountDownLatch(1);
 

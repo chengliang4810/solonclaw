@@ -233,37 +233,45 @@ public class SkillTools {
                 checkpoint(
                         Collections.singletonList(
                                 localSkillService.resolveSkillMainFile(name, category)));
-                return safeResult(
-                        ONode.serialize(localSkillService.createSkill(name, category, content)),
-                        20000);
+                SkillDescriptor created = localSkillService.createSkill(name, category, content);
+                localSkillService.bumpManage(created.canonicalName(), action);
+                return safeResult(ONode.serialize(created), 20000);
             }
             if (SkillConstants.ACTION_EDIT.equalsIgnoreCase(action)) {
-                checkpoint(checkpointSkillFiles(name));
-                return safeResult(
-                        ONode.serialize(localSkillService.editSkill(name, content)), 20000);
+                String canonicalName = checkpointSkill(name);
+                SkillDescriptor edited = localSkillService.editSkill(name, content);
+                localSkillService.bumpManage(canonicalName, action);
+                return safeResult(ONode.serialize(edited), 20000);
             }
             if (SkillConstants.ACTION_PATCH.equalsIgnoreCase(action)) {
-                checkpoint(checkpointSkillFiles(name));
-                return safeResult(
-                        localSkillService.patchSkill(name, oldText, newText, filePath), 1000);
+                String canonicalName = checkpointSkill(name);
+                String result = localSkillService.patchSkill(name, oldText, newText, filePath);
+                localSkillService.bumpManage(canonicalName, action);
+                return safeResult(result, 1000);
             }
             if (SkillConstants.ACTION_DELETE.equalsIgnoreCase(action)) {
-                checkpoint(checkpointSkillFiles(name));
+                String canonicalName = checkpointSkill(name);
                 String result = localSkillService.deleteSkill(name);
+                localSkillService.bumpManage(canonicalName, action);
                 return safeResult(
                         result + rewriteCronSkillRefsAfterDelete(name, absorbedInto), 1000);
             }
             if (SkillConstants.ACTION_WRITE_FILE.equalsIgnoreCase(action)) {
-                checkpoint(checkpointSkillFiles(name));
-                return safeResult(
-                        localSkillService.writeSkillFile(name, filePath, fileContent), 1000);
+                String canonicalName = checkpointSkill(name);
+                String result = localSkillService.writeSkillFile(name, filePath, fileContent);
+                localSkillService.bumpManage(canonicalName, action);
+                return safeResult(result, 1000);
             }
             if (SkillConstants.ACTION_REMOVE_FILE.equalsIgnoreCase(action)) {
-                checkpoint(checkpointSkillFiles(name));
-                return safeResult(localSkillService.removeSkillFile(name, filePath), 1000);
+                String canonicalName = checkpointSkill(name);
+                String result = localSkillService.removeSkillFile(name, filePath);
+                localSkillService.bumpManage(canonicalName, action);
+                return safeResult(result, 1000);
             }
             if ("toggle".equalsIgnoreCase(action)) {
+                SkillView view = localSkillService.viewSkill(name, null, agentScope);
                 localSkillService.setGlobalVisible(name, enabled == null || enabled.booleanValue());
+                localSkillService.bumpManage(view.getDescriptor().canonicalName(), action);
                 return safeResult("Skill visibility updated: " + name, 1000);
             }
             return toolError("Unsupported skill_manage action");
@@ -325,14 +333,20 @@ public class SkillTools {
     }
 
     /** 收集技能目录中的全部文件，用于 checkpoint。 */
-    private List<File> checkpointSkillFiles(String nameOrPath) throws Exception {
-        SkillView view = localSkillService.viewSkill(nameOrPath, null, agentScope);
+    private List<File> checkpointSkillFiles(SkillView view) {
         File skillDir = FileUtil.file(view.getDescriptor().getSkillDir());
         List<File> files = FileUtil.loopFiles(skillDir);
         if (files.isEmpty()) {
             files.add(FileUtil.file(skillDir, SkillConstants.SKILL_FILE_NAME));
         }
         return files;
+    }
+
+    /** 为技能管理建立 checkpoint，并返回后续统计使用的规范技能名。 */
+    private String checkpointSkill(String nameOrPath) throws Exception {
+        SkillView view = localSkillService.viewSkill(nameOrPath, null, agentScope);
+        checkpoint(checkpointSkillFiles(view));
+        return view.getDescriptor().canonicalName();
     }
 
     /**

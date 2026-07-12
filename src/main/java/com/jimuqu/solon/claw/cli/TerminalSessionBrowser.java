@@ -98,6 +98,11 @@ public class TerminalSessionBrowser {
      * @return 返回render结果。
      */
     public String render(String input) {
+        return render(input, null, null);
+    }
+
+    /** 在当前 CLI 来源范围内渲染会话列表。 */
+    public String render(String input, String currentSourceKey, String currentSessionId) {
         String value = StrUtil.nullToEmpty(input).trim();
         String lower = value.toLowerCase(Locale.ROOT);
         if (isSessionsManagementCommand(lower)) {
@@ -109,7 +114,10 @@ public class TerminalSessionBrowser {
                 || lower.startsWith("/session inspect ")) {
             return renderDetail(value);
         }
-        List<SessionChoice> choices = choices(query(input));
+        SessionListingOptions options = parseListingOptions(input);
+        options.sourceKey = currentSourceKey;
+        options.currentSessionId = currentSessionId;
+        List<SessionChoice> choices = choices(options);
         this.lastChoices = choices;
         if (choices.isEmpty()) {
             return "没有找到可浏览的会话。";
@@ -395,17 +403,24 @@ public class TerminalSessionBrowser {
      * @param query 查询参数。
      * @return 返回choices结果。
      */
-    private List<SessionChoice> choices(String query) {
+    private List<SessionChoice> choices(SessionListingOptions options) {
         List<SessionChoice> result = new ArrayList<SessionChoice>();
         if (sessionRepository == null) {
             return result;
         }
         List<SessionRecord> records;
+        String query = options.searchQuery;
         try {
+            int candidateLimit = DEFAULT_LIMIT;
+            try {
+                candidateLimit = Math.max(sessionRepository.countAll(), DEFAULT_LIMIT);
+            } catch (Exception ignored) {
+                // 仓储不支持计数时保留原有十条查询能力。
+            }
             records =
                     StrUtil.isBlank(query)
-                            ? sessionRepository.listRecent(DEFAULT_LIMIT)
-                            : sessionRepository.search(query, DEFAULT_LIMIT);
+                            ? sessionRepository.listRecent(candidateLimit, 0)
+                            : sessionRepository.search(query, candidateLimit);
         } catch (Exception e) {
             return result;
         }
@@ -416,9 +431,90 @@ public class TerminalSessionBrowser {
             if (record == null || StrUtil.isBlank(record.getSessionId())) {
                 continue;
             }
+            if (!options.includeUnnamed
+                    && StrUtil.isBlank(query)
+                    && StrUtil.isBlank(record.getTitle())) {
+                continue;
+            }
+            if (!options.includeAllSources
+                    && StrUtil.isNotBlank(options.sourceKey)
+                    && !options.sourceKey.equals(record.getSourceKey())) {
+                continue;
+            }
+            if (StrUtil.isNotBlank(options.currentSessionId)
+                    && options.currentSessionId.equals(record.getSessionId())) {
+                continue;
+            }
+            if (isInternalChild(record)) {
+                continue;
+            }
             result.add(new SessionChoice(record));
+            if (result.size() >= DEFAULT_LIMIT) {
+                break;
+            }
         }
         return result;
+    }
+
+    /** 解析 /sessions 的显示别名、范围开关和搜索参数。 */
+    private SessionListingOptions parseListingOptions(String input) {
+        String raw = query(input);
+        List<String> tokens = shellTokens(raw);
+        SessionListingOptions options = new SessionListingOptions();
+        List<String> search = new ArrayList<String>();
+        boolean positional = false;
+        for (String token : tokens) {
+            String lower = StrUtil.nullToEmpty(token).trim().toLowerCase(Locale.ROOT);
+            if (!positional
+                    && ("list".equals(lower) || "ls".equals(lower) || "browse".equals(lower))) {
+                continue;
+            }
+            if (!positional && ("all".equals(lower) || "--all".equals(lower))) {
+                options.includeAllSources = true;
+                continue;
+            }
+            if (!positional && ("full".equals(lower) || "--full".equals(lower))) {
+                options.includeUnnamed = true;
+                continue;
+            }
+            if (!positional && ("search".equals(lower) || "find".equals(lower))) {
+                continue;
+            }
+            positional = true;
+            search.add(token);
+        }
+        options.searchQuery = StrUtil.join(" ", search).trim();
+        return options;
+    }
+
+    /** 隐藏委派子会话及无分支名的压缩延续节点，避免污染普通会话列表。 */
+    private boolean isInternalChild(SessionRecord record) {
+        if (record == null || StrUtil.isBlank(record.getParentSessionId())) {
+            return false;
+        }
+        String metadata = StrUtil.nullToEmpty(record.getMetadataJson()).trim();
+        if (metadata.startsWith("{")) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> metadataMap = ONode.deserialize(metadata, LinkedHashMap.class);
+                Object delegateFrom = metadataMap.get("_delegate_from");
+                if (delegateFrom != null && StrUtil.isNotBlank(String.valueOf(delegateFrom))) {
+                    return true;
+                }
+            } catch (Exception ignored) {
+                // 元数据损坏不应阻断列表；下面按父节点/分支名继续判断。
+            }
+        }
+        return StrUtil.isBlank(record.getBranchName());
+    }
+
+    /** /sessions 查询的规范化选项。 */
+    private static final class SessionListingOptions {
+        private boolean includeAllSources;
+        private boolean includeUnnamed;
+        private String searchQuery = "";
+        private String sourceKey;
+        private String currentSessionId;
     }
 
     /** 读取所有可管理会话，优先使用仓储分页能力避免固定 10 条浏览限制。 */

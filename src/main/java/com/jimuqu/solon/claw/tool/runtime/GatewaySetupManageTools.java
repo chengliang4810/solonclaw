@@ -38,22 +38,27 @@ public class GatewaySetupManageTools {
      * @param action 操作名称。
      * @param channel 渠道名称。
      * @param ticket setup ticket。
+     * @param profile 可选 Profile；空值表示当前运行 Profile。
      * @return 返回工具结果 JSON。
      */
     @ToolMapping(
             name = "gateway_setup_manage",
             description =
-                    "Start or inspect dashboard QR setup for weixin, feishu, dingtalk. Actions: start, get.")
+                    "Start or inspect dashboard QR setup for weixin, feishu, dingtalk, wecom,"
+                            + " qqbot. Actions: start, get.")
     public String gatewaySetupManage(
             @Param(name = "action", description = "start, get") String action,
-            @Param(name = "channel", description = "weixin, feishu, dingtalk") String channel,
+            @Param(name = "channel", description = "weixin, feishu, dingtalk, wecom, qqbot")
+                    String channel,
             @Param(name = "ticket", required = false, description = "QR setup ticket")
-                    String ticket) {
+                    String ticket,
+            @Param(name = "profile", required = false, description = "Target profile")
+                    String profile) {
         try {
             if (weixinQrSetupService == null || domesticQrSetupService == null) {
                 return ToolResultEnvelope.error("gateway setup service unavailable").toJson();
             }
-            Map<String, Object> result = run(action, channel, ticket);
+            Map<String, Object> result = run(action, channel, ticket, profile);
             return ToolResultEnvelope.ok("网关配置引导查询完成")
                     .preview(SecretRedactor.redact(ONode.serialize(result), 3000))
                     .data("result", result)
@@ -72,7 +77,7 @@ public class GatewaySetupManageTools {
      * @param ticket setup ticket。
      * @return 返回 Dashboard setup 服务结果。
      */
-    private Map<String, Object> run(String action, String channel, String ticket) {
+    private Map<String, Object> run(String action, String channel, String ticket, String profile) {
         String normalizedAction = action == null ? "get" : action.trim().toLowerCase(Locale.ROOT);
         String normalizedChannel =
                 StrUtil.blankToDefault(channel, "weixin").trim().toLowerCase(Locale.ROOT);
@@ -80,11 +85,11 @@ public class GatewaySetupManageTools {
             if ("weixin".equals(normalizedChannel)) {
                 return weixinQrSetupService.start();
             }
-            return domesticQrSetupService.start(normalizedChannel);
+            return domesticQrSetupService.start(normalizedChannel, profile);
         }
         if ("weixin".equals(normalizedChannel)) {
             return weixinQrSetupService.get(ticket);
         }
-        return domesticQrSetupService.get(ticket);
+        return domesticQrSetupService.get(ticket, profile);
     }
 }

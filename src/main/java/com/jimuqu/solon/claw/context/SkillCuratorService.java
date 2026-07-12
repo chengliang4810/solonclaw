@@ -168,9 +168,14 @@ public class SkillCuratorService {
         boolean pinned = isPinned(descriptor);
         long loadCount = asLong(record.get("loadCount"));
         long callCount = asLong(record.get("callCount"));
-        long usageScore = loadCount * 3L + callCount;
+        long manageCount = asLong(record.get("manageCount"));
+        long activityCount = loadCount + callCount + manageCount;
+        long usageScore = loadCount * 3L + callCount + manageCount;
+        Object storedStatus = record.get("status");
         String previousStatus =
-                StrUtil.nullToDefault(String.valueOf(record.get("status")), "active");
+                storedStatus == null
+                        ? "active"
+                        : StrUtil.blankToDefault(String.valueOf(storedStatus), "active");
         String status = previousStatus;
         String action = "unchanged";
         String archiveKind = "";
@@ -203,6 +208,8 @@ public class SkillCuratorService {
         record.put("usageScore", Long.valueOf(usageScore));
         record.put("loadCount", Long.valueOf(loadCount));
         record.put("callCount", Long.valueOf(callCount));
+        record.put("manageCount", Long.valueOf(manageCount));
+        record.put("activityCount", Long.valueOf(activityCount));
         record.put("suggestions", suggestions);
         skillsState.put(name, record);
 
@@ -217,6 +224,8 @@ public class SkillCuratorService {
         item.put("usageScore", Long.valueOf(usageScore));
         item.put("loadCount", Long.valueOf(loadCount));
         item.put("callCount", Long.valueOf(callCount));
+        item.put("manageCount", Long.valueOf(manageCount));
+        item.put("activityCount", Long.valueOf(activityCount));
         item.put("suggestions", suggestions);
         item.put("path", skillReference(name));
         return item;

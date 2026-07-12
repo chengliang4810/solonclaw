@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from 'node:fs'
 const optionalSettingsFile = new URL('../src/components/solonclaw/settings/PlatformOptionalSettings.vue', import.meta.url)
 const textRowFile = new URL('../src/components/solonclaw/settings/PlatformTextSettingRow.vue', import.meta.url)
 const switchRowFile = new URL('../src/components/solonclaw/settings/PlatformSwitchSettingRow.vue', import.meta.url)
+const platformSettingsFile = new URL('../src/components/solonclaw/settings/PlatformSettings.vue', import.meta.url)
 
 assert.ok(existsSync(textRowFile), 'Optional channel text settings should use one shared row component')
 assert.ok(existsSync(switchRowFile), 'Optional channel switch settings should use one shared row component')
@@ -11,6 +12,7 @@ assert.ok(existsSync(switchRowFile), 'Optional channel switch settings should us
 const optionalSettings = readFileSync(optionalSettingsFile, 'utf8')
 const textRow = readFileSync(textRowFile, 'utf8')
 const switchRow = readFileSync(switchRowFile, 'utf8')
+const platformSettings = readFileSync(platformSettingsFile, 'utf8')
 
 assert.ok(optionalSettings.includes('PlatformTextSettingRow'), 'Optional settings should import the shared text row')
 assert.ok(optionalSettings.includes('PlatformSwitchSettingRow'), 'Optional settings should import the shared switch row')
@@ -31,8 +33,13 @@ assert.ok(
 )
 assert.equal(
   (optionalSettings.match(/\{ field: '[^']+', source: 'credentials'/g) || []).length,
-  6,
-  'Optional platform credential fields should stay covered by the config',
+  4,
+  'Optional platform credential fields should stay covered without duplicating QR primary credentials',
+)
+assert.equal(
+  (platformSettings.match(/\{ type: 'text', field: '(?:app_id|client_secret)', source: 'credentials', label:/g) || []).length,
+  2,
+  'QQBot QR primary settings should retain its two credential fields',
 )
 assert.equal(
   (optionalSettings.match(/\{ field: '[^']+', source: 'channel'/g) || []).length,
