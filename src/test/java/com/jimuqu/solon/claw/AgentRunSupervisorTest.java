@@ -220,6 +220,44 @@ public class AgentRunSupervisorTest {
                 .contains("compression.retry.unchanged");
     }
 
+    /** 上下文压缩后的同一提供方重试仍溢出时，应切换备用模型。 */
+    @Test
+    void shouldFallbackAfterCompressedContextOverflowRetryAlsoFails() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTrace().setMaxAttempts(3);
+        ContextOverflowFallbackGateway gateway = new ContextOverflowFallbackGateway();
+        CountingCompressionService compressionService = new CountingCompressionService();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), compressionService);
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:context-overflow-fallback:user");
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "hello",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        assertThat(outcome.getFinalReply()).isEqualTo("backup context ok");
+        assertThat(gateway.attempts)
+                .containsExactly(
+                        "primary:gpt-5-mini", "primary:gpt-5-mini", "backup:claude-sonnet-4");
+        assertThat(compressionService.compressCount).isEqualTo(1);
+        assertThat(outcome.getRunRecord().getFallbackCount()).isEqualTo(1);
+        assertThat(
+                        eventTypes(
+                                fixture.agentRunRepository.listEvents(
+                                        outcome.getRunRecord().getRunId())))
+                .contains("fallback");
+    }
+
     /** 413 且携带附件时优先移除附件后重试，避免无效重复压缩。 */
     @Test
     void shouldUnloadAttachmentsOnceBeforeRetryingPayloadTooLargeOnSameProvider() throws Exception {
@@ -1341,6 +1379,29 @@ public class AgentRunSupervisorTest {
                 throw new IllegalStateException("HTTP 400 prompt exceeds max length");
             }
             return resolvedResult(session, resolved, "retry ok");
+        }
+    }
+
+    /** 主提供方持续上下文溢出，备用提供方成功的模型网关测试桩。 */
+    private static class ContextOverflowFallbackGateway extends ExecuteOnceOnlyGateway {
+        private final List<String> attempts = new ArrayList<String>();
+
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext) {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            if ("primary".equals(resolved.getProvider())) {
+                throw new IllegalStateException("HTTP 400 prompt exceeds max length");
+            }
+            return resolvedResult(session, resolved, "backup context ok");
         }
     }
 

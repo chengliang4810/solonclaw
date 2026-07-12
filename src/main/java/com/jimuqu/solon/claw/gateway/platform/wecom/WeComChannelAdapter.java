@@ -237,7 +237,8 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         if (StrUtil.isNotBlank(request.getText())) {
             ONode response =
-                    sendTextMessage(request.getChatId(), request.getText(), request.getThreadId());
+                    sendTextMessage(
+                            request.getChatId(), request.getText(), request.getReplyToMessageId());
             int ret = response.get("ret").getInt(0);
             if (ret != 0) {
                 throw new IllegalStateException("WeCom send failed: " + safeJson(response));
@@ -245,7 +246,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         if (request.getAttachments() != null) {
             for (MessageAttachment attachment : request.getAttachments()) {
-                sendAttachment(request.getChatId(), attachment, request.getThreadId());
+                sendAttachment(request.getChatId(), attachment, request.getReplyToMessageId());
             }
         }
     }
@@ -455,7 +456,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatType(chatType);
         message.setChatName(chatId);
         message.setUserName(userId);
-        message.setThreadId(msgId);
+        message.setReplyToMessageId(msgId);
         message.setAttachments(attachments);
         return message;
     }

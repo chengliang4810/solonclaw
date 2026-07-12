@@ -1293,7 +1293,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             return;
         }
         String messageId = message.get("message_id").getString();
-        if (isDuplicate(messageId)) {
+        boolean hasMessageId = StrUtil.isNotBlank(messageId);
+        if (hasMessageId && isDuplicate(messageId)) {
             return;
         }
 
@@ -1312,7 +1313,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         ONode itemList = message.get("item_list");
         String text = extractInboundText(itemList);
-        if (isDuplicateText(chatTarget.chatId, senderId, text)) {
+        // 平台已提供消息标识时只能按消息标识去重，避免用户主动重复文本或相同说明的不同附件被误丢弃。
+        if (!hasMessageId && isDuplicateText(chatTarget.chatId, senderId, text)) {
             return;
         }
         java.util.ArrayList<MessageAttachment> attachments =
@@ -1338,6 +1340,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             enqueueTextBatch(gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
             return;
         }
+        // 附件消息需要保持用户发送顺序，先将同一会话待去抖的文本投递到串行入站队列。
+        flushTextBatchBeforeImmediateDispatch(gatewayMessage);
         dispatchInboundMessage(
                 gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken, null);
     }
@@ -1524,7 +1528,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      *
      * @param key 配置键或映射键。
      */
-    private void flushTextBatch(String key) {
+    private synchronized void flushTextBatch(String key) {
         pendingTextBatchTasks.remove(key);
         PendingTextBatch batch = pendingTextBatches.remove(key);
         if (batch == null) {
@@ -1533,6 +1537,28 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         GatewayMessage message = batch.toGatewayMessage();
         dispatchInboundMessage(
                 message, batch.chatType, batch.chatId, batch.contextToken, batch.typingLifecycle);
+    }
+
+    /**
+     * 在立即分派附件消息前清空同一会话的文本去抖批次，确保入站顺序不会被延迟文本反转。
+     *
+     * @param gatewayMessage 即将立即分派的渠道消息。
+     */
+    private synchronized void flushTextBatchBeforeImmediateDispatch(GatewayMessage gatewayMessage) {
+        if (gatewayMessage == null) {
+            return;
+        }
+        String key =
+                String.valueOf(gatewayMessage.getPlatform())
+                        + ":"
+                        + StrUtil.nullToEmpty(gatewayMessage.getChatId())
+                        + ":"
+                        + StrUtil.nullToEmpty(gatewayMessage.getUserId());
+        ScheduledFuture<?> scheduled = pendingTextBatchTasks.get(key);
+        if (scheduled != null) {
+            scheduled.cancel(false);
+        }
+        flushTextBatch(key);
     }
 
     /**

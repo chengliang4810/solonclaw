@@ -6,16 +6,27 @@ import com.jimuqu.solon.claw.skillhub.model.HubAuditEntry;
 import com.jimuqu.solon.claw.skillhub.model.HubInstallRecord;
 import com.jimuqu.solon.claw.skillhub.model.TapRecord;
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.noear.snack4.ONode;
 
 /** Skills Hub 状态存储。 */
 public class SkillHubStateStore {
+    /** 按状态文件规范路径共享的进程内锁，覆盖多个 Store 实例。 */
+    private static final ConcurrentHashMap<String, Object> FILE_LOCKS =
+            new ConcurrentHashMap<String, Object>();
+
     /** 记录技能中心状态Store中的技能目录。 */
     private final File skillsDir;
 
@@ -35,7 +46,10 @@ public class SkillHubStateStore {
      * @return 返回Installed列表。
      */
     public List<HubInstallRecord> listInstalled() {
-        return new ArrayList<HubInstallRecord>(loadLock().values());
+        File lockFile = lockFile();
+        synchronized (lockFor(lockFile)) {
+            return new ArrayList<HubInstallRecord>(loadLock(lockFile).values());
+        }
     }
 
     /**
@@ -45,7 +59,10 @@ public class SkillHubStateStore {
      * @return 返回读取到的Installed。
      */
     public HubInstallRecord getInstalled(String name) {
-        return loadLock().get(SkillBundlePathSupport.normalizeSkillName(name));
+        File lockFile = lockFile();
+        synchronized (lockFor(lockFile)) {
+            return loadLock(lockFile).get(SkillBundlePathSupport.normalizeSkillName(name));
+        }
     }
 
     /**
@@ -55,9 +72,12 @@ public class SkillHubStateStore {
      */
     public void recordInstall(HubInstallRecord record) {
         validateRecord(record);
-        Map<String, HubInstallRecord> installed = loadLock();
-        installed.put(record.getName(), record);
-        saveLock(installed);
+        File lockFile = lockFile();
+        synchronized (lockFor(lockFile)) {
+            Map<String, HubInstallRecord> installed = loadLock(lockFile);
+            installed.put(record.getName(), record);
+            saveLock(lockFile, installed);
+        }
     }
 
     /**
@@ -66,9 +86,12 @@ public class SkillHubStateStore {
      * @param name 名称参数。
      */
     public void recordUninstall(String name) {
-        Map<String, HubInstallRecord> installed = loadLock();
-        installed.remove(SkillBundlePathSupport.normalizeSkillName(name));
-        saveLock(installed);
+        File lockFile = lockFile();
+        synchronized (lockFor(lockFile)) {
+            Map<String, HubInstallRecord> installed = loadLock(lockFile);
+            installed.remove(SkillBundlePathSupport.normalizeSkillName(name));
+            saveLock(lockFile, installed);
+        }
     }
 
     /**
@@ -78,14 +101,20 @@ public class SkillHubStateStore {
      */
     public List<TapRecord> listTaps() {
         File tapsFile = hubFile(SkillHubPathSupport.tapsFile(skillsDir), "taps path");
-        if (!tapsFile.exists()) {
-            return Collections.emptyList();
+        synchronized (lockFor(tapsFile)) {
+            if (!tapsFile.exists()) {
+                return Collections.emptyList();
+            }
+            try {
+                TapContainer container =
+                        ONode.deserialize(FileUtil.readUtf8String(tapsFile), TapContainer.class);
+                return container == null || container.getTaps() == null
+                        ? Collections.<TapRecord>emptyList()
+                        : new ArrayList<TapRecord>(container.getTaps());
+            } catch (Exception ignored) {
+                return Collections.emptyList();
+            }
         }
-        TapContainer container =
-                ONode.deserialize(FileUtil.readUtf8String(tapsFile), TapContainer.class);
-        return container == null || container.getTaps() == null
-                ? Collections.<TapRecord>emptyList()
-                : container.getTaps();
     }
 
     /**
@@ -95,10 +124,12 @@ public class SkillHubStateStore {
      */
     public void saveTaps(List<TapRecord> taps) {
         TapContainer container = new TapContainer();
-        container.setTaps(new ArrayList<TapRecord>(taps));
-        FileUtil.writeUtf8String(
-                ONode.serialize(container),
-                hubFile(SkillHubPathSupport.tapsFile(skillsDir), "taps path"));
+        container.setTaps(
+                taps == null ? new ArrayList<TapRecord>() : new ArrayList<TapRecord>(taps));
+        File tapsFile = hubFile(SkillHubPathSupport.tapsFile(skillsDir), "taps path");
+        synchronized (lockFor(tapsFile)) {
+            writeAtomically(tapsFile, ONode.serialize(container));
+        }
     }
 
     /**
@@ -127,8 +158,10 @@ public class SkillHubStateStore {
         entry.setVerdict(verdict);
         entry.setExtra(StrUtil.nullToEmpty(extra));
         String line = ONode.serialize(entry) + System.lineSeparator();
-        FileUtil.appendUtf8String(
-                line, hubFile(SkillHubPathSupport.auditLog(skillsDir), "audit path"));
+        File auditFile = hubFile(SkillHubPathSupport.auditLog(skillsDir), "audit path");
+        synchronized (lockFor(auditFile)) {
+            FileUtil.appendUtf8String(line, auditFile);
+        }
     }
 
     /**
@@ -139,10 +172,12 @@ public class SkillHubStateStore {
      */
     public String readCachedIndex(String key) {
         File target = cacheFile(key);
-        if (!target.exists()) {
-            return null;
+        synchronized (lockFor(target)) {
+            if (!target.exists()) {
+                return null;
+            }
+            return FileUtil.readUtf8String(target);
         }
-        return FileUtil.readUtf8String(target);
     }
 
     /**
@@ -152,7 +187,10 @@ public class SkillHubStateStore {
      * @param content 待处理内容。
      */
     public void writeCachedIndex(String key, String content) {
-        FileUtil.writeUtf8String(StrUtil.nullToEmpty(content), cacheFile(key));
+        File target = cacheFile(key);
+        synchronized (lockFor(target)) {
+            writeAtomically(target, StrUtil.nullToEmpty(content));
+        }
     }
 
     /**
@@ -178,13 +216,16 @@ public class SkillHubStateStore {
      *
      * @return 返回Lock结果。
      */
-    private Map<String, HubInstallRecord> loadLock() {
-        File lockFile = hubFile(SkillHubPathSupport.lockFile(skillsDir), "lock path");
+    private Map<String, HubInstallRecord> loadLock(File lockFile) {
         if (!lockFile.exists()) {
             return new LinkedHashMap<String, HubInstallRecord>();
         }
-        LockContainer container =
-                ONode.deserialize(FileUtil.readUtf8String(lockFile), LockContainer.class);
+        LockContainer container;
+        try {
+            container = ONode.deserialize(FileUtil.readUtf8String(lockFile), LockContainer.class);
+        } catch (Exception ignored) {
+            return new LinkedHashMap<String, HubInstallRecord>();
+        }
         if (container == null || container.getInstalled() == null) {
             return new LinkedHashMap<String, HubInstallRecord>();
         }
@@ -205,13 +246,63 @@ public class SkillHubStateStore {
      *
      * @param installed installed 参数。
      */
-    private void saveLock(Map<String, HubInstallRecord> installed) {
+    private void saveLock(File lockFile, Map<String, HubInstallRecord> installed) {
         LockContainer container = new LockContainer();
         container.setVersion(1);
         container.setInstalled(new LinkedHashMap<String, HubInstallRecord>(installed));
-        FileUtil.writeUtf8String(
-                ONode.serialize(container),
-                hubFile(SkillHubPathSupport.lockFile(skillsDir), "lock path"));
+        writeAtomically(lockFile, ONode.serialize(container));
+    }
+
+    /** 返回安装记录状态文件。 */
+    private File lockFile() {
+        return hubFile(SkillHubPathSupport.lockFile(skillsDir), "lock path");
+    }
+
+    /** 按规范路径取得跨 Store 实例共享的文件锁。 */
+    private Object lockFor(File file) {
+        return FILE_LOCKS.computeIfAbsent(lockKey(file), ignored -> new Object());
+    }
+
+    /** 使用同目录临时文件和原子替换保存状态，避免中断后留下半份 JSON。 */
+    private void writeAtomically(File file, String content) {
+        Path target = file.toPath().toAbsolutePath().normalize();
+        Path parent = target.getParent();
+        try {
+            if (parent == null) {
+                throw new IOException("Skill Hub state parent is required");
+            }
+            Files.createDirectories(parent);
+            Path temp = Files.createTempFile(parent, ".skillhub-state-", ".tmp");
+            boolean moved = false;
+            try {
+                Files.write(temp, StrUtil.nullToEmpty(content).getBytes(StandardCharsets.UTF_8));
+                try {
+                    Files.move(
+                            temp,
+                            target,
+                            StandardCopyOption.ATOMIC_MOVE,
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException e) {
+                    Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+                moved = true;
+            } finally {
+                if (!moved) {
+                    Files.deleteIfExists(temp);
+                }
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to save Skills Hub state", e);
+        }
+    }
+
+    /** 为同一状态文件生成跨实例稳定的锁键。 */
+    private String lockKey(File file) {
+        try {
+            return file.getCanonicalPath();
+        } catch (IOException e) {
+            return file.getAbsolutePath();
+        }
     }
 
     /**

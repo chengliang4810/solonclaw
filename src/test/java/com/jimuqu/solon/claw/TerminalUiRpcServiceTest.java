@@ -408,7 +408,7 @@ class TerminalUiRpcServiceTest {
         assertThat(response.get("summary").toString()).contains("headline=nothing to compress");
     }
 
-    /** TUI 直连入口在会话运行中不得创建分支或恢复完整 checkpoint。 */
+    /** TUI 直连入口在会话运行中不得压缩、创建分支或恢复完整 checkpoint。 */
     @Test
     void destructiveSessionRpcRejectsActiveRun() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -442,9 +442,13 @@ class TerminalUiRpcServiceTest {
         supervisor.coordinateIncoming(
                 sourceKey, sessionId, env.message("terminal-ui", sessionId, "run"));
 
+        Map<String, Object> compress = service.sessionCompress(sessionId, "");
         Map<String, Object> branch = service.sessionBranch(sessionId, "blocked");
         Map<String, Object> rollback = service.rollbackRestore(sessionId, "missing", "");
 
+        assertThat(compress)
+                .containsEntry("success", Boolean.FALSE)
+                .containsEntry("status", "running");
         assertThat(branch)
                 .containsEntry("success", Boolean.FALSE)
                 .containsEntry("status", "running");

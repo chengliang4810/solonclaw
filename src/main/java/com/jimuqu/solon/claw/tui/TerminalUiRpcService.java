@@ -847,6 +847,10 @@ public class TerminalUiRpcService {
     public Map<String, Object> sessionCompress(String sessionId, String focusTopic)
             throws Exception {
         SessionRecord session = findSession(sessionId);
+        Map<String, Object> busy = runningSessionMutation(sessionId, "compress session");
+        if (busy != null) {
+            return busy;
+        }
         int beforeMessages = messageCount(session);
         int beforeTokens = session == null ? 0 : (int) session.getCumulativeTotalTokens();
         CompressionOutcome outcome = null;

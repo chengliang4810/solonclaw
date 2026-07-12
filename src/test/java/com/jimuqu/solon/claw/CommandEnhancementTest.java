@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.QueuedRunMessage;
 import com.jimuqu.solon.claw.core.model.RunControlCommand;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.engine.AgentRunSupervisor;
 import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -211,7 +212,7 @@ public class CommandEnhancementTest {
         assertThat(help.getContent()).contains("/busy [status|queue|steer|interrupt|reject]");
     }
 
-    /** 运行中禁止 undo、branch 与完整回滚，但只读 rollback 子命令仍可使用。 */
+    /** 运行中禁止 retry、undo、branch 与完整回滚，但只读 rollback 子命令仍可使用。 */
     @Test
     void shouldGuardDestructiveSessionCommandsWhileRunIsActive() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -232,6 +233,14 @@ public class CommandEnhancementTest {
         supervisor.coordinateIncoming(
                 sourceKey, session.getSessionId(), env.message("admin-chat", "admin-user", "run"));
 
+        GatewayReply retry =
+                env.commandService.handle(
+                        env.message("admin-chat", "admin-user", "/retry"), "/retry");
+        GatewayReply streamingRetry =
+                env.commandService.handle(
+                        env.message("admin-chat", "admin-user", "/retry"),
+                        "/retry",
+                        ConversationEventSink.noop());
         GatewayReply undo =
                 env.commandService.handle(
                         env.message("admin-chat", "admin-user", "/undo"), "/undo");
@@ -251,9 +260,13 @@ public class CommandEnhancementTest {
                         env.message("admin-chat", "admin-user", "/rollback status"),
                         "/rollback status");
 
+        assertThat(retry.isError()).isTrue();
+        assertThat(streamingRetry.isError()).isTrue();
         assertThat(undo.isError()).isTrue();
         assertThat(branch.isError()).isTrue();
         assertThat(rollback.isError()).isTrue();
+        assertThat(retry.getRuntimeMetadata()).containsEntry("busy_status", "running");
+        assertThat(streamingRetry.getRuntimeMetadata()).containsEntry("busy_status", "running");
         assertThat(undo.getRuntimeMetadata()).containsEntry("busy_status", "running");
         assertThat(env.sessionRepository.findById(session.getSessionId()).getNdjson())
                 .isEqualTo(session.getNdjson());

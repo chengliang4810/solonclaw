@@ -193,7 +193,8 @@ public class SqliteSessionRepository implements SessionRepository {
         clone.setCompressedSummary(source.getCompressedSummary());
         clone.setSystemPromptSnapshot(source.getSystemPromptSnapshot());
         clone.setAgentSnapshotJson(sanitizeAgentSnapshotForBranch(source.getAgentSnapshotJson()));
-        clone.setGoalStateJson(source.getGoalStateJson());
+        // 分支只复制对话上下文，不继承父会话的自动续轮运行态。
+        clone.setGoalStateJson(null);
         clone.setLastCompressionAt(source.getLastCompressionAt());
         clone.setLastCompressionInputTokens(source.getLastCompressionInputTokens());
         clone.setCompressionFailureCount(source.getCompressionFailureCount());

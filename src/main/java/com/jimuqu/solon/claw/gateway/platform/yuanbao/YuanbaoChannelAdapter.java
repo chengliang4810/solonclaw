@@ -259,7 +259,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                         "chat_type",
                         StrUtil.blankToDefault(
                                 request.getChatType(), GatewayBehaviorConstants.CHAT_TYPE_DM))
-                .set("reply_to", request.getThreadId());
+                .set("reply_to", request.getReplyToMessageId());
     }
 
     /**
@@ -354,6 +354,9 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onOpen(WebSocket webSocket, Response response) {
+            if (YuanbaoChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
             markWebSocketConnected();
         }
 
@@ -365,6 +368,9 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onMessage(WebSocket webSocket, String text) {
+            if (YuanbaoChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
             dispatchInbound(text);
         }
 
@@ -376,6 +382,9 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onMessage(WebSocket webSocket, ByteString bytes) {
+            if (YuanbaoChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
             dispatchInbound(bytes.utf8());
         }
 
@@ -432,7 +441,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
                         if (message == null) {
                             return;
                         }
-                        if (inboundMessageDeduplicator.isDuplicate(message.getThreadId())) {
+                        if (inboundMessageDeduplicator.isDuplicate(message.getReplyToMessageId())) {
                             return;
                         }
                         try {
@@ -490,7 +499,7 @@ public class YuanbaoChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatType(chatType);
         message.setChatName(chatId);
         message.setUserName(userId);
-        message.setThreadId(
+        message.setReplyToMessageId(
                 firstNonBlank(body.get("message_id").getString(), body.get("msg_id").getString()));
         message.setAttachments(attachments);
         return message;

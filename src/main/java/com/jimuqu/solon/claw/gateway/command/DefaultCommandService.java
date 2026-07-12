@@ -397,6 +397,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_RETRY.equals(command)) {
             SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "重试上一轮对话");
+            if (busyReply != null) {
+                return busyReply;
+            }
             String lastUser = MessageSupport.getLastUserMessage(session.getNdjson());
             if (StrUtil.isBlank(lastUser)) {
                 return GatewayReply.error("没有可重试的上一条用户消息。");
@@ -868,6 +872,11 @@ public class DefaultCommandService implements CommandService {
         if (GatewayCommandConstants.COMMAND_RETRY.equals(command)) {
             recordSlashCommand(message, command, args);
             SessionRecord session = requireSession(message.sourceKey());
+            GatewayReply busyReply = runningSessionMutationReply(message, session, "重试上一轮对话");
+            if (busyReply != null) {
+                emitDirectReply(busyReply, eventSink, session.getSessionId());
+                return busyReply;
+            }
             String lastUser = MessageSupport.getLastUserMessage(session.getNdjson());
             if (StrUtil.isBlank(lastUser)) {
                 GatewayReply reply = GatewayReply.error("没有可重试的上一条用户消息。");
@@ -2564,7 +2573,8 @@ public class DefaultCommandService implements CommandService {
             return handleSessionAutoApproval(message, SlashCommandLine.remainingTokens(safeArgs));
         }
         if ("list".equals(normalizedArgs) || "status".equals(normalizedArgs)) {
-            return GatewayReply.ok(formatApprovalList(agentSession));
+            return GatewayReply.ok(
+                    formatApprovalList(visibleApprovalSessions(message, agentSession)));
         }
         if (normalizedArgs.startsWith("clear")) {
             return clearApprovals(agentSession, normalizedArgs);
@@ -2630,6 +2640,43 @@ public class DefaultCommandService implements CommandService {
             }
         }
         return latest == null ? boundSession : latest;
+    }
+
+    /**
+     * 列出当前渠道来源可见的审批会话，包含主会话及该来源创建的定时任务隔离会话。
+     *
+     * @param message 当前渠道消息，来源键用于限制定时任务查询边界。
+     * @param boundSession 当前渠道来源绑定的主会话。
+     * @return 当前来源有权查看的审批会话列表，主会话固定排在首位。
+     */
+    private List<SqliteAgentSession> visibleApprovalSessions(
+            GatewayMessage message, SqliteAgentSession boundSession) throws Exception {
+        List<SqliteAgentSession> sessions = new ArrayList<SqliteAgentSession>();
+        sessions.add(boundSession);
+        if (!PlatformType.DOMESTIC_PLATFORMS.contains(message.getPlatform())) {
+            return sessions;
+        }
+        for (CronJobRecord job : cronJobRepository.listBySource(message.sourceKey())) {
+            if (job == null || StrUtil.isBlank(job.getJobId())) {
+                continue;
+            }
+            SessionRecord record = sessionRepository.getBoundSession("CRON:" + job.getJobId());
+            if (record == null || containsSession(sessions, record.getSessionId())) {
+                continue;
+            }
+            sessions.add(new SqliteAgentSession(record, sessionRepository));
+        }
+        return sessions;
+    }
+
+    /** 判断审批会话列表是否已经包含指定持久化会话，避免重复展示同一待审批项。 */
+    private boolean containsSession(List<SqliteAgentSession> sessions, String sessionId) {
+        for (SqliteAgentSession session : sessions) {
+            if (session != null && StrUtil.equals(session.getSessionId(), sessionId)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -2702,48 +2749,57 @@ public class DefaultCommandService implements CommandService {
     }
 
     /**
-     * 格式化审批List。
+     * 汇总多个同来源会话的待审批状态；每个会话内的序号保持原有选择语义。
      *
-     * @param agentSession Agent会话参数。
-     * @return 返回审批List结果。
+     * @param sessions 当前来源有权查看的审批会话。
+     * @return 可直接返回给渠道用户的审批状态文本。
      */
-    private String formatApprovalList(SqliteAgentSession agentSession) {
-        java.util.List<DangerousCommandApprovalService.PendingApproval> pendingApprovals =
-                dangerousCommandApprovalService.listPendingApprovals(agentSession);
+    private String formatApprovalList(List<SqliteAgentSession> sessions) {
+        List<List<DangerousCommandApprovalService.PendingApproval>> pendingBySession =
+                new ArrayList<List<DangerousCommandApprovalService.PendingApproval>>();
+        int pendingCount = 0;
+        int sessionApprovalCount = 0;
+        for (SqliteAgentSession session : sessions) {
+            List<DangerousCommandApprovalService.PendingApproval> pending =
+                    dangerousCommandApprovalService.listPendingApprovals(session);
+            pendingBySession.add(pending);
+            pendingCount += pending.size();
+            sessionApprovalCount +=
+                    dangerousCommandApprovalService.listSessionApprovals(session).size();
+        }
         StringBuilder buffer = new StringBuilder();
         buffer.append("pending=")
-                .append(
-                        pendingApprovals.isEmpty()
-                                ? "none"
-                                : String.valueOf(pendingApprovals.size()))
+                .append(pendingCount == 0 ? "none" : String.valueOf(pendingCount))
                 .append('\n');
-        for (int i = 0; i < pendingApprovals.size(); i++) {
-            DangerousCommandApprovalService.PendingApproval pending = pendingApprovals.get(i);
-            buffer.append('#')
-                    .append(i + 1)
-                    .append(' ')
-                    .append(
-                            safeApprovalPreview(
-                                    DangerousCommandApprovalService.approvalSelector(pending), 120))
-                    .append(" tool=")
-                    .append(safeApprovalPreview(pending.getToolName(), 120))
-                    .append(" pattern=")
-                    .append(safeApprovalPreview(pending.getPatternKey(), 240))
-                    .append(" reason=")
-                    .append(safeApprovalPreview(pending.getDescription(), 1000))
-                    .append(" command_preview=")
-                    .append(safeApprovalPreview(pending.getCommand(), 800))
-                    .append(" scopes=")
-                    .append(approvalScopes(pending))
-                    .append(" expires_in=")
-                    .append(TimeSupport.expiresInSeconds(pending.getExpiresAt()))
-                    .append("s expired=")
-                    .append(isExpired(pending.getExpiresAt()))
-                    .append('\n');
+        for (List<DangerousCommandApprovalService.PendingApproval> pendingApprovals :
+                pendingBySession) {
+            for (int i = 0; i < pendingApprovals.size(); i++) {
+                DangerousCommandApprovalService.PendingApproval pending = pendingApprovals.get(i);
+                buffer.append('#')
+                        .append(i + 1)
+                        .append(' ')
+                        .append(
+                                safeApprovalPreview(
+                                        DangerousCommandApprovalService.approvalSelector(pending),
+                                        120))
+                        .append(" tool=")
+                        .append(safeApprovalPreview(pending.getToolName(), 120))
+                        .append(" pattern=")
+                        .append(safeApprovalPreview(pending.getPatternKey(), 240))
+                        .append(" reason=")
+                        .append(safeApprovalPreview(pending.getDescription(), 1000))
+                        .append(" command_preview=")
+                        .append(safeApprovalPreview(pending.getCommand(), 800))
+                        .append(" scopes=")
+                        .append(approvalScopes(pending))
+                        .append(" expires_in=")
+                        .append(TimeSupport.expiresInSeconds(pending.getExpiresAt()))
+                        .append("s expired=")
+                        .append(isExpired(pending.getExpiresAt()))
+                        .append('\n');
+            }
         }
-        buffer.append("session_approvals_count=")
-                .append(dangerousCommandApprovalService.listSessionApprovals(agentSession).size())
-                .append('\n');
+        buffer.append("session_approvals_count=").append(sessionApprovalCount).append('\n');
         buffer.append("always_approvals_count=")
                 .append(dangerousCommandApprovalService.listAlwaysApprovals().size());
         return buffer.toString();
@@ -2895,7 +2951,8 @@ public class DefaultCommandService implements CommandService {
 
         SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
         if ("list".equalsIgnoreCase(selector) || "status".equalsIgnoreCase(selector)) {
-            return GatewayReply.ok(formatApprovalList(agentSession));
+            return GatewayReply.ok(
+                    formatApprovalList(visibleApprovalSessions(message, agentSession)));
         }
         if ("all".equalsIgnoreCase(selector)) {
             int rejected =
@@ -2908,17 +2965,21 @@ public class DefaultCommandService implements CommandService {
             reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
             return reply;
         }
+        SqliteAgentSession approvalSession =
+                resolveApprovalSession(message, agentSession, selector);
         DangerousCommandApprovalService.PendingApproval pending =
-                selectPendingApproval(agentSession, selector);
+                selectPendingApproval(approvalSession, selector);
         if (pending == null) {
             return GatewayReply.error("当前没有待审批的危险命令。");
         }
 
         if (!dangerousCommandApprovalService.reject(
-                agentSession, selector, message.getUserName())) {
+                approvalSession, selector, message.getUserName())) {
             return GatewayReply.error("危险命令审批状态已失效，请重试。");
         }
-        GatewayReply reply = conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+        GatewayReply reply =
+                conversationOrchestrator.resumePending(
+                        String.valueOf(approvalSession.getContext().get("source_key")), eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }

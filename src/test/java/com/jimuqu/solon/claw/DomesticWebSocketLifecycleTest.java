@@ -12,6 +12,9 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import okhttp3.Request;
 import okhttp3.WebSocket;
@@ -76,6 +79,45 @@ public class DomesticWebSocketLifecycleTest {
         assertThat(adapter.isConnected()).isFalse();
         listener(YuanbaoChannelAdapter.class, adapter).onOpen(socket, null);
         assertThat(adapter.isConnected()).isTrue();
+    }
+
+    /** 元宝重连后必须忽略旧 socket 迟到的打开和入站消息。 */
+    @Test
+    void shouldIgnoreStaleYuanbaoSocketCallbacks() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getChannels().getYuanbao().setAllowAllUsers(true);
+        YuanbaoChannelAdapter adapter =
+                new YuanbaoChannelAdapter(
+                        config.getChannels().getYuanbao(),
+                        new AttachmentCacheService(config),
+                        null);
+        RecordingWebSocket staleSocket = new RecordingWebSocket();
+        RecordingWebSocket currentSocket = new RecordingWebSocket();
+        WebSocketListener staleListener = listener(YuanbaoChannelAdapter.class, adapter);
+        WebSocketListener currentListener = listener(YuanbaoChannelAdapter.class, adapter);
+        ExecutorService callbackExecutor = Executors.newSingleThreadExecutor();
+        CountDownLatch handled = new CountDownLatch(1);
+        adapter.setInboundMessageHandler(message -> handled.countDown());
+        setField(adapter, YuanbaoChannelAdapter.class, "callbackExecutor", callbackExecutor);
+        setField(adapter, YuanbaoChannelAdapter.class, "webSocket", currentSocket);
+        String raw =
+                "{\"body\":{\"message_id\":\"yuanbao-current-1\","
+                        + "\"chat_id\":\"yuanbao-chat\",\"user_id\":\"yuanbao-user\","
+                        + "\"content\":\"hello\"}}";
+
+        try {
+            staleListener.onOpen(staleSocket, null);
+            staleListener.onMessage(staleSocket, raw);
+            assertThat(adapter.isConnected()).isFalse();
+            assertThat(handled.getCount()).isEqualTo(1L);
+
+            currentListener.onOpen(currentSocket, null);
+            currentListener.onMessage(currentSocket, raw);
+            assertThat(handled.await(1, TimeUnit.SECONDS)).isTrue();
+            assertThat(adapter.isConnected()).isTrue();
+        } finally {
+            callbackExecutor.shutdownNow();
+        }
     }
 
     /** 构造企微私有监听器并保留真实的打开锁存器参数。 */

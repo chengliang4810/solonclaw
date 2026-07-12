@@ -21,6 +21,7 @@ import com.lark.oapi.service.im.v1.model.UserId;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.AbstractExecutorService;
@@ -47,6 +48,21 @@ public class DomesticInboundMessageDedupTest {
         assertThat(scenario.dispatchTwice()).isEqualTo(1);
     }
 
+    /** 平台消息 ID 只作为回复目标，不能改变同一会话的来源键。 */
+    @ParameterizedTest(name = "{0} reply identity")
+    @MethodSource("replyIdentityScenarios")
+    void shouldKeepMessageIdSeparateFromConversationThread(
+            String platform, ReplyIdentityScenario scenario) throws Throwable {
+        List<GatewayMessage> messages = scenario.receiveTwoMessages();
+
+        assertThat(messages).hasSize(2);
+        assertThat(messages.get(0).sourceKey()).isEqualTo(messages.get(1).sourceKey());
+        assertThat(messages).extracting(GatewayMessage::getThreadId).containsOnlyNulls();
+        assertThat(messages)
+                .extracting(GatewayMessage::getReplyToMessageId)
+                .containsExactly(platform + "-message-1", platform + "-message-2");
+    }
+
     /** 提供五个国内渠道的重复消息入站场景。 */
     private static Stream<Arguments> duplicateScenarios() {
         return Stream.of(
@@ -57,6 +73,23 @@ public class DomesticInboundMessageDedupTest {
                 Arguments.of("qqbot", (DuplicateScenario) DomesticInboundMessageDedupTest::qqbot),
                 Arguments.of(
                         "yuanbao", (DuplicateScenario) DomesticInboundMessageDedupTest::yuanbao));
+    }
+
+    /** 提供三个使用原消息回复能力的渠道场景。 */
+    private static Stream<Arguments> replyIdentityScenarios() {
+        return Stream.of(
+                Arguments.of(
+                        "dingtalk",
+                        (ReplyIdentityScenario)
+                                DomesticInboundMessageDedupTest::dingtalkReplyIdentity),
+                Arguments.of(
+                        "wecom",
+                        (ReplyIdentityScenario)
+                                DomesticInboundMessageDedupTest::wecomReplyIdentity),
+                Arguments.of(
+                        "yuanbao",
+                        (ReplyIdentityScenario)
+                                DomesticInboundMessageDedupTest::yuanbaoReplyIdentity));
     }
 
     /** 执行飞书重复入站场景。 */
@@ -164,12 +197,98 @@ public class DomesticInboundMessageDedupTest {
         return handled.get();
     }
 
+    /** 接收两条钉钉消息并返回统一消息模型。 */
+    private static List<GatewayMessage> dingtalkReplyIdentity() throws Throwable {
+        AppConfig config = new AppConfig();
+        DingTalkChannelAdapter adapter =
+                new DingTalkChannelAdapter(
+                        config.getChannels().getDingtalk(),
+                        new EmptyChannelStateRepository(),
+                        new AttachmentCacheService(config));
+        setField(adapter, DingTalkChannelAdapter.class, "callbackExecutor", new DirectExecutor());
+        List<GatewayMessage> messages = captureMessages(adapter);
+        Method handle =
+                DingTalkChannelAdapter.class.getDeclaredMethod(
+                        "handleInbound", ChatbotMessage.class);
+        handle.setAccessible(true);
+        invoke(handle, adapter, dingtalkMessage("dingtalk-message-1"));
+        invoke(handle, adapter, dingtalkMessage("dingtalk-message-2"));
+        return messages;
+    }
+
+    /** 创建固定会话中的钉钉文本消息。 */
+    private static ChatbotMessage dingtalkMessage(String messageId) {
+        MessageContent text = new MessageContent();
+        text.setContent("hello");
+        ChatbotMessage message = new ChatbotMessage();
+        message.setMsgId(messageId);
+        message.setConversationId("dingtalk-chat");
+        message.setConversationType("1");
+        message.setSenderStaffId("dingtalk-user");
+        message.setMsgtype("text");
+        message.setText(text);
+        return message;
+    }
+
+    /** 接收两条企微消息并返回统一消息模型。 */
+    private static List<GatewayMessage> wecomReplyIdentity() throws Throwable {
+        AppConfig config = new AppConfig();
+        WeComChannelAdapter adapter =
+                new WeComChannelAdapter(
+                        config.getChannels().getWecom(), new AttachmentCacheService(config));
+        setField(adapter, WeComChannelAdapter.class, "callbackExecutor", new DirectExecutor());
+        List<GatewayMessage> messages = captureMessages(adapter);
+        Method handle = WeComChannelAdapter.class.getDeclaredMethod("handleInbound", ONode.class);
+        handle.setAccessible(true);
+        invoke(handle, adapter, wecomMessage("wecom-message-1"));
+        invoke(handle, adapter, wecomMessage("wecom-message-2"));
+        return messages;
+    }
+
+    /** 创建固定会话中的企微文本消息。 */
+    private static ONode wecomMessage(String messageId) {
+        return ONode.ofJson(
+                "{\"body\":{\"msgid\":\""
+                        + messageId
+                        + "\",\"chatid\":\"wecom-chat\",\"chattype\":\"single\","
+                        + "\"from\":{\"userid\":\"wecom-user\"},"
+                        + "\"msgtype\":\"text\",\"text\":{\"content\":\"hello\"}}}");
+    }
+
+    /** 接收两条元宝消息并返回统一消息模型。 */
+    private static List<GatewayMessage> yuanbaoReplyIdentity() throws Exception {
+        AppConfig config = new AppConfig();
+        config.getChannels().getYuanbao().setAllowAllUsers(true);
+        TestYuanbaoAdapter adapter = new TestYuanbaoAdapter(config);
+        setField(adapter, YuanbaoChannelAdapter.class, "callbackExecutor", new DirectExecutor());
+        List<GatewayMessage> messages = captureMessages(adapter);
+        adapter.dispatch(yuanbaoMessage("yuanbao-message-1"));
+        adapter.dispatch(yuanbaoMessage("yuanbao-message-2"));
+        return messages;
+    }
+
+    /** 创建固定会话中的元宝文本消息。 */
+    private static String yuanbaoMessage(String messageId) {
+        return "{\"body\":{\"message_id\":\""
+                + messageId
+                + "\",\"chat_id\":\"yuanbao-chat\","
+                + "\"user_id\":\"yuanbao-user\",\"content\":\"hello\"}}";
+    }
+
     /** 安装计数型统一入站处理器。 */
     private static AtomicInteger handlerCount(
             com.jimuqu.solon.claw.core.service.ChannelAdapter adapter) {
         AtomicInteger handled = new AtomicInteger();
         adapter.setInboundMessageHandler((GatewayMessage message) -> handled.incrementAndGet());
         return handled;
+    }
+
+    /** 安装收集型统一入站处理器。 */
+    private static List<GatewayMessage> captureMessages(
+            com.jimuqu.solon.claw.core.service.ChannelAdapter adapter) {
+        List<GatewayMessage> messages = new ArrayList<GatewayMessage>();
+        adapter.setInboundMessageHandler(messages::add);
+        return messages;
     }
 
     /** 写入适配器私有执行器，使参数化测试同步完成。 */
@@ -193,6 +312,12 @@ public class DomesticInboundMessageDedupTest {
     private interface DuplicateScenario {
         /** 连续投递同一消息两次并返回处理次数。 */
         int dispatchTwice() throws Throwable;
+    }
+
+    /** 允许回复标识场景返回两条统一消息。 */
+    private interface ReplyIdentityScenario {
+        /** 连续接收两条不同消息标识的同会话消息。 */
+        List<GatewayMessage> receiveTwoMessages() throws Throwable;
     }
 
     /** 同步执行回调，避免测试等待后台线程。 */

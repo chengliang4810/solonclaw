@@ -6,6 +6,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
+import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
@@ -64,6 +65,9 @@ public class DefaultDelegationService implements DelegationService {
 
     /** 父运行链最大回溯层数，避免异常环或损坏数据造成无限遍历。 */
     private static final int MAX_DEPTH_LOOKUP = 64;
+
+    /** interrupt 等待 child run 注册的最长时间，覆盖启动检查与运行句柄登记之间的短窗口。 */
+    private static final long INTERRUPT_REGISTRATION_WAIT_MILLIS = 1000L;
 
     /** 对话编排器。 */
     private final ConversationOrchestratorHolder conversationHolder;
@@ -383,6 +387,7 @@ public class DefaultDelegationService implements DelegationService {
             return failureResult("delegate", "Subagent concurrency limit exceeded.");
         }
 
+        SubagentRunRecord subagent = null;
         try {
             SessionRecord parentSession = sessionRepository.getBoundSession(sourceKey);
             String subagentId = "sa-" + IdSupport.newId();
@@ -402,7 +407,7 @@ public class DefaultDelegationService implements DelegationService {
             GatewayMessage message =
                     new GatewayMessage(PlatformType.MEMORY, "", "", decoratePrompt(task));
             message.setSourceKeyOverride(childSourceKey);
-            SubagentRunRecord subagent =
+            subagent =
                     startSubagent(
                             subagentId, sourceKey, childSourceKey, task, parentContext, depth);
             if (isInterrupted(subagentId)) {
@@ -411,6 +416,9 @@ public class DefaultDelegationService implements DelegationService {
             }
             GatewayReply reply = conversationHolder.get().handleIncoming(message);
             finishSubagent(subagent, reply);
+            if ("interrupted".equals(subagent.getStatus())) {
+                return failureResult(subagent.getName(), "Subagent interrupted.");
+            }
 
             DelegationResult result = new DelegationResult();
             result.setSubagentId(subagentId);
@@ -425,6 +433,7 @@ public class DefaultDelegationService implements DelegationService {
             }
             return result;
         } catch (Exception e) {
+            finishFailed(subagent, e.getMessage());
             log.warn(
                     "delegateSingle failed: sourceKey={}, prompt={}, error={}",
                     sourceKey,
@@ -484,14 +493,47 @@ public class DefaultDelegationService implements DelegationService {
         if (record == null) {
             return false;
         }
-        record.setInterruptRequested(true);
-        record.setStatus("interrupting");
-        record.setHeartbeatAt(System.currentTimeMillis());
-        saveSubagent(record);
-        if (agentRunControlService != null) {
-            agentRunControlService.stop(record.getChildSourceKey());
+        synchronized (record) {
+            if (!record.isActive()) {
+                return false;
+            }
+            record.setInterruptRequested(true);
+            record.setStatus("interrupting");
+            record.setHeartbeatAt(System.currentTimeMillis());
+            saveSubagent(record);
         }
+        stopInterruptedChildWhenRegistered(record);
         return true;
+    }
+
+    /** child run 尚未登记时短暂重试，避免 interrupt 落入启动注册窗口后失效。 */
+    private void stopInterruptedChildWhenRegistered(SubagentRunRecord record) {
+        if (agentRunControlService == null) {
+            return;
+        }
+        long deadline = System.currentTimeMillis() + INTERRUPT_REGISTRATION_WAIT_MILLIS;
+        while (isInterruptPending(record)) {
+            AgentRunStopResult result = agentRunControlService.stop(record.getChildSourceKey());
+            if (result != null && result.isActiveRun()) {
+                return;
+            }
+            if (System.currentTimeMillis() >= deadline) {
+                return;
+            }
+            try {
+                Thread.sleep(10L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
+    /** 在线程间安全读取仍需递交给 child run 的中断请求。 */
+    private boolean isInterruptPending(SubagentRunRecord record) {
+        synchronized (record) {
+            return record.isActive() && record.isInterruptRequested();
+        }
     }
 
     /**
@@ -775,16 +817,20 @@ public class DefaultDelegationService implements DelegationService {
         if (record == null) {
             return;
         }
-        record.setStatus(reply != null && reply.isError() ? "failed" : "success");
-        record.setSessionId(reply == null ? null : reply.getSessionId());
-        record.setChildRunId(resolveLatestRunId(record.getChildSourceKey(), record.getSessionId()));
-        record.setError(reply != null && reply.isError() ? reply.getContent() : null);
-        record.setOutputTailJson(buildTailJson(reply == null ? "" : reply.getContent()));
-        record.setActive(false);
-        record.setFinishedAt(System.currentTimeMillis());
-        record.setHeartbeatAt(record.getFinishedAt());
-        saveSubagent(record);
-        activeRegistry.remove(record.getSubagentId());
+        synchronized (record) {
+            if (record.isInterruptRequested()) {
+                finishInterruptedLocked(record, "Subagent interrupted.");
+            } else {
+                record.setStatus(reply != null && reply.isError() ? "failed" : "success");
+                record.setSessionId(reply == null ? null : reply.getSessionId());
+                record.setChildRunId(
+                        resolveLatestRunId(record.getChildSourceKey(), record.getSessionId()));
+                record.setError(reply != null && reply.isError() ? reply.getContent() : null);
+                record.setOutputTailJson(buildTailJson(reply == null ? "" : reply.getContent()));
+                finishRecord(record);
+            }
+        }
+        activeRegistry.remove(record.getSubagentId(), record);
     }
 
     /**
@@ -797,14 +843,46 @@ public class DefaultDelegationService implements DelegationService {
         if (record == null) {
             return;
         }
+        synchronized (record) {
+            finishInterruptedLocked(record, message);
+        }
+        activeRegistry.remove(record.getSubagentId(), record);
+    }
+
+    /** 在记录锁内写入中断终态。 */
+    private void finishInterruptedLocked(SubagentRunRecord record, String message) {
         record.setStatus("interrupted");
         record.setError(message);
-        record.setActive(false);
         record.setInterruptRequested(true);
+        finishRecord(record);
+    }
+
+    /** 将执行异常收敛为失败终态；已收到 interrupt 时保持中断语义。 */
+    private void finishFailed(SubagentRunRecord record, String message) {
+        if (record == null) {
+            return;
+        }
+        synchronized (record) {
+            if (!record.isActive()) {
+                return;
+            }
+            if (record.isInterruptRequested()) {
+                finishInterruptedLocked(record, message);
+            } else {
+                record.setStatus("failed");
+                record.setError(message);
+                finishRecord(record);
+            }
+        }
+        activeRegistry.remove(record.getSubagentId(), record);
+    }
+
+    /** 在记录锁内写入公共终态时间并持久化。 */
+    private void finishRecord(SubagentRunRecord record) {
+        record.setActive(false);
         record.setFinishedAt(System.currentTimeMillis());
         record.setHeartbeatAt(record.getFinishedAt());
         saveSubagent(record);
-        activeRegistry.remove(record.getSubagentId());
     }
 
     /**
@@ -815,7 +893,12 @@ public class DefaultDelegationService implements DelegationService {
      */
     private boolean isInterrupted(String subagentId) {
         SubagentRunRecord record = activeRegistry.get(subagentId);
-        return record != null && record.isInterruptRequested();
+        if (record == null) {
+            return false;
+        }
+        synchronized (record) {
+            return record.isInterruptRequested();
+        }
     }
 
     /**

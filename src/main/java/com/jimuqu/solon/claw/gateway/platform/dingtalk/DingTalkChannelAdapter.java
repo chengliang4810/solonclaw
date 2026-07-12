@@ -423,9 +423,9 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
         return message == null ? "" : StrUtil.nullToEmpty(message.getChatId()).trim();
     }
 
-    /** 返回入站原始消息 ID，当前统一承载在 threadId。 */
+    /** 返回入站原始消息 ID，用于钉钉原消息处理状态回应。 */
     private String inboundMessageId(GatewayMessage message) {
-        return message == null ? "" : StrUtil.nullToEmpty(message.getThreadId()).trim();
+        return message == null ? "" : StrUtil.nullToEmpty(message.getReplyToMessageId()).trim();
     }
 
     /** 生成处理状态缓存键，避免同一条原消息重复添加或重复完成。 */
@@ -488,7 +488,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                             : conversationId);
             gatewayMessage.setUserName(
                     notBlank(message.getSenderNick()) ? message.getSenderNick() : userId);
-            gatewayMessage.setThreadId(message.getMsgId());
+            gatewayMessage.setReplyToMessageId(message.getMsgId());
             dispatchInboundControl(gatewayMessage);
             return;
         }
@@ -557,7 +557,7 @@ public class DingTalkChannelAdapter extends AbstractConfigurableChannelAdapter {
                                     notBlank(message.getSenderNick())
                                             ? message.getSenderNick()
                                             : userId);
-                            gatewayMessage.setThreadId(message.getMsgId());
+                            gatewayMessage.setReplyToMessageId(message.getMsgId());
                             gatewayMessage.setAttachments(attachments);
                             inboundMessageHandler().handle(gatewayMessage);
                         } catch (Exception e) {

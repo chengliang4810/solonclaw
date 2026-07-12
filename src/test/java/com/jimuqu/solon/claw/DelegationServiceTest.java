@@ -5,17 +5,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
 import com.jimuqu.solon.claw.core.model.AgentRunRecord;
+import com.jimuqu.solon.claw.core.model.AgentRunStopResult;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
+import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.engine.DefaultDelegationService;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
 import com.jimuqu.solon.claw.support.FakeLlmGateway;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
@@ -27,6 +30,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -322,6 +328,165 @@ public class DelegationServiceTest {
                 .contains("simulated delegation failure")
                 .contains("***")
                 .doesNotContain("ghp_1234567890abcdef");
+    }
+
+    /** orchestrator 抛错后必须收敛已登记的子 Agent，不能留下运行中假状态。 */
+    @Test
+    void shouldFinishSubagentAsFailedWhenOrchestratorThrows() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-a:user-a";
+        env.sessionRepository.bindNewSession(sourceKey);
+        ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
+        holder.set(
+                new ConversationOrchestrator() {
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply handleIncoming(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        throw new IllegalStateException("simulated child failure");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply resumePending(
+                            String childSourceKey) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("resumed");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply runScheduled(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("scheduled");
+                    }
+                });
+        DefaultDelegationService service =
+                new DefaultDelegationService(
+                        holder,
+                        new SqlitePreferenceStore(env.sqliteDatabase),
+                        env.sessionRepository,
+                        env.agentRunRepository,
+                        env.appConfig,
+                        env.agentRunControlService);
+        AgentRunContext parent =
+                new AgentRunContext(null, "parent-failure", "parent-session", sourceKey);
+        parent.setRunKind("conversation");
+
+        AgentRunContext.setCurrent(parent);
+        DelegationResult result;
+        try {
+            result = service.delegateSingle(sourceKey, "fail", null);
+        } finally {
+            AgentRunContext.setCurrent(null);
+        }
+
+        assertThat(result.isError()).isTrue();
+        assertThat(service.activeSubagents()).isEmpty();
+        List<SubagentRunRecord> records = env.agentRunRepository.listSubagents("parent-failure");
+        assertThat(records).hasSize(1);
+        assertThat(records.get(0).getStatus()).isEqualTo("failed");
+        assertThat(records.get(0).isActive()).isFalse();
+        assertThat(records.get(0).getFinishedAt()).isPositive();
+    }
+
+    /** interrupt 落在 child run 注册窗口时必须重试并保持 interrupted 终态。 */
+    @Test
+    void shouldInterruptChildThatRegistersAfterInterruptRequest() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-a:user-a";
+        env.sessionRepository.bindNewSession(sourceKey);
+        CountDownLatch orchestratorEntered = new CountDownLatch(1);
+        CountDownLatch allowRegistration = new CountDownLatch(1);
+        CountDownLatch stopAttempted = new CountDownLatch(1);
+        CountDownLatch childStopped = new CountDownLatch(1);
+        AtomicBoolean registered = new AtomicBoolean();
+        ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
+        holder.set(
+                new ConversationOrchestrator() {
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply handleIncoming(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message)
+                            throws Exception {
+                        orchestratorEntered.countDown();
+                        allowRegistration.await(5L, TimeUnit.SECONDS);
+                        registered.set(true);
+                        childStopped.await(5L, TimeUnit.SECONDS);
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("must not succeed");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply resumePending(
+                            String childSourceKey) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("resumed");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply runScheduled(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("scheduled");
+                    }
+                });
+        AgentRunControlService control =
+                new AgentRunControlService() {
+                    @Override
+                    public AgentRunStopResult stop(String childSourceKey) {
+                        stopAttempted.countDown();
+                        if (!registered.get()) {
+                            return AgentRunStopResult.none();
+                        }
+                        childStopped.countDown();
+                        return AgentRunStopResult.stopped(
+                                "child-run", "child-session", true, System.currentTimeMillis());
+                    }
+
+                    @Override
+                    public boolean isRunning(String childSourceKey) {
+                        return registered.get() && childStopped.getCount() > 0L;
+                    }
+                };
+        DefaultDelegationService service =
+                new DefaultDelegationService(
+                        holder,
+                        new SqlitePreferenceStore(env.sqliteDatabase),
+                        env.sessionRepository,
+                        env.agentRunRepository,
+                        env.appConfig,
+                        control);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<DelegationResult> delegation =
+                    executor.submit(
+                            () -> {
+                                AgentRunContext parent =
+                                        new AgentRunContext(
+                                                null,
+                                                "parent-interrupt",
+                                                "parent-session",
+                                                sourceKey);
+                                parent.setRunKind("conversation");
+                                AgentRunContext.setCurrent(parent);
+                                try {
+                                    return service.delegateSingle(sourceKey, "wait", null);
+                                } finally {
+                                    AgentRunContext.setCurrent(null);
+                                }
+                            });
+            assertThat(orchestratorEntered.await(5L, TimeUnit.SECONDS)).isTrue();
+            String subagentId = String.valueOf(service.activeSubagents().get(0).get("subagent_id"));
+            Future<Boolean> interrupt =
+                    executor.submit(() -> service.interruptSubagent(subagentId));
+            assertThat(stopAttempted.await(5L, TimeUnit.SECONDS)).isTrue();
+            allowRegistration.countDown();
+
+            assertThat(interrupt.get(5L, TimeUnit.SECONDS)).isTrue();
+            DelegationResult result = delegation.get(5L, TimeUnit.SECONDS);
+            assertThat(result.isError()).isTrue();
+            assertThat(service.activeSubagents()).isEmpty();
+            List<SubagentRunRecord> records =
+                    env.agentRunRepository.listSubagents("parent-interrupt");
+            assertThat(records).hasSize(1);
+            assertThat(records.get(0).getStatus()).isEqualTo("interrupted");
+            assertThat(records.get(0).isInterruptRequested()).isTrue();
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     @Test

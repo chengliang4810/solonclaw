@@ -1060,6 +1060,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         allowFallback = classified.isShouldFallback();
                         boolean retrySameProvider =
                                 classified.shouldRetrySameProvider(attempt, maxAttempts);
+                        boolean overflowRetryFailed =
+                                classified.getReason()
+                                                == LlmErrorClassifier.FailoverReason
+                                                        .CONTEXT_OVERFLOW
+                                        && compressionRecoveryAttempted;
                         if (retrySameProvider
                                 && classified.isShouldCompress()
                                 && !compressionRecoveryAttempted) {
@@ -1092,6 +1097,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
                                     compressionWarning = recoveryCompression.getWarning();
                                 }
                             }
+                        }
+                        if (overflowRetryFailed) {
+                            // 已完成一次压缩且同一提供方重试仍溢出时，交由后续候选模型尝试更大的上下文窗口。
+                            allowFallback = true;
+                            retrySameProvider = false;
                         }
                         if (retrySameProvider) {
                             continue;

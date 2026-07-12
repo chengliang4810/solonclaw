@@ -182,6 +182,8 @@ public class StorageRepositoryTest {
                 agentSession, DangerousCommandApprovalService.ApprovalScope.SESSION, "tester");
         agentSession.pending(true, "restart_interrupted");
         agentSession.updateSnapshot();
+        session.setGoalStateJson("{\"status\":\"active\",\"goal\":\"parent goal\"}");
+        env.sessionRepository.save(session);
 
         SessionRecord clone =
                 env.sessionRepository.cloneSession(
@@ -201,6 +203,9 @@ public class StorageRepositoryTest {
         assertThat(clonedSession.getPendingMarkedAt()).isZero();
         assertThat(clonedSession.getPendingClearedAt()).isZero();
         assertThat(clonedSession.getPendingLastReason()).isNull();
+        assertThat(clone.getGoalStateJson()).isNull();
+        assertThat(env.sessionRepository.findById(session.getSessionId()).getGoalStateJson())
+                .contains("\"status\":\"active\"");
     }
 
     @Test
