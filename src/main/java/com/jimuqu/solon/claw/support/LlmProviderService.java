@@ -5,6 +5,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.llm.LlmProviderSupport;
+import com.jimuqu.solon.claw.support.constants.LlmConstants;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -148,6 +149,62 @@ public class LlmProviderService {
             result.add(resolveProvider(fallback.getProvider().trim(), fallback.getModel()));
         }
         return result;
+    }
+
+    /**
+     * 在发起远程请求前检查本地即可确定的 provider 配置错误。
+     *
+     * @param resolved 已解析的 provider 快照。
+     * @return 空字符串表示可以尝试；否则返回不含凭据的跳过原因。
+     */
+    public String preflightFailure(ResolvedProvider resolved) {
+        if (resolved == null) {
+            return "provider 配置无法解析";
+        }
+        String dialect = LlmProviderSupport.normalizeDialect(resolved.getDialect());
+        if (!LlmProviderSupport.isSupportedDialect(dialect)) {
+            return "不支持的协议方言：" + StrUtil.blankToDefault(dialect, "未配置");
+        }
+        if (StrUtil.isBlank(resolved.getModel())) {
+            return "未配置模型";
+        }
+        if (StrUtil.isBlank(resolved.getApiUrl())) {
+            return "未配置可用的 API 地址";
+        }
+        String host = LlmProviderSupport.baseUrlHostname(resolved.getBaseUrl());
+        if (!LlmConstants.PROVIDER_OLLAMA.equals(dialect)
+                && !isLocalHost(host)
+                && !SecretValueGuard.hasUsableSecret(resolved.getApiKey())) {
+            return "缺少可用 API 凭据";
+        }
+        String path = StrUtil.nullToEmpty(resolved.getApiUrl()).toLowerCase();
+        if ((path.endsWith("/messages") && !LlmConstants.PROVIDER_ANTHROPIC.equals(dialect))
+                || (path.endsWith("/responses")
+                        && !LlmConstants.PROVIDER_OPENAI_RESPONSES.equals(dialect))
+                || (path.endsWith("/chat/completions")
+                        && !LlmConstants.PROVIDER_OPENAI.equals(dialect))) {
+            return "API 地址与协议方言不匹配";
+        }
+        String model = resolved.getModel().toLowerCase();
+        if ((LlmProviderSupport.baseUrlHostMatches(resolved.getBaseUrl(), "api.anthropic.com")
+                        && !model.startsWith("claude"))
+                || (LlmProviderSupport.baseUrlHostMatches(
+                                resolved.getBaseUrl(), "generativelanguage.googleapis.com")
+                        && !model.startsWith("gemini"))
+                || (LlmProviderSupport.baseUrlHostMatches(resolved.getBaseUrl(), "api.openai.com")
+                        && (model.startsWith("claude") || model.startsWith("gemini")))) {
+            return "模型名与 provider 路由明显不匹配";
+        }
+        return "";
+    }
+
+    /** 判断 provider 地址是否为无需云端 API 凭据的本机服务。 */
+    private boolean isLocalHost(String host) {
+        String value = StrUtil.nullToEmpty(host).trim().toLowerCase();
+        return "localhost".equals(value)
+                || "127.0.0.1".equals(value)
+                || "::1".equals(value)
+                || "0:0:0:0:0:0:0:1".equals(value);
     }
 
     /**

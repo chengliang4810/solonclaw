@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -53,6 +54,74 @@ import org.noear.solon.ai.chat.message.ChatMessage;
 import org.slf4j.LoggerFactory;
 
 public class AgentRunSupervisorTest {
+    /** 预检只拦截本地可确定的配置错误，本机兼容服务仍允许无密钥调用。 */
+    @Test
+    void shouldPreflightCredentialAndProtocolRoutingWithoutRemoteCall() throws Exception {
+        Fixture fixture = fixture();
+        LlmProviderService providers = new LlmProviderService(fixture.config);
+        LlmProviderService.ResolvedProvider backup =
+                providers.resolveProvider("backup", "gemini-pro");
+        assertThat(providers.preflightFailure(backup)).contains("模型名与 provider 路由");
+
+        backup.setModel("claude-sonnet-4");
+        backup.setDialect("openai");
+        assertThat(providers.preflightFailure(backup)).contains("API 地址与协议方言");
+
+        backup.setBaseUrl("http://127.0.0.1:8081/v1");
+        backup.setApiUrl("http://127.0.0.1:8081/v1/chat/completions");
+        backup.setApiKey("");
+        assertThat(providers.preflightFailure(backup)).isEmpty();
+    }
+
+    /** 本地已知缺少凭据的 fallback 不应浪费一次远程请求，最终错误应同时展示已尝试与跳过原因。 */
+    @Test
+    void shouldSkipUnusableFallbackAndSummarizeEveryCandidate() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getProviders().get("backup").setApiKey("");
+        Files.write(
+                new File(fixture.config.getRuntime().getConfigFile()).toPath(),
+                Collections.singletonList(
+                        "providers:\n"
+                                + "  primary:\n"
+                                + "    baseUrl: https://api.openai.com\n"
+                                + "    apiKey: primary-key\n"
+                                + "    defaultModel: gpt-5-mini\n"
+                                + "    dialect: openai-responses\n"
+                                + "  backup:\n"
+                                + "    baseUrl: https://api.anthropic.com\n"
+                                + "    defaultModel: claude-sonnet-4\n"
+                                + "    dialect: anthropic\n"
+                                + "model:\n"
+                                + "  providerKey: primary\n"));
+        RecordingGateway gateway = new RecordingGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:skip:user");
+
+        assertThatThrownBy(
+                        () ->
+                                supervisor.run(
+                                        session,
+                                        "system",
+                                        "hello",
+                                        Collections.emptyList(),
+                                        ConversationFeedbackSink.noop(),
+                                        ConversationEventSink.noop(),
+                                        false,
+                                        null,
+                                        Collections.emptyList(),
+                                        null))
+                .hasMessageContaining("primary/gpt-5-mini")
+                .hasMessageContaining("backup/claude-sonnet-4")
+                .hasMessageContaining("缺少可用 API 凭据");
+
+        assertThat(gateway.attempts).containsExactly("primary:gpt-5-mini");
+        AgentRunRecord run =
+                fixture.agentRunRepository.listBySession(session.getSessionId(), 10).get(0);
+        assertThat(eventTypes(fixture.agentRunRepository.listEvents(run.getRunId())))
+                .contains("fallback.skipped", "attempt.error", "run.failed");
+    }
+
     @Test
     void shouldFallbackAndPersistRunEvents() throws Exception {
         Fixture fixture = fixture();
