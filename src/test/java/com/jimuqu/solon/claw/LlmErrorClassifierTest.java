@@ -65,6 +65,47 @@ public class LlmErrorClassifierTest {
         assertThat(transientError.isRetryable()).isTrue();
     }
 
+    /** 证书校验失败不能重试或切换提供方。 */
+    @Test
+    void shouldFailFastForCertificateVerificationFailure() {
+        LlmErrorClassifier.ClassifiedError result =
+                LlmErrorClassifier.classify(
+                        new IllegalStateException("certificate_verify_failed"));
+
+        assertThat(result.getReason())
+                .isEqualTo(LlmErrorClassifier.FailoverReason.CERTIFICATE_VERIFICATION);
+        assertThat(result.isRetryable()).isFalse();
+        assertThat(result.isShouldFallback()).isFalse();
+    }
+
+    /** 提供方账户数据策略阻断不能重试或切换提供方。 */
+    @Test
+    void shouldFailFastForProviderDataPolicyBlock() {
+        LlmErrorClassifier.ClassifiedError result =
+                LlmErrorClassifier.classify(
+                        new IllegalStateException(
+                                "HTTP 404 no endpoints available matching your data policy"));
+
+        assertThat(result.getReason())
+                .isEqualTo(LlmErrorClassifier.FailoverReason.PROVIDER_POLICY_BLOCKED);
+        assertThat(result.isRetryable()).isFalse();
+        assertThat(result.isShouldFallback()).isFalse();
+    }
+
+    /** 内容过滤对未修改提示词没有重试价值，但允许尝试备用模型。 */
+    @Test
+    void shouldFallbackWithoutRetryForContentFilter() {
+        LlmErrorClassifier.ClassifiedError result =
+                LlmErrorClassifier.classify(
+                        new IllegalStateException(
+                                "HTTP 400 finish_reason=content_filter"));
+
+        assertThat(result.getReason())
+                .isEqualTo(LlmErrorClassifier.FailoverReason.CONTENT_POLICY_BLOCKED);
+        assertThat(result.isRetryable()).isFalse();
+        assertThat(result.isShouldFallback()).isTrue();
+    }
+
     /** 限流应直接切换备用模型，超时只允许当前提供方额外重试一次。 */
     @Test
     void shouldChooseTimelyProviderRecovery() {
@@ -77,5 +118,17 @@ public class LlmErrorClassifierTest {
         assertThat(rateLimit.shouldRetrySameProvider(1, 4)).isFalse();
         assertThat(timeout.shouldRetrySameProvider(1, 4)).isTrue();
         assertThat(timeout.shouldRetrySameProvider(2, 4)).isFalse();
+    }
+
+    /** HTTP 429 过载信号优先于通用限流，并保留当前提供方重试。 */
+    @Test
+    void shouldRetrySameProviderForOverloaded429() {
+        LlmErrorClassifier.ClassifiedError result =
+                LlmErrorClassifier.classify(
+                        new IllegalStateException("HTTP 429 overloaded"));
+
+        assertThat(result.getReason()).isEqualTo(LlmErrorClassifier.FailoverReason.OVERLOADED);
+        assertThat(result.isImmediateFallback()).isFalse();
+        assertThat(result.shouldRetrySameProvider(1, 4)).isTrue();
     }
 }
