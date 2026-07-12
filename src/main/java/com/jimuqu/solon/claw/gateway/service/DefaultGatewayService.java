@@ -387,6 +387,8 @@ public class DefaultGatewayService {
                                                             message.getUserId(),
                                                             kickoff);
                                             kickoffMessage.setThreadId(message.getThreadId());
+                                            kickoffMessage.setReplyToMessageId(
+                                                    message.getReplyToMessageId());
                                             kickoffMessage.setChatType(message.getChatType());
                                             kickoffMessage.setChatName(message.getChatName());
                                             kickoffMessage.setUserName(message.getUserName());
@@ -459,6 +461,8 @@ public class DefaultGatewayService {
                                                             message.getUserId(),
                                                             prompt);
                                             continuation.setThreadId(message.getThreadId());
+                                            continuation.setReplyToMessageId(
+                                                    message.getReplyToMessageId());
                                             continuation.setChatType(message.getChatType());
                                             continuation.setChatName(message.getChatName());
                                             continuation.setUserName(message.getUserName());
@@ -557,6 +561,7 @@ public class DefaultGatewayService {
             request.setUserId(message.getUserId());
             request.setChatType(message.getChatType());
             request.setThreadId(message.getThreadId());
+            request.setReplyToMessageId(message.getReplyToMessageId());
             GatewayMediaDeliverySupport.DeliveryMedia media =
                     mediaDeliverySupport == null
                             ? null

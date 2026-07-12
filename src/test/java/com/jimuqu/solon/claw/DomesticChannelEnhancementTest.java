@@ -193,7 +193,7 @@ public class DomesticChannelEnhancementTest {
         request.setPlatform(PlatformType.QQBOT);
         request.setChatId("user-a");
         request.setChatType("dm");
-        request.setThreadId("m1");
+        request.setReplyToMessageId("m1");
         Map<String, Object> extras = new LinkedHashMap<String, Object>();
         extras.put("mode", DangerousCommandApprovalService.DELIVERY_MODE_APPROVAL_CARD);
         extras.put("approvalId", "approval-123");
@@ -206,6 +206,7 @@ public class DomesticChannelEnhancementTest {
         ONode body = adapter.buildApprovalBody(request);
 
         assertThat(body.get("msg_type").getInt()).isEqualTo(2);
+        assertThat(body.get("msg_seq").getInt()).isBetween(0, 65535);
         assertThat(body.get("markdown").get("content").getString()).contains("命令执行审批");
         assertThat(body.get("markdown").get("content").getString())
                 .contains("rm -rf workspace/cache");
@@ -231,6 +232,7 @@ public class DomesticChannelEnhancementTest {
         ONode body = adapter.buildMediaBody("media-info", "msg-inbound");
 
         assertThat(body.get("msg_type").getInt()).isEqualTo(7);
+        assertThat(body.get("msg_seq").getInt()).isBetween(0, 65535);
         assertThat(body.get("media").get("file_info").getString()).isEqualTo("media-info");
         assertThat(body.get("msg_id").getString()).isEqualTo("msg-inbound");
     }
@@ -243,7 +245,12 @@ public class DomesticChannelEnhancementTest {
                 FeishuChannelAdapter.class.getDeclaredMethod("messageUrl", String.class);
         Method messageBody =
                 FeishuChannelAdapter.class.getDeclaredMethod(
-                        "messageBody", String.class, String.class, String.class, String.class);
+                        "messageBody",
+                        String.class,
+                        String.class,
+                        String.class,
+                        String.class,
+                        String.class);
         messageUrl.setAccessible(true);
         messageBody.setAccessible(true);
 
@@ -257,11 +264,13 @@ public class DomesticChannelEnhancementTest {
                                         "oc_chat",
                                         "text",
                                         "{\"text\":\"ok\"}",
-                                        "om_inbound")));
+                                        "om_inbound",
+                                        "omt_thread")));
 
         assertThat(url).endsWith("/im/v1/messages/om_inbound/reply");
         assertThat(body.get("receive_id").isNull()).isTrue();
         assertThat(body.get("msg_type").getString()).isEqualTo("text");
+        assertThat(body.get("reply_in_thread").getBoolean()).isTrue();
     }
 
     @Test
@@ -373,7 +382,8 @@ public class DomesticChannelEnhancementTest {
         assertThat(approve.getChatType()).isEqualTo("group");
         assertThat(approve.getChatId()).isEqualTo("group-a");
         assertThat(approve.getUserId()).isEqualTo("user-a");
-        assertThat(approve.getThreadId()).isEqualTo("int-1");
+        assertThat(approve.getThreadId()).isNull();
+        assertThat(approve.getReplyToMessageId()).isEqualTo("int-1");
         GatewayMessage session =
                 adapter.parse(
                         "{\"t\":\"INTERACTION_CREATE\",\"d\":{\"id\":\"int-session\",\"chat_type\":2,\"user_openid\":\"user-session\",\"resolved\":{\"button_data\":\"approve:approval-123:allow-session\"}}}");
@@ -425,7 +435,7 @@ public class DomesticChannelEnhancementTest {
         request.setPlatform(PlatformType.QQBOT);
         request.setChatId("user-a");
         request.setChatType("dm");
-        request.setThreadId("m1");
+        request.setReplyToMessageId("m1");
         request.setText("是否继续升级？");
         Map<String, Object> extras = new LinkedHashMap<String, Object>();
         extras.put("mode", QQBotChannelAdapter.DELIVERY_MODE_UPDATE_PROMPT);

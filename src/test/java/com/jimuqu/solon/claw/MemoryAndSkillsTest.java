@@ -436,14 +436,14 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
-    void shouldIncludeUserMemoryInSystemPrompt() throws Exception {
+    void shouldExcludeUserMemoryFromBuiltinSystemPrompt() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
 
         env.memoryService.add("user", "用户偏好：使用中文回答");
 
         assertThat(env.memoryManager.buildSystemPrompt("MEMORY:user-room:user-id"))
-                .contains("[User]")
-                .contains("用户偏好：使用中文回答");
+                .doesNotContain("[User]")
+                .doesNotContain("用户偏好：使用中文回答");
     }
 
     @Test

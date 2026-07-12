@@ -1,9 +1,11 @@
 package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
+import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.repository.ChannelStateRepository;
 import com.jimuqu.solon.claw.core.service.InboundMessageHandler;
 import com.jimuqu.solon.claw.gateway.platform.weixin.WeiXinChannelAdapter;
@@ -21,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -610,12 +613,107 @@ public class WeixinInboundDispatchTest {
         }
     }
 
+    @Test
+    void shouldPreserveQuotedPlainTextContext() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setGroupPolicy("open");
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.01D);
+        WeiXinChannelAdapter adapter = newAdapter(config);
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<String> receivedText = new AtomicReference<String>();
+        adapter.setInboundMessageHandler(
+                message -> {
+                    receivedText.set(message.getText());
+                    latch.countDown();
+                });
+
+        try {
+            Method processInbound =
+                    WeiXinChannelAdapter.class.getDeclaredMethod(
+                            "processInboundMessage", ONode.class);
+            processInbound.setAccessible(true);
+            processInbound.invoke(
+                    adapter,
+                    ONode.ofJson(
+                            "{"
+                                    + "\"from_user_id\":\"wx-user\","
+                                    + "\"message_id\":\"msg-quote\","
+                                    + "\"room_id\":\"room-1\","
+                                    + "\"item_list\":[{\"type\":1,"
+                                    + "\"text_item\":{\"text\":\"当前问题\"},"
+                                    + "\"ref_msg\":{\"title\":\"张三\","
+                                    + "\"message_item\":{\"type\":1,"
+                                    + "\"text_item\":{\"text\":\"被引用内容\"}}}}]}"));
+
+            assertThat(latch.await(5L, TimeUnit.SECONDS)).isTrue();
+            assertThat(receivedText.get()).isEqualTo("[引用: 张三 | 被引用内容]\n当前问题");
+        } finally {
+            adapter.disconnect();
+        }
+    }
+
+    @Test
+    void shouldRejectLateInboundAndExecutorRecreationAfterDisconnect() throws Throwable {
+        WeiXinChannelAdapter adapter = newAdapter();
+        adapter.disconnect();
+        AtomicReference<GatewayMessage> received = new AtomicReference<GatewayMessage>();
+        adapter.setInboundMessageHandler(received::set);
+
+        Method processInbound =
+                WeiXinChannelAdapter.class.getDeclaredMethod("processInboundMessage", ONode.class);
+        processInbound.setAccessible(true);
+        processInbound.invoke(adapter, inboundText("msg-late", "room-1", "wx-user", "late"));
+
+        Method enqueue =
+                WeiXinChannelAdapter.class.getDeclaredMethod(
+                        "enqueueTextBatch",
+                        GatewayMessage.class,
+                        String.class,
+                        String.class,
+                        String.class);
+        enqueue.setAccessible(true);
+        enqueue.invoke(
+                adapter,
+                new GatewayMessage(PlatformType.WEIXIN, "room-1", "wx-user", "late"),
+                "group",
+                "room-1",
+                "context-token");
+
+        for (String methodName :
+                List.of(
+                        "ensureInboundExecutor",
+                        "ensureTextBatchExecutor",
+                        "ensureTypingHeartbeatExecutor")) {
+            Method ensure = WeiXinChannelAdapter.class.getDeclaredMethod(methodName);
+            ensure.setAccessible(true);
+            assertThatThrownBy(() -> invoke(ensure, adapter))
+                    .isInstanceOf(RejectedExecutionException.class);
+        }
+
+        assertThat(received.get()).isNull();
+        assertThat(fieldValue(adapter, "inboundExecutor")).isNull();
+        assertThat(fieldValue(adapter, "textBatchExecutor")).isNull();
+        assertThat(fieldValue(adapter, "typingHeartbeatExecutor")).isNull();
+        assertThat((Map<?, ?>) fieldValue(adapter, "pendingTextBatches")).isEmpty();
+        assertThat((Map<?, ?>) fieldValue(adapter, "pendingTextBatchTasks")).isEmpty();
+        assertThat((Map<?, ?>) fieldValue(adapter, "activeTypingLifecycles")).isEmpty();
+    }
+
     private Object invoke(Method method, Object target, Object... args) throws Throwable {
         try {
             return method.invoke(target, args);
         } catch (InvocationTargetException e) {
             throw e.getCause();
         }
+    }
+
+    /** 读取适配器内部状态，验证断连后不会遗留或重建执行资源。 */
+    private Object fieldValue(WeiXinChannelAdapter adapter, String fieldName) throws Exception {
+        Field field = WeiXinChannelAdapter.class.getDeclaredField(fieldName);
+        field.setAccessible(true);
+        return field.get(adapter);
     }
 
     private String repeat(String text, int count) {

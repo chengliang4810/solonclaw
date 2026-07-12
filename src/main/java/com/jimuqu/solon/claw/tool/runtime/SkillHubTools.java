@@ -108,7 +108,7 @@ public class SkillHubTools {
             description = "Update hub-installed skills from their upstream sources.")
     public String update(
             @Param(name = "name", description = "可选技能名", required = false) String name,
-            @Param(name = "force", description = "是否允许覆盖 caution 安装限制", required = false)
+            @Param(name = "force", description = "是否允许覆盖 caution 限制或本地修改", required = false)
                     Boolean force)
             throws Exception {
         return safeResult(skillHubService.update(name, force != null && force.booleanValue()));
@@ -316,7 +316,7 @@ public class SkillHubTools {
                 description = "Update hub-installed skills from their upstream sources.")
         public String update(
                 @Param(name = "name", description = "可选技能名", required = false) String name,
-                @Param(name = "force", description = "是否允许覆盖 caution 安装限制", required = false)
+                @Param(name = "force", description = "是否允许覆盖 caution 限制或本地修改", required = false)
                         Boolean force)
                 throws Exception {
             return delegate.update(name, force);

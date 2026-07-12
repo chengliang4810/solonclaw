@@ -412,6 +412,7 @@ public class DefaultCommandService implements CommandService {
                             message.getUserId(),
                             lastUser);
             retryMessage.setThreadId(message.getThreadId());
+            retryMessage.setReplyToMessageId(message.getReplyToMessageId());
             retryMessage.setChatType(message.getChatType());
             retryMessage.setChatName(message.getChatName());
             retryMessage.setUserName(message.getUserName());
@@ -872,6 +873,7 @@ public class DefaultCommandService implements CommandService {
                             message.getUserId(),
                             lastUser);
             retryMessage.setThreadId(message.getThreadId());
+            retryMessage.setReplyToMessageId(message.getReplyToMessageId());
             retryMessage.setChatType(message.getChatType());
             retryMessage.setChatName(message.getChatName());
             retryMessage.setUserName(message.getUserName());
@@ -891,6 +893,7 @@ public class DefaultCommandService implements CommandService {
                             message.getUserId(),
                             goalKickoff);
             kickoffMessage.setThreadId(message.getThreadId());
+            kickoffMessage.setReplyToMessageId(message.getReplyToMessageId());
             kickoffMessage.setChatType(message.getChatType());
             kickoffMessage.setChatName(message.getChatName());
             kickoffMessage.setUserName(message.getUserName());

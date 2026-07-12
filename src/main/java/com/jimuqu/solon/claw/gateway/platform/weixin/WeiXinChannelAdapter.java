@@ -38,6 +38,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -1223,6 +1224,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回入站执行器结果。
      */
     private synchronized ExecutorService ensureInboundExecutor() {
+        if (disconnecting) {
+            throw new RejectedExecutionException("Weixin channel is disconnecting");
+        }
         if (inboundExecutor == null
                 || inboundExecutor.isShutdown()
                 || inboundExecutor.isTerminated()) {
@@ -1281,6 +1285,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param message 平台消息或错误消息。
      */
     private void processInboundMessage(ONode message) {
+        if (disconnecting) {
+            return;
+        }
         String senderId = message.get("from_user_id").getString();
         if (StrUtil.isBlank(senderId) || senderId.equals(config.getAccountId())) {
             return;
@@ -1371,8 +1378,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param chatId 聊天标识。
      * @param contextToken 上下文token上下文。
      */
-    private void enqueueTextBatch(
+    private synchronized void enqueueTextBatch(
             GatewayMessage gatewayMessage, String chatType, String chatId, String contextToken) {
+        if (disconnecting) {
+            return;
+        }
         final String key =
                 String.valueOf(gatewayMessage.getPlatform())
                         + ":"
@@ -1401,19 +1411,33 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             previous.cancel(false);
         }
         long delayMillis = batch.delayMillis(config);
-        ScheduledFuture<?> future =
-                ensureTextBatchExecutor()
-                        .schedule(
-                                new Runnable() {
-                                    /** 执行异步任务主体。 */
-                                    @Override
-                                    public void run() {
-                                        flushTextBatch(key);
-                                    }
-                                },
-                                delayMillis,
-                                TimeUnit.MILLISECONDS);
-        pendingTextBatchTasks.put(key, future);
+        try {
+            ScheduledFuture<?> future =
+                    ensureTextBatchExecutor()
+                            .schedule(
+                                    new Runnable() {
+                                        /** 执行异步任务主体。 */
+                                        @Override
+                                        public void run() {
+                                            flushTextBatch(key);
+                                        }
+                                    },
+                                    delayMillis,
+                                    TimeUnit.MILLISECONDS);
+            pendingTextBatchTasks.put(key, future);
+        } catch (RejectedExecutionException e) {
+            ScheduledFuture<?> rejectedTask = pendingTextBatchTasks.remove(key);
+            if (rejectedTask != null) {
+                rejectedTask.cancel(false);
+            }
+            PendingTextBatch rejectedBatch = pendingTextBatches.remove(key);
+            if (rejectedBatch != null) {
+                stopTypingLifecycle(rejectedBatch.typingLifecycle, false);
+            }
+            if (!disconnecting) {
+                throw e;
+            }
+        }
     }
 
     /**
@@ -1422,6 +1446,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回Text Batch执行器结果。
      */
     private synchronized ScheduledExecutorService ensureTextBatchExecutor() {
+        if (disconnecting) {
+            throw new RejectedExecutionException("Weixin channel is disconnecting");
+        }
         if (textBatchExecutor == null
                 || textBatchExecutor.isShutdown()
                 || textBatchExecutor.isTerminated()) {
@@ -1438,6 +1465,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 输入状态心跳调度执行器。
      */
     private synchronized ScheduledExecutorService ensureTypingHeartbeatExecutor() {
+        if (disconnecting) {
+            throw new RejectedExecutionException("Weixin channel is disconnecting");
+        }
         if (typingHeartbeatExecutor == null
                 || typingHeartbeatExecutor.isShutdown()
                 || typingHeartbeatExecutor.isTerminated()) {
@@ -1600,7 +1630,25 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     text = item.get("text_item").get("content").getString();
                 }
                 if (StrUtil.isNotBlank(text)) {
-                    return text.trim();
+                    text = text.trim();
+                    ONode ref = item.get("ref_msg");
+                    ONode refItem = ref.get("message_item");
+                    if (refItem != null
+                            && refItem.isObject()
+                            && refItem.get("type").getInt() == ITEM_TEXT) {
+                        ONode quotedItems = new ONode().asArray();
+                        quotedItems.add(refItem);
+                        String refText = extractInboundText(quotedItems);
+                        String title = ref.get("title").getString();
+                        String quoted = StrUtil.isBlank(title) ? refText : title.trim();
+                        if (StrUtil.isNotBlank(title) && StrUtil.isNotBlank(refText)) {
+                            quoted += " | " + refText;
+                        }
+                        if (StrUtil.isNotBlank(quoted)) {
+                            return "[引用: " + quoted + "]\n" + text;
+                        }
+                    }
+                    return text;
                 }
             }
         }

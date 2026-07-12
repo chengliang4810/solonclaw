@@ -19,11 +19,7 @@ export interface RecoveryPlan {
   sid: null | string
 }
 
-// Decide whether to respawn+resume after a gateway death. `liveSid` is the
-// current session (nulled on the first exit); `recoverSid` is a pending
-// recovery target carried across a respawn that died before gateway.ready —
-// so a startup crash-loop keeps retrying the same session up to the budget
-// instead of stranding it after one attempt.
+// Decide whether to restart after a gateway death, resuming when a session exists.
 export function planGatewayRecovery(
   liveSid: null | string,
   recoverSid: null | string,
@@ -32,7 +28,7 @@ export function planGatewayRecovery(
 ): RecoveryPlan {
   const sid = liveSid ?? recoverSid
   const recent = attempts.filter(t => now - t < GATEWAY_RECOVERY_WINDOW_MS)
-  const recover = Boolean(sid) && recent.length < GATEWAY_RECOVERY_LIMIT
+  const recover = recent.length < GATEWAY_RECOVERY_LIMIT
   const delayMs = recover ? Math.min(5000, recent.length * GATEWAY_RECOVERY_BACKOFF_MS) : 0
 
   return { attempts: recover ? [...recent, now] : recent, delayMs, recover, sid }

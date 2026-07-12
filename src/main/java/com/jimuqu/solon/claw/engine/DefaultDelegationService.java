@@ -62,6 +62,9 @@ public class DefaultDelegationService implements DelegationService {
     /** 当前系统已知工具清单。 */
     private static final List<String> ALL_TOOLS = AgentRuntimePolicy.knownToolNames();
 
+    /** 父运行链最大回溯层数，避免异常环或损坏数据造成无限遍历。 */
+    private static final int MAX_DEPTH_LOOKUP = 64;
+
     /** 对话编排器。 */
     private final ConversationOrchestratorHolder conversationHolder;
 
@@ -185,6 +188,7 @@ public class DefaultDelegationService implements DelegationService {
         }
         final String delegationId = "dg-" + IdSupport.newId();
         final AgentRunContext parentContext = AgentRunContext.current();
+        final String parentSessionId = parentContext == null ? null : parentContext.getSessionId();
         try {
             backgroundExecutor.submit(
                     ProfileRuntimeScope.capture(
@@ -204,7 +208,8 @@ public class DefaultDelegationService implements DelegationService {
                                     } finally {
                                         AgentRunContext.setCurrent(previous);
                                     }
-                                    deliverBackgroundResult(sourceKey, delegationId, results);
+                                    deliverBackgroundResult(
+                                            sourceKey, parentSessionId, delegationId, results);
                                 }
                             }));
         } catch (java.util.concurrent.RejectedExecutionException e) {
@@ -221,7 +226,10 @@ public class DefaultDelegationService implements DelegationService {
 
     /** 把后台委派结果作为新一轮父会话输入，触发模型读取并继续回答。 */
     private void deliverBackgroundResult(
-            String sourceKey, String delegationId, List<DelegationResult> results) {
+            String sourceKey,
+            String parentSessionId,
+            String delegationId,
+            List<DelegationResult> results) {
         if (conversationHolder.get() == null) {
             log.warn("Background delegation result dropped: orchestrator unavailable");
             return;
@@ -241,6 +249,10 @@ public class DefaultDelegationService implements DelegationService {
         completion.setSourceKeyOverride(sourceKey);
         try {
             waitForParentRun(sourceKey);
+            if (!isParentSessionCurrent(sourceKey, parentSessionId)) {
+                log.warn("Background delegation result dropped: parent session changed");
+                return;
+            }
             GatewayReply reply = conversationHolder.get().handleIncoming(completion);
             if (deliveryService != null
                     && reply != null
@@ -254,6 +266,22 @@ public class DefaultDelegationService implements DelegationService {
             log.warn(
                     "Background delegation result delivery failed: error={}",
                     exceptionLogSummary(e));
+        }
+    }
+
+    /** 核对后台委派仍归属于当前绑定会话；无法核实时拒绝回流。 */
+    private boolean isParentSessionCurrent(String sourceKey, String parentSessionId) {
+        if (sessionRepository == null || StrUtil.isBlank(parentSessionId)) {
+            return true;
+        }
+        try {
+            SessionRecord current = sessionRepository.getBoundSession(sourceKey);
+            return current != null && parentSessionId.equals(current.getSessionId());
+        } catch (Exception e) {
+            log.warn(
+                    "Background delegation parent session check failed: error={}",
+                    exceptionLogSummary(e));
+            return false;
         }
     }
 
@@ -774,18 +802,28 @@ public class DefaultDelegationService implements DelegationService {
         if (parentContext == null || StrUtil.isBlank(parentContext.getRunId())) {
             return 1;
         }
+        int depth = 1;
         try {
-            AgentRunRecord parent =
-                    agentRunRepository == null
-                            ? null
-                            : agentRunRepository.findRun(parentContext.getRunId());
-            if (parent != null && "subagent".equals(parent.getRunKind())) {
-                return 2;
+            String runId = parentContext.getRunId();
+            LinkedHashSet<String> visited = new LinkedHashSet<String>();
+            for (int i = 0;
+                    agentRunRepository != null
+                            && i < MAX_DEPTH_LOOKUP
+                            && StrUtil.isNotBlank(runId)
+                            && visited.add(runId);
+                    i++) {
+                AgentRunRecord parent = agentRunRepository.findRun(runId);
+                if (parent == null || !"subagent".equals(parent.getRunKind())) {
+                    break;
+                }
+                depth++;
+                runId = parent.getParentRunId();
             }
         } catch (Exception e) {
-            log.debug("resolveDepth failed; using default depth. error={}", exceptionLogSummary(e));
+            log.debug(
+                    "resolveDepth failed; using resolved depth. error={}", exceptionLogSummary(e));
         }
-        return 1;
+        return depth;
     }
 
     /**

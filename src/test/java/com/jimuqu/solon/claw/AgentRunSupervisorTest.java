@@ -675,6 +675,114 @@ public class AgentRunSupervisorTest {
                 .contains("run.queue.start", "run.queue.success");
     }
 
+    /** reservation 前置失败释放后必须唤醒队列，且 drain 运行期间持续持有同来源占位。 */
+    @Test
+    void shouldDrainQueuedMessageUnderSourceReservationAfterReservationRelease() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        String sourceKey = "MEMORY:reservation-drain:user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        GatewayMessage first =
+                new GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "reservation-drain",
+                        "user",
+                        "first");
+        GatewayMessage queued =
+                new GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "reservation-drain",
+                        "user",
+                        "queued");
+        assertThat(
+                        supervisor
+                                .coordinateIncoming(sourceKey, session.getSessionId(), first)
+                                .isShouldRunNow())
+                .isTrue();
+        supervisor.queueIncoming(sourceKey, session.getSessionId(), queued);
+
+        assertThat(supervisor.releaseIncomingReservation(sourceKey)).isTrue();
+        CountDownLatch drained = new CountDownLatch(1);
+        AtomicReference<Boolean> reservationObserved = new AtomicReference<Boolean>(false);
+        supervisor.onRunFinished(
+                sourceKey,
+                session.getSessionId(),
+                message -> {
+                    reservationObserved.set(Boolean.valueOf(supervisor.isRunning(sourceKey)));
+                    drained.countDown();
+                    return GatewayReply.ok("done");
+                });
+
+        assertThat(drained.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(reservationObserved.get()).isTrue();
+        assertThat(
+                        fixture.agentRunRepository.findNextQueuedMessage(
+                                sourceKey, session.getSessionId()))
+                .isNull();
+    }
+
+    /** stale 恢复只把 conversation/resume 的精确会话标为可续跑，排除 queued 与审批态。 */
+    @Test
+    void shouldMarkOnlyRunnableStaleSessionsPending() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        long staleAt = System.currentTimeMillis() - 120_000L;
+        String[] kinds = {"conversation", "resume", "conversation", "conversation"};
+        String[] statuses = {"running", "interrupting", "queued", "waiting_approval"};
+        List<SessionRecord> sessions = new ArrayList<SessionRecord>();
+        for (int index = 0; index < kinds.length; index++) {
+            String sourceKey = "MEMORY:stale-kind-" + index + ":user";
+            SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+            sessions.add(session);
+            AgentRunRecord run = new AgentRunRecord();
+            run.setRunId("stale-kind-run-" + index);
+            run.setSessionId(session.getSessionId());
+            run.setSourceKey(sourceKey);
+            run.setRunKind(kinds[index]);
+            run.setStatus(statuses[index]);
+            run.setStartedAt(staleAt);
+            run.setLastActivityAt(staleAt);
+            fixture.agentRunRepository.saveRun(run);
+        }
+
+        supervisor.recoverStaleRuns(60_000L);
+
+        assertThat(
+                        new SqliteAgentSession(
+                                        fixture.sessionRepository.findById(
+                                                sessions.get(0).getSessionId()))
+                                .getPendingReason())
+                .isEqualTo("restart_interrupted");
+        assertThat(
+                        new SqliteAgentSession(
+                                        fixture.sessionRepository.findById(
+                                                sessions.get(1).getSessionId()))
+                                .getPendingReason())
+                .isEqualTo("restart_interrupted");
+        assertThat(
+                        new SqliteAgentSession(
+                                        fixture.sessionRepository.findById(
+                                                sessions.get(2).getSessionId()))
+                                .isPending())
+                .isFalse();
+        assertThat(
+                        new SqliteAgentSession(
+                                        fixture.sessionRepository.findById(
+                                                sessions.get(3).getSessionId()))
+                                .isPending())
+                .isFalse();
+    }
+
     @Test
     void shouldCarryProfileScopeIntoQueuedRunDrainThread() throws Exception {
         Fixture fixture = fixture();

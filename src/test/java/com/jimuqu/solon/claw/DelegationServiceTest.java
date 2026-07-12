@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
+import com.jimuqu.solon.claw.core.model.AgentRunRecord;
 import com.jimuqu.solon.claw.core.model.DelegationResult;
 import com.jimuqu.solon.claw.core.model.DelegationTask;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
@@ -158,6 +159,41 @@ public class DelegationServiceTest {
                                 .findById(results.get(1).getSessionId())
                                 .getParentSessionId())
                 .isEqualTo(parent.getSessionId());
+    }
+
+    /** 深层 orchestrator 必须沿父运行链累计深度，不能把三层以后继续视为第二层。 */
+    @Test
+    void shouldRejectDelegationBeyondRecursiveParentDepth() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getTask().setSubagentMaxDepth(3);
+        env.agentRunRepository.saveRun(run("root", "conversation", null));
+        env.agentRunRepository.saveRun(run("child-1", "subagent", "root"));
+        env.agentRunRepository.saveRun(run("child-2", "subagent", "child-1"));
+        env.agentRunRepository.saveRun(run("child-3", "subagent", "child-2"));
+        DefaultDelegationService service =
+                new DefaultDelegationService(
+                        new ConversationOrchestratorHolder(),
+                        null,
+                        env.sessionRepository,
+                        env.agentRunRepository,
+                        env.appConfig,
+                        null);
+        AgentRunContext context =
+                new AgentRunContext(null, "child-3", "child-session", "MEMORY:room-a:user-a");
+        context.setRunKind("subagent");
+        DelegationTask task = new DelegationTask();
+        task.setPrompt("must be rejected");
+
+        AgentRunContext.setCurrent(context);
+        DelegationResult result;
+        try {
+            result = service.delegateSingle("MEMORY:room-a:user-a", task);
+        } finally {
+            AgentRunContext.setCurrent(null);
+        }
+
+        assertThat(result.isError()).isTrue();
+        assertThat(result.getContent()).contains("depth limit exceeded");
     }
 
     /** batch 等待线程被取消后必须保留中断标记，并停止等待其余子任务。 */
@@ -380,6 +416,69 @@ public class DelegationServiceTest {
         assertThat(channelDelivery.get().getUserId()).isEqualTo("user-a");
     }
 
+    /** 后台委派完成前父来源键切到新会话时，旧结果必须拒绝回流。 */
+    @Test
+    void backgroundDelegationShouldNotReenterAfterNewSession() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:room-a:user-a";
+        SessionRecord parent = env.sessionRepository.bindNewSession(sourceKey);
+        CountDownLatch batchStarted = new CountDownLatch(1);
+        CountDownLatch releaseChild = new CountDownLatch(1);
+        CountDownLatch batchReturned = new CountDownLatch(1);
+        CountDownLatch completionDelivered = new CountDownLatch(1);
+        ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
+        holder.set(
+                new ConversationOrchestrator() {
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply handleIncoming(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        completionDelivered.countDown();
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("continued");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply resumePending(String key) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("resumed");
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.core.model.GatewayReply runScheduled(
+                            com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        return com.jimuqu.solon.claw.core.model.GatewayReply.ok("scheduled");
+                    }
+                });
+        DefaultDelegationService service =
+                new DefaultDelegationService(holder, null, env.sessionRepository) {
+                    @Override
+                    public List<DelegationResult> delegateBatch(
+                            String key, List<DelegationTask> tasks) throws Exception {
+                        batchStarted.countDown();
+                        releaseChild.await(5, TimeUnit.SECONDS);
+                        batchReturned.countDown();
+                        return java.util.Collections.emptyList();
+                    }
+                };
+        AgentRunContext context =
+                new AgentRunContext(null, "parent-run", parent.getSessionId(), sourceKey);
+        context.setRunKind("conversation");
+        DelegationTask task = new DelegationTask();
+        task.setPrompt("slow child");
+
+        AgentRunContext.setCurrent(context);
+        try {
+            service.delegateInBackground(sourceKey, Arrays.asList(task));
+        } finally {
+            AgentRunContext.setCurrent(null);
+        }
+        assertThat(batchStarted.await(2, TimeUnit.SECONDS)).isTrue();
+        SessionRecord replacement = env.sessionRepository.bindNewSession(sourceKey);
+        assertThat(replacement.getSessionId()).isNotEqualTo(parent.getSessionId());
+        releaseChild.countDown();
+
+        assertThat(batchReturned.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(completionDelivered.await(300, TimeUnit.MILLISECONDS)).isFalse();
+    }
+
     /** 子 Agent 内的 orchestrator 委派必须同步返回，便于在本轮汇总 worker 结果。 */
     @Test
     void delegateToolShouldRemainSynchronousInsideSubagent() throws Exception {
@@ -556,6 +655,18 @@ public class DelegationServiceTest {
         item.setContent(content);
         item.setStatus(status);
         return item;
+    }
+
+    /** 创建委派深度测试使用的最小运行记录。 */
+    private static AgentRunRecord run(String runId, String runKind, String parentRunId) {
+        AgentRunRecord record = new AgentRunRecord();
+        record.setRunId(runId);
+        record.setSessionId(runId + "-session");
+        record.setSourceKey("MEMORY:room-a:user-a");
+        record.setRunKind(runKind);
+        record.setParentRunId(parentRunId);
+        record.setStatus("success");
+        return record;
     }
 
     /**

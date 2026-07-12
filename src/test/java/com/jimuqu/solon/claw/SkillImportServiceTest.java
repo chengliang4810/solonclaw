@@ -58,7 +58,12 @@ public class SkillImportServiceTest {
                     @Override
                     public com.jimuqu.solon.claw.skillhub.model.SkillMeta inspect(
                             String identifier) {
-                        return null;
+                        com.jimuqu.solon.claw.skillhub.model.SkillMeta meta =
+                                new com.jimuqu.solon.claw.skillhub.model.SkillMeta();
+                        meta.setName(bundle.getName());
+                        meta.setIdentifier(bundle.getIdentifier());
+                        meta.setSource(sourceId());
+                        return meta;
                     }
 
                     @Override
@@ -91,6 +96,46 @@ public class SkillImportServiceTest {
 
         assertThat(checked.getMetadata().get("status")).isEqualTo("up_to_date");
         assertThat(checked.getContentHash()).isEqualTo(checked.getMetadata().get("latestHash"));
+    }
+
+    /** Skills Hub 更新默认拒绝覆盖本地人工修改，显式 force 后才允许更新。 */
+    @Test
+    void shouldRejectDirtyLocalSkillUpdateUnlessForced() throws Exception {
+        File repoRoot = Files.createTempDirectory("skill-update-repo").toFile();
+        File skillsDir = Files.createTempDirectory("skill-update-skills").toFile();
+        SkillHubStateStore stateStore = new SkillHubStateStore(skillsDir);
+        SkillBundle initial = new SkillBundle();
+        initial.setName("update-demo");
+        initial.setSource("clawhub");
+        initial.setIdentifier("update-demo");
+        initial.getFiles().put("SKILL.md", skill("update-demo", "initial helper"));
+        SkillImportService importService =
+                new DefaultSkillImportService(
+                        skillsDir, new DefaultSkillGuardService(), stateStore);
+        importService.installBundle(initial, null, false, null);
+        File localSkill = FileUtil.file(skillsDir, "update-demo", "SKILL.md");
+        FileUtil.writeUtf8String(skill("update-demo", "local helper"), localSkill);
+
+        SkillBundle updated = new SkillBundle();
+        updated.setName("update-demo");
+        updated.setSource("clawhub");
+        updated.setIdentifier("update-demo");
+        updated.getFiles().put("SKILL.md", skill("update-demo", "upstream helper"));
+        DefaultSkillHubService hub =
+                hubForSingleSource(repoRoot, skillsDir, importService, stateStore, updated);
+
+        assertThatThrownBy(() -> hub.update("update-demo", false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Local skill has been modified")
+                .hasMessageContaining("force");
+        assertThat(FileUtil.readUtf8String(localSkill)).contains("local helper");
+
+        List<HubInstallRecord> result = hub.update("update-demo", true);
+
+        assertThat(result).hasSize(1);
+        assertThat(FileUtil.readUtf8String(localSkill))
+                .contains("upstream helper")
+                .doesNotContain("local helper");
     }
 
     @Test
@@ -363,6 +408,58 @@ public class SkillImportServiceTest {
                 }
             }
         }
+    }
+
+    /** 构造只提供指定远端技能包的 Skills Hub，隔离更新路径测试。 */
+    private DefaultSkillHubService hubForSingleSource(
+            File repoRoot,
+            File skillsDir,
+            SkillImportService importService,
+            SkillHubStateStore stateStore,
+            SkillBundle bundle) {
+        SkillSource source =
+                new SkillSource() {
+                    @Override
+                    public List<com.jimuqu.solon.claw.skillhub.model.SkillMeta> search(
+                            String query, int limit) {
+                        return Collections.emptyList();
+                    }
+
+                    @Override
+                    public SkillBundle fetch(String identifier) {
+                        return bundle;
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.skillhub.model.SkillMeta inspect(
+                            String identifier) {
+                        return null;
+                    }
+
+                    @Override
+                    public String sourceId() {
+                        return "clawhub";
+                    }
+
+                    @Override
+                    public String trustLevelFor(String identifier) {
+                        return "community";
+                    }
+                };
+        return new DefaultSkillHubService(
+                repoRoot,
+                skillsDir,
+                importService,
+                new DefaultSkillGuardService(),
+                stateStore,
+                new DefaultSkillHubHttpClient(),
+                new GitHubAuth(new DefaultSkillHubHttpClient()),
+                null) {
+            @Override
+            protected List<SkillSource> sources() {
+                return Collections.singletonList(source);
+            }
+        };
     }
 
     private void writeZip(File file, String path1, String content1, String path2, String content2)

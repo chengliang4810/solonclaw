@@ -34,6 +34,9 @@ public class DeliveryRequest {
     /** 线程或话题 ID。 */
     private String threadId;
 
+    /** 回复目标消息 ID；与线程标识分离，避免普通消息被误判为独立话题。 */
+    private String replyToMessageId;
+
     /** 要投递的文本内容。 */
     private String text;
 

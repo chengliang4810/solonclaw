@@ -386,12 +386,20 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                 return;
             }
             if (StrUtil.isNotBlank(request.getText())) {
-                sendText(request.getChatId(), request.getText(), request.getThreadId());
+                sendText(
+                        request.getChatId(),
+                        request.getText(),
+                        request.getReplyToMessageId(),
+                        request.getThreadId());
             }
             List<MessageAttachment> attachments = request.getAttachments();
             if (attachments != null) {
                 for (MessageAttachment attachment : attachments) {
-                    sendAttachment(request.getChatId(), request.getThreadId(), attachment);
+                    sendAttachment(
+                            request.getChatId(),
+                            request.getReplyToMessageId(),
+                            request.getThreadId(),
+                            attachment);
                 }
             }
         } catch (Exception e) {
@@ -456,9 +464,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
-    /** 返回渠道原始消息 ID，当前统一承载在 threadId。 */
+    /** 返回渠道原始消息 ID，用于处理状态表情关联当前入站消息。 */
     private String inboundMessageId(GatewayMessage message) {
-        return message == null ? "" : StrUtil.nullToEmpty(message.getThreadId()).trim();
+        return message == null ? "" : StrUtil.nullToEmpty(message.getReplyToMessageId()).trim();
     }
 
     /**
@@ -855,7 +863,9 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatType(chatType);
         message.setChatName(chatId);
         message.setUserName(userId);
-        message.setThreadId(messageNode.getMessageId());
+        message.setThreadId(
+                StrUtil.firstNonBlank(messageNode.getThreadId(), messageNode.getRootId()));
+        message.setReplyToMessageId(messageNode.getMessageId());
         message.setAttachments(attachments);
         return message;
     }
@@ -1195,7 +1205,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatType(GatewayBehaviorConstants.CHAT_TYPE_DM);
         message.setChatName(chatId);
         message.setUserName(userId);
-        message.setThreadId(messageId);
+        message.setReplyToMessageId(messageId);
         return message;
     }
 
@@ -1237,7 +1247,7 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatType(chatType);
         message.setChatName(chatId);
         message.setUserName(actor);
-        message.setThreadId(messageId);
+        message.setReplyToMessageId(messageId);
         return message;
     }
 
@@ -1425,10 +1435,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      *
      * @param chatId 聊天标识。
      * @param text 待处理文本。
+     * @param replyTo 回复目标消息标识。
+     * @param threadId 飞书真实话题标识。
      */
-    private void sendText(String chatId, String text, String replyTo) {
+    private void sendText(String chatId, String text, String replyTo, String threadId) {
         for (String chunk : splitOutboundText(text, 5000)) {
-            sendTextChunk(chatId, chunk, replyTo);
+            sendTextChunk(chatId, chunk, replyTo, threadId);
         }
     }
 
@@ -1437,20 +1449,27 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      *
      * @param chatId 聊天标识。
      * @param text 待处理文本。
+     * @param replyTo 回复目标消息标识。
+     * @param threadId 飞书真实话题标识。
      */
-    private void sendTextChunk(String chatId, String text, String replyTo) {
+    private void sendTextChunk(String chatId, String text, String replyTo, String threadId) {
         String content = ONode.serialize(new FeishuTextMessage(text));
         ensureOk(
-                postJson(messageUrl(replyTo), messageBody(chatId, "text", content, replyTo)),
+                postJson(
+                        messageUrl(replyTo),
+                        messageBody(chatId, "text", content, replyTo, threadId)),
                 "Feishu text send failed");
         log.info("[FEISHU:{}] {}", chatId, text);
     }
 
     /** 构建飞书普通发送或原消息回复载荷；回复接口不能携带 receive_id。 */
-    private String messageBody(String chatId, String messageType, String content, String replyTo) {
+    private String messageBody(
+            String chatId, String messageType, String content, String replyTo, String threadId) {
         ONode body = new ONode().set("msg_type", messageType).set("content", content);
         if (StrUtil.isBlank(replyTo)) {
             body.set("receive_id", chatId);
+        } else if (StrUtil.isNotBlank(threadId)) {
+            body.set("reply_in_thread", Boolean.TRUE);
         }
         return body.toJson();
     }
@@ -1631,9 +1650,12 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
      * 发送附件。
      *
      * @param chatId 聊天标识。
+     * @param replyTo 回复目标消息标识。
+     * @param threadId 飞书真实话题标识。
      * @param attachment 附件参数。
      */
-    private void sendAttachment(String chatId, String replyTo, MessageAttachment attachment) {
+    private void sendAttachment(
+            String chatId, String replyTo, String threadId, MessageAttachment attachment) {
         File file = new File(attachment.getLocalPath());
         if (!file.isFile()) {
             throw new IllegalStateException(
@@ -1652,7 +1674,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                             chatId,
                             "image",
                             new ONode().set("image_key", imageKey).toJson(),
-                            replyTo);
+                            replyTo,
+                            threadId);
             ensureOk(postJson(messageUrl(replyTo), payload), "Feishu image send failed");
             return;
         }
@@ -1664,7 +1687,8 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
                         chatId,
                         routing.messageType,
                         new ONode().set("file_key", fileKey).toJson(),
-                        replyTo);
+                        replyTo,
+                        threadId);
         ensureOk(postJson(messageUrl(replyTo), payload), "Feishu file send failed");
     }
 
@@ -1688,9 +1712,13 @@ public class FeishuChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         String body =
                 messageBody(
-                        request.getChatId(), "interactive", card.toJson(), request.getThreadId());
+                        request.getChatId(),
+                        "interactive",
+                        card.toJson(),
+                        request.getReplyToMessageId(),
+                        request.getThreadId());
         ensureOk(
-                postJson(messageUrl(request.getThreadId()), body),
+                postJson(messageUrl(request.getReplyToMessageId()), body),
                 "Feishu approval card send failed");
     }
 

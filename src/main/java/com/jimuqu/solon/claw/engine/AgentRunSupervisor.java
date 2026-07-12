@@ -354,6 +354,11 @@ public class AgentRunSupervisor implements AgentRunControlService {
                     handle == null || StrUtil.isBlank(handle.runId)
                             ? null
                             : agentRunRepository.findRun(handle.runId);
+            if (handle != null
+                    && StrUtil.isBlank(handle.runId)
+                    && handle.thread == Thread.currentThread()) {
+                return RunBusyDecision.runNow(policy);
+            }
             if (handle == null
                     || handle.cancelled.get()
                     || (runningRecord != null && runningRecord.isBackgrounded())) {
@@ -1918,15 +1923,17 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * 释放当前线程尚未升级为真实 run 的入站占位，避免前置处理失败后来源永久忙碌。
      *
      * @param sourceKey 渠道来源键。
+     * @return 当前线程成功释放占位时返回 true。
      */
-    public void releaseIncomingReservation(String sourceKey) {
+    public boolean releaseIncomingReservation(String sourceKey) {
         String key = normalizeSourceKey(sourceKey);
         RunHandle handle = runningRuns.get(key);
         if (handle != null
                 && StrUtil.isBlank(handle.runId)
                 && handle.thread == Thread.currentThread()) {
-            runningRuns.remove(key, handle);
+            return runningRuns.remove(key, handle);
         }
+        return false;
     }
 
     /**
@@ -1950,12 +1957,26 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @param resumeReason resume原因参数。
      */
     private void markSessionResumePending(String sourceKey, String resumeReason) {
+        markSessionResumePending(sourceKey, null, resumeReason);
+    }
+
+    /**
+     * 标记指定来源或精确会话为 pending，避免 stale run 污染同来源后来绑定的新会话。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 精确会话标识；为空时使用当前绑定会话。
+     * @param resumeReason 恢复原因。
+     */
+    private void markSessionResumePending(String sourceKey, String sessionId, String resumeReason) {
         if (StrUtil.isBlank(sourceKey) || StrUtil.isBlank(resumeReason)) {
             return;
         }
         try {
-            SessionRecord session = sessionRepository.getBoundSession(sourceKey);
-            if (session == null) {
+            SessionRecord session =
+                    StrUtil.isBlank(sessionId)
+                            ? sessionRepository.getBoundSession(sourceKey)
+                            : sessionRepository.findById(sessionId);
+            if (session == null || !StrUtil.equals(sourceKey, session.getSourceKey())) {
                 return;
             }
             SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
@@ -1978,7 +1999,20 @@ public class AgentRunSupervisor implements AgentRunControlService {
         long now = System.currentTimeMillis();
         long before = now - Math.max(60_000L, staleAfterMillis);
         try {
+            List<AgentRunRecord> staleRuns = agentRunRepository.listActiveBefore(before, 200);
             agentRunRepository.markStaleRuns(before, now);
+            for (AgentRunRecord staleRun : staleRuns) {
+                String kind = StrUtil.blankToDefault(staleRun.getRunKind(), "");
+                String status = StrUtil.blankToDefault(staleRun.getStatus(), "");
+                if (("conversation".equals(kind) || "resume".equals(kind))
+                        && !"queued".equals(status)
+                        && !"waiting_approval".equals(status)) {
+                    markSessionResumePending(
+                            staleRun.getSourceKey(),
+                            staleRun.getSessionId(),
+                            "restart_interrupted");
+                }
+            }
         } catch (Exception e) {
             log.warn("recoverStaleRuns failed: error={}", safeError(e));
         }
@@ -2133,6 +2167,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         map.put("userName", message.getUserName());
         map.put("text", message.getText());
         map.put("threadId", message.getThreadId());
+        map.put("replyToMessageId", message.getReplyToMessageId());
         map.put("sourceKeyOverride", message.getSourceKeyOverride());
         map.put("heartbeat", message.isHeartbeat());
         map.put("goalContinuation", message.isGoalContinuation());
@@ -2163,6 +2198,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 message.setUserName(stringValue(map.get("userName")));
                 message.setText(stringValue(map.get("text")));
                 message.setThreadId(stringValue(map.get("threadId")));
+                message.setReplyToMessageId(stringValue(map.get("replyToMessageId")));
                 message.setSourceKeyOverride(stringValue(map.get("sourceKeyOverride")));
                 message.setHeartbeat(Boolean.parseBoolean(stringValue(map.get("heartbeat"))));
                 message.setGoalContinuation(Boolean.TRUE.equals(map.get("goalContinuation")));
@@ -2219,15 +2255,20 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (runner == null) {
             return;
         }
-        while (!isRunning(sourceKey)) {
+        while (true) {
+            if (!reserveQueueDrain(sourceKey, sessionId)) {
+                return;
+            }
             QueuedRunMessage queued;
             try {
                 queued = agentRunRepository.findNextQueuedMessage(sourceKey, sessionId);
             } catch (Exception e) {
                 log.warn("find queued run failed: sourceKey={}, error={}", sourceKey, safeError(e));
+                releaseIncomingReservation(sourceKey);
                 return;
             }
             if (queued == null) {
+                releaseIncomingReservation(sourceKey);
                 return;
             }
             try {
@@ -2257,6 +2298,35 @@ public class AgentRunSupervisor implements AgentRunControlService {
                         "queued run failed: queueId={}, error={}",
                         queued.getQueueId(),
                         safeError(e));
+            } finally {
+                releaseIncomingReservation(sourceKey);
+            }
+        }
+    }
+
+    /**
+     * 为队列 drain 原子领取同来源占位，确保队列交接期间新入站只能走 busy 策略。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 当前会话标识。
+     * @return 成功领取占位时返回 true。
+     */
+    private boolean reserveQueueDrain(String sourceKey, String sessionId) {
+        String key = normalizeSourceKey(sourceKey);
+        while (true) {
+            RunHandle existing = runningRuns.get(key);
+            if (existing != null && !existing.cancelled.get()) {
+                return false;
+            }
+            RunHandle reservation =
+                    new RunHandle(
+                            "", sessionId, Thread.currentThread(), System.currentTimeMillis());
+            boolean claimed =
+                    existing == null
+                            ? runningRuns.putIfAbsent(key, reservation) == null
+                            : runningRuns.replace(key, existing, reservation);
+            if (claimed) {
+                return true;
             }
         }
     }

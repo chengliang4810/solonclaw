@@ -407,15 +407,44 @@ public class SolonClawShellSkill extends ShellTalent {
                         result.getError());
         map.put("output", normalizeTerminalOutput(output).trim());
         map.put("exit_code", result.getExitCode());
-        map.put("error", result.getError());
+        String meaning = TerminalExitCodeSemantics.interpret(originalCommand, result.getExitCode());
+        String error = terminalExecutionError(originalCommand, result, meaning);
+        map.put("error", error);
+        if (StrUtil.isNotBlank(error)) {
+            map.put("status", "error");
+        }
         if (result.getRetryCount() > 0) {
             map.put("retry_count", Integer.valueOf(result.getRetryCount()));
         }
-        String meaning = TerminalExitCodeSemantics.interpret(originalCommand, result.getExitCode());
         if (meaning != null) {
             map.put("exit_code_meaning", meaning);
         }
         return ONode.serialize(map);
+    }
+
+    /**
+     * 统一终端前台命令的失败语义，确保 UI 可识别真实执行失败，同时保留条件判断等预期非零结果。
+     *
+     * @param command 原始命令文本。
+     * @param result 前台执行结果。
+     * @param meaning 已知退出码语义说明。
+     * @return 可安全回显的失败原因；预期非零结果返回 null。
+     */
+    private String terminalExecutionError(String command, ForegroundResult result, String meaning) {
+        if (StrUtil.isNotBlank(result.getError())) {
+            return SecretRedactor.redact(result.getError(), 1000);
+        }
+        Integer exitCode = result.getExitCode();
+        if (exitCode == null
+                || exitCode.intValue() == 0
+                || TerminalExitCodeSemantics.isExpectedNonZeroExit(command, exitCode)) {
+            return null;
+        }
+        String message = "Command exited with code " + exitCode;
+        if (StrUtil.isNotBlank(meaning)) {
+            message += ": " + meaning;
+        }
+        return SecretRedactor.redact(message, 1000);
     }
 
     /**

@@ -802,12 +802,12 @@ export function useMainApp(gw: GatewayClient) {
       recoveryAtRef.current = plan.attempts
       patchUiState({ busy: false, sid: null, status: '后端已断开' })
 
-      if (plan.recover && plan.sid) {
+      if (plan.recover) {
         recoverSidRef.current = plan.sid
-        turnController.pushActivity('后端已断开 · 正在恢复会话…', 'warn', '后端已断开')
+        turnController.pushActivity(plan.sid ? '后端已断开 · 正在恢复会话…' : '后端暂不可用 · 正在重连…', 'warn', '后端已断开')
 
         if (plan.delayMs === 0) {
-          sys('后端已断开 — 正在恢复会话（进行中的回复可能丢失）')
+          sys(plan.sid ? '后端已断开 — 正在恢复会话（进行中的回复可能丢失）' : '后端暂不可用 — 正在重连')
           gw.start()
         } else {
           recoveryTimerRef.current = setTimeout(() => {

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -244,7 +245,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (StrUtil.isNotBlank(request.getText())) {
             postJson(
                     resolveMessagePath(request),
-                    buildTextBody(request.getText(), request.getThreadId()).toJson());
+                    buildTextBody(request.getText(), request.getReplyToMessageId()).toJson());
         }
         List<MessageAttachment> attachments = request.getAttachments();
         if (attachments != null) {
@@ -277,7 +278,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         ONode body =
                 new ONode()
                         .set("msg_type", config.isMarkdownSupport() ? 2 : 0)
-                        .set("msg_seq", Long.valueOf(System.currentTimeMillis()));
+                        .set("msg_seq", Integer.valueOf(nextMessageSequence()));
         if (config.isMarkdownSupport()) {
             body.getOrNew("markdown").set("content", text);
         } else {
@@ -290,6 +291,15 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             body.set("keyboard", keyboard);
         }
         return body;
+    }
+
+    /**
+     * 生成 QQBot 协议允许的 16 位消息序号。
+     *
+     * @return 0 到 65535 之间的消息序号。
+     */
+    private int nextMessageSequence() {
+        return ThreadLocalRandom.current().nextInt(1 << 16);
     }
 
     /**
@@ -356,7 +366,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         ONode keyboard =
                 QQBotKeyboardSupport.buildApprovalKeyboard(
                         approvalId, approvalCardAllowAlways(extras));
-        return buildTextBody(text, request.getThreadId(), keyboard);
+        return buildTextBody(text, request.getReplyToMessageId(), keyboard);
     }
 
     /**
@@ -382,7 +392,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             text.append("\n默认: ").append(SecretRedactor.redact(defaultAnswer, 20));
         }
         ONode keyboard = QQBotKeyboardSupport.buildUpdatePromptKeyboard();
-        return buildTextBody(text.toString(), request.getThreadId(), keyboard);
+        return buildTextBody(text.toString(), request.getReplyToMessageId(), keyboard);
     }
 
     /**
@@ -485,7 +495,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             throw new IllegalStateException(
                     "QQBot media upload missing file_info: " + safeJson(uploaded));
         }
-        ONode body = buildMediaBody(fileInfo, request.getThreadId());
+        ONode body = buildMediaBody(fileInfo, request.getReplyToMessageId());
         postJson(resolveMessagePath(request), body.toJson());
     }
 
@@ -494,7 +504,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         ONode body = new ONode();
         body.set("msg_type", Integer.valueOf(7));
         body.getOrNew("media").set("file_info", fileInfo);
-        body.set("msg_seq", Long.valueOf(System.currentTimeMillis()));
+        body.set("msg_seq", Integer.valueOf(nextMessageSequence()));
         if (StrUtil.isNotBlank(replyTo)) {
             body.set("msg_id", replyTo);
         }
@@ -855,7 +865,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatType(chatType);
         message.setChatName(chatId);
         message.setUserName(userId);
-        message.setThreadId(data.get("id").getString());
+        message.setReplyToMessageId(data.get("id").getString());
         message.setAttachments(attachments);
         return message;
     }
@@ -1124,7 +1134,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         message.setChatType(chatType);
         message.setChatName(chatId);
         message.setUserName(userId);
-        message.setThreadId(data.get("id").getString());
+        message.setReplyToMessageId(data.get("id").getString());
         return message;
     }
 

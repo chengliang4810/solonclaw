@@ -160,6 +160,7 @@ final class DefaultBusyCommandHandler {
                 new GatewayMessage(
                         source.getPlatform(), source.getChatId(), source.getUserId(), text);
         copy.setThreadId(source.getThreadId());
+        copy.setReplyToMessageId(source.getReplyToMessageId());
         copy.setChatType(source.getChatType());
         copy.setChatName(source.getChatName());
         copy.setUserName(source.getUserName());

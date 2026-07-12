@@ -41,6 +41,9 @@ public class GatewayMessage {
     /** 渠道线程 ID。 */
     private String threadId;
 
+    /** 渠道原始消息 ID，仅用于把回复关联到本条入站消息，不参与会话来源键。 */
+    private String replyToMessageId;
+
     /** 来源键覆盖值，供逻辑子会话等场景复用同一消息模型。 */
     private String sourceKeyOverride;
 

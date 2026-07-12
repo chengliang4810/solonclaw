@@ -408,7 +408,18 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
         try {
             return runOnSession(session, message, eventSink);
         } finally {
-            agentRunSupervisor.releaseIncomingReservation(sourceKey);
+            if (agentRunSupervisor.releaseIncomingReservation(sourceKey)) {
+                agentRunSupervisor.onRunFinished(
+                        sourceKey,
+                        session.getSessionId(),
+                        queued -> {
+                            try {
+                                return handleIncoming(queued, eventSink);
+                            } catch (Exception e) {
+                                throw new IllegalStateException(e);
+                            }
+                        });
+            }
         }
     }
 

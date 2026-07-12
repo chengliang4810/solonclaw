@@ -9,8 +9,8 @@ describe('planGatewayRecovery', () => {
     expect(plan).toEqual({ attempts: [1000], delayMs: 0, recover: true, sid: 'sess-1' })
   })
 
-  it('does not recover when there is no session to resume', () => {
-    expect(planGatewayRecovery(null, null, [], 1000)).toEqual({ attempts: [], delayMs: 0, recover: false, sid: null })
+  it('retries a cold-start backend failure using the same bounded backoff', () => {
+    expect(planGatewayRecovery(null, null, [], 1000)).toEqual({ attempts: [1000], delayMs: 0, recover: true, sid: null })
   })
 
   it('keeps retrying the recovery target through a startup crash-loop, bounded by the budget', () => {

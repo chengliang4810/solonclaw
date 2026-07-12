@@ -63,6 +63,19 @@ final class TerminalExitCodeSemantics {
     }
 
     /**
+     * 判断非零退出码是否代表已知的正常业务结果，而不是命令执行失败。
+     *
+     * @param command 待执行或解析的命令文本。
+     * @param exitCode 命令退出码。
+     * @return 条件不成立、无匹配或差异发现等预期结果时返回 true。
+     */
+    static boolean isExpectedNonZeroExit(String command, Integer exitCode) {
+        String meaning = interpret(command, exitCode);
+        return StrUtil.isNotBlank(meaning)
+                && (meaning.contains("not an error") || meaning.contains("normal for diff"));
+    }
+
+    /**
      * 构建当前策略配置摘要。
      *
      * @return 返回策略Summary结果。

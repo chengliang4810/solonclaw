@@ -242,6 +242,7 @@ public class DefaultSkillHubService implements SkillHubService {
             if (!"update_available".equals(record.getMetadata().get("status"))) {
                 continue;
             }
+            ensureLocalContentUnmodified(record, force);
             HubInstallRecord installed =
                     install(record.getIdentifier(), deriveCategory(record.getInstallPath()), force);
             updated.add(installed);
@@ -581,6 +582,28 @@ public class DefaultSkillHubService implements SkillHubService {
     private String deriveCategory(String installPath) {
         int index = installPath.lastIndexOf('/');
         return index < 0 ? null : installPath.substring(0, index);
+    }
+
+    /**
+     * 在更新前校验本地安装目录未被人工改写，避免静默丢失用户修改。
+     *
+     * @param record 已安装技能记录。
+     * @param force 是否明确允许覆盖本地修改。
+     * @throws Exception 本地内容摘要计算失败或检测到未确认的本地修改时抛出。
+     */
+    private void ensureLocalContentUnmodified(HubInstallRecord record, boolean force)
+            throws Exception {
+        File installDir =
+                SkillBundlePathSupport.resolveUnderRoot(skillsDir, record.getInstallPath());
+        if (!installDir.exists() || force) {
+            return;
+        }
+        String currentHash = SkillHubContentSupport.contentHash(installDir);
+        if (!record.getContentHash().equals(currentHash)) {
+            throw new IllegalStateException(
+                    "Local skill has been modified; rerun update with force to overwrite: "
+                            + record.getName());
+        }
     }
 
     /** 表示来源Collect结果，携带调用方后续判断所需信息。 */

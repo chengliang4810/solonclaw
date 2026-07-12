@@ -49,6 +49,7 @@ public class FeishuWebsocketInboundTest {
         EventMessage eventMessage =
                 EventMessage.newBuilder()
                         .messageId("om_ws_1")
+                        .threadId("omt_ws_1")
                         .chatId("oc_chat")
                         .chatType("p2p")
                         .messageType("text")
@@ -67,7 +68,8 @@ public class FeishuWebsocketInboundTest {
         assertThat(captured.get().getChatId()).isEqualTo("oc_chat");
         assertThat(captured.get().getUserId()).isEqualTo("ou_user");
         assertThat(captured.get().getText()).isEqualTo("hello websocket");
-        assertThat(captured.get().getThreadId()).isEqualTo("om_ws_1");
+        assertThat(captured.get().getThreadId()).isEqualTo("omt_ws_1");
+        assertThat(captured.get().getReplyToMessageId()).isEqualTo("om_ws_1");
     }
 
     @Test
@@ -99,7 +101,7 @@ public class FeishuWebsocketInboundTest {
         assertThat(captured.get().getChatId()).isEqualTo("oc_group");
         assertThat(captured.get().getUserId()).isEqualTo("ou_sender");
         assertThat(captured.get().getText()).isEqualTo("@_user_1 帮我查一下");
-        assertThat(captured.get().sourceKey()).isEqualTo("FEISHU:oc_group:om_group_1:ou_sender");
+        assertThat(captured.get().sourceKey()).isEqualTo("FEISHU:oc_group:ou_sender");
     }
 
     @Test

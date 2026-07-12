@@ -47,6 +47,24 @@ public class FileContextServiceTest {
         assertThat(prompt.indexOf("[Tools]")).isLessThan(prompt.indexOf("[User]"));
     }
 
+    @Test
+    void shouldIncludeUserWorkspaceFileOnlyOnce() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        FileContextService service =
+                new FileContextService(
+                        env.appConfig,
+                        env.localSkillService,
+                        env.memoryManager,
+                        env.globalSettingRepository,
+                        new PersonaWorkspaceService(env.appConfig));
+        String userPreference = "用户偏好：仅出现一次";
+        env.memoryService.add("user", userPreference);
+
+        String prompt = service.buildSystemPrompt("MEMORY:chat:user");
+
+        assertThat(prompt.indexOf(userPreference)).isEqualTo(prompt.lastIndexOf(userPreference));
+    }
+
     private static class FailingMemoryManager implements MemoryManager {
         @Override
         public String buildSystemPrompt(String sourceKey) throws Exception {

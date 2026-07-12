@@ -1,4 +1,4 @@
-import { rename, writeFile } from 'node:fs/promises'
+import { rename, unlink, writeFile } from 'node:fs/promises'
 
 import type { ScrollBoxHandle } from '@solonclaw/ink'
 import { evictInkCaches } from '@solonclaw/ink'
@@ -44,6 +44,10 @@ const statusFromLiveSession = (status?: string, running = false) => {
 
 const sessionLifecycleErrorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
+/** 仅识别后端明确返回的不存在会话错误，网络故障不应丢失当前会话状态。 */
+export const isMissingSessionError = (error: unknown) =>
+  /\bsession not found\s*:/i.test(sessionLifecycleErrorMessage(error))
+
 let activeSessionWrite = Promise.resolve()
 
 export const writeActiveSessionFile = (sessionId: null | string, file = process.env.SOLONCLAW_TUI_ACTIVE_SESSION_FILE) => {
@@ -58,6 +62,15 @@ export const writeActiveSessionFile = (sessionId: null | string, file = process.
       await rename(pendingFile, file)
     })
     .catch(() => undefined)
+}
+
+/** 删除已失效的活动会话指针，避免下次启动再次尝试恢复不存在的会话。 */
+export const clearActiveSessionFile = (file = process.env.SOLONCLAW_TUI_ACTIVE_SESSION_FILE) => {
+  if (!file) {
+    return
+  }
+
+  activeSessionWrite = activeSessionWrite.then(() => unlink(file)).catch(() => undefined)
 }
 
 export const liveSessionInflightMessages = (inflight?: null | SessionInflightTurn): Msg[] => {
@@ -363,6 +376,13 @@ export function useSessionLifecycle(opts: UseSessionLifecycleOptions) {
             })
             .catch((e: Error) => {
               sys(`error: ${e.message}`)
+
+              if (isMissingSessionError(e)) {
+                resetSession()
+                clearActiveSessionFile()
+                patchUiState({ busy: false })
+              }
+
               patchUiState({ status: 'ready' })
             })
         })

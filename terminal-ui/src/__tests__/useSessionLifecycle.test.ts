@@ -9,8 +9,10 @@ import { turnController } from '../app/turnController.js'
 import { getTurnState, resetTurnState } from '../app/turnStore.js'
 import { patchUiState, resetUiState } from '../app/uiStore.js'
 import {
+  clearActiveSessionFile,
   hydrateLiveSessionInflight,
   isLiveSessionRunning,
+  isMissingSessionError,
   lastUserTextFromMessages,
   liveSessionInflightMessages,
   writeActiveSessionFile
@@ -32,7 +34,7 @@ describe('writeActiveSessionFile', () => {
     expect(source).not.toContain('writeFileSync')
   })
 
-  it('writes the actual resumed session id for the shell exit summary', async () => {
+  it('writes the actual resumed session id and clears a stale pointer', async () => {
     dir = mkdtempSync(join(tmpdir(), 'solonclaw-tui-active-'))
     const path = join(dir, 'active.json')
 
@@ -41,12 +43,16 @@ describe('writeActiveSessionFile', () => {
     await waitForFile(path)
 
     expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({ session_id: 'actual_session' })
+    clearActiveSessionFile(path)
+    await waitForFile(path, false)
+
+    expect(existsSync(path)).toBe(false)
   })
 })
 
-const waitForFile = async (path: string) => {
+const waitForFile = async (path: string, expected = true) => {
   for (let i = 0; i < 20; i++) {
-    if (existsSync(path)) {
+    if (existsSync(path) === expected) {
       return
     }
 
@@ -81,6 +87,16 @@ describe('session setup failure recovery', () => {
 
     expect(requestIndex).toBeGreaterThanOrEqual(0)
     expect(closeIndex).toBeGreaterThan(requestIndex)
+  })
+
+  it('only removes local session state for an explicit missing-session response', () => {
+    const resumeById = blockBetween(source(), 'const resumeById = useCallback', 'const guardBusySessionSwitch = useCallback')
+
+    expect(isMissingSessionError(new Error('session not found: removed-session'))).toBe(true)
+    expect(isMissingSessionError(new Error('gateway websocket closed'))).toBe(false)
+    expect(resumeById).toContain('if (isMissingSessionError(e))')
+    expect(resumeById).toContain('clearActiveSessionFile()')
+    expect(resumeById).toContain('patchUiState({ busy: false })')
   })
 })
 

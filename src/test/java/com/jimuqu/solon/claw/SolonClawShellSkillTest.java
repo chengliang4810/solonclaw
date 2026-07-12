@@ -1309,7 +1309,8 @@ public class SolonClawShellSkillTest {
         assertThat(success.get("error").isNull()).isTrue();
         assertThat(success.get("exit_code_meaning").isNull()).isTrue();
         assertThat(failed.get("exit_code").getInt()).isEqualTo(7);
-        assertThat(failed.get("error").isNull()).isTrue();
+        assertThat(failed.get("status").getString()).isEqualTo("error");
+        assertThat(failed.get("error").getString()).contains("Command exited with code 7");
     }
 
     /** 验证终端工具读取中文输出时不会把 Windows 编码问题扩散到 Agent 会话。 */
@@ -1629,6 +1630,7 @@ public class SolonClawShellSkillTest {
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(1);
         assertThat(result.get("error").isNull()).isTrue();
+        assertThat(result.get("status").isNull()).isTrue();
         assertThat(result.get("exit_code_meaning").getString())
                 .isEqualTo("Condition evaluated to false (expected, not an error)");
     }
@@ -1826,6 +1828,7 @@ public class SolonClawShellSkillTest {
                                 Boolean.FALSE));
 
         assertThat(result.get("exit_code").getInt()).isEqualTo(-1);
+        assertThat(result.get("status").getString()).isEqualTo("error");
         assertThat(result.get("error").getString()).contains("Command timed out");
         assertThat(result.get("output").getString())
                 .contains("hello from timeout")
