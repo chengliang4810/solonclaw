@@ -222,7 +222,10 @@ public class SolonClawWebTools {
             return;
         }
         for (String url : securityPolicyService.extractUrlishValues(text)) {
-            checkUrl(securityPolicyService, url);
+            SecurityPolicyService.UrlVerdict verdict = securityPolicyService.checkReturnedUrl(url);
+            if (!verdict.isAllowed() && !"URL 解析失败".equals(verdict.getMessage())) {
+                throw new IllegalArgumentException(blockedMessage(verdict));
+            }
         }
     }
 

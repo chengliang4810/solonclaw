@@ -95,6 +95,26 @@ class ToolRegistryWebAndCodeToolsTest {
                 .doesNotContain("sk-webfetch-meta");
     }
 
+    /** 返回内容中的展示型 URI 模板不得阻断已完成的公开网页请求。 */
+    @Test
+    void shouldIgnoreMalformedDisplayUrlsInWebfetchResponse() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SolonClawWebTools.SafeWebfetchTool webfetch =
+                new SolonClawWebTools.SafeWebfetchTool(
+                        new SecurityPolicyService(env.appConfig),
+                        new WebfetchTalent() {
+                            @Override
+                            public String webfetch(
+                                    String url, String format, Integer timeoutSeconds) {
+                                return "Asset https://uploads.github.com/repos/example/releases/1/assets{?name,label}";
+                            }
+                        });
+
+        Document document = webfetch.webfetch("https://example.com/docs", "markdown", 10);
+
+        assertThat(document.getContent()).contains("uploads.github.com");
+    }
+
     @Test
     void shouldRedactSecretsFromWebsearchSuccessDocument() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
