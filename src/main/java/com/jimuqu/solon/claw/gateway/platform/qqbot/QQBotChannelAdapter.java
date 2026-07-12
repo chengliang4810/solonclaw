@@ -14,6 +14,7 @@ import com.jimuqu.solon.claw.gateway.platform.ChannelInboundPolicySupport;
 import com.jimuqu.solon.claw.gateway.platform.base.AbstractConfigurableChannelAdapter;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
+import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.BoundedMessageDeduplicator;
 import com.jimuqu.solon.claw.support.GatewayApprovalCardSupport;
 import com.jimuqu.solon.claw.support.MessageAttachmentSupport;
@@ -28,11 +29,14 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import okhttp3.MediaType;
@@ -59,6 +63,19 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** JSON的统一常量值。 */
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+
+    /** QQBot 消息、群聊、频道私信与交互事件所需的网关订阅位。 */
+    private static final int GATEWAY_INTENTS =
+            (1 << 25) | (1 << 30) | (1 << 12) | (1 << 26);
+
+    /** 心跳提前量，避免网络抖动时刚好超过服务端声明的超时时间。 */
+    private static final double HEARTBEAT_INTERVAL_RATIO = 0.8D;
+
+    /** 等待 Hello 或 READY/RESUMED 的最长时间，超时后主动重连。 */
+    private static final long GATEWAY_HANDSHAKE_TIMEOUT_SECONDS = 30L;
+
+    /** QQBot 网关限流关闭码要求的固定重连退避。 */
+    private static final long RATE_LIMIT_RECONNECT_DELAY_SECONDS = 60L;
 
     /** 投递模式更新提示词的统一常量值。 */
     public static final String DELIVERY_MODE_UPDATE_PROMPT = "update_prompt";
@@ -89,6 +106,24 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** 记录QQ机器人渠道中的access tokenExpire时间。 */
     private volatile long accessTokenExpireAt;
+
+    /** 保存服务端 READY 下发的会话标识，用于断线后恢复而不是重复创建会话。 */
+    private volatile String gatewaySessionId;
+
+    /** 保存最近接收的网关事件序号，心跳和 Resume 都必须携带该值。 */
+    private volatile Long gatewaySequence;
+
+    /** 调度 QQBot 网关心跳，连接重建时复用并替换旧周期任务。 */
+    private volatile ScheduledExecutorService heartbeatExecutor;
+
+    /** 当前连接对应的心跳任务，断线或切换连接时必须立即取消。 */
+    private volatile ScheduledFuture<?> heartbeatFuture;
+
+    /** 当前连接的 Hello 或 READY/RESUMED 握手超时任务。 */
+    private volatile ScheduledFuture<?> handshakeFuture;
+
+    /** 关闭码要求延迟重连时保存任务，主动断开可立即取消。 */
+    private volatile ScheduledFuture<?> reconnectFuture;
 
     /** 保存callback执行器执行组件，负责调度异步或定时任务。 */
     private ExecutorService callbackExecutor;
@@ -160,7 +195,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @return 返回connect结果。
      */
     @Override
-    public boolean connect() {
+    public synchronized boolean connect() {
         if (!isEnabled()) {
             setSetupState("disabled");
             setDetail("disabled");
@@ -218,9 +253,10 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** 断开当前组件持有的连接。 */
     @Override
-    public void disconnect() {
+    public synchronized void disconnect() {
         WebSocket current = webSocket;
         webSocket = null;
+        shutdownHeartbeatExecutor();
         ChannelConnectionSupport.disconnect(current, callbackExecutor);
         callbackExecutor = null;
         // 关闭控制命令并发执行器，避免断开连接后线程泄漏
@@ -727,10 +763,14 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onOpen(WebSocket webSocket, Response response) {
+            if (QQBotChannelAdapter.this.webSocket != webSocket) {
+                return;
+            }
             setConnected(false);
-            setSetupState("configured");
-            setLastError("qqbot_identify_not_implemented", "websocket Identify is not implemented");
-            setDetail("websocket open; Identify not implemented");
+            setSetupState("connecting");
+            clearLastError();
+            setDetail("websocket open; waiting for hello");
+            scheduleHandshakeTimeout(webSocket, "hello timeout");
         }
 
         /**
@@ -741,7 +781,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onMessage(WebSocket webSocket, String text) {
-            dispatchInbound(text);
+            handleWebSocketPayload(webSocket, text);
         }
 
         /**
@@ -752,7 +792,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onMessage(WebSocket webSocket, ByteString bytes) {
-            dispatchInbound(bytes.utf8());
+            handleWebSocketPayload(webSocket, bytes.utf8());
         }
 
         /**
@@ -764,10 +804,11 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onFailure(WebSocket webSocket, Throwable t, Response response) {
-            if (QQBotChannelAdapter.this.webSocket != webSocket) {
+            if (!detachCurrentSocket(webSocket)) {
                 return;
             }
-            QQBotChannelAdapter.this.webSocket = null;
+            stopHeartbeat();
+            stopHandshakeTimeout();
             markWebSocketFailure("qqbot_websocket_failure", t);
             requestReconnect();
         }
@@ -781,13 +822,391 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
          */
         @Override
         public void onClosed(WebSocket webSocket, int code, String reason) {
-            if (QQBotChannelAdapter.this.webSocket != webSocket) {
+            if (!detachCurrentSocket(webSocket)) {
                 return;
             }
-            QQBotChannelAdapter.this.webSocket = null;
+            stopHeartbeat();
+            stopHandshakeTimeout();
+            if (code == 4004) {
+                accessToken = null;
+                accessTokenExpireAt = 0L;
+            }
+            if (code == 4006 || code == 4007 || code == 4009) {
+                gatewaySessionId = null;
+                gatewaySequence = null;
+            }
+            if (isFatalCloseCode(code)) {
+                setConnected(false);
+                setSetupState("error");
+                setLastError("qqbot_gateway_fatal_close", closeDescription(code));
+                setDetail("websocket stopped: " + closeDescription(code));
+                return;
+            }
             markWebSocketClosed(code, reason);
-            requestReconnect();
+            if (code == 4008) {
+                scheduleReconnect(RATE_LIMIT_RECONNECT_DELAY_SECONDS);
+            } else {
+                requestReconnect();
+            }
         }
+    }
+
+    /**
+     * 处理 QQBot 网关协议帧，并只把业务 Dispatch 事件交给统一入站链路。
+     *
+     * @param socket 产生该帧的 WebSocket，用于排除重连后迟到的旧连接回调。
+     * @param raw 服务端原始 JSON 帧。
+     */
+    private void handleWebSocketPayload(WebSocket socket, String raw) {
+        if (webSocket != socket || StrUtil.isBlank(raw)) {
+            return;
+        }
+        final ONode root;
+        try {
+            root = ONode.ofJson(raw);
+        } catch (Exception e) {
+            log.warn(
+                    "[QQBOT] invalid gateway payload: errorType={}, error={}",
+                    errorType(e),
+                    safeError(e));
+            return;
+        }
+        ONode sequenceNode = root.get("s");
+        if (sequenceNode != null && !sequenceNode.isNull()) {
+            long sequence = sequenceNode.getLong();
+            Long previous = gatewaySequence;
+            if (webSocket == socket
+                    && (previous == null || sequence > previous.longValue())) {
+                gatewaySequence = Long.valueOf(sequence);
+            }
+        }
+        ONode operationNode = root.get("op");
+        if (operationNode == null || operationNode.isNull()) {
+            // 官方业务帧都会带 op；保留直传仅供受控适配测试与平台兼容接入。
+            dispatchInbound(raw);
+            return;
+        }
+        int operation = operationNode.getInt(-1);
+        if (operation == 10) {
+            handleHello(socket, root.get("d"));
+            return;
+        }
+        if (operation == 0) {
+            handleDispatch(socket, root, raw);
+            return;
+        }
+        if (operation == 7) {
+            setSetupState("connecting");
+            requestProtocolReconnect(socket, "server requested reconnect");
+            return;
+        }
+        if (operation == 9) {
+            ONode data = root.get("d");
+            boolean resumable = data != null && !data.isNull() && data.getBoolean();
+            if (!resumable) {
+                gatewaySessionId = null;
+                gatewaySequence = null;
+            }
+            setSetupState("connecting");
+            requestProtocolReconnect(socket, "invalid session");
+        }
+        // op 11 为心跳确认，无需额外处理；未知操作码同样保持连接等待后续帧。
+    }
+
+    /**
+     * 响应 Hello 帧，先鉴权再按服务端周期启动心跳。
+     *
+     * @param socket 当前有效 WebSocket。
+     * @param data Hello 数据，包含 heartbeat_interval 毫秒数。
+     */
+    private void handleHello(WebSocket socket, ONode data) {
+        long intervalMs =
+                Math.max(
+                        100L,
+                        data == null || data.isNull()
+                                ? 30000L
+                                : data.get("heartbeat_interval").getLong(30000L));
+        try {
+            refreshAccessTokenIfNecessary();
+            if (webSocket != socket) {
+                return;
+            }
+            boolean sent = socket.send(buildAuthenticationPayload().toJson());
+            if (!sent) {
+                throw new IllegalStateException("QQBot gateway authentication was not queued");
+            }
+            startHeartbeat(socket, intervalMs);
+            if (webSocket != socket) {
+                return;
+            }
+            scheduleHandshakeTimeout(socket, "ready timeout");
+            setSetupState("connecting");
+            setDetail(
+                    StrUtil.isNotBlank(gatewaySessionId)
+                                    && gatewaySequence != null
+                            ? "resume sent; waiting for resumed"
+                            : "identify sent; waiting for ready");
+        } catch (Exception e) {
+            if (webSocket != socket) {
+                return;
+            }
+            setLastError("qqbot_gateway_auth_failed", safeError(e));
+            setSetupState("error");
+            setDetail("gateway authentication failed");
+            requestProtocolReconnect(socket, "authentication failed");
+        }
+    }
+
+    /** 构造 Identify 或 Resume 帧，重连状态完整时优先恢复既有网关会话。 */
+    private ONode buildAuthenticationPayload() {
+        if (StrUtil.isNotBlank(gatewaySessionId) && gatewaySequence != null) {
+            ONode data =
+                    new ONode()
+                            .set("token", "QQBot " + accessToken)
+                            .set("session_id", gatewaySessionId)
+                            .set("seq", gatewaySequence);
+            return new ONode().set("op", Integer.valueOf(6)).set("d", data);
+        }
+        ONode properties =
+                new ONode()
+                        .set("$os", System.getProperty("os.name", "unknown"))
+                        .set("$browser", "solonclaw")
+                        .set("$device", "solonclaw");
+        ONode data =
+                new ONode()
+                        .set("token", "QQBot " + accessToken)
+                        .set("intents", Integer.valueOf(GATEWAY_INTENTS))
+                        .set(
+                                "shard",
+                                Arrays.asList(Integer.valueOf(0), Integer.valueOf(1)))
+                        .set("properties", properties);
+        return new ONode().set("op", Integer.valueOf(2)).set("d", data);
+    }
+
+    /**
+     * 处理 Dispatch 帧；READY/RESUMED 决定 Doctor 的真实连接状态，其余事件进入消息链路。
+     *
+     * @param socket 当前有效 WebSocket。
+     * @param root 已解析的协议帧。
+     * @param raw 原始 JSON 帧。
+     */
+    private void handleDispatch(WebSocket socket, ONode root, String raw) {
+        if (webSocket != socket) {
+            return;
+        }
+        String eventType = StrUtil.nullToEmpty(root.get("t").getString());
+        if ("READY".equalsIgnoreCase(eventType)) {
+            String sessionId = root.get("d").get("session_id").getString();
+            if (StrUtil.isBlank(sessionId)) {
+                setLastError("qqbot_ready_missing_session", "READY missing session_id");
+                setSetupState("error");
+                requestProtocolReconnect(socket, "ready missing session");
+                return;
+            }
+            if (webSocket != socket) {
+                return;
+            }
+            gatewaySessionId = sessionId;
+            stopHandshakeTimeout();
+            markGatewayReady("websocket ready");
+            return;
+        }
+        if ("RESUMED".equalsIgnoreCase(eventType)) {
+            if (webSocket != socket) {
+                return;
+            }
+            stopHandshakeTimeout();
+            markGatewayReady("websocket resumed");
+            return;
+        }
+        dispatchInbound(raw);
+    }
+
+    /** 在鉴权成功后公开真实连接状态，并清理上一次瞬时连接错误。 */
+    private void markGatewayReady(String detail) {
+        setConnected(true);
+        setSetupState("connected");
+        clearLastError();
+        setDetail(detail);
+    }
+
+    /**
+     * 为当前 socket 启动单一心跳任务；重连时先取消旧任务，避免跨连接发送旧序号。
+     *
+     * @param socket 当前有效 WebSocket。
+     * @param serverIntervalMs 服务端声明的心跳周期。
+     */
+    private synchronized void startHeartbeat(final WebSocket socket, long serverIntervalMs) {
+        if (webSocket != socket) {
+            return;
+        }
+        stopHeartbeat();
+        if (heartbeatExecutor == null || heartbeatExecutor.isShutdown()) {
+            heartbeatExecutor = BoundedExecutorFactory.scheduled("qqbot-heartbeat", 1);
+        }
+        long periodMs = Math.max(100L, Math.round(serverIntervalMs * HEARTBEAT_INTERVAL_RATIO));
+        heartbeatFuture =
+                heartbeatExecutor.scheduleAtFixedRate(
+                        new Runnable() {
+                            /** 向当前连接发送最近序号，发送队列拒绝时触发受控重连。 */
+                            @Override
+                            public void run() {
+                                if (webSocket != socket) {
+                                    return;
+                                }
+                                ONode heartbeat =
+                                        new ONode()
+                                                .set("op", Integer.valueOf(1))
+                                                .set("d", gatewaySequence);
+                                if (!socket.send(heartbeat.toJson())) {
+                                    setSetupState("connecting");
+                                    requestProtocolReconnect(socket, "heartbeat send failed");
+                                }
+                            }
+                        },
+                        periodMs,
+                        periodMs,
+                        TimeUnit.MILLISECONDS);
+    }
+
+    /** 取消当前连接的心跳任务，但保留调度器供下一次重连复用。 */
+    private synchronized void stopHeartbeat() {
+        ScheduledFuture<?> current = heartbeatFuture;
+        heartbeatFuture = null;
+        if (current != null) {
+            current.cancel(true);
+        }
+    }
+
+    /** 彻底停止心跳调度器，用于用户主动断开或 Profile 销毁。 */
+    private synchronized void shutdownHeartbeatExecutor() {
+        stopHeartbeat();
+        stopHandshakeTimeout();
+        ScheduledFuture<?> delayedReconnect = reconnectFuture;
+        reconnectFuture = null;
+        if (delayedReconnect != null) {
+            delayedReconnect.cancel(true);
+        }
+        ScheduledExecutorService current = heartbeatExecutor;
+        heartbeatExecutor = null;
+        if (current != null) {
+            current.shutdownNow();
+        }
+    }
+
+    /** 安排当前连接的协议握手超时，连接变化后任务自动失效。 */
+    private synchronized void scheduleHandshakeTimeout(
+            final WebSocket socket, final String reason) {
+        stopHandshakeTimeout();
+        if (webSocket != socket) {
+            return;
+        }
+        if (heartbeatExecutor == null || heartbeatExecutor.isShutdown()) {
+            heartbeatExecutor = BoundedExecutorFactory.scheduled("qqbot-heartbeat", 1);
+        }
+        handshakeFuture =
+                heartbeatExecutor.schedule(
+                        () -> handleHandshakeTimeout(socket, reason),
+                        GATEWAY_HANDSHAKE_TIMEOUT_SECONDS,
+                        TimeUnit.SECONDS);
+    }
+
+    /** 取消当前连接尚未触发的协议握手超时。 */
+    private synchronized void stopHandshakeTimeout() {
+        ScheduledFuture<?> current = handshakeFuture;
+        handshakeFuture = null;
+        if (current != null) {
+            current.cancel(true);
+        }
+    }
+
+    /** 握手超时仍属于当前连接时公开错误并进入统一重连。 */
+    private void handleHandshakeTimeout(WebSocket socket, String reason) {
+        if (webSocket != socket) {
+            return;
+        }
+        setLastError("qqbot_gateway_handshake_timeout", reason);
+        setSetupState("error");
+        requestProtocolReconnect(socket, reason);
+    }
+
+    /** 按关闭码要求延迟通知统一连接管理器，避免限流后立即重试。 */
+    private synchronized void scheduleReconnect(long delaySeconds) {
+        if (heartbeatExecutor == null || heartbeatExecutor.isShutdown()) {
+            heartbeatExecutor = BoundedExecutorFactory.scheduled("qqbot-heartbeat", 1);
+        }
+        ScheduledFuture<?> current = reconnectFuture;
+        if (current != null) {
+            current.cancel(true);
+        }
+        reconnectFuture =
+                heartbeatExecutor.schedule(
+                        () -> requestReconnect(), delaySeconds, TimeUnit.SECONDS);
+    }
+
+    /** 判断关闭码是否代表配置或权限错误，继续重连不会自行恢复。 */
+    private boolean isFatalCloseCode(int code) {
+        return code == 4001
+                || code == 4002
+                || code == 4010
+                || code == 4011
+                || code == 4012
+                || code == 4013
+                || code == 4014
+                || code == 4914
+                || code == 4915;
+    }
+
+    /** 返回可公开的致命关闭原因，不包含服务端可能携带的敏感正文。 */
+    private String closeDescription(int code) {
+        switch (code) {
+            case 4001:
+                return "invalid opcode";
+            case 4002:
+                return "invalid payload";
+            case 4010:
+                return "invalid shard";
+            case 4011:
+                return "sharding required";
+            case 4012:
+                return "invalid API version";
+            case 4013:
+                return "invalid intent";
+            case 4014:
+                return "intent not authorized";
+            case 4914:
+                return "bot offline or sandbox restricted";
+            case 4915:
+                return "bot banned";
+            default:
+                return "fatal gateway close " + code;
+        }
+    }
+
+    /**
+     * 关闭当前协议连接并请求网关统一重连，旧 socket 后续回调会因身份不匹配被忽略。
+     *
+     * @param socket 当前协议连接。
+     * @param reason 可公开的状态原因。
+     */
+    private void requestProtocolReconnect(WebSocket socket, String reason) {
+        if (!detachCurrentSocket(socket)) {
+            return;
+        }
+        stopHeartbeat();
+        setConnected(false);
+        setDetail(reason);
+        socket.close(1000, reason);
+        requestReconnect();
+    }
+
+    /** 仅当参数仍为当前连接时原子摘除，防止旧回调清掉刚建立的新连接。 */
+    private synchronized boolean detachCurrentSocket(WebSocket socket) {
+        if (webSocket != socket) {
+            return false;
+        }
+        webSocket = null;
+        return true;
     }
 
     /**
