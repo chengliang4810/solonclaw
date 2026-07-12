@@ -132,6 +132,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     static final int TYPING_HEARTBEAT_INTERVAL_SECONDS = 2;
 
+    /** ponytail: 固定 4 路避免慢用户互相阻塞；并发活跃私聊长期超过该值时再按会话隔离。 */
+    private static final int TYPING_HEARTBEAT_THREADS = 4;
+
     /** 最大文本分片LENGTH的统一常量值。 */
     private static final int MAX_TEXT_CHUNK_LENGTH = 2000;
 
@@ -1478,7 +1481,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 || typingHeartbeatExecutor.isShutdown()
                 || typingHeartbeatExecutor.isTerminated()) {
             typingHeartbeatExecutor =
-                    BoundedExecutorFactory.scheduled("weixin-typing-heartbeat", 1);
+                    BoundedExecutorFactory.scheduled(
+                            "weixin-typing-heartbeat", TYPING_HEARTBEAT_THREADS);
         }
         return typingHeartbeatExecutor;
     }
