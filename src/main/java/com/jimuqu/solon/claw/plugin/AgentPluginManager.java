@@ -1,11 +1,15 @@
 package com.jimuqu.solon.claw.plugin;
 
-import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.RuntimePathConstants;
 import java.io.IOException;
+import java.net.JarURLConnection;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -22,6 +26,12 @@ import org.yaml.snakeyaml.Yaml;
 public class AgentPluginManager {
     /** 插件发现、编译和销毁过程的日志记录器。 */
     private static final Logger log = LoggerFactory.getLogger(AgentPluginManager.class);
+
+    /** 保护已挂载内置插件归档的引用计数，避免多 Profile 运行时互相关闭 ZIP 文件系统。 */
+    private static final Object BUNDLED_ARCHIVE_LOCK = new Object();
+
+    /** 已挂载内置插件归档的共享租约，归档只会在最后一个使用者退出时关闭。 */
+    private static final Map<URI, BundledArchiveLease> BUNDLED_ARCHIVES = new HashMap<>();
 
     /** 插件注册钩子的共享注册表，随插件管理器生命周期一起清理。 */
     private final AgentHookRegistry hookRegistry;
@@ -43,6 +53,18 @@ public class AgentPluginManager {
 
     /** 本轮发现和加载产生的诊断记录，保持扫描顺序便于前端展示。 */
     private final List<PluginLoadDiagnostic> diagnostics = new ArrayList<>();
+
+    /** 串行化单个管理器的发现、卸载和归档租约释放，避免并发重复注册 Hook。 */
+    private final Object lifecycleLock = new Object();
+
+    /** 当前管理器已持有的内置插件归档租约；同一归档每个管理器只持有一次。 */
+    private final Set<URI> bundledArchiveLeases = new LinkedHashSet<>();
+
+    /** 标记当前管理器是否已完成一次发现；重复调用保持幂等，避免重复注册 Hook。 */
+    private boolean discovered;
+
+    /** 标记当前管理器是否已关闭；关闭后不允许重新发现或再次释放租约。 */
+    private boolean shutdown;
 
     /**
      * 创建Agent插件管理器实例，并注入运行所需依赖。
@@ -129,68 +151,74 @@ public class AgentPluginManager {
      * @param sink 主应用提供的注册接收器，用于接收工具、Provider 和平台适配器。
      */
     public void discoverAndLoad(PluginRegistrationSink sink) {
-        diagnostics.clear();
-        List<AgentPluginManifest> manifests = new ArrayList<>();
-        if (loadBundledPlugins) {
-            discoverBundled(manifests);
-        }
-        discoverUserPlugins(manifests);
-        manifests.sort(Comparator.comparing(m -> m.getDirectory().toString()));
-        Set<String> seenPluginNames = new LinkedHashSet<>();
+        synchronized (lifecycleLock) {
+            if (shutdown || discovered) {
+                return;
+            }
+            diagnostics.clear();
+            List<AgentPluginManifest> manifests = new ArrayList<>();
+            if (loadBundledPlugins) {
+                discoverBundled(manifests);
+            }
+            discoverUserPlugins(manifests);
+            manifests.sort(Comparator.comparing(m -> m.getDirectory().toString()));
+            Set<String> seenPluginNames = new LinkedHashSet<>();
 
-        for (AgentPluginManifest manifest : manifests) {
-            if (!seenPluginNames.add(manifest.getName())) {
-                diagnostics.add(
-                        diagnostic(
-                                manifest,
-                                PluginLoadStatus.SKIPPED,
-                                "duplicate_plugin_name",
-                                "Plugin name already loaded: " + manifest.getName()));
-                continue;
+            for (AgentPluginManifest manifest : manifests) {
+                if (!seenPluginNames.add(manifest.getName())) {
+                    diagnostics.add(
+                            diagnostic(
+                                    manifest,
+                                    PluginLoadStatus.SKIPPED,
+                                    "duplicate_plugin_name",
+                                    "Plugin name already loaded: " + manifest.getName()));
+                    continue;
+                }
+                if (disabledPlugins.contains(manifest.getName())) {
+                    diagnostics.add(
+                            diagnostic(
+                                    manifest,
+                                    PluginLoadStatus.SKIPPED,
+                                    "disabled_by_configuration",
+                                    "Plugin disabled by configuration: " + manifest.getName()));
+                    log.debug("Plugin '{}' is disabled, skipping", manifest.getName());
+                    continue;
+                }
+                if (!manifest.isEnabled()) {
+                    diagnostics.add(
+                            diagnostic(
+                                    manifest,
+                                    PluginLoadStatus.SKIPPED,
+                                    "disabled_by_manifest",
+                                    "Plugin disabled by manifest: " + manifest.getName()));
+                    continue;
+                }
+                if (!manifest.isAutoLoad() && !enabledPlugins.contains(manifest.getName())) {
+                    diagnostics.add(
+                            diagnostic(
+                                    manifest,
+                                    PluginLoadStatus.SKIPPED,
+                                    "not_enabled",
+                                    "Plugin is not enabled: " + manifest.getName()));
+                    log.debug(
+                            "Plugin '{}' is standalone and not enabled, skipping", manifest.getName());
+                    continue;
+                }
+                String missingEnv = firstMissingEnv(manifest);
+                if (missingEnv != null) {
+                    diagnostics.add(
+                            diagnostic(
+                                    manifest,
+                                    PluginLoadStatus.SKIPPED,
+                                    "missing_required_env",
+                                    "Missing required environment variable: " + missingEnv));
+                    continue;
+                }
+                loadPlugin(manifest, sink);
             }
-            if (disabledPlugins.contains(manifest.getName())) {
-                diagnostics.add(
-                        diagnostic(
-                                manifest,
-                                PluginLoadStatus.SKIPPED,
-                                "disabled_by_configuration",
-                                "Plugin disabled by configuration: " + manifest.getName()));
-                log.debug("Plugin '{}' is disabled, skipping", manifest.getName());
-                continue;
-            }
-            if (!manifest.isEnabled()) {
-                diagnostics.add(
-                        diagnostic(
-                                manifest,
-                                PluginLoadStatus.SKIPPED,
-                                "disabled_by_manifest",
-                                "Plugin disabled by manifest: " + manifest.getName()));
-                continue;
-            }
-            if (!manifest.isAutoLoad() && !enabledPlugins.contains(manifest.getName())) {
-                diagnostics.add(
-                        diagnostic(
-                                manifest,
-                                PluginLoadStatus.SKIPPED,
-                                "not_enabled",
-                                "Plugin is not enabled: " + manifest.getName()));
-                log.debug(
-                        "Plugin '{}' is standalone and not enabled, skipping", manifest.getName());
-                continue;
-            }
-            String missingEnv = firstMissingEnv(manifest);
-            if (missingEnv != null) {
-                diagnostics.add(
-                        diagnostic(
-                                manifest,
-                                PluginLoadStatus.SKIPPED,
-                                "missing_required_env",
-                                "Missing required environment variable: " + missingEnv));
-                continue;
-            }
-            loadPlugin(manifest, sink);
+            discovered = true;
+            log.info("Loaded {} plugin(s)", loadedPlugins.size());
         }
-        log.info("Loaded {} plugin(s)", loadedPlugins.size());
     }
 
     /**
@@ -203,12 +231,85 @@ public class AgentPluginManager {
             ClassLoader cl = Thread.currentThread().getContextClassLoader();
             java.net.URL pluginsUrl = cl.getResource("plugins");
             if (pluginsUrl == null) {
+                diagnostics.add(
+                        diagnostic(
+                                null,
+                                PluginLoadStatus.FAILED,
+                                "bundled_plugins_missing",
+                                "Bundled plugin directory is missing from classpath"));
                 return;
             }
-            Path pluginsPath = Paths.get(pluginsUrl.toURI());
+            Path pluginsPath = bundledPluginsPath(pluginsUrl);
             scanDirectory(pluginsPath, "bundled", manifests);
         } catch (Exception e) {
-            log.debug("No bundled plugins found: {}", e.getMessage());
+            diagnostics.add(
+                    diagnostic(
+                            null,
+                            PluginLoadStatus.FAILED,
+                            "bundled_discovery_failed",
+                            "Bundled plugin discovery failed: " + safeError(e)));
+            log.warn("Bundled plugin discovery failed: {}", safeError(e));
+        }
+    }
+
+    /**
+     * 返回内置插件目录。开发目录直接使用文件路径；发布 Jar 则挂载 ZIP 文件系统，避免发布后内置插件全部失效。
+     *
+     * @param pluginsUrl Classpath 中 plugins 目录的地址。
+     * @return 可遍历的插件目录路径。
+     */
+    private Path bundledPluginsPath(java.net.URL pluginsUrl) throws Exception {
+        if (!"jar".equalsIgnoreCase(pluginsUrl.getProtocol())) {
+            return Paths.get(pluginsUrl.toURI());
+        }
+        JarURLConnection connection = (JarURLConnection) pluginsUrl.openConnection();
+        URI archiveUri = URI.create("jar:" + connection.getJarFileURL().toURI().toString());
+        if (bundledArchiveLeases.add(archiveUri)) {
+            try {
+                acquireBundledArchive(archiveUri);
+            } catch (IOException e) {
+                bundledArchiveLeases.remove(archiveUri);
+                throw e;
+            }
+        }
+        return bundledArchive(archiveUri).getPath("/plugins");
+    }
+
+    /** 获取内置归档租约；同一归档在多个 Profile 间共享，最后一个释放者才关闭自建文件系统。 */
+    private static void acquireBundledArchive(URI archiveUri) throws IOException {
+        synchronized (BUNDLED_ARCHIVE_LOCK) {
+            BundledArchiveLease lease = BUNDLED_ARCHIVES.get(archiveUri);
+            if (lease == null || !lease.fileSystem.isOpen()) {
+                lease = openBundledArchive(archiveUri);
+                BUNDLED_ARCHIVES.put(archiveUri, lease);
+            }
+            lease.references++;
+        }
+    }
+
+    /** 获取已持有的内置归档文件系统。 */
+    private static FileSystem bundledArchive(URI archiveUri) {
+        synchronized (BUNDLED_ARCHIVE_LOCK) {
+            BundledArchiveLease lease = BUNDLED_ARCHIVES.get(archiveUri);
+            if (lease == null || !lease.fileSystem.isOpen()) {
+                throw new IllegalStateException("Bundled plugin archive is unavailable");
+            }
+            return lease.fileSystem;
+        }
+    }
+
+    /** 打开内置归档；外部已挂载的归档只借用，不由本组件关闭。 */
+    private static BundledArchiveLease openBundledArchive(URI archiveUri) throws IOException {
+        try {
+            return new BundledArchiveLease(FileSystems.getFileSystem(archiveUri), false);
+        } catch (java.nio.file.FileSystemNotFoundException ignored) {
+            try {
+                return new BundledArchiveLease(
+                        FileSystems.newFileSystem(archiveUri, Collections.<String, Object>emptyMap()),
+                        true);
+            } catch (java.nio.file.FileSystemAlreadyExistsException raced) {
+                return new BundledArchiveLease(FileSystems.getFileSystem(archiveUri), false);
+            }
         }
     }
 
@@ -277,8 +378,7 @@ public class AgentPluginManager {
     @SuppressWarnings("unchecked")
     private AgentPluginManifest parseManifest(Path manifestFile, Path pluginDir, String source)
             throws IOException {
-        String content =
-                FileUtil.readString(manifestFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
+        String content = readUtf8(manifestFile);
         Object root = new Yaml().load(content);
         Map<String, Object> props =
                 root instanceof Map ? (Map<String, Object>) root : Collections.emptyMap();
@@ -380,9 +480,7 @@ public class AgentPluginManager {
 
             DynamicCompiler compiler = new DynamicCompiler();
             for (Path javaFile : javaFiles) {
-                String source =
-                        FileUtil.readString(
-                                javaFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
+                String source = readUtf8(javaFile);
                 String className = sourceClassName(javaFile, source);
                 compiler.addSource(className, source);
             }
@@ -396,9 +494,7 @@ public class AgentPluginManager {
                 classNames.add(manifest.getEntry());
             }
             for (Path javaFile : javaFiles) {
-                String source =
-                        FileUtil.readString(
-                                javaFile.toFile(), java.nio.charset.StandardCharsets.UTF_8);
+                String source = readUtf8(javaFile);
                 String className = sourceClassName(javaFile, source);
                 if (!classNames.contains(className)) {
                     classNames.add(className);
@@ -469,16 +565,23 @@ public class AgentPluginManager {
         return StrUtil.isBlank(packageName) ? simpleName : packageName + "." + simpleName;
     }
 
+    /** 读取普通目录或运行 Jar ZIP 文件系统中的 UTF-8 插件文件。 */
+    private String readUtf8(Path file) throws IOException {
+        return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
+    }
+
     /**
      * 列出已成功加载的插件清单。
      *
      * @return 按插件名称排序的已加载插件清单。
      */
     public List<AgentPluginManifest> listPlugins() {
-        return loadedPlugins.values().stream()
-                .map(LoadedPlugin::getManifest)
-                .sorted(Comparator.comparing(AgentPluginManifest::getName))
-                .collect(Collectors.toList());
+        synchronized (lifecycleLock) {
+            return loadedPlugins.values().stream()
+                    .map(LoadedPlugin::getManifest)
+                    .sorted(Comparator.comparing(AgentPluginManifest::getName))
+                    .collect(Collectors.toList());
+        }
     }
 
     /**
@@ -487,7 +590,9 @@ public class AgentPluginManager {
      * @return 不可变诊断记录列表。
      */
     public List<PluginLoadDiagnostic> diagnostics() {
-        return Collections.unmodifiableList(diagnostics);
+        synchronized (lifecycleLock) {
+            return Collections.unmodifiableList(new ArrayList<PluginLoadDiagnostic>(diagnostics));
+        }
     }
 
     /**
@@ -534,31 +639,64 @@ public class AgentPluginManager {
     }
 
     /**
-     * 卸载指定插件实例；重新发现加载由调用方后续触发。
+     * 当前运行时不支持单插件热重载；Provider 与 Hook 没有反注册契约，保留实例直到管理器整体关闭，避免残留旧 Hook。
      *
-     * @param name 插件名称。
+     * @param name 请求重载的插件名称。
      */
     public void reload(String name) {
-        LoadedPlugin existing = loadedPlugins.remove(name);
-        if (existing != null) {
-            existing.getPlugin().destroy();
+        synchronized (lifecycleLock) {
+            if (!shutdown && loadedPlugins.containsKey(name)) {
+                log.warn("Plugin reload is ignored until runtime restart: {}", name);
+            }
         }
     }
 
     /** 关闭当前组件持有的运行资源。 */
     public void shutdown() {
-        for (LoadedPlugin lp : loadedPlugins.values()) {
+        synchronized (lifecycleLock) {
+            if (shutdown) {
+                return;
+            }
+            shutdown = true;
+            for (LoadedPlugin lp : loadedPlugins.values()) {
+                try {
+                    lp.getPlugin().destroy();
+                } catch (Exception e) {
+                    log.warn(
+                            "Error destroying plugin '{}': {}",
+                            lp.getManifest().getName(),
+                            e.getMessage());
+                }
+            }
+            loadedPlugins.clear();
+            hookRegistry.clear();
+            for (URI archiveUri : bundledArchiveLeases) {
+                releaseBundledArchive(archiveUri);
+            }
+            bundledArchiveLeases.clear();
+        }
+    }
+
+    /** 释放一个内置归档租约；只有本组件创建且引用归零的文件系统才会关闭。 */
+    private static void releaseBundledArchive(URI archiveUri) {
+        synchronized (BUNDLED_ARCHIVE_LOCK) {
+            BundledArchiveLease lease = BUNDLED_ARCHIVES.get(archiveUri);
+            if (lease == null || lease.references > 1) {
+                if (lease != null) {
+                    lease.references--;
+                }
+                return;
+            }
+            BUNDLED_ARCHIVES.remove(archiveUri);
+            if (!lease.closeWhenUnused) {
+                return;
+            }
             try {
-                lp.getPlugin().destroy();
-            } catch (Exception e) {
-                log.warn(
-                        "Error destroying plugin '{}': {}",
-                        lp.getManifest().getName(),
-                        e.getMessage());
+                lease.fileSystem.close();
+            } catch (IOException e) {
+                log.debug("Failed to close bundled plugin filesystem: {}", e.getMessage());
             }
         }
-        loadedPlugins.clear();
-        hookRegistry.clear();
     }
 
     /**
@@ -575,6 +713,24 @@ public class AgentPluginManager {
         String value =
                 error.getClass().getSimpleName() + (StrUtil.isBlank(message) ? "" : ": " + message);
         return SecretRedactor.redact(value, 1000);
+    }
+
+    /** 记录共享内置插件归档的文件系统、关闭责任和当前引用数。 */
+    private static class BundledArchiveLease {
+        /** 内置插件归档对应的 ZIP 文件系统。 */
+        private final FileSystem fileSystem;
+
+        /** 仅当该管理器族创建了文件系统时才允许在引用归零后关闭。 */
+        private final boolean closeWhenUnused;
+
+        /** 当前持有该归档的管理器数量。 */
+        private int references;
+
+        /** 创建内置插件归档共享租约。 */
+        BundledArchiveLease(FileSystem fileSystem, boolean closeWhenUnused) {
+            this.fileSystem = fileSystem;
+            this.closeWhenUnused = closeWhenUnused;
+        }
     }
 
     /** 已加载插件的运行时句柄。 */
