@@ -63,6 +63,14 @@ public class GatewayRuntimeRefreshService {
         this.profileMultiplexRuntimeManager = manager;
     }
 
+    /** 重新加载当前容器延迟绑定的 Profile 复用运行时；未启用复用时保持无操作。 */
+    public void reloadProfileRuntimes() {
+        ProfileMultiplexRuntimeManager manager = profileMultiplexRuntimeManager;
+        if (manager != null) {
+            manager.reload();
+        }
+    }
+
     /**
      * 刷新If Needed。
      *
@@ -144,10 +152,7 @@ public class GatewayRuntimeRefreshService {
         }
         try {
             channelConnectionManager.refreshAll();
-            ProfileMultiplexRuntimeManager manager = profileMultiplexRuntimeManager;
-            if (manager != null) {
-                manager.reload();
-            }
+            reloadProfileRuntimes();
         } catch (Throwable e) {
             String message = safeError(e);
             recordFailure(configFile, e.getClass().getSimpleName(), message, false);

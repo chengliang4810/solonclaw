@@ -6,7 +6,6 @@ import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.config.RuntimeConfigResolver;
-import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.support.BaseUrlSupport;
 import com.jimuqu.solon.claw.support.BoundedAttachmentIO;
@@ -111,9 +110,6 @@ public class DomesticQrSetupService {
     /** Dashboard Profile 解析器；未注入时只操作当前运行 Profile。 */
     private final DashboardProfileContext profileContext;
 
-    /** 多 Profile 网关运行时，用于让非当前 Profile 立即消费扫码配置。 */
-    private final ProfileMultiplexRuntimeManager profileRuntimeManager;
-
     /** Profile 进程管理器，用于重启目标的独立网关。 */
     private final ProfileManager profileManager;
 
@@ -141,7 +137,7 @@ public class DomesticQrSetupService {
             DashboardConfigService configService,
             com.jimuqu.solon.claw.gateway.service.GatewayRuntimeRefreshService
                     gatewayRuntimeRefreshService) {
-        this(appConfig, configService, gatewayRuntimeRefreshService, null, null, null, null);
+        this(appConfig, configService, gatewayRuntimeRefreshService, null, null, null);
     }
 
     /**
@@ -164,7 +160,6 @@ public class DomesticQrSetupService {
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
                 null,
-                null,
                 null);
     }
 
@@ -176,7 +171,6 @@ public class DomesticQrSetupService {
                     gatewayRuntimeRefreshService,
             SecurityPolicyService securityPolicyService,
             DashboardProfileContext profileContext,
-            ProfileMultiplexRuntimeManager profileRuntimeManager,
             ProfileManager profileManager) {
         this.appConfig = appConfig;
         this.configService = configService;
@@ -187,7 +181,6 @@ public class DomesticQrSetupService {
                         ? new SecurityPolicyService(appConfig)
                         : securityPolicyService;
         this.profileContext = profileContext;
-        this.profileRuntimeManager = profileRuntimeManager;
         this.profileManager = profileManager;
     }
 
@@ -677,8 +670,8 @@ public class DomesticQrSetupService {
             if (profileManager != null && profileManager.gatewayStatus(profile).isRunning()) {
                 profileManager.stopGateway(profile);
                 profileManager.startGateway(profile, java.util.Collections.<String>emptyList());
-            } else if (profileRuntimeManager != null) {
-                profileRuntimeManager.reload();
+            } else {
+                gatewayRuntimeRefreshService.reloadProfileRuntimes();
             }
         } catch (Exception e) {
             throw new IllegalStateException("目标 Profile 网关刷新失败", e);

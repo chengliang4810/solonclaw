@@ -221,7 +221,6 @@ public class DomesticQrSetupServiceTest {
                         refreshService,
                         new AllowLocalButBlockMetadataSecurityPolicyService(config),
                         profileContext,
-                        null,
                         null);
 
         Map<String, Object> start = service.start("wecom", "worker");

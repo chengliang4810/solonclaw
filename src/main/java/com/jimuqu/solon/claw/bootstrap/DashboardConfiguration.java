@@ -581,7 +581,6 @@ public class DashboardConfiguration {
             GatewayRuntimeRefreshService gatewayRuntimeRefreshService,
             com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService securityPolicyService,
             DashboardProfileContext dashboardProfileContext,
-            ProfileMultiplexRuntimeManager profileMultiplexRuntimeManager,
             ProfileManager profileManager) {
         return new com.jimuqu.solon.claw.web.DomesticQrSetupService(
                 appConfig,
@@ -589,7 +588,6 @@ public class DashboardConfiguration {
                 gatewayRuntimeRefreshService,
                 securityPolicyService,
                 dashboardProfileContext,
-                profileMultiplexRuntimeManager,
                 profileManager);
     }
 

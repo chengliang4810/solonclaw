@@ -79,6 +79,11 @@ class ProfileRuntimeIsolationIntegrationTest {
                     "--server.port=" + freePort(),
                     "--solonclaw.workspace=" + root,
                     "--solonclaw.scheduler.enabled=false"
+                },
+                app -> {
+                    // 本测试验证完整 Bean 图与 Profile 隔离，不依赖真实网络监听。
+                    app.enableHttp(false);
+                    app.enableWebSocket(false);
                 });
     }
 
@@ -95,6 +100,16 @@ class ProfileRuntimeIsolationIntegrationTest {
                 FileUtil.del(root.toFile());
             }
         }
+    }
+
+    /** 真实根容器必须完成工具、对话与扫码服务装配，防止构造注入再次形成依赖环。 */
+    @Test
+    void wiresConversationToolAndQrBeansWithoutDependencyCycle() {
+        AppContext rootContext = Solon.context();
+
+        assertThat(rootContext.getBean(ToolRegistry.class)).isNotNull();
+        assertThat(rootContext.getBean(ConversationOrchestrator.class)).isNotNull();
+        assertThat(rootContext.getBean(DomesticQrSetupService.class)).isNotNull();
     }
 
     /** 子容器拥有完整独立运行图，重载和关闭均不改变主 Solon 容器及 HTTP 注册数量。 */
