@@ -776,8 +776,8 @@ public class DefaultCronScheduler {
         triggerType = StrUtil.blankToDefault(triggerType, "scheduled");
         job.setPendingTriggerType(null);
         long nextRunAt = CronSupport.nextRunAt(job.getCronExpr(), now);
-        int completed = nextRepeatCompleted(job);
-        int attempt = nextRunAttempt(job, completed);
+        int completed = job.getRepeatCompleted();
+        int attempt = nextRunAttempt(job, nextRepeatCompleted(job));
         boolean done = job.getRepeatTimes() > 0 && completed >= job.getRepeatTimes();
         String nextStatus =
                 done || CronSupport.isOneShot(job.getCronExpr()) ? "COMPLETED" : "ACTIVE";
@@ -846,6 +846,14 @@ public class DefaultCronScheduler {
                     error = EMPTY_AGENT_RESPONSE_ERROR;
                     runStatus = "error";
                 }
+            }
+            // 只有成功完成或明确静默的执行才消耗有限重复次数。
+            if (error == null) {
+                completed = nextRepeatCompleted(job);
+                done = job.getRepeatTimes() > 0 && completed >= job.getRepeatTimes();
+                nextStatus =
+                        done || CronSupport.isOneShot(job.getCronExpr()) ? "COMPLETED" : "ACTIVE";
+                storedNextRunAt = nextRunAtAfterExecution(nextStatus, nextRunAt);
             }
             cronJobRepository.markRunResult(
                     job.getJobId(),
@@ -925,7 +933,7 @@ public class DefaultCronScheduler {
     }
 
     /**
-     * 计算任务层面的重复完成次数；有限重复任务在重试时不能超过配置上限，避免界面显示 2/1 这类越界状态。
+     * 计算成功完成后的重复次数；失败和待审批重试必须保留原计数，避免提前耗尽有限重复上限。
      *
      * @param job 当前定时任务。
      * @return 写回任务记录的重复完成次数。

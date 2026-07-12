@@ -12,6 +12,7 @@ import com.jimuqu.solon.claw.skillhub.service.DefaultSkillGuardService;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillHubService;
 import com.jimuqu.solon.claw.skillhub.service.DefaultSkillImportService;
 import com.jimuqu.solon.claw.skillhub.source.GitHubSkillSource;
+import com.jimuqu.solon.claw.skillhub.source.SkillSource;
 import com.jimuqu.solon.claw.skillhub.support.DefaultSkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.GitHubAuth;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
@@ -19,12 +20,78 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
+import java.util.Collections;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.Test;
 
 public class SkillImportServiceTest {
+    /** 安装记录的摘要必须能与同一远端技能包判定为最新。 */
+    @Test
+    void shouldMarkFreshlyInstalledBundleAsUpToDate() throws Exception {
+        File repoRoot = Files.createTempDirectory("skill-check-repo").toFile();
+        File skillsDir = Files.createTempDirectory("skill-check-skills").toFile();
+        SkillHubStateStore stateStore = new SkillHubStateStore(skillsDir);
+        SkillBundle bundle = new SkillBundle();
+        bundle.setName("check-demo");
+        bundle.setSource("test-source");
+        bundle.setIdentifier("check-demo");
+        bundle.getFiles().put("references/info.md", "reference");
+        bundle.getFiles().put("SKILL.md", skill("check-demo", "check helper"));
+        new DefaultSkillImportService(skillsDir, new DefaultSkillGuardService(), stateStore)
+                .installBundle(bundle, null, false, null);
+
+        SkillSource source =
+                new SkillSource() {
+                    @Override
+                    public List<com.jimuqu.solon.claw.skillhub.model.SkillMeta> search(
+                            String query, int limit) {
+                        return Collections.emptyList();
+                    }
+
+                    @Override
+                    public SkillBundle fetch(String identifier) {
+                        return bundle;
+                    }
+
+                    @Override
+                    public com.jimuqu.solon.claw.skillhub.model.SkillMeta inspect(String identifier) {
+                        return null;
+                    }
+
+                    @Override
+                    public String sourceId() {
+                        return "test-source";
+                    }
+
+                    @Override
+                    public String trustLevelFor(String identifier) {
+                        return "community";
+                    }
+                };
+        DefaultSkillHubService hub =
+                new DefaultSkillHubService(
+                        repoRoot,
+                        skillsDir,
+                        null,
+                        new DefaultSkillGuardService(),
+                        stateStore,
+                        new DefaultSkillHubHttpClient(),
+                        new GitHubAuth(new DefaultSkillHubHttpClient()),
+                        null) {
+                    @Override
+                    protected List<SkillSource> sources() {
+                        return Collections.singletonList(source);
+                    }
+                };
+
+        HubInstallRecord checked = hub.check("check-demo").get(0);
+
+        assertThat(checked.getMetadata().get("status")).isEqualTo("up_to_date");
+        assertThat(checked.getContentHash()).isEqualTo(checked.getMetadata().get("latestHash"));
+    }
+
     @Test
     void shouldRecordResolvedTrustLevelFromGuardPolicy() throws Exception {
         File skillsDir = Files.createTempDirectory("skill-import-trust").toFile();

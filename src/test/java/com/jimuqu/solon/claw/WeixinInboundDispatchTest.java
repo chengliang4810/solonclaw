@@ -401,6 +401,44 @@ public class WeixinInboundDispatchTest {
     }
 
     @Test
+    void shouldDispatchSameInboundTextFromSameSenderAcrossDifferentChats() throws Exception {
+        AppConfig config = newConfig();
+        config.getChannels().getWeixin().setEnabled(true);
+        config.getChannels().getWeixin().setAccountId("wx-bot");
+        config.getChannels().getWeixin().setGroupPolicy("open");
+        config.getChannels().getWeixin().setTextBatchDelaySeconds(0.05D);
+        config.getChannels().getWeixin().setTextBatchSplitDelaySeconds(0.05D);
+
+        WeiXinChannelAdapter adapter =
+                new WeiXinChannelAdapter(
+                        config.getChannels().getWeixin(),
+                        new InMemoryChannelStateRepository(),
+                        new AttachmentCacheService(config));
+
+        final CountDownLatch latch = new CountDownLatch(2);
+        final List<String> chatIds = Collections.synchronizedList(new ArrayList<String>());
+        adapter.setInboundMessageHandler(
+                new InboundMessageHandler() {
+                    @Override
+                    public void handle(com.jimuqu.solon.claw.core.model.GatewayMessage message) {
+                        chatIds.add(message.getChatId());
+                        latch.countDown();
+                    }
+                });
+
+        Method processInbound =
+                WeiXinChannelAdapter.class.getDeclaredMethod("processInboundMessage", ONode.class);
+        processInbound.setAccessible(true);
+        processInbound.invoke(adapter, inboundText("msg-chat-1", "room-1", "wx-user", "重复内容"));
+        processInbound.invoke(adapter, inboundText("msg-chat-2", "room-2", "wx-user", "重复内容"));
+
+        assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(chatIds).containsExactlyInAnyOrder("room-1", "room-2");
+
+        adapter.disconnect();
+    }
+
+    @Test
     void shouldUseStableConversationSourceKeyAcrossDifferentWeixinMessageIds() throws Exception {
         AppConfig config = newConfig();
         config.getChannels().getWeixin().setEnabled(true);

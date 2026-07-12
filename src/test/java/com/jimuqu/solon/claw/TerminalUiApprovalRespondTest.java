@@ -188,6 +188,29 @@ class TerminalUiApprovalRespondTest {
         assertThat(payload.get("error").getString()).isEqualTo("command failed");
     }
 
+    /** 验证同一轮同名工具并发启动时，完成事件仍按启动顺序配对各自的前端 ID。 */
+    @Test
+    void sameNamedToolEventsPairIdsInStartOrder() {
+        RecordingSocket socket = new RecordingSocket();
+        TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
+
+        sink.onToolStarted("read_file", java.util.Collections.<String, Object>emptyMap());
+        sink.onToolStarted("read_file", java.util.Collections.<String, Object>emptyMap());
+        sink.onToolCompleted("read_file", "first", 1L);
+        sink.onToolCompleted("read_file", "second", 1L);
+
+        List<ONode> starts = eventPayloads(socket.sentText(), "tool.start");
+        List<ONode> completes = eventPayloads(socket.sentText(), "tool.complete");
+        assertThat(starts).hasSize(2);
+        assertThat(completes).hasSize(2);
+        assertThat(starts.get(0).get("tool_id").getString())
+                .isNotEqualTo(starts.get(1).get("tool_id").getString());
+        assertThat(completes.get(0).get("tool_id").getString())
+                .isEqualTo(starts.get(0).get("tool_id").getString());
+        assertThat(completes.get(1).get("tool_id").getString())
+                .isEqualTo(starts.get(1).get("tool_id").getString());
+    }
+
     @Test
     void sessionUndoReportsZeroRemovedForFreshTuiSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
@@ -552,6 +575,18 @@ class TerminalUiApprovalRespondTest {
             }
         }
         throw new AssertionError("event not found: " + type);
+    }
+
+    /** 收集 JSON-RPC event 帧中指定类型的全部业务载荷，用于断言重复事件的顺序。 */
+    private static List<ONode> eventPayloads(List<String> frames, String type) {
+        List<ONode> payloads = new ArrayList<ONode>();
+        for (String text : frames) {
+            ONode event = ONode.ofJson(text).get("params");
+            if (type.equals(event.get("type").getString())) {
+                payloads.add(event.get("payload"));
+            }
+        }
+        return payloads;
     }
 
     /** 构建跨平台测试写入命令，用于保留直接 shell 审批回放的真实执行路径。 */

@@ -398,9 +398,9 @@ public class DefaultCronSchedulerTest {
         scheduler.tick();
 
         CronJobRecord failed = env.cronJobRepository.findById(job.getJobId());
-        assertThat(failed.getRepeatCompleted()).isEqualTo(1);
+        assertThat(failed.getRepeatCompleted()).isZero();
         assertThat(failed.getRepeatTimes()).isEqualTo(1);
-        assertThat(failed.getStatus()).isEqualTo("COMPLETED");
+        assertThat(failed.getStatus()).isEqualTo("ACTIVE");
         assertThat(failed.getLastStatus()).isEqualTo("error");
         assertThat(failed.getLastError()).contains("recovered-watchdog.py");
         assertThat(env.cronJobRepository.listRuns(job.getJobId(), 2).get(0).getAttempt())
@@ -1061,6 +1061,7 @@ public class DefaultCronSchedulerTest {
         body.put("schedule", "30m");
         body.put("script", "quiet.py");
         body.put("no_agent", Boolean.TRUE);
+        body.put("repeat", Integer.valueOf(1));
         body.put("deliver", "origin");
         CronJobRecord job = service.create("MEMORY:quiet-room:user", body);
         job.setNextRunAt(System.currentTimeMillis() - 1000L);
@@ -1080,6 +1081,8 @@ public class DefaultCronSchedulerTest {
         CronJobRecord updated = env.cronJobRepository.findById(job.getJobId());
         assertThat(updated.getLastStatus()).isEqualTo("ok");
         assertThat(updated.getLastOutput()).contains("[SILENT]");
+        assertThat(updated.getRepeatCompleted()).isEqualTo(1);
+        assertThat(updated.getStatus()).isEqualTo("COMPLETED");
         assertThat(updated.getLastDeliveryError()).isNull();
         assertThat(env.memoryChannelAdapter.getRequests()).isEmpty();
     }

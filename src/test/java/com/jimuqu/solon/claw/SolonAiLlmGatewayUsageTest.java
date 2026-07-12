@@ -49,6 +49,36 @@ public class SolonAiLlmGatewayUsageTest {
                 .isEmpty();
     }
 
+    /** 流式分片必须统一过滤不同大小写的思考标签，未闭合块不得变成可见答复。 */
+    @Test
+    void shouldSuppressAllInlineReasoningTagVariantsInStream() throws Exception {
+        Class<?> splitterClass =
+                Class.forName(
+                        "com.jimuqu.solon.claw.llm.SolonAiLlmGateway$ThinkingStreamSplitter");
+        Constructor<?> constructor = splitterClass.getDeclaredConstructor();
+        constructor.setAccessible(true);
+        Object splitter = constructor.newInstance();
+        Method accept = splitterClass.getDeclaredMethod("accept", String.class, boolean.class);
+        accept.setAccessible(true);
+        Method flushPending = splitterClass.getDeclaredMethod("flushPending");
+        flushPending.setAccessible(true);
+        Method reasoningText = splitterClass.getDeclaredMethod("reasoningText");
+        reasoningText.setAccessible(true);
+
+        assertThat(deltaVisible(accept.invoke(splitter, "<ThInKi", false))).isEmpty();
+        assertThat(deltaVisible(accept.invoke(splitter, "Ng>内部推理</tHiNkInG>正式答复", false)))
+                .isEqualTo("正式答复");
+        assertThat((String) reasoningText.invoke(splitter)).isEqualTo("内部推理");
+        assertThat(deltaVisible(flushPending.invoke(splitter))).isEmpty();
+
+        Method visibleText = splitterClass.getDeclaredMethod("visibleText", String.class);
+        visibleText.setAccessible(true);
+        assertThat((String) visibleText.invoke(null, "<REASONING>内部推理</reasoning>正式答复"))
+                .isEqualTo("正式答复");
+        assertThat((String) visibleText.invoke(null, "<ThOuGhT>未闭合内部推理"))
+                .isEmpty();
+    }
+
     @Test
     void shouldReadOpenaiChatCachedTokensFromPromptDetails() throws Exception {
         ONode source =
@@ -151,6 +181,13 @@ public class SolonAiLlmGatewayUsageTest {
         applyTo.setAccessible(true);
         applyTo.invoke(collector, result);
         return result;
+    }
+
+    /** 读取私有流式分离结果中的用户可见正文。 */
+    private String deltaVisible(Object delta) throws Exception {
+        java.lang.reflect.Field visible = delta.getClass().getDeclaredField("visible");
+        visible.setAccessible(true);
+        return (String) visible.get(delta);
     }
 
     private Class<?> usageCollectorClass() {

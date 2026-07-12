@@ -2239,13 +2239,21 @@ public class SolonAiLlmGateway implements LlmGateway {
         return StrUtil.nullToEmpty(assistantMessage.getReasoning()).trim();
     }
 
-    /** 将流式 <think>...</think> 内容拆成 reasoning 和可见答复。 */
+    /** 将流式思考标签内容拆成推理和可见答复，未闭合标签后的内容不得外泄。 */
     private static class ThinkingStreamSplitter {
-        /** THINKOPEN的统一常量值。 */
-        private static final String THINK_OPEN = "<think>";
+        /** 模型可能内嵌在正文中的思考开始标签，匹配时忽略大小写。 */
+        private static final String[] THINK_OPEN_TAGS = {
+            "<think>", "<thinking>", "<reasoning>", "<thought>", "<reasoning_scratchpad>"
+        };
 
-        /** THINK关闭的统一常量值。 */
-        private static final String THINK_CLOSE = "</think>";
+        /** 与思考开始标签对应的结束标签，匹配时忽略大小写。 */
+        private static final String[] THINK_CLOSE_TAGS = {
+            "</think>",
+            "</thinking>",
+            "</reasoning>",
+            "</thought>",
+            "</reasoning_scratchpad>"
+        };
 
         /** 记录思考流Splitter中的visible。 */
         private final StringBuilder visible = new StringBuilder();
@@ -2283,17 +2291,18 @@ public class SolonAiLlmGateway implements LlmGateway {
                 if (pendingTag.length() > 0 || ch == '<') {
                     pendingTag.append(ch);
                     String pending = pendingTag.toString();
-                    if (THINK_OPEN.equals(pending)) {
+                    if (matchesTag(pending, THINK_OPEN_TAGS)) {
                         thinking = true;
                         pendingTag.setLength(0);
                         continue;
                     }
-                    if (THINK_CLOSE.equals(pending)) {
+                    if (matchesTag(pending, THINK_CLOSE_TAGS)) {
                         thinking = false;
                         pendingTag.setLength(0);
                         continue;
                     }
-                    if (THINK_OPEN.startsWith(pending) || THINK_CLOSE.startsWith(pending)) {
+                    if (isTagPrefix(pending, THINK_OPEN_TAGS)
+                            || isTagPrefix(pending, THINK_CLOSE_TAGS)) {
                         continue;
                     }
                     appendCurrent(pending, visibleDelta, reasoningDelta);
@@ -2392,13 +2401,13 @@ public class SolonAiLlmGateway implements LlmGateway {
                 if (pendingTag.length() > 0 || ch == '<') {
                     pendingTag.append(ch);
                     String pending = pendingTag.toString();
-                    if (equalsIgnoreCase(THINK_OPEN, pending)
-                            || equalsIgnoreCase(THINK_CLOSE, pending)) {
+                    if (matchesTag(pending, THINK_OPEN_TAGS)
+                            || matchesTag(pending, THINK_CLOSE_TAGS)) {
                         pendingTag.setLength(0);
                         continue;
                     }
-                    if (startsWithIgnoreCase(THINK_OPEN, pending)
-                            || startsWithIgnoreCase(THINK_CLOSE, pending)) {
+                    if (isTagPrefix(pending, THINK_OPEN_TAGS)
+                            || isTagPrefix(pending, THINK_CLOSE_TAGS)) {
                         continue;
                     }
                     reasoningDelta.append(pending);
@@ -2409,26 +2418,24 @@ public class SolonAiLlmGateway implements LlmGateway {
             }
         }
 
-        /**
-         * 判断完整标签是否匹配，兼容模型返回的大小写差异。
-         *
-         * @param expected 期望标签。
-         * @param value 当前缓存。
-         * @return 匹配时返回 true。
-         */
-        private static boolean equalsIgnoreCase(String expected, String value) {
-            return expected.equalsIgnoreCase(value);
+        /** 判断当前缓存是否等于任一思考标签，兼容模型返回的大小写差异。 */
+        private static boolean matchesTag(String value, String[] tags) {
+            for (String tag : tags) {
+                if (tag.equalsIgnoreCase(value)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
-        /**
-         * 判断当前缓存是否仍可能组成目标标签。
-         *
-         * @param expected 期望标签。
-         * @param value 当前缓存。
-         * @return 仍是目标标签前缀时返回 true。
-         */
-        private static boolean startsWithIgnoreCase(String expected, String value) {
-            return expected.regionMatches(true, 0, value, 0, value.length());
+        /** 判断当前缓存是否仍可能组成任一思考标签。 */
+        private static boolean isTagPrefix(String value, String[] tags) {
+            for (String tag : tags) {
+                if (tag.regionMatches(true, 0, value, 0, value.length())) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /** 承载Delta相关状态和辅助逻辑。 */

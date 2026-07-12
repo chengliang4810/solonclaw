@@ -1289,7 +1289,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
         ONode itemList = message.get("item_list");
         String text = extractInboundText(itemList);
-        if (isDuplicateText(senderId, text)) {
+        if (isDuplicateText(chatTarget.chatId, senderId, text)) {
             return;
         }
         java.util.ArrayList<MessageAttachment> attachments =
@@ -1949,15 +1949,16 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /**
      * 判断是否Duplicate Text。
      *
+     * @param chatId 会话标识，文本去重必须限制在同一会话内。
      * @param senderId sender标识。
      * @param text 待处理文本。
      * @return 如果Duplicate Text满足条件则返回 true，否则返回 false。
      */
-    private boolean isDuplicateText(String senderId, String text) {
-        if (StrUtil.isBlank(senderId) || StrUtil.isBlank(text)) {
+    private boolean isDuplicateText(String chatId, String senderId, String text) {
+        if (StrUtil.isBlank(chatId) || StrUtil.isBlank(senderId) || StrUtil.isBlank(text)) {
             return false;
         }
-        return isDuplicate("content:" + senderId + ":" + DigestUtil.md5Hex(text));
+        return isDuplicate("content:" + chatId + ":" + senderId + ":" + DigestUtil.md5Hex(text));
     }
 
     /** 执行pruneRecent消息标识相关逻辑。 */

@@ -5,6 +5,8 @@ import cn.hutool.core.util.ObjectUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.service.ConversationEventSink;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -46,8 +48,8 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
     /** 是否已经发送完成事件，用于避免 listener 兜底逻辑在完成后追加尾巴。 */
     private boolean runCompleted;
 
-    /** 工具名称到前端工具 ID 的映射，保证 tool.start 与 tool.complete 可以成对闭合。 */
-    private final Map<String, String> activeToolIds = new HashMap<String, String>();
+    /** 工具名称到待完成 ID 队列的映射，保证同名并发工具按启动顺序闭合。 */
+    private final Map<String, Deque<String>> activeToolIds = new HashMap<String, Deque<String>>();
 
     /** 创建 WebSocket 事件输出器。 */
     public TerminalUiWebSocketEventSink(WebSocket socket) {
@@ -180,7 +182,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         if (rpcEnvelope) {
             flushPendingDeltas();
             Map<String, Object> payload = pair("name", toolName);
-            payload.put("tool_id", activeToolId(toolName));
+            payload.put("tool_id", startedToolId(toolName));
             payload.put("context", "");
             if (CollUtil.isNotEmpty(args)) {
                 payload.put("args_text", ONode.serialize(args));
@@ -199,7 +201,7 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         if (rpcEnvelope) {
             flushPendingDeltas();
             Map<String, Object> payload = pair("name", toolName);
-            payload.put("tool_id", activeToolId(toolName));
+            payload.put("tool_id", completedToolId(toolName));
             payload.put("result_text", result);
             String error = toolError(result);
             if (StrUtil.isNotBlank(error)) {
@@ -207,7 +209,6 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
             }
             payload.put("duration_s", Double.valueOf(durationMs / 1000.0D));
             send("tool.complete", payload, activeSessionId);
-            activeToolIds.remove(toolName);
             return;
         }
         Map<String, Object> payload = pair("tool", toolName);
@@ -297,13 +298,31 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         return safeToolName(toolName) + "-" + System.nanoTime();
     }
 
-    /** 读取或创建当前工具的稳定前端 ID。 */
-    private String activeToolId(String toolName) {
+    /** 为工具启动事件创建 ID 并入队，支持同名工具在同一轮中并发执行。 */
+    private synchronized String startedToolId(String toolName) {
         String key = safeToolName(toolName);
-        if (!activeToolIds.containsKey(key)) {
-            activeToolIds.put(key, toolId(key));
+        Deque<String> ids = activeToolIds.get(key);
+        if (ids == null) {
+            ids = new ArrayDeque<String>();
+            activeToolIds.put(key, ids);
         }
-        return activeToolIds.get(key);
+        String id = toolId(key);
+        ids.addLast(id);
+        return id;
+    }
+
+    /** 为工具完成事件按启动顺序取出 ID，缺少启动事件时保留独立事件兜底。 */
+    private synchronized String completedToolId(String toolName) {
+        String key = safeToolName(toolName);
+        Deque<String> ids = activeToolIds.get(key);
+        if (ids == null || ids.isEmpty()) {
+            return toolId(key);
+        }
+        String id = ids.removeFirst();
+        if (ids.isEmpty()) {
+            activeToolIds.remove(key);
+        }
+        return id;
     }
 
     /** JSON-RPC 增量事件可能来自直接命令回复，这里自动补齐 message.start。 */

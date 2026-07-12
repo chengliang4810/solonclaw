@@ -2480,7 +2480,7 @@ public class DefaultCommandService implements CommandService {
                 selectPendingApproval(approvalSession, approvalArgs.getSelector());
         if (pending == null) {
             return GatewayReply.error(
-                    "当前会话及该微信来源的定时任务中都没有匹配的待审批命令。请使用审批提示中的确认编号，或前往 Dashboard 查看待审批项。");
+                    "当前会话及该渠道来源的定时任务中都没有匹配的待审批命令。请使用审批提示中的确认编号，或前往 Dashboard 查看待审批项。");
         }
 
         if (!dangerousCommandApprovalService.approve(
@@ -2498,10 +2498,10 @@ public class DefaultCommandService implements CommandService {
     }
 
     /**
-     * 解析审批实际所属会话；微信主会话无匹配项时，回查同一来源创建的最近定时任务会话。
+     * 解析审批实际所属会话；国内渠道主会话无匹配项时，回查同一来源创建的最近定时任务会话。
      *
-     * @param message 当前渠道消息，用于限制只能审批当前微信用户创建的任务。
-     * @param boundSession 当前微信来源绑定的主会话。
+     * @param message 当前渠道消息，用于限制只能审批当前渠道来源创建的任务。
+     * @param boundSession 当前渠道来源绑定的主会话。
      * @param selector 用户指定的安全审批选择器；为空时选择最近待审批项。
      * @return 包含匹配审批的会话；未找到时返回主会话。
      */
@@ -2509,7 +2509,7 @@ public class DefaultCommandService implements CommandService {
             GatewayMessage message, SqliteAgentSession boundSession, String selector)
             throws Exception {
         if (selectPendingApproval(boundSession, selector) != null
-                || message.getPlatform() != PlatformType.WEIXIN) {
+                || !PlatformType.DOMESTIC_PLATFORMS.contains(message.getPlatform())) {
             return boundSession;
         }
         SqliteAgentSession latest = null;
