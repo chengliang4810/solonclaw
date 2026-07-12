@@ -76,6 +76,42 @@ public class PendingSessionRecoveryService {
     }
 
     /**
+     * 按会话标识手工恢复因网关中断而 pending 的会话，不受启动自动恢复时间窗口限制。
+     *
+     * @param sourceKey 渠道来源键。
+     * @param sessionId 待恢复会话标识。
+     * @return 恢复成功时返回 true；会话不存在、来源不匹配或需要人工审批时返回 false。
+     */
+    public boolean resumeInterruptedSession(String sourceKey, String sessionId) {
+        if (sessionRepository == null
+                || conversationOrchestrator == null
+                || StrUtil.isBlank(sourceKey)
+                || StrUtil.isBlank(sessionId)) {
+            return false;
+        }
+        try {
+            SessionRecord session = sessionRepository.findById(sessionId);
+            if (session == null || !StrUtil.equals(sourceKey, session.getSourceKey())) {
+                return false;
+            }
+            SqliteAgentSession agentSession = new SqliteAgentSession(session);
+            if (!agentSession.isPending()
+                    || !ResumePendingSupport.isGatewayInterruptionReason(
+                            agentSession.getPendingReason())) {
+                return false;
+            }
+            return resume(session);
+        } catch (Exception e) {
+            log.warn(
+                    "resume interrupted session failed: sourceKey={}, sessionId={}, error={}",
+                    sourceKey,
+                    sessionId,
+                    EngineSupport.safeError(e));
+            return false;
+        }
+    }
+
+    /**
      * 判断是否需要Auto Resume。
      *
      * @param session 会话参数。

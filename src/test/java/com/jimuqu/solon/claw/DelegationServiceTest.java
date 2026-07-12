@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.noear.snack4.ONode;
@@ -159,6 +160,50 @@ public class DelegationServiceTest {
                 .isEqualTo(parent.getSessionId());
     }
 
+    /** batch 等待线程被取消后必须保留中断标记，并停止等待其余子任务。 */
+    @Test
+    void shouldRestoreInterruptWhenBatchWaitIsInterrupted() throws Exception {
+        CountDownLatch childStarted = new CountDownLatch(1);
+        CountDownLatch childInterrupted = new CountDownLatch(1);
+        AtomicBoolean interruptRestored = new AtomicBoolean();
+        DefaultDelegationService service =
+                new DefaultDelegationService(new ConversationOrchestratorHolder(), null, null) {
+                    @Override
+                    public DelegationResult delegateSingle(String sourceKey, DelegationTask task)
+                            throws Exception {
+                        childStarted.countDown();
+                        try {
+                            Thread.sleep(30000L);
+                        } catch (InterruptedException e) {
+                            childInterrupted.countDown();
+                            throw e;
+                        }
+                        return new DelegationResult();
+                    }
+                };
+        DelegationTask task = new DelegationTask();
+        task.setPrompt("slow child");
+        Thread batch =
+                new Thread(
+                        () -> {
+                            try {
+                                service.delegateBatch("MEMORY:room-a:user-a", Arrays.asList(task));
+                            } catch (Exception ignored) {
+                                // 测试只关心调用返回后的中断状态。
+                            }
+                            interruptRestored.set(Thread.currentThread().isInterrupted());
+                        });
+
+        batch.start();
+        assertThat(childStarted.await(2, TimeUnit.SECONDS)).isTrue();
+        batch.interrupt();
+        batch.join(2000L);
+
+        assertThat(batch.isAlive()).isFalse();
+        assertThat(interruptRestored).isTrue();
+        assertThat(childInterrupted.await(2, TimeUnit.SECONDS)).isTrue();
+    }
+
     @Test
     void shouldIsolateBatchFailuresWithoutBreakingSuccessfulChildren() throws Exception {
         LlmGateway failingGateway =
@@ -232,8 +277,7 @@ public class DelegationServiceTest {
         DelegateTools.DelegateTaskInput second = delegationInput("default role", null, null);
 
         tools.delegateTask("single goal", "single context", null, "leaf", Boolean.FALSE);
-        tools.delegateTask(
-                null, "shared context", Arrays.asList(first, second), "leaf", null);
+        tools.delegateTask(null, "shared context", Arrays.asList(first, second), "leaf", null);
 
         assertThat(service.singleTask.getPrompt()).isEqualTo("single goal");
         assertThat(service.singleTask.getContext()).isEqualTo("single context");

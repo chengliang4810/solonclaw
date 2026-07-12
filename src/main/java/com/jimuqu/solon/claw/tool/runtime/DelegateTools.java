@@ -159,6 +159,5 @@ public class DelegateTools {
         /** 子任务角色；为空时使用顶层 role。 */
         @Param(description = "leaf or orchestrator", required = false)
         private String role;
-
     }
 }

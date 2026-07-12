@@ -521,6 +521,9 @@ public class DefaultDelegationService implements DelegationService {
             for (Future<DelegationResult> future : futures) {
                 try {
                     results.add(future.get());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
                 } catch (Exception e) {
                     log.warn(
                             "delegateBatch child failed: sourceKey={}, error={}",

@@ -50,6 +50,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.message.AssistantMessage;
@@ -103,6 +104,9 @@ public class AgentRunSupervisor implements AgentRunControlService {
     /** 保存drainingQueues映射，便于按键快速查询。 */
     private final ConcurrentMap<String, AtomicBoolean> drainingQueues =
             new ConcurrentHashMap<String, AtomicBoolean>();
+
+    /** Dashboard 手工恢复 pending 会话的回调，由启动配置在依赖就绪后接入。 */
+    private volatile BiPredicate<String, String> pendingSessionResumer;
 
     /** 记录Agent运行Supervisor中的最近一次运行Finished时间。 */
     private volatile long lastRunFinishedAt;
@@ -184,6 +188,16 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (handle == null) {
             return AgentRunStopResult.none();
         }
+        return stopHandle(handle);
+    }
+
+    /**
+     * 停止指定运行句柄，避免并发换主后误中断新 run。
+     *
+     * @param handle 当前需要停止的运行句柄。
+     * @return 停止结果。
+     */
+    private AgentRunStopResult stopHandle(RunHandle handle) {
         handle.cancelled.set(true);
         Thread thread = handle.thread;
         boolean interruptSent = false;
@@ -332,13 +346,30 @@ public class AgentRunSupervisor implements AgentRunControlService {
             String sourceKey, String sessionId, GatewayMessage message) throws Exception {
         String key = normalizeSourceKey(sourceKey);
         String policy = normalizeBusyPolicy(appConfig.getTask().getBusyPolicy());
-        RunHandle handle = runningRuns.get(key);
-        if (handle == null || handle.cancelled.get()) {
-            return RunBusyDecision.runNow(policy);
-        }
-        AgentRunRecord runningRecord = agentRunRepository.findRun(handle.runId);
-        if (runningRecord != null && runningRecord.isBackgrounded()) {
-            return RunBusyDecision.runNow(policy);
+        RunHandle handle;
+        AgentRunRecord runningRecord;
+        while (true) {
+            handle = runningRuns.get(key);
+            runningRecord =
+                    handle == null || StrUtil.isBlank(handle.runId)
+                            ? null
+                            : agentRunRepository.findRun(handle.runId);
+            if (handle == null
+                    || handle.cancelled.get()
+                    || (runningRecord != null && runningRecord.isBackgrounded())) {
+                RunHandle reservation =
+                        new RunHandle(
+                                "", sessionId, Thread.currentThread(), System.currentTimeMillis());
+                boolean claimed =
+                        handle == null
+                                ? runningRuns.putIfAbsent(key, reservation) == null
+                                : runningRuns.replace(key, handle, reservation);
+                if (claimed) {
+                    return RunBusyDecision.runNow(policy);
+                }
+                continue;
+            }
+            break;
         }
         if (message != null && message.isHeartbeat()) {
             if (runningRecord != null) {
@@ -367,12 +398,25 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 agentRunRepository.saveRun(active);
                 appendRunEvent(active, "run.interrupting", "收到新消息，按 interrupt 策略打断当前 run", null);
             }
-            recordCommand(
-                    handle.runId, key, "interrupt", "{\"reason\":\"busy_policy\"}", "handled");
-            stop(key);
-            return RunBusyDecision.runNow(policy);
+            if (StrUtil.isNotBlank(handle.runId)) {
+                recordCommand(
+                        handle.runId, key, "interrupt", "{\"reason\":\"busy_policy\"}", "handled");
+            }
+            stopHandle(handle);
+            RunHandle reservation =
+                    new RunHandle(
+                            "", sessionId, Thread.currentThread(), System.currentTimeMillis());
+            if (runningRuns.replace(key, handle, reservation)) {
+                return RunBusyDecision.runNow(policy);
+            }
+            return coordinateIncoming(sourceKey, sessionId, message);
         }
         if ("steer".equals(policy)) {
+            if (StrUtil.isBlank(handle.runId)) {
+                RunBusyDecision queued = queueIncoming(key, sessionId, message);
+                queued.setPolicy(policy);
+                return queued;
+            }
             String text = message == null ? "" : message.getText();
             recordCommand(
                     handle.runId,
@@ -524,14 +568,17 @@ public class AgentRunSupervisor implements AgentRunControlService {
             return result;
         }
         if ("resume".equals(normalized)) {
-            record.setStatus("running");
-            record.setPhase("recovery");
-            record.setRecoverable(false);
-            record.setLastActivityAt(System.currentTimeMillis());
-            agentRunRepository.saveRun(record);
-            appendRunEvent(record, "run.resume", "Dashboard 请求恢复观察 run", payloadJson);
-            result.put("ok", true);
-            result.put("status", record.getStatus());
+            boolean resumed =
+                    pendingSessionResumer != null
+                            && pendingSessionResumer.test(
+                                    record.getSourceKey(), record.getSessionId());
+            appendRunEvent(
+                    record,
+                    "run.resume",
+                    resumed ? "Dashboard 已恢复 pending 会话" : "Dashboard 恢复 pending 会话失败",
+                    payloadJson);
+            result.put("ok", Boolean.valueOf(resumed));
+            result.put("status", resumed ? "resumed" : "resume_failed");
             return result;
         }
         if ("steer".equals(normalized)) {
@@ -767,8 +814,6 @@ public class AgentRunSupervisor implements AgentRunControlService {
         runRecord.setStartedAt(now);
         runRecord.setHeartbeatAt(now);
         runRecord.setLastActivityAt(now);
-        agentRunRepository.saveRun(runRecord);
-
         AgentRunContext runContext =
                 new AgentRunContext(
                         agentRunRepository,
@@ -789,6 +834,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         AgentRunContext previousContext = AgentRunContext.current();
         AgentRunContext.setCurrent(runContext);
         try {
+            agentRunRepository.saveRun(runRecord);
             pruneOldRuns();
 
             updateRunPhase(runRecord, "running");
@@ -1840,9 +1886,47 @@ public class AgentRunSupervisor implements AgentRunControlService {
      */
     private RunHandle registerRun(
             String sourceKey, String runId, String sessionId, long startedAt) {
+        String key = normalizeSourceKey(sourceKey);
         RunHandle handle = new RunHandle(runId, sessionId, Thread.currentThread(), startedAt);
-        runningRuns.put(normalizeSourceKey(sourceKey), handle);
-        return handle;
+        while (true) {
+            RunHandle existing = runningRuns.get(key);
+            if (existing == null) {
+                if (runningRuns.putIfAbsent(key, handle) == null) {
+                    return handle;
+                }
+                continue;
+            }
+            if (StrUtil.isBlank(existing.runId)
+                    && existing.thread == Thread.currentThread()
+                    && runningRuns.replace(key, existing, handle)) {
+                return handle;
+            }
+            throw new AgentRunCancelledException();
+        }
+    }
+
+    /**
+     * 接入 Dashboard 手工恢复 pending 会话的实际执行器。
+     *
+     * @param pendingSessionResumer 接收 sourceKey、sessionId 并返回是否恢复成功的回调。
+     */
+    public void setPendingSessionResumer(BiPredicate<String, String> pendingSessionResumer) {
+        this.pendingSessionResumer = pendingSessionResumer;
+    }
+
+    /**
+     * 释放当前线程尚未升级为真实 run 的入站占位，避免前置处理失败后来源永久忙碌。
+     *
+     * @param sourceKey 渠道来源键。
+     */
+    public void releaseIncomingReservation(String sourceKey) {
+        String key = normalizeSourceKey(sourceKey);
+        RunHandle handle = runningRuns.get(key);
+        if (handle != null
+                && StrUtil.isBlank(handle.runId)
+                && handle.thread == Thread.currentThread()) {
+            runningRuns.remove(key, handle);
+        }
     }
 
     /**

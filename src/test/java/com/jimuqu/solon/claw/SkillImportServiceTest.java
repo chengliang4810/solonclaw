@@ -56,7 +56,8 @@ public class SkillImportServiceTest {
                     }
 
                     @Override
-                    public com.jimuqu.solon.claw.skillhub.model.SkillMeta inspect(String identifier) {
+                    public com.jimuqu.solon.claw.skillhub.model.SkillMeta inspect(
+                            String identifier) {
                         return null;
                     }
 

@@ -405,7 +405,11 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
             }
             return reply;
         }
-        return runOnSession(session, message, eventSink);
+        try {
+            return runOnSession(session, message, eventSink);
+        } finally {
+            agentRunSupervisor.releaseIncomingReservation(sourceKey);
+        }
     }
 
     /**

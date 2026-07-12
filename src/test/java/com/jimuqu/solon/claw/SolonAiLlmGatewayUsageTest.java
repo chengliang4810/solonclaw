@@ -43,9 +43,7 @@ public class SolonAiLlmGatewayUsageTest {
         assertThat(
                         (String)
                                 extractText.invoke(
-                                        gateway,
-                                        ChatMessage.ofAssistant(
-                                                "<THINK>未闭合的内部推理，不应展示")))
+                                        gateway, ChatMessage.ofAssistant("<THINK>未闭合的内部推理，不应展示")))
                 .isEmpty();
     }
 
@@ -53,8 +51,7 @@ public class SolonAiLlmGatewayUsageTest {
     @Test
     void shouldSuppressAllInlineReasoningTagVariantsInStream() throws Exception {
         Class<?> splitterClass =
-                Class.forName(
-                        "com.jimuqu.solon.claw.llm.SolonAiLlmGateway$ThinkingStreamSplitter");
+                Class.forName("com.jimuqu.solon.claw.llm.SolonAiLlmGateway$ThinkingStreamSplitter");
         Constructor<?> constructor = splitterClass.getDeclaredConstructor();
         constructor.setAccessible(true);
         Object splitter = constructor.newInstance();
@@ -75,8 +72,7 @@ public class SolonAiLlmGatewayUsageTest {
         visibleText.setAccessible(true);
         assertThat((String) visibleText.invoke(null, "<REASONING>内部推理</reasoning>正式答复"))
                 .isEqualTo("正式答复");
-        assertThat((String) visibleText.invoke(null, "<ThOuGhT>未闭合内部推理"))
-                .isEmpty();
+        assertThat((String) visibleText.invoke(null, "<ThOuGhT>未闭合内部推理")).isEmpty();
     }
 
     @Test

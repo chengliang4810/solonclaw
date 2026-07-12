@@ -245,6 +245,55 @@ class ToolRegistryWebAndCodeToolsTest {
     }
 
     @Test
+    void shouldFallbackToBuiltInBackendWhenMatchedPluginProviderFails() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        env.appConfig.getWeb().setSearchBackend("brave-free");
+        env.appConfig.getWeb().setBraveSearchApiKey("brv-test-secret");
+        SolonClawWebTools.SafeWebsearchTool websearch =
+                new SolonClawWebTools.SafeWebsearchTool(
+                        new SecurityPolicyService(env.appConfig), null, env.appConfig) {
+                    @Override
+                    protected String executeBraveSearchRequest(
+                            String query, int limit, String apiKey) {
+                        return "{\"web\":{\"results\":[{\"title\":\"Built-in Result\",\"url\":\"https://example.com/builtin\",\"description\":\"后备搜索结果\"}]}}";
+                    }
+                };
+        websearch.setWebSearchProviders(
+                Arrays.asList(failingWebSearchProvider(true), failingWebSearchProvider(false)));
+
+        Document document =
+                websearch.websearch(
+                        "solon ai", Integer.valueOf(2), "fallback", "auto", Integer.valueOf(1000));
+        ONode result = ONode.ofJson(document.getContent());
+
+        assertThat(result.get("data").get("web").get(0).get("url").getString())
+                .isEqualTo("https://example.com/builtin");
+    }
+
+    /** 构造在可用性检查或搜索阶段失败的匹配插件，以验证后备链不会被中断。 */
+    private static WebSearchProvider failingWebSearchProvider(boolean failAvailability) {
+        return new WebSearchProvider() {
+            @Override
+            public String name() {
+                return "brave-free";
+            }
+
+            @Override
+            public boolean isAvailable() {
+                if (failAvailability) {
+                    throw new IllegalStateException("availability failure");
+                }
+                return true;
+            }
+
+            @Override
+            public List<SearchResult> search(String query, int limit) {
+                throw new IllegalStateException("search failure");
+            }
+        };
+    }
+
+    @Test
     void shouldReportSolonAiWebsearchInitializationFailureWithoutRawObjectMapperCrash()
             throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();

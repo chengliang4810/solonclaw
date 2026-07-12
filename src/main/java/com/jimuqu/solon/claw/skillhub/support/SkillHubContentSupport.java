@@ -17,8 +17,8 @@ public final class SkillHubContentSupport {
     /**
      * 对已写入磁盘的技能内容计算稳定摘要。
      *
-     * <p>目录摘要必须与 {@link #bundleContentHash(SkillBundle)} 保持同一口径：按相对路径排序，依次
-     * 写入路径和 UTF-8 内容。安装记录会与远端技能包直接比较，不能只摘要文件内容。</p>
+     * <p>目录摘要必须与 {@link #bundleContentHash(SkillBundle)} 保持同一口径：按相对路径排序，依次 写入路径和 UTF-8
+     * 内容。安装记录会与远端技能包直接比较，不能只摘要文件内容。
      *
      * @param path 文件或目录路径。
      * @return 返回content Hash结果。
@@ -28,8 +28,7 @@ public final class SkillHubContentSupport {
         if (path.isDirectory()) {
             List<File> files = FileUtil.loopFiles(path);
             files.sort(
-                    (left, right) ->
-                            relativePath(path, left).compareTo(relativePath(path, right)));
+                    (left, right) -> relativePath(path, left).compareTo(relativePath(path, right)));
             for (File file : files) {
                 if (file.isDirectory()) {
                     continue;
@@ -52,10 +51,7 @@ public final class SkillHubContentSupport {
      * @return 用于跨平台稳定摘要的相对路径。
      */
     private static String relativePath(File root, File file) {
-        return root.toPath()
-                .relativize(file.toPath())
-                .toString()
-                .replace(File.separatorChar, '/');
+        return root.toPath().relativize(file.toPath()).toString().replace(File.separatorChar, '/');
     }
 
     /**

@@ -32,5 +32,4 @@ public class DelegationTask {
 
     /** 子代理角色：leaf 或 orchestrator。 */
     private String role;
-
 }

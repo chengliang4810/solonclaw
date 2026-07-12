@@ -61,6 +61,8 @@ class TerminalUiRpcServiceTest {
         run.setSessionId(session.getSessionId());
         run.setSourceKey(session.getSourceKey());
         run.setStatus("waiting_approval");
+        run.setInputPreview("等待审批的用户请求");
+        run.setFinalReplyPreview("已生成的回复片段");
         run.setStartedAt(1_800_000_000_000L);
         runs.saveRun(run);
 
@@ -74,7 +76,11 @@ class TerminalUiRpcServiceTest {
         assertThat(response.get("running")).isEqualTo(Boolean.TRUE);
         assertThat(response.get("status")).isEqualTo("waiting");
         assertThat(response.get("started_at")).isEqualTo(1_800_000_000L);
-        assertThat(response).containsKey("inflight");
+        Map<String, Object> inflight = (Map<String, Object>) response.get("inflight");
+        assertThat(inflight)
+                .containsEntry("user", "等待审批的用户请求")
+                .containsEntry("assistant", "已生成的回复片段")
+                .containsEntry("streaming", Boolean.FALSE);
     }
 
     @Test

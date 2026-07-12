@@ -309,6 +309,8 @@ public class SchedulerConfiguration {
             AgentRunSupervisor agentRunSupervisor,
             PendingSessionRecoveryService pendingSessionRecoveryService) {
         long staleAfterMinutes = Math.max(1, appConfig.getTask().getStaleAfterMinutes());
+        agentRunSupervisor.setPendingSessionResumer(
+                pendingSessionRecoveryService::resumeInterruptedSession);
         agentRunSupervisor.recoverStaleRuns(staleAfterMinutes * 60L * 1000L);
         pendingSessionRecoveryService.recoverRecentPendingSessions();
         return new Object();

@@ -632,10 +632,19 @@ public class SolonClawWebTools {
             }
             for (com.jimuqu.solon.claw.plugin.provider.WebSearchProvider provider :
                     webSearchProviders) {
-                if (provider.name().equals(backend) && provider.isAvailable()) {
+                if (!backend.equals(provider.name())) {
+                    continue;
+                }
+                try {
+                    if (!provider.isAvailable()) {
+                        continue;
+                    }
                     List<com.jimuqu.solon.claw.plugin.provider.WebSearchProvider.SearchResult>
                             results = provider.search(query, limit);
                     return toProviderDocument(results, query, backend);
+                } catch (RuntimeException e) {
+                    // 插件探测或搜索失败时，必须回落到既有内置后端链。
+                    log.warn("Web 搜索插件调用失败，继续使用后备后端: {}", e.getClass().getSimpleName());
                 }
             }
             return null;

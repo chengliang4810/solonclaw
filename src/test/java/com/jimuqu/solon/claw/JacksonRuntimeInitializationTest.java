@@ -11,6 +11,7 @@ class JacksonRuntimeInitializationTest {
     /** 防止 annotations、core 与 databind 的传递依赖版本错配导致 ObjectMapper 初始化失败。 */
     @Test
     void shouldInitializeObjectMapper() throws Exception {
-        assertThat(new ObjectMapper().readTree("{\"ready\":true}").get("ready").asBoolean()).isTrue();
+        assertThat(new ObjectMapper().readTree("{\"ready\":true}").get("ready").asBoolean())
+                .isTrue();
     }
 }

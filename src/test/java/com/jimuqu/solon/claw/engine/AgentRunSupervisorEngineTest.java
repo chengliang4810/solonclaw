@@ -191,6 +191,74 @@ public class AgentRunSupervisorEngineTest {
                 .contains("run.start", "attempt.start", "run.cancelled");
     }
 
+    /** 同一来源在首个 run 尚未登记完成时，新入站抢占后旧线程不得覆盖新 run 句柄。 */
+    @Test
+    void shouldKeepInterruptReservationWhenPreviousRunRegistersLate() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTask().setBusyPolicy("interrupt");
+        AgentRunSupervisor supervisor = supervisor(fixture, new SuccessfulGateway("done"));
+        String sourceKey = "MEMORY:atomic-source:user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        GatewayMessage first =
+                new GatewayMessage(PlatformType.MEMORY, "atomic-source", "user", "first");
+        GatewayMessage second =
+                new GatewayMessage(PlatformType.MEMORY, "atomic-source", "user", "second");
+        CountDownLatch reserved = new CountDownLatch(1);
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+
+        Future<AgentRunOutcome> running =
+                executor.submit(
+                        () -> {
+                            RunBusyDecision decision =
+                                    supervisor.coordinateIncoming(
+                                            sourceKey, session.getSessionId(), first);
+                            assertThat(decision.isShouldRunNow()).isTrue();
+                            reserved.countDown();
+                            try {
+                                new CountDownLatch(1).await();
+                            } catch (InterruptedException ignored) {
+                                // 新入站应中断此处，但仍模拟旧线程稍后进入 registerRun。
+                            }
+                            return supervisor.run(
+                                    session,
+                                    "system",
+                                    "first",
+                                    Collections.emptyList(),
+                                    ConversationFeedbackSink.noop(),
+                                    ConversationEventSink.noop(),
+                                    false,
+                                    null,
+                                    Collections.emptyList(),
+                                    null);
+                        });
+
+        try {
+            assertThat(reserved.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(supervisor.isRunning(sourceKey)).isTrue();
+            RunBusyDecision replacement =
+                    supervisor.coordinateIncoming(sourceKey, session.getSessionId(), second);
+            assertThat(replacement.isShouldRunNow()).isTrue();
+            assertThatThrownBy(() -> running.get(3, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(AgentRunCancelledException.class);
+            AgentRunOutcome outcome =
+                    supervisor.run(
+                            session,
+                            "system",
+                            "second",
+                            Collections.emptyList(),
+                            ConversationFeedbackSink.noop(),
+                            ConversationEventSink.noop(),
+                            false,
+                            null,
+                            Collections.emptyList(),
+                            null);
+            assertThat(outcome.getFinalReply()).isEqualTo("done");
+            assertThat(supervisor.isRunning(sourceKey)).isFalse();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
     /** 验证 steer 指令读取失败时保留降级语义，并通过 warn 日志暴露异常。 */
     @Test
     void shouldWarnAndReturnNullWhenSteerInstructionLookupFails() throws Exception {

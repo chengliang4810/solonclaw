@@ -32,8 +32,7 @@ public class WeixinCronApprovalCommandTest {
         env.cronJobRepository.save(job);
 
         SessionRecord cronRecord = env.sessionRepository.bindNewSession("CRON:" + job.getJobId());
-        SqliteAgentSession cronSession =
-                new SqliteAgentSession(cronRecord, env.sessionRepository);
+        SqliteAgentSession cronSession = new SqliteAgentSession(cronRecord, env.sessionRepository);
         env.dangerousCommandApprovalService.storePendingApproval(
                 cronSession,
                 "execute_code",
@@ -50,9 +49,7 @@ public class WeixinCronApprovalCommandTest {
                 .isNull();
         assertThat(
                         env.dangerousCommandApprovalService.isAlwaysApproved(
-                                "execute_code",
-                                "network_external_operation",
-                                "request releases"))
+                                "execute_code", "network_external_operation", "request releases"))
                 .isTrue();
         assertThat(reply.getRuntimeMetadata()).containsEntry("resumed_pending_run", Boolean.TRUE);
     }

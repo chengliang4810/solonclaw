@@ -2248,11 +2248,7 @@ public class SolonAiLlmGateway implements LlmGateway {
 
         /** 与思考开始标签对应的结束标签，匹配时忽略大小写。 */
         private static final String[] THINK_CLOSE_TAGS = {
-            "</think>",
-            "</thinking>",
-            "</reasoning>",
-            "</thought>",
-            "</reasoning_scratchpad>"
+            "</think>", "</thinking>", "</reasoning>", "</thought>", "</reasoning_scratchpad>"
         };
 
         /** 记录思考流Splitter中的visible。 */

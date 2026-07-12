@@ -171,6 +171,10 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     private final ConcurrentMap<String, TypingTicketState> typingTickets =
             new ConcurrentHashMap<String, TypingTicketState>();
 
+    /** 保存私聊输入状态生命周期，确保消息排队、执行和清理阶段共用同一心跳。 */
+    private final ConcurrentMap<String, TypingLifecycle> activeTypingLifecycles =
+            new ConcurrentHashMap<String, TypingLifecycle>();
+
     /** 保存待恢复文本Batches映射，便于按键快速查询。 */
     private final ConcurrentMap<String, PendingTextBatch> pendingTextBatches =
             new ConcurrentHashMap<String, PendingTextBatch>();
@@ -197,6 +201,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** 是否启用polling。 */
     private volatile boolean polling;
+
+    /** 是否正在断开连接，防止清理期间重新创建输入状态心跳。 */
+    private volatile boolean disconnecting;
 
     /**
      * 创建Wei Xin渠道适配器实例，并注入运行所需依赖。
@@ -271,6 +278,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
         setMissingConfig(new String[0]);
         clearLastError();
+        disconnecting = false;
         setConnected(true);
         setSetupState("connected");
         setDetail("long-poll configured");
@@ -282,23 +290,31 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 断开当前组件持有的连接。 */
     @Override
     public void disconnect() {
+        synchronized (this) {
+            disconnecting = true;
+        }
         polling = false;
         if (pollExecutor != null) {
             pollExecutor.shutdownNow();
             pollExecutor = null;
         }
         if (inboundExecutor != null) {
-            inboundExecutor.shutdown();
+            inboundExecutor.shutdownNow();
             inboundExecutor = null;
         }
         if (textBatchExecutor != null) {
             textBatchExecutor.shutdownNow();
             textBatchExecutor = null;
         }
+        for (TypingLifecycle lifecycle : activeTypingLifecycles.values()) {
+            stopTypingLifecycle(lifecycle, true);
+        }
+        activeTypingLifecycles.clear();
         if (typingHeartbeatExecutor != null) {
             typingHeartbeatExecutor.shutdownNow();
             typingHeartbeatExecutor = null;
         }
+        typingTickets.clear();
         pendingTextBatches.clear();
         pendingTextBatchTasks.clear();
         // 关闭控制命令并发执行器，避免断开连接后线程泄漏
@@ -1312,45 +1328,39 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         gatewayMessage.setUserName(senderId);
         gatewayMessage.setAttachments(attachments);
         if (attachments.isEmpty() && StrUtil.isNotBlank(text)) {
-            if ("dm".equals(chatTarget.chatType)) {
-                primeTyping(chatTarget.chatId, contextToken);
-            }
             enqueueTextBatch(gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
             return;
         }
-        if ("dm".equals(chatTarget.chatType)) {
-            primeTyping(chatTarget.chatId, contextToken);
-        }
         dispatchInboundMessage(
-                gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
+                gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken, null);
     }
 
     /**
-     * 入站消息确认有效后立即异步预取 ticket 并发送首次输入状态。
+     * 在消息进入等待队列时启动输入状态生命周期。
      *
-     * <p>该操作不占用长轮询线程，也不等待文本合并或前序 Agent 任务完成；后续由处理期心跳继续续期。
+     * <p>同一私聊的排队消息复用一个心跳；引用归零后才停止，避免前一任务完成时误清理后一任务的输入状态。
      *
      * @param chatId 私聊用户标识。
      * @param contextToken 当前消息上下文 token。
+     * @return 输入状态生命周期；断连期间或调度失败时返回 null。
      */
-    private void primeTyping(final String chatId, final String contextToken) {
-        try {
-            ensureTypingHeartbeatExecutor()
-                    .execute(
-                            new Runnable() {
-                                /** 预取有效 ticket 并立即发送首次输入状态。 */
-                                @Override
-                                public void run() {
-                                    maybeFetchTypingTicket(chatId, contextToken);
-                                    sendTyping(chatId, TYPING_START);
-                                }
-                            });
-        } catch (Exception e) {
-            log.debug(
-                    "[WEIXIN] typing prime failed: errorType={}, error={}",
-                    errorType(e),
-                    safeError(e));
+    private synchronized TypingLifecycle startTypingLifecycle(
+            final String chatId, final String contextToken) {
+        if (disconnecting) {
+            return null;
         }
+        TypingLifecycle existing = activeTypingLifecycles.get(chatId);
+        if (existing != null) {
+            existing.retain(contextToken);
+            return existing;
+        }
+        TypingLifecycle lifecycle = new TypingLifecycle(chatId, contextToken);
+        lifecycle.heartbeat = startTypingHeartbeat(lifecycle);
+        if (lifecycle.heartbeat == null) {
+            return null;
+        }
+        activeTypingLifecycles.put(chatId, lifecycle);
+        return lifecycle;
     }
 
     /**
@@ -1375,7 +1385,13 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                         (batchKey, existing) -> {
                             if (existing == null) {
                                 return new PendingTextBatch(
-                                        gatewayMessage, chatType, chatId, contextToken);
+                                        gatewayMessage,
+                                        chatType,
+                                        chatId,
+                                        contextToken,
+                                        "dm".equals(chatType)
+                                                ? startTypingLifecycle(chatId, contextToken)
+                                                : null);
                             }
                             existing.append(gatewayMessage, chatType, chatId, contextToken);
                             return existing;
@@ -1437,12 +1453,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * <p>微信 typing 信号不持久，几秒后即失效；整个 Agent 运行期间需周期性重发， 否则长任务中用户看不到“正在输入中”。心跳任务在
      * dispatchInboundMessage 的 finally 中取消。
      *
-     * @param chatId 私聊用户标识。
-     * @param contextToken 上下文 token，用于刷新可能过期的 typing ticket。
+     * @param lifecycle 输入状态生命周期，提供最新上下文 token 并承接统一清理。
      * @return 心跳调度句柄，供调用方在任务结束时取消；启动失败返回 null。
      */
     private java.util.concurrent.ScheduledFuture<?> startTypingHeartbeat(
-            final String chatId, final String contextToken) {
+            final TypingLifecycle lifecycle) {
         try {
             return ensureTypingHeartbeatExecutor()
                     .scheduleAtFixedRate(
@@ -1451,8 +1466,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 @Override
                                 public void run() {
                                     try {
-                                        maybeFetchTypingTicket(chatId, contextToken);
-                                        sendTyping(chatId, TYPING_START);
+                                        maybeFetchTypingTicket(
+                                                lifecycle.chatId, lifecycle.contextToken);
+                                        sendTyping(lifecycle.chatId, TYPING_START);
                                     } catch (Exception e) {
                                         log.debug(
                                                 "[WEIXIN] typing heartbeat tick failed: errorType={}, error={}",
@@ -1485,7 +1501,8 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             return;
         }
         GatewayMessage message = batch.toGatewayMessage();
-        dispatchInboundMessage(message, batch.chatType, batch.chatId, batch.contextToken);
+        dispatchInboundMessage(
+                message, batch.chatType, batch.chatId, batch.contextToken, batch.typingLifecycle);
     }
 
     /**
@@ -1495,14 +1512,23 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      * @param chatType 聊天类型参数。
      * @param chatId 聊天标识。
      * @param contextToken 上下文token上下文。
+     * @param queuedTypingLifecycle 消息排队时已启动的输入状态生命周期。
      */
     private void dispatchInboundMessage(
             final GatewayMessage gatewayMessage,
             final String chatType,
             final String chatId,
-            final String contextToken) {
+            final String contextToken,
+            final TypingLifecycle queuedTypingLifecycle) {
+        final TypingLifecycle typingLifecycle =
+                queuedTypingLifecycle != null
+                        ? queuedTypingLifecycle
+                        : ("dm".equals(chatType)
+                                ? startTypingLifecycle(chatId, contextToken)
+                                : null);
         // 控制命令（/stop、/cancel）走并发执行器，避免被串行入站队列中运行中的任务阻塞而错过取消时机
         if (isControlCommand(gatewayMessage.getText())) {
+            stopTypingLifecycle(typingLifecycle, false);
             dispatchInboundControl(gatewayMessage);
             return;
         }
@@ -1513,14 +1539,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 /** 执行异步任务主体。 */
                                 @Override
                                 public void run() {
-                                    // 输入状态心跳：dm 会话在 Agent 运行期间周期性重发 sendtyping，
-                                    // 避免微信 typing 信号过期后用户看不到“正在输入中”。
-                                    java.util.concurrent.ScheduledFuture<?> typingHeartbeat = null;
                                     try {
-                                        if ("dm".equals(chatType)) {
-                                            typingHeartbeat =
-                                                    startTypingHeartbeat(chatId, contextToken);
-                                        }
                                         inboundMessageHandler().handle(gatewayMessage);
                                     } catch (Exception e) {
                                         log.warn(
@@ -1528,24 +1547,41 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                                 errorType(e),
                                                 safeError(e));
                                     } finally {
-                                        if (typingHeartbeat != null) {
-                                            typingHeartbeat.cancel(false);
-                                        }
-                                        if ("dm".equals(chatType)) {
-                                            maybeFetchTypingTicket(chatId, contextToken);
-                                            if (!sendTyping(chatId, TYPING_STOP)) {
-                                                maybeFetchTypingTicket(chatId, contextToken);
-                                                sendTyping(chatId, TYPING_STOP);
-                                            }
-                                        }
+                                        stopTypingLifecycle(typingLifecycle, false);
                                     }
                                 }
                             });
         } catch (Exception e) {
+            stopTypingLifecycle(typingLifecycle, false);
             log.warn(
                     "[WEIXIN] inbound submit failed: errorType={}, error={}",
                     errorType(e),
                     safeError(e));
+        }
+    }
+
+    /**
+     * 释放输入状态生命周期，并在最后一个引用结束或断连时取消心跳、发送停止状态。
+     *
+     * @param lifecycle 待释放的输入状态生命周期。
+     * @param force 是否忽略引用计数强制停止，用于断连清理。
+     */
+    private void stopTypingLifecycle(TypingLifecycle lifecycle, boolean force) {
+        synchronized (this) {
+            if (lifecycle == null || (!force && --lifecycle.references > 0)) {
+                return;
+            }
+            if (!activeTypingLifecycles.remove(lifecycle.chatId, lifecycle) && !force) {
+                return;
+            }
+        }
+        if (lifecycle.heartbeat != null) {
+            lifecycle.heartbeat.cancel(true);
+        }
+        maybeFetchTypingTicket(lifecycle.chatId, lifecycle.contextToken);
+        if (!sendTyping(lifecycle.chatId, TYPING_STOP)) {
+            maybeFetchTypingTicket(lifecycle.chatId, lifecycle.contextToken);
+            sendTyping(lifecycle.chatId, TYPING_STOP);
         }
     }
 
@@ -2298,6 +2334,44 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         }
     }
 
+    /** 承载同一私聊排队与执行阶段共用的输入状态心跳。 */
+    private static class TypingLifecycle {
+        /** 私聊用户标识。 */
+        private final String chatId;
+
+        /** 当前仍依赖该心跳的排队或执行任务数。 */
+        private int references = 1;
+
+        /** 最近一条消息的上下文 token，用于 ticket 过期后刷新。 */
+        private volatile String contextToken;
+
+        /** 周期心跳句柄，用于任务结束和断连时取消。 */
+        private volatile ScheduledFuture<?> heartbeat;
+
+        /**
+         * 创建输入状态生命周期。
+         *
+         * @param chatId 私聊用户标识。
+         * @param contextToken 当前消息上下文 token。
+         */
+        private TypingLifecycle(String chatId, String contextToken) {
+            this.chatId = chatId;
+            this.contextToken = contextToken;
+        }
+
+        /**
+         * 复用当前心跳并更新后续刷新 ticket 所需的上下文 token。
+         *
+         * @param nextContextToken 新消息携带的上下文 token。
+         */
+        private void retain(String nextContextToken) {
+            references++;
+            if (StrUtil.isNotBlank(nextContextToken)) {
+                contextToken = nextContextToken;
+            }
+        }
+    }
+
     /** 承载待恢复文本Batch相关状态和辅助逻辑。 */
     private static class PendingTextBatch {
         /** 记录待恢复文本Batch中的消息。 */
@@ -2312,6 +2386,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         /** 记录待恢复文本Batch中的上下文token。 */
         private String contextToken;
 
+        /** 记录消息进入批处理队列时已启动的输入状态生命周期。 */
+        private final TypingLifecycle typingLifecycle;
+
         /** 记录待恢复文本Batch中的最近一次分片Length。 */
         private int lastChunkLength;
 
@@ -2322,13 +2399,19 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
          * @param chatType 聊天类型参数。
          * @param chatId 聊天标识。
          * @param contextToken 上下文token上下文。
+         * @param typingLifecycle 消息排队期间持续运行的输入状态生命周期。
          */
         private PendingTextBatch(
-                GatewayMessage message, String chatType, String chatId, String contextToken) {
+                GatewayMessage message,
+                String chatType,
+                String chatId,
+                String contextToken,
+                TypingLifecycle typingLifecycle) {
             this.message = message;
             this.chatType = chatType;
             this.chatId = chatId;
             this.contextToken = contextToken;
+            this.typingLifecycle = typingLifecycle;
             this.lastChunkLength = StrUtil.length(message.getText());
         }
 

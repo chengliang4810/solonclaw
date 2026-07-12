@@ -261,6 +261,44 @@ public class SqliteAgentSessionTest {
     }
 
     @Test
+    void shouldManuallyResumeStaleInterruptedSessionWithoutBypassingApproval() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "MEMORY:stale-manual-resume:user";
+        SessionRecord stale = env.sessionRepository.bindNewSession(sourceKey);
+        SqliteAgentSession staleAgentSession = new SqliteAgentSession(stale, env.sessionRepository);
+        staleAgentSession.addMessage(Arrays.asList(ChatMessage.ofUser("继续过期的中断任务")));
+        staleAgentSession.pending(true, "restart_interrupted");
+        staleAgentSession.updateSnapshot();
+        stale = env.sessionRepository.findById(stale.getSessionId());
+        stale.setUpdatedAt(System.currentTimeMillis() - 120_000L);
+        env.sessionRepository.save(stale);
+
+        PendingSessionRecoveryService recoveryService =
+                new PendingSessionRecoveryService(
+                        env.appConfig, env.sessionRepository, env.conversationOrchestrator);
+
+        assertThat(recoveryService.resumeInterruptedSession(sourceKey, stale.getSessionId()))
+                .isTrue();
+        SessionRecord recovered = env.sessionRepository.findById(stale.getSessionId());
+        assertThat(new SqliteAgentSession(recovered).isPending()).isFalse();
+        assertThat(recovered.getNdjson()).contains("echo:resume");
+
+        SessionRecord approval = env.sessionRepository.bindNewSession(sourceKey);
+        SqliteAgentSession approvalSession =
+                new SqliteAgentSession(approval, env.sessionRepository);
+        approvalSession.pending(true, "need-review");
+        approvalSession.updateSnapshot();
+
+        assertThat(recoveryService.resumeInterruptedSession(sourceKey, approval.getSessionId()))
+                .isFalse();
+        assertThat(
+                        new SqliteAgentSession(
+                                        env.sessionRepository.findById(approval.getSessionId()))
+                                .isPending())
+                .isTrue();
+    }
+
+    @Test
     void shouldAddGatewayInterruptionNoteWhenResumingRestartPendingSession() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         SessionRecord session =

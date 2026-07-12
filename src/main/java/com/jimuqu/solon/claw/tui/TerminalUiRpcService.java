@@ -388,7 +388,7 @@ public class TerminalUiRpcService {
                         running
                                 ? toEpochSeconds(activeRun.getStartedAt())
                                 : toEpochSeconds(startedAt(effectiveSessionId))));
-        result.put("inflight", null);
+        result.put("inflight", inflightTurn(activeRun));
         return result;
     }
 
@@ -2154,6 +2154,29 @@ public class TerminalUiRpcService {
             return "starting";
         }
         return "working";
+    }
+
+    /**
+     * 将活跃运行的已持久化输入和可用输出预览映射为 TUI 恢复所需的未完成轮次。
+     *
+     * <p>运行中的用户输入尚未进入会话 transcript，因此必须从 run 记录恢复；等待审批等非流式阶段 不应伪造 assistant 增量。
+     */
+    private Map<String, Object> inflightTurn(AgentRunRecord run) {
+        if (run == null) {
+            return null;
+        }
+        Map<String, Object> inflight = new LinkedHashMap<String, Object>();
+        inflight.put("user", StrUtil.nullToEmpty(run.getInputPreview()));
+        inflight.put("assistant", StrUtil.nullToEmpty(run.getFinalReplyPreview()));
+        String status = StrUtil.nullToEmpty(run.getStatus()).toLowerCase(Locale.ROOT);
+        inflight.put(
+                "streaming",
+                Boolean.valueOf(
+                        "queued".equals(status)
+                                || "running".equals(status)
+                                || "backgrounded".equals(status)
+                                || "interrupting".equals(status)));
+        return inflight;
     }
 
     /** 返回当前仍在运行的子代理列表。 */
