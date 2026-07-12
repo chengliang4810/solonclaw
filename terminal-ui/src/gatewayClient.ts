@@ -641,8 +641,19 @@ export class GatewayClient extends EventEmitter {
         this.subscribed = true
         this.lifecycle(`[startup] drain buffered=${this.bufferedEvents.tail().length}`)
 
-        for (const ev of this.bufferedEvents.drain()) {
-          this.emit('event', ev)
+        // 事件处理器可在回放时同步触发下一条网关事件。此时仍处于
+        // replaying 状态，publish 会把它追加回缓冲区；必须持续排空，
+        // 否则启动后该事件会永久停留在队列中而不重绘。
+        while (true) {
+          const events = this.bufferedEvents.drain()
+
+          if (!events.length) {
+            break
+          }
+
+          for (const ev of events) {
+            this.emit('event', ev)
+          }
         }
 
         this.replaying = false

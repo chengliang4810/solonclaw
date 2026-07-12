@@ -36,6 +36,17 @@ public interface ProactiveRepository {
     void markCandidateStatus(String candidateId, String status, String decisionId, long updatedAt)
             throws Exception;
 
+    /** 仅当候选仍属于指定决策和预期状态时更新，避免用户忽略结果被并发投递覆盖。 */
+    default boolean compareAndSetCandidateStatus(
+            String candidateId,
+            String expectedStatus,
+            String expectedDecisionId,
+            String status,
+            long updatedAt)
+            throws Exception {
+        return false;
+    }
+
     /** 保存决策记录。 */
     void saveDecision(ProactiveDecisionRecord decision) throws Exception;
 

@@ -113,10 +113,11 @@ public class ProactiveDispatchService {
                 || StrUtil.isBlank(decision.getCandidateId())) {
             return;
         }
-        proactiveRepository.markCandidateStatus(
+        proactiveRepository.compareAndSetCandidateStatus(
                 decision.getCandidateId(),
-                status,
+                "APPROVED",
                 decision.getDecisionId(),
+                status,
                 System.currentTimeMillis());
     }
 

@@ -205,6 +205,29 @@ describe('GatewayClient solonclaw bridge', () => {
     gw.kill()
   })
 
+  it('drains events queued synchronously by a startup replay handler', async () => {
+    const gw = new GatewayClient()
+    const events: string[] = []
+
+    gw.start()
+    await vi.waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1))
+    const socket = FakeWebSocket.instances[0]!
+
+    gw.on('event', event => {
+      events.push(event.type)
+
+      if (event.type === 'gateway.ready') {
+        socket.message(JSON.stringify({ jsonrpc: '2.0', method: 'event', params: { type: 'message.start' } }))
+      }
+    })
+
+    socket.open()
+    await gw.drain()
+
+    expect(events).toEqual(['gateway.ready', 'message.start'])
+    gw.kill()
+  })
+
   it('sends dashboard token during handshake and redacts websocket token from logs', async () => {
     process.env.SOLONCLAW_DASHBOARD_TOKEN = 'hunter2'
     vi.mocked(globalThis.fetch).mockImplementationOnce(async (_url, init) => {

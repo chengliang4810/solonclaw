@@ -149,6 +149,34 @@ public class SqliteProactiveRepository implements ProactiveRepository {
     }
 
     @Override
+    public boolean compareAndSetCandidateStatus(
+            String candidateId,
+            String expectedStatus,
+            String expectedDecisionId,
+            String status,
+            long updatedAt)
+            throws Exception {
+        Connection connection = database.openConnection();
+        try {
+            PreparedStatement statement =
+                    connection.prepareStatement(
+                            "update proactive_candidates set status = ?, updated_at = ? where candidate_id = ? and status = ? and last_decision_id = ?");
+            try {
+                statement.setString(1, status);
+                statement.setLong(2, updatedAt);
+                statement.setString(3, candidateId);
+                statement.setString(4, expectedStatus);
+                statement.setString(5, expectedDecisionId);
+                return statement.executeUpdate() == 1;
+            } finally {
+                statement.close();
+            }
+        } finally {
+            connection.close();
+        }
+    }
+
+    @Override
     public void saveDecision(ProactiveDecisionRecord decision) throws Exception {
         Connection connection = database.openConnection();
         try {
@@ -188,9 +216,15 @@ public class SqliteProactiveRepository implements ProactiveRepository {
                                 "SENT",
                                 recoveredAt,
                                 " and exists (select 1 from proactive_decisions d where d.decision_id = proactive_candidates.last_decision_id and upper(coalesce(d.delivery_status, '')) = 'SENT')");
+                int unknown =
+                        updateApprovedCandidates(
+                                connection,
+                                "DELIVERY_UNKNOWN",
+                                recoveredAt,
+                                " and exists (select 1 from proactive_decisions d where d.decision_id = proactive_candidates.last_decision_id and upper(coalesce(d.delivery_status, '')) = 'DELIVERY_PENDING')");
                 int pending = updateApprovedCandidates(connection, "PENDING", recoveredAt, "");
                 connection.commit();
-                return sent + pending;
+                return sent + unknown + pending;
             } catch (Exception e) {
                 connection.rollback();
                 throw e;

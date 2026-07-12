@@ -324,6 +324,49 @@ class ToolContractParityTest {
         assertThat(result.get("results").get(2).get("error").getString()).contains("url");
     }
 
+    /** web_extract 截断正文时必须保存完整正文，供模型用文件工具继续分段读取。 */
+    @Test
+    void shouldPersistFullWebExtractContentWhenPreviewIsTruncated() throws Exception {
+        Path workspace = Files.createTempDirectory("web-extract-workspace");
+        String middle = "MIDDLE-CONTENT-MUST-REMAIN-READABLE";
+        String longContent =
+                new String(new char[1200]).replace('\0', 'a')
+                        + middle
+                        + new String(new char[1200]).replace('\0', 'z');
+        SolonClawWebTools.SafeWebExtractTool tool =
+                new SolonClawWebTools.SafeWebExtractTool(
+                        null,
+                        new WebfetchTalent() {
+                            @Override
+                            public String webfetch(
+                                    String url, String format, Integer timeoutSeconds) {
+                                return longContent;
+                            }
+                        },
+                        workspace.toString());
+
+        ONode result =
+                ONode.ofJson(
+                        tool.webExtract(
+                                Collections.<Object>singletonList("https://example.com/long"),
+                                "markdown",
+                                Integer.valueOf(2000)));
+        ONode item = result.get("results").get(0);
+        String contentPath = item.get("content_path").getString();
+
+        assertThat(item.get("content").getString()).contains("content truncated", contentPath);
+        assertThat(item.get("hint").getString()).contains("read_file", contentPath);
+        assertThat(item.get("content_truncated").getBoolean()).isTrue();
+        assertThat(Files.readString(workspace.resolve(contentPath), StandardCharsets.UTF_8))
+                .isEqualTo(longContent)
+                .contains(middle);
+        ONode reread =
+                ONode.ofJson(
+                        new SolonClawFileReadWriteSkill(workspace.toString(), null)
+                                .readFile(contentPath, Integer.valueOf(1), Integer.valueOf(1)));
+        assertThat(reread.get("content").getString()).contains(middle);
+    }
+
     /** web_extract 超出五项时必须整体拒绝，不能静默丢弃尾部输入。 */
     @Test
     void shouldRejectWebExtractInputBeyondFiveItems() {

@@ -130,6 +130,12 @@ public class McpRuntimeService implements Closeable {
     private final ExecutorService toolCallExecutor =
             BoundedExecutorFactory.fixed("mcp-tool-call", 4, 64);
 
+    /** 串行化运行时关闭与发现结果落库，防止已关闭 Profile 的旧任务写回状态。 */
+    private final Object lifecycleMonitor = new Object();
+
+    /** 标记当前运行时已关闭；关闭后不得再创建 provider 或持久化发现结果。 */
+    private boolean closed;
+
     /**
      * 创建MCP运行时服务实例，并注入运行所需依赖。
      *
@@ -483,6 +489,12 @@ public class McpRuntimeService implements Closeable {
     /** 关闭当前组件持有的运行资源。 */
     @Override
     public void close() {
+        synchronized (lifecycleMonitor) {
+            if (closed) {
+                return;
+            }
+            closed = true;
+        }
         for (McpClientProvider provider : providers.values()) {
             try {
                 provider.close();
@@ -544,18 +556,23 @@ public class McpRuntimeService implements Closeable {
      * @return 返回提供方For结果。
      */
     private McpClientProvider providerFor(McpServerConfig config) {
-        McpClientProvider current = providers.get(config.getServerId());
-        if (current != null) {
-            return current;
+        synchronized (lifecycleMonitor) {
+            if (closed) {
+                throw new IllegalStateException("MCP runtime is closed.");
+            }
+            McpClientProvider current = providers.get(config.getServerId());
+            if (current != null) {
+                return current;
+            }
+            assertSafeProviderEndpoint(config);
+            McpClientProvider created = providerFactory.create(config);
+            McpClientProvider existing = providers.putIfAbsent(config.getServerId(), created);
+            if (existing != null) {
+                created.close();
+                return existing;
+            }
+            return created;
         }
-        assertSafeProviderEndpoint(config);
-        McpClientProvider created = providerFactory.create(config);
-        McpClientProvider existing = providers.putIfAbsent(config.getServerId(), created);
-        if (existing != null) {
-            created.close();
-            return existing;
-        }
-        return created;
     }
 
     /**
@@ -754,43 +771,48 @@ public class McpRuntimeService implements Closeable {
             String lastError,
             String toolsJson,
             boolean toolsChanged) {
-        Connection connection = null;
-        try {
-            connection = database.openConnection();
-            StringBuilder sql =
-                    new StringBuilder(
-                            "update mcp_servers set status = ?, last_error = ?, last_checked_at = ?, updated_at = ?, last_tools_changed_at = case when ? then ? else last_tools_changed_at end");
-            if (toolsJson != null) {
-                sql.append(", tools_json = ?, last_tools_hash = ?, last_tools_json = ?");
-            } else {
-                sql.append(", last_tools_hash = coalesce(last_tools_hash, '')");
+        synchronized (lifecycleMonitor) {
+            if (closed) {
+                return;
             }
-            sql.append(" where server_id = ?");
-            PreparedStatement statement = connection.prepareStatement(sql.toString());
-            long now = System.currentTimeMillis();
-            statement.setString(1, StrUtil.blankToDefault(status, "ready"));
-            statement.setString(2, lastError);
-            statement.setLong(3, now);
-            statement.setLong(4, now);
-            statement.setInt(5, toolsChanged ? 1 : 0);
-            statement.setLong(6, now);
-            int index = 7;
-            if (toolsJson != null) {
-                statement.setString(index++, toolsJson);
-                statement.setString(index++, hash(toolsJson));
-                statement.setString(index++, toolsJson);
+            Connection connection = null;
+            try {
+                connection = database.openConnection();
+                StringBuilder sql =
+                        new StringBuilder(
+                                "update mcp_servers set status = ?, last_error = ?, last_checked_at = ?, updated_at = ?, last_tools_changed_at = case when ? then ? else last_tools_changed_at end");
+                if (toolsJson != null) {
+                    sql.append(", tools_json = ?, last_tools_hash = ?, last_tools_json = ?");
+                } else {
+                    sql.append(", last_tools_hash = coalesce(last_tools_hash, '')");
+                }
+                sql.append(" where server_id = ?");
+                PreparedStatement statement = connection.prepareStatement(sql.toString());
+                long now = System.currentTimeMillis();
+                statement.setString(1, StrUtil.blankToDefault(status, "ready"));
+                statement.setString(2, lastError);
+                statement.setLong(3, now);
+                statement.setLong(4, now);
+                statement.setInt(5, toolsChanged ? 1 : 0);
+                statement.setLong(6, now);
+                int index = 7;
+                if (toolsJson != null) {
+                    statement.setString(index++, toolsJson);
+                    statement.setString(index++, hash(toolsJson));
+                    statement.setString(index++, toolsJson);
+                }
+                statement.setString(index, serverId);
+                statement.executeUpdate();
+                statement.close();
+            } catch (Exception e) {
+                log.warn(
+                        "MCP服务端状态写回失败，保留原状态继续运行: serverId={}, status={}, error={}",
+                        sanitizeLogToken(serverId),
+                        StrUtil.blankToDefault(status, "ready"),
+                        exceptionSummary(e));
+            } finally {
+                close(connection);
             }
-            statement.setString(index, serverId);
-            statement.executeUpdate();
-            statement.close();
-        } catch (Exception e) {
-            log.warn(
-                    "MCP服务端状态写回失败，保留原状态继续运行: serverId={}, status={}, error={}",
-                    sanitizeLogToken(serverId),
-                    StrUtil.blankToDefault(status, "ready"),
-                    exceptionSummary(e));
-        } finally {
-            close(connection);
         }
     }
 

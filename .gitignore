@@ -10,6 +10,7 @@
 /web/.playwright-cli/
 /web/output/
 /.solonclaw-tui-history
+/.solonclaw/cache/
 *.iml
 *.log
 *.db

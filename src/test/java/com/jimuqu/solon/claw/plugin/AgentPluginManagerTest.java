@@ -10,16 +10,99 @@ import com.jimuqu.solon.claw.plugin.provider.SpeechProvider;
 import com.jimuqu.solon.claw.plugin.provider.TranscriptionProvider;
 import com.jimuqu.solon.claw.plugin.provider.VideoGenProvider;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
+import java.io.OutputStream;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.jar.JarEntry;
+import java.util.jar.JarOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class AgentPluginManagerTest {
 
     @TempDir Path tempDir;
+
+    @Test
+    void loadsBundledPluginFromPackagedJarClasspath() throws Exception {
+        Path archive = tempDir.resolve("plugins.jar");
+        try (OutputStream output = Files.newOutputStream(archive);
+                JarOutputStream jar = new JarOutputStream(output)) {
+            writeJarEntry(jar, "plugins/", "");
+            writeJarEntry(jar, "plugins/jar-plugin/", "");
+            writeJarEntry(
+                    jar,
+                    "plugins/jar-plugin/plugin.yaml",
+                    "name: jar-plugin\nkind: backend\nentry: JarPlugin\n");
+            writeJarEntry(
+                    jar,
+                    "plugins/jar-plugin/JarPlugin.java",
+                    "import com.jimuqu.solon.claw.plugin.*;\n"
+                            + "public class JarPlugin implements AgentPlugin {\n"
+                            + "  public void register(AgentPluginContext ctx) {\n"
+                            + "    ctx.registerCommand(\"jar_echo\", args -> \"jar\");\n"
+                            + "  }\n"
+                            + "}\n");
+        }
+
+        ClassLoader previous = Thread.currentThread().getContextClassLoader();
+        AgentPluginManager manager = null;
+        try (URLClassLoader loader =
+                new ChildFirstResourceClassLoader(new URL[] {archive.toUri().toURL()}, previous)) {
+            Thread.currentThread().setContextClassLoader(loader);
+            try {
+                assertTrue(loader.getResource("plugins").toString().contains("plugins.jar"));
+                manager =
+                        new AgentPluginManager(
+                                new AgentHookRegistry(),
+                                Set.of(),
+                                Set.of(),
+                                tempDir.resolve("user"),
+                                true);
+                CapturingSink sink = new CapturingSink();
+                manager.discoverAndLoad(sink);
+                manager.discoverAndLoad(sink);
+
+                assertTrue(
+                        manager.listPlugins().stream()
+                                .anyMatch(manifest -> "jar-plugin".equals(manifest.getName())));
+                assertEquals(Set.of("jar_echo"), sink.commands.keySet());
+            } finally {
+                if (manager != null) {
+                    manager.shutdown();
+                }
+                Thread.currentThread().setContextClassLoader(previous);
+            }
+        }
+    }
+
+    /** 写入测试用 Jar 条目，模拟发布产物内的 plugins 资源目录。 */
+    private static void writeJarEntry(JarOutputStream jar, String name, String content)
+            throws Exception {
+        jar.putNextEntry(new JarEntry(name));
+        if (!name.endsWith("/")) {
+            jar.write(content.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        jar.closeEntry();
+    }
+
+    /** 测试时优先从临时 JAR 查找资源，避免测试运行目录中的 plugins 资源掩盖发布路径。 */
+    private static class ChildFirstResourceClassLoader extends URLClassLoader {
+        /** 创建优先命中临时 JAR 资源的类加载器。 */
+        ChildFirstResourceClassLoader(URL[] urls, ClassLoader parent) {
+            super(urls, parent);
+        }
+
+        /** 优先返回子加载器资源，确保 bundled plugins 走 jar: URL 路径。 */
+        @Override
+        public URL getResource(String name) {
+            URL resource = findResource(name);
+            return resource == null ? super.getResource(name) : resource;
+        }
+    }
 
     @Test
     void loadsTempPluginWithManifestFieldsToolAndCommand() throws Exception {
