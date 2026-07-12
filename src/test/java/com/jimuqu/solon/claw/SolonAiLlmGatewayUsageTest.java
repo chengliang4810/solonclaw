@@ -32,6 +32,23 @@ public class SolonAiLlmGatewayUsageTest {
         assertThat((String) extractReasoning.invoke(gateway, message)).isEqualTo("内部推理");
     }
 
+    /** 未闭合或大小写不同的思考块也不能成为非流式最终回复。 */
+    @Test
+    void shouldSuppressMalformedThinkingOnlyVisibleText() throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(new AppConfig());
+        Method extractText =
+                SolonAiLlmGateway.class.getDeclaredMethod("extractText", AssistantMessage.class);
+        extractText.setAccessible(true);
+
+        assertThat(
+                        (String)
+                                extractText.invoke(
+                                        gateway,
+                                        ChatMessage.ofAssistant(
+                                                "<THINK>未闭合的内部推理，不应展示")))
+                .isEmpty();
+    }
+
     @Test
     void shouldReadOpenaiChatCachedTokensFromPromptDetails() throws Exception {
         ONode source =

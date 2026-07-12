@@ -24,6 +24,21 @@ import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** 对齐 Jimuqu 请求前消息序列修复，避免孤儿 tool 消息触发空响应循环。 */
 public class MessageSequenceRepairTest {
+    /** 非流式模型内嵌的思考块不得进入用户可见正文。 */
+    @Test
+    void shouldStripReasoningBlocksFromVisibleAssistantText() {
+        assertThat(MessageSupport.visibleText("<think>内部推理</think>最终答复"))
+                .isEqualTo("最终答复");
+        assertThat(MessageSupport.visibleText("<THOUGHT>内部推理</THOUGHT>\n最终答复"))
+                .isEqualTo("最终答复");
+        assertThat(MessageSupport.visibleText("<reasoning>只有推理，没有闭合"))
+                .isEmpty();
+        assertThat(MessageSupport.visibleText("正式答复。\n<thinking>未闭合的后续推理"))
+                .isEqualTo("正式答复。");
+        assertThat(MessageSupport.visibleText("文档中的 <think> 标签用于表示思考。"))
+                .isEqualTo("文档中的 标签用于表示思考。");
+    }
+
     @Test
     void shouldDropStrayToolWithUnknownToolCallId() {
         List<ChatMessage> messages =

@@ -995,7 +995,8 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      * @return 返回Final Reply结果。
      */
     private String sanitizeFinalReply(String finalReply) {
-        String sanitized = MemoryContextBoundary.scrubVisibleText(finalReply);
+        String sanitized =
+                MessageSupport.visibleText(MemoryContextBoundary.scrubVisibleText(finalReply));
         return StrUtil.blankToDefault(sanitized, AgentRecoveryPromptConstants.EMPTY_REPLY_FALLBACK);
     }
 
@@ -1285,16 +1286,12 @@ public class DefaultConversationOrchestrator implements ConversationOrchestrator
      * @return 返回Text结果。
      */
     private String extractText(AssistantMessage assistantMessage) {
+        String text = MessageSupport.assistantText(assistantMessage);
+        if (StrUtil.isNotBlank(text)) {
+            return text;
+        }
         if (assistantMessage == null) {
             return "";
-        }
-
-        if (StrUtil.isNotBlank(assistantMessage.getResultContent())) {
-            return assistantMessage.getResultContent();
-        }
-
-        if (StrUtil.isNotBlank(assistantMessage.getContent())) {
-            return assistantMessage.getContent();
         }
 
         log.warn(

@@ -2196,7 +2196,8 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @return 如果Visible Content满足条件则返回 true，否则返回 false。
      */
     private boolean hasVisibleContent(AssistantMessage assistantMessage, String rawResponse) {
-        return StrUtil.isNotBlank(extractText(assistantMessage)) || StrUtil.isNotBlank(rawResponse);
+        return StrUtil.isNotBlank(extractText(assistantMessage))
+                || StrUtil.isNotBlank(MessageSupport.visibleText(rawResponse));
     }
 
     /**
@@ -2206,14 +2207,12 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @return 返回Text结果。
      */
     private String extractText(AssistantMessage assistantMessage) {
+        String text = MessageSupport.assistantText(assistantMessage);
+        if (StrUtil.isNotBlank(text)) {
+            return text;
+        }
         if (assistantMessage == null) {
             return "";
-        }
-        if (StrUtil.isNotBlank(assistantMessage.getResultContent())) {
-            return assistantMessage.getResultContent().trim();
-        }
-        if (StrUtil.isNotBlank(assistantMessage.getContent())) {
-            return assistantMessage.getContent().trim();
         }
         log.warn(
                 "Assistant message has no visible content; suppressing message object fallback: role={}, contentRawType={}, toolCalls={}",

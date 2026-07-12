@@ -10,6 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.noear.solon.ai.chat.ChatRole;
 import org.noear.solon.ai.chat.content.ContentBlock;
 import org.noear.solon.ai.chat.message.AssistantMessage;
@@ -20,6 +21,24 @@ import org.noear.solon.ai.chat.tool.ToolCall;
 
 /** 会话消息 NDJSON 辅助工具。 */
 public final class MessageSupport {
+    /** 模型可能内嵌在正文中的闭合思考块。 */
+    private static final Pattern THINK_BLOCK_PATTERN =
+            Pattern.compile(
+                    "<\\s*(think|thinking|reasoning|thought|reasoning_scratchpad)\\b[^>]*>[\\s\\S]*?</\\s*\\1\\s*>",
+                    Pattern.CASE_INSENSITIVE);
+
+    /** 位于文本起始或新行后的未闭合思考块；从标签起均不可对用户展示。 */
+    private static final Pattern UNTERMINATED_THINK_PATTERN =
+            Pattern.compile(
+                    "(?:^|\\R)[ \\t]*<\\s*(?:think|thinking|reasoning|thought|reasoning_scratchpad)\\b[^>]*>[\\s\\S]*$",
+                    Pattern.CASE_INSENSITIVE);
+
+    /** 清理闭合块后残留的孤立思考标签。 */
+    private static final Pattern ORPHAN_THINK_TAG_PATTERN =
+            Pattern.compile(
+                    "</?\\s*(?:think|thinking|reasoning|thought|reasoning_scratchpad)\\s*>\\s*",
+                    Pattern.CASE_INSENSITIVE);
+
     /** 创建消息辅助实例。 */
     private MessageSupport() {}
 
@@ -576,9 +595,20 @@ public final class MessageSupport {
             return "";
         }
         if (StrUtil.isNotBlank(assistantMessage.getResultContent())) {
-            return assistantMessage.getResultContent().trim();
+            return visibleText(assistantMessage.getResultContent());
         }
-        return StrUtil.nullToEmpty(assistantMessage.getContent()).trim();
+        return visibleText(assistantMessage.getContent());
+    }
+
+    /** 清理用户可见文本中的思考块，保留标签外的正式答复。 */
+    public static String visibleText(String content) {
+        if (StrUtil.isBlank(content)) {
+            return "";
+        }
+        String value = THINK_BLOCK_PATTERN.matcher(content).replaceAll("");
+        value = UNTERMINATED_THINK_PATTERN.matcher(value).replaceAll("");
+        value = ORPHAN_THINK_TAG_PATTERN.matcher(value).replaceAll("");
+        return value.trim();
     }
 
     /**
@@ -588,18 +618,7 @@ public final class MessageSupport {
      * @return 返回去除 think 块后的可见正文。
      */
     private static String visibleAssistantContent(String content) {
-        String value = StrUtil.nullToEmpty(content);
-        int start = value.indexOf("<think>");
-        while (start >= 0) {
-            int end = value.indexOf("</think>", start + "<think>".length());
-            if (end < 0) {
-                value = value.substring(0, start);
-                break;
-            }
-            value = value.substring(0, start) + value.substring(end + "</think>".length());
-            start = value.indexOf("<think>");
-        }
-        return value.trim();
+        return visibleText(content);
     }
 
     /**

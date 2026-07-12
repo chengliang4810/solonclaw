@@ -1353,14 +1353,12 @@ public class AgentRunSupervisor implements AgentRunControlService {
      * @return 返回Text结果。
      */
     private String extractText(AssistantMessage assistantMessage) {
+        String text = MessageSupport.assistantText(assistantMessage);
+        if (StrUtil.isNotBlank(text)) {
+            return text;
+        }
         if (assistantMessage == null) {
             return "";
-        }
-        if (StrUtil.isNotBlank(assistantMessage.getResultContent())) {
-            return assistantMessage.getResultContent();
-        }
-        if (StrUtil.isNotBlank(assistantMessage.getContent())) {
-            return assistantMessage.getContent();
         }
         log.warn(
                 "Assistant message has no visible content in agent run; suppressing message object"
@@ -1384,7 +1382,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
     private boolean hasVisibleContent(LlmResult result) {
         return result != null
                 && (StrUtil.isNotBlank(extractText(result.getAssistantMessage()))
-                        || StrUtil.isNotBlank(result.getRawResponse()));
+                        || StrUtil.isNotBlank(MessageSupport.visibleText(result.getRawResponse())));
     }
 
     /**
