@@ -18,11 +18,7 @@ import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.AgentRunControlService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
-import com.jimuqu.solon.claw.gateway.service.ProfileMultiplexRuntimeManager;
-import com.jimuqu.solon.claw.gateway.service.ProfileRuntimeBundle;
-import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
-import com.jimuqu.solon.claw.profile.ProfileView;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
@@ -334,13 +330,6 @@ public class DefaultDelegationService implements DelegationService {
         }
 
         try {
-            String targetProfile = resolveTargetProfile(task);
-            ProfileRuntimeScope.Context currentProfile = ProfileRuntimeScope.current();
-            String currentProfileName =
-                    currentProfile == null ? "default" : currentProfile.getProfile();
-            if (StrUtil.isNotBlank(targetProfile) && !targetProfile.equals(currentProfileName)) {
-                return delegateToProfile(sourceKey, task, targetProfile);
-            }
             SessionRecord parentSession = sessionRepository.getBoundSession(sourceKey);
             String subagentId = "sa-" + IdSupport.newId();
             String childSourceKey = childSourceKey(sourceKey, subagentId);
@@ -393,72 +382,6 @@ public class DefaultDelegationService implements DelegationService {
         }
     }
 
-    /** 将任务交给目标 Profile 的独立运行时，避免跨 Profile 复用当前会话库和 Bean。 */
-    private DelegationResult delegateToProfile(
-            String sourceKey, DelegationTask task, String targetProfile) throws Exception {
-        ProfileMultiplexRuntimeManager manager =
-                org.noear.solon.Solon.context().getBean(ProfileMultiplexRuntimeManager.class);
-        if (manager == null) {
-            return failureResult(task.getName(), "Profile runtime manager is not ready.");
-        }
-        ProfileRuntimeBundle runtime = manager.requireRuntime(targetProfile);
-        String subagentId = "sa-" + IdSupport.newId();
-        String childSourceKey = childSourceKey(sourceKey, subagentId);
-        GatewayMessage message =
-                new GatewayMessage(PlatformType.MEMORY, "", "", decoratePrompt(task));
-        message.setSourceKeyOverride(childSourceKey);
-        GatewayReply reply = runtime.handle(message);
-        DelegationResult result = new DelegationResult();
-        result.setSubagentId(subagentId);
-        result.setName(StrUtil.blankToDefault(task.getName(), "delegate"));
-        result.setSessionId(reply == null ? null : reply.getSessionId());
-        result.setSourceKey(childSourceKey);
-        result.setContent(reply == null ? "" : reply.getContent());
-        result.setError(reply != null && reply.isError());
-        return result;
-    }
-
-    /** 优先采用显式 Profile；否则仅在任务明确命中名称或完整职责说明时自动选择。 */
-    private String resolveTargetProfile(DelegationTask task) {
-        if (task == null) {
-            return null;
-        }
-        if (StrUtil.isNotBlank(task.getProfile())) {
-            return task.getProfile().trim();
-        }
-        ProfileManager manager;
-        try {
-            manager = org.noear.solon.Solon.context().getBean(ProfileManager.class);
-        } catch (RuntimeException e) {
-            return null;
-        }
-        if (manager == null) {
-            return null;
-        }
-        String text =
-                (StrUtil.nullToEmpty(task.getPrompt())
-                                + " "
-                                + StrUtil.nullToEmpty(task.getContext()))
-                        .toLowerCase(java.util.Locale.ROOT);
-        try {
-            for (ProfileView view : manager.listProfileViews()) {
-                String name = view.getName();
-                String description = view.getDescription();
-                if ((StrUtil.isNotBlank(name)
-                                && text.contains(name.toLowerCase(java.util.Locale.ROOT)))
-                        || (StrUtil.isNotBlank(description)
-                                && text.contains(description.toLowerCase(java.util.Locale.ROOT)))) {
-                    return name;
-                }
-            }
-        } catch (Exception e) {
-            log.debug(
-                    "Profile delegation routing metadata unavailable: {}",
-                    EngineSupport.safeError(e));
-        }
-        return null;
-    }
-
     /** 构造合法子来源键：复用父平台、会话和用户，把子 Agent 放入独立线程。 */
     private String childSourceKey(String parentSourceKey, String subagentId) {
         String[] parts = SourceKeySupport.split(parentSourceKey);
@@ -470,7 +393,9 @@ public class DefaultDelegationService implements DelegationService {
                 StrUtil.isBlank(parentThread)
                         ? "delegate-" + subagentId
                         : parentThread + "-delegate-" + subagentId;
-        return platform + ":" + chatId + ":" + childThread + ":" + userId;
+        String profile = SourceKeySupport.profile(parentSourceKey);
+        String prefix = profile == null ? "" : "profile:" + profile + ":";
+        return prefix + platform + ":" + chatId + ":" + childThread + ":" + userId;
     }
 
     /**

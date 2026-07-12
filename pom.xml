@@ -29,7 +29,20 @@
         <lombok.version>1.18.46</lombok.version>
         <jline.version>4.2.1</jline.version>
         <jansi.version>2.4.3</jansi.version>
+        <jackson.version>2.21.4</jackson.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>

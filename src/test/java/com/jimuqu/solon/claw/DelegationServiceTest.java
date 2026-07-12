@@ -90,6 +90,25 @@ public class DelegationServiceTest {
                 .isEqualTo(parent.getSessionId());
     }
 
+    /** 命名 Profile 的子 Agent 来源键必须保留 Profile 路由边界。 */
+    @Test
+    void shouldKeepProfilePrefixInChildSourceKey() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String parentSourceKey = "profile:worker:MEMORY:room-a:thread-1:user-a";
+        env.sessionRepository.bindNewSession(parentSourceKey);
+
+        DelegationResult result =
+                env.delegationService.delegateSingle(parentSourceKey, "sub task", "ctx");
+
+        assertThat(result.getSourceKey()).startsWith("profile:worker:MEMORY:room-a:");
+        DeliveryRequest childTarget =
+                SourceKeySupport.toDeliveryRequest(result.getSourceKey(), "child reply");
+        assertThat(childTarget.getProfile()).isEqualTo("worker");
+        assertThat(childTarget.getThreadId())
+                .startsWith("thread-1-delegate-")
+                .contains(result.getSubagentId());
+    }
+
     /** 验证子代理继承父会话当前生效的模型、推理和快速模式覆盖。 */
     @Test
     void shouldInheritParentModelRequestOverrides() throws Exception {
@@ -212,19 +231,15 @@ public class DelegationServiceTest {
                 delegationInput("batch goal", "batch context", "orchestrator");
         DelegateTools.DelegateTaskInput second = delegationInput("default role", null, null);
 
+        tools.delegateTask("single goal", "single context", null, "leaf", Boolean.FALSE);
         tools.delegateTask(
-                "single goal", "single context", null, "leaf", "reviewer", Boolean.FALSE);
-        first.setProfile("backend");
-        tools.delegateTask(
-                null, "shared context", Arrays.asList(first, second), "leaf", null, null);
+                null, "shared context", Arrays.asList(first, second), "leaf", null);
 
         assertThat(service.singleTask.getPrompt()).isEqualTo("single goal");
         assertThat(service.singleTask.getContext()).isEqualTo("single context");
         assertThat(service.singleTask.getRole()).isEqualTo("leaf");
-        assertThat(service.singleTask.getProfile()).isEqualTo("reviewer");
         assertThat(service.batchTasks.get(0).getContext()).isEqualTo("batch context");
         assertThat(service.batchTasks.get(0).getRole()).isEqualTo("orchestrator");
-        assertThat(service.batchTasks.get(0).getProfile()).isEqualTo("backend");
         assertThat(service.batchTasks.get(1).getContext()).isEqualTo("shared context");
         assertThat(service.batchTasks.get(1).getRole()).isEqualTo("leaf");
     }
@@ -234,7 +249,9 @@ public class DelegationServiceTest {
     void delegateToolShouldReturnHandleAndReenterParentConversation() throws Exception {
         CountDownLatch releaseChild = new CountDownLatch(1);
         CountDownLatch completionDelivered = new CountDownLatch(1);
+        CountDownLatch channelDelivered = new CountDownLatch(1);
         AtomicReference<String> completionText = new AtomicReference<String>();
+        AtomicReference<DeliveryRequest> channelDelivery = new AtomicReference<DeliveryRequest>();
         ConversationOrchestratorHolder holder = new ConversationOrchestratorHolder();
         holder.set(
                 new ConversationOrchestrator() {
@@ -261,7 +278,25 @@ public class DelegationServiceTest {
                     }
                 });
         DefaultDelegationService service =
-                new DefaultDelegationService(holder, null, null) {
+                new DefaultDelegationService(
+                        holder,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new com.jimuqu.solon.claw.core.service.DeliveryService() {
+                            @Override
+                            public void deliver(DeliveryRequest request) {
+                                channelDelivery.set(request);
+                                channelDelivered.countDown();
+                            }
+
+                            @Override
+                            public List<com.jimuqu.solon.claw.core.model.ChannelStatus> statuses() {
+                                return java.util.Collections.emptyList();
+                            }
+                        }) {
                     @Override
                     public List<DelegationResult> delegateBatch(
                             String sourceKey, List<DelegationTask> tasks) throws Exception {
@@ -271,9 +306,10 @@ public class DelegationServiceTest {
                         return Arrays.asList(result);
                     }
                 };
-        DelegateTools tools = new DelegateTools(service, "MEMORY:room-a:user-a");
+        String sourceKey = "profile:worker:FEISHU:room-a:thread-a:user-a";
+        DelegateTools tools = new DelegateTools(service, sourceKey);
         AgentRunContext parent =
-                new AgentRunContext(null, "parent-run", "parent-session", "MEMORY:room-a:user-a");
+                new AgentRunContext(null, "parent-run", "parent-session", sourceKey);
         parent.setRunKind("conversation");
 
         AgentRunContext.setCurrent(parent);
@@ -290,7 +326,14 @@ public class DelegationServiceTest {
         assertThat(completionDelivered.getCount()).isEqualTo(1L);
         releaseChild.countDown();
         assertThat(completionDelivered.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(channelDelivered.await(5, TimeUnit.SECONDS)).isTrue();
         assertThat(completionText.get()).contains("[后台委派完成]").contains("child summary");
+        assertThat(channelDelivery.get()).isNotNull();
+        assertThat(channelDelivery.get().getProfile()).isEqualTo("worker");
+        assertThat(channelDelivery.get().getPlatform()).isEqualTo(PlatformType.FEISHU);
+        assertThat(channelDelivery.get().getChatId()).isEqualTo("room-a");
+        assertThat(channelDelivery.get().getThreadId()).isEqualTo("thread-a");
+        assertThat(channelDelivery.get().getUserId()).isEqualTo("user-a");
     }
 
     /** 子 Agent 内的 orchestrator 委派必须同步返回，便于在本轮汇总 worker 结果。 */

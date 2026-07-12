@@ -13,6 +13,7 @@ public final class SourceKeySupport {
     public static DeliveryRequest toDeliveryRequest(String sourceKey, String text) {
         String[] parts = split(sourceKey);
         DeliveryRequest request = new DeliveryRequest();
+        request.setProfile(profile(sourceKey));
         request.setPlatform(PlatformType.fromName(parts[0]));
         request.setChatId(parts[1]);
         request.setUserId(parts[2]);
@@ -28,7 +29,8 @@ public final class SourceKeySupport {
             return out;
         }
 
-        String[] parts = sourceKey.split(":", 4);
+        String normalized = stripProfile(sourceKey);
+        String[] parts = normalized.split(":", 4);
         if (parts.length > 0) {
             out[0] = parts[0];
         }
@@ -43,6 +45,23 @@ public final class SourceKeySupport {
         }
 
         return out;
+    }
+
+    /** 返回来源键携带的命名 Profile；默认 Profile 返回 null。 */
+    public static String profile(String sourceKey) {
+        if (sourceKey == null || !sourceKey.startsWith("profile:")) {
+            return null;
+        }
+        int end = sourceKey.indexOf(':', "profile:".length());
+        return end < 0 ? null : StrUtil.trimToNull(sourceKey.substring("profile:".length(), end));
+    }
+
+    /** 去掉命名 Profile 路由前缀，保留标准渠道来源键。 */
+    private static String stripProfile(String sourceKey) {
+        String profile = profile(sourceKey);
+        return profile == null
+                ? sourceKey
+                : sourceKey.substring("profile:".length() + profile.length() + 1);
     }
 
     /** 构造指定线程的来源键前缀，末尾包含分隔符以避免 thread id 前缀碰撞。 */

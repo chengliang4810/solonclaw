@@ -25,17 +25,6 @@ public class DelegateTools {
     /** 当前来源键。 */
     private final String sourceKey;
 
-    /** 保留 Java 内部调用的旧参数形态；模型工具契约使用包含 Profile 的重载。 */
-    public String delegateTask(
-            String goal,
-            String context,
-            List<DelegateTaskInput> tasks,
-            String role,
-            Boolean background)
-            throws Exception {
-        return delegateTask(goal, context, tasks, role, null, background);
-    }
-
     /** 支持单任务与批量委托。 */
     @ToolMapping(
             name = "delegate_task",
@@ -48,11 +37,6 @@ public class DelegateTools {
                     List<DelegateTaskInput> tasks,
             @Param(name = "role", description = "子代理角色：leaf 或 orchestrator", required = false)
                     String role,
-            @Param(
-                            name = "profile",
-                            description = "目标 Profile 名；为空时按任务与 Profile 职责自动选择",
-                            required = false)
-                    String profile,
             @Param(name = "background", description = "协议字段；执行方式由运行时决定，模型值不改变调度", required = false)
                     Boolean background)
             throws Exception {
@@ -87,7 +71,6 @@ public class DelegateTools {
             task.setPrompt(goal.trim());
             task.setContext(context);
             task.setRole(topRole);
-            task.setProfile(StrUtil.trimToNull(profile));
             if (delegationService.shouldRunInBackground()) {
                 return SecretRedactor.redact(
                         ONode.serialize(
@@ -127,7 +110,6 @@ public class DelegateTools {
             task.setPrompt(input.getGoal().trim());
             task.setContext(StrUtil.blankToDefault(input.getContext(), sharedContext));
             task.setRole(itemRole);
-            task.setProfile(StrUtil.trimToNull(input.getProfile()));
             items.add(task);
         }
         return items;
@@ -178,8 +160,5 @@ public class DelegateTools {
         @Param(description = "leaf or orchestrator", required = false)
         private String role;
 
-        /** 目标 Profile；为空时由委派服务结合任务内容和职责说明选择。 */
-        @Param(description = "Target profile name", required = false)
-        private String profile;
     }
 }
