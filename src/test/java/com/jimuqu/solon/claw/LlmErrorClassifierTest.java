@@ -131,4 +131,39 @@ public class LlmErrorClassifierTest {
         assertThat(result.isImmediateFallback()).isFalse();
         assertThat(result.shouldRetrySameProvider(1, 4)).isTrue();
     }
+
+    /** 兼容服务的状态码可能嵌在异常正文且尾部仍有包装字符，不能被归为未知错误。 */
+    @Test
+    void shouldClassifyEmbeddedProxyServiceStatusCodes() {
+        LlmErrorClassifier.ClassifiedError gateway =
+                LlmErrorClassifier.classify(
+                        new IllegalStateException("Error code:502, message:error code: 502}"));
+        LlmErrorClassifier.ClassifiedError unavailable =
+                LlmErrorClassifier.classify(
+                        new IllegalStateException("status_code: 503, Service Unavailable}"));
+        LlmErrorClassifier.ClassifiedError timeout =
+                LlmErrorClassifier.classify(
+                        new IllegalStateException("HTTP/1.1 504 Gateway Timeout}"));
+
+        assertThat(gateway.getReason()).isEqualTo(LlmErrorClassifier.FailoverReason.SERVER_ERROR);
+        assertThat(gateway.getStatusCode()).isEqualTo(502);
+        assertThat(gateway.isRetryable()).isTrue();
+        assertThat(unavailable.getReason()).isEqualTo(LlmErrorClassifier.FailoverReason.OVERLOADED);
+        assertThat(unavailable.getStatusCode()).isEqualTo(503);
+        assertThat(unavailable.isRetryable()).isTrue();
+        assertThat(timeout.getReason()).isEqualTo(LlmErrorClassifier.FailoverReason.SERVER_ERROR);
+        assertThat(timeout.getStatusCode()).isEqualTo(504);
+        assertThat(timeout.isRetryable()).isTrue();
+    }
+
+    /** 冒号形式的状态码提取不能改变认证错误的 fail-fast 决策。 */
+    @Test
+    void shouldKeepEmbeddedAuthenticationFailureNonRetryable() {
+        LlmErrorClassifier.ClassifiedError result =
+                LlmErrorClassifier.classify(
+                        new IllegalStateException("Error code:401, message:unauthorized}"));
+
+        assertThat(result.getReason()).isEqualTo(LlmErrorClassifier.FailoverReason.AUTH);
+        assertThat(result.isRetryable()).isFalse();
+    }
 }

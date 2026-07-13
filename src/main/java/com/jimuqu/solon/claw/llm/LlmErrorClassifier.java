@@ -4,10 +4,23 @@ import cn.hutool.core.util.StrUtil;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.Getter;
 
 /** 将模型调用异常归类为可重试、可降级或需要压缩上下文的运行决策。 */
 public final class LlmErrorClassifier {
+    /**
+     * 代理和兼容服务常把状态码嵌入异常文本，必须识别冒号、等号及 HTTP 状态行三种形式。
+     *
+     * <p>例如真实调用会返回 {@code Error code:502, message:error code: 502}，尾部还有包装符号时
+     * 不能再依赖字符串以状态码结尾。</p>
+     */
+    private static final Pattern EMBEDDED_STATUS_CODE_PATTERN =
+            Pattern.compile(
+                    "\\b(?:http(?:/\\d(?:\\.\\d)?)?(?:\\s+status)?|status(?:[_\\s-]*code)?|error\\s*code|code)\\s*[:=]?\\s*(400|401|402|403|404|413|429|500|502|503|504|529)\\b",
+                    Pattern.CASE_INSENSITIVE);
+
     /** 计费或账户余额不足相关错误特征，命中后通常不应立即重试同一提供方。 */
     private static final List<String> BILLING_PATTERNS =
             Arrays.asList(
@@ -239,7 +252,7 @@ public final class LlmErrorClassifier {
         if (containsAny(message, OVERLOADED_PATTERNS)) {
             return result(FailoverReason.OVERLOADED, status, true, true, false, message);
         }
-        if (status == 500 || status == 502) {
+        if (status == 500 || status == 502 || status == 504) {
             return result(FailoverReason.SERVER_ERROR, status, true, true, false, message);
         }
         if (status == 503 || status == 529) {
@@ -317,7 +330,11 @@ public final class LlmErrorClassifier {
      * @return 命中状态码时返回对应整数，否则返回 0。
      */
     private static int extractStatusCode(String message) {
-        for (int code : new int[] {400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 529}) {
+        Matcher matcher = EMBEDDED_STATUS_CODE_PATTERN.matcher(message);
+        if (matcher.find()) {
+            return Integer.parseInt(matcher.group(1));
+        }
+        for (int code : new int[] {400, 401, 402, 403, 404, 413, 429, 500, 502, 503, 504, 529}) {
             String value = String.valueOf(code);
             if (message.contains(" " + value + " ")
                     || message.contains("http " + value)
