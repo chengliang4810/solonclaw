@@ -93,13 +93,14 @@ public class MessagingTools {
             return error("invalid source platform: " + parts[0]);
         }
         String sourceChatId = parts[1];
+        String sourceThreadId = parts[3];
         PlatformType targetPlatform =
                 PlatformType.fromName(StrUtil.isBlank(platform) ? parts[0] : platform);
         if (targetPlatform == null) {
             return error("invalid target platform: " + platform);
         }
         String targetChatId = StrUtil.isBlank(chatId) ? parts[1] : chatId;
-        String targetThreadId = StrUtil.blankToDefault(threadId, parts[3]);
+        String targetThreadId = StrUtil.blankToDefault(threadId, sourceThreadId);
         CronAutoDeliveryContext.Target autoTarget =
                 CronAutoDeliveryContext.matchingTarget(
                         targetPlatform, targetChatId, targetThreadId);
@@ -126,14 +127,14 @@ public class MessagingTools {
         request.setAttachments(attachments);
         request.setChannelExtras(parseChannelExtras(channelExtrasJson));
         deliveryService.deliver(request);
-        MessageDeliveryTracker.recordEcho(
+        MessageDeliveryTracker.recordDirectDelivery(
                 sourceKey,
                 sourcePlatform,
                 sourceChatId,
+                sourceThreadId,
                 targetPlatform,
                 targetChatId,
-                text,
-                attachments != null && !attachments.isEmpty());
+                targetThreadId);
         return ToolResultEnvelope.ok("Message delivered")
                 .data("platform", targetPlatform.name())
                 .data("chatId", safeResult(targetChatId, 400))

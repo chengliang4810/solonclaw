@@ -5,37 +5,36 @@ import com.jimuqu.solon.claw.core.enums.PlatformType;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** 跟踪当前来源键上由 send_message 发起的回送，避免最终答复重复发送。 */
+/** 跟踪 send_message 向当前来源会话发起的直接投递，避免随后再次发送最终答复。 */
 public final class MessageDeliveryTracker {
-    /** TTLMILLIS的统一常量值。 */
+    /** 直接投递标记的最长保留时间，防止异常中断后的记录长期占用内存。 */
     private static final long TTL_MILLIS = 5 * 60 * 1000L;
 
-    /** RECORDS的统一常量值。 */
-    private static final Map<String, DeliveryEchoRecord> RECORDS =
-            new ConcurrentHashMap<String, DeliveryEchoRecord>();
+    /** 按来源键记录最近一次向当前会话直接投递的时间。 */
+    private static final Map<String, Long> RECORDS = new ConcurrentHashMap<String, Long>();
 
     /** 创建消息投递Tracker实例。 */
     private MessageDeliveryTracker() {}
 
     /**
-     * 记录Echo。
+     * 记录向当前来源会话完成的直接投递。
      *
      * @param sourceKey 渠道来源键。
-     * @param sourcePlatform 来源平台参数。
+     * @param sourcePlatform 来源平台。
      * @param sourceChatId 来源聊天标识。
-     * @param targetPlatform target平台参数。
-     * @param targetChatId target聊天标识。
-     * @param text 待处理文本。
-     * @param hasAttachments hasAttachments 参数。
+     * @param sourceThreadId 来源线程标识。
+     * @param targetPlatform 投递目标平台。
+     * @param targetChatId 投递目标聊天标识。
+     * @param targetThreadId 投递目标线程标识。
      */
-    public static void recordEcho(
+    public static void recordDirectDelivery(
             String sourceKey,
             PlatformType sourcePlatform,
             String sourceChatId,
+            String sourceThreadId,
             PlatformType targetPlatform,
             String targetChatId,
-            String text,
-            boolean hasAttachments) {
+            String targetThreadId) {
         if (StrUtil.isBlank(sourceKey) || sourcePlatform == null || targetPlatform == null) {
             return;
         }
@@ -47,81 +46,47 @@ public final class MessageDeliveryTracker {
                 StrUtil.nullToEmpty(targetChatId).trim())) {
             return;
         }
-        if (!hasAttachments) {
+        if (!StrUtil.equals(
+                StrUtil.nullToEmpty(sourceThreadId).trim(),
+                StrUtil.nullToEmpty(targetThreadId).trim())) {
             return;
         }
         pruneExpired();
-        DeliveryEchoRecord record = new DeliveryEchoRecord();
-        record.sourceKey = sourceKey;
-        record.normalizedText = normalize(text);
-        record.hasAttachments = true;
-        record.createdAt = System.currentTimeMillis();
-        RECORDS.put(sourceKey, record);
+        RECORDS.put(sourceKey, Long.valueOf(System.currentTimeMillis()));
     }
 
     /**
-     * 消费Duplicate最终回复。
+     * 消费当前来源会话的一次直接投递标记。
      *
      * @param sourceKey 渠道来源键。
-     * @param finalReply 最终回复参数。
-     * @return 返回consume Duplicate Final Reply结果。
+     * @return 已存在本轮直接投递时返回 true，否则返回 false。
      */
-    public static boolean consumeDuplicateFinalReply(String sourceKey, String finalReply) {
+    public static boolean consumeDirectDelivery(String sourceKey) {
         if (StrUtil.isBlank(sourceKey)) {
             return false;
         }
         pruneExpired();
-        DeliveryEchoRecord record = RECORDS.get(sourceKey);
-        if (record == null || !record.hasAttachments) {
-            return false;
+        return RECORDS.remove(sourceKey) != null;
+    }
+
+    /**
+     * 清理指定来源键在上一轮异常中遗留的直接投递标记。
+     *
+     * @param sourceKey 渠道来源键。
+     */
+    public static void clearDirectDelivery(String sourceKey) {
+        if (StrUtil.isNotBlank(sourceKey)) {
+            RECORDS.remove(sourceKey);
         }
-        String normalizedReply = normalize(finalReply);
-        if (normalizedReply.length() == 0) {
-            return false;
-        }
-        if (!normalizedReply.equals(record.normalizedText)) {
-            return false;
-        }
-        RECORDS.remove(sourceKey);
-        return true;
     }
 
     /** 执行pruneExpired相关逻辑。 */
     private static void pruneExpired() {
         long now = System.currentTimeMillis();
-        for (Map.Entry<String, DeliveryEchoRecord> entry : RECORDS.entrySet()) {
-            if (now - entry.getValue().createdAt >= TTL_MILLIS) {
+        for (Map.Entry<String, Long> entry : RECORDS.entrySet()) {
+            if (now - entry.getValue().longValue() >= TTL_MILLIS) {
                 RECORDS.remove(entry.getKey(), entry.getValue());
             }
         }
-    }
-
-    /**
-     * 执行规范化相关逻辑。
-     *
-     * @param text 待处理文本。
-     * @return 返回规范化结果。
-     */
-    private static String normalize(String text) {
-        return StrUtil.nullToEmpty(text)
-                .replace('\r', ' ')
-                .replace('\n', ' ')
-                .replaceAll("\\s+", " ")
-                .trim();
-    }
-
-    /** 表示投递Echo数据，在服务、仓储和接口之间传递。 */
-    private static class DeliveryEchoRecord {
-        /** 记录投递Echo中的来源键。 */
-        private String sourceKey;
-
-        /** 记录投递Echo中的normalized文本。 */
-        private String normalizedText;
-
-        /** 标记是否附件。 */
-        private boolean hasAttachments;
-
-        /** 记录投递Echo中的创建时间。 */
-        private long createdAt;
     }
 }
