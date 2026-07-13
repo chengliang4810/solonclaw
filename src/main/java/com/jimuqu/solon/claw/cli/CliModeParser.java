@@ -61,7 +61,7 @@ public final class CliModeParser {
                 sessionId = arg.substring("--session=".length());
                 continue;
             }
-            if ("--ask".equals(arg)) {
+            if ("--ask".equals(arg) || ("-p".equals(arg) && kind != CliMode.Kind.SERVER)) {
                 captureRest = true;
                 continue;
             }

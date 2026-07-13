@@ -302,6 +302,7 @@ public final class ProfileBootstrap {
         String workspace = null;
         boolean promptStarted = false;
         boolean passthrough = false;
+        boolean terminalModeStarted = false;
         for (int i = 0; i < args.size(); i++) {
             String arg = args.get(i);
             if (promptStarted || passthrough) {
@@ -318,12 +319,17 @@ public final class ProfileBootstrap {
                 remaining.add(arg);
                 continue;
             }
-            if ("--ask".equals(arg)) {
+            if (isTerminalModeArgument(arg)) {
+                terminalModeStarted = true;
+                remaining.add(arg);
+                continue;
+            }
+            if ("--ask".equals(arg) || (terminalModeStarted && "-p".equals(arg))) {
                 promptStarted = true;
                 remaining.add(arg);
                 continue;
             }
-            if ("-p".equals(arg) || "--profile".equals(arg)) {
+            if (("-p".equals(arg) && !terminalModeStarted) || "--profile".equals(arg)) {
                 profile = requireNext(args, ++i, arg);
                 continue;
             }
@@ -342,6 +348,23 @@ public final class ProfileBootstrap {
             remaining.add(arg);
         }
         return new ParsedArguments(profile, workspace, remaining);
+    }
+
+    /**
+     * 判断参数是否已经进入本地终端模式。
+     *
+     * <p>终端模式中的 {@code -p} 是一次性提示词别名，必须在 Profile 选择之前保留给
+     * {@link com.jimuqu.solon.claw.cli.CliModeParser}。Profile 选择仍可使用无歧义的
+     * {@code --profile}，或在终端模式参数之前使用 {@code -p}。
+     *
+     * @param argument 当前启动参数。
+     * @return 已进入 CLI 或 TUI 模式时返回 true。
+     */
+    private static boolean isTerminalModeArgument(String argument) {
+        return "--cli".equals(argument)
+                || "cli".equalsIgnoreCase(argument)
+                || "--tui".equals(argument)
+                || "tui".equalsIgnoreCase(argument);
     }
 
     /** 判断当前参数前缀是否已经进入 `mcp add` 的子进程参数区。 */
