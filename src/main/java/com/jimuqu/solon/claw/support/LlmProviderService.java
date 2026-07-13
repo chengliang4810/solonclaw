@@ -16,13 +16,27 @@ public class LlmProviderService {
     /** 注入应用配置，用于大模型提供方。 */
     private final AppConfig appConfig;
 
+    /** 模型元数据服务，用于为每个候选模型冻结独立的上下文窗口。 */
+    private final ModelMetadataService modelMetadataService;
+
     /**
      * 创建大模型提供方服务实例，并注入运行所需依赖。
      *
      * @param appConfig 应用运行配置。
      */
     public LlmProviderService(AppConfig appConfig) {
+        this(appConfig, new ModelMetadataService(appConfig));
+    }
+
+    /**
+     * 创建使用完整模型元数据解析链的提供方服务。
+     *
+     * @param appConfig 应用运行配置。
+     * @param modelMetadataService 已注入在线目录与持久化缓存的模型元数据服务。
+     */
+    public LlmProviderService(AppConfig appConfig, ModelMetadataService modelMetadataService) {
         this.appConfig = appConfig;
+        this.modelMetadataService = modelMetadataService;
     }
 
     /**
@@ -88,6 +102,7 @@ public class LlmProviderService {
             resolved.setBaseUrl(transientBaseUrl);
             resolved.setApiUrl(
                     LlmProviderSupport.buildApiUrl(transientBaseUrl, resolved.getDialect()));
+            resolveContextWindow(resolved);
         }
         return resolved;
     }
@@ -100,6 +115,23 @@ public class LlmProviderService {
      * @return 返回解析后的提供方。
      */
     public ResolvedProvider resolveProvider(String providerKey, String explicitModel) {
+        return resolveProvider(providerKey, explicitModel, true);
+    }
+
+    /**
+     * 解析兜底候选，跳过只属于主模型的显式上下文窗口覆盖。
+     *
+     * @param providerKey 提供方键标识。
+     * @param explicitModel 兜底模型。
+     * @return 返回解析后的兜底候选。
+     */
+    public ResolvedProvider resolveFallbackProvider(String providerKey, String explicitModel) {
+        return resolveProvider(providerKey, explicitModel, false);
+    }
+
+    /** 按候选类型解析提供方，fallback 不继承只属于主模型的显式上下文窗口。 */
+    private ResolvedProvider resolveProvider(
+            String providerKey, String explicitModel, boolean allowConfiguredContextWindow) {
         String key = StrUtil.nullToEmpty(providerKey).trim();
         AppConfig.ProviderConfig provider = appConfig.getProviders().get(key);
         if (provider == null) {
@@ -127,7 +159,25 @@ public class LlmProviderService {
                 LlmProviderSupport.buildApiUrl(runtimeProvider.baseUrl, runtimeProvider.dialect));
         resolved.setApiKey(StrUtil.nullToEmpty(runtimeProvider.apiKey).trim());
         resolved.setModel(model);
+        resolveContextWindow(resolved, allowConfiguredContextWindow);
         return resolved;
+    }
+
+    /** 按候选最终 provider、模型和地址刷新上下文窗口快照。 */
+    private void resolveContextWindow(ResolvedProvider resolved) {
+        resolveContextWindow(resolved, true);
+    }
+
+    /** 按候选类型刷新上下文窗口快照。 */
+    private void resolveContextWindow(
+            ResolvedProvider resolved, boolean allowConfiguredContextWindow) {
+        resolved.setContextWindowTokens(
+                modelMetadataService.resolveContextWindowForRuntime(
+                        resolved.getProviderKey(),
+                        resolved.getDialect(),
+                        resolved.getBaseUrl(),
+                        resolved.getModel(),
+                        allowConfiguredContextWindow));
     }
 
     /**
@@ -146,7 +196,7 @@ public class LlmProviderService {
             if (fallback == null || StrUtil.isBlank(fallback.getProvider())) {
                 continue;
             }
-            result.add(resolveProvider(fallback.getProvider().trim(), fallback.getModel()));
+            result.add(resolveFallbackProvider(fallback.getProvider().trim(), fallback.getModel()));
         }
         return result;
     }
@@ -305,6 +355,9 @@ public class LlmProviderService {
         /** 记录Resolved中的模型。 */
         private String model;
 
+        /** 当前候选模型解析后的上下文窗口，随候选快照传递且不修改共享配置。 */
+        private int contextWindowTokens;
+
         /**
          * 读取提供方键。
          *
@@ -429,6 +482,24 @@ public class LlmProviderService {
          */
         public void setModel(String model) {
             this.model = model;
+        }
+
+        /**
+         * 读取当前候选模型的上下文窗口。
+         *
+         * @return 返回上下文窗口 token 数。
+         */
+        public int getContextWindowTokens() {
+            return contextWindowTokens;
+        }
+
+        /**
+         * 写入当前候选模型的上下文窗口。
+         *
+         * @param contextWindowTokens 上下文窗口 token 数。
+         */
+        public void setContextWindowTokens(int contextWindowTokens) {
+            this.contextWindowTokens = contextWindowTokens;
         }
     }
 }

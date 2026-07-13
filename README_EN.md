@@ -72,6 +72,16 @@ java -Dsolonclaw.dashboard.accessToken=your-token -jar target/solonclaw-0.0.1.ja
 
 On startup, the service creates a local `workspace/` directory for configuration, SQLite data, cache, logs, skills, and context files. Workspace children are derived by the program: `context/`, `skills/`, `cache/`, `logs/`, and `data/state.db`.
 
+### One-Shot Terminal Commands and Profiles
+
+```bash
+solonclaw --cli -p /help
+solonclaw --tui -p /help
+solonclaw --profile work --cli -p /help
+```
+
+After `--cli` or `--tui`, `-p` is a one-shot prompt alias, equivalent to `--ask`. Use the unambiguous `--profile <name>` to select a Profile. The short form `-p <name>` selects a Profile only before a terminal-mode argument.
+
 ### Docker Compose
 
 ```bash

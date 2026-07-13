@@ -163,12 +163,14 @@ final class AppConfigLoader {
                                         RuntimePathConstants.DEFAULT_CONTEXT_WINDOW_TOKENS)));
         config.getLlm()
                 .setContextFallbackTokens(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.llm.contextFallbackTokens",
-                                        256000)));
+                        positiveInt(
+                                resolveInt(
+                                        readInt(
+                                                props,
+                                                overrides,
+                                                "solonclaw.llm.contextFallbackTokens",
+                                                256000)),
+                                256000));
         config.getLlm()
                 .setModelsDevRefreshEnabled(
                         resolveBoolean(

@@ -29,6 +29,18 @@ class CliModeParserTest {
         assertThat(tui.getInput()).isEqualTo("/setup gateway");
     }
 
+    /** `-p` 是公开的一次性终端提示词别名，不能作为输入正文发送给模型。 */
+    @Test
+    void shouldTreatShortPromptAliasAsPromptAfterTerminalMode() {
+        CliMode cli = CliModeParser.parse(new String[] {"--cli", "-p", "/help"});
+        assertThat(cli.getKind()).isEqualTo(CliMode.Kind.CLI);
+        assertThat(cli.getInput()).isEqualTo("/help");
+
+        CliMode tui = CliModeParser.parse(new String[] {"--tui", "-p", "/setup", "gateway"});
+        assertThat(tui.getKind()).isEqualTo(CliMode.Kind.TUI);
+        assertThat(tui.getInput()).isEqualTo("/setup gateway");
+    }
+
     @Test
     void shouldKeepTopLevelUnknownSlashCommandsInLocalCliMode() {
         assertLocalCli(new String[] {"/not-a-real-command"}, "/not-a-real-command");

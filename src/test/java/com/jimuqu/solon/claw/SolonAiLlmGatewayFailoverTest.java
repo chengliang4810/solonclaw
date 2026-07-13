@@ -34,6 +34,8 @@ public class SolonAiLlmGatewayFailoverTest {
         assertThat(result.getModel()).isEqualTo("claude-sonnet-4");
         assertThat(gateway.attempts)
                 .containsExactly("primary:gpt-5-mini", "backup:claude-sonnet-4");
+        assertThat(gateway.contextWindows).containsExactly(400000, 200000);
+        assertThat(gateway.config.getLlm().getContextWindowTokens()).isZero();
     }
 
     @Test
@@ -185,10 +187,17 @@ public class SolonAiLlmGatewayFailoverTest {
     }
 
     private static class RecordingGateway extends SolonAiLlmGateway {
+        /** 测试配置，用于确认候选解析不会回写共享上下文窗口。 */
+        private final AppConfig config;
+
+        /** 记录每个候选模型实际收到的上下文窗口。 */
+        private final List<Integer> contextWindows = new ArrayList<Integer>();
+
         private final List<String> attempts = new ArrayList<String>();
 
         private RecordingGateway(AppConfig config) {
             super(config);
+            this.config = config;
         }
 
         @Override
@@ -204,6 +213,7 @@ public class SolonAiLlmGatewayFailoverTest {
                 AgentRunContext runContext)
                 throws Exception {
             attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            contextWindows.add(Integer.valueOf(resolved.getContextWindowTokens()));
             if ("primary".equals(resolved.getProvider())) {
                 throw new IllegalStateException("HTTP 401 unauthorized");
             }

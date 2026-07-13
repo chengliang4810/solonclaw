@@ -36,4 +36,19 @@ public interface ContextCompressionService {
         SessionRecord compressed = compressNow(session, systemPrompt, focus);
         return CompressionOutcome.success(compressed, compressed != session);
     }
+
+    /**
+     * 按当前候选模型的上下文窗口强制压缩，避免并发运行通过共享配置传递模型预算。
+     *
+     * @param session 当前会话。
+     * @param systemPrompt 系统提示词。
+     * @param focus 压缩关注主题。
+     * @param contextWindowTokens 当前候选模型的上下文窗口 token 数。
+     * @return 返回压缩结果。
+     */
+    default CompressionOutcome compressNowWithOutcome(
+            SessionRecord session, String systemPrompt, String focus, int contextWindowTokens)
+            throws Exception {
+        return compressNowWithOutcome(session, systemPrompt, focus);
+    }
 }

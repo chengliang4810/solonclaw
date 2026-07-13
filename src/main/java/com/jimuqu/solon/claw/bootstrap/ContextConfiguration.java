@@ -41,6 +41,9 @@ import com.jimuqu.solon.claw.skillhub.support.SkillHubHttpClient;
 import com.jimuqu.solon.claw.skillhub.support.SkillHubStateStore;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.storage.repository.SqlitePreferenceStore;
+import com.jimuqu.solon.claw.support.ModelContextCacheStore;
+import com.jimuqu.solon.claw.support.ModelContextCatalogService;
+import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.io.File;
 import org.noear.solon.annotation.Bean;
@@ -49,6 +52,51 @@ import org.noear.solon.annotation.Configuration;
 /** 承载上下文配置并集中创建运行组件。 */
 @Configuration
 public class ContextConfiguration {
+    /**
+     * 创建模型上下文长度在线目录服务，供根运行时与命名 Profile 独立解析模型窗口。
+     *
+     * @param appConfig 当前 Profile 的应用运行配置。
+     * @return 返回模型上下文目录服务。
+     */
+    @Bean(destroyMethod = "shutdown")
+    public ModelContextCatalogService modelContextCatalogService(AppConfig appConfig) {
+        return new ModelContextCatalogService(appConfig);
+    }
+
+    /**
+     * 创建当前 Profile 独立的模型上下文持久化缓存。
+     *
+     * @param appConfig 当前 Profile 的应用运行配置。
+     * @return 返回模型上下文缓存存储。
+     */
+    @Bean
+    public ModelContextCacheStore modelContextCacheStore(AppConfig appConfig) {
+        File cacheDir =
+                appConfig.getRuntime() != null
+                                && cn.hutool.core.util.StrUtil.isNotBlank(
+                                        appConfig.getRuntime().getCacheDir())
+                        ? new File(appConfig.getRuntime().getCacheDir())
+                        : null;
+        return new ModelContextCacheStore(cacheDir);
+    }
+
+    /**
+     * 创建完整模型元数据解析服务，统一复用在线目录、持久化缓存与硬编码回退链。
+     *
+     * @param appConfig 当前 Profile 的应用运行配置。
+     * @param modelContextCatalogService 模型上下文在线目录服务。
+     * @param modelContextCacheStore 模型上下文持久化缓存。
+     * @return 返回模型元数据解析服务。
+     */
+    @Bean
+    public ModelMetadataService modelMetadataService(
+            AppConfig appConfig,
+            ModelContextCatalogService modelContextCatalogService,
+            ModelContextCacheStore modelContextCacheStore) {
+        return new ModelMetadataService(
+                appConfig, modelContextCatalogService, modelContextCacheStore);
+    }
+
     /**
      * 执行本地技能服务相关逻辑。
      *

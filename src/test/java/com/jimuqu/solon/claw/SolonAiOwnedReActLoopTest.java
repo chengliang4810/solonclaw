@@ -15,12 +15,16 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.gateway.feedback.ConversationFeedbackSink;
 import com.jimuqu.solon.claw.llm.SolonAiLlmGateway;
 import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
 import com.jimuqu.solon.claw.tool.runtime.DangerousCommandApprovalService;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.ToolCallLoopGuardrailService;
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -553,6 +557,281 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(pending.getFinishedAt()).isGreaterThan(0L);
     }
 
+    /** 工作区外文件写入必须在 handler 前暂停，审批恢复后只执行原工具调用一次。 */
+    @Test
+    void shouldPauseAndResumeOutsideWorkspaceWriteExactlyOnce() throws Exception {
+        AppConfig config = config();
+        config.getSecurity().setGuardrailMode("approval");
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config), null);
+        File boundary =
+                new File("target/owned-loop-file-approval-" + System.nanoTime())
+                        .getCanonicalFile();
+        File workspace = new File(boundary, "workspace").getCanonicalFile();
+        File outside = new File(boundary, "outside.txt").getCanonicalFile();
+        assertThat(workspace.mkdirs() || workspace.isDirectory()).isTrue();
+        FakeChatModel model =
+                new FakeChatModel(
+                        config.getLlm().getModel(),
+                        FakeMode.OUTSIDE_WORKSPACE_WRITE_APPROVAL,
+                        outside.getAbsolutePath());
+        TestGateway gateway = new TestGateway(config, repository, model, approvalService);
+        SessionRecord session = session("owned-loop-file-approval-session");
+        AgentRunContext runContext =
+                new AgentRunContext(
+                        null, "run-file-approval", session.getSessionId(), session.getSourceKey());
+        runContext.setWorkspaceDir(workspace.getAbsolutePath());
+        AtomicInteger handlerCalls = new AtomicInteger();
+        AtomicInteger approvalRequests = new AtomicInteger();
+        approvalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {
+                        approvalRequests.incrementAndGet();
+                    }
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {}
+                });
+
+        FunctionToolDesc fileWrite = new FunctionToolDesc("file_write");
+        fileWrite.doHandle(
+                args -> {
+                    handlerCalls.incrementAndGet();
+                    DangerousCommandApprovalService.grantCurrentThreadApproval(
+                            "terminal", "unconsumed-test-command");
+                    return "written:" + args.get("fileName");
+                });
+
+        LlmResult pendingResult =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "写入工作区外文件",
+                        Collections.singletonList(fileWrite),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(handlerCalls).hasValue(0);
+        assertThat(approvalRequests).hasValue(1);
+        assertThat(pendingResult.getAssistantMessage().getResultContent()).contains("需要审批");
+        SqliteAgentSession approvalSession = new SqliteAgentSession(session, repository);
+        assertThat(approvalService.getPendingApproval(approvalSession)).isNotNull();
+        assertThat(
+                        approvalService.approve(
+                                approvalSession,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+
+        LlmResult resumed =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        null,
+                        Collections.singletonList(fileWrite),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        true,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(handlerCalls).hasValue(1);
+        assertThat(approvalRequests).hasValue(1);
+        assertThat(resumed.getAssistantMessage().getResultContent()).contains("写入完成");
+        assertThat(
+                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                                "terminal", "unconsumed-test-command"))
+                .isFalse();
+        assertThat(
+                        new SecurityPolicyService(config)
+                                .checkWorkspaceWritePath(
+                                        outside.getAbsolutePath(), workspace.getAbsolutePath())
+                                .isApprovalRequired())
+                .isTrue();
+    }
+
+    /** 多目标工作区外写入必须逐目标展示和审批，全部批准后才允许执行原始 handler。 */
+    @Test
+    void shouldApproveEachOutsideWorkspaceTargetBeforeRunningHandler() throws Exception {
+        AppConfig config = config();
+        config.getSecurity().setGuardrailMode("approval");
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        DangerousCommandApprovalService approvalService =
+                new DangerousCommandApprovalService(
+                        null, config, new SecurityPolicyService(config), null);
+        File boundary =
+                new File("target/owned-loop-multi-file-approval-" + System.nanoTime())
+                        .getCanonicalFile();
+        File workspace = new File(boundary, "workspace").getCanonicalFile();
+        File first = new File(boundary, "first.txt").getCanonicalFile();
+        File second = new File(boundary, "second.txt").getCanonicalFile();
+        assertThat(workspace.mkdirs() || workspace.isDirectory()).isTrue();
+        FakeChatModel model =
+                new FakeChatModel(
+                        config.getLlm().getModel(),
+                        FakeMode.OUTSIDE_WORKSPACE_MULTI_WRITE_APPROVAL,
+                        first.getAbsolutePath(),
+                        second.getAbsolutePath());
+        TestGateway gateway = new TestGateway(config, repository, model, approvalService);
+        SessionRecord session = session("owned-loop-multi-file-approval-session");
+        AgentRunContext runContext =
+                new AgentRunContext(
+                        null,
+                        "run-multi-file-approval",
+                        session.getSessionId(),
+                        session.getSourceKey());
+        runContext.setWorkspaceDir(workspace.getAbsolutePath());
+        AtomicInteger handlerCalls = new AtomicInteger();
+        List<String> requestedTargets = new ArrayList<String>();
+        approvalService.addApprovalObserver(
+                new DangerousCommandApprovalService.ApprovalObserver() {
+                    @Override
+                    public void onApprovalRequest(
+                            DangerousCommandApprovalService.ApprovalRequestEvent event) {
+                        requestedTargets.add(event.getCommand());
+                    }
+
+                    @Override
+                    public void onApprovalResponse(
+                            DangerousCommandApprovalService.ApprovalResponseEvent event) {}
+                });
+        FunctionToolDesc fileWrite = new FunctionToolDesc("file_write");
+        fileWrite.doHandle(
+                args -> {
+                    handlerCalls.incrementAndGet();
+                    return "written";
+                });
+
+        invokeExecuteSingle(
+                gateway,
+                session,
+                "system",
+                "写入两个工作区外文件",
+                Collections.singletonList(fileWrite),
+                ConversationFeedbackSink.noop(),
+                ConversationEventSink.noop(),
+                false,
+                config.getLlm(),
+                runContext);
+        SqliteAgentSession approvalSession = new SqliteAgentSession(session, repository);
+        assertThat(handlerCalls).hasValue(0);
+        assertThat(requestedTargets).containsExactly(first.getAbsolutePath());
+        assertThat(
+                        approvalService.approve(
+                                approvalSession,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+
+        invokeExecuteSingle(
+                gateway,
+                session,
+                "system",
+                null,
+                Collections.singletonList(fileWrite),
+                ConversationFeedbackSink.noop(),
+                ConversationEventSink.noop(),
+                true,
+                config.getLlm(),
+                runContext);
+        assertThat(handlerCalls).hasValue(0);
+        assertThat(requestedTargets)
+                .containsExactly(first.getAbsolutePath(), second.getAbsolutePath());
+        approvalSession = new SqliteAgentSession(session, repository);
+        assertThat(
+                        approvalService.approve(
+                                approvalSession,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "test"))
+                .isTrue();
+
+        LlmResult completed =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        null,
+                        Collections.singletonList(fileWrite),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        true,
+                        config.getLlm(),
+                        runContext);
+
+        assertThat(handlerCalls).hasValue(1);
+        assertThat(requestedTargets).hasSize(2);
+        assertThat(completed.getAssistantMessage().getResultContent()).contains("写入完成");
+        SecurityPolicyService policy = new SecurityPolicyService(config);
+        assertThat(
+                        policy.checkWorkspaceWritePath(
+                                        first.getAbsolutePath(), workspace.getAbsolutePath())
+                                .isApprovalRequired())
+                .isTrue();
+        assertThat(
+                        policy.checkWorkspaceWritePath(
+                                        second.getAbsolutePath(), workspace.getAbsolutePath())
+                                .isApprovalRequired())
+                .isTrue();
+    }
+
+    /** 工具 handler 抛出异常时也必须清理尚未消费的命令和文件策略审批。 */
+    @Test
+    void shouldClearThreadApprovalsWhenOwnedToolHandlerFails() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model = new FakeChatModel(config.getLlm().getModel(), FakeMode.TEXT_ACTION);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-approval-cleanup-session");
+        Path boundary =
+                new File("target/owned-loop-approval-cleanup-" + System.nanoTime())
+                        .getCanonicalFile()
+                        .toPath();
+        Path workspace = boundary.resolve("workspace");
+        Path outside = boundary.resolve("outside.txt");
+        Files.createDirectories(workspace);
+        FunctionToolDesc failing = new FunctionToolDesc("echo_tool");
+        failing.doHandle(
+                args -> {
+                    DangerousCommandApprovalService.grantCurrentThreadApproval(
+                            "terminal", "failed-handler-command");
+                    SecurityPolicyService.approveFilePolicyForCurrentThread(
+                            "workspace_outside_write", outside.toString());
+                    throw new IllegalStateException("expected handler failure");
+                });
+
+        invokeExecuteSingle(
+                gateway,
+                session,
+                "system",
+                "执行失败工具",
+                Collections.singletonList(failing),
+                ConversationFeedbackSink.noop(),
+                ConversationEventSink.noop(),
+                false,
+                config.getLlm(),
+                null);
+
+        assertThat(
+                        DangerousCommandApprovalService.consumeCurrentThreadApproval(
+                                "terminal", "failed-handler-command"))
+                .isFalse();
+        assertThat(
+                        new SecurityPolicyService(config)
+                                .checkWorkspaceWritePath(outside.toString(), workspace.toString())
+                                .isApprovalRequired())
+                .isTrue();
+    }
+
     @Test
     void shouldStreamOwnedLoopDeltasWhenEventSinkIsProvided() throws Exception {
         AppConfig config = config();
@@ -589,6 +868,71 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(result.getReasoningTokens()).isEqualTo(2L);
         assertThat(result.getTotalTokens()).isEqualTo(24L);
         assertThat(result.getRawUsageJson()).contains("prompt_tokens");
+    }
+
+    /** 流式正文中断后应保留已接收内容并结束本轮，不能重放同一请求。 */
+    @Test
+    void shouldKeepVisiblePartialResponseWhenStreamFails() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_PARTIAL_THEN_ERROR);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-stream-partial-session");
+        RecordingEventSink eventSink = new RecordingEventSink();
+
+        LlmResult result =
+                invokeExecuteSingle(
+                        gateway,
+                        session,
+                        "system",
+                        "请流式回复",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        eventSink,
+                        false,
+                        config.getLlm(),
+                        null);
+
+        assertThat(model.calls).isEqualTo(1);
+        assertThat(result.getAssistantMessage().getResultContent())
+                .isEqualTo("已经完成一半\n\n（响应流意外中断，以上为已接收的部分内容）");
+        assertThat(eventSink.assistantDeltas)
+                .containsExactly("已经完成一半\n\n（响应流意外中断，以上为已接收的部分内容）");
+        assertThat(MessageSupport.loadMessages(result.getNdjson()))
+                .anyMatch(
+                        message ->
+                                message instanceof AssistantMessage
+                                        && message.getContent().contains("响应流意外中断"));
+    }
+
+    /** 流中断前出现未完成工具调用时必须继续按失败处理，不能把工具前缀当成答复。 */
+    @Test
+    void shouldFailInterruptedStreamWithUnresolvedToolCall() throws Exception {
+        AppConfig config = config();
+        RecordingSessionRepository repository = new RecordingSessionRepository();
+        FakeChatModel model =
+                new FakeChatModel(config.getLlm().getModel(), FakeMode.STREAM_TOOL_THEN_ERROR);
+        TestGateway gateway = new TestGateway(config, repository, model);
+        SessionRecord session = session("owned-loop-stream-tool-error-session");
+        RecordingEventSink eventSink = new RecordingEventSink();
+
+        assertThatThrownBy(
+                        () ->
+                                invokeExecuteSingle(
+                                        gateway,
+                                        session,
+                                        "system",
+                                        "请调用工具",
+                                        Collections.emptyList(),
+                                        ConversationFeedbackSink.noop(),
+                                        eventSink,
+                                        false,
+                                        config.getLlm(),
+                                        null))
+                .hasRootCauseInstanceOf(IOException.class)
+                .hasRootCauseMessage("stream interrupted");
+        assertThat(eventSink.assistantDeltas).isEmpty();
     }
 
     /** 验证 llm.stream=true 即使没有事件订阅也会走 Solon AI 流式请求。 */
@@ -1207,9 +1551,13 @@ public class SolonAiOwnedReActLoopTest {
         CRONJOB_INSPECT_THEN_CREATE,
         THREE_TOOL_CALLS_THEN_FINAL,
         PENDING_APPROVAL,
+        OUTSIDE_WORKSPACE_WRITE_APPROVAL,
+        OUTSIDE_WORKSPACE_MULTI_WRITE_APPROVAL,
         HISTORY_FINAL,
         FAIL_FIRST_THEN_HISTORY_FINAL,
         STREAM_FINAL,
+        STREAM_PARTIAL_THEN_ERROR,
+        STREAM_TOOL_THEN_ERROR,
         STREAM_THINKING_TAGS_ONLY,
         STREAM_AGGREGATION_DIFFERS,
         STREAM_VISIBLE_TOOL_PREAMBLE
@@ -1218,14 +1566,36 @@ public class SolonAiOwnedReActLoopTest {
     private static class FakeChatModel extends ChatModel {
         private final FakeMode mode;
 
+        /** 工作区外写入审批场景使用的目标路径。 */
+        private final String approvalWritePath;
+
+        /** 多目标审批场景使用的第二个工作区外路径。 */
+        private final String secondApprovalWritePath;
+
         /** 记录每次模型请求实际看到的消息内容快照。 */
         private final List<List<String>> requestContents = new ArrayList<List<String>>();
 
         private int calls;
 
         private FakeChatModel(String model, FakeMode mode) {
+            this(model, mode, null, null);
+        }
+
+        /** 创建可选携带工作区外写入目标的假模型。 */
+        private FakeChatModel(String model, FakeMode mode, String approvalWritePath) {
+            this(model, mode, approvalWritePath, null);
+        }
+
+        /** 创建可选携带两个工作区外写入目标的假模型。 */
+        private FakeChatModel(
+                String model,
+                FakeMode mode,
+                String approvalWritePath,
+                String secondApprovalWritePath) {
             super(fakeConfig(model));
             this.mode = mode;
+            this.approvalWritePath = approvalWritePath;
+            this.secondApprovalWritePath = secondApprovalWritePath;
         }
 
         @Override
@@ -1354,6 +1724,28 @@ public class SolonAiOwnedReActLoopTest {
                                 "Thought: 需要执行审批测试命令\n"
                                         + "Action: terminal\n"
                                         + "Action Input: {\"command\":\"rm -rf /tmp/solonclaw-owned-loop-approval\"}");
+            } else if (model.mode == FakeMode.OUTSIDE_WORKSPACE_WRITE_APPROVAL
+                    || model.mode == FakeMode.OUTSIDE_WORKSPACE_MULTI_WRITE_APPROVAL) {
+                if (toolMessage == null) {
+                    String pathArguments =
+                            model.mode == FakeMode.OUTSIDE_WORKSPACE_MULTI_WRITE_APPROVAL
+                                    ? "\"fileNames\":"
+                                            + ONode.serialize(
+                                                    Arrays.asList(
+                                                            model.approvalWritePath,
+                                                            model.secondApprovalWritePath))
+                                    : "\"fileName\":"
+                                            + ONode.serialize(model.approvalWritePath);
+                    assistant =
+                            ChatMessage.ofAssistant(
+                                    "Thought: 需要写入工作区外文件\n"
+                                            + "Action: file_write\n"
+                                            + "Action Input: {"
+                                            + pathArguments
+                                            + ",\"content\":\"approved\"}");
+                } else {
+                    assistant = ChatMessage.ofAssistant("写入完成");
+                }
             } else if (toolMessage == null) {
                 if (model.mode == FakeMode.CRONJOB_MISSING_BOOLEAN_ARGS) {
                     assistant =
@@ -1394,6 +1786,8 @@ public class SolonAiOwnedReActLoopTest {
         public Flux<ChatResponse> stream() {
             try {
                 if (model.mode != FakeMode.STREAM_FINAL
+                        && model.mode != FakeMode.STREAM_PARTIAL_THEN_ERROR
+                        && model.mode != FakeMode.STREAM_TOOL_THEN_ERROR
                         && model.mode != FakeMode.STREAM_THINKING_TAGS_ONLY
                         && model.mode != FakeMode.STREAM_AGGREGATION_DIFFERS
                         && model.mode != FakeMode.STREAM_VISIBLE_TOOL_PREAMBLE) {
@@ -1404,6 +1798,26 @@ public class SolonAiOwnedReActLoopTest {
                 }
                 model.calls++;
                 model.requestContents.add(messageContents(session.getMessages()));
+                if (model.mode == FakeMode.STREAM_PARTIAL_THEN_ERROR) {
+                    AssistantMessage partial = ChatMessage.ofAssistant("已经完成一半");
+                    return Flux.concat(
+                            Flux.just(new FakeResponse(model, options, partial, true)),
+                            Flux.error(new IOException("stream interrupted")));
+                }
+                if (model.mode == FakeMode.STREAM_TOOL_THEN_ERROR) {
+                    AssistantMessage visible = ChatMessage.ofAssistant("准备调用工具");
+                    AssistantMessage toolCall =
+                            assistantWithToolCall(
+                                    "准备调用工具",
+                                    "call_interrupted",
+                                    "echo_tool",
+                                    "{\"value\":\"native\"}");
+                    return Flux.concat(
+                            Flux.just(
+                                    new FakeResponse(model, options, visible, true),
+                                    new FakeResponse(model, options, visible, true, toolCall)),
+                            Flux.error(new IOException("stream interrupted")));
+                }
                 if (model.mode == FakeMode.STREAM_THINKING_TAGS_ONLY) {
                     AssistantMessage thinking = new AssistantMessage("<think>内部计划</think>", true);
                     return Flux.just(new FakeResponse(model, options, thinking, true));

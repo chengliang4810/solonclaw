@@ -99,6 +99,25 @@ class ProfileBootstrapTest {
                 .containsExactly("--cli", "--ask", "keep", "-p", "literal");
     }
 
+    /** CLI/TUI 后的公开 `-p` 提示词别名不能被抢占为 Profile 名。 */
+    @Test
+    void leavesShortPromptAliasAndItsWholePromptForTerminalParser() {
+        ProfileBootstrap.Result result = prepare("--cli", "-p", "/help", "--profile", "literal");
+
+        assertThat(result.getProfileName()).isEqualTo("default");
+        assertThat(result.getArguments())
+                .containsExactly("--cli", "-p", "/help", "--profile", "literal");
+    }
+
+    /** 终端模式下显式长 Profile 选项仍可与 `-p` 提示词别名组合使用。 */
+    @Test
+    void appliesLongProfileBeforeShortTerminalPromptAlias() {
+        ProfileBootstrap.Result result = prepare("--cli", "--profile", "work", "-p", "/help");
+
+        assertThat(result.getProfileName()).isEqualTo("work");
+        assertThat(result.getArguments()).containsExactly("--cli", "-p", "/help");
+    }
+
     /** profile 管理命令在启动 Solon 前直接完成并返回退出码。 */
     @Test
     void handlesProfileCommandsWithoutStartingApplication() {

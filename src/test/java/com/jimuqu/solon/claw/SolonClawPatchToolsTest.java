@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink;
+import static com.jimuqu.solon.claw.support.TestToolSupport.guardedPatchTools;
 import static com.jimuqu.solon.claw.support.TestToolSupport.parseJsonMap;
 import static com.jimuqu.solon.claw.support.TestToolSupport.patchTools;
 import static com.jimuqu.solon.claw.support.TestToolSupport.readUtf8;
@@ -10,6 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -19,6 +21,51 @@ import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 public class SolonClawPatchToolsTest {
+    /** 验证工作区 URI、同路径重复操作和多目标补丁共用一次真实工具调用审批作用域。 */
+    @Test
+    void shouldApplyApprovedWorkspaceUriPatchOnceAcrossRepeatedAndMultipleTargets()
+            throws Exception {
+        Path boundary = tempDir("patch-workspace-uri-approved");
+        Path workspace = boundary.resolve("workspace");
+        Path first = boundary.resolve("first.txt").toAbsolutePath();
+        Path second = boundary.resolve("second.txt").toAbsolutePath();
+        Files.createDirectories(workspace);
+        writeUtf8(first, "one=old\ntwo=old\n");
+        writeUtf8(second, "three=old\n");
+        String firstUri = "workspace://" + first;
+        String secondUri = "workspace://" + second;
+        SecurityPolicyService.approveFilePolicyForCurrentThread(
+                "workspace_outside_write", firstUri);
+        SecurityPolicyService.approveFilePolicyForCurrentThread(
+                "workspace_outside_write", secondUri);
+        SolonClawPatchTools tools = guardedPatchTools(workspace);
+        String patch =
+                "*** Begin Patch\n"
+                        + "*** Update File: "
+                        + firstUri
+                        + "\n@@ one=old @@\n-one=old\n+one=new\n"
+                        + "*** Update File: "
+                        + firstUri
+                        + "\n@@ two=old @@\n-two=old\n+two=new\n"
+                        + "*** Update File: "
+                        + secondUri
+                        + "\n@@ three=old @@\n-three=old\n+three=new\n"
+                        + "*** End Patch";
+
+        Map<?, ?> result =
+                parseJsonMap(tools.patch("patch", null, null, null, null, patch));
+
+        assertThat(result.get("status")).isEqualTo("success");
+        assertThat(readUtf8(first)).isEqualTo("one=new\ntwo=new\n");
+        assertThat(readUtf8(second)).isEqualTo("three=new\n");
+        Map<?, ?> reused =
+                parseJsonMap(
+                        tools.patch("replace", firstUri, "one=new", "one=again", false, null));
+        assertThat(reused.get("status")).isEqualTo("error");
+        assertThat(String.valueOf(reused.get("error"))).contains("APPROVAL_REQUIRED");
+        assertThat(readUtf8(first)).isEqualTo("one=new\ntwo=new\n");
+    }
+
     @Test
     void shouldExposePatchParserPolicySummary() {
         Map<String, Object> summary = SolonClawPatchTools.patchParserPolicySummary();
@@ -363,6 +410,31 @@ public class SolonClawPatchToolsTest {
         assertThat(String.valueOf(result.get("error")))
                 .contains("APPROVAL_REQUIRED")
                 .contains("../outside.txt");
+    }
+
+    /** 验证 workspace URI 中的父级逃逸与门禁使用相同语义并保持硬阻断。 */
+    @Test
+    void shouldRejectWorkspaceUriTraversalBeforeWriting() throws Exception {
+        Path boundary = tempDir("patch-workspace-uri-traversal");
+        Path workspace = boundary.resolve("workspace");
+        Files.createDirectories(workspace);
+        SolonClawPatchTools tools = guardedPatchTools(workspace);
+
+        Map<?, ?> result =
+                parseJsonMap(
+                        tools.patch(
+                                "replace",
+                                "workspace://../outside.txt",
+                                "before",
+                                "after",
+                                false,
+                                null));
+
+        assertThat(result.get("status")).isEqualTo("error");
+        assertThat(String.valueOf(result.get("error")))
+                .contains("BLOCKED")
+                .contains("路径遍历");
+        assertThat(boundary.resolve("outside.txt")).doesNotExist();
     }
 
     @Test

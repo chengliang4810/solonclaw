@@ -69,7 +69,7 @@ public class DefaultContextBudgetService implements ContextBudgetService {
                 resolved == null || resolved.getContextWindowTokens() <= 0
                         ? Math.max(1024, appConfig.getLlm().getContextWindowTokens())
                         : Math.max(1024, resolved.getContextWindowTokens());
-        int threshold = (int) (contextWindow * appConfig.getCompression().getThresholdPercent());
+        int threshold = effectiveThresholdTokens(contextWindow, resolved);
         int estimated =
                 estimate(systemPrompt)
                         + estimate(userMessage)
@@ -84,6 +84,22 @@ public class DefaultContextBudgetService implements ContextBudgetService {
                 appConfig.getCompression().isEnabled() && estimated >= threshold);
         decision.setReason(decision.isShouldCompress() ? "预计上下文已达到压缩阈值" : "预计上下文未达到压缩阈值");
         return decision;
+    }
+
+    /**
+     * 计算为输入保留输出空间后的压缩阈值；输出上限占满窗口时将输入预算钳制为一个 token。
+     *
+     * @param contextWindow 当前候选模型上下文窗口。
+     * @param resolved 本轮模型配置。
+     * @return 返回可用于输入预算判断的阈值 token 数。
+     */
+    private int effectiveThresholdTokens(int contextWindow, AppConfig.LlmConfig resolved) {
+        int maxTokens = resolved == null ? 0 : resolved.getMaxTokens();
+        int effectiveWindow =
+                maxTokens > 0 ? Math.max(1, contextWindow - maxTokens) : contextWindow;
+        return Math.max(
+                1,
+                (int) (effectiveWindow * appConfig.getCompression().getThresholdPercent()));
     }
 
     /**

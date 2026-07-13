@@ -230,9 +230,19 @@ public class ModelMetadataService {
      */
     private int resolveContextWindow(
             String providerKey, String dialect, String baseUrl, String model) {
+        return resolveContextWindow(providerKey, dialect, baseUrl, model, true);
+    }
+
+    /** 按候选类型执行完整解析链，仅 fallback 跳过主模型显式覆盖。 */
+    private int resolveContextWindow(
+            String providerKey,
+            String dialect,
+            String baseUrl,
+            String model,
+            boolean allowConfiguredOverride) {
         // Step 1: 用户配置覆盖
         int configured = appConfig.getLlm().getContextWindowTokens();
-        if (configured > 0) {
+        if (allowConfiguredOverride && configured > 0) {
             return configured;
         }
 
@@ -270,7 +280,8 @@ public class ModelMetadataService {
         }
 
         // Step 5: 兜底
-        return appConfig.getLlm().getContextFallbackTokens();
+        int fallback = appConfig.getLlm().getContextFallbackTokens();
+        return fallback > 0 ? fallback : 256000;
     }
 
     /**
@@ -346,7 +357,31 @@ public class ModelMetadataService {
      */
     public int resolveContextWindowForRuntime(
             String providerKey, String dialect, String baseUrl, String model) {
-        return resolveContextWindow(providerKey, dialect, baseUrl, model);
+        return resolveContextWindow(providerKey, dialect, baseUrl, normalizedModelName(model));
+    }
+
+    /**
+     * 为指定候选解析上下文窗口，并控制是否允许主模型显式覆盖。
+     *
+     * @param providerKey 当前提供方配置键。
+     * @param dialect 当前协议方言。
+     * @param baseUrl 当前提供方 baseUrl。
+     * @param model 当前模型名。
+     * @param allowConfiguredOverride 是否允许使用主模型显式窗口覆盖。
+     * @return 返回该候选模型的上下文窗口 token 数。
+     */
+    public int resolveContextWindowForRuntime(
+            String providerKey,
+            String dialect,
+            String baseUrl,
+            String model,
+            boolean allowConfiguredOverride) {
+        return resolveContextWindow(
+                providerKey,
+                dialect,
+                baseUrl,
+                normalizedModelName(model),
+                allowConfiguredOverride);
     }
 
     /**

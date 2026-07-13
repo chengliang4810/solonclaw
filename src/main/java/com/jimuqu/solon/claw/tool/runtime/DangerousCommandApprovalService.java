@@ -78,6 +78,10 @@ public class DangerousCommandApprovalService {
     /** 上下文ONCEAPPROVALS的统一常量值。 */
     static final String CONTEXT_ONCE_APPROVALS = "_dangerous_command_once_approvals_";
 
+    /** 当前原始工具调用内已逐目标批准的工作区外写入集合。 */
+    private static final String CONTEXT_WORKSPACE_ONCE_APPROVALS =
+            "_dangerous_workspace_once_approvals_";
+
     /** 当前THREAD审批TTLMILLIS的统一常量值。 */
     static final long CURRENT_THREAD_APPROVAL_TTL_MILLIS = 30000L;
 
@@ -229,6 +233,16 @@ public class DangerousCommandApprovalService {
      * @return 返回创建好的Interceptor。
      */
     public HITLInterceptor buildInterceptor() {
+        return buildInterceptor(null);
+    }
+
+    /**
+     * 构建绑定本轮 Agent 工作区的审批拦截器，使文件写入在执行前进入统一 HITL 暂停与恢复流程。
+     *
+     * @param workspaceDir 当前 Agent 工具工作区。
+     * @return 返回创建好的Interceptor。
+     */
+    public HITLInterceptor buildInterceptor(String workspaceDir) {
         HITLInterceptor interceptor =
                 new HITLInterceptor()
                         .onTool(
@@ -260,41 +274,74 @@ public class DangerousCommandApprovalService {
                         .onTool(
                                 ToolNameConstants.PROCESS,
                                 (trace, args) -> evaluateProcessTool(trace, args))
-                        .onTool("call_tool", (trace, args) -> evaluateGatewayCallTool(trace, args))
+                        .onTool(
+                                "call_tool",
+                                (trace, args) ->
+                                        evaluateGatewayCallTool(trace, args, workspaceDir))
                         .onTool(
                                 ToolNameConstants.FILE_READ,
                                 (trace, args) ->
-                                        evaluateFileTool(trace, ToolNameConstants.FILE_READ, args))
+                                        evaluateFileTool(
+                                                trace,
+                                                ToolNameConstants.FILE_READ,
+                                                args,
+                                                workspaceDir))
                         .onTool(
                                 ToolNameConstants.FILE_WRITE,
                                 (trace, args) ->
-                                        evaluateFileTool(trace, ToolNameConstants.FILE_WRITE, args))
+                                        evaluateFileTool(
+                                                trace,
+                                                ToolNameConstants.FILE_WRITE,
+                                                args,
+                                                workspaceDir))
                         .onTool(
                                 ToolNameConstants.READ_FILE,
                                 (trace, args) ->
-                                        evaluateFileTool(trace, ToolNameConstants.READ_FILE, args))
+                                        evaluateFileTool(
+                                                trace,
+                                                ToolNameConstants.READ_FILE,
+                                                args,
+                                                workspaceDir))
                         .onTool(
                                 ToolNameConstants.WRITE_FILE,
                                 (trace, args) ->
-                                        evaluateFileTool(trace, ToolNameConstants.WRITE_FILE, args))
+                                        evaluateFileTool(
+                                                trace,
+                                                ToolNameConstants.WRITE_FILE,
+                                                args,
+                                                workspaceDir))
                         .onTool(
                                 ToolNameConstants.SEARCH_FILES,
                                 (trace, args) ->
                                         evaluateFileTool(
-                                                trace, ToolNameConstants.SEARCH_FILES, args))
+                                                trace,
+                                                ToolNameConstants.SEARCH_FILES,
+                                                args,
+                                                workspaceDir))
                         .onTool(
                                 ToolNameConstants.FILE_LIST,
                                 (trace, args) ->
-                                        evaluateFileTool(trace, ToolNameConstants.FILE_LIST, args))
+                                        evaluateFileTool(
+                                                trace,
+                                                ToolNameConstants.FILE_LIST,
+                                                args,
+                                                workspaceDir))
                         .onTool(
                                 ToolNameConstants.FILE_DELETE,
                                 (trace, args) ->
                                         evaluateFileTool(
-                                                trace, ToolNameConstants.FILE_DELETE, args))
+                                                trace,
+                                                ToolNameConstants.FILE_DELETE,
+                                                args,
+                                                workspaceDir))
                         .onTool(
                                 ToolNameConstants.PATCH,
                                 (trace, args) ->
-                                        evaluateFileTool(trace, ToolNameConstants.PATCH, args))
+                                        evaluateFileTool(
+                                                trace,
+                                                ToolNameConstants.PATCH,
+                                                args,
+                                                workspaceDir))
                         .onTool(
                                 ToolNameConstants.WEBFETCH,
                                 (trace, args) ->
@@ -594,6 +641,7 @@ public class DangerousCommandApprovalService {
 
         HITL.reject(session, pending.getToolName(), comment);
         removePendingApproval(session, pending);
+        session.getContext().remove(CONTEXT_WORKSPACE_ONCE_APPROVALS);
         session.updateSnapshot();
         notifyApprovalResponse(session, pending, "deny", approver);
         return true;
@@ -1015,6 +1063,11 @@ public class DangerousCommandApprovalService {
         return expiresAt != null && expiresAt.longValue() >= System.currentTimeMillis();
     }
 
+    /** 清理当前线程尚未被 handler 消费的一次性命令审批，避免泄漏到后续工具调用。 */
+    public static void clearCurrentThreadApprovals() {
+        CURRENT_THREAD_APPROVED_COMMANDS.remove();
+    }
+
     /**
      * 列出会话Approvals。
      *
@@ -1072,6 +1125,7 @@ public class DangerousCommandApprovalService {
         }
         session.getContext().remove(CONTEXT_SESSION_APPROVALS);
         session.getContext().remove(CONTEXT_ONCE_APPROVALS);
+        session.getContext().remove(CONTEXT_WORKSPACE_ONCE_APPROVALS);
         session.getContext().remove(CONTEXT_PENDING_APPROVAL_QUEUE);
         session.getContext().remove(CONTEXT_SESSION_AUTO_APPROVAL);
         session.updateSnapshot();
@@ -1401,7 +1455,8 @@ public class DangerousCommandApprovalService {
      * @param args 工具或命令参数。
      * @return 返回evaluate消息网关Call工具结果。
      */
-    private String evaluateGatewayCallTool(ReActTrace trace, Map<String, Object> args) {
+    private String evaluateGatewayCallTool(
+            ReActTrace trace, Map<String, Object> args, String workspaceDir) {
         String toolName = gatewayToolName(args);
         if (StrUtil.isBlank(toolName)) {
             return null;
@@ -1430,7 +1485,7 @@ public class DangerousCommandApprovalService {
         } else if (ToolNameConstants.PROCESS.equals(normalized)) {
             result = evaluateProcessTool(trace, toolArgs);
         } else if (ToolNameConstants.isFileSecurityTool(normalized)) {
-            result = evaluateFileTool(trace, normalized, toolArgs);
+            result = evaluateFileTool(trace, normalized, toolArgs, workspaceDir);
         } else if (isUrlSecurityTool(normalized)) {
             result = evaluateUrlTool(trace, normalized, toolArgs);
         } else {
@@ -2082,27 +2137,44 @@ public class DangerousCommandApprovalService {
      * @param args 工具或命令参数。
      * @return 返回evaluate文件工具结果。
      */
-    private String evaluateFileTool(ReActTrace trace, String toolName, Map<String, Object> args) {
+    private String evaluateFileTool(
+            ReActTrace trace,
+            String toolName,
+            Map<String, Object> args,
+            String workspaceDir) {
         if (securityPolicyService == null
                 || !SolonClawCodeExecutionSkills.isFileGuardrailEnabled(appConfig)) {
             return null;
         }
-        SecurityPolicyService.FileVerdict verdict =
-                securityPolicyService.checkFileToolArgs(toolName, args);
-        if (verdict.isAllowed()) {
+        restoreCurrentThreadPolicyApprovals(trace.getContext(), toolName);
+        while (true) {
+            SecurityPolicyService.FileVerdict verdict =
+                    SecurityPolicyService.previewPolicyApprovals(
+                            () ->
+                                    securityPolicyService.checkFileToolArgs(
+                                            toolName, args, workspaceDir));
+            if (verdict.isAllowed()) {
+                return null;
+            }
+            if (verdict.isApprovalRequired()) {
+                String result =
+                        evaluatePolicyApproval(trace, toolName, filePolicyDetection(verdict));
+                if (trace.getSession().isPending()
+                        || org.noear.solon.ai.agent.Agent.ID_END.equals(trace.getRoute())) {
+                    return result;
+                }
+                continue;
+            }
+            trace.setFinalAnswer(
+                    "BLOCKED: 文件安全策略阻止访问："
+                            + verdict.getMessage()
+                            + " path="
+                            + SecretRedactor.redact(
+                                    StrUtil.nullToEmpty(verdict.getPath()), 400));
+            trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
+            persistTraceSnapshot(trace);
             return null;
         }
-        if (verdict.isApprovalRequired()) {
-            return evaluatePolicyApproval(trace, toolName, filePolicyDetection(verdict));
-        }
-        trace.setFinalAnswer(
-                "BLOCKED: 文件安全策略阻止访问："
-                        + verdict.getMessage()
-                        + " path="
-                        + SecretRedactor.redact(StrUtil.nullToEmpty(verdict.getPath()), 400));
-        trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
-        persistTraceSnapshot(trace);
-        return null;
     }
 
     /**
@@ -2155,7 +2227,7 @@ public class DangerousCommandApprovalService {
                 && trace.getContext().getAs(HITL.DECISION_PREFIX + toolName) != null) {
             if ((pending != null && approvalKey.equals(pending.approvalKey()))
                     || consumeOnceApproval(trace.getContext(), approvalKey)) {
-                markCurrentThreadPolicyApproval(detection);
+                markCurrentThreadPolicyApproval(trace.getContext(), toolName, detection);
                 removePendingApproval(trace.getSession(), pending);
                 persistTraceSnapshot(trace);
                 return null;
@@ -2167,13 +2239,13 @@ public class DangerousCommandApprovalService {
             if (pending != null && approvalKey.equals(pending.approvalKey())) {
                 removePendingApproval(trace.getSession(), pending);
             }
-            markCurrentThreadPolicyApproval(detection);
+            markCurrentThreadPolicyApproval(trace.getContext(), toolName, detection);
             persistTraceSnapshot(trace);
             return null;
         }
         if (isSubagentRun()) {
             if (isSubagentAutoApproveEnabled()) {
-                markCurrentThreadPolicyApproval(detection);
+                markCurrentThreadPolicyApproval(trace.getContext(), toolName, detection);
                 persistTraceSnapshot(trace);
                 return null;
             }
@@ -2221,11 +2293,14 @@ public class DangerousCommandApprovalService {
     }
 
     /**
-     * 标记当前线程通过的一次性文件或 URL 策略。
+     * 标记当前工具调用通过的一次性文件或 URL 策略，并持久化已展示且获批的工作区目标。
      *
+     * @param context 当前原始工具调用上下文。
+     * @param toolName 当前工具名称。
      * @param detection 审批检测结果。
      */
-    private void markCurrentThreadPolicyApproval(DetectionResult detection) {
+    private void markCurrentThreadPolicyApproval(
+            FlowContext context, String toolName, DetectionResult detection) {
         if (detection == null) {
             return;
         }
@@ -2233,7 +2308,60 @@ public class DangerousCommandApprovalService {
             if (POLICY_WORKSPACE_OUTSIDE_WRITE.equals(patternKey)) {
                 SecurityPolicyService.approveFilePolicyForCurrentThread(
                         "workspace_outside_write", detection.getNormalizedCode());
+                Set<String> approvals = loadWorkspaceOnceApprovals(context);
+                approvals.add(workspaceOnceApprovalKey(toolName, detection.getNormalizedCode()));
+                context.put(
+                        CONTEXT_WORKSPACE_ONCE_APPROVALS,
+                        new ArrayList<String>(approvals));
             }
+        }
+    }
+
+    /**
+     * 恢复当前原始工具调用之前已逐目标批准的工作区外写入 token。
+     *
+     * @param context 当前工具调用上下文。
+     * @param toolName 当前工具名称。
+     */
+    private void restoreCurrentThreadPolicyApprovals(FlowContext context, String toolName) {
+        String prefix = StrUtil.nullToEmpty(toolName).trim() + "\n";
+        for (String approval : loadWorkspaceOnceApprovals(context)) {
+            if (approval.startsWith(prefix)) {
+                SecurityPolicyService.approveFilePolicyForCurrentThread(
+                        "workspace_outside_write", approval.substring(prefix.length()));
+            }
+        }
+    }
+
+    /**
+     * 读取当前原始工具调用已批准的工作区目标。
+     *
+     * @param context 当前工具调用上下文。
+     * @return 精确绑定工具与目标路径的审批集合。
+     */
+    private Set<String> loadWorkspaceOnceApprovals(FlowContext context) {
+        return stringSetFrom(
+                context == null ? null : context.get(CONTEXT_WORKSPACE_ONCE_APPROVALS));
+    }
+
+    /** 生成工作区目标的工具调用级审批键。 */
+    private String workspaceOnceApprovalKey(String toolName, String target) {
+        return StrUtil.nullToEmpty(toolName).trim()
+                + "\n"
+                + StrUtil.nullToEmpty(target).trim();
+    }
+
+    /**
+     * 清理已完成或失败工具调用的逐目标工作区审批，pending 恢复链由调用方暂时保留。
+     *
+     * @param session 当前 Agent 会话。
+     */
+    public void clearWorkspaceToolCallApprovals(AgentSession session) {
+        if (session != null
+                && session.getContext() != null
+                && session.getContext().get(CONTEXT_WORKSPACE_ONCE_APPROVALS) != null) {
+            session.getContext().remove(CONTEXT_WORKSPACE_ONCE_APPROVALS);
+            session.updateSnapshot();
         }
     }
 
@@ -2729,12 +2857,20 @@ public class DangerousCommandApprovalService {
         if (active.size() == pending.size()) {
             return false;
         }
+        boolean workspaceApprovalExpired = false;
         for (PendingApproval item : pending) {
             if (item != null && isPendingExpired(item)) {
+                workspaceApprovalExpired =
+                        workspaceApprovalExpired
+                                || item.effectivePatternKeys()
+                                        .contains(POLICY_WORKSPACE_OUTSIDE_WRITE);
                 notifyApprovalResponse(session, item, "timeout", "");
             }
         }
         writePendingApprovals(session, active);
+        if (active.isEmpty() || workspaceApprovalExpired) {
+            session.getContext().remove(CONTEXT_WORKSPACE_ONCE_APPROVALS);
+        }
         session.updateSnapshot();
         return true;
     }

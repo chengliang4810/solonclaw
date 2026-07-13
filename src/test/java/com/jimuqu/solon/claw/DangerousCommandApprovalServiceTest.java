@@ -12,6 +12,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -72,6 +73,62 @@ public class DangerousCommandApprovalServiceTest {
         env.dangerousCommandApprovalService.clearAlwaysApprovals();
 
         assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("safe_echo")).isFalse();
+    }
+
+    /** 校验多目标外部写入的后续审批超时后，不会保留此前目标的一次性授权。 */
+    @Test
+    @SuppressWarnings("unchecked")
+    void shouldClearWorkspaceOnceApprovalsWhenTargetExpiresBesideActivePending() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        InMemoryAgentSession session = new InMemoryAgentSession("workspace-approval-timeout");
+        String firstTarget = "/tmp/solonclaw-first-target.txt";
+        String secondTarget = "/tmp/solonclaw-second-target.txt";
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                session,
+                "file_write",
+                "policy:workspace_outside_write",
+                "工作区外写入需要审批",
+                firstTarget);
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "tester"))
+                .isTrue();
+        session.getContext()
+                .put(
+                        "_dangerous_workspace_once_approvals_",
+                        Collections.singletonList("file_write\n" + firstTarget));
+        assertThat(session.getContext().get("_dangerous_workspace_once_approvals_")).isNotNull();
+
+        env.dangerousCommandApprovalService.storePendingApproval(
+                session,
+                "file_write",
+                "policy:workspace_outside_write",
+                "工作区外写入需要审批",
+                secondTarget);
+        env.dangerousCommandApprovalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "recursive_delete",
+                "递归删除需要审批",
+                "rm -rf target/cache");
+        List<Map<String, Object>> queue =
+                (List<Map<String, Object>>)
+                        session.getContext().get("_dangerous_command_pending_queue_");
+        assertThat(queue).hasSize(2);
+        queue.get(0).put("expiresAt", Long.valueOf(System.currentTimeMillis() - 1L));
+
+        assertThat(env.dangerousCommandApprovalService.listPendingApprovals(session)).hasSize(1);
+        assertThat(session.getContext().get("_dangerous_workspace_once_approvals_")).isNull();
+
+        SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+        assertThat(
+                        new SecurityPolicyService(env.appConfig)
+                                .checkWorkspaceWritePath(firstTarget, new File("target").getPath())
+                                .isApprovalRequired())
+                .isTrue();
     }
 
     @Test

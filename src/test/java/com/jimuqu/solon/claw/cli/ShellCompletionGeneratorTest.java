@@ -56,4 +56,36 @@ class ShellCompletionGeneratorTest {
             }
         }
     }
+
+    /** `-p` 在任意位置的 CLI/TUI 参数之后都必须补全为提示词，而非 Profile 名。 */
+    @Test
+    void distinguishesShortPromptAliasAfterLeadingProfileOption() throws Exception {
+        String bash = render("bash");
+        assertThat(bash)
+                .contains("local cur prev terminal_mode word")
+                .contains("for word in \"${COMP_WORDS[@]:1:$((COMP_CWORD - 1))}\"")
+                .contains("if [[ \"$prev\" == \"--profile\" || ( \"$prev\" == \"-p\" && -z \"$terminal_mode\" ) ]]; then")
+                .contains("if [[ -n \"$terminal_mode\" ]]; then")
+                .doesNotContain("${COMP_WORDS[1]}\" != \"cli");
+
+        assertThat(render("zsh"))
+                .contains("-p[Send one prompt after --cli or --tui]")
+                .doesNotContain("-p[Run under a named profile]");
+        assertThat(render("fish"))
+                .contains("contains -- --cli (commandline -opc)")
+                .contains("contains -- --tui (commandline -opc)");
+    }
+
+    /** 渲染指定 shell 的补全脚本，便于验证用户实际安装的文本。 */
+    private static String render(String shell) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        int exitCode =
+                new ShellCompletionGenerator()
+                        .write(
+                                shell,
+                                new PrintStream(output, true, StandardCharsets.UTF_8.name()),
+                                System.err);
+        assertThat(exitCode).isZero();
+        return output.toString(StandardCharsets.UTF_8.name());
+    }
 }

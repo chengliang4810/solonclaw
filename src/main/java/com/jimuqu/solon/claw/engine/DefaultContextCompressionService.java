@@ -71,7 +71,7 @@ public class DefaultContextCompressionService implements ContextCompressionServi
         }
 
         int contextWindow = Math.max(1024, appConfig.getLlm().getContextWindowTokens());
-        int threshold = (int) (contextWindow * appConfig.getCompression().getThresholdPercent());
+        int threshold = effectiveThresholdTokens(contextWindow);
         int estimatedTokens = estimateRequestTokens(session, systemPrompt, userMessage);
         if (shouldSkipForFailureCooldown(session)) {
             return withBudget(CompressionOutcome.skipped(session), estimatedTokens, threshold);
@@ -125,6 +125,23 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     @Override
     public CompressionOutcome compressNowWithOutcome(
             SessionRecord session, String systemPrompt, String focus) throws Exception {
+        return compressNowWithOutcome(
+                session, systemPrompt, focus, appConfig.getLlm().getContextWindowTokens());
+    }
+
+    /**
+     * 使用当前候选模型的独立上下文窗口执行压缩。
+     *
+     * @param session 当前会话。
+     * @param systemPrompt 系统提示词。
+     * @param focus 压缩关注主题。
+     * @param contextWindowTokens 当前候选模型的上下文窗口 token 数。
+     * @return 返回压缩结果。
+     */
+    @Override
+    public CompressionOutcome compressNowWithOutcome(
+            SessionRecord session, String systemPrompt, String focus, int contextWindowTokens)
+            throws Exception {
         String beforeNdjson = session == null ? "" : session.getNdjson();
         try {
             List<ChatMessage> history = MessageSupport.loadMessages(session.getNdjson());
@@ -152,9 +169,9 @@ public class DefaultContextCompressionService implements ContextCompressionServi
                 return CompressionOutcome.skipped(session);
             }
 
-            List<ChatMessage> pruned = pruneOldToolResults(normalized);
+            List<ChatMessage> pruned = pruneOldToolResults(normalized, contextWindowTokens);
             int protectHead = resolveProtectHeadCount(pruned, StrUtil.isNotBlank(previousSummary));
-            int protectTailStart = findTailStart(pruned);
+            int protectTailStart = findTailStart(pruned, contextWindowTokens);
             int lastUserIndex = findLastUserIndex(pruned);
             if (lastUserIndex >= protectHead && lastUserIndex < protectTailStart) {
                 protectTailStart = lastUserIndex;
@@ -222,9 +239,10 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     }
 
     /** 对较早的工具结果做预裁剪。 */
-    private List<ChatMessage> pruneOldToolResults(List<ChatMessage> messages) {
+    private List<ChatMessage> pruneOldToolResults(
+            List<ChatMessage> messages, int contextWindowTokens) {
         List<ChatMessage> result = new ArrayList<ChatMessage>();
-        int tailStart = findTailStart(messages);
+        int tailStart = findTailStart(messages, contextWindowTokens);
         for (int i = 0; i < messages.size(); i++) {
             ChatMessage message = messages.get(i);
             if (i < tailStart
@@ -326,9 +344,14 @@ public class DefaultContextCompressionService implements ContextCompressionServi
     }
 
     /** 根据尾部 token 预算反推出应保护的 tail 起点。 */
-    private int findTailStart(List<ChatMessage> messages) {
-        int contextWindow = Math.max(1024, appConfig.getLlm().getContextWindowTokens());
-        int tailBudget = (int) (contextWindow * appConfig.getCompression().getTailRatio());
+    private int findTailStart(List<ChatMessage> messages, int contextWindowTokens) {
+        int contextWindow = Math.max(1024, contextWindowTokens);
+        int tailBudget =
+                Math.max(
+                        1,
+                        (int)
+                                (effectiveThresholdTokens(contextWindow)
+                                        * appConfig.getCompression().getTailRatio()));
         int accumulated = 0;
         int start = messages.size();
         for (int i = messages.size() - 1; i >= 0; i--) {
@@ -340,6 +363,16 @@ public class DefaultContextCompressionService implements ContextCompressionServi
             start = i;
         }
         return start;
+    }
+
+    /** 根据输出 token 预留计算当前候选模型的有效压缩阈值；输出上限占满窗口时保留一个 token 输入预算。 */
+    private int effectiveThresholdTokens(int contextWindow) {
+        int maxTokens = appConfig.getLlm().getMaxTokens();
+        int effectiveWindow =
+                maxTokens > 0 ? Math.max(1, contextWindow - maxTokens) : contextWindow;
+        return Math.max(
+                1,
+                (int) (effectiveWindow * appConfig.getCompression().getThresholdPercent()));
     }
 
     /**

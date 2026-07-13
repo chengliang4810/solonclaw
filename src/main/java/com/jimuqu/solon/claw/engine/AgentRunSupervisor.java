@@ -1301,7 +1301,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         runContext.setPhase("compression");
         CompressionOutcome outcome =
                 contextCompressionService.compressNowWithOutcome(
-                        session, systemPrompt, userMessage);
+                        session, systemPrompt, userMessage, resolved.getContextWindowTokens());
         SessionRecord compressed = outcome.getSession();
         boolean changed = !StrUtil.equals(before.getNdjson(), compressed.getNdjson());
         eventSink.onCompressionDecision(
@@ -1324,7 +1324,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         if (runRecord != null) {
             runRecord.setCompressionCount(runRecord.getCompressionCount() + 1);
             runRecord.setContextEstimateTokens(decision.getEstimatedTokens());
-            runRecord.setContextWindowTokens(decision.getThresholdTokens());
+            runRecord.setContextWindowTokens(decision.getContextWindowTokens());
             heartbeat(runRecord);
             agentRunRepository.saveRun(runRecord);
         }
@@ -1358,7 +1358,8 @@ public class AgentRunSupervisor implements AgentRunControlService {
         SessionRecord before = cloneSessionState(session);
         runContext.setPhase("compression");
         CompressionOutcome outcome =
-                contextCompressionService.compressNowWithOutcome(session, systemPrompt);
+                contextCompressionService.compressNowWithOutcome(
+                        session, systemPrompt, null, resolved.getContextWindowTokens());
         SessionRecord compressed = outcome.getSession();
         boolean changed = !StrUtil.equals(before.getNdjson(), compressed.getNdjson());
         String reason = "provider_" + classified.getReason().name().toLowerCase(Locale.ROOT);
@@ -1482,7 +1483,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                 addCandidate(
                         plan,
                         seen,
-                        llmProviderService.resolveProvider(
+                        llmProviderService.resolveFallbackProvider(
                                 fallback.getProvider().trim(), fallback.getModel()));
             } catch (Exception e) {
                 plan.failures.add(
@@ -1548,6 +1549,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
         config.setApiUrl(StrUtil.nullToEmpty(resolved.getApiUrl()).trim());
         config.setApiKey(resolved.getApiKey());
         config.setModel(StrUtil.nullToEmpty(resolved.getModel()).trim());
+        config.setContextWindowTokens(resolved.getContextWindowTokens());
         return config;
     }
 

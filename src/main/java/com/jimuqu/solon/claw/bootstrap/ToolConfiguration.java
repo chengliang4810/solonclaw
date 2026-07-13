@@ -51,6 +51,7 @@ import com.jimuqu.solon.claw.support.AttachmentCacheService;
 import com.jimuqu.solon.claw.support.ConversationOrchestratorHolder;
 import com.jimuqu.solon.claw.support.DisplaySettingsService;
 import com.jimuqu.solon.claw.support.LlmProviderService;
+import com.jimuqu.solon.claw.support.ModelMetadataService;
 import com.jimuqu.solon.claw.support.RuntimeFooterService;
 import com.jimuqu.solon.claw.support.RuntimePathGuard;
 import com.jimuqu.solon.claw.support.RuntimeSettingsService;
@@ -519,11 +520,13 @@ public class ToolConfiguration {
      * 执行大模型提供方服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
+     * @param modelMetadataService 完整模型元数据解析服务。
      * @return 返回大模型提供方服务结果。
      */
     @Bean
-    public LlmProviderService llmProviderService(AppConfig appConfig) {
-        return new LlmProviderService(appConfig);
+    public LlmProviderService llmProviderService(
+            AppConfig appConfig, ModelMetadataService modelMetadataService) {
+        return new LlmProviderService(appConfig, modelMetadataService);
     }
 
     /**
