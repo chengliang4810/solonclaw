@@ -495,6 +495,8 @@ public class DangerousCommandApprovalService {
         }
         HITL.approve(session, pending.getToolName(), comment);
         removePendingApproval(session, pending);
+        // 审批决策需要由恢复执行消费；修复审批队列存在但会话 pending 标记丢失的状态分裂。
+        session.pending(true, "dangerous_command_approval");
         session.updateSnapshot();
         notifyApprovalResponse(
                 session, pending, effectiveScope.name().toLowerCase(Locale.ROOT), approver);
@@ -642,6 +644,8 @@ public class DangerousCommandApprovalService {
         HITL.reject(session, pending.getToolName(), comment);
         removePendingApproval(session, pending);
         session.getContext().remove(CONTEXT_WORKSPACE_ONCE_APPROVALS);
+        // 拒绝决策同样需要恢复原工具调用，由 ReAct 循环生成最终取消结果。
+        session.pending(true, "dangerous_command_approval");
         session.updateSnapshot();
         notifyApprovalResponse(session, pending, "deny", approver);
         return true;

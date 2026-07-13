@@ -295,6 +295,7 @@ public class SolonClawWebTools {
                 @Param(name = "timeout", required = false, description = "超时时间（秒），最大 120 秒")
                         Integer timeoutSeconds)
                 throws Exception {
+            validateWebfetchUrl(url);
             Map<String, Object> args = new LinkedHashMap<String, Object>();
             args.put("url", url);
             check(securityPolicyService, ToolNameConstants.WEBFETCH, args);
@@ -303,6 +304,21 @@ public class SolonClawWebTools {
                             delegate.webfetch(url, format, timeoutSeconds), "Web fetch: " + url);
             checkReturnedUrls(securityPolicyService, document);
             return safeDocument(document);
+        }
+
+        /**
+         * 在安全策略前校验 webfetch 的固定 HTTP(S) 入参契约，避免无协议文本被通用策略按主机名补全。
+         *
+         * @param url 模型或调用方传入的目标地址。
+         */
+        private static void validateWebfetchUrl(String url) {
+            java.net.URI uri = SecurityUrlTextSupport.parseUri(url);
+            String scheme = uri == null ? "" : StrUtil.nullToEmpty(uri.getScheme());
+            if ((!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme))
+                    || StrUtil.isBlank(SecurityUrlTextSupport.extractUriHost(uri))) {
+                throw new IllegalArgumentException(
+                        "URL 格式错误：url 必须是包含主机名的 http:// 或 https:// 完整地址");
+            }
         }
     }
 

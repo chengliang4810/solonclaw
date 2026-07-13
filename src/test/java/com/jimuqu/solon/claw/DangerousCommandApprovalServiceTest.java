@@ -75,6 +75,29 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(env.dangerousCommandApprovalService.isAlwaysApproved("safe_echo")).isFalse();
     }
 
+    /** 审批队列存在时即使 pending 标记曾丢失，审批后也必须恢复可续跑状态。 */
+    @Test
+    void shouldRepairMissingPendingStateWhenApprovalIsResolved() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        InMemoryAgentSession session = new InMemoryAgentSession("repair-pending-state");
+        env.dangerousCommandApprovalService.storePendingApproval(
+                session,
+                "execute_shell",
+                "script_heredoc",
+                "脚本 heredoc 执行需要审批",
+                "python3 - <<'PY'\nprint('ok')\nPY");
+        session.pending(false, null);
+
+        assertThat(
+                        env.dangerousCommandApprovalService.approve(
+                                session,
+                                DangerousCommandApprovalService.ApprovalScope.ONCE,
+                                "tester"))
+                .isTrue();
+        assertThat(session.isPending()).isTrue();
+        assertThat(session.getPendingReason()).isEqualTo("dangerous_command_approval");
+    }
+
     /** 校验多目标外部写入的后续审批超时后，不会保留此前目标的一次性授权。 */
     @Test
     @SuppressWarnings("unchecked")

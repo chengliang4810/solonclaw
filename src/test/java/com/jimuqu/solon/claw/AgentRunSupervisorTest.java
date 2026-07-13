@@ -130,6 +130,20 @@ public class AgentRunSupervisorTest {
         AgentRunSupervisor supervisor =
                 supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
         SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:room:user");
+        List<String> fallbackTargets = new ArrayList<String>();
+        ConversationEventSink eventSink =
+                new ConversationEventSink() {
+                    /** 记录实际切换目标，验证 fallback 协议同时携带 provider 与 model。 */
+                    @Override
+                    public void onFallback(
+                            String runId,
+                            String fromProvider,
+                            String toProvider,
+                            String toModel,
+                            String reason) {
+                        fallbackTargets.add(toProvider + ":" + toModel);
+                    }
+                };
 
         AgentRunOutcome outcome =
                 supervisor.run(
@@ -138,7 +152,7 @@ public class AgentRunSupervisorTest {
                         "hello",
                         Collections.emptyList(),
                         ConversationFeedbackSink.noop(),
-                        ConversationEventSink.noop(),
+                        eventSink,
                         false,
                         null,
                         Collections.emptyList(),
@@ -149,6 +163,7 @@ public class AgentRunSupervisorTest {
         assertThat(outcome.getRunRecord().getProvider()).isEqualTo("backup");
         assertThat(gateway.attempts)
                 .containsExactly("primary:gpt-5-mini", "backup:claude-sonnet-4");
+        assertThat(fallbackTargets).containsExactly("backup:claude-sonnet-4");
 
         List<AgentRunEventRecord> events =
                 fixture.agentRunRepository.listEvents(outcome.getRunRecord().getRunId());

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
+
 import com.jimuqu.solon.claw.bootstrap.ContextConfiguration;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
 import com.jimuqu.solon.claw.context.BuiltinMemoryProvider;
@@ -29,6 +30,11 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.MemoryTools;
 import com.jimuqu.solon.claw.tool.runtime.SkillTools;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
+
+import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.message.ChatMessage;
+
 import java.io.File;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -37,9 +43,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.junit.jupiter.api.Test;
-import org.noear.snack4.ONode;
-import org.noear.solon.ai.chat.message.ChatMessage;
 
 public class MemoryAndSkillsTest {
     @Test
@@ -1608,6 +1611,62 @@ public class MemoryAndSkillsTest {
     }
 
     @Test
+    void shouldStripPrivateReasoningFromSkillLearningInputsAndOutput() throws Exception {
+        ThinkingSkillSummaryGateway gateway = new ThinkingSkillSummaryGateway();
+        TestEnvironment env = TestEnvironment.withLlm(gateway);
+        env.appConfig.getLearning().setToolCallThreshold(1);
+        env.localSkillService.createSkill(
+                "safe-learning-task",
+                null,
+                skill("safe-learning-task", "<think>旧技能内部推理</think>已有流程"));
+
+        SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room:user");
+        session.setTitle("是的，你好啊");
+        session.setCompressedSummary(
+                com.jimuqu.solon.claw.support.constants.CompressionConstants.SUMMARY_PREFIX
+                        + "\n<think>摘要内部推理</think>可复用摘要");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Arrays.asList(
+                                ChatMessage.ofAssistant("<think>历史内部推理</think>可见历史结果"),
+                                ChatMessage.ofTool("验证通过", "shell", "1"))));
+        env.sessionRepository.save(session);
+
+        AsyncSkillLearningService learningService =
+                new AsyncSkillLearningService(
+                        env.appConfig,
+                        env.sessionRepository,
+                        env.memoryService,
+                        env.localSkillService,
+                        env.checkpointService,
+                        gateway);
+        try {
+            learningService.schedulePostReplyLearning(
+                    session, env.message("room", "user", "更新安全学习流程"), GatewayReply.ok("done"));
+
+            String content = waitSkillContent(env, "safe-learning-task", "模型总结出的发布流程");
+            assertThat(content)
+                    .contains("description: 可复用发布流程")
+                    .doesNotContain("<think>")
+                    .doesNotContain("模型内部推理")
+                    .doesNotContain("是的，你好啊")
+                    .doesNotContain("CONTEXT COMPACTION");
+            assertThat(gateway.learningPrompt)
+                    .contains("可复用摘要", "可见历史结果")
+                    .doesNotContain("<think>")
+                    .doesNotContain("旧技能内部推理")
+                    .doesNotContain("摘要内部推理")
+                    .doesNotContain("历史内部推理")
+                    .doesNotContain("CONTEXT COMPACTION");
+            assertThat(env.localSkillService.listSkillNames())
+                    .contains("safe-learning-task")
+                    .doesNotContain("learned-workflow");
+        } finally {
+            learningService.shutdown();
+        }
+    }
+
+    @Test
     void shouldNotLearnAgainWithoutNewToolMessages() throws Exception {
         CountingSkillSummaryGateway gateway = new CountingSkillSummaryGateway();
         TestEnvironment env = TestEnvironment.withLlm(gateway);
@@ -1903,7 +1962,7 @@ public class MemoryAndSkillsTest {
             String content =
                     "---\n"
                             + "name: ignored\n"
-                            + "description: ignored\n"
+                            + "description: 可复用发布流程\n"
                             + "---\n\n"
                             + "# 触发条件\n"
                             + "- 遇到需要把已验证工程流程沉淀为 skill 的任务时使用。\n\n"
@@ -1929,6 +1988,35 @@ public class MemoryAndSkillsTest {
                 SessionRecord session, String systemPrompt, List<Object> toolObjects)
                 throws Exception {
             return chat(session, systemPrompt, "", toolObjects);
+        }
+    }
+
+    /** 返回带内部思考块的技能正文，并记录写入模型前的学习提示。 */
+    private static class ThinkingSkillSummaryGateway extends SkillSummaryGateway {
+        private volatile String learningPrompt = "";
+
+        /** 分类阶段返回更新动作，生成阶段模拟供应商把思考块混入正文。 */
+        @Override
+        public LlmResult chat(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects)
+                throws Exception {
+            if (systemPrompt.contains("rubric 分类器")) {
+                LlmResult decision = new LlmResult();
+                decision.setAssistantMessage(
+                        ChatMessage.ofAssistant("update_existing_skill|safe-learning-task"));
+                decision.setRawResponse("update_existing_skill|safe-learning-task");
+                decision.setNdjson("");
+                return decision;
+            }
+            learningPrompt = userMessage;
+            LlmResult result = super.chat(session, systemPrompt, userMessage, toolObjects);
+            String polluted = "<think>模型内部推理</think>\n" + result.getAssistantMessage().getContent();
+            result.setAssistantMessage(ChatMessage.ofAssistant(polluted));
+            result.setRawResponse(polluted);
+            return result;
         }
     }
 

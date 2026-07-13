@@ -5,7 +5,12 @@ import static com.jimuqu.solon.claw.support.TestToolSupport.readUtf8;
 import static com.jimuqu.solon.claw.support.TestToolSupport.tempDir;
 import static com.jimuqu.solon.claw.support.TestToolSupport.writeUtf8;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.noear.snack4.ONode;
+import org.slf4j.LoggerFactory;
 
 public class SolonClawFileReadWriteSkillTest {
     // shouldBlockRuntimeCredentialCacheRead 已删除：凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），
@@ -36,6 +42,34 @@ public class SolonClawFileReadWriteSkillTest {
                 .isEqualTo(expected.toRealPath().toString());
         assertThat(expected).exists();
         assertThat(dir.resolve("workspace/scripts/loop-probe.py")).doesNotExist();
+    }
+
+    /** 验证获批工作区外写入后，去重清理复用已校验路径且不会记录沙箱异常警告。 */
+    @Test
+    void shouldNotWarnWhenClearingReadDedupAfterApprovedOutsideWorkspaceWrite() throws Exception {
+        Path workspace = tempDir("file-approved-outside-workspace");
+        Path outsideFile = tempDir("file-approved-outside-target").resolve("approved.txt");
+        SolonClawFileReadWriteSkill skill = guardedFileSkill(workspace);
+        Logger logger = (Logger) LoggerFactory.getLogger(SolonClawFileReadWriteSkill.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        SecurityPolicyService.approveFilePolicyForCurrentThread(
+                "workspace_outside_write", outsideFile.toString());
+
+        ONode result;
+        try {
+            result = ONode.ofJson(skill.write(outsideFile.toString(), "approved\n"));
+        } finally {
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+            logger.detachAppender(appender);
+        }
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(readUtf8(outsideFile)).isEqualTo("approved\n");
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .noneMatch(message -> message.contains("清理文件读取去重状态失败"));
     }
 
     /** 验证 read_file 当前入口只使用 path 参数读取文件。 */
@@ -128,6 +162,50 @@ public class SolonClawFileReadWriteSkillTest {
 
         assertThat(result.get("status").getString()).isEqualTo("success");
         assertThat(readUtf8(file)).contains("apiKey: sk-new-real-secret-67890");
+    }
+
+    /** 验证模型文件写入不能绕过长期记忆审批，并覆盖路径规范化和符号链接。 */
+    @Test
+    void shouldBlockMemoryControlWritesAcrossPathForms() throws Exception {
+        Path workspace = tempDir("file-memory-write-guard");
+        Files.createDirectories(workspace.resolve("memory"));
+        SolonClawFileReadWriteSkill skill = new SolonClawFileReadWriteSkill(workspace.toString(), null);
+
+        assertMemoryWriteBlocked(skill, "MEMORY.md");
+        assertMemoryWriteBlocked(skill, workspace.resolve("USER.md").toString());
+        assertMemoryWriteBlocked(skill, "nested/../.solonclaw-memory-approvals.json");
+        assertMemoryWriteBlocked(skill, ".solonclaw-memory-approvals.lock");
+        assertMemoryWriteBlocked(skill, "memory/2026-07-13.md");
+
+        Path link = workspace.resolve("memory-link");
+        if (com.jimuqu.solon.claw.support.TestToolSupport.createDirectoryLink(
+                link, workspace.resolve("memory"))) {
+            assertMemoryWriteBlocked(skill, "memory-link/2026-07-13.md");
+        }
+    }
+
+    /** 验证跨 Profile 路径即使获得一次性写入审批，也不能写入其他 Profile 的记忆控制文件。 */
+    @Test
+    void shouldBlockApprovedOutsideMemoryControlWrite() throws Exception {
+        Path profileRoot = tempDir("file-memory-write-profile-root");
+        Path workspace = Files.createDirectories(profileRoot.resolve("profiles/active"));
+        Path target = Files.createDirectories(profileRoot.resolve("profiles/other")).resolve("MEMORY.md");
+        SolonClawFileReadWriteSkill skill = guardedFileSkill(workspace);
+        SecurityPolicyService.approveFilePolicyForCurrentThread(
+                "workspace_outside_write", target.toString());
+
+        try {
+            assertMemoryWriteBlocked(skill, target.toString());
+        } finally {
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+        }
+    }
+
+    /** 断言指定路径被统一的长期记忆写入边界拒绝。 */
+    private void assertMemoryWriteBlocked(SolonClawFileReadWriteSkill skill, String path) {
+        assertThatThrownBy(() -> skill.write(path, "blocked\n"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("长期记忆");
     }
 
     @Test

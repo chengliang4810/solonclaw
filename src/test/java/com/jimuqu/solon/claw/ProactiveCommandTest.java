@@ -253,7 +253,8 @@ public class ProactiveCommandTest {
                 null,
                 null,
                 new ProactiveDiagnosticsService(env.appConfig, proactiveRepository),
-                proactiveRepository);
+                proactiveRepository,
+                env.memoryService);
     }
 
     private ProactiveCandidateRecord candidate(String candidateId, long createdAt) {

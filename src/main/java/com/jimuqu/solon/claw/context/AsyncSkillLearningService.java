@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.context;
 
 import cn.hutool.core.util.StrUtil;
+
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -14,13 +15,23 @@ import com.jimuqu.solon.claw.core.service.LlmGateway;
 import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.core.service.SkillLearningService;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
+import com.jimuqu.solon.claw.skillhub.support.SkillFrontmatterSupport;
 import com.jimuqu.solon.claw.storage.repository.SqliteDatabase;
 import com.jimuqu.solon.claw.support.BoundedExecutorFactory;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.TimeSupport;
+import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.MemoryConstants;
+
+import lombok.RequiredArgsConstructor;
+
+import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.noear.solon.ai.chat.message.ChatMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -35,10 +46,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import lombok.RequiredArgsConstructor;
-import org.noear.solon.ai.chat.message.AssistantMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** 主回复后的异步学习闭环服务。 */
 @RequiredArgsConstructor
@@ -221,12 +228,21 @@ public class AsyncSkillLearningService implements SkillLearningService {
     private void learnSkill(
             SessionRecord session, GatewayMessage message, boolean hasRecentCheckpoint)
             throws Exception {
-        String decision = classifyImprovement(session, message, hasRecentCheckpoint);
-        String skillName = inferSkillName(session);
-        SkillDescriptor descriptor = findSkill(skillName);
-        if (descriptor != null
-                && ("new_skill".equals(decision) || "update_loaded_skill".equals(decision))) {
-            decision = "update_existing_skill";
+        ImprovementDecision improvement =
+                classifyImprovement(session, message, hasRecentCheckpoint);
+        String decision = improvement.action;
+        String skillName = StrUtil.blankToDefault(improvement.skillName, inferSkillName(session));
+        if (!"no_change".equals(decision)
+                && !"memory_only".equals(decision)
+                && StrUtil.isBlank(skillName)) {
+            writeImprovementReport(
+                    session,
+                    null,
+                    "no_change",
+                    "Skipped skill write because no reusable class-level skill name was produced.",
+                    Collections.<String>emptyList(),
+                    true);
+            return;
         }
         if ("no_change".equals(decision)) {
             writeImprovementReport(
@@ -272,9 +288,16 @@ public class AsyncSkillLearningService implements SkillLearningService {
                     false);
             return;
         }
+        SkillDescriptor descriptor = findSkill(skillName);
+        if (descriptor != null
+                && ("new_skill".equals(decision) || "update_loaded_skill".equals(decision))) {
+            decision = "update_existing_skill";
+        }
         if (descriptor == null) {
             localSkillService.createSkill(
-                    skillName, null, buildSkillContent(session, message, hasRecentCheckpoint));
+                    skillName,
+                    null,
+                    buildSkillContent(skillName, session, message, hasRecentCheckpoint));
             writeImprovementReport(
                     session,
                     skillName,
@@ -302,10 +325,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
      * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
      * @return 返回classify Improvement结果。
      */
-    private String classifyImprovement(
+    private ImprovementDecision classifyImprovement(
             SessionRecord session, GatewayMessage message, boolean hasRecentCheckpoint) {
         if (llmGateway == null) {
-            return hasRecentCheckpoint ? "update_existing_skill" : "new_skill";
+            return new ImprovementDecision(
+                    hasRecentCheckpoint ? "update_existing_skill" : "new_skill",
+                    inferSkillName(session));
         }
         try {
             SessionRecord rubricSession = new SessionRecord();
@@ -316,23 +341,32 @@ public class AsyncSkillLearningService implements SkillLearningService {
                             + System.currentTimeMillis());
             rubricSession.setSourceKey(session.getSourceKey());
             String userMessage =
-                    "请从以下类别中选择一个：no_change, new_skill, update_loaded_skill, update_existing_skill,"
-                            + " memory_only。\n"
+                    "请判断本轮是否值得沉淀，并只输出以下格式之一：\n"
+                            + "no_change\n"
+                            + "memory_only\n"
+                            + "new_skill|class-level-skill-name\n"
+                            + "update_loaded_skill|existing-skill-name\n"
+                            + "update_existing_skill|existing-skill-name\n"
+                            + "技能名必须是可复用任务类别的英文小写名称，不能使用一次性请求、错误文本、日期或通用占位名。\n"
+                            + "现有技能名："
+                            + existingSkillNamesForPrompt()
+                            + "\n"
                             + "用户请求："
-                            + StrUtil.blankToDefault(message == null ? "" : message.getText(), "")
+                            + sanitizeLearningText(message == null ? "" : message.getText())
                             + "\n工具消息数量满足阈值，checkpoint="
                             + hasRecentCheckpoint
                             + "\n会话摘要："
                             + SecretRedactor.redact(
-                                    StrUtil.blankToDefault(session.getCompressedSummary(), ""),
-                                    2000);
+                                    sanitizeLearningText(session.getCompressedSummary()), 2000);
             LlmResult result =
                     callAuxiliaryChat(
                             rubricSession,
-                            "你是 SolonClaw 的 self-improvement rubric 分类器。只输出一个类别。",
+                            "你是 SolonClaw 的 self-improvement rubric 分类器。只输出指定格式。",
                             userMessage);
             String text = extractAssistantText(result).trim().toLowerCase();
-            String firstToken = text.split("[\\s,，。:：]+", 2)[0];
+            String firstLine = text.split("\\R", 2)[0].trim();
+            String[] parts = firstLine.split("[|｜]", 2);
+            String firstToken = parts[0].split("[\\s,，。:：]+", 2)[0];
             for (String candidate :
                     new String[] {
                         "no_change",
@@ -341,8 +375,10 @@ public class AsyncSkillLearningService implements SkillLearningService {
                         "update_existing_skill",
                         "memory_only"
                     }) {
-                if (candidate.equals(firstToken) || candidate.equals(text)) {
-                    return candidate;
+                if (candidate.equals(firstToken) || candidate.equals(firstLine)) {
+                    String proposedName =
+                            parts.length > 1 ? normalizeLearningSkillName(parts[1]) : "";
+                    return new ImprovementDecision(candidate, proposedName);
                 }
             }
         } catch (Exception e) {
@@ -353,7 +389,28 @@ public class AsyncSkillLearningService implements SkillLearningService {
                     Boolean.valueOf(hasRecentCheckpoint),
                     e.toString());
         }
-        return hasRecentCheckpoint ? "update_existing_skill" : "new_skill";
+        return new ImprovementDecision(
+                hasRecentCheckpoint ? "update_existing_skill" : "new_skill",
+                inferSkillName(session));
+    }
+
+    /** 返回供复盘模型选择的现有技能名，避免为已有类别重复创建技能。 */
+    private String existingSkillNamesForPrompt() {
+        try {
+            StringBuilder names = new StringBuilder();
+            for (SkillDescriptor descriptor : localSkillService.listSkills(null)) {
+                if (names.length() > 0) {
+                    names.append(", ");
+                }
+                names.append(descriptor.getName());
+                if (names.length() >= 2000) {
+                    break;
+                }
+            }
+            return StrUtil.blankToDefault(names.toString(), "无");
+        } catch (Exception e) {
+            return "无";
+        }
     }
 
     /**
@@ -405,50 +462,72 @@ public class AsyncSkillLearningService implements SkillLearningService {
      * @return 返回infer技能名称结果。
      */
     private String inferSkillName(SessionRecord session) {
-        String base = StrUtil.blankToDefault(session.getTitle(), "learned-workflow").toLowerCase();
+        String base = StrUtil.nullToEmpty(session.getTitle()).toLowerCase();
+        return normalizeLearningSkillName(base);
+    }
+
+    /** 规范化模型或会话建议的类级技能名，并拒绝会造成跨任务碰撞的通用占位名。 */
+    private String normalizeLearningSkillName(String value) {
+        String base = StrUtil.nullToEmpty(value).toLowerCase();
         base = base.replaceAll("[^a-z0-9._-]+", "-").replaceAll("-{2,}", "-");
         base = base.replaceAll("^-+", "").replaceAll("-+$", "");
-        return StrUtil.blankToDefault(base, "learned-workflow");
+        if (base.length() > 64) {
+            base = base.substring(0, 64).replaceAll("[-._]+$", "");
+        }
+        return "learned-workflow".equals(base) ? "" : base;
     }
 
     /**
      * 构建技能Content。
      *
+     * @param skillName 可复用任务类别对应的技能名。
      * @param session 会话参数。
      * @param message 平台消息或错误消息。
      * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
      * @return 返回创建好的技能Content。
      */
     private String buildSkillContent(
-            SessionRecord session, GatewayMessage message, boolean hasRecentCheckpoint) {
-        String modelContent = summarizeSkillWithModel(session, message, hasRecentCheckpoint, null);
+            String skillName,
+            SessionRecord session,
+            GatewayMessage message,
+            boolean hasRecentCheckpoint) {
+        String modelContent =
+                summarizeSkillWithModel(skillName, session, message, hasRecentCheckpoint, null);
         if (StrUtil.isNotBlank(modelContent)) {
             return modelContent;
         }
-        return buildFallbackSkillContent(session, message, hasRecentCheckpoint);
+        return buildFallbackSkillContent(skillName, session, message, hasRecentCheckpoint);
     }
 
     /**
      * 构建兜底技能Content。
      *
+     * @param skillName 可复用任务类别对应的技能名。
      * @param session 会话参数。
      * @param message 平台消息或错误消息。
      * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
      * @return 返回创建好的兜底技能Content。
      */
     private String buildFallbackSkillContent(
-            SessionRecord session, GatewayMessage message, boolean hasRecentCheckpoint) {
-        String name = inferSkillName(session);
-        String description = StrUtil.blankToDefault(session.getTitle(), "从复杂任务中沉淀出的可复用流程。");
+            String skillName,
+            SessionRecord session,
+            GatewayMessage message,
+            boolean hasRecentCheckpoint) {
+        String description =
+                StrUtil.blankToDefault(
+                        sanitizeLearningText(session.getTitle()), "从复杂任务中沉淀出的可复用流程。");
         String progress =
                 StrUtil.blankToDefault(
-                        session.getCompressedSummary(), replySafeExcerpt(session.getNdjson()));
+                        sanitizeLearningText(session.getCompressedSummary()),
+                        replySafeExcerpt(session.getNdjson()));
         String nextStep =
-                StrUtil.blankToDefault(message == null ? "" : message.getText(), "参考当前任务上下文继续执行。");
+                StrUtil.blankToDefault(
+                        sanitizeLearningText(message == null ? "" : message.getText()),
+                        "参考当前任务上下文继续执行。");
 
         StringBuilder buffer = new StringBuilder();
         buffer.append("---\n");
-        buffer.append("name: ").append(name).append("\n");
+        buffer.append("name: ").append(skillName).append("\n");
         buffer.append("description: ").append(description).append("\n");
         buffer.append("---\n\n");
         buffer.append("# 触发条件\n");
@@ -485,7 +564,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
             throws Exception {
         SkillView view = localSkillService.viewSkill(skillName, null);
         String modelContent =
-                summarizeSkillWithModel(session, message, hasRecentCheckpoint, view.getContent());
+                summarizeSkillWithModel(
+                        skillName, session, message, hasRecentCheckpoint, view.getContent());
         if (StrUtil.isNotBlank(modelContent)) {
             localSkillService.editSkill(skillName, modelContent);
             return;
@@ -495,11 +575,13 @@ public class AsyncSkillLearningService implements SkillLearningService {
         String progressBullet =
                 "- "
                         + StrUtil.blankToDefault(
-                                session.getCompressedSummary(),
+                                sanitizeLearningText(session.getCompressedSummary()),
                                 replySafeExcerpt(session.getNdjson()));
         String pitfallBullet = "- 当上下文与历史流程不完全一致时，先重新核对输入条件与依赖。";
         String verificationBullet =
-                "- 当前任务验证点：" + StrUtil.blankToDefault(message.getText(), "继续核对结果是否满足用户要求。");
+                "- 当前任务验证点："
+                        + StrUtil.blankToDefault(
+                                sanitizeLearningText(message.getText()), "继续核对结果是否满足用户要求。");
         if (hasRecentCheckpoint) {
             verificationBullet = verificationBullet + " 执行前确认 checkpoint 策略。";
         }
@@ -602,6 +684,7 @@ public class AsyncSkillLearningService implements SkillLearningService {
     /**
      * 汇总技能With模型。
      *
+     * @param skillName 可复用任务类别对应的技能名。
      * @param session 会话参数。
      * @param message 平台消息或错误消息。
      * @param hasRecentCheckpoint hasRecentCheckpoint 参数。
@@ -609,6 +692,7 @@ public class AsyncSkillLearningService implements SkillLearningService {
      * @return 返回summarize技能With模型结果。
      */
     private String summarizeSkillWithModel(
+            String skillName,
             SessionRecord session,
             GatewayMessage message,
             boolean hasRecentCheckpoint,
@@ -617,7 +701,6 @@ public class AsyncSkillLearningService implements SkillLearningService {
             return null;
         }
         try {
-            String skillName = inferSkillName(session);
             String description = StrUtil.blankToDefault(session.getTitle(), "从复杂任务中沉淀出的可复用流程。");
             SessionRecord learningSession = new SessionRecord();
             learningSession.setSessionId(
@@ -674,7 +757,8 @@ public class AsyncSkillLearningService implements SkillLearningService {
             return normalizeMemoryCandidate(extractAssistantText(result));
         } catch (Exception e) {
             log.debug(
-                    "Model memory summarization failed, skipping memory-only learning: sessionId={}, error={}",
+                    "Model memory summarization failed, skipping memory-only learning:"
+                        + " sessionId={}, error={}",
                     session == null ? null : session.getSessionId(),
                     e.toString());
             return null;
@@ -821,17 +905,20 @@ public class AsyncSkillLearningService implements SkillLearningService {
         prompt.append("- 不要输出代码围栏，不要输出解释文字。\n\n");
         if (StrUtil.isNotBlank(existingContent)) {
             prompt.append("现有 SKILL.md，需要基于新任务更新而不是丢失旧经验：\n");
-            prompt.append(SecretRedactor.redact(existingContent, 6000)).append("\n\n");
+            prompt.append(SecretRedactor.redact(sanitizeLearningText(existingContent), 6000))
+                    .append("\n\n");
         }
-        prompt.append("建议描述：").append(description).append("\n");
+        prompt.append("建议描述：").append(sanitizeLearningText(description)).append("\n");
         prompt.append("本轮用户请求：")
-                .append(StrUtil.blankToDefault(message == null ? "" : message.getText(), ""))
+                .append(sanitizeLearningText(message == null ? "" : message.getText()))
                 .append("\n");
         prompt.append("是否涉及 checkpoint：").append(hasRecentCheckpoint).append("\n\n");
         prompt.append("会话压缩摘要：\n");
         prompt.append(
                         SecretRedactor.redact(
-                                StrUtil.blankToDefault(session.getCompressedSummary(), "无"), 6000))
+                                StrUtil.blankToDefault(
+                                        sanitizeLearningText(session.getCompressedSummary()), "无"),
+                                6000))
                 .append("\n\n");
         prompt.append("会话消息摘录：\n");
         prompt.append(replySafeExcerpt(session.getNdjson(), 6000));
@@ -847,11 +934,14 @@ public class AsyncSkillLearningService implements SkillLearningService {
      * @return 返回模型技能Content结果。
      */
     private String normalizeModelSkillContent(String raw, String skillName, String description) {
-        String content = stripMarkdownFence(StrUtil.nullToEmpty(raw).trim());
+        String content = stripMarkdownFence(sanitizeLearningText(raw));
         if (StrUtil.isBlank(content)) {
             return null;
         }
 
+        Map<String, Object> frontmatter = SkillFrontmatterSupport.parseFrontmatter(content);
+        String modelDescription =
+                SkillFrontmatterSupport.resolveDescription(frontmatter, description);
         String body = content;
         if (content.startsWith("---")) {
             int end = content.indexOf("\n---", 3);
@@ -871,7 +961,10 @@ public class AsyncSkillLearningService implements SkillLearningService {
         normalized.append("name: ").append(skillName).append("\n");
         normalized
                 .append("description: ")
-                .append(StrUtil.blankToDefault(description, "从复杂任务中沉淀出的可复用流程。").replace('\n', ' '))
+                .append(
+                        StrUtil.blankToDefault(
+                                        sanitizeLearningText(modelDescription), "从复杂任务中沉淀出的可复用流程。")
+                                .replace('\n', ' '))
                 .append("\n");
         normalized.append("---\n\n");
         normalized.append(body);
@@ -927,15 +1020,12 @@ public class AsyncSkillLearningService implements SkillLearningService {
         }
         AssistantMessage message = result.getAssistantMessage();
         if (message == null) {
-            return StrUtil.nullToEmpty(result.getRawResponse());
+            return MessageSupport.visibleText(result.getRawResponse());
         }
-        if (StrUtil.isNotBlank(message.getResultContent())) {
-            return message.getResultContent();
-        }
-        if (StrUtil.isNotBlank(message.getContent())) {
-            return message.getContent();
-        }
-        return StrUtil.nullToEmpty(result.getRawResponse());
+        String text = MessageSupport.assistantText(message);
+        return StrUtil.isNotBlank(text)
+                ? text
+                : MessageSupport.visibleText(result.getRawResponse());
     }
 
     /**
@@ -956,11 +1046,51 @@ public class AsyncSkillLearningService implements SkillLearningService {
      * @return 返回reply Safe Excerpt结果。
      */
     private String replySafeExcerpt(String ndjson, int limit) {
-        String normalized = StrUtil.nullToEmpty(ndjson).replace('\n', ' ').trim();
+        String normalized;
+        try {
+            StringBuilder buffer = new StringBuilder();
+            for (ChatMessage message : MessageSupport.loadMessages(ndjson)) {
+                String text =
+                        message instanceof AssistantMessage
+                                ? MessageSupport.assistantText((AssistantMessage) message)
+                                : sanitizeLearningText(message.getContent());
+                if (StrUtil.isBlank(text)) {
+                    continue;
+                }
+                buffer.append(message.getRole()).append(": ").append(text).append('\n');
+            }
+            normalized = buffer.toString().trim();
+        } catch (Exception e) {
+            normalized = sanitizeLearningText(ndjson).replace('\n', ' ').trim();
+        }
         if (normalized.length() <= limit) {
             return SecretRedactor.redact(normalized, limit);
         }
-        return SecretRedactor.redact(normalized.substring(0, limit) + "...", limit);
+        return SecretRedactor.redact(
+                "..." + normalized.substring(normalized.length() - limit), limit);
+    }
+
+    /** 清除技能学习输入和模型输出中的内部思考、记忆边界及压缩摘要协议文本。 */
+    private String sanitizeLearningText(String text) {
+        String value =
+                StrUtil.nullToEmpty(text).replace(CompressionConstants.SUMMARY_PREFIX, "").trim();
+        value = MemoryContextBoundary.scrubVisibleText(value);
+        return MessageSupport.visibleText(value);
+    }
+
+    /** 保存复盘模型给出的学习动作及其类级技能名称。 */
+    private static final class ImprovementDecision {
+        /** 复盘动作。 */
+        private final String action;
+
+        /** 可复用任务类别对应的技能名。 */
+        private final String skillName;
+
+        /** 创建一次技能学习决策。 */
+        private ImprovementDecision(String action, String skillName) {
+            this.action = action;
+            this.skillName = skillName;
+        }
     }
 
     /**
@@ -1029,9 +1159,9 @@ public class AsyncSkillLearningService implements SkillLearningService {
             PreparedStatement statement =
                     connection.prepareStatement(
                             "insert into skill_improvements (improvement_id, session_id, run_id,"
-                                    + " skill_name, action, summary, changed_files_json, evidence_json,"
-                                    + " needs_review, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?,"
-                                    + " ?)");
+                                + " skill_name, action, summary, changed_files_json, evidence_json,"
+                                + " needs_review, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?,"
+                                + " ?)");
             statement.setString(1, IdSupport.newId());
             statement.setString(2, asString(report.get("sessionId")));
             statement.setString(3, asString(report.get("runId")));

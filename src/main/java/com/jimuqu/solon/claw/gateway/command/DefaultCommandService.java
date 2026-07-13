@@ -23,6 +23,7 @@ import com.jimuqu.solon.claw.core.model.CompressionOutcome;
 import com.jimuqu.solon.claw.core.model.CronJobRecord;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
+import com.jimuqu.solon.claw.core.model.MemoryApprovalRequest;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
@@ -37,6 +38,7 @@ import com.jimuqu.solon.claw.core.service.ConversationEventSink;
 import com.jimuqu.solon.claw.core.service.ConversationOrchestrator;
 import com.jimuqu.solon.claw.core.service.DelegationService;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
+import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.core.service.SkillHubService;
 import com.jimuqu.solon.claw.core.service.ToolRegistry;
 import com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService;
@@ -48,6 +50,9 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
+import com.jimuqu.solon.claw.profile.ProfileManager;
+import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
+import com.jimuqu.solon.claw.profile.ProfileView;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
 import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
@@ -188,6 +193,9 @@ public class DefaultCommandService implements CommandService {
     /** 注入主动协作仓储，用于命令侧忽略候选。 */
     private ProactiveRepository proactiveRepository;
 
+    /** 长期记忆服务，与工具和后台任务共用同一审批队列。 */
+    private final MemoryService memoryService;
+
     /** 保存插件Commands映射，便于按键快速查询。 */
     private final Map<String, CommandHandler> pluginCommands;
 
@@ -232,6 +240,7 @@ public class DefaultCommandService implements CommandService {
      * @param browserRuntimeService 浏览器运行时服务依赖。
      * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
      * @param proactiveRepository 主动协作仓储依赖。
+     * @param memoryService 长期记忆服务，用于管理记忆写入审批。
      */
     public DefaultCommandService(
             SessionRepository sessionRepository,
@@ -268,7 +277,8 @@ public class DefaultCommandService implements CommandService {
             DashboardSkillsService dashboardSkillsService,
             BrowserRuntimeService browserRuntimeService,
             ProactiveDiagnosticsService proactiveDiagnosticsService,
-            ProactiveRepository proactiveRepository) {
+            ProactiveRepository proactiveRepository,
+            MemoryService memoryService) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
         this.localSkillService = localSkillService;
@@ -312,6 +322,7 @@ public class DefaultCommandService implements CommandService {
         this.browserRuntimeService = browserRuntimeService;
         this.proactiveDiagnosticsService = proactiveDiagnosticsService;
         this.proactiveRepository = proactiveRepository;
+        this.memoryService = memoryService;
         this.pluginCommands =
                 pluginCommands == null
                         ? Collections.<String, CommandHandler>emptyMap()
@@ -366,6 +377,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_WHOAMI.equals(command)) {
             return handleWhoami(message);
+        }
+
+        if (GatewayCommandConstants.COMMAND_PROFILE.equals(command)) {
+            return handleProfile(args);
         }
 
         if (GatewayCommandConstants.COMMAND_COMMANDS.equals(command)) {
@@ -657,6 +672,10 @@ public class DefaultCommandService implements CommandService {
 
         if (GatewayCommandConstants.COMMAND_PLUGINS.equals(command)) {
             return handlePlugins();
+        }
+
+        if (GatewayCommandConstants.COMMAND_MEMORY.equals(command)) {
+            return handleMemory(args);
         }
 
         if (GatewayCommandConstants.COMMAND_RELOAD_SKILLS.equals(command)) {
@@ -1541,6 +1560,39 @@ public class DefaultCommandService implements CommandService {
         reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_WHOAMI);
         reply.getRuntimeMetadata().put("role", role);
         reply.getRuntimeMetadata().put("authorized", Boolean.valueOf(authorized));
+        return reply;
+    }
+
+    /**
+     * 查看当前 JVM 实际运行的 Profile，只读取 ProfileView 中的非敏感状态。
+     *
+     * @param args 命令参数；状态查询不接受额外参数，避免隐式扩展为切换或列表命令。
+     * @return 当前运行 Profile 的只读状态回复。
+     * @throws Exception Profile 状态文件读取失败时向调用方返回运行错误。
+     */
+    private GatewayReply handleProfile(String args) throws Exception {
+        if (StrUtil.isNotBlank(args)) {
+            return GatewayReply.error("用法：" + GatewayCommandConstants.SLASH_PROFILE);
+        }
+        String name = ProfileRuntimeIdentity.resolve(appConfig);
+        ProfileView view = ProfileManager.current().profileView(name);
+        String aliases =
+                view.getAliases().isEmpty() ? "none" : String.join(", ", view.getAliases());
+        String gateway =
+                view.getGateway() != null && view.getGateway().isRunning() ? "running" : "stopped";
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("name=").append(view.getName()).append('\n');
+        buffer.append("home=").append(view.getHome()).append('\n');
+        buffer.append("model=")
+                .append(StrUtil.blankToDefault(view.getModel(), "not configured"))
+                .append('\n');
+        buffer.append("gateway=").append(gateway).append('\n');
+        buffer.append("skills=").append(view.getSkillsCount()).append('\n');
+        buffer.append("alias=").append(aliases);
+        GatewayReply reply = GatewayReply.ok(buffer.toString());
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_PROFILE);
+        reply.getRuntimeMetadata().put("profile", view.getName());
         return reply;
     }
 
@@ -2516,6 +2568,87 @@ public class DefaultCommandService implements CommandService {
         return newRuntimeCommandHandler().handlePlugins();
     }
 
+    /** 管理记忆写入审批开关和待审批队列，不暴露原始变更载荷。 */
+    private GatewayReply handleMemory(String args) throws Exception {
+        String[] tokens = StrUtil.nullToEmpty(args).trim().split("\\s+");
+        if (tokens.length == 1 && tokens[0].length() == 0) {
+            return memoryReply(false, "status", formatMemoryApprovalStatus());
+        }
+        String action = tokens[0].toLowerCase();
+        if (GatewayCommandConstants.ACTION_PENDING.equals(action) && tokens.length == 1) {
+            return memoryReply(false, action, formatMemoryApprovalStatus());
+        }
+        if ((GatewayCommandConstants.ACTION_APPROVE.equals(action) || "apply".equals(action))
+                && tokens.length == 2) {
+            return memoryMutationReply(action, memoryService.approve(tokens[1]));
+        }
+        if (("reject".equals(action) || GatewayCommandConstants.COMMAND_DENY.equals(action)
+                        || "drop".equals(action))
+                && tokens.length == 2) {
+            return memoryMutationReply(action, memoryService.reject(tokens[1]));
+        }
+        if ("approval".equals(action)) {
+            if (tokens.length == 1) {
+                return memoryReply(false, action, formatMemoryApprovalStatus());
+            }
+            if (tokens.length == 2 && "on".equalsIgnoreCase(tokens[1])) {
+                return memoryReply(false, action, memoryService.setApprovalEnabled(true));
+            }
+            if (tokens.length == 2 && "off".equalsIgnoreCase(tokens[1])) {
+                return memoryReply(false, action, memoryService.setApprovalEnabled(false));
+            }
+        }
+        return memoryReply(
+                true,
+                action,
+                "用法：/memory [pending|approve|apply <id|all>|reject|deny|drop <id|all>|approval [on|off]]");
+    }
+
+    /** 按服务层插入顺序输出记忆审批状态，且仅展示已脱敏的摘要字段。 */
+    private String formatMemoryApprovalStatus() throws Exception {
+        List<MemoryApprovalRequest> pending =
+                new ArrayList<MemoryApprovalRequest>(memoryService.listPendingApprovals());
+        StringBuilder buffer = new StringBuilder();
+        buffer.append("记忆写入审批：")
+                .append(memoryService.isApprovalEnabled() ? "开启" : "关闭")
+                .append("\n待审批变更：")
+                .append(pending.size())
+                .append(" 条");
+        for (MemoryApprovalRequest request : pending) {
+            buffer.append("\n- id=")
+                    .append(singleLine(request.getId()))
+                    .append(" origin=")
+                    .append(singleLine(request.getOrigin()))
+                    .append(" summary=")
+                    .append(singleLine(request.getSummary()));
+        }
+        return buffer.toString();
+    }
+
+    /** 将记忆审批视图限制为单行脱敏文本，避免摘要破坏消息布局。 */
+    private String singleLine(String value) {
+        return SecretRedactor.redact(StrUtil.nullToEmpty(value), 240)
+                .replace('\r', ' ')
+                .replace('\n', ' ')
+                .trim();
+    }
+
+    /** 将服务层未找到等业务失败转换为命令错误，避免渠道误显示为成功。 */
+    private GatewayReply memoryMutationReply(String action, String content) {
+        String normalized = StrUtil.nullToEmpty(content).trim();
+        return memoryReply(
+                normalized.length() == 0 || normalized.startsWith("未找到"), action, content);
+    }
+
+    /** 构造带统一命令标识和动作的记忆审批回复。 */
+    private GatewayReply memoryReply(boolean error, String action, String content) {
+        GatewayReply reply = error ? GatewayReply.error(content) : GatewayReply.ok(content);
+        reply.getRuntimeMetadata().put("command_status", "handled");
+        reply.getRuntimeMetadata().put("command", GatewayCommandConstants.COMMAND_MEMORY);
+        reply.getRuntimeMetadata().put("action", StrUtil.nullToEmpty(action));
+        return reply;
+    }
+
     /** 执行人格命令相关逻辑。 */
     private GatewayReply handlePersonality(String args) throws Exception {
         return newRuntimeCommandHandler().handlePersonality(args);
@@ -2634,7 +2767,9 @@ public class DefaultCommandService implements CommandService {
         }
         GatewayReply reply =
                 conversationOrchestrator.resumePending(
-                        String.valueOf(approvalSession.getContext().get("source_key")), eventSink);
+                        String.valueOf(approvalSession.getContext().get("source_key")),
+                        approvalSession.getSessionId(),
+                        eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }
@@ -2799,41 +2934,39 @@ public class DefaultCommandService implements CommandService {
             sessionApprovalCount +=
                     dangerousCommandApprovalService.listSessionApprovals(session).size();
         }
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("pending=")
-                .append(pendingCount == 0 ? "none" : String.valueOf(pendingCount))
-                .append('\n');
+        StringBuilder buffer = new StringBuilder("审批状态：\n待审批：");
+        buffer.append(pendingCount == 0 ? "无" : pendingCount + " 项").append('\n');
         for (List<DangerousCommandApprovalService.PendingApproval> pendingApprovals :
                 pendingBySession) {
             for (int i = 0; i < pendingApprovals.size(); i++) {
                 DangerousCommandApprovalService.PendingApproval pending = pendingApprovals.get(i);
-                buffer.append('#')
+                buffer.append('\n')
+                        .append('#')
                         .append(i + 1)
-                        .append(' ')
+                        .append(" 确认编号：")
                         .append(
                                 safeApprovalPreview(
                                         DangerousCommandApprovalService.approvalSelector(pending),
                                         120))
-                        .append(" tool=")
+                        .append("\n工具：")
                         .append(safeApprovalPreview(pending.getToolName(), 120))
-                        .append(" pattern=")
+                        .append("\n风险类型：")
                         .append(safeApprovalPreview(pending.getPatternKey(), 240))
-                        .append(" reason=")
+                        .append("\n原因：")
                         .append(safeApprovalPreview(pending.getDescription(), 1000))
-                        .append(" command_preview=")
+                        .append("\n命令预览：")
                         .append(safeApprovalPreview(pending.getCommand(), 800))
-                        .append(" scopes=")
+                        .append("\n可用审批范围：")
                         .append(approvalScopes(pending))
-                        .append(" expires_in=")
+                        .append("\n剩余有效期：")
                         .append(TimeSupport.expiresInSeconds(pending.getExpiresAt()))
-                        .append("s expired=")
-                        .append(isExpired(pending.getExpiresAt()))
-                        .append('\n');
+                        .append(" 秒\n");
             }
         }
-        buffer.append("session_approvals_count=").append(sessionApprovalCount).append('\n');
-        buffer.append("always_approvals_count=")
-                .append(dangerousCommandApprovalService.listAlwaysApprovals().size());
+        buffer.append("当前会话已授权：").append(sessionApprovalCount).append(" 项\n");
+        buffer.append("永久授权：")
+                .append(dangerousCommandApprovalService.listAlwaysApprovals().size())
+                .append(" 项");
         return buffer.toString();
     }
 
@@ -2843,8 +2976,9 @@ public class DefaultCommandService implements CommandService {
      * @return 返回空审批列表展示文本。
      */
     private String formatEmptyApprovalList() {
-        return "pending=none\nsession_approvals_count=0\nalways_approvals_count="
-                + dangerousCommandApprovalService.listAlwaysApprovals().size();
+        return "审批状态：\n待审批：无\n当前会话已授权：0 项\n永久授权："
+                + dangerousCommandApprovalService.listAlwaysApprovals().size()
+                + " 项";
     }
 
     /**
@@ -2866,19 +3000,9 @@ public class DefaultCommandService implements CommandService {
      */
     private String approvalScopes(DangerousCommandApprovalService.PendingApproval pending) {
         if (pending != null && pending.isPermanentApprovalAllowed()) {
-            return "once,session,always";
+            return "单次、当前会话、永久";
         }
-        return "once,session";
-    }
-
-    /**
-     * 判断是否Expired。
-     *
-     * @param expiresAt expiresAt 参数。
-     * @return 如果Expired满足条件则返回 true，否则返回 false。
-     */
-    private boolean isExpired(long expiresAt) {
-        return expiresAt > 0L && expiresAt <= System.currentTimeMillis();
+        return "单次、当前会话";
     }
 
     /**
@@ -2993,7 +3117,8 @@ public class DefaultCommandService implements CommandService {
                 return GatewayReply.error("当前没有待审批的危险命令。");
             }
             GatewayReply reply =
-                    conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+                    conversationOrchestrator.resumePending(
+                            message.sourceKey(), agentSession.getSessionId(), eventSink);
             reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
             return reply;
         }
@@ -3016,7 +3141,9 @@ public class DefaultCommandService implements CommandService {
         }
         GatewayReply reply =
                 conversationOrchestrator.resumePending(
-                        String.valueOf(approvalSession.getContext().get("source_key")), eventSink);
+                        String.valueOf(approvalSession.getContext().get("source_key")),
+                        approvalSession.getSessionId(),
+                        eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }

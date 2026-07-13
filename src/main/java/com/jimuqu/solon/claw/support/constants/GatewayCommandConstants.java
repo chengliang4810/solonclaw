@@ -107,6 +107,9 @@ public interface GatewayCommandConstants {
     /** 命令WHOAMI的统一常量值。 */
     String COMMAND_WHOAMI = "whoami";
 
+    /** 命令 Profile 状态的统一常量值。 */
+    String COMMAND_PROFILE = "profile";
+
     /** 命令COMMANDS的统一常量值。 */
     String COMMAND_COMMANDS = "commands";
 
@@ -178,6 +181,9 @@ public interface GatewayCommandConstants {
 
     /** 命令PLUGINS的统一常量值。 */
     String COMMAND_PLUGINS = "plugins";
+
+    /** 命令MEMORY的统一常量值。 */
+    String COMMAND_MEMORY = "memory";
 
     /** 命令RELOAD技能的统一常量值。 */
     String COMMAND_RELOAD_SKILLS = "reload-skills";
@@ -265,6 +271,9 @@ public interface GatewayCommandConstants {
 
     /** 斜杠命令WHOAMI的统一常量值。 */
     String SLASH_WHOAMI = COMMAND_PREFIX + COMMAND_WHOAMI;
+
+    /** 斜杠命令 Profile 状态的统一常量值。 */
+    String SLASH_PROFILE = COMMAND_PREFIX + COMMAND_PROFILE;
 
     /** 斜杠命令COMMANDS的统一常量值。 */
     String SLASH_COMMANDS = COMMAND_PREFIX + COMMAND_COMMANDS;

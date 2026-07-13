@@ -36,6 +36,7 @@ public final class CommandRegistry {
         register(core("resume", "session", "恢复指定会话或分支"));
         register(core("sessions", "session", "浏览并搜索历史会话"));
         register(core("whoami", "info", "查看当前 slash 命令访问身份"));
+        register(core("profile", "info", "查看当前运行 Profile 状态"));
         register(core("commands", "info", "浏览全部 slash 命令"));
         register(core("insights", "info", "查看使用洞察与运行摘要"));
         register(core("debug", "info", "查看脱敏调试诊断摘要"));
@@ -65,6 +66,7 @@ public final class CommandRegistry {
         register(core("skills", "skill", "管理本地技能与 Skills Hub"));
         register(core("curator", "skill", "管理技能后台维护状态与运行"));
         register(core("plugins", "tool", "查看插件加载状态"));
+        register(core("memory", "memory", "管理记忆写入审批与待审批变更"));
         register(core("reload-skills", "skill", "重新扫描本地技能目录"));
         register(core("reload-mcp", "mcp", "重新加载 MCP 工具并刷新工具变更基线"));
         register(core("confirm", "security", "查看当前待确认 slash 命令"));

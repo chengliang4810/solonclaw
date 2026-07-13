@@ -68,7 +68,8 @@ public final class CommandServiceTestSupport {
                 null,
                 null,
                 null,
-                null);
+                null,
+                env.memoryService);
     }
 
     /** 构造不会触发真实 Agent 主循环的对话编排器。 */

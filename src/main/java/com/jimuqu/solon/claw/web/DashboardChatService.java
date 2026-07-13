@@ -901,16 +901,22 @@ public class DashboardChatService {
          * @param runId 运行标识。
          * @param fromProvider from提供方标识或键值。
          * @param toProvider to提供方标识或键值。
+         * @param toModel 切换后实际激活的模型名称。
          * @param reason 原因参数。
          */
         @Override
         public void onFallback(
-                String runId, String fromProvider, String toProvider, String reason) {
+                String runId,
+                String fromProvider,
+                String toProvider,
+                String toModel,
+                String reason) {
             state.agentRunId = safeText(runId, 120);
             Map<String, Object> payload = new LinkedHashMap<String, Object>();
             payload.put("agent_run_id", state.agentRunId);
             payload.put("from_provider", safeText(fromProvider, 120));
             payload.put("to_provider", safeText(toProvider, 120));
+            payload.put("to_model", safeText(toModel, 240));
             payload.put("reason", safeText(reason, 1000));
             enqueue(state, "fallback", payload);
         }
@@ -1143,12 +1149,17 @@ public class DashboardChatService {
          * @param runId 运行标识。
          * @param fromProvider from提供方标识或键值。
          * @param toProvider to提供方标识或键值。
+         * @param toModel 切换后实际激活的模型名称。
          * @param reason 原因参数。
          */
         @Override
         public void onFallback(
-                String runId, String fromProvider, String toProvider, String reason) {
-            delegate.onFallback(runId, fromProvider, toProvider, reason);
+                String runId,
+                String fromProvider,
+                String toProvider,
+                String toModel,
+                String reason) {
+            delegate.onFallback(runId, fromProvider, toProvider, toModel, reason);
         }
 
         /**

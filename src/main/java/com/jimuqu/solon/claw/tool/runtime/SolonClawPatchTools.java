@@ -570,6 +570,9 @@ public class SolonClawPatchTools {
      * @return 返回策略结果。
      */
     private PatchResult checkPolicy(String filePath, boolean crossProfile) {
+        if (isMemoryControlWritePath(filePath)) {
+            return PatchResult.error("BLOCKED: patch 工具不能直接修改长期记忆或记忆审批状态，请使用 memory 工具。");
+        }
         ToolCrossProfilePathSupport.CrossProfileTarget crossTarget =
                 ToolCrossProfilePathSupport.classify(rootPath, filePath);
         if (crossTarget != null && !crossProfile) {
@@ -598,11 +601,42 @@ public class SolonClawPatchTools {
             }
         }
         try {
-            previewResolvePath(filePath, crossProfile);
+            Path target = previewResolvePath(filePath, crossProfile);
+            if (isMemoryControlWriteTarget(target)) {
+                return PatchResult.error(
+                        "BLOCKED: patch 工具不能直接修改长期记忆或记忆审批状态，请使用 memory 工具。");
+            }
             return null;
         } catch (SecurityException e) {
             return PatchResult.error(outsideWorkspaceApprovalRequired(filePath));
         }
+    }
+
+    /**
+     * 在文件策略前识别受保护的记忆写入目标，避免通过工作区外审批绕过记忆审批流程。
+     *
+     * @param rawPath 补丁传入的原始路径。
+     * @return 目标属于长期记忆或审批内部文件时返回 true。
+     */
+    private boolean isMemoryControlWritePath(String rawPath) {
+        try {
+            Path target =
+                    SecurityPolicyService.resolveWorkspacePath(
+                            rootPath, SecurityPolicyService.normalizeWorkspaceReference(rawPath));
+            return MemoryControlPathPolicy.isProtectedWriteTarget(rootPath, target);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 判断规范化后的实际写入目标是否属于模型不可直接修改的长期记忆区域。
+     *
+     * @param target 目标路径，可能已经解析过符号链接。
+     * @return 命中长期记忆或审批内部文件时返回 true。
+     */
+    private boolean isMemoryControlWriteTarget(Path target) {
+        return MemoryControlPathPolicy.isProtectedWriteTarget(rootPath, target);
     }
 
     /**

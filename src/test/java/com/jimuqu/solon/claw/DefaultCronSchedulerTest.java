@@ -2459,7 +2459,7 @@ public class DefaultCronSchedulerTest {
         AppConfig.ProviderConfig direct = new AppConfig.ProviderConfig();
         direct.setName("Direct");
         direct.setBaseUrl("https://api.default.example");
-        direct.setApiKey("key");
+        direct.setApiKey("test-key");
         direct.setDefaultModel("default-model");
         direct.setDialect("openai-responses");
         env.appConfig.getProviders().put("direct", direct);
@@ -3131,7 +3131,8 @@ public class DefaultCronSchedulerTest {
                         null,
                         null,
                         null,
-                        null);
+                        null,
+                        env.memoryService);
 
         GatewayReply runReply =
                 commandService.handle(

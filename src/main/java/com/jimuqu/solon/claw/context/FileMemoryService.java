@@ -3,17 +3,41 @@ package com.jimuqu.solon.claw.context;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.core.model.MemoryApprovalRequest;
 import com.jimuqu.solon.claw.core.model.MemorySnapshot;
 import com.jimuqu.solon.claw.core.service.MemoryService;
+import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.MemoryConstants;
 import java.io.File;
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import org.noear.snack4.ONode;
 
 /** 基于文件系统的长期记忆服务。 */
 public class FileMemoryService implements MemoryService {
+    /** 同一 JVM 内按状态文件隔离锁，避免 FileChannel 重叠锁异常和实例间覆盖。 */
+    private static final Map<String, Object> APPROVAL_STATE_LOCKS =
+            new ConcurrentHashMap<String, Object>();
+
+    /** 批量处理全部待审批变更时使用的固定参数。 */
+    private static final String ALL = "all";
+
     /** 明显属于短期任务状态的关键词。 */
     private static final String[] TRANSIENT_PATTERNS =
             new String[] {"本会话", "临时", "rollback", "checkpoint", "sessionId", "session_id"};
@@ -74,12 +98,22 @@ public class FileMemoryService implements MemoryService {
      */
     @Override
     public synchronized String add(String target, String content) throws Exception {
+        return add(target, content, "background_review");
+    }
+
+    /** 添加条目并记录待审批来源，前台终端与后台写入使用不同来源标识。 */
+    @Override
+    public synchronized String add(String target, String content, String origin) throws Exception {
         if (StrUtil.isBlank(content)) {
             return "记忆内容不能为空。";
         }
 
         if (MemoryConstants.TARGET_TODAY.equalsIgnoreCase(target)) {
-            return appendTodayEntry(content);
+            String normalizedDaily = normalizeDailyEntry(content);
+            if (StrUtil.isBlank(normalizedDaily)) {
+                return "今日记忆内容不能为空。";
+            }
+            return stageOrApply("add", target, normalizedDaily, null, origin);
         }
 
         String normalized = normalizeEntry(content);
@@ -87,6 +121,15 @@ public class FileMemoryService implements MemoryService {
             return "该内容更像临时任务状态或内部上下文，不会写入长期记忆。";
         }
 
+        return stageOrApply("add", target, normalized, null, origin);
+    }
+
+    /** 绕过审批边界直接添加已校验的记忆内容。 */
+    private String addDirect(String target, String content) throws Exception {
+        if (MemoryConstants.TARGET_TODAY.equalsIgnoreCase(target)) {
+            return appendTodayEntry(content);
+        }
+        String normalized = normalizeEntry(content);
         List<String> entries = readEntries(target);
         if (!containsEntry(entries, normalized)) {
             entries.add(normalized);
@@ -106,6 +149,13 @@ public class FileMemoryService implements MemoryService {
     @Override
     public synchronized String replace(String target, String oldText, String newContent)
             throws Exception {
+        return replace(target, oldText, newContent, "background_review");
+    }
+
+    /** 替换条目并记录待审批来源，便于区分前台确认与后台审查。 */
+    @Override
+    public synchronized String replace(
+            String target, String oldText, String newContent, String origin) throws Exception {
         if (StrUtil.isBlank(oldText) || StrUtil.isBlank(newContent)) {
             return "replace 需要 oldText 和 newContent。";
         }
@@ -115,6 +165,12 @@ public class FileMemoryService implements MemoryService {
             return "该内容更像临时任务状态或内部上下文，不会写入长期记忆。";
         }
 
+        return stageOrApply("replace", target, normalizedNew, oldText.trim(), origin);
+    }
+
+    /** 绕过审批边界直接替换已校验的记忆内容。 */
+    private String replaceDirect(String target, String oldText, String newContent) throws Exception {
+        String normalizedNew = normalizeEntry(newContent);
         List<String> entries = readEntries(target);
         boolean replaced = false;
         for (int i = 0; i < entries.size(); i++) {
@@ -142,10 +198,22 @@ public class FileMemoryService implements MemoryService {
      */
     @Override
     public synchronized String remove(String target, String matchText) throws Exception {
+        return remove(target, matchText, "background_review");
+    }
+
+    /** 删除条目并记录待审批来源，便于审批列表解释变更来源。 */
+    @Override
+    public synchronized String remove(String target, String matchText, String origin)
+            throws Exception {
         if (StrUtil.isBlank(matchText)) {
             return "remove 需要 matchText。";
         }
 
+        return stageOrApply("remove", target, null, matchText.trim(), origin);
+    }
+
+    /** 绕过审批边界直接删除匹配的记忆内容。 */
+    private String removeDirect(String target, String matchText) throws Exception {
         List<String> entries = readEntries(target);
         boolean removed = false;
         for (int i = entries.size() - 1; i >= 0; i--) {
@@ -161,6 +229,379 @@ public class FileMemoryService implements MemoryService {
 
         writeEntries(target, entries);
         return "已删除 " + normalizeTarget(target) + " 中的匹配条目。";
+    }
+
+    /**
+     * 在共享服务边界暂存或直接应用写入，确保工具、学习服务等所有调用方行为一致。
+     */
+    private String stageOrApply(
+            String action, String target, String content, String oldText, String origin)
+            throws Exception {
+        return withApprovalStateLock(
+                () -> {
+                    ApprovalState state = readApprovalState();
+                    if (!state.enabled) {
+                        return applyDirect(action, target, content, oldText);
+                    }
+                    PendingMutation pending = new PendingMutation();
+                    pending.id = newPendingId(state);
+                    pending.action = action;
+                    pending.target = normalizePendingTarget(target);
+                    pending.content = content;
+                    pending.oldText = oldText;
+                    pending.origin = normalizeApprovalOrigin(origin);
+                    pending.createdAt = Instant.now().getEpochSecond();
+                    state.pending.add(pending);
+                    writeApprovalState(state);
+                    return "已暂存待审批记忆变更，ID: " + pending.id + "。";
+                });
+    }
+
+    /** 将审批来源限制为用户可理解的前台或后台审查语义。 */
+    private String normalizeApprovalOrigin(String origin) {
+        return "foreground".equalsIgnoreCase(StrUtil.nullToEmpty(origin).trim())
+                ? "foreground"
+                : "background_review";
+    }
+
+    /** 直接执行审批后的变更，不再次进入审批门禁。 */
+    private String applyDirect(String action, String target, String content, String oldText)
+            throws Exception {
+        if ("add".equals(action)) {
+            return addDirect(target, content);
+        }
+        if ("replace".equals(action)) {
+            return replaceDirect(target, oldText, content);
+        }
+        if ("remove".equals(action)) {
+            return removeDirect(target, oldText);
+        }
+        throw new IllegalArgumentException("不支持的记忆审批动作。");
+    }
+
+    /** 查询持久化审批开关。 */
+    @Override
+    public synchronized boolean isApprovalEnabled() throws Exception {
+        return withApprovalStateLock(() -> Boolean.valueOf(readApprovalState().enabled))
+                .booleanValue();
+    }
+
+    /** 持久化审批开关；按外部参考契约缺省保持关闭。 */
+    @Override
+    public synchronized String setApprovalEnabled(boolean enabled) throws Exception {
+        return withApprovalStateLock(
+                () -> {
+                    ApprovalState state = readApprovalState();
+                    state.enabled = enabled;
+                    writeApprovalState(state);
+                    return enabled ? "记忆写入审批已开启。" : "记忆写入审批已关闭。";
+                });
+    }
+
+    /** 返回不含原始内容的待审批变更视图。 */
+    @Override
+    public synchronized List<MemoryApprovalRequest> listPendingApprovals() throws Exception {
+        return withApprovalStateLock(() -> visiblePendingApprovals(readApprovalState()));
+    }
+
+    /** 将内部队列转换为不含原始内容的待审批视图。 */
+    private List<MemoryApprovalRequest> visiblePendingApprovals(ApprovalState state) {
+        List<MemoryApprovalRequest> visible = new ArrayList<MemoryApprovalRequest>();
+        for (PendingMutation pending : state.pending) {
+            String raw = "remove".equals(pending.action) ? pending.oldText : pending.content;
+            Map<String, String> payload = new LinkedHashMap<String, String>();
+            payload.put("target", pending.target);
+            if (pending.content != null) {
+                payload.put("content", SecretRedactor.redact(pending.content, 240));
+            }
+            if (pending.oldText != null) {
+                payload.put("old_text", SecretRedactor.redact(pending.oldText, 240));
+            }
+            visible.add(
+                    new MemoryApprovalRequest(
+                            pending.id,
+                            "memory",
+                            pending.action,
+                            pending.action
+                                    + " "
+                                    + pending.target
+                                    + ": "
+                                    + SecretRedactor.redact(raw, 160),
+                            pending.origin,
+                            pending.createdAt,
+                            payload));
+        }
+        return visible;
+    }
+
+    /** 批准指定标识或全部变更，应用成功后从持久化队列移除。 */
+    @Override
+    public synchronized String approve(String idOrAll) throws Exception {
+        return resolvePending(idOrAll, true);
+    }
+
+    /** 拒绝指定标识或全部变更，直接从持久化队列移除。 */
+    @Override
+    public synchronized String reject(String idOrAll) throws Exception {
+        return resolvePending(idOrAll, false);
+    }
+
+    /** 解析单条或全部审批请求。 */
+    private String resolvePending(String idOrAll, boolean approved) throws Exception {
+        return withApprovalStateLock(() -> resolvePendingLocked(idOrAll, approved));
+    }
+
+    /** 在审批状态锁内解析单条或全部请求，逐项保留失败记录。 */
+    private String resolvePendingLocked(String idOrAll, boolean approved) throws Exception {
+        String requested = StrUtil.nullToEmpty(idOrAll).trim();
+        if (requested.length() == 0) {
+            return "审批标识不能为空。";
+        }
+        ApprovalState state = readApprovalState();
+        List<PendingMutation> selected = new ArrayList<PendingMutation>();
+        for (PendingMutation pending : state.pending) {
+            if (ALL.equalsIgnoreCase(requested) || pending.id.equals(requested)) {
+                selected.add(pending);
+            }
+        }
+        if (selected.isEmpty()) {
+            return "未找到待审批记忆变更。";
+        }
+        if (!approved) {
+            state.pending.removeAll(selected);
+            writeApprovalState(state);
+            return "已拒绝并丢弃 " + selected.size() + " 条记忆变更。";
+        }
+        int applied = 0;
+        List<String> failed = new ArrayList<String>();
+        for (PendingMutation pending : selected) {
+            try {
+                String result =
+                        applyDirect(
+                                pending.action, pending.target, pending.content, pending.oldText);
+                if (isMutationFailure(result)) {
+                    throw new IllegalStateException(result);
+                }
+                state.pending.remove(pending);
+                writeApprovalState(state);
+                applied++;
+            } catch (Exception e) {
+                failed.add(pending.id + ": " + safeApprovalError(e));
+            }
+        }
+        if (!failed.isEmpty()) {
+            throw new IllegalStateException(
+                    "已应用 " + applied + " 条，以下待审批变更失败并已保留：" + String.join("；", failed));
+        }
+        return "已批准并应用 " + applied + " 条记忆变更。";
+    }
+
+    /** 生成不含原始审批载荷的失败摘要。 */
+    private String safeApprovalError(Exception error) {
+        String message = error == null ? "unknown" : error.getMessage();
+        return SecretRedactor.redact(StrUtil.blankToDefault(message, "unknown"), 160);
+    }
+
+    /** 判断底层字符串结果是否表示业务失败，失败项必须继续保留在审批队列。 */
+    private boolean isMutationFailure(String result) {
+        String normalized = StrUtil.nullToEmpty(result).trim();
+        return normalized.length() == 0
+                || normalized.startsWith("未")
+                || normalized.contains("不能为空")
+                || normalized.contains("不会写入")
+                || normalized.contains("需要 ");
+    }
+
+    /** 读取审批状态；损坏文件会抛错，避免意外绕过已开启的门禁。 */
+    @SuppressWarnings("unchecked")
+    private ApprovalState readApprovalState() throws Exception {
+        File file = approvalStateFile();
+        ApprovalState state = new ApprovalState();
+        if (!file.exists()) {
+            return state;
+        }
+        String raw = FileUtil.readUtf8String(file);
+        if (StrUtil.isBlank(raw)) {
+            throw new IllegalStateException("记忆审批状态文件为空。请修复或删除该文件后重试。");
+        }
+        Object parsed = ONode.deserialize(raw, Object.class);
+        if (!(parsed instanceof Map)) {
+            throw new IllegalStateException("记忆审批状态文件格式无效。");
+        }
+        Map<String, Object> root = (Map<String, Object>) parsed;
+        Object enabledValue = root.get("approval_enabled");
+        if (!(enabledValue instanceof Boolean)) {
+            throw new IllegalStateException("记忆审批状态缺少布尔字段: approval_enabled");
+        }
+        state.enabled = ((Boolean) enabledValue).booleanValue();
+        Object pendingValue = root.get("pending");
+        if (!(pendingValue instanceof List)) {
+            throw new IllegalStateException("记忆审批队列格式无效。");
+        }
+        for (Object item : (List<Object>) pendingValue) {
+            if (!(item instanceof Map)) {
+                throw new IllegalStateException("记忆审批条目格式无效。");
+            }
+            Map<String, Object> values = (Map<String, Object>) item;
+            PendingMutation pending = new PendingMutation();
+            pending.id = requiredText(values, "id");
+            pending.action = requiredText(values, "action");
+            if (!"memory".equals(requiredText(values, "subsystem"))) {
+                throw new IllegalStateException("记忆审批条目子系统无效。");
+            }
+            pending.origin = requiredText(values, "origin");
+            pending.createdAt = requiredEpoch(values, "created_at");
+            Object payloadValue = values.get("payload");
+            if (!(payloadValue instanceof Map)) {
+                throw new IllegalStateException("记忆审批条目 payload 格式无效。");
+            }
+            Map<String, Object> payload = (Map<String, Object>) payloadValue;
+            pending.target = requiredText(payload, "target");
+            pending.content = nullableText(payload.get("content"));
+            pending.oldText = nullableText(payload.get("old_text"));
+            state.pending.add(pending);
+        }
+        return state;
+    }
+
+    /** 原子写入审批开关和队列。 */
+    private void writeApprovalState(ApprovalState state) throws Exception {
+        Map<String, Object> root = new LinkedHashMap<String, Object>();
+        root.put("approval_enabled", Boolean.valueOf(state.enabled));
+        List<Map<String, Object>> pendingValues = new ArrayList<Map<String, Object>>();
+        for (PendingMutation pending : state.pending) {
+            Map<String, Object> values = new LinkedHashMap<String, Object>();
+            values.put("id", pending.id);
+            values.put("subsystem", "memory");
+            values.put("action", pending.action);
+            values.put("summary", pending.action + " " + pending.target);
+            values.put("origin", pending.origin);
+            values.put("created_at", pending.createdAt);
+            Map<String, Object> payload = new LinkedHashMap<String, Object>();
+            payload.put("target", pending.target);
+            payload.put("content", pending.content);
+            payload.put("old_text", pending.oldText);
+            values.put("payload", payload);
+            pendingValues.add(values);
+        }
+        root.put("pending", pendingValues);
+        writeUtf8Atomically(approvalStateFile().toPath(), ONode.serialize(root));
+    }
+
+    /** 生成队列内唯一的八位小写十六进制标识。 */
+    private String newPendingId(ApprovalState state) {
+        while (true) {
+            String candidate = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+            boolean duplicate = false;
+            for (PendingMutation pending : state.pending) {
+                if (candidate.equals(pending.id)) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (!duplicate) {
+                return candidate;
+            }
+        }
+    }
+
+    /** 读取必填文本字段。 */
+    private String requiredText(Map<String, Object> values, String key) {
+        String value = nullableText(values.get(key));
+        if (StrUtil.isBlank(value)) {
+            throw new IllegalStateException("记忆审批条目缺少字段: " + key);
+        }
+        return value;
+    }
+
+    /** 读取必填 Unix epoch 数值字段。 */
+    private long requiredEpoch(Map<String, Object> values, String key) {
+        Object value = values.get(key);
+        if (!(value instanceof Number)) {
+            throw new IllegalStateException("记忆审批条目缺少数值字段: " + key);
+        }
+        return ((Number) value).longValue();
+    }
+
+    /** 将可空持久化值转换为字符串。 */
+    private String nullableText(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    /** 限定待审批目标为现有三种记忆区域。 */
+    private String normalizePendingTarget(String target) {
+        if (MemoryConstants.TARGET_TODAY.equalsIgnoreCase(target)) {
+            return MemoryConstants.TARGET_TODAY;
+        }
+        return normalizeTarget(target);
+    }
+
+    /** 返回审批状态文件。 */
+    private File approvalStateFile() {
+        return FileUtil.file(
+                appConfig.getRuntime().getHome(), MemoryConstants.APPROVAL_STATE_FILE_NAME);
+    }
+
+    /** 返回审批状态跨进程锁文件。 */
+    private File approvalLockFile() {
+        return FileUtil.file(
+                appConfig.getRuntime().getHome(), MemoryConstants.APPROVAL_LOCK_FILE_NAME);
+    }
+
+    /** 在同一 Profile 的 JVM 路径锁和文件锁内执行审批状态读改写。 */
+    private <T> T withApprovalStateLock(ApprovalStateAction<T> action) throws Exception {
+        Path statePath = approvalStateFile().toPath().toAbsolutePath().normalize();
+        Object processLock =
+                APPROVAL_STATE_LOCKS.computeIfAbsent(statePath.toString(), ignored -> new Object());
+        synchronized (processLock) {
+            Path lockPath = approvalLockFile().toPath().toAbsolutePath().normalize();
+            Files.createDirectories(lockPath.getParent());
+            try (FileChannel channel =
+                            FileChannel.open(
+                                    lockPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+                    FileLock ignored = channel.lock()) {
+                return action.run();
+            }
+        }
+    }
+
+    /** 可在审批状态锁内抛出受检异常的动作。 */
+    private interface ApprovalStateAction<T> {
+        /** 执行受保护的审批状态操作。 */
+        T run() throws Exception;
+    }
+
+    /** 内部持久化审批状态，不向调用方暴露原始内容。 */
+    private static final class ApprovalState {
+        /** 是否启用记忆写入审批。 */
+        private boolean enabled;
+
+        /** 等待审批的记忆变更。 */
+        private final List<PendingMutation> pending = new ArrayList<PendingMutation>();
+    }
+
+    /** 内部待审批写入，原始内容只用于批准后的准确重放。 */
+    private static final class PendingMutation {
+        /** 变更标识。 */
+        private String id;
+
+        /** 写入动作。 */
+        private String action;
+
+        /** 目标记忆区域。 */
+        private String target;
+
+        /** add/replace 的新内容。 */
+        private String content;
+
+        /** replace/remove 的匹配文本。 */
+        private String oldText;
+
+        /** 产生变更的服务边界。 */
+        private String origin;
+
+        /** 暂存时间，使用 Unix epoch 秒。 */
+        private long createdAt;
     }
 
     /** 读取记忆条目列表。 */
@@ -195,7 +636,11 @@ public class FileMemoryService implements MemoryService {
             }
             buffer.append("- ").append(entry);
         }
-        FileUtil.writeUtf8String(buffer.toString(), fileForTarget(target));
+        try {
+            writeUtf8Atomically(fileForTarget(target).toPath(), buffer.toString());
+        } catch (Exception e) {
+            throw new IllegalStateException("记忆文件写入失败。", e);
+        }
     }
 
     /** 解析目标文件。 */
@@ -301,26 +746,26 @@ public class FileMemoryService implements MemoryService {
         }
 
         File file = todayMemoryFile();
-        if (!file.exists() || StrUtil.isBlank(FileUtil.readUtf8String(file))) {
-            FileUtil.writeUtf8String(
-                    "# "
-                            + LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
-                            + System.lineSeparator()
-                            + System.lineSeparator(),
-                    file);
-        }
-
-        String existing = FileUtil.readUtf8String(file);
+        String existing = file.exists() ? FileUtil.readUtf8String(file) : "";
         if (existing.contains(normalized)) {
             return "今日记忆已存在。";
         }
 
-        StringBuilder entry = new StringBuilder();
-        if (!existing.endsWith(System.lineSeparator())) {
-            entry.append(System.lineSeparator());
+        StringBuilder updated = new StringBuilder(existing);
+        if (StrUtil.isBlank(existing)) {
+            updated.append("# ")
+                    .append(LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE))
+                    .append(System.lineSeparator())
+                    .append(System.lineSeparator());
+        } else if (!existing.endsWith(System.lineSeparator())) {
+            updated.append(System.lineSeparator());
         }
-        entry.append("- ").append(normalized).append(System.lineSeparator());
-        FileUtil.appendUtf8String(entry.toString(), file);
+        updated.append("- ").append(normalized).append(System.lineSeparator());
+        try {
+            writeUtf8Atomically(file.toPath(), updated.toString());
+        } catch (IOException e) {
+            throw new IllegalStateException("今日记忆文件写入失败。", e);
+        }
         return "已写入 " + MemoryConstants.TARGET_TODAY + "。";
     }
 
@@ -356,5 +801,29 @@ public class FileMemoryService implements MemoryService {
     private File todayMemoryFile() {
         return FileUtil.file(
                 memoryDir(), LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE) + ".md");
+    }
+
+    /** 使用同目录临时文件原子替换目标，文件系统不支持时降级为普通替换。 */
+    private void writeUtf8Atomically(Path target, String content) throws IOException {
+        Path parent = target.toAbsolutePath().normalize().getParent();
+        if (parent == null) {
+            throw new IOException("记忆文件缺少父目录。");
+        }
+        Files.createDirectories(parent);
+        Path temp = Files.createTempFile(parent, ".solonclaw-memory-", ".tmp");
+        try {
+            Files.write(temp, StrUtil.nullToEmpty(content).getBytes(StandardCharsets.UTF_8));
+            try {
+                Files.move(
+                        temp,
+                        target,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temp, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temp);
+        }
     }
 }

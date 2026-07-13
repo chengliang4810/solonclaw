@@ -166,15 +166,23 @@ public class ConsoleEventSink implements ConversationEventSink {
      * @param runId 运行标识。
      * @param fromProvider from提供方标识或键值。
      * @param toProvider to提供方标识或键值。
+     * @param toModel 切换后实际激活的模型名称。
      * @param reason 原因参数。
      */
     @Override
-    public void onFallback(String runId, String fromProvider, String toProvider, String reason) {
+    public void onFallback(
+            String runId,
+            String fromProvider,
+            String toProvider,
+            String toModel,
+            String reason) {
         sidecar(
                 "fallback",
                 StrUtil.blankToDefault(fromProvider, "-")
                         + " -> "
                         + StrUtil.blankToDefault(toProvider, "-")
+                        + "/"
+                        + StrUtil.blankToDefault(toModel, "-")
                         + detail(reason));
         line(
                 YELLOW
@@ -182,6 +190,8 @@ public class ConsoleEventSink implements ConversationEventSink {
                         + safeDisplay(fromProvider, 120)
                         + " -> "
                         + safeDisplay(toProvider, 120)
+                        + "/"
+                        + safeDisplay(toModel, 120)
                         + RESET);
     }
 

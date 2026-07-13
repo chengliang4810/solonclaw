@@ -31,4 +31,10 @@ public interface MemoryConstants {
 
     /** DAILY记忆目录名称的统一常量值。 */
     String DAILY_MEMORY_DIR_NAME = "memory";
+
+    /** 记忆审批开关与待审批队列的持久化状态文件名。 */
+    String APPROVAL_STATE_FILE_NAME = ".solonclaw-memory-approvals.json";
+
+    /** 记忆审批状态跨进程互斥锁文件名。 */
+    String APPROVAL_LOCK_FILE_NAME = ".solonclaw-memory-approvals.lock";
 }

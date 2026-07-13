@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
@@ -25,12 +26,18 @@ public class DangerousCommandApprovalCommandTest {
         return env;
     }
 
+    /** 通过可信测试控制面设置平台管理员，使审批命令穿过 pairing 门禁。 */
+    private static void authorize(TestEnvironment env, String chatId, String userId)
+            throws Exception {
+        env.gatewayAuthorizationService.setPlatformAdmin(
+                PlatformType.MEMORY, userId, userId, chatId);
+    }
+
     @Test
     void shouldApproveDangerousCommandForSessionAndResume() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-1", "user-1", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-1", "user-1", "/pairing claim-admin"));
+        authorize(env, "room-1", "user-1");
 
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room-1:user-1");
         SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
@@ -73,8 +80,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldStreamResumedRunAfterApprovalCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-stream", "user-stream", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-stream", "user-stream", "/pairing claim-admin"));
+        authorize(env, "room-stream", "user-stream");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:room-stream:user-stream");
@@ -102,8 +108,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldPersistAlwaysApprovalPattern() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-2", "user-2", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-2", "user-2", "/pairing claim-admin"));
+        authorize(env, "room-2", "user-2");
 
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room-2:user-2");
         SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
@@ -113,6 +118,8 @@ public class DangerousCommandApprovalCommandTest {
                 "recursive_delete",
                 "recursive delete",
                 "rm -rf workspace/cache");
+        agentSession.pending(false, null);
+        agentSession.updateSnapshot();
 
         GatewayReply reply = env.send("room-2", "user-2", "/approve always");
 
@@ -133,8 +140,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldListAndApproveSelectedPendingDangerousCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-queue", "user-queue", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-queue", "user-queue", "/pairing claim-admin"));
+        authorize(env, "room-queue", "user-queue");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:room-queue:user-queue");
@@ -170,17 +176,16 @@ public class DangerousCommandApprovalCommandTest {
         String secondApprovalKey = secondPending.approvalKey();
         String secondSelector = DangerousCommandApprovalService.approvalSelector(secondPending);
         assertThat(list.getContent())
-                .contains("pending=2")
+                .contains("待审批：2 项")
                 .contains("#1")
                 .contains("#2")
-                .contains("#2 " + secondSelector)
-                .contains("pattern=recursive_delete")
-                .contains("command_preview=rm -rf workspace/cache")
-                .contains("scopes=once,session,always")
-                .contains("expires_in=")
-                .contains("expired=false")
-                .contains("session_approvals_count=1")
-                .contains("always_approvals_count=")
+                .contains("#2 确认编号：" + secondSelector)
+                .contains("风险类型：recursive_delete")
+                .contains("命令预览：rm -rf workspace/cache")
+                .contains("可用审批范围：单次、当前会话、永久")
+                .contains("剩余有效期：")
+                .contains("当前会话已授权：1 项")
+                .contains("永久授权：")
                 .doesNotContain("session_approvals=[")
                 .doesNotContain("always_approvals=[")
                 .doesNotContain(" key=")
@@ -232,8 +237,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldListPendingDangerousCommandsThroughDenyCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-deny-list", "user-deny-list", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-deny-list", "user-deny-list", "/pairing claim-admin"));
+        authorize(env, "room-deny-list", "user-deny-list");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:room-deny-list:user-deny-list");
@@ -255,7 +259,7 @@ public class DangerousCommandApprovalCommandTest {
         GatewayReply status = env.send("room-deny-list", "user-deny-list", "/deny status");
 
         assertThat(list.getContent())
-                .contains("pending=2")
+                .contains("待审批：2 项")
                 .contains("#1")
                 .contains("#2")
                 .contains("recursive_delete")
@@ -269,8 +273,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldRedactApproveListSensitiveText() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-redact-list", "user-redact-list", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-redact-list", "user-redact-list", "/pairing claim-admin"));
+        authorize(env, "room-redact-list", "user-redact-list");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:room-redact-list:user-redact-list");
@@ -286,7 +289,7 @@ public class DangerousCommandApprovalCommandTest {
 
         assertThat(list.getContent())
                 .contains("token=***")
-                .contains("command_preview=rm -rf workspace/cache --token ***")
+                .contains("命令预览：rm -rf workspace/cache --token ***")
                 .doesNotContain("ghp_reasonsecret123")
                 .doesNotContain("ghp_commandsecret123");
     }
@@ -296,11 +299,7 @@ public class DangerousCommandApprovalCommandTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(
                 env.message("room-redact-encoded-list", "user-redact-encoded-list", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message(
-                        "room-redact-encoded-list",
-                        "user-redact-encoded-list",
-                        "/pairing claim-admin"));
+        authorize(env, "room-redact-encoded-list", "user-redact-encoded-list");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -317,9 +316,9 @@ public class DangerousCommandApprovalCommandTest {
                 env.send("room-redact-encoded-list", "user-redact-encoded-list", "/approve list");
 
         assertThat(list.getContent())
-                .contains("pattern=url_policy?api%255Fkey=***")
-                .contains("reason=encoded list https://example.test/callback?api%255Fkey=***")
-                .contains("command_preview=curl https://example.test/callback?api%255Fkey=***")
+                .contains("风险类型：url_policy?api%255Fkey=***")
+                .contains("原因：encoded list https://example.test/callback?api%255Fkey=***")
+                .contains("命令预览：curl https://example.test/callback?api%255Fkey=***")
                 .doesNotContain("list-secret");
     }
 
@@ -327,8 +326,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldStripDisplayControlsFromApprovalListAndSelector() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-control-list", "user-control-list", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-control-list", "user-control-list", "/pairing claim-admin"));
+        authorize(env, "room-control-list", "user-control-list");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:room-control-list:user-control-list");
@@ -354,9 +352,9 @@ public class DangerousCommandApprovalCommandTest {
                         "/approve " + disguisedApprovalId);
 
         assertThat(list.getContent())
-                .contains("tool=execute_shell")
-                .contains("reason=Security scan reason")
-                .contains("command_preview=rm -rf workspace/cache --token ***")
+                .contains("工具：execute_shell")
+                .contains("原因：Security scan reason")
+                .contains("命令预览：rm -rf workspace/cache --token ***")
                 .doesNotContain("\u202E")
                 .doesNotContain("ghp_commandsecret123");
         assertThat(approved.getContent()).isEqualTo("echo:resume");
@@ -367,8 +365,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldShowSafeSelectorForUnsafeApprovalIdInApprovalList() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-list-selector", "user-list-selector", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-list-selector", "user-list-selector", "/pairing claim-admin"));
+        authorize(env, "room-list-selector", "user-list-selector");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -398,7 +395,7 @@ public class DangerousCommandApprovalCommandTest {
         GatewayReply list = env.send("room-list-selector", "user-list-selector", "/approve list");
 
         assertThat(safeSelector).startsWith("key_");
-        assertThat(list.getContent()).contains("#1 " + safeSelector);
+        assertThat(list.getContent()).contains("#1 确认编号：" + safeSelector);
         assertThat(list.getContent()).doesNotContain("approval-unsafe always");
     }
 
@@ -407,8 +404,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldApproveUnsafeApprovalIdThroughSafeKeySelector() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-key-selector", "user-key-selector", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-key-selector", "user-key-selector", "/pairing claim-admin"));
+        authorize(env, "room-key-selector", "user-key-selector");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:room-key-selector:user-key-selector");
@@ -461,9 +457,7 @@ public class DangerousCommandApprovalCommandTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(
                 env.message("room-secret-selector", "user-secret-selector", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message(
-                        "room-secret-selector", "user-secret-selector", "/pairing claim-admin"));
+        authorize(env, "room-secret-selector", "user-secret-selector");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -511,7 +505,7 @@ public class DangerousCommandApprovalCommandTest {
 
         assertThat(safeSelector).startsWith("key_");
         assertThat(list.getContent())
-                .contains("#1 " + safeSelector)
+                .contains("#1 确认编号：" + safeSelector)
                 .doesNotContain("approval-ghp_selectorsecret123456")
                 .doesNotContain("selectorsecret123456");
         assertThat(rawRejected.isError()).isTrue();
@@ -532,8 +526,7 @@ public class DangerousCommandApprovalCommandTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(
                 env.message("room-short-selector", "user-short-selector", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-short-selector", "user-short-selector", "/pairing claim-admin"));
+        authorize(env, "room-short-selector", "user-short-selector");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession(
@@ -568,7 +561,7 @@ public class DangerousCommandApprovalCommandTest {
                         "/approve " + safeSelector.substring(0, 7) + " session");
 
         assertThat(rejected.isError()).isTrue();
-        assertThat(rejected.getContent()).contains("待审批的危险命令");
+        assertThat(rejected.getContent()).contains("没有匹配的待审批命令");
         assertThat(
                         env.dangerousCommandApprovalService.getPendingApproval(
                                 new SqliteAgentSession(
@@ -582,8 +575,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldListTirithPendingApprovalWithoutAlwaysScope() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-tirith-list", "user-tirith-list", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-tirith-list", "user-tirith-list", "/pairing claim-admin"));
+        authorize(env, "room-tirith-list", "user-tirith-list");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:room-tirith-list:user-tirith-list");
@@ -598,20 +590,18 @@ public class DangerousCommandApprovalCommandTest {
         GatewayReply list = env.send("room-tirith-list", "user-tirith-list", "/approve list");
 
         assertThat(list.getContent())
-                .contains("pending=1")
+                .contains("待审批：1 项")
                 .contains("tirith:shortened_url")
-                .contains("scopes=once,session")
-                .contains("expires_in=")
-                .contains("expired=false")
-                .doesNotContain("scopes=once,session,always");
+                .contains("可用审批范围：单次、当前会话")
+                .contains("剩余有效期：")
+                .doesNotContain("可用审批范围：单次、当前会话、永久");
     }
 
     @Test
     void shouldApproveAllPendingDangerousCommandsAndResumeOnce() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-all", "user-all", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-all", "user-all", "/pairing claim-admin"));
+        authorize(env, "room-all", "user-all");
 
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room-all:user-all");
         SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
@@ -650,8 +640,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldDenyAllPendingDangerousCommandsAndResumeOnce() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-deny-all", "user-deny-all", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-deny-all", "user-deny-all", "/pairing claim-admin"));
+        authorize(env, "room-deny-all", "user-deny-all");
 
         SessionRecord session =
                 env.sessionRepository.bindNewSession("MEMORY:room-deny-all:user-deny-all");
@@ -692,8 +681,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldSkipNewRunWhenDangerousApprovalIsPending() throws Exception {
         TestEnvironment env = approvalEnvironment();
         env.gatewayService.handle(env.message("room-4", "user-4", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-4", "user-4", "/pairing claim-admin"));
+        authorize(env, "room-4", "user-4");
 
         SessionRecord session = env.sessionRepository.bindNewSession("MEMORY:room-4:user-4");
         SqliteAgentSession agentSession = new SqliteAgentSession(session, env.sessionRepository);
@@ -730,8 +718,7 @@ public class DangerousCommandApprovalCommandTest {
     void shouldReturnChineseMessageWhenApproveHasNoPendingCommand() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-3", "user-3", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-3", "user-3", "/pairing claim-admin"));
+        authorize(env, "room-3", "user-3");
 
         GatewayReply reply = env.send("room-3", "user-3", "/approve always");
 
@@ -746,8 +733,7 @@ public class DangerousCommandApprovalCommandTest {
                 env.message("room-auto-approval-a", "user-auto-approval", "hello"));
         env.gatewayService.handle(
                 env.message("room-auto-approval-b", "user-auto-approval", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-auto-approval-a", "user-auto-approval", "/pairing claim-admin"));
+        authorize(env, "room-auto-approval-a", "user-auto-approval");
 
         SessionRecord sessionA =
                 env.sessionRepository.bindNewSession(
@@ -793,8 +779,7 @@ public class DangerousCommandApprovalCommandTest {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.gatewayService.handle(env.message("room-auto-explicit-a", "user-auto", "hello"));
         env.gatewayService.handle(env.message("room-auto-explicit-b", "user-auto", "hello"));
-        env.gatewayAuthorizationService.claimAdmin(
-                env.message("room-auto-explicit-a", "user-auto", "/pairing claim-admin"));
+        authorize(env, "room-auto-explicit-a", "user-auto");
 
         SessionRecord sessionA =
                 env.sessionRepository.bindNewSession("MEMORY:room-auto-explicit-a:user-auto");

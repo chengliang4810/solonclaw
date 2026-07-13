@@ -335,7 +335,9 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
     // users aren't surprised.  (Shares the memoized full-config read.)
     getStartupFullConfig()
       .then(cfg => {
-        recordParentLifecycle(`[startup] config.get full resolved auto_resume=${String(!!cfg?.config?.display?.tui_auto_resume_recent)}`)
+        recordParentLifecycle(
+          `[startup] config.get full resolved auto_resume=${String(!!cfg?.config?.display?.tui_auto_resume_recent)}`
+        )
 
         if (!cfg?.config?.display?.tui_auto_resume_recent) {
           patchUiState({ status: 'forging session…' })
@@ -432,6 +434,24 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
         if (!p?.text) {
           return
+        }
+
+        if (p.provider && p.model) {
+          const model = `${p.provider}/${p.model}`
+          patchUiState(state => ({
+            ...state,
+            info: state.info ? { ...state.info, model } : { model, skills: {}, tools: {} }
+          }))
+          setHistoryItems(prev =>
+            prev.map(message =>
+              message.kind === 'intro'
+                ? {
+                    ...message,
+                    info: message.info ? { ...message.info, model } : { model, skills: {}, tools: {} }
+                  }
+                : message
+            )
+          )
         }
 
         if (p.kind === 'goal') {
@@ -685,6 +705,8 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
         patchOverlayState({
           approval: {
+            allowPermanent: ev.payload.allow_permanent !== false,
+            approvalKind: ev.payload.approval_kind,
             approvalId: String(ev.payload.approval_id ?? ''),
             command: String(ev.payload.command ?? ''),
             description,
@@ -749,7 +771,9 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
         return
 
       case 'subagent.start':
-        turnController.upsertSubagent(ev.payload, c => (isTerminalSubagentStatus(c.status) ? {} : { status: 'running' }))
+        turnController.upsertSubagent(ev.payload, c =>
+          isTerminalSubagentStatus(c.status) ? {} : { status: 'running' }
+        )
 
         // `subagent.start` is the first delegation event the TUI reliably
         // receives (the delegate callback drops `spawn_requested` in the
@@ -836,6 +860,8 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
       case 'message.complete':
       case 'run.completed': {
+        const pendingApproval = ev.type === 'message.complete' ? getOverlayState().approval : null
+
         const payload =
           ev.type === 'run.completed'
             ? { ...ev.payload, text: ev.payload?.text ?? ev.payload?.final_reply }
@@ -847,12 +873,17 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
           const msgs: Msg[] = finalMessages.length ? finalMessages : [{ role: 'assistant', text: finalText }]
           msgs.forEach(appendMessage)
 
-          if (bellOnComplete && stdout?.isTTY) {
+          if (!pendingApproval && bellOnComplete && stdout?.isTTY) {
             stdout.write('\x07')
           }
         }
 
-        setStatus('ready')
+        if (pendingApproval) {
+          patchOverlayState({ approval: pendingApproval })
+          patchUiState({ busy: true, status: '需要审批' })
+        } else {
+          setStatus('ready')
+        }
 
         if (payload.usage) {
           patchUiState(state => ({ ...state, usage: { ...state.usage, ...payload.usage } }))
