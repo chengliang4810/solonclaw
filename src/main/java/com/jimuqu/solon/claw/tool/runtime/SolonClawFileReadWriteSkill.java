@@ -521,11 +521,10 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
             return;
         }
         Map<String, Object> args = new LinkedHashMap<String, Object>();
-        String securityPath = normalizeRuntimeReference(path);
-        args.put("fileName", securityPath);
-        args.put("dirName", securityPath);
+        args.put("fileName", path);
+        args.put("dirName", path);
         SecurityPolicyService.FileVerdict verdict =
-                securityPolicyService.checkFileToolArgs(toolName, args);
+                securityPolicyService.checkFileToolArgs(toolName, args, rootPath.toString());
         if (!verdict.isAllowed()) {
             if (verdict.isApprovalRequired()) {
                 throw new IllegalArgumentException(
@@ -1138,9 +1137,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
             throw new IllegalArgumentException("jar-internal paths are not disk files");
         }
-        Path path =
-                rootPath.resolve(ToolWorkspacePathSupport.normalizeWorkspacePath(rootPath, value))
-                        .normalize();
+        Path path = SecurityPolicyService.resolveWorkspacePath(rootPath, value);
         if (!path.startsWith(rootPath)) {
             throw new SecurityException("禁止越权访问沙箱外部");
         }
@@ -1159,7 +1156,16 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
         ToolCrossProfilePathSupport.CrossProfileTarget crossTarget =
                 ToolCrossProfilePathSupport.classify(rootPath, name);
         if (crossTarget == null) {
-            return resolvePath(name);
+            Path target = SecurityPolicyService.resolveWorkspacePath(rootPath, name);
+            if (!target.startsWith(rootPath)) {
+                return resolveApprovedOutsideWritePath(name, target);
+            }
+            try {
+                ToolWorkspacePathSupport.assertResolvedWithinRoot(target, realRootPath);
+                return target;
+            } catch (SecurityException e) {
+                return resolveApprovedOutsideWritePath(name, target);
+            }
         }
         if (!crossProfile) {
             throw new SecurityException(ToolCrossProfilePathSupport.warning(crossTarget));
@@ -1171,17 +1177,33 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     }
 
     /**
+     * 校验与当前目标严格绑定的一次性审批，并只在本次工具调用审批命中时返回工作区外路径。
+     *
+     * @param rawPath 模型工具传入的原始路径。
+     * @param target 已归一化的目标路径。
+     * @return 已通过本次审批的目标路径。
+     */
+    private Path resolveApprovedOutsideWritePath(String rawPath, Path target) {
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService == null
+                        ? SecurityPolicyService.FileVerdict.approvalRequired(
+                                rawPath, "workspace_outside_write", "工作区外写入需要审批")
+                        : securityPolicyService.checkWorkspaceWritePath(
+                                rawPath, rootPath.toString());
+        if (verdict.isAllowed()) {
+            return target.toAbsolutePath().normalize();
+        }
+        throw new SecurityException(verdict.getMessage());
+    }
+
+    /**
      * 将运行态展示引用转换为文件工具可解析的相对路径。
      *
      * @param name 工具入参中的原始路径。
      * @return 返回去除 workspace:// 前缀后的路径，普通路径保持不变。
      */
     private String normalizeRuntimeReference(String name) {
-        String value = StrUtil.nullToEmpty(name);
-        if (StrUtil.startWithIgnoreCase(value, "workspace://")) {
-            return value.substring("workspace://".length());
-        }
-        return value;
+        return SecurityPolicyService.normalizeWorkspaceReference(name);
     }
 
     /**

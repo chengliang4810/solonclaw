@@ -82,7 +82,7 @@ public class SecurityPolicyService {
     private static final ThreadLocal<Collection<String>> APPROVED_FILE_POLICY_KEYS =
             new ThreadLocal<Collection<String>>();
 
-    /** 当前线程是否只预览策略审批命中而不消费审批。 */
+    /** 当前线程是否处于策略预验证阶段，供嵌套预检保持一致语义。 */
     private static final ThreadLocal<Boolean> POLICY_APPROVAL_PREVIEW = new ThreadLocal<Boolean>();
 
     /**
@@ -467,15 +467,111 @@ public class SecurityPolicyService {
      * @return 返回文件工具参数结果。
      */
     public FileVerdict checkFileToolArgs(String toolName, Map<String, Object> args) {
+        return checkFileToolArgs(toolName, args, null);
+    }
+
+    /**
+     * 检查文件工具参数，并在提供工作区时把工作区外写入统一转换为可恢复审批。
+     *
+     * @param toolName 工具名称。
+     * @param args 工具或命令参数。
+     * @param workspaceDir 当前 Agent 工具工作区；为空时仅执行通用文件策略。
+     * @return 返回文件工具参数结果。
+     */
+    public FileVerdict checkFileToolArgs(
+            String toolName, Map<String, Object> args, String workspaceDir) {
         List<String> paths = extractPaths(toolName, args);
         boolean writeLike = isWriteLikeTool(toolName) || hasWriteIntent(args);
         for (String path : paths) {
-            FileVerdict verdict = checkPath(path, writeLike);
+            FileVerdict verdict = checkPath(normalizeWorkspaceReference(path), writeLike);
             if (!verdict.allowed) {
                 return verdict;
             }
+            if (writeLike && StrUtil.isNotBlank(workspaceDir)) {
+                verdict = checkWorkspaceWritePath(path, workspaceDir);
+                if (!verdict.allowed) {
+                    return verdict;
+                }
+            }
         }
         return FileVerdict.allow();
+    }
+
+    /**
+     * 检查写入目标是否越出本轮 Agent 工作区；一次性审批严格绑定原始目标路径和当前工具调用。
+     *
+     * @param rawPath 模型工具传入的目标路径。
+     * @param workspaceDir 当前 Agent 工具工作区。
+     * @return 工作区内或已审批时放行，否则返回可审批判定。
+     */
+    public FileVerdict checkWorkspaceWritePath(String rawPath, String workspaceDir) {
+        String path = StrUtil.nullToEmpty(rawPath).trim();
+        String workspace = StrUtil.nullToEmpty(workspaceDir).trim();
+        if (StrUtil.hasBlank(path, workspace)) {
+            return FileVerdict.allow();
+        }
+        try {
+            FileVerdict pathVerdict = checkPath(normalizeWorkspaceReference(path), true);
+            if (!pathVerdict.allowed) {
+                return pathVerdict;
+            }
+            Path root =
+                    Paths.get(FilePathSupport.expandUserHome(workspace))
+                            .toAbsolutePath()
+                            .normalize();
+            Path candidate = resolveWorkspacePath(root, path);
+            pathVerdict = checkPath(candidate.toString(), true);
+            if (!pathVerdict.allowed) {
+                return pathVerdict;
+            }
+            Path existing = ToolWorkspacePathSupport.nearestExistingPath(candidate);
+            boolean outside = !candidate.startsWith(root);
+            if (!outside && existing != null) {
+                outside =
+                        !ToolWorkspacePathSupport.safeRealPath(existing)
+                                .startsWith(ToolWorkspacePathSupport.safeRealPath(root));
+            }
+            if (!outside) {
+                return FileVerdict.allow();
+            }
+        } catch (RuntimeException e) {
+            return FileVerdict.block(path, "文件路径无法安全解析");
+        }
+
+        String policyKey = "workspace_outside_write";
+        if (isFilePolicyApproved(policyApprovalToken(policyKey, path))) {
+            return FileVerdict.allow();
+        }
+        return FileVerdict.approvalRequired(path, policyKey, "工作区外写入需要审批");
+    }
+
+    /**
+     * 去除工具路径中的 workspace URI 前缀，供审批门禁和真实文件工具共享同一语义。
+     *
+     * @param rawPath 模型传入的原始路径。
+     * @return 去除 workspace URI 前缀后的路径。
+     */
+    public static String normalizeWorkspaceReference(String rawPath) {
+        String value = StrUtil.nullToEmpty(rawPath).trim();
+        return StrUtil.startWithIgnoreCase(value, "workspace://")
+                ? value.substring("workspace://".length())
+                : value;
+    }
+
+    /**
+     * 按真实文件工具规则解析 workspace 路径，绝对路径和父级路径保持其实际目标语义。
+     *
+     * @param rootPath 当前工具工作区根目录。
+     * @param rawPath 模型传入的原始路径。
+     * @return 绝对归一化后的真实目标路径。
+     */
+    public static Path resolveWorkspacePath(Path rootPath, String rawPath) {
+        String value =
+                FilePathSupport.expandUserHome(normalizeWorkspaceReference(rawPath));
+        return rootPath
+                .resolve(ToolWorkspacePathSupport.normalizeWorkspacePath(rootPath, value))
+                .toAbsolutePath()
+                .normalize();
     }
 
     /**
@@ -1767,7 +1863,7 @@ public class SecurityPolicyService {
     }
 
     /**
-     * 在不消费线程本地策略审批的情况下执行安全检查。
+     * 在不结束当前工具调用审批作用域的情况下执行安全预验证。
      *
      * @param action 需要执行的检查逻辑。
      * @param <T> 检查结果类型。
@@ -1831,41 +1927,11 @@ public class SecurityPolicyService {
             return false;
         }
         Collection<String> approvals = holder.get();
-        if (approvals == null) {
-            return false;
-        }
-        boolean approved = approvals.contains(policyKey.trim());
-        if (!approved) {
-            return false;
-        }
-        if (Boolean.TRUE.equals(POLICY_APPROVAL_PREVIEW.get())) {
-            return true;
-        }
-        approvals.remove(policyKey.trim());
-        if (approvals.isEmpty()) {
-            holder.remove();
-        }
-        return approved;
-    }
-
-    /**
-     * 判断线程本地策略审批是否命中但不消费，避免同一命令预检阶段误删后续执行需要的 token。
-     *
-     * @param holder 线程本地集合。
-     * @param policyKey 策略键。
-     * @return 如果命中返回 true。
-     */
-    private boolean isPolicyApprovedWithoutConsuming(
-            ThreadLocal<Collection<String>> holder, String policyKey) {
-        if (StrUtil.isBlank(policyKey)) {
-            return false;
-        }
-        Collection<String> approvals = holder.get();
         return approvals != null && approvals.contains(policyKey.trim());
     }
 
     /**
-     * 生成一次性审批 token，绑定策略类型和具体目标，避免同线程下一次敏感操作被顺带放行。
+     * 生成一次性审批 token，绑定策略类型和具体目标；工具调用结束后由统一 finally 清理。
      *
      * @param policyKey 策略键。
      * @param target 审批目标。

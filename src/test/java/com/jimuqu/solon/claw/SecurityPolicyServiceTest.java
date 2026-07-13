@@ -1475,6 +1475,114 @@ public class SecurityPolicyServiceTest {
         assertThat(String.valueOf(summary.get("workdirSafePattern"))).contains("A-Za-z0-9");
     }
 
+    /** 校验工作区路径归一化、父级逃逸、符号链接逃逸和多目标补丁均不能绕过写入审批。 */
+    @Test
+    void shouldRequireApprovalForWorkspaceEscapesAcrossNormalizedAndPatchPaths() throws Exception {
+        File boundary =
+                new File("target/security-policy-workspace-" + System.nanoTime())
+                        .getCanonicalFile();
+        File workspace = new File(boundary, "workspace").getCanonicalFile();
+        File outside = new File(boundary, "outside").getCanonicalFile();
+        assertThat(workspace.mkdirs() || workspace.isDirectory()).isTrue();
+        assertThat(outside.mkdirs() || outside.isDirectory()).isTrue();
+        try {
+            Path escapedLink = workspace.toPath().resolve("escaped-link");
+            Files.createSymbolicLink(escapedLink, outside.toPath());
+            SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+            Map<String, Object> args = new LinkedHashMap<String, Object>();
+
+            args.put("fileName", "workspace/inside.txt");
+            assertThat(policy.checkFileToolArgs("file_write", args, workspace.getPath()).isAllowed())
+                    .isTrue();
+
+            args.put("fileName", "../outside.txt");
+            SecurityPolicyService.FileVerdict traversal =
+                    policy.checkFileToolArgs("file_write", args, workspace.getPath());
+            assertThat(traversal.isAllowed()).isFalse();
+            assertThat(traversal.isApprovalRequired()).isFalse();
+            assertThat(traversal.getMessage()).contains("路径遍历");
+
+            args.put("fileName", "workspace://../outside.txt");
+            SecurityPolicyService.FileVerdict workspaceTraversal =
+                    policy.checkFileToolArgs("file_write", args, workspace.getPath());
+            assertThat(workspaceTraversal.isAllowed()).isFalse();
+            assertThat(workspaceTraversal.isApprovalRequired()).isFalse();
+            assertThat(workspaceTraversal.getMessage()).contains("路径遍历");
+
+            args.put("fileName", new File(outside, "outside.txt").getPath());
+            assertFileApprovalRequired(
+                    policy.checkFileToolArgs("file_write", args, workspace.getPath()),
+                    "workspace_outside_write");
+
+            args.put(
+                    "fileName",
+                    "workspace://" + new File(outside, "outside.txt").getAbsolutePath());
+            assertFileApprovalRequired(
+                    policy.checkFileToolArgs("file_write", args, workspace.getPath()),
+                    "workspace_outside_write");
+
+            args.put("fileName", "escaped-link/outside.txt");
+            assertFileApprovalRequired(
+                    policy.checkFileToolArgs("file_write", args, workspace.getPath()),
+                    "workspace_outside_write");
+
+            Map<String, Object> patchArgs = new LinkedHashMap<String, Object>();
+            patchArgs.put(
+                    "patch",
+                    "*** Begin Patch\n"
+                            + "*** Update File: workspace/inside.txt\n"
+                            + "@@\n"
+                            + "*** Update File: "
+                            + new File(outside, "outside.txt").getPath()
+                            + "\n"
+                            + "@@\n"
+                            + "*** End Patch\n");
+            assertFileApprovalRequired(
+                    policy.checkFileToolArgs("patch", patchArgs, workspace.getPath()),
+                    "workspace_outside_write");
+        } finally {
+            FileUtil.del(boundary);
+        }
+    }
+
+    /** 校验预览审批不会提前消费仅允许一次的工作区外写入令牌。 */
+    @Test
+    void shouldNotConsumeOnceWorkspaceApprovalDuringPreview() throws Exception {
+        File boundary =
+                new File("target/security-policy-preview-" + System.nanoTime())
+                        .getCanonicalFile();
+        File workspace = new File(boundary, "workspace").getCanonicalFile();
+        File outside = new File(boundary, "outside.txt").getCanonicalFile();
+        assertThat(workspace.mkdirs() || workspace.isDirectory()).isTrue();
+        try {
+            SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
+            Map<String, Object> args = new LinkedHashMap<String, Object>();
+            args.put("fileName", outside.getPath());
+            SecurityPolicyService.approveFilePolicyForCurrentThread(
+                    "workspace_outside_write", outside.getPath());
+
+            assertThat(
+                            SecurityPolicyService.previewPolicyApprovals(
+                                            () ->
+                                                    policy.checkFileToolArgs(
+                                                            "file_write",
+                                                            args,
+                                                            workspace.getPath()))
+                                    .isAllowed())
+                    .isTrue();
+            assertThat(policy.checkFileToolArgs("file_write", args, workspace.getPath()).isAllowed())
+                    .isTrue();
+            assertThat(policy.checkFileToolArgs("file_write", args, workspace.getPath()).isAllowed())
+                    .isTrue();
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+            assertFileApprovalRequired(
+                    policy.checkFileToolArgs("file_write", args, workspace.getPath()),
+                    "workspace_outside_write");
+        } finally {
+            FileUtil.del(boundary);
+        }
+    }
+
     @Test
     void shouldDenySkillHubInternalCacheWrites() {
         SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());

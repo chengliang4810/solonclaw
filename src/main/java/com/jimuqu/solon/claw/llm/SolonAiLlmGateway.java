@@ -1618,7 +1618,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         options.interceptorAdd(new ToolRetryInterceptor());
         options.interceptorAdd(new ToolSanitizerInterceptor(ownedToolSanitizerLimit()));
         if (dangerousCommandApprovalService != null) {
-            options.interceptorAdd(dangerousCommandApprovalService.buildInterceptor());
+            options.interceptorAdd(
+                    dangerousCommandApprovalService.buildInterceptor(
+                            runContext == null ? null : runContext.getWorkspaceDir()));
         }
         options.interceptorAdd(toolCallLoopGuardrailService.buildInterceptor());
         options.interceptorAdd(toolResultTransformService.buildInterceptor());
@@ -1721,6 +1723,48 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param interceptors 拦截器集合。
      */
     private void executeOwnedToolCall(
+            OwnedReActTrace trace,
+            ChatOptions options,
+            ToolCall call,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            AgentRunContext runContext,
+            List<ReActInterceptor> interceptors)
+            throws Exception {
+        clearCurrentThreadToolApprovals();
+        try {
+            executeOwnedToolCallWithinApprovalScope(
+                    trace, options, call, feedbackSink, eventSink, runContext, interceptors);
+        } finally {
+            clearCurrentThreadToolApprovals();
+            if (dangerousCommandApprovalService != null
+                    && trace != null
+                    && trace.getSession() != null
+                    && !trace.getSession().isPending()) {
+                dangerousCommandApprovalService.clearWorkspaceToolCallApprovals(
+                        trace.getSession());
+            }
+        }
+    }
+
+    /** 清理单次工具调用遗留的命令与文件策略审批。 */
+    private void clearCurrentThreadToolApprovals() {
+        DangerousCommandApprovalService.clearCurrentThreadApprovals();
+        SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+    }
+
+    /**
+     * 在已建立的一次工具调用审批作用域内执行拦截器与真实 handler。
+     *
+     * @param trace trace 参数。
+     * @param options Chat 选项。
+     * @param call 工具调用。
+     * @param feedbackSink 反馈输出。
+     * @param eventSink 事件输出。
+     * @param runContext 运行上下文。
+     * @param interceptors 工具拦截器。
+     */
+    private void executeOwnedToolCallWithinApprovalScope(
             OwnedReActTrace trace,
             ChatOptions options,
             ToolCall call,

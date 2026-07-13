@@ -174,6 +174,8 @@ public class SolonClawPatchTools {
             }
         } catch (Exception e) {
             result = PatchResult.error(e.getMessage());
+        } finally {
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
         }
         result.redactOutput();
         return ONode.serialize(result);
@@ -463,7 +465,7 @@ public class SolonClawPatchTools {
                     errors.add("UPDATE " + safePath(operation.filePath) + ": no hunks found");
                     continue;
                 }
-                Path target = resolvePath(operation.filePath, crossProfile);
+                Path target = previewResolvePath(operation.filePath, crossProfile);
                 if (!Files.exists(target) || Files.isDirectory(target)) {
                     errors.add(safePath(operation.filePath) + ": file not found");
                     continue;
@@ -476,12 +478,12 @@ public class SolonClawPatchTools {
                     Path writeTarget =
                             StrUtil.isBlank(operation.newPath)
                                     ? target
-                                    : resolvePath(operation.newPath, crossProfile);
+                                    : previewResolvePath(operation.newPath, crossProfile);
                     addPlaceholderSecretDowngradeError(
                             errors, writeTarget, simulated, applied.content);
                 }
                 if (StrUtil.isNotBlank(operation.newPath)) {
-                    Path destination = resolvePath(operation.newPath, crossProfile);
+                    Path destination = previewResolvePath(operation.newPath, crossProfile);
                     if (Files.exists(destination)) {
                         errors.add(
                                 safePath(operation.newPath)
@@ -489,13 +491,13 @@ public class SolonClawPatchTools {
                     }
                 }
             } else if ("delete".equals(operation.type)) {
-                Path target = resolvePath(operation.filePath, crossProfile);
+                Path target = previewResolvePath(operation.filePath, crossProfile);
                 if (!Files.exists(target) || Files.isDirectory(target)) {
                     errors.add(safePath(operation.filePath) + ": file not found for deletion");
                 }
             } else if ("move".equals(operation.type)) {
-                Path source = resolvePath(operation.filePath, crossProfile);
-                Path destination = resolvePath(operation.newPath, crossProfile);
+                Path source = previewResolvePath(operation.filePath, crossProfile);
+                Path destination = previewResolvePath(operation.newPath, crossProfile);
                 if (!Files.exists(source) || Files.isDirectory(source)) {
                     errors.add(safePath(operation.filePath) + ": source file not found for move");
                 }
@@ -505,7 +507,7 @@ public class SolonClawPatchTools {
                                     + ": destination already exists - move would overwrite");
                 }
             } else if ("add".equals(operation.type)) {
-                Path target = resolvePath(operation.filePath, crossProfile);
+                Path target = previewResolvePath(operation.filePath, crossProfile);
                 if (Files.exists(target)) {
                     errors.add(
                             safePath(operation.filePath)
@@ -575,7 +577,10 @@ public class SolonClawPatchTools {
         }
         if (securityPolicyService != null) {
             SecurityPolicyService.FileVerdict verdict =
-                    securityPolicyService.checkPath(filePath, true);
+                    SecurityPolicyService.previewPolicyApprovals(
+                            () ->
+                                    securityPolicyService.checkWorkspaceWritePath(
+                                            filePath, rootPath.toString()));
             if (!verdict.isAllowed()) {
                 if (verdict.isApprovalRequired()) {
                     return PatchResult.error(
@@ -593,7 +598,7 @@ public class SolonClawPatchTools {
             }
         }
         try {
-            resolvePath(filePath, crossProfile);
+            previewResolvePath(filePath, crossProfile);
             return null;
         } catch (SecurityException e) {
             return PatchResult.error(outsideWorkspaceApprovalRequired(filePath));
@@ -968,7 +973,8 @@ public class SolonClawPatchTools {
      * @return 返回解析后的路径。
      */
     private Path resolvePath(String rawPath, boolean crossProfile) {
-        String value = StrUtil.nullToEmpty(rawPath).trim();
+        String original = StrUtil.nullToEmpty(rawPath).trim();
+        String value = SecurityPolicyService.normalizeWorkspaceReference(original);
         if (value.indexOf('\0') >= 0 || value.contains("!/")) {
             throw new IllegalArgumentException("invalid file path: " + rawPath);
         }
@@ -983,14 +989,48 @@ public class SolonClawPatchTools {
                     target, ToolWorkspacePathSupport.safeRealPath(crossTarget.profileHome()));
             return target;
         }
-        Path target =
-                rootPath.resolve(ToolWorkspacePathSupport.normalizeWorkspacePath(rootPath, value))
-                        .normalize();
+        Path target = SecurityPolicyService.resolveWorkspacePath(rootPath, value);
         if (!target.startsWith(rootPath)) {
-            throw new SecurityException("禁止越权访问沙箱外部");
+            return resolveApprovedOutsideWritePath(original, target);
         }
-        ToolWorkspacePathSupport.assertResolvedWithinRoot(target, realRootPath);
-        return target;
+        try {
+            ToolWorkspacePathSupport.assertResolvedWithinRoot(target, realRootPath);
+            return target;
+        } catch (SecurityException e) {
+            return resolveApprovedOutsideWritePath(original, target);
+        }
+    }
+
+    /**
+     * 在不结束本次工具调用审批作用域的情况下解析预验证路径。
+     *
+     * @param rawPath 补丁中的原始路径。
+     * @param crossProfile 是否允许跨 Profile 写入。
+     * @return 与真实执行一致的目标路径。
+     */
+    private Path previewResolvePath(String rawPath, boolean crossProfile) {
+        return SecurityPolicyService.previewPolicyApprovals(
+                () -> resolvePath(rawPath, crossProfile));
+    }
+
+    /**
+     * 校验与当前补丁目标绑定的一次性审批，并只在本次工具调用审批命中时返回工作区外路径。
+     *
+     * @param rawPath 补丁中的原始路径。
+     * @param target 已归一化的目标路径。
+     * @return 已通过本次审批的目标路径。
+     */
+    private Path resolveApprovedOutsideWritePath(String rawPath, Path target) {
+        SecurityPolicyService.FileVerdict verdict =
+                securityPolicyService == null
+                        ? SecurityPolicyService.FileVerdict.approvalRequired(
+                                rawPath, "workspace_outside_write", "工作区外写入需要审批")
+                        : securityPolicyService.checkWorkspaceWritePath(
+                                rawPath, rootPath.toString());
+        if (verdict.isAllowed()) {
+            return target.toAbsolutePath().normalize();
+        }
+        throw new SecurityException(verdict.getMessage());
     }
 
     /**
