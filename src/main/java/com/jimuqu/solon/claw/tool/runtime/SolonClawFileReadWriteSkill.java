@@ -1155,6 +1155,10 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
      * @return 通过当前工作区或跨 Profile 边界校验的目标路径。
      */
     private Path resolveWritePath(String name, boolean crossProfile) {
+        String value = normalizeRuntimeReference(name);
+        if (value.indexOf('\0') >= 0 || value.contains("!/")) {
+            throw new IllegalArgumentException("jar-internal paths are not disk files");
+        }
         ToolCrossProfilePathSupport.CrossProfileTarget crossTarget =
                 ToolCrossProfilePathSupport.classify(rootPath, name);
         if (crossTarget == null) {
