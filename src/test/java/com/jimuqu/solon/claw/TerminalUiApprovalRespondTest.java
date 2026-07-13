@@ -174,6 +174,21 @@ class TerminalUiApprovalRespondTest {
         assertThat(usage.get("model").getString()).isEqualTo("usage-model");
     }
 
+    /** fallback 状态必须携带实际激活的 provider/model，同时继续使用警告语义。 */
+    @Test
+    void fallbackStatusCarriesActivatedProviderAndModel() {
+        RecordingSocket socket = new RecordingSocket();
+        TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
+
+        sink.onFallback("run-1", "primary", "backup", "backup-model", "rate limited");
+
+        ONode payload = eventPayload(socket.sentText(), "status.update");
+        assertThat(payload.get("kind").getString()).isEqualTo("warn");
+        assertThat(payload.get("provider").getString()).isEqualTo("backup");
+        assertThat(payload.get("model").getString()).isEqualTo("backup-model");
+        assertThat(payload.get("text").getString()).contains("fallback primary -> backup");
+    }
+
     @Test
     void toolCompleteMarksExplicitErrorAsFailed() {
         RecordingSocket socket = new RecordingSocket();

@@ -127,13 +127,27 @@ public class TerminalUiWebSocketEventSink implements ConversationEventSink {
         }
     }
 
-    /** 通知终端 UI 模型提供方 fallback，保持活动区的警告语义一致。 */
+    /** 通知终端 UI 模型提供方 fallback，并同步实际激活模型且保留活动区警告。 */
     @Override
-    public void onFallback(String runId, String fromProvider, String toProvider, String reason) {
+    public void onFallback(
+            String runId,
+            String fromProvider,
+            String toProvider,
+            String toModel,
+            String reason) {
         if (rpcEnvelope) {
-            sendStatus(
-                    "fallback " + safe(fromProvider) + " -> " + safe(toProvider) + detail(reason),
-                    "warn");
+            Map<String, Object> payload =
+                    pair(
+                            "text",
+                            "fallback "
+                                    + safe(fromProvider)
+                                    + " -> "
+                                    + safe(toProvider)
+                                    + detail(reason));
+            payload.put("kind", "warn");
+            payload.put("provider", safe(toProvider));
+            payload.put("model", safe(toModel));
+            send("status.update", payload, activeSessionId);
         }
     }
 

@@ -1144,6 +1144,7 @@ public class AgentRunSupervisor implements AgentRunControlService {
                             runRecord.getRunId(),
                             previousProvider,
                             next.getProvider(),
+                            next.getModel(),
                             lastError == null ? "empty response" : safeError(lastError));
                     runContext.event(
                             "fallback",

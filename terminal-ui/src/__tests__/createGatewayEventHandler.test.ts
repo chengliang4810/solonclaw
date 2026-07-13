@@ -132,6 +132,60 @@ describe('createGatewayEventHandler', () => {
     expect(ctx.system.sys).toHaveBeenCalledWith('compressing 968 messages (~123,400 tok)…')
   })
 
+  it('updates session info to the activated fallback model while keeping the warning', () => {
+    const ctx = buildCtx([])
+    patchUiState({
+      info: { model: 'primary/main-model', skills: {}, tools: {} }
+    })
+    const onEvent = createGatewayEventHandler(ctx)
+
+    onEvent({
+      payload: {
+        kind: 'warn',
+        model: 'backup-model',
+        provider: 'backup',
+        text: 'fallback primary -> backup: rate limited'
+      },
+      type: 'status.update'
+    })
+
+    expect(getUiState().info?.model).toBe('backup/backup-model')
+    expect(getUiState().status).toBe('fallback primary -> backup: rate limited')
+    expect(getTurnState().activity.at(-1)?.tone).toBe('warn')
+    expect(ctx.transcript.setHistoryItems).toHaveBeenCalledOnce()
+
+    const updateHistory = ctx.transcript.setHistoryItems.mock.calls[0][0]
+
+    const [intro] = updateHistory([
+      { info: { model: 'primary/main-model', skills: {}, tools: {} }, kind: 'intro', role: 'system', text: '' }
+    ])
+
+    expect(intro.info.model).toBe('backup/backup-model')
+  })
+
+  it('keeps approval pending when the paused run emits message.complete', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    onEvent({ payload: {}, type: 'message.start' } as any)
+    onEvent({
+      payload: { approval_id: 'approval-1', command: 'rm file', description: 'delete file' },
+      session_id: 'session-1',
+      type: 'approval.request'
+    } as any)
+    onEvent({ payload: { text: 'approval required' }, type: 'message.complete' } as any)
+
+    expect(getOverlayState().approval).toMatchObject({ approvalId: 'approval-1', sessionId: 'session-1' })
+    expect(getUiState()).toMatchObject({ busy: true, status: '需要审批' })
+
+    patchOverlayState({ approval: null })
+    onEvent({ payload: {}, type: 'message.start' } as any)
+    onEvent({ payload: { text: 'completed after approval' }, type: 'message.complete' } as any)
+
+    expect(getOverlayState().approval).toBeNull()
+    expect(getUiState()).toMatchObject({ busy: false, status: 'ready' })
+  })
+
   it('keeps goal verdict text in transcript but shows a brief idle status (#goal statusbar)', () => {
     const appended: Msg[] = []
     const ctx = buildCtx(appended)

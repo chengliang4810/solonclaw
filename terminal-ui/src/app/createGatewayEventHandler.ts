@@ -434,6 +434,26 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
           return
         }
 
+        if (p.provider && p.model) {
+          const model = `${p.provider}/${p.model}`
+          patchUiState(state => ({
+            ...state,
+            info: state.info
+              ? { ...state.info, model }
+              : { model, skills: {}, tools: {} }
+          }))
+          setHistoryItems(prev =>
+            prev.map(message =>
+              message.kind === 'intro'
+                ? {
+                    ...message,
+                    info: message.info ? { ...message.info, model } : { model, skills: {}, tools: {} }
+                  }
+                : message
+            )
+          )
+        }
+
         if (p.kind === 'goal') {
           sys(p.text)
 
@@ -836,6 +856,8 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
       case 'message.complete':
       case 'run.completed': {
+        const pendingApproval = ev.type === 'message.complete' ? getOverlayState().approval : null
+
         const payload =
           ev.type === 'run.completed'
             ? { ...ev.payload, text: ev.payload?.text ?? ev.payload?.final_reply }
@@ -847,12 +869,17 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
           const msgs: Msg[] = finalMessages.length ? finalMessages : [{ role: 'assistant', text: finalText }]
           msgs.forEach(appendMessage)
 
-          if (bellOnComplete && stdout?.isTTY) {
+          if (!pendingApproval && bellOnComplete && stdout?.isTTY) {
             stdout.write('\x07')
           }
         }
 
-        setStatus('ready')
+        if (pendingApproval) {
+          patchOverlayState({ approval: pendingApproval })
+          patchUiState({ busy: true, status: '需要审批' })
+        } else {
+          setStatus('ready')
+        }
 
         if (payload.usage) {
           patchUiState(state => ({ ...state, usage: { ...state.usage, ...payload.usage } }))

@@ -37,7 +37,11 @@ public class DashboardChatServiceEventSinkTest {
         sink.onCompressionDecision("agent-" + SECRET, true, "token=" + SECRET, 10, 8);
         sink.onRecoveryStarted("agent-" + SECRET, "retry?token=" + SECRET);
         sink.onFallback(
-                "agent-" + SECRET, "primary?api_key=" + SECRET, "fallback", "bearer " + SECRET);
+                "agent-" + SECRET,
+                "primary?api_key=" + SECRET,
+                "fallback",
+                "fallback-model",
+                "bearer " + SECRET);
         sink.onRunCompleted("session-1", "done", result);
 
         String events = drainEvents(state).toString();

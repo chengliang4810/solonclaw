@@ -66,6 +66,24 @@ public interface ConversationEventSink {
     default void onFallback(String runId, String fromProvider, String toProvider, String reason) {}
 
     /**
+     * 响应携带实际模型的兜底事件；未适配模型字段的接收器继续复用提供方级回调。
+     *
+     * @param runId 运行标识。
+     * @param fromProvider from提供方标识或键值。
+     * @param toProvider to提供方标识或键值。
+     * @param toModel 切换后实际激活的模型名称。
+     * @param reason 原因参数。
+     */
+    default void onFallback(
+            String runId,
+            String fromProvider,
+            String toProvider,
+            String toModel,
+            String reason) {
+        onFallback(runId, fromProvider, toProvider, reason);
+    }
+
+    /**
      * 响应投递事件事件。
      *
      * @param runId 运行标识。
