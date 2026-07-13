@@ -250,7 +250,7 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
             success = false;
         }
         if (success) {
-            clearReadDedup(fileName);
+            clearReadDedup(target);
             fileStateTracker.recordWrite(target);
         }
         String safeResult = SecretRedactor.redact(result, 1000);
@@ -504,9 +504,9 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     @ToolMapping(name = "file_delete", description = "删除指定文件或空目录。")
     public String delete(@Param("fileName") String fileName) {
         assertSafe(ToolNameConstants.FILE_DELETE, fileName);
-        assertContained(fileName);
+        Path target = resolvePath(fileName);
         String result = super.delete(fileName);
-        clearReadDedup(fileName);
+        clearReadDedup(target);
         return SecretRedactor.redact(result, 1000);
     }
 
@@ -1535,35 +1535,27 @@ public class SolonClawFileReadWriteSkill extends FileReadWriteTalent {
     /**
      * 清理Read Dedup。
      *
-     * @param fileName 文件或目录路径参数。
+     * @param target 已完成安全校验的文件目标，避免对获批工作区外路径重复套用沙箱校验。
      */
-    private void clearReadDedup(String fileName) {
-        if (StrUtil.isBlank(fileName)) {
+    private void clearReadDedup(Path target) {
+        if (target == null) {
             return;
         }
-        try {
-            Path target = resolvePath(fileName).toAbsolutePath().normalize();
-            String targetPath = target.toString();
-            synchronized (readDedup) {
-                List<ReadKey> removed = new ArrayList<ReadKey>();
-                for (ReadKey key : readDedup.keySet()) {
-                    if (key.path.equals(targetPath)) {
-                        removed.add(key);
-                    }
-                }
-                for (ReadKey key : removed) {
-                    readDedup.remove(key);
-                }
-                if (lastReadKey != null && lastReadKey.path.equals(targetPath)) {
-                    lastReadKey = null;
-                    consecutiveReadCount = 0;
+        String targetPath = target.toAbsolutePath().normalize().toString();
+        synchronized (readDedup) {
+            List<ReadKey> removed = new ArrayList<ReadKey>();
+            for (ReadKey key : readDedup.keySet()) {
+                if (key.path.equals(targetPath)) {
+                    removed.add(key);
                 }
             }
-        } catch (Exception e) {
-            log.warn(
-                    "清理文件读取去重状态失败，已保留现有状态 path={} error={}",
-                    safeDisplayPath(fileName),
-                    exceptionSummary(e));
+            for (ReadKey key : removed) {
+                readDedup.remove(key);
+            }
+            if (lastReadKey != null && lastReadKey.path.equals(targetPath)) {
+                lastReadKey = null;
+                consecutiveReadCount = 0;
+            }
         }
     }
 

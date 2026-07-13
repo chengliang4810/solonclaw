@@ -6,6 +6,10 @@ import static com.jimuqu.solon.claw.support.TestToolSupport.tempDir;
 import static com.jimuqu.solon.claw.support.TestToolSupport.writeUtf8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
 import com.jimuqu.solon.claw.tool.runtime.SolonClawFileReadWriteSkill;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.DisabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.noear.snack4.ONode;
+import org.slf4j.LoggerFactory;
 
 public class SolonClawFileReadWriteSkillTest {
     // shouldBlockRuntimeCredentialCacheRead 已删除：凭据文件读已放宽（对齐 外部对标仓库"读非安全边界"），
@@ -36,6 +41,34 @@ public class SolonClawFileReadWriteSkillTest {
                 .isEqualTo(expected.toRealPath().toString());
         assertThat(expected).exists();
         assertThat(dir.resolve("workspace/scripts/loop-probe.py")).doesNotExist();
+    }
+
+    /** 验证获批工作区外写入后，去重清理复用已校验路径且不会记录沙箱异常警告。 */
+    @Test
+    void shouldNotWarnWhenClearingReadDedupAfterApprovedOutsideWorkspaceWrite() throws Exception {
+        Path workspace = tempDir("file-approved-outside-workspace");
+        Path outsideFile = tempDir("file-approved-outside-target").resolve("approved.txt");
+        SolonClawFileReadWriteSkill skill = guardedFileSkill(workspace);
+        Logger logger = (Logger) LoggerFactory.getLogger(SolonClawFileReadWriteSkill.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<ILoggingEvent>();
+        appender.start();
+        logger.addAppender(appender);
+        SecurityPolicyService.approveFilePolicyForCurrentThread(
+                "workspace_outside_write", outsideFile.toString());
+
+        ONode result;
+        try {
+            result = ONode.ofJson(skill.write(outsideFile.toString(), "approved\n"));
+        } finally {
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+            logger.detachAppender(appender);
+        }
+
+        assertThat(result.get("status").getString()).isEqualTo("success");
+        assertThat(readUtf8(outsideFile)).isEqualTo("approved\n");
+        assertThat(appender.list)
+                .extracting(ILoggingEvent::getFormattedMessage)
+                .noneMatch(message -> message.contains("清理文件读取去重状态失败"));
     }
 
     /** 验证 read_file 当前入口只使用 path 参数读取文件。 */
