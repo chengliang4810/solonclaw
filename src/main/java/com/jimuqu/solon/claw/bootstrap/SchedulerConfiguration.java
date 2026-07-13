@@ -228,15 +228,17 @@ public class SchedulerConfiguration {
      * @param gatewayPolicyRepository 网关策略仓储依赖。
      * @param deliveryService 投递服务依赖。
      * @param proactiveRepository 主动协作仓储依赖。
+     * @param sessionRepository 会话仓储依赖。
      * @return 返回主动协作投递服务。
      */
     @Bean
     public ProactiveDispatchService proactiveDispatchService(
             GatewayPolicyRepository gatewayPolicyRepository,
             DeliveryService deliveryService,
-            ProactiveRepository proactiveRepository) {
+            ProactiveRepository proactiveRepository,
+            SessionRepository sessionRepository) {
         return new ProactiveDispatchService(
-                gatewayPolicyRepository, deliveryService, proactiveRepository);
+                gatewayPolicyRepository, deliveryService, proactiveRepository, sessionRepository);
     }
 
     /**

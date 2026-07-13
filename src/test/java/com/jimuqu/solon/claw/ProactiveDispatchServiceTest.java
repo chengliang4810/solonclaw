@@ -16,16 +16,22 @@ import com.jimuqu.solon.claw.core.model.ProactiveDecision;
 import com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveObservationRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveSourceSnapshotRecord;
+import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.proactive.ProactiveDispatchService;
 import com.jimuqu.solon.claw.proactive.ProactiveRepository;
+import com.jimuqu.solon.claw.support.MessageSupport;
+import com.jimuqu.solon.claw.support.TestEnvironment;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.noear.solon.ai.chat.ChatRole;
+import org.noear.solon.ai.chat.message.ChatMessage;
 
 /** 主动协作投递服务测试。 */
 public class ProactiveDispatchServiceTest {
@@ -190,6 +196,125 @@ public class ProactiveDispatchServiceTest {
 
         assertThat(result.getDeliveryStatus()).isEqualTo("FAILED");
         assertThat(repository.candidate.getStatus()).isEqualTo("DELIVERY_UNKNOWN");
+    }
+
+    @Test
+    void shouldMirrorCronProactiveNoticeIntoWeixinConversationContext() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        String sourceKey = "WEIXIN:wx-user:wx-user";
+        SessionRecord session = env.sessionRepository.bindNewSession(sourceKey);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("前一条问题"), ChatMessage.ofAssistant("前一条回答"))));
+        session.setUpdatedAt(System.currentTimeMillis());
+        env.sessionRepository.save(session);
+        env.gatewayPolicyRepository.saveHomeChannel(home(PlatformType.WEIXIN, "wx-user", null));
+
+        String notice = "主动协作：运行 run-1 需要续接处理。";
+        ProactiveDecisionRecord record =
+                new ProactiveDispatchService(
+                                env.gatewayPolicyRepository,
+                                new CapturingDeliveryService(),
+                                new InMemoryProactiveRepository(),
+                                env.sessionRepository)
+                        .dispatch(decision("CRON:job-1"), notice);
+
+        SessionRecord updated = env.sessionRepository.getBoundSession(sourceKey);
+        List<ChatMessage> messages = MessageSupport.loadMessages(updated.getNdjson());
+        assertThat(record.getDeliveryStatus()).isEqualTo("SENT");
+        assertThat(messages).hasSize(3);
+        assertThat(messages.get(2).getRole()).isEqualTo(ChatRole.USER);
+        assertThat(messages.get(2).getContent()).isEqualTo("[主动协作通知]\n" + notice);
+        assertThat(env.sessionRepository.getBoundSession("CRON:job-1")).isNull();
+
+        messages.add(ChatMessage.ofUser("这是啥任务"));
+        MessageSupport.repairMessageSequence(messages);
+        assertThat(messages.get(messages.size() - 1).getContent())
+                .contains("[主动协作通知]", notice, "这是啥任务");
+    }
+
+    @Test
+    void shouldMirrorOnlyIntoMatchingFeishuThread() throws Exception {
+        TestEnvironment env = TestEnvironment.withFakeLlm();
+        SessionRecord first = env.sessionRepository.bindNewSession("FEISHU:room:thread-a:user-a");
+        SessionRecord target = env.sessionRepository.bindNewSession("FEISHU:room:thread-b:user-b");
+        env.gatewayPolicyRepository.saveHomeChannel(home(PlatformType.FEISHU, "room", "thread-b"));
+
+        String notice = "主动协作：线程任务需要继续。";
+        new ProactiveDispatchService(
+                        env.gatewayPolicyRepository,
+                        new CapturingDeliveryService(),
+                        new InMemoryProactiveRepository(),
+                        env.sessionRepository)
+                .dispatch(decision("CRON:job-thread"), notice);
+
+        assertThat(
+                        MessageSupport.loadMessages(
+                                env.sessionRepository.findById(first.getSessionId()).getNdjson()))
+                .isEmpty();
+        assertThat(
+                        MessageSupport.loadMessages(
+                                env.sessionRepository.findById(target.getSessionId()).getNdjson()))
+                .singleElement()
+                .extracting(ChatMessage::getContent)
+                .isEqualTo("[主动协作通知]\n" + notice);
+    }
+
+    @Test
+    void shouldNotMirrorFailedOrAmbiguousDelivery() throws Exception {
+        TestEnvironment failedEnv = TestEnvironment.withFakeLlm();
+        String failedSource = "WEIXIN:failed-room:failed-user";
+        failedEnv.sessionRepository.bindNewSession(failedSource);
+        failedEnv.gatewayPolicyRepository.saveHomeChannel(
+                home(PlatformType.WEIXIN, "failed-room", null));
+
+        new ProactiveDispatchService(
+                        failedEnv.gatewayPolicyRepository,
+                        new FailingDeliveryService(),
+                        new InMemoryProactiveRepository(),
+                        failedEnv.sessionRepository)
+                .dispatch(decision("CRON:failed-job"), "不会写入的通知");
+
+        assertThat(
+                        MessageSupport.loadMessages(
+                                failedEnv
+                                        .sessionRepository
+                                        .getBoundSession(failedSource)
+                                        .getNdjson()))
+                .isEmpty();
+
+        TestEnvironment ambiguousEnv = TestEnvironment.withFakeLlm();
+        SessionRecord userA =
+                ambiguousEnv.sessionRepository.bindNewSession("FEISHU:shared-room:user-a");
+        SessionRecord userB =
+                ambiguousEnv.sessionRepository.bindNewSession("FEISHU:shared-room:user-b");
+        ambiguousEnv.gatewayPolicyRepository.saveHomeChannel(
+                home(PlatformType.FEISHU, "shared-room", null));
+
+        ProactiveDecisionRecord sent =
+                new ProactiveDispatchService(
+                                ambiguousEnv.gatewayPolicyRepository,
+                                new CapturingDeliveryService(),
+                                new InMemoryProactiveRepository(),
+                                ambiguousEnv.sessionRepository)
+                        .dispatch(decision("CRON:ambiguous-job"), "不能猜测用户的通知");
+
+        assertThat(sent.getDeliveryStatus()).isEqualTo("SENT");
+        assertThat(
+                        MessageSupport.loadMessages(
+                                ambiguousEnv
+                                        .sessionRepository
+                                        .findById(userA.getSessionId())
+                                        .getNdjson()))
+                .isEmpty();
+        assertThat(
+                        MessageSupport.loadMessages(
+                                ambiguousEnv
+                                        .sessionRepository
+                                        .findById(userB.getSessionId())
+                                        .getNdjson()))
+                .isEmpty();
     }
 
     /** 构造测试 home channel。 */

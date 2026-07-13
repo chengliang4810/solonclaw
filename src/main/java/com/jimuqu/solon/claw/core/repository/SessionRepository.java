@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.core.repository;
 
 import cn.hutool.core.util.StrUtil;
+import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,6 +42,25 @@ public interface SessionRepository {
 
     /** 保存会话。 */
     void save(SessionRecord sessionRecord) throws Exception;
+
+    /**
+     * 将外部投递上下文追加到匹配渠道来源的当前绑定会话。
+     *
+     * <p>支持该能力的持久化实现应保证追加不会覆盖并发写入；无法唯一定位目标时必须返回 false，不得猜测用户会话。
+     *
+     * @param platform 目标渠道。
+     * @param chatId 目标聊天标识。
+     * @param threadId 可选线程标识；为空时不限制线程。
+     * @param userId 可选用户标识；为空时仅允许唯一用户来源。
+     * @param content 作为用户上下文写入的投递说明。
+     * @return 成功写入返回 true；目标缺失、不唯一或实现不支持时返回 false。
+     * @throws Exception 会话读取或写入失败时抛出异常。
+     */
+    default boolean appendBoundOriginUserMessage(
+            PlatformType platform, String chatId, String threadId, String userId, String content)
+            throws Exception {
+        return false;
+    }
 
     /** 全文检索会话。 */
     List<SessionRecord> search(String keyword, int limit) throws Exception;

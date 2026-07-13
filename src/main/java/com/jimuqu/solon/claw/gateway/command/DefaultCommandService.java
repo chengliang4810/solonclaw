@@ -50,11 +50,11 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.GoalState;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
+import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
+import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import com.jimuqu.solon.claw.profile.ProfileView;
-import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
-import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
@@ -2582,7 +2582,8 @@ public class DefaultCommandService implements CommandService {
                 && tokens.length == 2) {
             return memoryMutationReply(action, memoryService.approve(tokens[1]));
         }
-        if (("reject".equals(action) || GatewayCommandConstants.COMMAND_DENY.equals(action)
+        if (("reject".equals(action)
+                        || GatewayCommandConstants.COMMAND_DENY.equals(action)
                         || "drop".equals(action))
                 && tokens.length == 2) {
             return memoryMutationReply(action, memoryService.reject(tokens[1]));
@@ -2673,7 +2674,8 @@ public class DefaultCommandService implements CommandService {
                 pluginManager,
                 proactiveDiagnosticsService,
                 proactiveRepository,
-                deliveryService);
+                deliveryService,
+                sessionRepository);
     }
 
     /** 执行定时任务命令相关逻辑。 */

@@ -8,14 +8,20 @@ import com.jimuqu.solon.claw.core.model.ProactiveCandidateRecord;
 import com.jimuqu.solon.claw.core.model.ProactiveDecision;
 import com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord;
 import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.support.IdSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.LinkedHashMap;
 import java.util.Locale;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 主动协作投递服务，负责选择 home channel、发送最终文案并记录投递结果。 */
 public class ProactiveDispatchService {
+    /** 主动协作投递日志，不记录文案、聊天标识或用户标识。 */
+    private static final Logger log = LoggerFactory.getLogger(ProactiveDispatchService.class);
+
     /** home channel 仓储，用于解析各平台默认投递目标。 */
     private final GatewayPolicyRepository gatewayPolicyRepository;
 
@@ -24,6 +30,9 @@ public class ProactiveDispatchService {
 
     /** 主动协作仓储，用于审计投递结果。 */
     private final ProactiveRepository proactiveRepository;
+
+    /** 会话仓储，用于把异步通知写回目标渠道上下文。 */
+    private final SessionRepository sessionRepository;
 
     /**
      * 创建主动协作投递服务。
@@ -36,9 +45,26 @@ public class ProactiveDispatchService {
             GatewayPolicyRepository gatewayPolicyRepository,
             DeliveryService deliveryService,
             ProactiveRepository proactiveRepository) {
+        this(gatewayPolicyRepository, deliveryService, proactiveRepository, null);
+    }
+
+    /**
+     * 创建支持目标会话镜像的主动协作投递服务。
+     *
+     * @param gatewayPolicyRepository home channel 仓储。
+     * @param deliveryService 统一投递服务。
+     * @param proactiveRepository 主动协作仓储。
+     * @param sessionRepository 会话仓储。
+     */
+    public ProactiveDispatchService(
+            GatewayPolicyRepository gatewayPolicyRepository,
+            DeliveryService deliveryService,
+            ProactiveRepository proactiveRepository,
+            SessionRepository sessionRepository) {
         this.gatewayPolicyRepository = gatewayPolicyRepository;
         this.deliveryService = deliveryService;
         this.proactiveRepository = proactiveRepository;
+        this.sessionRepository = sessionRepository;
     }
 
     /**
@@ -88,6 +114,7 @@ public class ProactiveDispatchService {
             }
             request.setText(message);
             deliveryService.deliver(request);
+            mirrorDelivery(request, message);
         } catch (Exception e) {
             return fail(record, decision, safeError(e));
         }
@@ -175,6 +202,7 @@ public class ProactiveDispatchService {
             }
             request.setText(original.getMessage());
             deliveryService.deliver(request);
+            mirrorDelivery(request, original.getMessage());
             retry.setDeliveryStatus("SENT");
             retry.setDeliveryError(null);
             save(retry);
@@ -222,6 +250,41 @@ public class ProactiveDispatchService {
         retry.setMetadata(metadata);
         retry.setCreatedAt(System.currentTimeMillis());
         return retry;
+    }
+
+    /**
+     * 把主动通知作为带标签的用户上下文写入接收侧会话，避免连续 assistant 消息破坏模型协议。
+     *
+     * @param request 已成功投递的目标。
+     * @param message 已发送文案。
+     */
+    private void mirrorDelivery(DeliveryRequest request, String message) {
+        if (sessionRepository == null
+                || request == null
+                || request.getPlatform() == null
+                || StrUtil.isBlank(request.getChatId())
+                || StrUtil.isBlank(message)) {
+            return;
+        }
+        try {
+            boolean mirrored =
+                    sessionRepository.appendBoundOriginUserMessage(
+                            request.getPlatform(),
+                            request.getChatId(),
+                            request.getThreadId(),
+                            request.getUserId(),
+                            "[主动协作通知]\n" + message.trim());
+            if (!mirrored) {
+                log.debug(
+                        "Proactive delivery mirror skipped because no unique bound session exists: platform={}",
+                        request.getPlatform());
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Proactive delivery mirror failed after channel delivery succeeded: platform={}, errorType={}",
+                    request.getPlatform(),
+                    e.getClass().getSimpleName());
+        }
     }
 
     /** 记录投递失败，并把候选退回待处理状态。 */

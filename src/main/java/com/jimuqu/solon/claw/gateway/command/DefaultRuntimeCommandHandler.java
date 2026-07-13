@@ -7,6 +7,7 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
 import com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
+import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.AgentPluginManifest;
@@ -42,6 +43,9 @@ final class DefaultRuntimeCommandHandler {
     /** 统一渠道投递服务，仅在用户显式执行 retry 时使用。 */
     private final DeliveryService deliveryService;
 
+    /** 会话仓储，用于把人工重试通知写入目标渠道上下文。 */
+    private final SessionRepository sessionRepository;
+
     /**
      * 创建运行时控制面命令处理器。
      *
@@ -51,6 +55,7 @@ final class DefaultRuntimeCommandHandler {
      * @param proactiveDiagnosticsService 主动协作诊断服务。
      * @param proactiveRepository 主动协作仓储。
      * @param deliveryService 统一渠道投递服务。
+     * @param sessionRepository 会话仓储。
      */
     DefaultRuntimeCommandHandler(
             AppConfig appConfig,
@@ -58,13 +63,15 @@ final class DefaultRuntimeCommandHandler {
             AgentPluginManager pluginManager,
             ProactiveDiagnosticsService proactiveDiagnosticsService,
             ProactiveRepository proactiveRepository,
-            DeliveryService deliveryService) {
+            DeliveryService deliveryService,
+            SessionRepository sessionRepository) {
         this.appConfig = appConfig;
         this.globalSettingRepository = globalSettingRepository;
         this.pluginManager = pluginManager;
         this.proactiveDiagnosticsService = proactiveDiagnosticsService;
         this.proactiveRepository = proactiveRepository;
         this.deliveryService = deliveryService;
+        this.sessionRepository = sessionRepository;
     }
 
     /**
@@ -353,7 +360,8 @@ final class DefaultRuntimeCommandHandler {
         ProactiveDecisionRecord result;
         try {
             result =
-                    new ProactiveDispatchService(null, deliveryService, proactiveRepository)
+                    new ProactiveDispatchService(
+                                    null, deliveryService, proactiveRepository, sessionRepository)
                             .retryUnknown(candidateId.trim(), sourceKey);
         } catch (IllegalArgumentException | IllegalStateException e) {
             return GatewayReply.error(SecretRedactor.redact(e.getMessage(), 500));
