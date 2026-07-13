@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.core.model.ToolResultEnvelope;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
 import com.jimuqu.solon.claw.support.AttachmentCacheService;
+import com.jimuqu.solon.claw.support.AttachmentPathResolver;
 import com.jimuqu.solon.claw.support.FilePathSupport;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.SourceKeySupport;
@@ -159,7 +160,10 @@ public class MessagingTools {
             @Param(name = "chatId", description = "目标聊天 ID", required = false) String chatId,
             @Param(name = "threadId", description = "目标线程或话题 ID", required = false) String threadId,
             @Param(name = "text", description = "要发送的文本", required = false) String text,
-            @Param(name = "mediaPaths", description = "可选本地附件路径数组。", required = false)
+            @Param(
+                            name = "mediaPaths",
+                            description = "可选附件路径数组，支持当前 Profile 工作区文件或附件缓存路径。",
+                            required = false)
                     List<String> mediaPaths,
             @Param(name = "channelExtrasJson", description = "可选渠道扩展 JSON", required = false)
                     String channelExtrasJson)
@@ -256,11 +260,47 @@ public class MessagingTools {
                 continue;
             }
             File file = resolveAttachmentFile(rawPath.trim());
-            attachments.add(
-                    attachmentCacheService.fromLocalOrGeneratedFile(
-                            platform, file.getAbsoluteFile(), null, false, null));
+            try {
+                attachments.add(
+                        attachmentCacheService.fromLocalOrGeneratedFile(
+                                platform, file.getAbsoluteFile(), null, false, null));
+            } catch (IllegalArgumentException e) {
+                if (!StrUtil.contains(e.getMessage(), "outside runtime cache")
+                        || !isWorkspaceGeneratedFile(file)) {
+                    throw e;
+                }
+                AttachmentPathResolver.ResolvedInput resolved =
+                        new AttachmentPathResolver(appConfig, attachmentCacheService)
+                                .resolve(file.getAbsolutePath());
+                if (resolved.getAttachments().isEmpty()) {
+                    throw new IllegalArgumentException(
+                            "Attachment file could not be imported from the current profile workspace");
+                }
+                attachments.addAll(resolved.getAttachments());
+            }
         }
         return attachments;
+    }
+
+    /** 判断附件是否为当前 Profile 工作区根目录生成物，运行内部文件和子目录仍禁止外发。 */
+    private boolean isWorkspaceGeneratedFile(File file) {
+        File workspaceHome = preferredWorkspaceHome();
+        if (file == null || !file.isFile() || workspaceHome == null) {
+            return false;
+        }
+        try {
+            File canonicalFile = file.getCanonicalFile();
+            File canonicalHome = workspaceHome.getCanonicalFile();
+            if (!FilePathSupport.isUnderPath(canonicalFile, canonicalHome)) {
+                return false;
+            }
+            String relative = canonicalHome.toPath().relativize(canonicalFile.toPath()).toString();
+            return StrUtil.isNotBlank(relative)
+                    && relative.indexOf(File.separatorChar) < 0
+                    && !"config.yml".equalsIgnoreCase(relative);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Attachment path cannot be resolved", e);
+        }
     }
 
     /**

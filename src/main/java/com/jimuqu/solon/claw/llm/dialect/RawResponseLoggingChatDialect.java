@@ -7,6 +7,8 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.chat.ChatChoice;
 import org.noear.solon.ai.chat.ChatConfig;
@@ -25,6 +27,11 @@ import org.slf4j.LoggerFactory;
 public class RawResponseLoggingChatDialect implements ChatDialect {
     /** 日志的统一常量值。 */
     private static final Logger log = LoggerFactory.getLogger(RawResponseLoggingChatDialect.class);
+
+    /** 兼容代理可能以纯文本返回状态码，需在 JSON 方言解析前转换为可分类的上游错误。 */
+    private static final Pattern PLAIN_HTTP_ERROR =
+            Pattern.compile(
+                    "(?i)\\b(?:error\\s*code|status(?:[_\\s-]*code)?|http(?:/\\d(?:\\.\\d)?)?)\\s*[:=]?\\s*(4\\d\\d|5\\d\\d)\\b");
 
     /** 记录原始响应日志聊天协议方言中的委托。 */
     private final ChatDialect delegate;
@@ -163,6 +170,7 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
     @Override
     public boolean parseResponseJson(ChatConfig config, ChatResponseDefault resp, String respJson) {
         try {
+            rejectPlainTextUpstreamError(respJson);
             boolean parsed = false;
             if (parseResponsesReasoning) {
                 parsed = parseReasoningStreamDelta(resp, respJson);
@@ -181,6 +189,23 @@ public class RawResponseLoggingChatDialect implements ChatDialect {
                     RawResponseLogSupport.preview(respJson),
                     ErrorTextSupport.safeError(e));
             throw e;
+        }
+    }
+
+    /** 将兼容服务的纯文本错误转换为带 HTTP 状态码的异常，避免泄露底层 JSON 解析错误。 */
+    static void rejectPlainTextUpstreamError(String body) {
+        String text = StrUtil.trim(body);
+        if (StrUtil.isBlank(text)
+                || text.startsWith("{")
+                || text.startsWith("[")
+                || text.startsWith("data:")
+                || text.startsWith("event:")) {
+            return;
+        }
+        Matcher matcher = PLAIN_HTTP_ERROR.matcher(text);
+        if (matcher.find()) {
+            throw new IllegalStateException(
+                    "HTTP " + matcher.group(1) + " upstream provider returned a non-JSON response");
         }
     }
 
