@@ -395,14 +395,16 @@ public class CommandEnhancementTest {
 
         assertThat(approveList.isError()).isFalse();
         assertThat(approveList.getContent())
-                .contains("pending=none")
-                .contains("session_approvals_count=0")
-                .contains("always_approvals_count=0");
+                .contains("审批状态：")
+                .contains("待审批：无")
+                .contains("当前会话已授权：0 项")
+                .contains("永久授权：0 项");
         assertThat(denyList.isError()).isFalse();
         assertThat(denyList.getContent())
-                .contains("pending=none")
-                .contains("session_approvals_count=0")
-                .contains("always_approvals_count=0");
+                .contains("审批状态：")
+                .contains("待审批：无")
+                .contains("当前会话已授权：0 项")
+                .contains("永久授权：0 项");
     }
 
     @Test
@@ -1773,8 +1775,8 @@ public class CommandEnhancementTest {
         GatewayReply status = env.send("admin-chat", "admin-user", "/approve status");
         GatewayReply denyStatus = env.send("admin-chat", "admin-user", "/deny status");
 
-        assertThat(status.getContent()).contains("pending=1").contains("git_reset_hard");
-        assertThat(denyStatus.getContent()).contains("pending=1").contains("git_reset_hard");
+        assertThat(status.getContent()).contains("待审批：1 项").contains("git_reset_hard");
+        assertThat(denyStatus.getContent()).contains("待审批：1 项").contains("git_reset_hard");
     }
 
     @Test

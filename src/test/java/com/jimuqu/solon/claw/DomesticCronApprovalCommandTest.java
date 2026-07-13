@@ -98,11 +98,11 @@ public class DomesticCronApprovalCommandTest {
         GatewayReply denied = env.commandService.handle(message, "/deny " + selector);
 
         assertThat(list.getContent())
-                .contains("pending=1")
+                .contains("待审批：1 项")
                 .contains(selector)
                 .contains("network_external_operation");
         assertThat(status.getContent())
-                .contains("pending=1")
+                .contains("待审批：1 项")
                 .contains(selector)
                 .contains("network_external_operation");
         SqliteAgentSession reloadedCronSession =

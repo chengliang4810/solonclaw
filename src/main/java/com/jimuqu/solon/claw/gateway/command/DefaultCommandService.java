@@ -2674,7 +2674,9 @@ public class DefaultCommandService implements CommandService {
         }
         GatewayReply reply =
                 conversationOrchestrator.resumePending(
-                        String.valueOf(approvalSession.getContext().get("source_key")), eventSink);
+                        String.valueOf(approvalSession.getContext().get("source_key")),
+                        approvalSession.getSessionId(),
+                        eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }
@@ -2839,41 +2841,39 @@ public class DefaultCommandService implements CommandService {
             sessionApprovalCount +=
                     dangerousCommandApprovalService.listSessionApprovals(session).size();
         }
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("pending=")
-                .append(pendingCount == 0 ? "none" : String.valueOf(pendingCount))
-                .append('\n');
+        StringBuilder buffer = new StringBuilder("审批状态：\n待审批：");
+        buffer.append(pendingCount == 0 ? "无" : pendingCount + " 项").append('\n');
         for (List<DangerousCommandApprovalService.PendingApproval> pendingApprovals :
                 pendingBySession) {
             for (int i = 0; i < pendingApprovals.size(); i++) {
                 DangerousCommandApprovalService.PendingApproval pending = pendingApprovals.get(i);
-                buffer.append('#')
+                buffer.append('\n')
+                        .append('#')
                         .append(i + 1)
-                        .append(' ')
+                        .append(" 确认编号：")
                         .append(
                                 safeApprovalPreview(
                                         DangerousCommandApprovalService.approvalSelector(pending),
                                         120))
-                        .append(" tool=")
+                        .append("\n工具：")
                         .append(safeApprovalPreview(pending.getToolName(), 120))
-                        .append(" pattern=")
+                        .append("\n风险类型：")
                         .append(safeApprovalPreview(pending.getPatternKey(), 240))
-                        .append(" reason=")
+                        .append("\n原因：")
                         .append(safeApprovalPreview(pending.getDescription(), 1000))
-                        .append(" command_preview=")
+                        .append("\n命令预览：")
                         .append(safeApprovalPreview(pending.getCommand(), 800))
-                        .append(" scopes=")
+                        .append("\n可用审批范围：")
                         .append(approvalScopes(pending))
-                        .append(" expires_in=")
+                        .append("\n剩余有效期：")
                         .append(TimeSupport.expiresInSeconds(pending.getExpiresAt()))
-                        .append("s expired=")
-                        .append(isExpired(pending.getExpiresAt()))
-                        .append('\n');
+                        .append(" 秒\n");
             }
         }
-        buffer.append("session_approvals_count=").append(sessionApprovalCount).append('\n');
-        buffer.append("always_approvals_count=")
-                .append(dangerousCommandApprovalService.listAlwaysApprovals().size());
+        buffer.append("当前会话已授权：").append(sessionApprovalCount).append(" 项\n");
+        buffer.append("永久授权：")
+                .append(dangerousCommandApprovalService.listAlwaysApprovals().size())
+                .append(" 项");
         return buffer.toString();
     }
 
@@ -2883,8 +2883,9 @@ public class DefaultCommandService implements CommandService {
      * @return 返回空审批列表展示文本。
      */
     private String formatEmptyApprovalList() {
-        return "pending=none\nsession_approvals_count=0\nalways_approvals_count="
-                + dangerousCommandApprovalService.listAlwaysApprovals().size();
+        return "审批状态：\n待审批：无\n当前会话已授权：0 项\n永久授权："
+                + dangerousCommandApprovalService.listAlwaysApprovals().size()
+                + " 项";
     }
 
     /**
@@ -2906,19 +2907,9 @@ public class DefaultCommandService implements CommandService {
      */
     private String approvalScopes(DangerousCommandApprovalService.PendingApproval pending) {
         if (pending != null && pending.isPermanentApprovalAllowed()) {
-            return "once,session,always";
+            return "单次、当前会话、永久";
         }
-        return "once,session";
-    }
-
-    /**
-     * 判断是否Expired。
-     *
-     * @param expiresAt expiresAt 参数。
-     * @return 如果Expired满足条件则返回 true，否则返回 false。
-     */
-    private boolean isExpired(long expiresAt) {
-        return expiresAt > 0L && expiresAt <= System.currentTimeMillis();
+        return "单次、当前会话";
     }
 
     /**
@@ -3033,7 +3024,8 @@ public class DefaultCommandService implements CommandService {
                 return GatewayReply.error("当前没有待审批的危险命令。");
             }
             GatewayReply reply =
-                    conversationOrchestrator.resumePending(message.sourceKey(), eventSink);
+                    conversationOrchestrator.resumePending(
+                            message.sourceKey(), agentSession.getSessionId(), eventSink);
             reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
             return reply;
         }
@@ -3056,7 +3048,9 @@ public class DefaultCommandService implements CommandService {
         }
         GatewayReply reply =
                 conversationOrchestrator.resumePending(
-                        String.valueOf(approvalSession.getContext().get("source_key")), eventSink);
+                        String.valueOf(approvalSession.getContext().get("source_key")),
+                        approvalSession.getSessionId(),
+                        eventSink);
         reply.getRuntimeMetadata().put("resumed_pending_run", Boolean.TRUE);
         return reply;
     }
