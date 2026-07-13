@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.support.update.AppUpdateService;
 import com.jimuqu.solon.claw.support.update.AppVersionService;
@@ -133,12 +134,66 @@ public class AppUpdateServiceTest {
                 new DownloadFailingUpdateService(jarConfig, jarVersionService, downloadToken);
         ((FakeUpdateService) downloadService)
                 .setReleaseBody(
-                        "{\"tag_name\":\"v0.0.2\",\"assets\":[{\"name\":\"solonclaw-0.0.2.jar\",\"browser_download_url\":\"https://github.com/chengliang4810/solonclaw/releases/download/v0.0.2/app.jar\"}]}");
+                        "{\"tag_name\":\"v0.0.2\",\"assets\":[{\"name\":\"solonclaw.jar\",\"browser_download_url\":\"https://github.com/chengliang4810/solonclaw/releases/download/v0.0.2/app.jar\"},{\"name\":\"SHA256SUMS\",\"browser_download_url\":\"https://github.com/chengliang4810/solonclaw/releases/download/v0.0.2/SHA256SUMS\"}]}");
 
         AppUpdateService.UpdateResult downloadResult = downloadService.startUpdate();
 
         assertThat(downloadResult.isError()).isTrue();
         assertThat(downloadResult.getMessage()).contains("***").doesNotContain(downloadToken);
+    }
+
+    @Test
+    void shouldRecognizePublishedJarAndChecksumAssets() {
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(new File("target/update-release-assets-test").getAbsolutePath());
+        FakeUpdateService service = new FakeUpdateService(config, new FakeVersionService(config));
+
+        AppUpdateService.VersionStatus status =
+                service.statusForRelease(
+                        "{\"tag_name\":\"v0.0.2\",\"assets\":[{\"name\":\"solonclaw-0.0.2.jar\",\"browser_download_url\":\"https://github.com/example/ignored.jar\"},{\"name\":\"solonclaw.jar\",\"browser_download_url\":\"https://github.com/example/solonclaw.jar\"},{\"name\":\"SHA256SUMS\",\"browser_download_url\":\"https://github.com/example/SHA256SUMS\"}]}");
+
+        assertThat(status.getJarAssetName()).isEqualTo("solonclaw.jar");
+        assertThat(status.getJarAssetUrl()).endsWith("/solonclaw.jar");
+        assertThat(status.getSha256AssetUrl()).endsWith("/SHA256SUMS");
+    }
+
+    @Test
+    void shouldRefuseJarUpdateWithoutChecksumAsset() {
+        AppConfig config = new AppConfig();
+        config.getRuntime().setHome(new File("target/update-missing-checksum-test").getAbsolutePath());
+        FakeVersionService versionService = new FakeVersionService(config);
+        versionService.setDeploymentMode("jar");
+        versionService.setCurrentVersion("0.0.1");
+        versionService.setCurrentTag("v0.0.1");
+        FakeUpdateService service = new FakeUpdateService(config, versionService);
+        service.setReleaseBody(
+                "{\"tag_name\":\"v0.0.2\",\"assets\":[{\"name\":\"solonclaw.jar\",\"browser_download_url\":\"https://github.com/example/solonclaw.jar\"}]}");
+
+        AppUpdateService.UpdateResult result = service.startUpdate();
+
+        assertThat(result.isError()).isTrue();
+        assertThat(result.getMessage()).contains("SHA256SUMS").contains("拒绝");
+    }
+
+    @Test
+    void shouldVerifyChecksumAndRejectMismatchedJar() throws Exception {
+        AppConfig config = new AppConfig();
+        File workDir = new File("target/update-checksum-test");
+        FileUtil.mkdir(workDir);
+        FakeVersionService versionService = new FakeVersionService(config);
+        FakeUpdateService service = new FakeUpdateService(config, versionService);
+        File jar = new File(workDir, "solonclaw.jar");
+        File sums = new File(workDir, "SHA256SUMS");
+        FileUtil.writeUtf8String("release jar", jar);
+        FileUtil.writeUtf8String(DigestUtil.sha256Hex(jar) + "  solonclaw.jar\n", sums);
+
+        service.exposeVerifyDownloadedJar(jar, sums, "solonclaw.jar");
+        FileUtil.writeUtf8String(
+                DigestUtil.sha256Hex("incorrect checksum") + "  solonclaw.jar\n", sums);
+
+        assertThatThrownBy(() -> service.exposeVerifyDownloadedJar(jar, sums, "solonclaw.jar"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("SHA-256 校验失败");
     }
 
     @Test
@@ -254,6 +309,15 @@ public class AppUpdateServiceTest {
             } catch (Exception e) {
                 throw new IllegalStateException(e);
             }
+        }
+
+        private AppUpdateService.VersionStatus statusForRelease(String releaseBody) {
+            setReleaseBody(releaseBody);
+            return getVersionStatus(true);
+        }
+
+        private void exposeVerifyDownloadedJar(File jar, File sums, String jarAssetName) {
+            verifyDownloadedJar(jar, sums, jarAssetName);
         }
     }
 

@@ -36,13 +36,14 @@ if ([string]::IsNullOrEmpty($DeployChoice)) { $DeployChoice = "1" }
 # ─── 获取最新版本 ────────────────────────────────────────────────────────────
 $Repo = "chengliang4810/solon-claw"
 $JarName = "solonclaw.jar"
+$ChecksumName = "SHA256SUMS"
 $JarPath = Join-Path $InstallDir $JarName
 $ImageName = "ghcr.io/${Repo}:latest"
 
 Write-Info "获取最新版本..."
 try {
     $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/latest" -UseBasicParsing
-    $tag = $release.tag_name
+    $tag = if ([string]::IsNullOrWhiteSpace([string]$release.tag_name)) { "latest" } else { [string]$release.tag_name }
 } catch { $tag = "latest" }
 Write-Info "最新版本: $tag"
 
@@ -209,11 +210,41 @@ function Install-Native {
     # ─── 下载后端 jar ───────────────────────────────────────────────────
     if ($tag -eq "latest") {
         $downloadUrl = "https://github.com/$Repo/releases/latest/download/$JarName"
+        $checksumUrl = "https://github.com/$Repo/releases/latest/download/$ChecksumName"
     } else {
         $downloadUrl = "https://github.com/$Repo/releases/download/$tag/$JarName"
+        $checksumUrl = "https://github.com/$Repo/releases/download/$tag/$ChecksumName"
     }
     Write-Info "下载 jar: $downloadUrl"
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $JarPath -UseBasicParsing
+    $tempJar = Join-Path $InstallDir ".${JarName}.$([Guid]::NewGuid().ToString('N')).download"
+    $checksumPath = Join-Path ([System.IO.Path]::GetTempPath()) "solonclaw-SHA256SUMS-$([Guid]::NewGuid().ToString('N'))"
+    try {
+        Invoke-WebRequest -Uri $downloadUrl -OutFile $tempJar -UseBasicParsing -ErrorAction Stop
+        Write-Info "校验 jar SHA-256..."
+        Invoke-WebRequest -Uri $checksumUrl -OutFile $checksumPath -UseBasicParsing -ErrorAction Stop
+        if ((Get-Item -LiteralPath $checksumPath).Length -gt 1MB) {
+            throw "SHA256SUMS 文件超过 1MB 限制"
+        }
+        $checksumEntries = @(
+            Get-Content -LiteralPath $checksumPath | Where-Object {
+                $_ -match '^(?<hash>[0-9A-Fa-f]{64})\s+\*?solonclaw\.jar\s*$'
+            }
+        )
+        if ($checksumEntries.Count -ne 1) {
+            throw "SHA256SUMS 中缺少或重复 $JarName 的校验记录"
+        }
+        $expectedHash = (($checksumEntries[0] -split '\s+')[0]).ToLowerInvariant()
+        $actualHash = (Get-FileHash -LiteralPath $tempJar -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($expectedHash -ne $actualHash) {
+            throw "jar 的 SHA-256 校验失败"
+        }
+        Move-Item -LiteralPath $tempJar -Destination $JarPath -Force
+    } catch {
+        Remove-Item -LiteralPath $tempJar -Force -ErrorAction SilentlyContinue
+        Write-Err "后端 jar 下载或校验失败：$($_.Exception.Message)"
+    } finally {
+        Remove-Item -LiteralPath $checksumPath -Force -ErrorAction SilentlyContinue
+    }
     $size = [math]::Round((Get-Item $JarPath).Length / 1MB, 1)
     Write-Ok "jar 已下载: $JarPath (${size}MB)"
 

@@ -2,6 +2,7 @@ package com.jimuqu.solon.claw.support.update;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.http.Header;
 import cn.hutool.http.HttpRequest;
 import cn.hutool.http.HttpResponse;
@@ -24,6 +25,15 @@ import org.noear.snack4.ONode;
 
 /** 版本检查与在线更新服务。 */
 public class AppUpdateService {
+    /** Release 中供在线升级下载的唯一 jar 资产名称。 */
+    private static final String RELEASE_JAR_ASSET_NAME = "solonclaw.jar";
+
+    /** Release 中记录发布产物 SHA-256 的唯一校验资产名称。 */
+    private static final String RELEASE_CHECKSUM_ASSET_NAME = "SHA256SUMS";
+
+    /** SHA256SUMS 为文本校验清单，限制其下载大小以避免异常资产占用大量内存。 */
+    private static final long RELEASE_CHECKSUM_MAX_BYTES = 1024L * 1024L;
+
     /** 缓存TTLMILLIS的统一常量值。 */
     private static final long CACHE_TTL_MILLIS = 60L * 60L * 1000L;
 
@@ -104,6 +114,7 @@ public class AppUpdateService {
             status.setPublishedAt(latest.getPublishedAt());
             status.setJarAssetUrl(latest.getJarAssetUrl());
             status.setJarAssetName(latest.getJarAssetName());
+            status.setSha256AssetUrl(latest.getSha256AssetUrl());
             status.setVersionSource(latest.getSource());
             status.setUpdateAvailable(
                     AppVersionService.compareVersions(current, latest.getVersion()) < 0);
@@ -200,7 +211,12 @@ public class AppUpdateService {
         if (StrUtil.isBlank(status.getJarAssetUrl())) {
             return UpdateResult.error("未找到可下载的 jar 资产。当前仅检测到版本标签，尚无对应 Release 附件。");
         }
+        if (StrUtil.isBlank(status.getSha256AssetUrl())) {
+            return UpdateResult.error("未找到 Release 的 SHA256SUMS 校验文件，拒绝执行未校验的在线升级。");
+        }
 
+        File downloadedJar = null;
+        File checksumFile = null;
         try {
             File currentJar = versionService.currentJarFile();
             if (currentJar == null || !currentJar.isFile()) {
@@ -212,13 +228,22 @@ public class AppUpdateService {
             FileUtil.mkdir(updateDir);
             FileUtil.mkdir(logsDir);
 
-            File downloadedJar =
+            downloadedJar =
                     new File(
                             updateDir,
                             "solonclaw-"
                                     + AppVersionService.stripLeadingV(status.getLatestTag())
                                     + ".jar.download");
+            checksumFile =
+                    new File(
+                            updateDir,
+                            "solonclaw-"
+                                    + AppVersionService.stripLeadingV(status.getLatestTag())
+                                    + ".SHA256SUMS");
             downloadAsset(status.getJarAssetUrl(), downloadedJar);
+            downloadChecksumAsset(status.getSha256AssetUrl(), checksumFile);
+            verifyDownloadedJar(downloadedJar, checksumFile, status.getJarAssetName());
+            FileUtil.del(checksumFile);
 
             File argsFile = new File(updateDir, "restart-args.json");
             ONode argsNode = new ONode();
@@ -248,6 +273,12 @@ public class AppUpdateService {
 
             return UpdateResult.ok("已开始在线升级到 " + status.getLatestTag() + "，应用将在几秒后自动重启。");
         } catch (Exception e) {
+            if (downloadedJar != null) {
+                FileUtil.del(downloadedJar);
+            }
+            if (checksumFile != null) {
+                FileUtil.del(checksumFile);
+            }
             return UpdateResult.error("启动在线升级失败：" + safeError(e));
         }
     }
@@ -354,13 +385,81 @@ public class AppUpdateService {
      * @param target target 参数。
      */
     protected void downloadAsset(String assetUrl, File target) {
+        downloadAsset(assetUrl, target, BoundedAttachmentIO.UPDATE_JAR_MAX_BYTES);
+    }
+
+    /**
+     * 下载 Release 的 SHA256SUMS 校验清单，采用远小于 jar 的文本文件上限。
+     *
+     * @param assetUrl 待下载的校验文件地址。
+     * @param target 校验文件落盘位置。
+     */
+    protected void downloadChecksumAsset(String assetUrl, File target) {
+        downloadAsset(assetUrl, target, RELEASE_CHECKSUM_MAX_BYTES);
+    }
+
+    /**
+     * 在受信任来源与安全策略约束下下载 Release 资产。
+     *
+     * @param assetUrl 待下载的资产地址。
+     * @param target 资产落盘位置。
+     * @param maxBytes 允许下载的最大字节数。
+     */
+    private void downloadAsset(String assetUrl, File target, long maxBytes) {
         ensureTrustedUpdateAssetUrl(assetUrl);
         BoundedAttachmentIO.downloadHutoolToFile(
                 assetUrl,
                 target,
                 60000,
-                BoundedAttachmentIO.UPDATE_JAR_MAX_BYTES,
+                maxBytes,
                 updateAssetSecurityPolicy());
+    }
+
+    /**
+     * 校验下载 jar 的 SHA-256 与同一 Release 发布的 SHA256SUMS 是否一致。
+     *
+     * @param downloadedJar 已下载的 jar 临时文件。
+     * @param checksumFile 已下载的 SHA256SUMS 文件。
+     * @param jarAssetName Release 中 jar 资产名称。
+     */
+    protected void verifyDownloadedJar(File downloadedJar, File checksumFile, String jarAssetName) {
+        if (downloadedJar == null || !downloadedJar.isFile()) {
+            throw new IllegalStateException("在线升级 jar 下载文件不存在");
+        }
+        String expected = expectedSha256(checksumFile, jarAssetName);
+        String actual = DigestUtil.sha256Hex(downloadedJar);
+        if (!expected.equalsIgnoreCase(actual)) {
+            throw new IllegalStateException("下载 jar 的 SHA-256 校验失败");
+        }
+    }
+
+    /**
+     * 从 SHA256SUMS 中提取指定 jar 的 SHA-256 摘要，禁止用模糊匹配选择其他资产。
+     *
+     * @param checksumFile 已下载的 SHA256SUMS 文件。
+     * @param jarAssetName Release 中 jar 资产名称。
+     * @return 对应 jar 的 SHA-256 十六进制摘要。
+     */
+    private String expectedSha256(File checksumFile, String jarAssetName) {
+        if (checksumFile == null || !checksumFile.isFile() || StrUtil.isBlank(jarAssetName)) {
+            throw new IllegalStateException("SHA256SUMS 校验文件无效");
+        }
+        String[] lines = FileUtil.readUtf8String(checksumFile).split("\\R");
+        for (String line : lines) {
+            String value = StrUtil.nullToEmpty(line).trim();
+            if (value.length() < 66) {
+                continue;
+            }
+            String hash = value.substring(0, 64);
+            String name = value.substring(64).trim();
+            if (name.startsWith("*")) {
+                name = name.substring(1);
+            }
+            if (hash.matches("[0-9a-fA-F]{64}") && jarAssetName.equals(name)) {
+                return hash;
+            }
+        }
+        throw new IllegalStateException("SHA256SUMS 中缺少 " + jarAssetName + " 的校验记录");
     }
 
     /**
@@ -610,10 +709,11 @@ public class AppUpdateService {
                 if (StrUtil.isBlank(name)) {
                     continue;
                 }
-                if (name.startsWith("solonclaw-") && name.endsWith(".jar")) {
+                if (RELEASE_JAR_ASSET_NAME.equals(name)) {
                     releaseInfo.setJarAssetName(name);
                     releaseInfo.setJarAssetUrl(asset.get("browser_download_url").getString());
-                    break;
+                } else if (RELEASE_CHECKSUM_ASSET_NAME.equals(name)) {
+                    releaseInfo.setSha256AssetUrl(asset.get("browser_download_url").getString());
                 }
             }
             return releaseInfo;
@@ -838,6 +938,9 @@ public class AppUpdateService {
 
         /** 记录版本状态中的jarAsset名称。 */
         private String jarAssetName;
+
+        /** 记录版本状态中的 SHA256SUMS 下载地址。 */
+        private String sha256AssetUrl;
 
         /** 是否启用更新Available。 */
         private boolean updateAvailable;
@@ -1068,6 +1171,24 @@ public class AppUpdateService {
         }
 
         /**
+         * 读取 SHA256SUMS 下载地址。
+         *
+         * @return 返回 SHA256SUMS 下载地址。
+         */
+        public String getSha256AssetUrl() {
+            return sha256AssetUrl;
+        }
+
+        /**
+         * 写入 SHA256SUMS 下载地址。
+         *
+         * @param sha256AssetUrl SHA256SUMS 下载地址。
+         */
+        public void setSha256AssetUrl(String sha256AssetUrl) {
+            this.sha256AssetUrl = sha256AssetUrl;
+        }
+
+        /**
          * 判断是否更新Available。
          *
          * @return 如果更新Available满足条件则返回 true，否则返回 false。
@@ -1159,6 +1280,9 @@ public class AppUpdateService {
 
         /** 记录ReleaseInfo中的jarAsset名称。 */
         private String jarAssetName;
+
+        /** 记录ReleaseInfo中的 SHA256SUMS 下载地址。 */
+        private String sha256AssetUrl;
 
         /** 记录ReleaseInfo中的来源。 */
         private String source;
@@ -1272,6 +1396,24 @@ public class AppUpdateService {
         }
 
         /**
+         * 读取 SHA256SUMS 下载地址。
+         *
+         * @return 返回 SHA256SUMS 下载地址。
+         */
+        public String getSha256AssetUrl() {
+            return sha256AssetUrl;
+        }
+
+        /**
+         * 写入 SHA256SUMS 下载地址。
+         *
+         * @param sha256AssetUrl SHA256SUMS 下载地址。
+         */
+        public void setSha256AssetUrl(String sha256AssetUrl) {
+            this.sha256AssetUrl = sha256AssetUrl;
+        }
+
+        /**
          * 读取来源。
          *
          * @return 返回读取到的来源。
@@ -1302,6 +1444,7 @@ public class AppUpdateService {
                     .set("publishedAt", publishedAt)
                     .set("jarAssetUrl", jarAssetUrl)
                     .set("jarAssetName", jarAssetName)
+                    .set("sha256AssetUrl", sha256AssetUrl)
                     .set("source", source);
         }
 
@@ -1322,6 +1465,7 @@ public class AppUpdateService {
             releaseInfo.setPublishedAt(node.get("publishedAt").getString());
             releaseInfo.setJarAssetUrl(node.get("jarAssetUrl").getString());
             releaseInfo.setJarAssetName(node.get("jarAssetName").getString());
+            releaseInfo.setSha256AssetUrl(node.get("sha256AssetUrl").getString());
             releaseInfo.setSource(node.get("source").getString());
             return releaseInfo;
         }
