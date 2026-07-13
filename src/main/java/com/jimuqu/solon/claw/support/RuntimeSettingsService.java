@@ -131,7 +131,6 @@ public class RuntimeSettingsService {
                     "security.guardrailCronScope",
                     "approvals.subagentAutoApprove",
                     "approvals.timeoutSeconds",
-                    "approvals.gatewayTimeoutSeconds",
                     "approvals.mcpReloadConfirm",
                     "approvals.deny",
                     "solonclaw.terminal.credentialFiles",
@@ -611,7 +610,6 @@ public class RuntimeSettingsService {
                 || "gateway.injectionReplayWindowSeconds".equals(key)
                 || "security.tirithTimeoutSeconds".equals(key)
                 || "approvals.timeoutSeconds".equals(key)
-                || "approvals.gatewayTimeoutSeconds".equals(key)
                 || "solonclaw.terminal.maxForegroundTimeoutSeconds".equals(key)
                 || "solonclaw.terminal.foregroundMaxRetries".equals(key)
                 || "solonclaw.terminal.foregroundRetryBaseDelaySeconds".equals(key)

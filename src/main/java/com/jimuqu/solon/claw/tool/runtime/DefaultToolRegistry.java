@@ -1553,6 +1553,26 @@ public class DefaultToolRegistry implements ToolRegistry {
         ConfigTools configTools =
                 new ConfigTools(runtimeSettingsService, gatewayRuntimeRefreshService, appConfig);
         String sysWorkDir = resolveWorkDir(agentScope);
+        List<String> enabledToolNames = new ArrayList<String>();
+        LinkedHashSet<String> enabledFileFunctionNames = new LinkedHashSet<String>();
+        LinkedHashSet<String> enabledShellFunctionNames = new LinkedHashSet<String>();
+        LinkedHashSet<String> enabledMediaFunctionNames = new LinkedHashSet<String>();
+        for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
+            if (!isEnabled(sourceKey, toolName)) {
+                continue;
+            }
+            enabledToolNames.add(toolName);
+            if (ToolNameConstants.isFileTool(toolName)) {
+                enabledFileFunctionNames.add(toolName);
+            } else if (ToolNameConstants.EXECUTE_SHELL.equals(toolName)
+                    || ToolNameConstants.TERMINAL.equals(toolName)) {
+                enabledShellFunctionNames.add(toolName);
+            } else if (ToolNameConstants.IMAGE_GENERATE.equals(toolName)
+                    || ToolNameConstants.TEXT_TO_SPEECH.equals(toolName)
+                    || ToolNameConstants.SPEECH_TRANSCRIBE.equals(toolName)) {
+                enabledMediaFunctionNames.add(toolName);
+            }
+        }
         SolonClawFileStateTracker fileStateTracker = new SolonClawFileStateTracker();
         SolonClawFileReadWriteSkill fileSkill =
                 new SolonClawFileReadWriteSkill(
@@ -1571,15 +1591,21 @@ public class DefaultToolRegistry implements ToolRegistry {
                         sysWorkDir, defaultPythonCommand(), securityPolicyService);
         SolonClawCodeExecutionSkills.SafeNodejsSkill nodejsSkill =
                 new SolonClawCodeExecutionSkills.SafeNodejsSkill(sysWorkDir, securityPolicyService);
-        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCodeTool =
-                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
-                        sysWorkDir, defaultPythonCommand(), securityPolicyService, appConfig);
         SystemClockTalent systemClockSkill = new SystemClockTalent();
         SolonClawWebTools.SafeWebsearchTool websearchTool =
                 new SolonClawWebTools.SafeWebsearchTool(securityPolicyService, null, appConfig);
         websearchTool.setWebSearchProviders(webSearchProviders);
         SolonClawWebTools.SafeWebfetchTool webfetchTool =
                 new SolonClawWebTools.SafeWebfetchTool(securityPolicyService);
+        SolonClawCodeExecutionSkills.SafeExecuteCodeTool executeCodeTool =
+                new SolonClawCodeExecutionSkills.SafeExecuteCodeTool(
+                        sysWorkDir,
+                        defaultPythonCommand(),
+                        securityPolicyService,
+                        appConfig,
+                        websearchTool,
+                        webfetchTool,
+                        enabledToolNames);
         SolonClawWebTools.SafeWebExtractTool webExtractTool =
                 new SolonClawWebTools.SafeWebExtractTool(webfetchTool, sysWorkDir);
         SolonClawWebTools.SafeCodeSearchTool codeSearchTool =
@@ -1612,28 +1638,6 @@ public class DefaultToolRegistry implements ToolRegistry {
         boolean mediaSpeechToolsAdded = false;
         List<FunctionTool> dynamicTools = new ArrayList<FunctionTool>();
         List<Object> gatewayCandidates = new ArrayList<Object>();
-        List<String> enabledToolNames = new ArrayList<String>();
-        LinkedHashSet<String> enabledFileFunctionNames = new LinkedHashSet<String>();
-        LinkedHashSet<String> enabledShellFunctionNames = new LinkedHashSet<String>();
-        LinkedHashSet<String> enabledMediaFunctionNames = new LinkedHashSet<String>();
-
-        for (String toolName : AgentRuntimePolicy.resolveAllowedTools(agentScope, TOOL_NAMES)) {
-            if (!isEnabled(sourceKey, toolName)) {
-                continue;
-            }
-            enabledToolNames.add(toolName);
-            if (ToolNameConstants.isFileTool(toolName)) {
-                enabledFileFunctionNames.add(toolName);
-            } else if (ToolNameConstants.EXECUTE_SHELL.equals(toolName)
-                    || ToolNameConstants.TERMINAL.equals(toolName)) {
-                enabledShellFunctionNames.add(toolName);
-            } else if (ToolNameConstants.IMAGE_GENERATE.equals(toolName)
-                    || ToolNameConstants.TEXT_TO_SPEECH.equals(toolName)
-                    || ToolNameConstants.SPEECH_TRANSCRIBE.equals(toolName)) {
-                enabledMediaFunctionNames.add(toolName);
-            }
-        }
-
         for (String toolName : enabledToolNames) {
             if (ToolNameConstants.isFileTool(toolName)) {
                 if (!fileSkillAdded) {
@@ -1690,8 +1694,12 @@ public class DefaultToolRegistry implements ToolRegistry {
                 tools.add(platformToolsetsManageTools);
             } else if (ToolNameConstants.PROVIDER_MANAGE.equals(toolName)) {
                 tools.add(providerManageTools);
-            } else if (ToolNameConstants.MEMORY.equals(toolName)) {
-                tools.add(memoryTools);
+            } else if (ToolNameConstants.MEMORY.equals(toolName)
+                    || ToolNameConstants.MEMORY_SEARCH.equals(toolName)
+                    || ToolNameConstants.MEMORY_GET.equals(toolName)) {
+                if (!tools.contains(memoryTools)) {
+                    tools.add(memoryTools);
+                }
             } else if (ToolNameConstants.SESSION_SEARCH.equals(toolName)) {
                 tools.add(sessionSearchTools);
             } else if (ToolNameConstants.SEARCH_MANAGE.equals(toolName)) {

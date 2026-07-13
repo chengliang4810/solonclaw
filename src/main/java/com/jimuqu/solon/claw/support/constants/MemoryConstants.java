@@ -11,6 +11,9 @@ public interface MemoryConstants {
     /** TARGETTODAY的统一常量值。 */
     String TARGET_TODAY = "today";
 
+    /** 专题记忆目标前缀，完整格式为 topic:名称。 */
+    String TARGET_TOPIC_PREFIX = "topic:";
+
     /** ACTIONADD的统一常量值。 */
     String ACTION_ADD = "add";
 

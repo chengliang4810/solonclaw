@@ -10,6 +10,13 @@ describe('approvalAction — pure key dispatch for ApprovalPrompt', () => {
     expect(approvalAction('', { return: true }, 3, '', false)).toEqual({ kind: 'choose', choice: 'deny' })
   })
 
+  it('offers only once or deny for memory approvals', () => {
+    expect(approvalAction('1', {}, 0, '', false, 'memory')).toEqual({ kind: 'choose', choice: 'once' })
+    expect(approvalAction('2', {}, 0, '', false, 'memory')).toEqual({ kind: 'choose', choice: 'deny' })
+    expect(approvalAction('/approve session', {}, 0, '', false, 'memory')).toEqual({ kind: 'noop' })
+    expect(approvalAction('/approve always', {}, 0, '', false, 'memory')).toEqual({ kind: 'noop' })
+  })
+
   it('maps Esc to deny — parity with global Ctrl+C cancellation', () => {
     expect(approvalAction('', { escape: true }, 0)).toEqual({ kind: 'choose', choice: 'deny' })
     expect(approvalAction('', { escape: true }, 2)).toEqual({ kind: 'choose', choice: 'deny' })

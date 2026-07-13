@@ -24,6 +24,16 @@ public final class SkillHubContentSupport {
      * @return 返回content Hash结果。
      */
     public static String contentHash(File path) throws Exception {
+        return digest(path, false).substring(0, "sha256:".length() + 16);
+    }
+
+    /** 对扫描内容计算完整 SHA-256 摘要，用于将扫描结论绑定到精确字节内容。 */
+    public static String fullContentHash(File path) throws Exception {
+        return digest(path, true);
+    }
+
+    /** 统一计算目录或文件的规范 SHA-256，供短摘要与扫描证明复用。 */
+    private static String digest(File path, boolean separatePathAndContent) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         if (path.isDirectory()) {
             List<File> files = FileUtil.loopFiles(path);
@@ -34,13 +44,18 @@ public final class SkillHubContentSupport {
                     continue;
                 }
                 digest.update(relativePath(path, file).getBytes(StandardCharsets.UTF_8));
+                if (separatePathAndContent) {
+                    digest.update((byte) 0);
+                }
                 digest.update(FileUtil.readBytes(file));
+                if (separatePathAndContent) {
+                    digest.update((byte) 0);
+                }
             }
         } else if (path.isFile()) {
             digest.update(FileUtil.readBytes(path));
         }
-        return "sha256:"
-                + cn.hutool.core.util.HexUtil.encodeHexStr(digest.digest()).substring(0, 16);
+        return "sha256:" + cn.hutool.core.util.HexUtil.encodeHexStr(digest.digest());
     }
 
     /**

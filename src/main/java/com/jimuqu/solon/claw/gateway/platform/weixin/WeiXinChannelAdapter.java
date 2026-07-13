@@ -88,6 +88,12 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 消息DEDUP最大ENTRIES的统一常量值。 */
     private static final int MESSAGE_DEDUP_MAX_ENTRIES = 512;
 
+    /** iLink sendmessage 返回该错误码时表示触发平台频率限制。 */
+    private static final int RATE_LIMIT_ERRCODE = -2;
+
+    /** 首次命中平台限流后暂停全部出站消息，避免并发请求继续放大限流。 */
+    private static final long RATE_LIMIT_COOLDOWN_NANOS = TimeUnit.SECONDS.toNanos(30L);
+
     /** 最大HTTPREDIRECTS的统一常量值。 */
     private static final int MAX_HTTP_REDIRECTS = 5;
 
@@ -161,6 +167,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 保存渠道状态仓储依赖，用于访问持久化数据。 */
     private final ChannelStateRepository channelStateRepository;
 
+    /** 串行化当前适配器的文字和附件发送，确保限流状态对排队请求立即可见。 */
+    private final Object outboundSendGate = new Object();
+
     /** 注入附件缓存服务，用于调用对应业务能力。 */
     private final AttachmentCacheService attachmentCacheService;
 
@@ -208,6 +217,9 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
 
     /** 是否正在断开连接，防止清理期间重新创建输入状态心跳。 */
     private volatile boolean disconnecting;
+
+    /** 使用单调时钟记录平台限流冷却截止点，避免系统时间调整影响窗口。 */
+    private volatile long rateLimitCooldownUntilNanos;
 
     /**
      * 创建Wei Xin渠道适配器实例，并注入运行所需依赖。
@@ -338,13 +350,16 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
             throw new IllegalArgumentException("Weixin chatId is required");
         }
 
-        if (StrUtil.isNotBlank(request.getText())) {
-            sendText(request.getChatId(), request.getText());
-        }
-        List<MessageAttachment> attachments = request.getAttachments();
-        if (attachments != null) {
-            for (MessageAttachment attachment : attachments) {
-                sendAttachment(request.getChatId(), attachment);
+        synchronized (outboundSendGate) {
+            awaitSendRateLimitCooldown();
+            if (StrUtil.isNotBlank(request.getText())) {
+                sendText(request.getChatId(), request.getText());
+            }
+            List<MessageAttachment> attachments = request.getAttachments();
+            if (attachments != null) {
+                for (MessageAttachment attachment : attachments) {
+                    sendAttachment(request.getChatId(), attachment);
+                }
             }
         }
     }
@@ -373,7 +388,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
      */
     private void sendTextChunk(String chatId, String text) {
         int attempts = Math.max(1, config.getSendChunkRetries() + 1);
-        for (int attempt = 1; attempt <= attempts; attempt++) {
+        for (int attempt = 1; ; attempt++) {
             try {
                 ONode message = baseMessage(chatId);
                 String contextToken = loadContextToken(chatId);
@@ -387,15 +402,26 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                 item.set("text_item", textItem);
                 message.get("item_list").add(item);
                 ONode response = apiPost(SEND_ENDPOINT, new ONode().set("msg", message).asObject());
-                if (response.get("errcode").getInt(0) == -14 && StrUtil.isNotBlank(contextToken)) {
+                if (hasExpiredContextToken(response) && StrUtil.isNotBlank(contextToken)) {
+                    clearContextToken(chatId);
                     message.remove("context_token");
                     response = apiPost(SEND_ENDPOINT, new ONode().set("msg", message).asObject());
                 }
+                if (isRateLimited(response)) {
+                    rateLimitCooldownUntilNanos = System.nanoTime() + RATE_LIMIT_COOLDOWN_NANOS;
+                    awaitSendRateLimitCooldown();
+                    attempt--;
+                    continue;
+                }
                 ensureSuccess(response, "Weixin text send failed");
+                rateLimitCooldownUntilNanos = 0L;
                 clearLastError();
                 return;
             } catch (Exception e) {
                 setLastError("weixin_send_text_failed", safeMessage(e));
+                if (Thread.currentThread().isInterrupted()) {
+                    throw new IllegalStateException(safeMessage(e), e);
+                }
                 if (attempt >= attempts) {
                     throw new IllegalStateException(
                             "Weixin text send failed after "
@@ -992,8 +1018,54 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                                 ciphertext.length,
                                 encryptedParam,
                                 aesKey));
-        ONode sendResponse = apiPost(SEND_ENDPOINT, new ONode().set("msg", message).asObject());
-        ensureSuccess(sendResponse, "Weixin media send failed");
+        while (true) {
+            ONode sendResponse = apiPost(SEND_ENDPOINT, new ONode().set("msg", message).asObject());
+            if (hasExpiredContextToken(sendResponse) && StrUtil.isNotBlank(contextToken)) {
+                clearContextToken(chatId);
+                message.remove("context_token");
+                sendResponse = apiPost(SEND_ENDPOINT, new ONode().set("msg", message).asObject());
+            }
+            if (isRateLimited(sendResponse)) {
+                rateLimitCooldownUntilNanos = System.nanoTime() + RATE_LIMIT_COOLDOWN_NANOS;
+                awaitSendRateLimitCooldown();
+                continue;
+            }
+            ensureSuccess(sendResponse, "Weixin media send failed");
+            rateLimitCooldownUntilNanos = 0L;
+            return;
+        }
+    }
+
+    /** 检查 sendmessage 是否返回平台频率限制。 */
+    private boolean isRateLimited(ONode response) {
+        return response.get("errcode").getInt(0) == RATE_LIMIT_ERRCODE
+                || response.get("ret").getInt(0) == RATE_LIMIT_ERRCODE;
+    }
+
+    /** 判断 sendmessage 是否以任一错误字段声明当前上下文 token 已失效。 */
+    private boolean hasExpiredContextToken(ONode response) {
+        return response.get("errcode").getInt(0) == -14 || response.get("ret").getInt(0) == -14;
+    }
+
+    /** 在出站串行锁内等待平台冷却窗口结束；线程中断时立即结束本次投递。 */
+    private void awaitSendRateLimitCooldown() {
+        try {
+            for (long remainingNanos = rateLimitCooldownRemainingNanos();
+                    remainingNanos > 0L;
+                    remainingNanos = rateLimitCooldownRemainingNanos()) {
+                TimeUnit.NANOSECONDS.sleep(
+                        Math.min(remainingNanos, TimeUnit.MILLISECONDS.toNanos(100L)));
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(
+                    "Weixin send interrupted during rate limit cooldown", e);
+        }
+    }
+
+    /** 返回当前限流冷却剩余纳秒数。 */
+    private long rateLimitCooldownRemainingNanos() {
+        return Math.max(0L, rateLimitCooldownUntilNanos - System.nanoTime());
     }
 
     /**
@@ -1341,6 +1413,11 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
         gatewayMessage.setChatName(chatTarget.chatId);
         gatewayMessage.setUserName(senderId);
         gatewayMessage.setAttachments(attachments);
+        // 审批与取消命令不能经过文本去抖或普通入站队列；它们不拥有 typing 生命周期，避免影响正在运行的原任务。
+        if (isControlCommand(gatewayMessage.getText())) {
+            dispatchInboundControl(gatewayMessage);
+            return;
+        }
         if (attachments.isEmpty() && StrUtil.isNotBlank(text)) {
             enqueueTextBatch(gatewayMessage, chatTarget.chatType, chatTarget.chatId, contextToken);
             return;
@@ -1596,7 +1673,7 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                         : ("dm".equals(chatType)
                                 ? startTypingLifecycle(chatId, contextToken)
                                 : null);
-        // 控制命令（/stop、/cancel）走并发执行器，避免被串行入站队列中运行中的任务阻塞而错过取消时机
+        // 兜底处理非文本批次路径中的控制命令；常规文本命令已在入站解析后直接投递。
         if (isControlCommand(gatewayMessage.getText())) {
             stopTypingLifecycle(typingLifecycle, false);
             dispatchInboundControl(gatewayMessage);
@@ -2172,6 +2249,16 @@ public class WeiXinChannelAdapter extends AbstractConfigurableChannelAdapter {
                     contextToken);
         } catch (Exception e) {
             logRecoverableChannelFailure("save_context_token", e);
+        }
+    }
+
+    /** 删除已被平台判定失效的上下文 token，防止后续消息重复触发降级请求。 */
+    private void clearContextToken(String chatId) {
+        try {
+            channelStateRepository.delete(
+                    PlatformType.WEIXIN, config.getAccountId() + ":" + chatId, CONTEXT_TOKEN_KEY);
+        } catch (Exception e) {
+            logRecoverableChannelFailure("clear_context_token", e);
         }
     }
 

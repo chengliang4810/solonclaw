@@ -69,8 +69,7 @@ public class LlmErrorClassifierTest {
     @Test
     void shouldFailFastForCertificateVerificationFailure() {
         LlmErrorClassifier.ClassifiedError result =
-                LlmErrorClassifier.classify(
-                        new IllegalStateException("certificate_verify_failed"));
+                LlmErrorClassifier.classify(new IllegalStateException("certificate_verify_failed"));
 
         assertThat(result.getReason())
                 .isEqualTo(LlmErrorClassifier.FailoverReason.CERTIFICATE_VERIFICATION);
@@ -97,8 +96,7 @@ public class LlmErrorClassifierTest {
     void shouldFallbackWithoutRetryForContentFilter() {
         LlmErrorClassifier.ClassifiedError result =
                 LlmErrorClassifier.classify(
-                        new IllegalStateException(
-                                "HTTP 400 finish_reason=content_filter"));
+                        new IllegalStateException("HTTP 400 finish_reason=content_filter"));
 
         assertThat(result.getReason())
                 .isEqualTo(LlmErrorClassifier.FailoverReason.CONTENT_POLICY_BLOCKED);
@@ -124,8 +122,7 @@ public class LlmErrorClassifierTest {
     @Test
     void shouldRetrySameProviderForOverloaded429() {
         LlmErrorClassifier.ClassifiedError result =
-                LlmErrorClassifier.classify(
-                        new IllegalStateException("HTTP 429 overloaded"));
+                LlmErrorClassifier.classify(new IllegalStateException("HTTP 429 overloaded"));
 
         assertThat(result.getReason()).isEqualTo(LlmErrorClassifier.FailoverReason.OVERLOADED);
         assertThat(result.isImmediateFallback()).isFalse();

@@ -150,7 +150,12 @@ public class DefaultSkillImportService implements SkillImportService {
         record.setContentHash(SkillHubContentSupport.contentHash(quarantineDir));
         record.setInstallPath(installPath);
         record.setFiles(new ArrayList<String>(bundle.getFiles().keySet()));
-        record.setMetadata(new LinkedHashMap<String, Object>(bundle.getMetadata()));
+        Map<String, Object> metadata = new LinkedHashMap<String, Object>(bundle.getMetadata());
+        Map<String, Object> scanProvenance =
+                new LinkedHashMap<String, Object>(scanResult.getScanProvenance());
+        scanProvenance.put("sourceIdentifier", bundle.getIdentifier());
+        metadata.put("scanProvenance", scanProvenance);
+        record.setMetadata(metadata);
 
         File backupDir = null;
         try {

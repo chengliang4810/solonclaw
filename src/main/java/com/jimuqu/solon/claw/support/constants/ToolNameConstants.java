@@ -62,6 +62,12 @@ public interface ToolNameConstants {
     /** 记忆的统一常量值。 */
     String MEMORY = "memory";
 
+    /** 统一记忆搜索。 */
+    String MEMORY_SEARCH = "memory_search";
+
+    /** 读取记忆搜索命中文件。 */
+    String MEMORY_GET = "memory_get";
+
     /** 会话搜索的统一常量值。 */
     String SESSION_SEARCH = "session_search";
 

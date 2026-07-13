@@ -6,7 +6,6 @@ import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.SkillCuratorService;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.CronJobRepository;
-import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.CheckpointService;
 import com.jimuqu.solon.claw.core.service.DelegationService;
@@ -21,8 +20,6 @@ import com.jimuqu.solon.claw.media.ImageGenerationService;
 import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.plugin.ToolRegistration;
 import com.jimuqu.solon.claw.plugin.provider.WebSearchProvider;
-import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
-import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.profile.ProfileChildRuntimeMarker;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
@@ -115,16 +112,6 @@ public class ProfileRuntimeSupportConfiguration {
     public DashboardCuratorService dashboardCuratorService(
             SkillCuratorService skillCuratorService, SqliteDatabase sqliteDatabase) {
         return new DashboardCuratorService(skillCuratorService, sqliteDatabase);
-    }
-
-    /** 创建当前 Profile 的主动协作诊断支撑。 */
-    @Bean
-    public ProactiveDiagnosticsService proactiveDiagnosticsService(
-            AppConfig appConfig,
-            ProactiveRepository proactiveRepository,
-            GatewayPolicyRepository gatewayPolicyRepository) {
-        return new ProactiveDiagnosticsService(
-                appConfig, proactiveRepository, gatewayPolicyRepository);
     }
 
     /** 创建当前 Profile 的会话产物支撑。 */

@@ -188,8 +188,16 @@ public class PersonaWorkspaceService {
 
     /** 启动时补齐缺失的人格工作区文件。 */
     private void ensureSeeded() {
+        boolean newWorkspace =
+                !file(ContextFileConstants.KEY_AGENTS).exists()
+                        && !file(ContextFileConstants.KEY_SOUL).exists()
+                        && !file(ContextFileConstants.KEY_IDENTITY).exists()
+                        && !file(ContextFileConstants.KEY_USER).exists();
         for (String key : orderedKeys()) {
             if (isTodayMemoryKey(key)) {
+                continue;
+            }
+            if (ContextFileConstants.KEY_BOOTSTRAP.equals(key) && !newWorkspace) {
                 continue;
             }
             File target = file(key);
@@ -283,9 +291,6 @@ public class PersonaWorkspaceService {
     /** 从类路径加载原始模板。 */
     private String loadTemplate(String key) {
         String normalized = ContextFileConstants.normalizeKey(key);
-        if (ContextFileConstants.KEY_MEMORY.equals(normalized)) {
-            return "";
-        }
         if (ContextFileConstants.KEY_MEMORY_TODAY.equals(normalized)) {
             return "";
         }

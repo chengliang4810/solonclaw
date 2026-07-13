@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.MemoryApprovalRequest;
+import com.jimuqu.solon.claw.core.model.MemorySearchResult;
 import com.jimuqu.solon.claw.core.model.MemorySnapshot;
 import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
@@ -18,6 +19,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -27,10 +33,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 import org.noear.snack4.ONode;
 
 /** 基于文件系统的长期记忆服务。 */
 public class FileMemoryService implements MemoryService {
+    /** 专题名称只允许字母、数字、中文、点、下划线和短横线，阻断路径穿越。 */
+    private static final Pattern TOPIC_NAME_PATTERN = Pattern.compile("[\\p{L}\\p{N}._-]{1,80}");
+
     /** 同一 JVM 内按状态文件隔离锁，避免 FileChannel 重叠锁异常和实例间覆盖。 */
     private static final Map<String, Object> APPROVAL_STATE_LOCKS =
             new ConcurrentHashMap<String, Object>();
@@ -87,6 +97,120 @@ public class FileMemoryService implements MemoryService {
             return "";
         }
         return FileUtil.readUtf8String(file).trim();
+    }
+
+    /** 同步工作区记忆文件并使用 SQLite FTS5 搜索。 */
+    @Override
+    public synchronized List<MemorySearchResult> search(String query, int limit) throws Exception {
+        if (StrUtil.isBlank(query)) {
+            throw new IllegalArgumentException("记忆搜索词不能为空。");
+        }
+        int boundedLimit = Math.max(1, Math.min(limit, 20));
+        try (Connection connection = memoryIndexConnection()) {
+            rebuildMemoryIndex(connection);
+            String sql =
+                    "select path, snippet(memory_fts, 1, '[', ']', '...', 24), bm25(memory_fts) "
+                            + "from memory_fts where memory_fts match ? order by bm25(memory_fts) limit ?";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
+                statement.setString(1, ftsQuery(query));
+                statement.setInt(2, boundedLimit);
+                try (ResultSet rows = statement.executeQuery()) {
+                    List<MemorySearchResult> results = new ArrayList<MemorySearchResult>();
+                    while (rows.next()) {
+                        MemorySearchResult result = new MemorySearchResult();
+                        result.setPath(rows.getString(1));
+                        result.setSnippet(rows.getString(2));
+                        result.setRank(rows.getDouble(3));
+                        results.add(result);
+                    }
+                    return results;
+                }
+            }
+        }
+    }
+
+    /** 按索引返回的受控路径读取完整记忆文件。 */
+    @Override
+    public String get(String path) throws Exception {
+        File target = resolveMemoryPath(path);
+        return target.exists() && target.isFile() ? FileUtil.readUtf8String(target).trim() : "";
+    }
+
+    /** 打开与当前 Profile 状态库相同的 SQLite 数据库。 */
+    private Connection memoryIndexConnection() throws Exception {
+        return DriverManager.getConnection("jdbc:sqlite:" + appConfig.getRuntime().getStateDb());
+    }
+
+    /** 用当前磁盘内容重建小型记忆索引，确保外部编辑立即可检索。 */
+    private void rebuildMemoryIndex(Connection connection) throws Exception {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute(
+                    "create virtual table if not exists memory_fts using fts5(path unindexed, content)");
+            statement.execute("delete from memory_fts");
+        }
+        String sql = "insert into memory_fts(path, content) values(?, ?)";
+        try (PreparedStatement insert = connection.prepareStatement(sql)) {
+            indexFile(insert, MemoryConstants.MEMORY_FILE_NAME);
+            indexFile(insert, MemoryConstants.USER_FILE_NAME);
+            File directory = memoryDir();
+            if (directory.exists()) {
+                for (File file :
+                        FileUtil.loopFiles(directory, item -> item.getName().endsWith(".md"))) {
+                    String relative = directory.toPath().relativize(file.toPath()).toString();
+                    indexFile(insert, MemoryConstants.DAILY_MEMORY_DIR_NAME + "/" + relative);
+                }
+            }
+        }
+    }
+
+    /** 将存在且非空的单个记忆文件加入索引。 */
+    private void indexFile(PreparedStatement insert, String relativePath) throws Exception {
+        File file = resolveMemoryPath(relativePath);
+        if (!file.exists() || !file.isFile()) {
+            return;
+        }
+        String content = FileUtil.readUtf8String(file);
+        if (StrUtil.isBlank(content)) {
+            return;
+        }
+        insert.setString(1, relativePath.replace(File.separatorChar, '/'));
+        insert.setString(2, content);
+        insert.executeUpdate();
+    }
+
+    /** 把普通搜索词转换为不解释运算符的 FTS5 AND 查询。 */
+    private String ftsQuery(String query) {
+        String[] tokens = StrUtil.nullToEmpty(query).trim().split("\\s+");
+        StringBuilder result = new StringBuilder();
+        for (String token : tokens) {
+            if (StrUtil.isBlank(token)) {
+                continue;
+            }
+            if (result.length() > 0) {
+                result.append(" AND ");
+            }
+            result.append('"').append(token.replace("\"", "\"\"")).append('"');
+        }
+        return result.toString();
+    }
+
+    /** 解析并约束索引路径只能落在当前 Profile 的记忆区域。 */
+    private File resolveMemoryPath(String path) throws Exception {
+        String normalized = StrUtil.nullToEmpty(path).replace('\\', '/');
+        if (MemoryConstants.MEMORY_FILE_NAME.equals(normalized)
+                || MemoryConstants.USER_FILE_NAME.equals(normalized)) {
+            return FileUtil.file(appConfig.getRuntime().getHome(), normalized);
+        }
+        if (!normalized.startsWith(MemoryConstants.DAILY_MEMORY_DIR_NAME + "/")) {
+            throw new IllegalArgumentException("不支持的记忆路径。");
+        }
+        File root = memoryDir().getCanonicalFile();
+        File target =
+                FileUtil.file(appConfig.getRuntime().getHome(), normalized).getCanonicalFile();
+        if (!target.getPath().startsWith(root.getPath() + File.separator)) {
+            throw new IllegalArgumentException("记忆路径超出工作区。");
+        }
+        return target;
     }
 
     /**
@@ -169,7 +293,8 @@ public class FileMemoryService implements MemoryService {
     }
 
     /** 绕过审批边界直接替换已校验的记忆内容。 */
-    private String replaceDirect(String target, String oldText, String newContent) throws Exception {
+    private String replaceDirect(String target, String oldText, String newContent)
+            throws Exception {
         String normalizedNew = normalizeEntry(newContent);
         List<String> entries = readEntries(target);
         boolean replaced = false;
@@ -231,9 +356,7 @@ public class FileMemoryService implements MemoryService {
         return "已删除 " + normalizeTarget(target) + " 中的匹配条目。";
     }
 
-    /**
-     * 在共享服务边界暂存或直接应用写入，确保工具、学习服务等所有调用方行为一致。
-     */
+    /** 在共享服务边界暂存或直接应用写入，确保工具、学习服务等所有调用方行为一致。 */
     private String stageOrApply(
             String action, String target, String content, String oldText, String origin)
             throws Exception {
@@ -528,7 +651,7 @@ public class FileMemoryService implements MemoryService {
         return value == null ? null : String.valueOf(value);
     }
 
-    /** 限定待审批目标为现有三种记忆区域。 */
+    /** 限定待审批目标为受支持的记忆区域。 */
     private String normalizePendingTarget(String target) {
         if (MemoryConstants.TARGET_TODAY.equalsIgnoreCase(target)) {
             return MemoryConstants.TARGET_TODAY;
@@ -651,14 +774,39 @@ public class FileMemoryService implements MemoryService {
         if (MemoryConstants.TARGET_TODAY.equalsIgnoreCase(target)) {
             return todayMemoryFile();
         }
+        String topic = topicName(target);
+        if (topic != null) {
+            return FileUtil.file(memoryDir(), topic + ".md");
+        }
         return FileUtil.file(appConfig.getRuntime().getHome(), MemoryConstants.MEMORY_FILE_NAME);
     }
 
     /** 统一目标名输出。 */
     private String normalizeTarget(String target) {
-        return MemoryConstants.TARGET_USER.equalsIgnoreCase(target)
-                ? MemoryConstants.TARGET_USER
-                : MemoryConstants.TARGET_MEMORY;
+        if (MemoryConstants.TARGET_USER.equalsIgnoreCase(target)) {
+            return MemoryConstants.TARGET_USER;
+        }
+        if (MemoryConstants.TARGET_TODAY.equalsIgnoreCase(target)) {
+            return MemoryConstants.TARGET_TODAY;
+        }
+        String topic = topicName(target);
+        return topic == null
+                ? MemoryConstants.TARGET_MEMORY
+                : MemoryConstants.TARGET_TOPIC_PREFIX + topic;
+    }
+
+    /** 校验并提取专题名称；非专题目标返回 null。 */
+    private String topicName(String target) {
+        String value = StrUtil.nullToEmpty(target).trim();
+        if (!value.toLowerCase(java.util.Locale.ROOT)
+                .startsWith(MemoryConstants.TARGET_TOPIC_PREFIX)) {
+            return null;
+        }
+        String name = value.substring(MemoryConstants.TARGET_TOPIC_PREFIX.length()).trim();
+        if (!TOPIC_NAME_PATTERN.matcher(name).matches() || ".".equals(name) || "..".equals(name)) {
+            throw new IllegalArgumentException("专题名称格式无效。");
+        }
+        return name;
     }
 
     /** 统一归一化记忆条目。 */

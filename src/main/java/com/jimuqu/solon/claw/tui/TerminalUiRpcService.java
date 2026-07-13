@@ -2882,10 +2882,10 @@ public class TerminalUiRpcService {
         return role == null ? "system" : role.name().toLowerCase(Locale.ROOT);
     }
 
-    /** 提取可显示消息文本，assistant 消息优先展示最终内容。 */
+    /** 提取可显示消息文本；会话回放必须剥离助手正文中残留的思考块，避免答案与思考过程重复展示。 */
     private String messageText(ChatMessage message) {
         if (message instanceof AssistantMessage) {
-            return StrUtil.nullToEmpty(((AssistantMessage) message).getResultContent());
+            return MessageSupport.assistantText((AssistantMessage) message);
         }
         return StrUtil.nullToEmpty(message.getContent());
     }

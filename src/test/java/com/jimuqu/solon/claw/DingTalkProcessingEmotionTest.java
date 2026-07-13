@@ -76,9 +76,9 @@ public class DingTalkProcessingEmotionTest {
         assertThat(adapter.calls()).isEmpty();
     }
 
-    private GatewayMessage message(String chatId, String threadId) {
+    private GatewayMessage message(String chatId, String replyToMessageId) {
         GatewayMessage message = new GatewayMessage(PlatformType.DINGTALK, chatId, "user-1", "hi");
-        message.setThreadId(threadId);
+        message.setReplyToMessageId(replyToMessageId);
         return message;
     }
 

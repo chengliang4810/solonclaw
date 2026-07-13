@@ -13,10 +13,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
-/**
- * 验证控制命令路由的基类能力：{@code /stop}、{@code /cancel} 必须能被识别并投递到与各渠道串行入站执行器
- * 相互独立的并发执行器，否则控制命令会排在运行中的任务之后，导致取消逻辑来不及触发。
- */
+/** 验证控制命令路由的基类能力：取消与审批命令必须能被识别并投递到与各渠道串行入站执行器 相互独立的并发执行器，否则控制命令会排在运行中的任务之后，导致取消逻辑来不及触发。 */
 public class AbstractConfigurableChannelAdapterTest {
 
     /** 控制命令识别：首个空白分隔的 token 精确匹配（大小写不敏感）。 */
@@ -31,11 +28,14 @@ public class AbstractConfigurableChannelAdapterTest {
         assertThat(adapter.isControlCommand("/STOP")).isTrue();
         assertThat(adapter.isControlCommand("/Cancel")).isTrue();
         assertThat(adapter.isControlCommand("/cancel 123")).isTrue();
+        assertThat(adapter.isControlCommand("/approve always")).isTrue();
+        assertThat(adapter.isControlCommand("/Deny approval-123")).isTrue();
 
         // 负例：以命令前缀开头的其它词、其它斜杠命令、普通文本、空白
         assertThat(adapter.isControlCommand("/stopwatch")).isFalse();
         assertThat(adapter.isControlCommand("/canceled")).isFalse();
         assertThat(adapter.isControlCommand("/help")).isFalse();
+        assertThat(adapter.isControlCommand("/status")).isFalse();
         assertThat(adapter.isControlCommand("/goal x")).isFalse();
         assertThat(adapter.isControlCommand("hello")).isFalse();
         assertThat(adapter.isControlCommand("")).isFalse();

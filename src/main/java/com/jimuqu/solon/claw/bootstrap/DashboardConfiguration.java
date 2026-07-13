@@ -25,7 +25,6 @@ import com.jimuqu.solon.claw.media.SpeechService;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.provider.ImageGenProvider;
 import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
-import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
@@ -211,17 +210,13 @@ public class DashboardConfiguration {
      * 执行主动协作诊断服务相关逻辑。
      *
      * @param appConfig 应用运行配置。
-     * @param proactiveRepository 主动协作仓储依赖。
      * @param gatewayPolicyRepository 网关策略仓储依赖。
      * @return 返回主动协作诊断服务结果。
      */
     @Bean
     public ProactiveDiagnosticsService proactiveDiagnosticsService(
-            AppConfig appConfig,
-            ProactiveRepository proactiveRepository,
-            com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository gatewayPolicyRepository) {
-        return new ProactiveDiagnosticsService(
-                appConfig, proactiveRepository, gatewayPolicyRepository);
+            AppConfig appConfig, SessionRepository sessionRepository) {
+        return new ProactiveDiagnosticsService(appConfig, sessionRepository);
     }
 
     /**
@@ -655,14 +650,17 @@ public class DashboardConfiguration {
      * @param appConfig 应用运行配置。
      * @param skillUsageTracker 技能用量Tracker参数。
      * @param sessionRepository 会话仓储依赖。
+     * @param localSkillService 本地技能服务依赖。
      * @return 返回控制台洞察服务结果。
      */
     @Bean
     public DashboardInsightsService dashboardInsightsService(
             AppConfig appConfig,
             SkillUsageTracker skillUsageTracker,
-            SessionRepository sessionRepository) {
-        return new DashboardInsightsService(appConfig, skillUsageTracker, sessionRepository);
+            SessionRepository sessionRepository,
+            LocalSkillService localSkillService) {
+        return new DashboardInsightsService(
+                appConfig, skillUsageTracker, sessionRepository, localSkillService);
     }
 
     /**

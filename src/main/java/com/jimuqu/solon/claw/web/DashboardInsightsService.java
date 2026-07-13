@@ -2,7 +2,9 @@ package com.jimuqu.solon.claw.web;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
+import com.jimuqu.solon.claw.context.LocalSkillService;
 import com.jimuqu.solon.claw.context.SkillUsageTracker;
+import com.jimuqu.solon.claw.core.model.SkillDescriptor;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -15,6 +17,9 @@ public class DashboardInsightsService {
     /** 记录控制台洞察中的技能用量Tracker。 */
     private final SkillUsageTracker skillUsageTracker;
 
+    /** 提供当前 Profile 已安装技能清单，用于补齐尚无活动记录的技能。 */
+    private final LocalSkillService localSkillService;
+
     /** 保存会话仓储依赖，用于访问持久化数据。 */
     private final SessionRepository sessionRepository;
 
@@ -24,14 +29,17 @@ public class DashboardInsightsService {
      * @param appConfig 应用运行配置。
      * @param skillUsageTracker 技能用量Tracker参数。
      * @param sessionRepository 会话仓储依赖。
+     * @param localSkillService 本地技能服务依赖。
      */
     public DashboardInsightsService(
             AppConfig appConfig,
             SkillUsageTracker skillUsageTracker,
-            SessionRepository sessionRepository) {
+            SessionRepository sessionRepository,
+            LocalSkillService localSkillService) {
         this.appConfig = appConfig;
         this.skillUsageTracker = skillUsageTracker;
         this.sessionRepository = sessionRepository;
+        this.localSkillService = localSkillService;
     }
 
     /**
@@ -56,7 +64,24 @@ public class DashboardInsightsService {
         if (skillUsageTracker == null) {
             return new LinkedHashMap<String, Object>();
         }
-        return skillUsageTracker.getAllEntries();
+        Map<String, Object> entries = skillUsageTracker.getAllEntries();
+        if (localSkillService == null) {
+            return entries;
+        }
+        try {
+            for (SkillDescriptor descriptor : localSkillService.listSkills(null)) {
+                String skillName = descriptor.canonicalName();
+                Map<String, Object> entry = skillUsageTracker.getEntry(skillName);
+                if (entry.isEmpty()) {
+                    entry.put("state", "active");
+                    entry.put("count", Long.valueOf(0L));
+                }
+                entries.putIfAbsent(skillName, entry);
+            }
+        } catch (Exception ignored) {
+            // 技能目录暂时不可读时保留已有统计，不能让控制台洞察接口整体失败。
+        }
+        return entries;
     }
 
     /**
@@ -88,7 +113,7 @@ public class DashboardInsightsService {
             stats.put("tracked", Integer.valueOf(0));
             return stats;
         }
-        Map<String, Object> entries = skillUsageTracker.getAllEntries();
+        Map<String, Object> entries = skillUsage();
         int active = 0;
         int stale = 0;
         int archived = 0;

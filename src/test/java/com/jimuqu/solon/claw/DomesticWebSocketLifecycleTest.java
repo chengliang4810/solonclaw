@@ -13,8 +13,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -74,8 +74,7 @@ public class DomesticWebSocketLifecycleTest {
             assertThat(opening.getSetupState()).isEqualTo("connecting");
             assertThat(opening.getLastErrorCode()).isNull();
 
-            firstListener.onMessage(
-                    first, "{\"op\":10,\"d\":{\"heartbeat_interval\":125}}");
+            firstListener.onMessage(first, "{\"op\":10,\"d\":{\"heartbeat_interval\":125}}");
             ONode identify = ONode.ofJson(first.sentTexts.get(0));
             assertThat(identify.get("op").getInt()).isEqualTo(2);
             assertThat(identify.get("d").get("token").getString())
@@ -94,15 +93,13 @@ public class DomesticWebSocketLifecycleTest {
             setField(adapter, QQBotChannelAdapter.class, "webSocket", resumed);
             WebSocketListener resumedListener = listener(QQBotChannelAdapter.class, adapter);
             resumedListener.onOpen(resumed, null);
-            resumedListener.onMessage(
-                    resumed, "{\"op\":10,\"d\":{\"heartbeat_interval\":125}}");
+            resumedListener.onMessage(resumed, "{\"op\":10,\"d\":{\"heartbeat_interval\":125}}");
             ONode resume = ONode.ofJson(resumed.sentTexts.get(0));
             assertThat(resume.get("op").getInt()).isEqualTo(6);
             assertThat(resume.get("d").get("session_id").getString()).isEqualTo("session-1");
             assertThat(resume.get("d").get("seq").getLong()).isEqualTo(17L);
 
-            resumedListener.onMessage(
-                    resumed, "{\"op\":0,\"t\":\"RESUMED\",\"s\":18,\"d\":{}}");
+            resumedListener.onMessage(resumed, "{\"op\":0,\"t\":\"RESUMED\",\"s\":18,\"d\":{}}");
             assertThat(adapter.statusSnapshot().isConnected()).isTrue();
             awaitSentFrames(resumed, 2);
             ONode heartbeat = ONode.ofJson(resumed.sentTexts.get(1));
@@ -148,8 +145,7 @@ public class DomesticWebSocketLifecycleTest {
             replacementListener.onOpen(replacement, null);
             replacementListener.onMessage(
                     replacement, "{\"op\":10,\"d\":{\"heartbeat_interval\":30000}}");
-            assertThat(ONode.ofJson(replacement.sentTexts.get(0)).get("op").getInt())
-                    .isEqualTo(2);
+            assertThat(ONode.ofJson(replacement.sentTexts.get(0)).get("op").getInt()).isEqualTo(2);
         } finally {
             adapter.disconnect();
         }
@@ -186,8 +182,7 @@ public class DomesticWebSocketLifecycleTest {
         listener(QQBotChannelAdapter.class, limitedAdapter)
                 .onClosed(limitedSocket, 4008, "rate limited");
         assertThat(limitedReconnects.get()).isZero();
-        Object reconnectTask =
-                field(limitedAdapter, QQBotChannelAdapter.class, "reconnectFuture");
+        Object reconnectTask = field(limitedAdapter, QQBotChannelAdapter.class, "reconnectFuture");
         assertThat(reconnectTask).isNotNull();
 
         QQBotChannelAdapter fatalAdapter = qqBotAdapterWithCachedToken();
@@ -239,9 +234,7 @@ public class DomesticWebSocketLifecycleTest {
         setField(adapter, QQBotChannelAdapter.class, "webSocket", current);
         staleListener.onMessage(stale, "{\"op\":10,\"d\":{\"heartbeat_interval\":1000}}");
         staleListener.onMessage(
-                stale,
-                "{\"op\":0,\"t\":\"READY\",\"s\":1,"
-                        + "\"d\":{\"session_id\":\"stale\"}}");
+                stale, "{\"op\":0,\"t\":\"READY\",\"s\":1," + "\"d\":{\"session_id\":\"stale\"}}");
         assertThat(stale.sentTexts).isEmpty();
         assertThat(adapter.isConnected()).isFalse();
 

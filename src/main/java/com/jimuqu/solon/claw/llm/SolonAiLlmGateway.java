@@ -74,6 +74,7 @@ import org.noear.solon.ai.chat.ChatOptions;
 import org.noear.solon.ai.chat.ChatRequest;
 import org.noear.solon.ai.chat.ChatRequestDesc;
 import org.noear.solon.ai.chat.ChatResponse;
+import org.noear.solon.ai.chat.ChatResponseDefault;
 import org.noear.solon.ai.chat.content.ContentBlock;
 import org.noear.solon.ai.chat.content.Contents;
 import org.noear.solon.ai.chat.content.ImageBlock;
@@ -107,6 +108,12 @@ import reactor.core.publisher.Flux;
 public class SolonAiLlmGateway implements LlmGateway {
     /** 单次模型流最长等待时间，防止提供方不发送完成事件时会话永久卡住。 */
     private static final Duration MODEL_STREAM_TIMEOUT = Duration.ofMinutes(5);
+
+    /** 单轮正文因长度限制被截断后允许的最大续写次数。 */
+    private static final int MAX_LENGTH_CONTINUATIONS = 4;
+
+    /** 长度截断后的内部续写提示，只要求返回尚未输出的正文。 */
+    private static final String LENGTH_CONTINUATION_PROMPT = "请从刚才被截断的位置继续，不要重复已经输出的内容，只输出续写部分。";
 
     /** LLM 网关日志器。 */
     private static final Logger log = LoggerFactory.getLogger(SolonAiLlmGateway.class);
@@ -531,6 +538,16 @@ public class SolonAiLlmGateway implements LlmGateway {
                                     resume || continueFromSnapshot,
                                     resolved,
                                     null);
+                    if (isIncompleteFinishReason(result)) {
+                        String finishReason = result.getFinishReason();
+                        continueFromSnapshot =
+                                continueFromSnapshot
+                                        || rollbackIncompleteCandidate(
+                                                session, previousNdjson, eventSink, finishReason);
+                        lastError = incompleteFinishReasonError(finishReason);
+                        allowFallback = true;
+                        break;
+                    }
                     continueFromSnapshot =
                             continueFromSnapshot
                                     || (session != null
@@ -556,9 +573,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                     lastError = e;
                     continueFromSnapshot =
                             continueFromSnapshot
-                                    || (session != null
-                                            && !StrUtil.equals(
-                                                    previousNdjson, session.getNdjson()));
+                                    || restoreSafeFallbackSnapshot(session, previousNdjson);
                     LlmErrorClassifier.ClassifiedError classified = LlmErrorClassifier.classify(e);
                     allowFallback = classified.isShouldFallback();
                     if (classified.shouldRetrySameProvider(attempt, maxAttempts)) {
@@ -602,6 +617,60 @@ public class SolonAiLlmGateway implements LlmGateway {
         }
         throw new IllegalStateException(
                 lastError == null ? "LLM execution failed" : lastError.getMessage(), lastError);
+    }
+
+    /** 判断模型结果是否仍处于不可直接展示的异常结束状态。 */
+    private boolean isIncompleteFinishReason(LlmResult result) {
+        String finishReason = result == null ? "" : StrUtil.nullToEmpty(result.getFinishReason());
+        return isIncompleteFinishReason(finishReason);
+    }
+
+    /** 判断标准化结束原因是否代表当前模型响应不完整。 */
+    private boolean isIncompleteFinishReason(String finishReason) {
+        return "length".equals(finishReason) || "content_filter".equals(finishReason);
+    }
+
+    /** 构造异常结束状态对应的明确失败原因。 */
+    private IllegalStateException incompleteFinishReasonError(String finishReason) {
+        if ("content_filter".equals(finishReason)) {
+            return new IllegalStateException("模型响应被内容安全策略过滤");
+        }
+        return new IllegalStateException("模型响应连续 " + MAX_LENGTH_CONTINUATIONS + " 次续写后仍被长度限制截断");
+    }
+
+    /** 回滚当前候选的可见正文，并保留已经完整落盘的工具事实供备用模型继续。 */
+    private boolean rollbackIncompleteCandidate(
+            SessionRecord session,
+            String previousNdjson,
+            ConversationEventSink eventSink,
+            String finishReason)
+            throws Exception {
+        boolean resume = restoreSafeFallbackSnapshot(session, previousNdjson);
+        ConversationEventSink sink = eventSink == null ? ConversationEventSink.noop() : eventSink;
+        sink.onAssistantReset(finishReason);
+        return resume;
+    }
+
+    /** 保存失败切换所需的最小安全快照，并返回备用模型是否应以恢复模式继续。 */
+    private boolean restoreSafeFallbackSnapshot(SessionRecord session, String previousNdjson)
+            throws Exception {
+        if (session == null) {
+            return false;
+        }
+        String safeNdjson = MessageSupport.safeFallbackNdjson(previousNdjson, session.getNdjson());
+        boolean resume = !StrUtil.equals(previousNdjson, safeNdjson);
+        session.setNdjson(safeNdjson);
+        if (hasPersistentSession(session)) {
+            sessionRepository.save(session);
+        }
+        return resume;
+    }
+
+    /** 仅真实渠道会话写入仓储；辅助模型使用的 synthetic 会话只在当前调用内维护快照。 */
+    private boolean hasPersistentSession(SessionRecord session) {
+        return sessionRepository != null
+                && session != null
+                && StrUtil.isNotBlank(session.getSourceKey());
     }
 
     /** 返回当前会话实际使用的决策重试次数。 */
@@ -665,7 +734,9 @@ public class SolonAiLlmGateway implements LlmGateway {
                 session == null ? "" : StrUtil.nullToEmpty(session.getSessionId()),
                 resolved.isStream(),
                 session != null && StrUtil.isNotBlank(session.getModelOverride()));
-        SqliteAgentSession agentSession = new SqliteAgentSession(session, sessionRepository);
+        SqliteAgentSession agentSession =
+                new SqliteAgentSession(
+                        session, hasPersistentSession(session) ? sessionRepository : null);
         return executeOwnedReActLoop(
                 session,
                 agentSession,
@@ -727,6 +798,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         String rawResponse = "";
         boolean streamed = false;
         String streamedReasoningText = null;
+        String finishReason = "";
         if (resume) {
             agentSession.pending(false, null);
             assistantMessage =
@@ -758,8 +830,20 @@ public class SolonAiLlmGateway implements LlmGateway {
                                     eventSink,
                                     usageCollector,
                                     resolved.isStream());
+                    modelResponse =
+                            continueLengthLimitedResponse(
+                                    chatModel,
+                                    agentSession,
+                                    systemPrompt,
+                                    options,
+                                    modelResponse,
+                                    feedbackSink,
+                                    eventSink,
+                                    usageCollector,
+                                    resolved.isStream());
                     rawResponse = modelResponse.rawResponse;
                     assistantMessage = modelResponse.assistantMessage;
+                    finishReason = modelResponse.finishReason;
                     streamed = streamed || modelResponse.streamed;
                     streamedReasoningText =
                             StrUtil.blankToDefault(
@@ -776,6 +860,21 @@ public class SolonAiLlmGateway implements LlmGateway {
                     trace.setLastReasonMessage(assistantMessage);
                 }
 
+                if (isIncompleteFinishReason(finishReason)) {
+                    return ownedLoopResult(
+                            session,
+                            agentSession,
+                            resolved,
+                            assistantMessage,
+                            rawResponse,
+                            usageCollector,
+                            false,
+                            streamed,
+                            runContext,
+                            streamedReasoningText,
+                            finishReason);
+                }
+
                 List<ToolCall> calls = assistantMessage.getToolCalls();
                 if (agentSession.isPending()) {
                     return ownedLoopResult(
@@ -788,7 +887,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                             true,
                             streamed,
                             runContext,
-                            streamedReasoningText);
+                            streamedReasoningText,
+                            finishReason);
                 }
                 if (calls == null || calls.isEmpty()) {
                     calls = extractOwnedTextActionCalls(agentSession, assistantMessage, options);
@@ -812,7 +912,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                             false,
                             streamed,
                             runContext,
-                            streamedReasoningText);
+                            streamedReasoningText,
+                            finishReason);
                 }
                 ensureOwnedAssistantToolCallRecorded(agentSession, assistantMessage);
                 for (ToolCall call : calls) {
@@ -843,7 +944,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                                 agentSession.isPending(),
                                 streamed,
                                 runContext,
-                                streamedReasoningText);
+                                streamedReasoningText,
+                                finishReason);
                     }
                 }
                 resume = true;
@@ -870,7 +972,174 @@ public class SolonAiLlmGateway implements LlmGateway {
                 false,
                 streamed,
                 runContext,
-                streamedReasoningText);
+                streamedReasoningText,
+                finishReason);
+    }
+
+    /** 对无工具调用的长度截断响应执行有限续写，并只向展示层发送去重后的新增正文。 */
+    private OwnedModelResponse continueLengthLimitedResponse(
+            ChatModel chatModel,
+            SqliteAgentSession agentSession,
+            String systemPrompt,
+            ChatOptions options,
+            OwnedModelResponse initial,
+            ConversationFeedbackSink feedbackSink,
+            ConversationEventSink eventSink,
+            UsageCollector usageCollector,
+            boolean streamConfigured)
+            throws Exception {
+        if (initial == null
+                || !"length".equals(initial.finishReason)
+                || hasToolCalls(initial.assistantMessage)) {
+            return initial;
+        }
+
+        ConversationEventSink effectiveEventSink =
+                eventSink == null ? ConversationEventSink.noop() : eventSink;
+        int transcriptStart = continuationTranscriptStart(agentSession, initial.assistantMessage);
+        OwnedModelResponse current = initial;
+        String combinedText = ownedVisibleText(initial);
+        String reasoningText = initial.reasoningText;
+        ensureOwnedAssistantRecorded(agentSession, initial.assistantMessage);
+        try {
+            for (int continuation = 0;
+                    continuation < MAX_LENGTH_CONTINUATIONS
+                            && "length".equals(current.finishReason)
+                            && !hasToolCalls(current.assistantMessage);
+                    continuation++) {
+                agentSession.addMessage(ChatMessage.ofUser(LENGTH_CONTINUATION_PROMPT));
+
+                BufferedAssistantEventSink bufferedSink =
+                        new BufferedAssistantEventSink(effectiveEventSink);
+                ChatRequestDesc requestDesc =
+                        buildOwnedLoopRequest(chatModel, agentSession, systemPrompt, options, null);
+                OwnedModelResponse next =
+                        executeOwnedModelRequest(
+                                requestDesc,
+                                agentSession,
+                                feedbackSink,
+                                bufferedSink,
+                                usageCollector,
+                                streamConfigured);
+                ensureOwnedAssistantRecorded(agentSession, next.assistantMessage);
+                reasoningText = StrUtil.blankToDefault(next.reasoningText, reasoningText);
+
+                if ("content_filter".equals(next.finishReason)
+                        || hasToolCalls(next.assistantMessage)) {
+                    current =
+                            new OwnedModelResponse(
+                                    next.response,
+                                    ChatMessage.ofAssistant(combinedText),
+                                    combinedText,
+                                    initial.streamed || next.streamed,
+                                    reasoningText,
+                                    "content_filter".equals(next.finishReason)
+                                            ? "content_filter"
+                                            : "length");
+                    break;
+                }
+
+                String nextText =
+                        StrUtil.blankToDefault(
+                                ownedVisibleText(next), bufferedSink.assistantText());
+                String mergedText = mergeContinuationText(combinedText, nextText);
+                String appendedText = mergedText.substring(combinedText.length());
+                if (StrUtil.isNotEmpty(appendedText)) {
+                    effectiveEventSink.onAssistantDelta(appendedText);
+                }
+                combinedText = mergedText;
+                current =
+                        new OwnedModelResponse(
+                                next.response,
+                                ChatMessage.ofAssistant(combinedText),
+                                combinedText,
+                                initial.streamed || next.streamed,
+                                reasoningText,
+                                next.finishReason);
+            }
+        } finally {
+            discardLengthContinuationTranscript(agentSession, transcriptStart);
+        }
+        agentSession.addMessage(current.assistantMessage);
+        return current;
+    }
+
+    /** 定位首个长度截断 assistant，后续内部消息只允许存在于本次模型请求期间。 */
+    private int continuationTranscriptStart(
+            SqliteAgentSession agentSession, AssistantMessage initialAssistant) {
+        List<ChatMessage> messages = agentSession == null ? null : agentSession.getMessages();
+        if (messages == null || messages.isEmpty()) {
+            return 0;
+        }
+        int last = messages.size() - 1;
+        ChatMessage candidate = messages.get(last);
+        return candidate instanceof AssistantMessage
+                        && MessageSupport.sameVisibleContent(
+                                (AssistantMessage) candidate, initialAssistant)
+                ? last
+                : messages.size();
+    }
+
+    /** 丢弃内部续写尾段，调用方随后只写入合并后的单条 assistant。 */
+    private void discardLengthContinuationTranscript(
+            SqliteAgentSession agentSession, int transcriptStart) {
+        if (agentSession == null) {
+            return;
+        }
+        List<ChatMessage> messages = agentSession.getMessages();
+        int removeCount = messages == null ? 0 : Math.max(0, messages.size() - transcriptStart);
+        agentSession.removeLatestMessage(removeCount);
+    }
+
+    /** 提取单次模型响应中可合并的正文。 */
+    private String ownedVisibleText(OwnedModelResponse response) {
+        if (response == null) {
+            return "";
+        }
+        return StrUtil.blankToDefault(
+                visibleResponseText(extractText(response.assistantMessage)),
+                visibleResponseText(response.rawResponse));
+    }
+
+    /** 判断 assistant 是否携带工具调用，长度截断的工具参数不能继续执行。 */
+    private boolean hasToolCalls(AssistantMessage assistantMessage) {
+        return assistantMessage != null
+                && assistantMessage.getToolCalls() != null
+                && !assistantMessage.getToolCalls().isEmpty();
+    }
+
+    /** 确保续写前的 assistant 已保存到会话，同时避免框架已自动保存时重复追加。 */
+    private void ensureOwnedAssistantRecorded(
+            SqliteAgentSession agentSession, AssistantMessage assistantMessage) {
+        if (agentSession == null || assistantMessage == null) {
+            return;
+        }
+        List<ChatMessage> messages = agentSession.getMessages();
+        if (messages == null) {
+            return;
+        }
+        if (!messages.isEmpty()) {
+            ChatMessage last = messages.get(messages.size() - 1);
+            if (last instanceof AssistantMessage
+                    && MessageSupport.sameVisibleContent(
+                            (AssistantMessage) last, assistantMessage)) {
+                return;
+            }
+        }
+        agentSession.addMessage(assistantMessage);
+    }
+
+    /** 使用最大后缀/前缀重叠消除提供方续写时重复返回的开头。 */
+    private String mergeContinuationText(String existing, String continuation) {
+        String base = StrUtil.nullToEmpty(existing);
+        String next = StrUtil.nullToEmpty(continuation);
+        int maxOverlap = Math.min(base.length(), next.length());
+        for (int overlap = maxOverlap; overlap > 0; overlap--) {
+            if (base.regionMatches(base.length() - overlap, next, 0, overlap)) {
+                return base + next.substring(overlap);
+            }
+        }
+        return base + next;
     }
 
     /**
@@ -901,7 +1170,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                     response == null ? null : response.getMessage(),
                     response == null ? "" : StrUtil.nullToEmpty(response.getContent()),
                     false,
-                    null);
+                    null,
+                    finishReason(response));
         }
         ConversationEventSink effectiveEventSink =
                 eventSink == null ? ConversationEventSink.noop() : eventSink;
@@ -955,7 +1225,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                         assistantMessage,
                         interrupted,
                         true,
-                        thinkingSplitter.reasoningText());
+                        thinkingSplitter.reasoningText(),
+                        finishReason(finalResponse[0]));
             }
             if (e instanceof Exception) {
                 throw (Exception) e;
@@ -1004,7 +1275,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                     assistantMessage,
                     StrUtil.blankToDefault(finalText, rawResponse),
                     true,
-                    thinkingSplitter.reasoningText());
+                    thinkingSplitter.reasoningText(),
+                    finishReason(response));
         }
         if (emittedText.length() == 0 && bufferedVisibleText.length() > 0) {
             // 确认本轮不是工具调用后，再把流式可见文本作为用户可见答复发出。
@@ -1032,7 +1304,8 @@ public class SolonAiLlmGateway implements LlmGateway {
                 assistantMessage,
                 StrUtil.blankToDefault(finalText, rawResponse),
                 true,
-                thinkingSplitter.reasoningText());
+                thinkingSplitter.reasoningText(),
+                finishReason(response));
     }
 
     /**
@@ -1741,8 +2014,7 @@ public class SolonAiLlmGateway implements LlmGateway {
                     && trace != null
                     && trace.getSession() != null
                     && !trace.getSession().isPending()) {
-                dangerousCommandApprovalService.clearWorkspaceToolCallApprovals(
-                        trace.getSession());
+                dangerousCommandApprovalService.clearWorkspaceToolCallApprovals(trace.getSession());
             }
         }
     }
@@ -2024,6 +2296,7 @@ public class SolonAiLlmGateway implements LlmGateway {
      * @param streamed 是否走过流式模型响应。
      * @param runContext 运行上下文。
      * @param reasoningText 流式解析出的推理文本。
+     * @param finishReason 标准化后的模型结束原因。
      * @return 返回结果。
      */
     private LlmResult ownedLoopResult(
@@ -2036,7 +2309,8 @@ public class SolonAiLlmGateway implements LlmGateway {
             boolean pending,
             boolean streamed,
             AgentRunContext runContext,
-            String reasoningText)
+            String reasoningText,
+            String finishReason)
             throws Exception {
         restoreInjectedUserMessage(agentSession, runContext);
         LlmResult result = new LlmResult();
@@ -2044,6 +2318,7 @@ public class SolonAiLlmGateway implements LlmGateway {
         result.setNdjson(ChatMessage.toNdjson(agentSession.getMessages()));
         result.setStreamed(streamed);
         result.setRawResponse(rawResponse);
+        result.setFinishReason(finishReason);
         result.setReasoningText(
                 StrUtil.blankToDefault(reasoningText, extractReasoning(assistantMessage)));
         result.setProvider(resolved.getProvider());
@@ -2393,14 +2668,21 @@ public class SolonAiLlmGateway implements LlmGateway {
                 MemoryContextBoundary.scrubVisibleText(ThinkingStreamSplitter.visibleText(value)));
     }
 
-    /** 使用 Solon AI 的公开 ChatChoice 接口记录被截断或内容过滤的完成状态。 */
-    private void logIncompleteFinishReason(ChatResponse response) {
+    /** 从公开选择项或默认响应聚合状态中提取标准化结束原因。 */
+    private String finishReason(ChatResponse response) {
         ChatChoice choice = response == null ? null : response.lastChoice();
-        if (choice == null) {
-            return;
+        String value = choice == null ? "" : choice.getFinishReason();
+        if (StrUtil.isBlank(value) && response instanceof ChatResponseDefault) {
+            value = ((ChatResponseDefault) response).getLastFinishReasonNormalized();
         }
-        String finishReason =
-                StrUtil.nullToEmpty(choice.getFinishReason()).trim().toLowerCase(Locale.ROOT);
+        return StrUtil.nullToEmpty(ChatResponseDefault.normalizeFinishReason(value))
+                .trim()
+                .toLowerCase(Locale.ROOT);
+    }
+
+    /** 记录被截断或内容过滤的完成状态。 */
+    private void logIncompleteFinishReason(ChatResponse response) {
+        String finishReason = finishReason(response);
         if ("length".equals(finishReason) || "content_filter".equals(finishReason)) {
             log.warn(
                     "LLM response ended with incomplete finish reason: finishReason={}",
@@ -3380,6 +3662,9 @@ public class SolonAiLlmGateway implements LlmGateway {
         /** 流式解析出的推理文本。 */
         private final String reasoningText;
 
+        /** 标准化后的模型结束原因。 */
+        private final String finishReason;
+
         /**
          * 创建自有Loop模型响应。
          *
@@ -3388,18 +3673,52 @@ public class SolonAiLlmGateway implements LlmGateway {
          * @param rawResponse 原始响应文本。
          * @param streamed 是否流式。
          * @param reasoningText 推理文本。
+         * @param finishReason 标准化后的模型结束原因。
          */
         private OwnedModelResponse(
                 ChatResponse response,
                 AssistantMessage assistantMessage,
                 String rawResponse,
                 boolean streamed,
-                String reasoningText) {
+                String reasoningText,
+                String finishReason) {
             this.response = response;
             this.assistantMessage = assistantMessage;
             this.rawResponse = StrUtil.nullToEmpty(rawResponse);
             this.streamed = streamed;
             this.reasoningText = reasoningText;
+            this.finishReason = StrUtil.nullToEmpty(finishReason);
+        }
+    }
+
+    /** 续写请求的 assistant 增量缓冲器，确认无重复后再交给真实展示层。 */
+    private static class BufferedAssistantEventSink implements ConversationEventSink {
+        /** 真实事件接收器。 */
+        private final ConversationEventSink delegate;
+
+        /** 当前续写请求接收到的原始 assistant 增量。 */
+        private final StringBuilder assistantText = new StringBuilder();
+
+        /** 创建续写增量缓冲器。 */
+        private BufferedAssistantEventSink(ConversationEventSink delegate) {
+            this.delegate = delegate == null ? ConversationEventSink.noop() : delegate;
+        }
+
+        /** 暂存 assistant 增量，避免提供方重复开头直接进入用户界面。 */
+        @Override
+        public void onAssistantDelta(String delta) {
+            assistantText.append(StrUtil.nullToEmpty(delta));
+        }
+
+        /** reasoning 不参与正文去重，仍实时转发到独立思考区域。 */
+        @Override
+        public void onReasoningDelta(String delta) {
+            delegate.onReasoningDelta(delta);
+        }
+
+        /** 返回当前续写请求累计的 assistant 原始增量。 */
+        private String assistantText() {
+            return assistantText.toString();
         }
     }
 

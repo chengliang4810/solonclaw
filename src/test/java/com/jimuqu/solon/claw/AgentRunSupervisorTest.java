@@ -22,6 +22,7 @@ import com.jimuqu.solon.claw.core.model.RunBusyDecision;
 import com.jimuqu.solon.claw.core.model.RunRecoveryRecord;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
 import com.jimuqu.solon.claw.core.model.SubagentRunRecord;
+import com.jimuqu.solon.claw.core.model.ToolCallRecord;
 import com.jimuqu.solon.claw.core.repository.AgentRunRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.ContextBudgetService;
@@ -39,6 +40,10 @@ import com.jimuqu.solon.claw.support.BlockingLlmGateway;
 import com.jimuqu.solon.claw.support.LlmProviderService;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import java.io.File;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,10 +53,14 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.noear.solon.ai.chat.message.AssistantMessage;
 import org.noear.solon.ai.chat.message.ChatMessage;
+import org.noear.solon.ai.chat.message.ToolMessage;
+import org.noear.solon.ai.chat.tool.ToolCall;
 import org.slf4j.LoggerFactory;
 
 public class AgentRunSupervisorTest {
@@ -175,6 +184,121 @@ public class AgentRunSupervisorTest {
                         "fallback",
                         "attempt.success",
                         "run.success");
+    }
+
+    /** 内容过滤必须回滚候选历史和已发送分片，并立即切换备用模型。 */
+    @Test
+    void shouldRollbackContentFilteredCandidateBeforeFallback() throws Exception {
+        Fixture fixture = fixture();
+        ContentFilterFallbackGateway gateway = new ContentFilterFallbackGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session = fixture.sessionRepository.bindNewSession("MEMORY:filtered:user");
+        session.setNdjson(
+                ChatMessage.toNdjson(Collections.singletonList(ChatMessage.ofUser("历史消息"))));
+        fixture.sessionRepository.save(session);
+        String previousNdjson = session.getNdjson();
+        ResetRecordingEventSink eventSink = new ResetRecordingEventSink();
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "请回答",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        eventSink,
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        assertThat(gateway.attempts)
+                .containsExactly("primary:gpt-5-mini", "backup:claude-sonnet-4");
+        assertThat(gateway.backupNdjson).isEqualTo(previousNdjson);
+        assertThat(eventSink.resetReasons).containsExactly("content_filter");
+        assertThat(eventSink.visibleText.toString()).isEqualTo("备用模型完整答复");
+        assertThat(outcome.getFinalReply()).isEqualTo("备用模型完整答复");
+        assertThat(outcome.getResult().getNdjson()).doesNotContain("主模型过滤前分片");
+    }
+
+    /** 主模型执行工具后再被过滤时，备用模型只能看到一次工具事实且不能看到其后的不完整尾巴。 */
+    @Test
+    void shouldKeepSingleToolSnapshotWhenContentFilterFallsBack() throws Exception {
+        Fixture fixture = fixture();
+        ContentFilterAfterToolGateway gateway = new ContentFilterAfterToolGateway();
+        AgentRunSupervisor supervisor =
+                supervisor(fixture, gateway, noCompressionBudget(), noCompressionService());
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:filtered-tool:user");
+        session.setNdjson(
+                ChatMessage.toNdjson(Collections.singletonList(ChatMessage.ofUser("历史消息"))));
+        fixture.sessionRepository.save(session);
+
+        AgentRunOutcome outcome =
+                supervisor.run(
+                        session,
+                        "system",
+                        "执行一次工具",
+                        Collections.emptyList(),
+                        ConversationFeedbackSink.noop(),
+                        ConversationEventSink.noop(),
+                        false,
+                        null,
+                        Collections.emptyList(),
+                        null);
+
+        List<ChatMessage> backupMessages = MessageSupport.loadMessages(gateway.backupNdjson);
+        assertThat(gateway.toolEffects).hasValue(1);
+        assertThat(gateway.resumeFlags).containsExactly(false, true);
+        assertThat(backupMessages.get(backupMessages.size() - 1).getRole())
+                .isEqualTo(org.noear.solon.ai.chat.ChatRole.TOOL);
+        assertThat(backupMessages)
+                .filteredOn(message -> message.getRole() == org.noear.solon.ai.chat.ChatRole.TOOL)
+                .hasSize(1);
+        assertThat(gateway.backupNdjson).doesNotContain("不完整尾巴", "内部续写提示");
+        assertThat(outcome.getFinalReply()).isEqualTo("备用模型基于工具事实完成");
+    }
+
+    /** 没有可用备用模型时，内容过滤必须以明确原因失败。 */
+    @Test
+    void shouldFailClearlyWhenContentFilterHasNoFallback() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getFallbackProviders().clear();
+        Files.write(
+                new File(fixture.config.getRuntime().getConfigFile()).toPath(),
+                Collections.singletonList(
+                        "providers:\n"
+                                + "  primary:\n"
+                                + "    baseUrl: https://api.openai.com\n"
+                                + "    apiKey: primary-key\n"
+                                + "    defaultModel: gpt-5-mini\n"
+                                + "    dialect: openai-responses\n"
+                                + "model:\n"
+                                + "  providerKey: primary\n"));
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new ContentFilterFallbackGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        SessionRecord session =
+                fixture.sessionRepository.bindNewSession("MEMORY:filtered-only:user");
+
+        assertThatThrownBy(
+                        () ->
+                                supervisor.run(
+                                        session,
+                                        "system",
+                                        "请回答",
+                                        Collections.emptyList(),
+                                        ConversationFeedbackSink.noop(),
+                                        new ResetRecordingEventSink(),
+                                        false,
+                                        null,
+                                        Collections.emptyList(),
+                                        null))
+                .hasMessageContaining("模型响应被内容安全策略过滤");
     }
 
     /** fallback 切换后预算与压缩都必须使用候选模型窗口，且不能回写共享配置。 */
@@ -989,6 +1113,145 @@ public class AgentRunSupervisorTest {
                 .isNull();
     }
 
+    /** 旧 run 结束与排队落库并发时必须完成原子交接，不能留下无人唤醒的 queued 消息。 */
+    @Test
+    void shouldDrainMessageQueuedWhilePreviousRunFinishes() throws Exception {
+        Fixture fixture = fixture();
+        fixture.config.getTask().setBusyPolicy("queue");
+        CountDownLatch saveEntered = new CountDownLatch(1);
+        CountDownLatch allowSave = new CountDownLatch(1);
+        AtomicBoolean blockFirstSave = new AtomicBoolean(true);
+        fixture.agentRunRepository =
+                repositoryProxy(
+                        fixture.agentRunRepository,
+                        (delegate, method, args) -> {
+                            if ("saveQueuedMessage".equals(method.getName())
+                                    && blockFirstSave.compareAndSet(true, false)) {
+                                saveEntered.countDown();
+                                if (!allowSave.await(2, TimeUnit.SECONDS)) {
+                                    throw new IllegalStateException("queue save was not released");
+                                }
+                            }
+                            return invokeRepository(delegate, method, args);
+                        });
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        String sourceKey = "MEMORY:queue-handoff:user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        GatewayMessage first =
+                new GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "queue-handoff",
+                        "user",
+                        "first");
+        GatewayMessage second =
+                new GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "queue-handoff",
+                        "user",
+                        "second");
+        assertThat(
+                        supervisor
+                                .coordinateIncoming(sourceKey, session.getSessionId(), first)
+                                .isShouldRunNow())
+                .isTrue();
+        CountDownLatch drained = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+
+        try {
+            Future<RunBusyDecision> queued =
+                    executor.submit(
+                            () ->
+                                    supervisor.coordinateIncoming(
+                                            sourceKey, session.getSessionId(), second));
+            assertThat(saveEntered.await(2, TimeUnit.SECONDS)).isTrue();
+            assertThat(supervisor.releaseIncomingReservation(sourceKey)).isTrue();
+            Future<?> finished =
+                    executor.submit(
+                            () ->
+                                    supervisor.onRunFinished(
+                                            sourceKey,
+                                            session.getSessionId(),
+                                            message -> {
+                                                drained.countDown();
+                                                return GatewayReply.ok("done");
+                                            }));
+            allowSave.countDown();
+
+            assertThat(queued.get(2, TimeUnit.SECONDS).isQueued()).isTrue();
+            finished.get(2, TimeUnit.SECONDS);
+            assertThat(drained.await(2, TimeUnit.SECONDS)).isTrue();
+            Thread.sleep(100L);
+            assertThat(
+                            fixture.agentRunRepository.findNextQueuedMessage(
+                                    sourceKey, session.getSessionId()))
+                    .isNull();
+        } finally {
+            allowSave.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    /** 首次 queued 查询异常时仍应启动一次 drain，并在仓储恢复后消费消息。 */
+    @Test
+    void shouldDrainQueueWhenInitialLookupFailsOnce() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor seeder =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        String sourceKey = "MEMORY:queue-fail-open:user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        seeder.queueIncoming(
+                sourceKey,
+                session.getSessionId(),
+                new GatewayMessage(
+                        com.jimuqu.solon.claw.core.enums.PlatformType.MEMORY,
+                        "queue-fail-open",
+                        "user",
+                        "queued"));
+        AtomicBoolean failFirstLookup = new AtomicBoolean(true);
+        fixture.agentRunRepository =
+                repositoryProxy(
+                        fixture.agentRunRepository,
+                        (delegate, method, args) -> {
+                            if ("findNextQueuedMessage".equals(method.getName())
+                                    && failFirstLookup.compareAndSet(true, false)) {
+                                throw new IllegalStateException("temporary queued lookup failure");
+                            }
+                            return invokeRepository(delegate, method, args);
+                        });
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        CountDownLatch drained = new CountDownLatch(1);
+
+        supervisor.onRunFinished(
+                sourceKey,
+                session.getSessionId(),
+                message -> {
+                    drained.countDown();
+                    return GatewayReply.ok("done");
+                });
+
+        assertThat(drained.await(2, TimeUnit.SECONDS)).isTrue();
+        Thread.sleep(100L);
+        assertThat(failFirstLookup).isFalse();
+        assertThat(
+                        fixture.agentRunRepository.findNextQueuedMessage(
+                                sourceKey, session.getSessionId()))
+                .isNull();
+    }
+
     /** stale 恢复只把 conversation/resume 的精确会话标为可续跑，排除 queued 与审批态。 */
     @Test
     void shouldMarkOnlyRunnableStaleSessionsPending() throws Exception {
@@ -1044,6 +1307,171 @@ public class AgentRunSupervisorTest {
                                                 sessions.get(3).getSessionId()))
                                 .isPending())
                 .isFalse();
+    }
+
+    /** stale 副作用调用必须使用原始模型 call ID 闭合为未知结果，只读悬空调用继续清理。 */
+    @Test
+    void shouldRecoverUnknownSideEffectWithOriginalToolCallId() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        String sourceKey = "MEMORY:stale-tool-effect:user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        List<ToolCall> calls = new ArrayList<ToolCall>();
+        calls.add(
+                new ToolCall(
+                        "0",
+                        "model-read-call",
+                        "file_read",
+                        "{}",
+                        Collections.<String, Object>emptyMap()));
+        calls.add(
+                new ToolCall(
+                        "1",
+                        "model-write-call-1",
+                        "file_write",
+                        "{}",
+                        Collections.<String, Object>emptyMap()));
+        calls.add(
+                new ToolCall(
+                        "2",
+                        "model-write-call-2",
+                        "file_write",
+                        "{}",
+                        Collections.<String, Object>emptyMap()));
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Arrays.asList(
+                                ChatMessage.ofUser("执行工具"),
+                                new AssistantMessage("", false, null, null, calls, null))));
+        fixture.sessionRepository.save(session);
+
+        long staleAt = System.currentTimeMillis() - 120_000L;
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("stale-side-effect-run");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey(sourceKey);
+        run.setRunKind("conversation");
+        run.setStatus("running");
+        run.setStartedAt(staleAt);
+        run.setLastActivityAt(staleAt);
+        fixture.agentRunRepository.saveRun(run);
+        fixture.agentRunRepository.saveToolCall(
+                toolAudit("audit-read-id", run, "file_read", "running", false, staleAt + 1L));
+        fixture.agentRunRepository.saveToolCall(
+                toolAudit("audit-write-id", run, "file_write", "interrupted", true, staleAt + 2L));
+
+        supervisor.recoverStaleRuns(60_000L);
+
+        SessionRecord reloaded = fixture.sessionRepository.findById(session.getSessionId());
+        SqliteAgentSession recovered = new SqliteAgentSession(reloaded);
+        assertThat(recovered.getPendingReason()).isEqualTo("restart_interrupted");
+        assertThat(recovered.getMessages())
+                .extracting(ChatMessage::getRole)
+                .containsExactly(
+                        org.noear.solon.ai.chat.ChatRole.USER,
+                        org.noear.solon.ai.chat.ChatRole.ASSISTANT,
+                        org.noear.solon.ai.chat.ChatRole.TOOL);
+        AssistantMessage assistant = (AssistantMessage) recovered.getMessages().get(1);
+        assertThat(assistant.getToolCalls())
+                .extracting(ToolCall::getId)
+                .containsExactly("model-write-call-1");
+        ToolMessage result = (ToolMessage) recovered.getMessages().get(2);
+        assertThat(result.getToolCallId()).isEqualTo("model-write-call-1");
+        assertThat(result.getMetadata()).containsEntry("effect_disposition", "unknown");
+        assertThat(result.getContent()).contains("副作用工具可能已在服务中断前执行", "重试前请先检查当前状态");
+        assertThat(reloaded.getNdjson())
+                .doesNotContain("audit-write-id", "model-read-call", "model-write-call-2");
+    }
+
+    /** stale 只读调用没有副作用事实需要保留，恢复时应继续删除悬空 assistant tool_call。 */
+    @Test
+    void shouldDropReadOnlyStaleToolCall() throws Exception {
+        Fixture fixture = fixture();
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+        String sourceKey = "MEMORY:stale-read-only:user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        java.util.Arrays.asList(
+                                ChatMessage.ofUser("读取文件"),
+                                assistantWithToolCall("model-read-only-call", "file_read"))));
+        fixture.sessionRepository.save(session);
+
+        long staleAt = System.currentTimeMillis() - 120_000L;
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("stale-read-only-run");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey(sourceKey);
+        run.setRunKind("conversation");
+        run.setStatus("running");
+        run.setStartedAt(staleAt);
+        run.setLastActivityAt(staleAt);
+        fixture.agentRunRepository.saveRun(run);
+        fixture.agentRunRepository.saveToolCall(
+                toolAudit("audit-read-only-id", run, "file_read", "running", false, staleAt + 1L));
+
+        supervisor.recoverStaleRuns(60_000L);
+
+        SessionRecord reloaded = fixture.sessionRepository.findById(session.getSessionId());
+        SqliteAgentSession recovered = new SqliteAgentSession(reloaded);
+        assertThat(recovered.getPendingReason()).isEqualTo("restart_interrupted");
+        assertThat(recovered.getMessages())
+                .extracting(ChatMessage::getRole)
+                .containsExactly(org.noear.solon.ai.chat.ChatRole.USER);
+        assertThat(reloaded.getNdjson()).doesNotContain("model-read-only-call");
+    }
+
+    /** 工具审计读取异常只能降级未知事实恢复，不能阻止原有 stale 会话进入 pending。 */
+    @Test
+    void shouldMarkStaleSessionPendingWhenToolAuditReadFails() throws Exception {
+        Fixture fixture = fixture();
+        String sourceKey = "MEMORY:stale-audit-failure:user";
+        SessionRecord session = fixture.sessionRepository.bindNewSession(sourceKey);
+        session.setNdjson(
+                MessageSupport.toNdjson(Collections.singletonList(ChatMessage.ofUser("继续任务"))));
+        fixture.sessionRepository.save(session);
+
+        long staleAt = System.currentTimeMillis() - 120_000L;
+        AgentRunRecord run = new AgentRunRecord();
+        run.setRunId("stale-audit-failure-run");
+        run.setSessionId(session.getSessionId());
+        run.setSourceKey(sourceKey);
+        run.setRunKind("conversation");
+        run.setStatus("running");
+        run.setStartedAt(staleAt);
+        run.setLastActivityAt(staleAt);
+        fixture.agentRunRepository.saveRun(run);
+        fixture.agentRunRepository =
+                repositoryProxy(
+                        fixture.agentRunRepository,
+                        (delegate, method, args) -> {
+                            if ("listToolCalls".equals(method.getName())) {
+                                throw new IllegalStateException("tool audit unavailable");
+                            }
+                            return invokeRepository(delegate, method, args);
+                        });
+        AgentRunSupervisor supervisor =
+                supervisor(
+                        fixture,
+                        new RecordingGateway(),
+                        noCompressionBudget(),
+                        noCompressionService());
+
+        supervisor.recoverStaleRuns(60_000L);
+
+        SqliteAgentSession recovered =
+                new SqliteAgentSession(fixture.sessionRepository.findById(session.getSessionId()));
+        assertThat(recovered.getPendingReason()).isEqualTo("restart_interrupted");
     }
 
     /** stale 恢复必须持续处理后续批次，不能把第 201 条以后永久留在活动态。 */
@@ -1264,6 +1692,67 @@ public class AgentRunSupervisorTest {
                 new LlmProviderService(fixture.config));
     }
 
+    /**
+     * 创建可按方法注入并发或异常行为的仓储代理，其余调用保持真实 SQLite 语义。
+     *
+     * @param delegate 真实仓储实现。
+     * @param handler 指定方法的测试处理器。
+     * @return 返回测试代理。
+     */
+    private static AgentRunRepository repositoryProxy(
+            AgentRunRepository delegate, RepositoryInvocation handler) {
+        return (AgentRunRepository)
+                Proxy.newProxyInstance(
+                        AgentRunRepository.class.getClassLoader(),
+                        new Class<?>[] {AgentRunRepository.class},
+                        new InvocationHandler() {
+                            /**
+                             * 将仓储调用交给测试处理器，并保留真实异常类型。
+                             *
+                             * @param proxy 当前代理实例。
+                             * @param method 被调用的方法。
+                             * @param args 调用参数。
+                             * @return 返回处理后的仓储结果。
+                             */
+                            @Override
+                            public Object invoke(Object proxy, Method method, Object[] args)
+                                    throws Throwable {
+                                return handler.invoke(delegate, method, args);
+                            }
+                        });
+    }
+
+    /**
+     * 调用真实仓储并展开反射包装异常，避免测试代理改变生产异常分支。
+     *
+     * @param delegate 真实仓储实现。
+     * @param method 被调用的方法。
+     * @param args 调用参数。
+     * @return 返回真实仓储结果。
+     */
+    private static Object invokeRepository(
+            AgentRunRepository delegate, Method method, Object[] args) throws Throwable {
+        try {
+            return method.invoke(delegate, args);
+        } catch (InvocationTargetException e) {
+            throw e.getCause();
+        }
+    }
+
+    /** 定义仓储测试代理的最小调用边界。 */
+    @FunctionalInterface
+    private interface RepositoryInvocation {
+        /**
+         * 处理一次仓储调用。
+         *
+         * @param delegate 真实仓储实现。
+         * @param method 被调用的方法。
+         * @param args 调用参数。
+         * @return 返回处理后的结果。
+         */
+        Object invoke(AgentRunRepository delegate, Method method, Object[] args) throws Throwable;
+    }
+
     private static Fixture fixture() throws Exception {
         AppConfig config = new AppConfig();
         File workspaceHome = Files.createTempDirectory("solonclaw-supervisor").toFile();
@@ -1396,6 +1885,44 @@ public class AgentRunSupervisorTest {
         return result;
     }
 
+    /** 构造带完整工具调用的 assistant 消息。 */
+    private static AssistantMessage assistantWithToolCall(String callId, String toolName) {
+        return new AssistantMessage(
+                "",
+                false,
+                null,
+                null,
+                Collections.singletonList(
+                        new ToolCall(
+                                "0",
+                                callId,
+                                toolName,
+                                "{}",
+                                Collections.<String, Object>emptyMap())),
+                null);
+    }
+
+    /** 构造 stale 恢复测试使用的工具审计记录。 */
+    private static ToolCallRecord toolAudit(
+            String auditId,
+            AgentRunRecord run,
+            String toolName,
+            String status,
+            boolean sideEffecting,
+            long startedAt) {
+        ToolCallRecord audit = new ToolCallRecord();
+        audit.setToolCallId(auditId);
+        audit.setRunId(run.getRunId());
+        audit.setSessionId(run.getSessionId());
+        audit.setSourceKey(run.getSourceKey());
+        audit.setToolName(toolName);
+        audit.setStatus(status);
+        audit.setSideEffecting(sideEffecting);
+        audit.setReadOnly(!sideEffecting);
+        audit.setStartedAt(startedAt);
+        return audit;
+    }
+
     private static class Fixture {
         private AppConfig config;
         private SessionRepository sessionRepository;
@@ -1439,6 +1966,117 @@ public class AgentRunSupervisorTest {
                 throw new IllegalStateException("HTTP 401 unauthorized");
             }
             return resolvedResult(session, resolved, "backup ok");
+        }
+    }
+
+    /** 模拟主模型返回内容过滤、备用模型从回滚历史重新生成的网关。 */
+    private static class ContentFilterFallbackGateway extends ExecuteOnceOnlyGateway {
+        /** 记录候选执行顺序。 */
+        private final List<String> attempts = new ArrayList<String>();
+
+        /** 记录备用模型收到的会话历史。 */
+        private String backupNdjson;
+
+        /** 返回内容过滤结果或备用模型完整答复。 */
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext)
+                throws Exception {
+            attempts.add(resolved.getProvider() + ":" + resolved.getModel());
+            if ("primary".equals(resolved.getProvider())) {
+                List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+                messages.add(ChatMessage.ofAssistant("主模型过滤前分片"));
+                session.setNdjson(ChatMessage.toNdjson(messages));
+                eventSink.onAssistantDelta("主模型过滤前分片");
+                LlmResult result = resolvedResult(session, resolved, "主模型过滤前分片");
+                result.setFinishReason("content_filter");
+                return result;
+            }
+            backupNdjson = session.getNdjson();
+            List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+            messages.add(ChatMessage.ofAssistant("备用模型完整答复"));
+            eventSink.onAssistantDelta("备用模型完整答复");
+            LlmResult result = resolvedResult(session, resolved, "备用模型完整答复");
+            result.setNdjson(ChatMessage.toNdjson(messages));
+            result.setFinishReason("stop");
+            return result;
+        }
+    }
+
+    /** 模拟一次工具副作用完成后主模型返回内容过滤。 */
+    private static class ContentFilterAfterToolGateway extends ExecuteOnceOnlyGateway {
+        /** 记录外部副作用次数。 */
+        private final AtomicInteger toolEffects = new AtomicInteger();
+
+        /** 记录各候选是否从安全快照继续。 */
+        private final List<Boolean> resumeFlags = new ArrayList<Boolean>();
+
+        /** 记录备用模型实际收到的安全历史。 */
+        private String backupNdjson;
+
+        /** 主模型写入完整工具事实和不完整尾巴，备用模型据安全快照完成。 */
+        @Override
+        public LlmResult executeOnce(
+                SessionRecord session,
+                String systemPrompt,
+                String userMessage,
+                List<Object> toolObjects,
+                ConversationFeedbackSink feedbackSink,
+                ConversationEventSink eventSink,
+                boolean resume,
+                AppConfig.LlmConfig resolved,
+                com.jimuqu.solon.claw.core.model.AgentRunContext runContext)
+                throws Exception {
+            resumeFlags.add(Boolean.valueOf(resume));
+            if ("primary".equals(resolved.getProvider())) {
+                toolEffects.incrementAndGet();
+                List<ChatMessage> messages = MessageSupport.loadMessages(session.getNdjson());
+                messages.add(assistantWithToolCall("call_once", "write_file"));
+                messages.add(ChatMessage.ofTool("created", "write_file", "call_once"));
+                messages.add(ChatMessage.ofAssistant("主模型不完整尾巴"));
+                messages.add(ChatMessage.ofUser("内部续写提示"));
+                session.setNdjson(ChatMessage.toNdjson(messages));
+                LlmResult result = resolvedResult(session, resolved, "主模型不完整尾巴");
+                result.setFinishReason("content_filter");
+                return result;
+            }
+            backupNdjson = session.getNdjson();
+            List<ChatMessage> messages = MessageSupport.loadMessages(backupNdjson);
+            messages.add(ChatMessage.ofAssistant("备用模型基于工具事实完成"));
+            LlmResult result = resolvedResult(session, resolved, "备用模型基于工具事实完成");
+            result.setNdjson(ChatMessage.toNdjson(messages));
+            result.setFinishReason("stop");
+            return result;
+        }
+    }
+
+    /** 记录正文撤销后的最终可见输出。 */
+    private static class ResetRecordingEventSink implements ConversationEventSink {
+        /** 当前用户可见的 assistant 文本。 */
+        private final StringBuilder visibleText = new StringBuilder();
+
+        /** 已收到的撤销原因。 */
+        private final List<String> resetReasons = new ArrayList<String>();
+
+        /** 累计候选模型发送的正文。 */
+        @Override
+        public void onAssistantDelta(String delta) {
+            visibleText.append(delta);
+        }
+
+        /** 撤销当前候选正文。 */
+        @Override
+        public void onAssistantReset(String reason) {
+            visibleText.setLength(0);
+            resetReasons.add(reason);
         }
     }
 

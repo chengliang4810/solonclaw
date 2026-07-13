@@ -90,21 +90,28 @@ class ToolContractParityTest {
         System.setProperty("solonclaw.profile.name", "default");
         try {
             String tildePath = "~/.solonclaw/profiles/work/skills/note.txt";
+            SecurityPolicyService policy = new SecurityPolicyService(new AppConfig());
             SolonClawFileReadWriteSkill fileTools =
-                    new SolonClawFileReadWriteSkill(profileRoot.toString(), null);
+                    new SolonClawFileReadWriteSkill(profileRoot.toString(), policy);
 
             ONode blockedWrite = ONode.ofJson(fileTools.writeFile(tildePath, "before", null));
             assertThat(blockedWrite.get("status").getString()).isEqualTo("error");
             assertThat(blockedWrite.get("error").getString()).contains("cross_profile=true");
             assertThat(target).doesNotExist();
 
+            assertThatThrownBy(() -> fileTools.writeFile(tildePath, "before", Boolean.TRUE))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("APPROVAL_REQUIRED");
+            SecurityPolicyService.approveFilePolicyForCurrentThread(
+                    "workspace_outside_write", tildePath);
             ONode allowedWrite =
                     ONode.ofJson(fileTools.writeFile(tildePath, "before", Boolean.TRUE));
             assertThat(allowedWrite.get("status").getString()).isEqualTo("success");
             assertThat(new String(Files.readAllBytes(target), StandardCharsets.UTF_8))
                     .isEqualTo("before");
 
-            SolonClawPatchTools patchTools = new SolonClawPatchTools(profileRoot.toString());
+            SolonClawPatchTools patchTools =
+                    new SolonClawPatchTools(profileRoot.toString(), policy);
             ONode blockedPatch =
                     ONode.ofJson(
                             patchTools.patch(
@@ -118,6 +125,21 @@ class ToolContractParityTest {
             assertThat(blockedPatch.get("status").getString()).isEqualTo("error");
             assertThat(blockedPatch.get("error").getString()).contains("cross_profile=true");
 
+            ONode pendingPatch =
+                    ONode.ofJson(
+                            patchTools.patch(
+                                    "replace",
+                                    tildePath,
+                                    "before",
+                                    "after",
+                                    Boolean.FALSE,
+                                    null,
+                                    Boolean.TRUE));
+            assertThat(pendingPatch.get("status").getString()).isEqualTo("error");
+            assertThat(pendingPatch.get("error").getString()).contains("APPROVAL_REQUIRED");
+
+            SecurityPolicyService.approveFilePolicyForCurrentThread(
+                    "workspace_outside_write", tildePath);
             ONode allowedPatch =
                     ONode.ofJson(
                             patchTools.patch(
@@ -132,6 +154,7 @@ class ToolContractParityTest {
             assertThat(new String(Files.readAllBytes(target), StandardCharsets.UTF_8))
                     .isEqualTo("after");
         } finally {
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
             restoreProperty("user.home", previousHome);
             restoreProperty("solonclaw.profile.root", previousRoot);
             restoreProperty("solonclaw.profile.name", previousProfile);
@@ -165,6 +188,8 @@ class ToolContractParityTest {
             String safePath = "~/.solonclaw/profiles/work/skills/note.txt";
             String credentialPath = "~/.solonclaw/profiles/work/skills/credentials.json";
 
+            SecurityPolicyService.approveFilePolicyForCurrentThread(
+                    "workspace_outside_write", safePath);
             ONode safeWrite = ONode.ofJson(fileTools.writeFile(safePath, "allowed", Boolean.TRUE));
             assertThat(safeWrite.get("status").getString()).isEqualTo("success");
             assertThat(new String(Files.readAllBytes(safeTarget), StandardCharsets.UTF_8))
@@ -195,6 +220,7 @@ class ToolContractParityTest {
                     .contains("before")
                     .doesNotContain("after");
         } finally {
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
             restoreProperty("user.home", previousHome);
             restoreProperty("solonclaw.profile.root", previousRoot);
             restoreProperty("solonclaw.profile.name", previousProfile);

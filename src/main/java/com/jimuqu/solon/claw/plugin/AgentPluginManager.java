@@ -201,7 +201,8 @@ public class AgentPluginManager {
                                     "not_enabled",
                                     "Plugin is not enabled: " + manifest.getName()));
                     log.debug(
-                            "Plugin '{}' is standalone and not enabled, skipping", manifest.getName());
+                            "Plugin '{}' is standalone and not enabled, skipping",
+                            manifest.getName());
                     continue;
                 }
                 String missingEnv = firstMissingEnv(manifest);
@@ -305,7 +306,8 @@ public class AgentPluginManager {
         } catch (java.nio.file.FileSystemNotFoundException ignored) {
             try {
                 return new BundledArchiveLease(
-                        FileSystems.newFileSystem(archiveUri, Collections.<String, Object>emptyMap()),
+                        FileSystems.newFileSystem(
+                                archiveUri, Collections.<String, Object>emptyMap()),
                         true);
             } catch (java.nio.file.FileSystemAlreadyExistsException raced) {
                 return new BundledArchiveLease(FileSystems.getFileSystem(archiveUri), false);

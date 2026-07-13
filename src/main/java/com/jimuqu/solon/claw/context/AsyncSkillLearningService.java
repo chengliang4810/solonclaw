@@ -1,7 +1,6 @@
 package com.jimuqu.solon.claw.context;
 
 import cn.hutool.core.util.StrUtil;
-
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayMessage;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
@@ -24,14 +23,6 @@ import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.TimeSupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
 import com.jimuqu.solon.claw.support.constants.MemoryConstants;
-
-import lombok.RequiredArgsConstructor;
-
-import org.noear.solon.ai.chat.message.AssistantMessage;
-import org.noear.solon.ai.chat.message.ChatMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -46,6 +37,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import lombok.RequiredArgsConstructor;
+import org.noear.solon.ai.chat.message.AssistantMessage;
+import org.noear.solon.ai.chat.message.ChatMessage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** 主回复后的异步学习闭环服务。 */
 @RequiredArgsConstructor
@@ -758,7 +754,7 @@ public class AsyncSkillLearningService implements SkillLearningService {
         } catch (Exception e) {
             log.debug(
                     "Model memory summarization failed, skipping memory-only learning:"
-                        + " sessionId={}, error={}",
+                            + " sessionId={}, error={}",
                     session == null ? null : session.getSessionId(),
                     e.toString());
             return null;
@@ -1159,9 +1155,9 @@ public class AsyncSkillLearningService implements SkillLearningService {
             PreparedStatement statement =
                     connection.prepareStatement(
                             "insert into skill_improvements (improvement_id, session_id, run_id,"
-                                + " skill_name, action, summary, changed_files_json, evidence_json,"
-                                + " needs_review, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?,"
-                                + " ?)");
+                                    + " skill_name, action, summary, changed_files_json, evidence_json,"
+                                    + " needs_review, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?,"
+                                    + " ?)");
             statement.setString(1, IdSupport.newId());
             statement.setString(2, asString(report.get("sessionId")));
             statement.setString(3, asString(report.get("runId")));

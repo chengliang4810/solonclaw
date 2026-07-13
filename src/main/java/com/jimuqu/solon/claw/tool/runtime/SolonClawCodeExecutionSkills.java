@@ -192,6 +192,9 @@ public class SolonClawCodeExecutionSkills {
         /** 记录安全执行Code中的webfetch工具。 */
         private final SolonClawWebTools.SafeWebfetchTool webfetchTool;
 
+        /** 当前 Agent 实际允许通过代码执行桥接调用的工具名。 */
+        private final List<String> allowedRpcTools;
+
         /**
          * 创建Safe执行Code工具实例，并注入运行所需依赖。
          *
@@ -225,10 +228,40 @@ public class SolonClawCodeExecutionSkills {
                 AppConfig appConfig,
                 SolonClawWebTools.SafeWebsearchTool websearchTool,
                 SolonClawWebTools.SafeWebfetchTool webfetchTool) {
+            this(
+                    workDir,
+                    pythonCommand,
+                    securityPolicyService,
+                    appConfig,
+                    websearchTool,
+                    webfetchTool,
+                    null);
+        }
+
+        /**
+         * 创建受当前 Agent 工具权限约束的代码执行工具。
+         *
+         * @param workDir 命令执行工作目录。
+         * @param pythonCommand python 命令。
+         * @param securityPolicyService 安全策略服务。
+         * @param appConfig 应用运行配置。
+         * @param websearchTool 当前注册表使用的 websearch 工具。
+         * @param webfetchTool 当前注册表使用的 webfetch 工具。
+         * @param allowedToolNames 当前 Agent 实际启用的工具名；传空保持直接构造时全部可用的既有语义。
+         */
+        SafeExecuteCodeTool(
+                String workDir,
+                String pythonCommand,
+                SecurityPolicyService securityPolicyService,
+                AppConfig appConfig,
+                SolonClawWebTools.SafeWebsearchTool websearchTool,
+                SolonClawWebTools.SafeWebfetchTool webfetchTool,
+                Iterable<String> allowedToolNames) {
             this.workDir = TerminalPathSupport.checkedWorkDir(workDir);
             this.pythonCommand = StrUtil.blankToDefault(pythonCommand, defaultPythonCommand());
             this.securityPolicyService = securityPolicyService;
             this.appConfig = appConfig;
+            this.allowedRpcTools = allowedRpcTools(allowedToolNames);
             this.fileStateTracker = new SolonClawFileStateTracker();
             this.fileSkill =
                     new SolonClawFileReadWriteSkill(
@@ -261,7 +294,7 @@ public class SolonClawCodeExecutionSkills {
         @ToolMapping(
                 name = "execute_code",
                 description =
-                        "Run a Python script and return a structured JSON result. The solonclaw_tools module exposes websearch, webfetch, file_read/read_file, file_write/write_file, search_files, patch and terminal for multi-step local processing.")
+                        "Run a Python script and return a structured JSON result. The solonclaw_tools module exposes only the bridge tools currently enabled for this Agent.")
         public String executeCode(
                 @Param(
                                 name = "code",
@@ -505,6 +538,9 @@ public class SolonClawCodeExecutionSkills {
             String source =
                     "import json, os, shlex, time\n"
                             + "\n"
+                            + "_available_tools = "
+                            + ONode.serialize(allowedRpcTools)
+                            + "\n"
                             + "_seq = 0\n"
                             + "_rpc_dir = os.environ.get('SOLONCLAW_RPC_DIR')\n"
                             + "\n"
@@ -527,6 +563,8 @@ public class SolonClawCodeExecutionSkills {
                             + "\n"
                             + "def _call(tool_name, args):\n"
                             + "    global _seq\n"
+                            + "    if tool_name not in _available_tools:\n"
+                            + "        return _unavailable(tool_name)\n"
                             + "    if not _rpc_dir:\n"
                             + "        raise RuntimeError('SOLONCLAW_RPC_DIR is not configured')\n"
                             + "    _seq += 1\n"
@@ -551,7 +589,7 @@ public class SolonClawCodeExecutionSkills {
                             + "    raise TimeoutError('Timed out waiting for ' + tool_name + ' response')\n"
                             + "\n"
                             + "def _unavailable(name):\n"
-                            + "    raise RuntimeError(name + ' is not available in solonclaw execute_code yet. Use normal tool calls instead.')\n"
+                            + "    return {'status': 'error', 'error': 'Tool ' + repr(name) + ' is not enabled for this execute_code run.'}\n"
                             + "\n"
                             + "def websearch(query, limit=5): return _call('websearch', {'query': query, 'limit': limit})\n"
                             + "def webfetch(url, format='markdown', timeout=120): return _call('webfetch', {'url': url, 'format': format, 'timeout': timeout})\n"
@@ -655,6 +693,9 @@ public class SolonClawCodeExecutionSkills {
          */
         private String dispatchRpcTool(String toolName, Map<String, Object> args) {
             try {
+                if (!allowedRpcTools.contains(toolName)) {
+                    return unavailableRpcTool(toolName);
+                }
                 ToolCallLoopGuardrailService.notifyFileReadDedupIfOtherTool(toolName);
                 if ("read_file".equals(toolName) || "file_read".equals(toolName)) {
                     return normalizeToolResult(
@@ -700,10 +741,38 @@ public class SolonClawCodeExecutionSkills {
                         errorMap(
                                 "Tool '"
                                         + toolName
-                                        + "' is not available in execute_code. Available: patch, read_file, search_files, terminal, webfetch, websearch, write_file"));
+                                        + "' is not available in execute_code. Available: "
+                                        + String.join(", ", allowedRpcTools)));
             } catch (Exception e) {
                 return rpcJson(errorMap(safeErrorText(e)));
             }
+        }
+
+        /** 返回当前 Agent 不允许调用 RPC 工具时的统一错误。 */
+        private String unavailableRpcTool(String toolName) {
+            return rpcJson(
+                    errorMap(
+                            "Tool '"
+                                    + StrUtil.nullToEmpty(toolName)
+                                    + "' is not available in execute_code. Available: "
+                                    + String.join(", ", allowedRpcTools)));
+        }
+
+        /** 只保留代码执行桥接支持且当前 Agent 已启用的工具名。 */
+        private static List<String> allowedRpcTools(Iterable<String> allowedToolNames) {
+            if (allowedToolNames == null) {
+                return EXECUTE_CODE_RPC_TOOLS;
+            }
+            List<String> allowed = new ArrayList<String>();
+            for (String toolName : EXECUTE_CODE_RPC_TOOLS) {
+                for (String candidate : allowedToolNames) {
+                    if (toolName.equalsIgnoreCase(StrUtil.trim(candidate))) {
+                        allowed.add(toolName);
+                        break;
+                    }
+                }
+            }
+            return Collections.unmodifiableList(allowed);
         }
 
         /**
@@ -897,9 +966,11 @@ public class SolonClawCodeExecutionSkills {
                                 url,
                                 getString(args, "format", "markdown"),
                                 Integer.valueOf(getInt(args, "timeout", 120)));
+                String content = doc == null ? "" : StrUtil.nullToEmpty(doc.getContent());
+                SolonClawWebTools.checkReturnedTextUrls(securityPolicyService, content);
                 result.put(
                         "title", StrUtil.blankToDefault(doc == null ? null : doc.getTitle(), url));
-                result.put("content", doc == null ? "" : StrUtil.nullToEmpty(doc.getContent()));
+                result.put("content", content);
                 result.put("error", null);
                 result.put("status", "success");
             } catch (Exception e) {

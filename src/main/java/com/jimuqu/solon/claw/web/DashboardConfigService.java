@@ -695,10 +695,7 @@ public class DashboardConfigService {
                         "boolean",
                         "security",
                         "子 Agent 自动批准危险命令"));
-        addField(new FieldDefinition("approvals.timeoutSeconds", "number", "security", "本地审批超时秒数"));
-        addField(
-                new FieldDefinition(
-                        "approvals.gatewayTimeoutSeconds", "number", "security", "渠道审批超时秒数"));
+        addField(new FieldDefinition("approvals.timeoutSeconds", "number", "security", "审批超时秒数"));
         addField(
                 new FieldDefinition(
                         "approvals.mcpReloadConfirm", "boolean", "security", "MCP reload 需要确认"));
@@ -1018,59 +1015,23 @@ public class DashboardConfigService {
         }
     }
 
-    /** 追加主动协作安全配置字段，仅暴露频率、门控和展示前缀，不开放提示词编辑。 */
+    /** 追加主动提醒配置字段；消息规则由工作区 MD 文件维护。 */
     private void addProactiveFields() {
-        addField(new FieldDefinition("proactive.enabled", "boolean", "proactive", "启用主动协作"));
+        addField(new FieldDefinition("proactive.enabled", "boolean", "proactive", "开启主动提醒"));
         addField(
                 new FieldDefinition(
-                        "proactive.intervalMinutes", "number", "proactive", "主动协作检查间隔（分钟）"));
+                        "proactive.intervalHours", "number", "proactive", "多久检查一次（小时）"));
+        addField(
+                new FieldDefinition("proactive.deliveryTarget", "select", "proactive", "发到哪里")
+                        .options("main"));
         addField(
                 new FieldDefinition(
-                        "proactive.initialDelaySeconds", "number", "proactive", "启动后首次检查延迟（秒）"));
+                        "proactive.topicCooldownHours", "number", "proactive", "同一话题间隔时间（小时）"));
         addField(
                 new FieldDefinition(
-                        "proactive.dailyMaxContacts", "number", "proactive", "每日最多主动联系次数"));
-        addField(
-                new FieldDefinition(
-                        "proactive.cooldownMinutes", "number", "proactive", "两次主动联系之间的冷却分钟数"));
-        addField(new FieldDefinition("proactive.quietStartHour", "number", "proactive", "免打扰开始小时"));
-        addField(new FieldDefinition("proactive.quietEndHour", "number", "proactive", "免打扰结束小时"));
-        addField(
-                new FieldDefinition(
-                        "proactive.minConfidenceToContact", "number", "proactive", "允许主动联系的最低置信度"));
-        addField(
-                new FieldDefinition(
-                        "proactive.llmDecisionEnabled", "boolean", "proactive", "启用大模型发送判断"));
-        addField(
-                new FieldDefinition(
-                        "proactive.llmPolishEnabled", "boolean", "proactive", "启用大模型文案润色"));
-        addField(
-                new FieldDefinition(
-                        "proactive.maxCandidatesPerTick", "number", "proactive", "每次检查最多生成候选数"));
-        addField(
-                new FieldDefinition(
-                        "proactive.maxContactsPerTick", "number", "proactive", "每次检查最多主动联系次数"));
-        addField(
-                new FieldDefinition(
-                        "proactive.repositoryCheckEnabled", "boolean", "proactive", "启用相关仓库更新观察"));
-        addField(
-                new FieldDefinition(
-                        "proactive.repositoryCheckIntervalMinutes",
-                        "number",
-                        "proactive",
-                        "同一仓库更新观察间隔（分钟）"));
-        addField(
-                new FieldDefinition(
-                        "proactive.careCheckinEnabled", "boolean", "proactive", "启用低频工作关心问候"));
-        addField(
-                new FieldDefinition(
-                        "proactive.careCheckinAfterIdleHours",
-                        "number",
-                        "proactive",
-                        "低频关心问候所需空闲小时数"));
-        addField(
-                new FieldDefinition(
-                        "proactive.deliveryPreviewPrefix", "string", "proactive", "主动协作消息前缀"));
+                        "proactive.quietHoursEnabled", "boolean", "proactive", "设置免打扰时段"));
+        addField(new FieldDefinition("proactive.quietStart", "string", "proactive", "免打扰开始"));
+        addField(new FieldDefinition("proactive.quietEnd", "string", "proactive", "免打扰结束"));
     }
 
     /**

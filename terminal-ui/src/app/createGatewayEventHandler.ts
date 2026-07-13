@@ -701,14 +701,14 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
       }
 
       case 'approval.request': {
-        const description = String(ev.payload.description ?? 'dangerous command')
+        const description = stripAnsi(String(ev.payload.description ?? 'dangerous command'))
 
         patchOverlayState({
           approval: {
             allowPermanent: ev.payload.allow_permanent !== false,
             approvalKind: ev.payload.approval_kind,
             approvalId: String(ev.payload.approval_id ?? ''),
-            command: String(ev.payload.command ?? ''),
+            command: stripAnsi(String(ev.payload.command ?? '')),
             description,
             sessionId: ev.session_id
           }
@@ -729,6 +729,16 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
           secret: { envVar: ev.payload.env_var, prompt: ev.payload.prompt, requestId: ev.payload.request_id }
         })
         setStatus('需要输入密钥')
+
+        return
+
+      case 'sudo.expire':
+        patchOverlayState(prev => (prev.sudo?.requestId === ev.payload.request_id ? { ...prev, sudo: null } : prev))
+
+        return
+
+      case 'secret.expire':
+        patchOverlayState(prev => (prev.secret?.requestId === ev.payload.request_id ? { ...prev, secret: null } : prev))
 
         return
 
@@ -855,6 +865,11 @@ export function createGatewayEventHandler(ctx: GatewayEventHandlerContext): (ev:
 
       case 'message.delta':
         turnController.recordMessageDelta(ev.payload ?? {})
+
+        return
+
+      case 'message.reset':
+        turnController.resetAssistantStream()
 
         return
 

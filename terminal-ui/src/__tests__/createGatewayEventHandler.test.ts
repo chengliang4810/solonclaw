@@ -173,8 +173,8 @@ describe('createGatewayEventHandler', () => {
         allow_permanent: false,
         approval_id: 'memory:approval-1',
         approval_kind: 'memory',
-        command: 'remember value',
-        description: 'Save to memory'
+        command: 'remember\u001B]52;c;c2VjcmV0\u0007 value\u0001',
+        description: 'Save\u001B[2J to memory'
       },
       session_id: 'session-1',
       type: 'approval.request'
@@ -185,6 +185,8 @@ describe('createGatewayEventHandler', () => {
       allowPermanent: false,
       approvalId: 'memory:approval-1',
       approvalKind: 'memory',
+      command: 'remember value',
+      description: 'Save to memory',
       sessionId: 'session-1'
     })
     expect(getUiState()).toMatchObject({ busy: true, status: '需要审批' })
@@ -195,6 +197,23 @@ describe('createGatewayEventHandler', () => {
 
     expect(getOverlayState().approval).toBeNull()
     expect(getUiState()).toMatchObject({ busy: false, status: 'ready' })
+  })
+
+  it('only clears the matching sensitive prompt when the gateway expires it', () => {
+    const onEvent = createGatewayEventHandler(buildCtx([]))
+    patchOverlayState({
+      secret: { envVar: 'NEW_KEY', prompt: '请输入密钥', requestId: 'secret-new' },
+      sudo: { requestId: 'sudo-1' }
+    })
+
+    onEvent({ payload: { request_id: 'secret-old' }, type: 'secret.expire' } as any)
+    expect(getOverlayState().secret?.requestId).toBe('secret-new')
+
+    onEvent({ payload: { request_id: 'secret-new' }, type: 'secret.expire' } as any)
+    expect(getOverlayState().secret).toBeNull()
+
+    onEvent({ payload: { request_id: 'sudo-1' }, type: 'sudo.expire' } as any)
+    expect(getOverlayState().sudo).toBeNull()
   })
 
   it('keeps goal verdict text in transcript but shows a brief idle status (#goal statusbar)', () => {
@@ -583,6 +602,22 @@ describe('createGatewayEventHandler', () => {
 
     const assistant = appended.find(msg => msg.role === 'assistant')
     expect(assistant?.text).toBe('First. second.')
+  })
+
+  it('drops the filtered candidate stream before rendering the fallback reply', () => {
+    const appended: Msg[] = []
+    const onEvent = createGatewayEventHandler(buildCtx(appended))
+
+    onEvent({ payload: { text: '主模型部分答复' }, type: 'message.delta' } as any)
+    turnController.flushStreamingSegment()
+    onEvent({ payload: { reason: 'content_filter' }, type: 'message.reset' } as any)
+    onEvent({ payload: { text: '备用模型完整答复' }, type: 'message.delta' } as any)
+    onEvent({ payload: {}, type: 'message.complete' } as any)
+
+    expect(appended.filter(msg => msg.role === 'assistant')).toEqual([
+      expect.objectContaining({ text: '备用模型完整答复' })
+    ])
+    expect(appended).not.toContainEqual(expect.objectContaining({ text: '主模型部分答复' }))
   })
 
   it('keeps streamed <think> tags out of visible message deltas', () => {

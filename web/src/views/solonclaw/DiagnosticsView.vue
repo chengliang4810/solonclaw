@@ -18,7 +18,6 @@ import {
   probeSubprocessEnvironment,
   resolveApproval,
   resolveSlashConfirm,
-  retryProactiveDelivery,
   updatePlatformToolsets,
   revokeAlwaysApproval,
   type AlwaysApproval,
@@ -36,7 +35,6 @@ import {
   type PlatformDoctor,
   type PlatformToolsetConfig,
   type PlatformToolsetsOverview,
-  type ProactiveUnknownCandidate,
   type PluginDiagnosticItem,
   type PluginStatusOverview,
   type SecurityPolicyProbe,
@@ -104,7 +102,6 @@ const subprocessEnvProbeNames = ref('OPENAI_API_KEY, PATH, SOLONCLAW_HOME')
 const resolvingKey = ref('')
 const revokingAlwaysKey = ref('')
 const resolvingConfirmKey = ref('')
-const retryingProactiveCandidate = ref('')
 const securityApprovals = computed(() => diagnostics.value?.security?.approvals || {})
 const securityPolicy = computed(() => diagnostics.value?.security?.policy || {})
 const securityTerminal = computed(() => diagnostics.value?.security?.terminal || {})
@@ -521,32 +518,17 @@ const pluginFailedCount = computed(() => pluginStatus.value?.failed_count ?? 0)
 const pluginRows = computed(() => pluginStatus.value?.plugins || [])
 const pluginDiagnostics = computed<PluginDiagnosticItem[]>(() => pluginStatus.value?.diagnostics || [])
 const proactiveDiagnostics = computed<Record<string, unknown>>(() => objectValue(diagnostics.value?.proactive))
-const proactiveUnknownCandidates = computed<ProactiveUnknownCandidate[]>(() => {
-  const value = proactiveDiagnostics.value.delivery_unknown_candidates
-  return Array.isArray(value) ? value as ProactiveUnknownCandidate[] : []
-})
 const hasProactiveDiagnostics = computed(() => Object.keys(proactiveDiagnostics.value).length > 0)
-const proactiveBlocked = computed(() =>
-  Boolean(
-    proactiveDiagnostics.value.missing_home_channel ||
-      proactiveDiagnostics.value.quiet_hours_blocked ||
-      proactiveDiagnostics.value.cooldown_blocked ||
-      proactiveDiagnostics.value.daily_cap_blocked ||
-      proactiveDiagnostics.value.delivery_failed ||
-      proactiveDiagnostics.value.delivery_unknown,
-  ),
-)
+const proactiveBlocked = computed(() => !proactiveDiagnostics.value.main_conversation_ready)
 const proactiveStatusItems = computed<SecurityMetric[]>(() => [
   { label: d('proactiveEnabled'), value: proactiveDiagnostics.value.enabled },
-  { label: d('proactiveSchedulerRan'), value: proactiveDiagnostics.value.scheduler_ran },
-  { label: d('proactiveCandidates'), value: proactiveDiagnostics.value.pending_candidate_count },
-  { label: d('proactiveHomeChannels'), value: proactiveDiagnostics.value.home_channels },
-  { label: d('proactiveMissingHomeChannel'), value: proactiveDiagnostics.value.missing_home_channel, goodWhenTrue: false },
-  { label: d('proactiveQuietHours'), value: proactiveDiagnostics.value.quiet_hours_blocked, goodWhenTrue: false },
-  { label: d('proactiveCooldown'), value: proactiveDiagnostics.value.cooldown_blocked, goodWhenTrue: false },
-  { label: d('proactiveDailyCap'), value: proactiveDiagnostics.value.daily_cap_blocked, goodWhenTrue: false },
-  { label: d('proactiveDeliveryFailed'), value: proactiveDiagnostics.value.delivery_failed, goodWhenTrue: false },
-  { label: d('proactiveDeliveryUnknown'), value: proactiveDiagnostics.value.delivery_unknown_count, countWarning: true },
+  { label: d('proactiveInterval'), value: proactiveDiagnostics.value.interval_hours },
+  { label: d('proactiveTarget'), value: proactiveDiagnostics.value.delivery_target },
+  { label: d('proactiveTopicCooldown'), value: proactiveDiagnostics.value.topic_cooldown_hours },
+  { label: d('proactiveQuietHours'), value: proactiveDiagnostics.value.quiet_hours_enabled },
+  { label: d('proactiveQuietStart'), value: proactiveDiagnostics.value.quiet_start },
+  { label: d('proactiveQuietEnd'), value: proactiveDiagnostics.value.quiet_end },
+  { label: d('proactiveMainReady'), value: proactiveDiagnostics.value.main_conversation_ready },
 ])
 const approvalStatItems = computed(() => [
   { label: d('approvalStatTotal'), value: approvalStats.value?.totalEvents ?? 0 },
@@ -777,25 +759,6 @@ async function load() {
     skillInsights.value = skillInsightData
   } finally {
     loading.value = false
-  }
-}
-
-async function retryUnknownProactive(candidate: ProactiveUnknownCandidate) {
-  if (!window.confirm(t('diagnostics.proactiveRetryConfirm', { title: candidate.title || candidate.candidate_id }))) return
-  retryingProactiveCandidate.value = candidate.candidate_id
-  try {
-    const result = await retryProactiveDelivery(candidate.candidate_id)
-    if (result.delivery_status === 'SENT') {
-      message.success(t('diagnostics.proactiveRetrySucceeded'))
-    } else {
-      message.warning(t('diagnostics.proactiveRetryStillUnknown'))
-    }
-    diagnostics.value = await fetchDiagnostics()
-  } catch (error: unknown) {
-    message.error(error instanceof Error ? error.message : t('diagnostics.proactiveRetryFailed'))
-    diagnostics.value = await fetchDiagnostics()
-  } finally {
-    retryingProactiveCandidate.value = ''
   }
 }
 
@@ -1135,32 +1098,6 @@ onMounted(load)
                 {{ metricText(item.value) }}
               </Tag>
             </div>
-          </div>
-          <div v-if="hasProactiveDiagnostics" class="approval-note">
-            {{ t('diagnostics.proactiveWhyNoneSent') }}：{{ valueOf(proactiveDiagnostics, 'why_none_sent') }}
-          </div>
-          <div v-if="hasProactiveDiagnostics" class="approval-note">
-            {{ t('diagnostics.proactiveLastSkipReason') }}：{{ valueOf(proactiveDiagnostics, 'last_skip_reason') }}
-          </div>
-          <div v-if="proactiveUnknownCandidates.length" class="approval-list">
-            <article v-for="candidate in proactiveUnknownCandidates" :key="candidate.candidate_id" class="approval-item">
-              <div>
-                <strong>{{ candidate.title || candidate.candidate_id }}</strong>
-                <div class="approval-note">{{ candidate.summary || candidate.candidate_id }}</div>
-              </div>
-              <Button
-                danger
-                size="small"
-                :loading="retryingProactiveCandidate === candidate.candidate_id"
-                :disabled="Boolean(retryingProactiveCandidate)"
-                @click="retryUnknownProactive(candidate)"
-              >
-                {{ t('diagnostics.proactiveRetry') }}
-              </Button>
-            </article>
-          </div>
-          <div v-else-if="hasProactiveDiagnostics" class="empty-state">
-            {{ t('diagnostics.noProactiveUnknownDeliveries') }}
           </div>
           <div v-if="!hasProactiveDiagnostics" class="empty-state">{{ t('diagnostics.noProactiveDiagnostics') }}</div>
         </section>

@@ -295,6 +295,28 @@ public class DefaultSkillGuardServiceTest {
                 .doesNotContain("docs/noise.md");
     }
 
+    /** 扫描证明必须绑定完整内容摘要，避免同名技能内容变化后复用旧结论。 */
+    @Test
+    void shouldBindScanProvenanceToFullContentHash(@TempDir Path tempDir) throws Exception {
+        Path skillDir = tempDir.resolve("provenance-skill");
+        Files.createDirectories(skillDir);
+        Path skillFile = skillDir.resolve("SKILL.md");
+        Files.write(skillFile, java.util.Arrays.asList("# First"), StandardCharsets.UTF_8);
+
+        ScanResult first = service.scanSkill(skillDir.toFile(), "community");
+        Files.write(skillFile, java.util.Arrays.asList("# Changed"), StandardCharsets.UTF_8);
+        ScanResult changed = service.scanSkill(skillDir.toFile(), "community");
+
+        String firstHash = (String) first.getScanProvenance().get("bundleHash");
+        assertThat(firstHash).startsWith("sha256:").hasSize("sha256:".length() + 64);
+        assertThat(changed.getScanProvenance().get("bundleHash")).isNotEqualTo(firstHash);
+        assertThat(first.getScanProvenance())
+                .containsEntry("source", "community")
+                .containsEntry("fresh", Boolean.TRUE)
+                .containsKey("scannerVersion")
+                .containsKey("rules");
+    }
+
     @Test
     void shouldIgnoreUnsafeEscapeRulesWithoutSuppressingSkillFiles(@TempDir Path tempDir)
             throws Exception {

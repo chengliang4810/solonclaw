@@ -144,7 +144,7 @@ public class SolonClawWebTools {
         if (document == null) {
             return;
         }
-        // 正文链接只是已下载内容的一部分，不会在此处触发网络访问；后续真正访问时仍会重新校验。
+        // 正文链接只是已下载内容的一部分，不会在此处触发网络访问；后续真正消费时仍会重新校验。
         for (String url : securityPolicyService.extractUrlishValues(document.getMetadata())) {
             checkUrl(securityPolicyService, url);
         }
@@ -232,8 +232,7 @@ public class SolonClawWebTools {
      * @param securityPolicyService 安全策略服务依赖。
      * @param text 待处理文本。
      */
-    private static void checkReturnedTextUrls(
-            SecurityPolicyService securityPolicyService, String text) {
+    static void checkReturnedTextUrls(SecurityPolicyService securityPolicyService, String text) {
         if (securityPolicyService == null) {
             return;
         }

@@ -119,6 +119,31 @@ class TerminalUiRpcServiceTest {
                 .containsEntry("error", "command failed");
     }
 
+    /** 恢复历史消息时，助手正文中的私有思考块不能作为普通 transcript 文本再次显示。 */
+    @Test
+    void sessionResumeHidesAssistantThinkBlock() throws Exception {
+        AppConfig config = testConfig();
+        SqliteSessionRepository sessions = new SqliteSessionRepository(new SqliteDatabase(config));
+        SessionRecord session = session("session-think", "MEMORY:terminal-ui:session-think");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofUser("continue"),
+                                new AssistantMessage("<think>secret</think>answer"))));
+        sessions.save(session);
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> messages =
+                (List<Map<String, Object>>)
+                        new TerminalUiRpcService(config, sessions)
+                                .sessionResume(session.getSessionId())
+                                .get("messages");
+
+        assertThat(messages.get(1))
+                .containsEntry("role", "assistant")
+                .containsEntry("text", "answer");
+    }
+
     @Test
     void activeSessionsReturnsAllTuiLiveSessionsAndHonorsClose() throws Exception {
         AppConfig config = testConfig();

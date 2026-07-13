@@ -492,8 +492,7 @@ public class DashboardDiagnosticOutputTest {
                                 null,
                                 new SecurityPolicyService(config),
                                 null),
-                        doctorService,
-                        null);
+                        doctorService);
 
         Map<String, Object> response = controller.doctor();
         assertThat(response.get("success")).isEqualTo(Boolean.TRUE);

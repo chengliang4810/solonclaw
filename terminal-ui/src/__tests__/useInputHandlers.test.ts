@@ -1,9 +1,30 @@
 import { describe, expect, it, vi } from 'vitest'
 
+const capturedInput = vi.hoisted(() => ({ handler: undefined as undefined | ((ch: string, key: any) => void) }))
+
+vi.mock('@nanostores/react', () => ({ useStore: (store: { get: () => unknown }) => store.get() }))
+vi.mock('@solonclaw/ink', async importOriginal => ({
+  ...(await importOriginal()),
+  forceRedraw: vi.fn(),
+  useInput: (handler: (ch: string, key: any) => void) => {
+    capturedInput.handler = handler
+  }
+}))
+vi.mock('react', async importOriginal => {
+  const actual = await importOriginal()
+
+  return { ...actual, useEffect: () => undefined, useRef: <T>(value: T) => ({ current: value }) }
+})
+
 import { getOverlayState, patchOverlayState, resetOverlayState } from '../app/overlayStore.js'
 import { getTurnState, resetTurnState } from '../app/turnStore.js'
 import { getUiState, patchUiState, resetUiState } from '../app/uiStore.js'
-import { applyVoiceRecordResponse, settleDeniedApprovalOverlay, shouldFallThroughForScroll } from '../app/useInputHandlers.js'
+import {
+  applyVoiceRecordResponse,
+  settleDeniedApprovalOverlay,
+  shouldFallThroughForScroll,
+  useInputHandlers
+} from '../app/useInputHandlers.js'
 
 const baseKey = {
   downArrow: false,
@@ -13,6 +34,38 @@ const baseKey = {
   upArrow: false,
   wheelDown: false,
   wheelUp: false
+}
+
+const mountInputHandler = (rpc: ReturnType<typeof vi.fn>) => {
+  capturedInput.handler = undefined
+  // 测试中以受控 mock 调用 Hook，捕获注册的终端按键回调。
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  useInputHandlers({
+    actions: {
+      answerClarify: vi.fn(),
+      appendMessage: vi.fn(),
+      die: vi.fn(),
+      dispatchSubmission: vi.fn(),
+      guardBusySessionSwitch: vi.fn(),
+      newSession: vi.fn(),
+      sys: vi.fn()
+    },
+    composer: { actions: {}, refs: {}, state: {} },
+    gateway: { rpc },
+    terminal: { scrollWithSelection: vi.fn(), selection: {}, stdout: { rows: 24 } },
+    voice: {
+      enabled: false,
+      recordKey: {},
+      recording: false,
+      setProcessing: vi.fn(),
+      setRecording: vi.fn(),
+      setVoiceEnabled: vi.fn(),
+      setVoiceTts: vi.fn()
+    },
+    wheelStep: 3
+  } as any)
+
+  return capturedInput.handler!
 }
 
 describe('shouldFallThroughForScroll — keep transcript scrolling alive during prompt overlays', () => {
@@ -124,5 +177,31 @@ describe('settleDeniedApprovalOverlay', () => {
     expect(getTurnState().outcome).toBe('')
     expect(getUiState().busy).toBe(true)
     expect(getUiState().status).toBe('需要审批')
+  })
+})
+
+describe('敏感输入 Esc 取消', () => {
+  it('在 sudo 取消 RPC 未完成前立即清除遮罩', () => {
+    resetOverlayState()
+    patchOverlayState({ sudo: { requestId: 'sudo-1' } })
+    const rpc = vi.fn(() => new Promise(() => undefined))
+
+    mountInputHandler(rpc)('', { ctrl: false, escape: true })
+
+    expect(getOverlayState().sudo).toBeNull()
+    expect(rpc).toHaveBeenCalledWith('sudo.respond', { password: '', request_id: 'sudo-1' })
+  })
+
+  it('在 secret 取消 RPC 返回空值或失败时保持遮罩已关闭', () => {
+    resetOverlayState()
+    patchOverlayState({ secret: { envVar: 'API_KEY', prompt: '请输入密钥', requestId: 'secret-1' } })
+    const rejected = Promise.reject(new Error('gateway unavailable'))
+    rejected.catch(() => undefined)
+    const rpc = vi.fn(() => rejected)
+
+    mountInputHandler(rpc)('', { ctrl: false, escape: true })
+
+    expect(getOverlayState().secret).toBeNull()
+    expect(rpc).toHaveBeenCalledWith('secret.respond', { request_id: 'secret-1', value: '' })
   })
 })

@@ -2,13 +2,15 @@ package com.jimuqu.solon.claw.tool.runtime;
 
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
+import com.jimuqu.solon.claw.core.model.MemorySearchResult;
 import com.jimuqu.solon.claw.core.service.MemoryService;
 import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.MemoryConstants;
+import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.jimuqu.solon.claw.tui.TerminalUiRpcService;
 import org.noear.snack4.ONode;
 import org.noear.solon.ai.annotation.ToolMapping;
 import org.noear.solon.annotation.Param;
@@ -16,8 +18,7 @@ import org.noear.solon.annotation.Param;
 /** 长期记忆工具。 */
 public class MemoryTools {
     /** 从服务层稳定暂存结果中提取低敏待审批标识。 */
-    private static final Pattern PENDING_ID_PATTERN =
-            Pattern.compile("ID: ([0-9a-f]{8})");
+    private static final Pattern PENDING_ID_PATTERN = Pattern.compile("ID: ([0-9a-f]{8})");
 
     /** 记忆THREATS的统一常量值。 */
     private static final MemoryThreat[] MEMORY_THREATS =
@@ -65,19 +66,25 @@ public class MemoryTools {
         this.approvalCoordinator = approvalCoordinator;
     }
 
-    /** 管理 MEMORY.md 与 USER.md。 */
+    /** 管理长期、用户、每日和专题记忆。 */
     @ToolMapping(
             name = "memory",
             description =
-                    "Manage persistent memory. action supports add, replace, remove, read. target supports memory, user, or today.")
+                    "Manage persistent memory. action supports add, replace, remove, read. target"
+                            + " supports memory, user, today, or topic:<name>.")
     public String memory(
             @Param(name = "action", description = "操作类型：add、replace、remove、read") String action,
-            @Param(name = "target", description = "目标存储：memory、user 或 today") String target,
+            @Param(name = "target", description = "目标存储：memory、user、today 或 topic:<名称>")
+                    String target,
             @Param(name = "content", description = "新增或替换的内容", required = false) String content,
             @Param(name = "oldText", description = "replace/remove 时用于匹配旧条目的文本", required = false)
                     String oldText)
             throws Exception {
-        String normalizedTarget = StrUtil.blankToDefault(target, MemoryConstants.TARGET_MEMORY);
+        String normalizedTarget = normalizeTarget(target);
+        if (normalizedTarget == null) {
+            return blockedResponse(
+                    action, "", "Unsupported memory target. Expected memory, user, or today.");
+        }
         if (MemoryConstants.ACTION_READ.equalsIgnoreCase(action)) {
             return new ONode()
                     .set("status", "success")
@@ -98,14 +105,20 @@ public class MemoryTools {
             result = memoryService.add(normalizedTarget, content, origin);
         } else if (MemoryConstants.ACTION_REPLACE.equalsIgnoreCase(action)) {
             String blocked = scanMemoryContent(content);
+            if (blocked == null) {
+                blocked = scanDisplayInput(oldText, "oldText");
+            }
             if (blocked != null) {
                 return blockedResponse(action, normalizedTarget, blocked);
             }
             result = memoryService.replace(normalizedTarget, oldText, content, origin);
         } else if (MemoryConstants.ACTION_REMOVE.equalsIgnoreCase(action)) {
-            result =
-                    memoryService.remove(
-                            normalizedTarget, StrUtil.blankToDefault(oldText, content), origin);
+            String matchText = StrUtil.blankToDefault(oldText, content);
+            String blocked = scanDisplayInput(matchText, "oldText");
+            if (blocked != null) {
+                return blockedResponse(action, normalizedTarget, blocked);
+            }
+            result = memoryService.remove(normalizedTarget, matchText, origin);
         } else {
             result = "Unsupported memory action";
         }
@@ -113,6 +126,37 @@ public class MemoryTools {
                 action,
                 normalizedTarget,
                 inlineApproval(action, normalizedTarget, content, oldText, result));
+    }
+
+    /** 使用 SQLite FTS5 统一搜索所有记忆文件。 */
+    @ToolMapping(
+            name = "memory_search",
+            description =
+                    "Search MEMORY.md, USER.md, daily memory, and topic memory with SQLite FTS5.")
+    public String memorySearch(
+            @Param(name = "query", description = "搜索关键词") String query,
+            @Param(name = "limit", description = "最多返回条数", required = false) Integer limit)
+            throws Exception {
+        List<MemorySearchResult> results =
+                memoryService.search(query, limit == null ? 5 : limit.intValue());
+        return new ONode()
+                .set("status", "success")
+                .set("query", safe(query, 300))
+                .set("results", results)
+                .toJson();
+    }
+
+    /** 按 memory_search 返回的路径读取完整记忆。 */
+    @ToolMapping(
+            name = "memory_get",
+            description = "Read a memory file by the safe relative path returned by memory_search.")
+    public String memoryGet(@Param(name = "path", description = "记忆文件相对路径") String path)
+            throws Exception {
+        return new ONode()
+                .set("status", "success")
+                .set("path", safe(path, 300))
+                .set("content", safe(memoryService.get(path), 12000))
+                .toJson();
     }
 
     /** 对前台 TUI 会话的已暂存写入执行一次性内联审批，其他来源保持待审批状态。 */
@@ -148,8 +192,7 @@ public class MemoryTools {
                         context.getSourceKey(), TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX)) {
             return false;
         }
-        return "conversation".equals(context.getRunKind())
-                        || "resume".equals(context.getRunKind())
+        return "conversation".equals(context.getRunKind()) || "resume".equals(context.getRunKind())
                 ? approvalCoordinator.canRequest(context.getSessionId())
                 : false;
     }
@@ -182,10 +225,10 @@ public class MemoryTools {
     private String response(String action, String target, String result) {
         ONode response =
                 new ONode()
-                .set("status", status(result))
-                .set("action", StrUtil.nullToEmpty(action))
-                .set("target", safe(target, 200))
-                .set("message", safe(result, 1000));
+                        .set("status", status(result))
+                        .set("action", StrUtil.nullToEmpty(action))
+                        .set("target", safe(target, 200))
+                        .set("message", safe(result, 1000));
         Matcher matcher = PENDING_ID_PATTERN.matcher(StrUtil.nullToEmpty(result));
         if (matcher.find()) {
             response.set("staged", true).set("pending_id", matcher.group(1));
@@ -222,22 +265,61 @@ public class MemoryTools {
         if (StrUtil.isBlank(content)) {
             return null;
         }
-        for (int i = 0; i < content.length(); i++) {
-            char ch = content.charAt(i);
-            if (isInvisibleInjectionChar(ch)) {
-                return "Blocked: content contains invisible unicode U+"
-                        + String.format(Locale.ROOT, "%04X", Integer.valueOf(ch))
-                        + " (possible injection).";
-            }
+        String blocked = scanDisplayInput(content, "content");
+        if (blocked != null) {
+            return blocked;
         }
         for (MemoryThreat threat : MEMORY_THREATS) {
             if (threat.pattern.matcher(content).find()) {
                 return "Blocked: content matches threat pattern '"
                         + threat.id
-                        + "'. Memory entries are injected into the system prompt and must not contain injection or exfiltration payloads.";
+                        + "'. Memory entries are injected into the system prompt and must not"
+                        + " contain injection or exfiltration payloads.";
             }
         }
         return null;
+    }
+
+    /** 校验会进入审批展示或匹配逻辑的文本，拒绝终端控制序列和隐形注入字符。 */
+    private String scanDisplayInput(String value, String field) {
+        if (StrUtil.isBlank(value)) {
+            return null;
+        }
+        if (!value.equals(TerminalAnsiSanitizer.stripAnsi(value))) {
+            return "Blocked: " + field + " contains terminal control sequences.";
+        }
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (isInvisibleInjectionChar(ch)) {
+                return "Blocked: "
+                        + field
+                        + " contains invisible unicode U+"
+                        + String.format(Locale.ROOT, "%04X", Integer.valueOf(ch))
+                        + " (possible injection).";
+            }
+        }
+        return null;
+    }
+
+    /** 将工具目标规范化为服务真实支持的存储区，拒绝静默回退到 MEMORY.md。 */
+    private String normalizeTarget(String target) {
+        String normalized =
+                StrUtil.blankToDefault(target, MemoryConstants.TARGET_MEMORY)
+                        .trim()
+                        .toLowerCase(Locale.ROOT);
+        if (normalized.startsWith(MemoryConstants.TARGET_TOPIC_PREFIX)) {
+            String name = normalized.substring(MemoryConstants.TARGET_TOPIC_PREFIX.length());
+            return name.matches("[\\p{L}\\p{N}._-]{1,80}")
+                            && !".".equals(name)
+                            && !"..".equals(name)
+                    ? normalized
+                    : null;
+        }
+        return MemoryConstants.TARGET_MEMORY.equals(normalized)
+                        || MemoryConstants.TARGET_USER.equals(normalized)
+                        || MemoryConstants.TARGET_TODAY.equals(normalized)
+                ? normalized
+                : null;
     }
 
     /**

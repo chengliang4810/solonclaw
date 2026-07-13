@@ -925,7 +925,6 @@ public class GatewayRuntimeRefreshService {
                     "solonclaw.task.toolOutputMaxLineLength",
                     "solonclaw.task.mediaCacheTtlHours",
                     "approvals.timeoutSeconds",
-                    "approvals.gatewayTimeoutSeconds",
                     "solonclaw.terminal.maxForegroundTimeoutSeconds",
                     "solonclaw.terminal.foregroundMaxRetries",
                     "solonclaw.terminal.foregroundRetryBaseDelaySeconds",

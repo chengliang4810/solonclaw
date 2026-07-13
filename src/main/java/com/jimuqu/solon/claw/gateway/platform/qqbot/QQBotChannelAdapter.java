@@ -65,8 +65,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     /** QQBot 消息、群聊、频道私信与交互事件所需的网关订阅位。 */
-    private static final int GATEWAY_INTENTS =
-            (1 << 25) | (1 << 30) | (1 << 12) | (1 << 26);
+    private static final int GATEWAY_INTENTS = (1 << 25) | (1 << 30) | (1 << 12) | (1 << 26);
 
     /** 心跳提前量，避免网络抖动时刚好超过服务端声明的超时时间。 */
     private static final double HEARTBEAT_INTERVAL_RATIO = 0.8D;
@@ -875,8 +874,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
         if (sequenceNode != null && !sequenceNode.isNull()) {
             long sequence = sequenceNode.getLong();
             Long previous = gatewaySequence;
-            if (webSocket == socket
-                    && (previous == null || sequence > previous.longValue())) {
+            if (webSocket == socket && (previous == null || sequence > previous.longValue())) {
                 gatewaySequence = Long.valueOf(sequence);
             }
         }
@@ -942,8 +940,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
             scheduleHandshakeTimeout(socket, "ready timeout");
             setSetupState("connecting");
             setDetail(
-                    StrUtil.isNotBlank(gatewaySessionId)
-                                    && gatewaySequence != null
+                    StrUtil.isNotBlank(gatewaySessionId) && gatewaySequence != null
                             ? "resume sent; waiting for resumed"
                             : "identify sent; waiting for ready");
         } catch (Exception e) {
@@ -976,9 +973,7 @@ public class QQBotChannelAdapter extends AbstractConfigurableChannelAdapter {
                 new ONode()
                         .set("token", "QQBot " + accessToken)
                         .set("intents", Integer.valueOf(GATEWAY_INTENTS))
-                        .set(
-                                "shard",
-                                Arrays.asList(Integer.valueOf(0), Integer.valueOf(1)))
+                        .set("shard", Arrays.asList(Integer.valueOf(0), Integer.valueOf(1)))
                         .set("properties", properties);
         return new ONode().set("op", Integer.valueOf(2)).set("d", data);
     }

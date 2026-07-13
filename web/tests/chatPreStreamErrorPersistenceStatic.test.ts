@@ -13,12 +13,12 @@ function blockBetween(start: string, end: string): string {
 
 const noRunIdBlock = blockBetween('if (!runId) {', 'const sid = adoptServerSessionId')
 assert.ok(
-  noRunIdBlock.includes('persistActiveMessages()'),
+  noRunIdBlock.includes('persistSessionMessages(startingSessionKey)'),
   'startRun without a run id should persist the visible error message before returning',
 )
 
 const catchBlock = blockBetween('} catch (err: any) {', 'async function sendSlashCommand')
 assert.ok(
-  catchBlock.includes('persistActiveMessages()'),
+  catchBlock.includes('persistSessionMessages(startingSessionKey)'),
   'startRun/upload failures should persist the visible error message before leaving sendMessage',
 )

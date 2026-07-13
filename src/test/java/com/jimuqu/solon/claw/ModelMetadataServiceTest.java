@@ -125,8 +125,7 @@ public class ModelMetadataServiceTest {
         ModelContextCacheStore cacheStore = new ModelContextCacheStore(tempDir.toFile());
         cacheStore.save("unknown-runtime-model", provider.getBaseUrl(), 777777);
         LlmProviderService service =
-                new LlmProviderService(
-                        config, new ModelMetadataService(config, null, cacheStore));
+                new LlmProviderService(config, new ModelMetadataService(config, null, cacheStore));
 
         assertThat(service.resolveProvider("main", null).getContextWindowTokens())
                 .isEqualTo(123456);

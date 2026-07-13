@@ -108,11 +108,7 @@ public class DangerousCommandApprovalServiceTest {
         String secondTarget = "/tmp/solonclaw-second-target.txt";
 
         env.dangerousCommandApprovalService.storePendingApproval(
-                session,
-                "file_write",
-                "policy:workspace_outside_write",
-                "工作区外写入需要审批",
-                firstTarget);
+                session, "file_write", "policy:workspace_outside_write", "工作区外写入需要审批", firstTarget);
         assertThat(
                         env.dangerousCommandApprovalService.approve(
                                 session,
@@ -132,11 +128,7 @@ public class DangerousCommandApprovalServiceTest {
                 "工作区外写入需要审批",
                 secondTarget);
         env.dangerousCommandApprovalService.storePendingApproval(
-                session,
-                "execute_shell",
-                "recursive_delete",
-                "递归删除需要审批",
-                "rm -rf target/cache");
+                session, "execute_shell", "recursive_delete", "递归删除需要审批", "rm -rf target/cache");
         List<Map<String, Object>> queue =
                 (List<Map<String, Object>>)
                         session.getContext().get("_dangerous_command_pending_queue_");
@@ -593,7 +585,6 @@ public class DangerousCommandApprovalServiceTest {
     void shouldExposeSlashApprovalPolicySummaryWithoutSecrets() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
         env.appConfig.getApprovals().setTimeoutSeconds(42);
-        env.appConfig.getApprovals().setGatewayTimeoutSeconds(43);
 
         Map<String, Object> summary =
                 env.dangerousCommandApprovalService.slashConfirmPolicySummary();
@@ -643,7 +634,6 @@ public class DangerousCommandApprovalServiceTest {
         assertThat(summary.get("unsafeSelectorRejected")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("observerEventsRedacted")).isEqualTo(Boolean.TRUE);
         assertThat(summary.get("approvalTimeoutSeconds")).isEqualTo(Integer.valueOf(42));
-        assertThat(summary.get("gatewayTimeoutSeconds")).isEqualTo(Integer.valueOf(43));
         assertThat(summary.toString())
                 .doesNotContain("secret")
                 .doesNotContain("token=")

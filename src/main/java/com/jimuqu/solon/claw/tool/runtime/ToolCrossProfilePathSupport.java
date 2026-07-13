@@ -33,7 +33,9 @@ final class ToolCrossProfilePathSupport {
             return null;
         }
         try {
-            Path target = resolveTarget(workRoot, rawPath);
+            Path target =
+                    resolveTarget(
+                            workRoot, SecurityPolicyService.normalizeWorkspaceReference(rawPath));
             ProfileManager manager = ProfileManager.current();
             Path profileRoot = manager.root().toAbsolutePath().normalize();
             if (!target.startsWith(profileRoot)) {

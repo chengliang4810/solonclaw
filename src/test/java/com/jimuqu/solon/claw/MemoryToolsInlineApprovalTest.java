@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.jimuqu.solon.claw.core.model.AgentRunContext;
@@ -37,10 +38,7 @@ class MemoryToolsInlineApprovalTest {
 
         AgentRunContext foreground =
                 new AgentRunContext(
-                        null,
-                        "r1",
-                        "s1",
-                        TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "s1");
+                        null, "r1", "s1", TerminalUiRpcService.TERMINAL_SOURCE_KEY_PREFIX + "s1");
         foreground.setRunKind("conversation");
         AgentRunContext.setCurrent(foreground);
         String approved = tools.memory("add", "memory", "value", null);
@@ -53,6 +51,28 @@ class MemoryToolsInlineApprovalTest {
         assertTrue(staged.contains("\"staged\":true"));
         assertEquals(1, service.approved.get());
         assertEquals("background_review", service.origin);
+    }
+
+    /** 工具边界拒绝伪目标和会进入审批展示的终端控制载荷。 */
+    @Test
+    void shouldRejectUnsafeTargetContentAndMatchText() throws Exception {
+        MemoryTools tools =
+                new MemoryTools(new RecordingMemoryService(), new MemoryApprovalCoordinator(50L));
+
+        String invalidTarget = tools.memory("read", "memory\u001B[2J", null, null);
+        String unsafeContent =
+                tools.memory("add", "memory", "safe\u001B]52;c;c2VjcmV0\u0007value", null);
+        String unsafeReplace = tools.memory("replace", "user", "replacement", "old\u001B[2Jtext");
+        String unsafeRemove = tools.memory("remove", "today", null, "match\u0001text");
+        String canonicalTarget = tools.memory("read", " USER ", null, null);
+
+        assertTrue(invalidTarget.contains("Unsupported memory target"));
+        assertTrue(unsafeContent.contains("terminal control sequences"));
+        assertTrue(unsafeReplace.contains("terminal control sequences"));
+        assertTrue(unsafeRemove.contains("terminal control sequences"));
+        assertTrue(canonicalTarget.contains("\"target\":\"user\""));
+        assertFalse(invalidTarget.contains("\u001B"));
+        assertFalse(unsafeContent.contains("\u001B"));
     }
 
     /** 测试用服务只记录工具传入的来源与批准动作。 */

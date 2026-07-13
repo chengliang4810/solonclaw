@@ -906,13 +906,10 @@ public class ToolRegistryExposureTest {
                                         () -> new AssertionError("workspace manage tool missing"));
 
         ONode memorySave =
-                ONode.ofJson(
-                        tool.workspaceManage("save_file", " MEMORY ", null, "bypass attempt"));
-        ONode userRestore =
-                ONode.ofJson(tool.workspaceManage("restore_file", "USER", null, null));
+                ONode.ofJson(tool.workspaceManage("save_file", " MEMORY ", null, "bypass attempt"));
+        ONode userRestore = ONode.ofJson(tool.workspaceManage("restore_file", "USER", null, null));
         ONode todaySave =
-                ONode.ofJson(
-                        tool.workspaceManage("save", "memory_today", null, "bypass attempt"));
+                ONode.ofJson(tool.workspaceManage("save", "memory_today", null, "bypass attempt"));
 
         assertToolError(memorySave);
         assertThat(memorySave.get("error").getString()).contains("memory tool approval flow");

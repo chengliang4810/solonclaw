@@ -1111,165 +1111,53 @@ final class AppConfigLoader {
                                         "solonclaw.proactive.enabled",
                                         proactiveDefaults.isEnabled())));
         config.getProactive()
-                .setIntervalMinutes(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.intervalMinutes",
-                                        proactiveDefaults.getIntervalMinutes())));
-        config.getProactive()
-                .setInitialDelaySeconds(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.initialDelaySeconds",
-                                        proactiveDefaults.getInitialDelaySeconds())));
-        config.getProactive()
-                .setDailyMaxContacts(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.dailyMaxContacts",
-                                        proactiveDefaults.getDailyMaxContacts())));
-        config.getProactive()
-                .setCooldownMinutes(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.cooldownMinutes",
-                                        proactiveDefaults.getCooldownMinutes())));
-        config.getProactive()
-                .setQuietStartHour(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.quietStartHour",
-                                        proactiveDefaults.getQuietStartHour())));
-        config.getProactive()
-                .setQuietEndHour(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.quietEndHour",
-                                        proactiveDefaults.getQuietEndHour())));
-        config.getProactive()
-                .setMinConfidenceToContact(
+                .setIntervalHours(
                         resolveDouble(
                                 readDouble(
                                         props,
                                         overrides,
-                                        "solonclaw.proactive.minConfidenceToContact",
-                                        proactiveDefaults.getMinConfidenceToContact())));
+                                        "solonclaw.proactive.intervalHours",
+                                        proactiveDefaults.getIntervalHours())));
         config.getProactive()
-                .setLlmDecisionEnabled(
-                        resolveBoolean(
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.llmDecisionEnabled",
-                                        proactiveDefaults.isLlmDecisionEnabled())));
-        config.getProactive()
-                .setLlmPolishEnabled(
-                        resolveBoolean(
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.llmPolishEnabled",
-                                        proactiveDefaults.isLlmPolishEnabled())));
-        config.getProactive()
-                .setMaxCandidatesPerTick(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.maxCandidatesPerTick",
-                                        proactiveDefaults.getMaxCandidatesPerTick())));
-        config.getProactive()
-                .setMaxContactsPerTick(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.maxContactsPerTick",
-                                        proactiveDefaults.getMaxContactsPerTick())));
-        config.getProactive()
-                .setCandidateTtlHours(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.candidateTtlHours",
-                                        proactiveDefaults.getCandidateTtlHours())));
-        config.getProactive()
-                .setRepositoryCheckEnabled(
-                        resolveBoolean(
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.repositoryCheckEnabled",
-                                        proactiveDefaults.isRepositoryCheckEnabled())));
-        config.getProactive()
-                .setRepositoryCheckIntervalMinutes(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.repositoryCheckIntervalMinutes",
-                                        proactiveDefaults.getRepositoryCheckIntervalMinutes())));
-        config.getProactive()
-                .setSessionLookbackDays(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.sessionLookbackDays",
-                                        proactiveDefaults.getSessionLookbackDays())));
-        config.getProactive()
-                .setRunLookbackDays(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.runLookbackDays",
-                                        proactiveDefaults.getRunLookbackDays())));
-        config.getProactive()
-                .setCronLookbackDays(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.cronLookbackDays",
-                                        proactiveDefaults.getCronLookbackDays())));
-        config.getProactive()
-                .setCareCheckinEnabled(
-                        resolveBoolean(
-                                readBoolean(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.careCheckinEnabled",
-                                        proactiveDefaults.isCareCheckinEnabled())));
-        config.getProactive()
-                .setCareCheckinAfterIdleHours(
-                        resolveInt(
-                                readInt(
-                                        props,
-                                        overrides,
-                                        "solonclaw.proactive.careCheckinAfterIdleHours",
-                                        proactiveDefaults.getCareCheckinAfterIdleHours())));
-        config.getProactive()
-                .setDeliveryPreviewPrefix(
+                .setDeliveryTarget(
                         resolveConfigString(
                                 readString(
                                         props,
                                         overrides,
-                                        "solonclaw.proactive.deliveryPreviewPrefix",
-                                        proactiveDefaults.getDeliveryPreviewPrefix())));
+                                        "solonclaw.proactive.deliveryTarget",
+                                        proactiveDefaults.getDeliveryTarget())));
+        config.getProactive()
+                .setTopicCooldownHours(
+                        resolveDouble(
+                                readDouble(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.topicCooldownHours",
+                                        proactiveDefaults.getTopicCooldownHours())));
+        config.getProactive()
+                .setQuietHoursEnabled(
+                        resolveBoolean(
+                                readBoolean(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.quietHoursEnabled",
+                                        proactiveDefaults.isQuietHoursEnabled())));
+        config.getProactive()
+                .setQuietStart(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.quietStart",
+                                        proactiveDefaults.getQuietStart())));
+        config.getProactive()
+                .setQuietEnd(
+                        resolveConfigString(
+                                readString(
+                                        props,
+                                        overrides,
+                                        "solonclaw.proactive.quietEnd",
+                                        proactiveDefaults.getQuietEnd())));
         config.getReact()
                 .setMaxSteps(resolveInt(readInt(props, overrides, "solonclaw.react.maxSteps", 12)));
         config.getReact()
@@ -1742,16 +1630,6 @@ final class AppConfigLoader {
                                 resolveInt(
                                         readInt(props, overrides, "approvals.timeoutSeconds", 60)),
                                 60));
-        config.getApprovals()
-                .setGatewayTimeoutSeconds(
-                        positiveInt(
-                                resolveInt(
-                                        readInt(
-                                                props,
-                                                overrides,
-                                                "approvals.gatewayTimeoutSeconds",
-                                                300)),
-                                300));
         config.getApprovals()
                 .setMcpReloadConfirm(
                         resolveBoolean(

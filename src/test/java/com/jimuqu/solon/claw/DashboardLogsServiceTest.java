@@ -26,7 +26,7 @@ class DashboardLogsServiceTest {
             File agentLog = FileUtil.file(config.getRuntime().getLogsDir(), "agent.log");
             FileUtil.appendUtf8String(
                     "2026-06-27 10:00:00.000 INFO [main] "
-                            + "com.jimuqu.solon.claw.proactive.ProactiveScheduler - proactive-hit\n"
+                            + "com.jimuqu.solon.claw.proactive.ProactiveReminderScheduler - proactive-hit\n"
                             + "2026-06-27 10:00:01.000 INFO [main] "
                             + "com.jimuqu.solon.claw.web.DashboardLogsService - web-miss\n",
                     agentLog);

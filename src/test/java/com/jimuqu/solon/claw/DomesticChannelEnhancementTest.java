@@ -498,7 +498,7 @@ public class DomesticChannelEnhancementTest {
 
         assertThat(message.getText()).isEqualTo("平台转写");
         assertThat(message.getChatId()).isEqualTo("room-a");
-        assertThat(message.getThreadId()).isEqualTo("m1");
+        assertThat(message.getReplyToMessageId()).isEqualTo("m1");
     }
 
     /** 纯图片元宝消息也必须进入网关，不能因正文为空被丢弃。 */

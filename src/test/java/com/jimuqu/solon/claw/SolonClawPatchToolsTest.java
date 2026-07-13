@@ -10,8 +10,8 @@ import static com.jimuqu.solon.claw.support.TestToolSupport.writeUtf8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import com.jimuqu.solon.claw.tool.runtime.SecurityPolicyService;
+import com.jimuqu.solon.claw.tool.runtime.SolonClawPatchTools;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -52,18 +52,72 @@ public class SolonClawPatchToolsTest {
                         + "\n@@ three=old @@\n-three=old\n+three=new\n"
                         + "*** End Patch";
 
-        Map<?, ?> result =
-                parseJsonMap(tools.patch("patch", null, null, null, null, patch));
+        Map<?, ?> result = parseJsonMap(tools.patch("patch", null, null, null, null, patch));
 
         assertThat(result.get("status")).isEqualTo("success");
         assertThat(readUtf8(first)).isEqualTo("one=new\ntwo=new\n");
         assertThat(readUtf8(second)).isEqualTo("three=new\n");
         Map<?, ?> reused =
-                parseJsonMap(
-                        tools.patch("replace", firstUri, "one=new", "one=again", false, null));
+                parseJsonMap(tools.patch("replace", firstUri, "one=new", "one=again", false, null));
         assertThat(reused.get("status")).isEqualTo("error");
         assertThat(String.valueOf(reused.get("error"))).contains("APPROVAL_REQUIRED");
         assertThat(readUtf8(first)).isEqualTo("one=new\ntwo=new\n");
+    }
+
+    /** 验证 patch 对当前 workspace URI 正常工作，并在审批前拒绝兄弟 Profile URI。 */
+    @Test
+    void shouldGuardWorkspaceUrisBeforePatchOutsideApproval() throws Exception {
+        Path profileRoot = tempDir("patch-workspace-uri-profile-root");
+        Path activeHome = Files.createDirectories(profileRoot.resolve("profiles/active"));
+        Path workspace = Files.createDirectories(activeHome.resolve("workspace"));
+        Path current = workspace.resolve("notes/current.txt");
+        Path siblingHome = Files.createDirectories(profileRoot.resolve("profiles/sibling"));
+        Path sibling = Files.createDirectories(siblingHome.resolve("skills")).resolve("blocked.md");
+        Files.createDirectories(current.getParent());
+        writeUtf8(current, "before\n");
+        writeUtf8(sibling, "before\n");
+        String siblingUri = "workspace://" + sibling.toAbsolutePath();
+        String previous = System.getProperty("solonclaw.profile.root");
+        System.setProperty("solonclaw.profile.root", profileRoot.toString());
+        SolonClawPatchTools tools = guardedPatchTools(workspace);
+        try {
+            Map<?, ?> currentResult =
+                    parseJsonMap(
+                            tools.patch(
+                                    "replace",
+                                    "workspace://notes/current.txt",
+                                    "before",
+                                    "after",
+                                    false,
+                                    null));
+            SecurityPolicyService.approveFilePolicyForCurrentThread(
+                    "workspace_outside_write", siblingUri);
+            Map<?, ?> siblingResult =
+                    parseJsonMap(
+                            tools.patch("replace", siblingUri, "before", "after", false, null));
+
+            assertThat(currentResult.get("status")).isEqualTo("success");
+            assertThat(readUtf8(current)).isEqualTo("after\n");
+            assertThat(String.valueOf(siblingResult.get("error")))
+                    .contains("Profile 'sibling'")
+                    .doesNotContain("APPROVAL_REQUIRED");
+            assertThat(readUtf8(sibling)).isEqualTo("before\n");
+            SecurityPolicyService.approveFilePolicyForCurrentThread(
+                    "workspace_outside_write", siblingUri);
+            Map<?, ?> allowed =
+                    parseJsonMap(
+                            tools.patch(
+                                    "replace", siblingUri, "before", "after", false, null, true));
+            assertThat(allowed.get("status")).isEqualTo("success");
+            assertThat(readUtf8(sibling)).isEqualTo("after\n");
+        } finally {
+            SecurityPolicyService.clearCurrentThreadPolicyApprovals();
+            if (previous == null) {
+                System.clearProperty("solonclaw.profile.root");
+            } else {
+                System.setProperty("solonclaw.profile.root", previous);
+            }
+        }
     }
 
     @Test
@@ -431,9 +485,7 @@ public class SolonClawPatchToolsTest {
                                 null));
 
         assertThat(result.get("status")).isEqualTo("error");
-        assertThat(String.valueOf(result.get("error")))
-                .contains("BLOCKED")
-                .contains("路径遍历");
+        assertThat(String.valueOf(result.get("error"))).contains("BLOCKED").contains("路径遍历");
         assertThat(boundary.resolve("outside.txt")).doesNotExist();
     }
 
@@ -479,12 +531,7 @@ public class SolonClawPatchToolsTest {
         Map<?, ?> replace =
                 parseJsonMap(
                         tools.patch(
-                                "replace",
-                                "nested/../MEMORY.md",
-                                "before",
-                                "after",
-                                false,
-                                null));
+                                "replace", "nested/../MEMORY.md", "before", "after", false, null));
         Map<?, ?> delete =
                 parseJsonMap(
                         tools.patch(

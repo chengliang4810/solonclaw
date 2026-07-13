@@ -104,7 +104,6 @@ public class CoreConfigOverrideLoadTest {
                         + "      sendChunkRetries: 9\n"
                         + "approvals:\n"
                         + "  timeoutSeconds: 45\n"
-                        + "  gatewayTimeoutSeconds: 120\n"
                         + "  mcpReloadConfirm: false\n"
                         + "security:\n"
                         + "  guardrailMode: bypass\n"
@@ -170,7 +169,6 @@ public class CoreConfigOverrideLoadTest {
         assertThat(config.getSecurity().getGuardrailMode()).isEqualTo("bypass");
         assertThat(config.getSecurity().getGuardrailCronMode()).isEqualTo("approve");
         assertThat(config.getApprovals().getTimeoutSeconds()).isEqualTo(45);
-        assertThat(config.getApprovals().getGatewayTimeoutSeconds()).isEqualTo(120);
         assertThat(config.getCompression().isEnabled()).isFalse();
         assertThat(config.getCompression().getThresholdPercent()).isEqualTo(0.75D);
         assertThat(config.getCompression().getSummaryModel()).isEqualTo("gpt-5.4-mini");

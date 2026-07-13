@@ -20,14 +20,8 @@ public class HeartbeatHomeChannelIntegrationTest {
         env.appConfig.getAgent().getHeartbeat().setIntervalMinutes(30);
         env.appConfig.getChannels().getFeishu().setEnabled(true);
 
-        GatewayMessage initDm =
-                new GatewayMessage(PlatformType.FEISHU, "dm-admin", "admin-user", "hello");
-        env.gatewayAuthorizationService.preAuthorize(initDm);
-        GatewayMessage adminDm =
-                new GatewayMessage(
-                        PlatformType.FEISHU, "dm-admin", "admin-user", "/pairing claim-admin");
-        GatewayReply claim = env.gatewayAuthorizationService.claimAdmin(adminDm);
-        assertThat(claim.getContent()).contains("唯一管理员");
+        env.gatewayAuthorizationService.setPlatformAdmin(
+                PlatformType.FEISHU, "admin-user", "Alice", "dm-admin");
 
         GatewayMessage group =
                 new GatewayMessage(

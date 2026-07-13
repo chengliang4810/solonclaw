@@ -75,11 +75,7 @@ public interface ConversationEventSink {
      * @param reason 原因参数。
      */
     default void onFallback(
-            String runId,
-            String fromProvider,
-            String toProvider,
-            String toModel,
-            String reason) {
+            String runId, String fromProvider, String toProvider, String toModel, String reason) {
         onFallback(runId, fromProvider, toProvider, reason);
     }
 
@@ -94,6 +90,13 @@ public interface ConversationEventSink {
 
     /** assistant 文本增量。 */
     default void onAssistantDelta(String delta) {}
+
+    /**
+     * 撤销当前候选模型已经发送的 assistant 增量，供备用模型重新生成完整答复。
+     *
+     * @param reason 触发撤销的标准化结束原因。
+     */
+    default void onAssistantReset(String reason) {}
 
     /** assistant reasoning 文本增量。 */
     default void onReasoningDelta(String delta) {}

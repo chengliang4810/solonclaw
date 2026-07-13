@@ -999,9 +999,9 @@ public class DangerousCommandFilePolicyTest {
     }
 
     @Test
-    void shouldExpirePendingApprovalWithCanonicalConfigGatewayTimeout() throws Exception {
+    void shouldExpirePendingApprovalWithCanonicalApprovalTimeout() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getApprovals().setGatewayTimeoutSeconds(1);
+        env.appConfig.getApprovals().setTimeoutSeconds(1);
         DangerousCommandApprovalService service =
                 new DangerousCommandApprovalService(
                         env.globalSettingRepository,
@@ -1018,7 +1018,7 @@ public class DangerousCommandFilePolicyTest {
         DangerousCommandApprovalService.PendingApproval pending =
                 service.getPendingApproval(trace.session);
         assertThat(pending).isNotNull();
-        assertThat(pending.getExpiresAt()).isGreaterThan(pending.getCreatedAt());
+        assertThat(pending.getExpiresAt() - pending.getCreatedAt()).isBetween(1_000L, 1_100L);
 
         Map<String, Object> expired = new LinkedHashMap<String, Object>();
         expired.put("toolName", "execute_shell");

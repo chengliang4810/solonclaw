@@ -189,6 +189,50 @@ class TerminalUiApprovalRespondTest {
         assertThat(payload.get("text").getString()).contains("fallback primary -> backup");
     }
 
+    /** 候选撤销事件必须清掉尚未刷出的主模型分片并携带标准化原因。 */
+    @Test
+    void assistantResetDropsBufferedDeltaAndUsesRpcEnvelope() {
+        RecordingSocket socket = new RecordingSocket();
+        TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, true);
+
+        sink.onRunStarted("tui-reset-session");
+        sink.onAssistantDelta("主模型部分答复");
+        sink.onAssistantReset("content_filter");
+        sink.onAssistantDelta("备用模型完整答复");
+        sink.onRunCompleted("tui-reset-session", "备用模型完整答复", null);
+
+        assertThat(socket.sentText())
+                .anyMatch(text -> text.contains("\"type\":\"message.reset\""))
+                .anyMatch(text -> text.contains("\"reason\":\"content_filter\""))
+                .anyMatch(text -> text.contains("备用模型完整答复"))
+                .noneMatch(text -> text.contains("主模型部分答复"));
+    }
+
+    /** 旧事件信封也必须使用前端已消费的 message.reset，并携带当前会话编号。 */
+    @Test
+    void assistantResetUsesMessageResetForPlainEnvelope() {
+        RecordingSocket socket = new RecordingSocket();
+        TerminalUiWebSocketEventSink sink = new TerminalUiWebSocketEventSink(socket, false);
+
+        sink.onRunStarted("tui-plain-reset-session");
+        sink.onAssistantDelta("主模型部分答复");
+        sink.onAssistantReset("length");
+        sink.onAssistantDelta("备用模型完整答复");
+        sink.onRunCompleted("tui-plain-reset-session", "备用模型完整答复", null);
+
+        assertThat(socket.sentText())
+                .extracting(text -> ONode.ofJson(text).get("type").getString())
+                .containsExactly(
+                        "run.started",
+                        "assistant.delta",
+                        "message.reset",
+                        "assistant.delta",
+                        "run.completed");
+        ONode reset = ONode.ofJson(socket.sentText().get(2));
+        assertThat(reset.get("session_id").getString()).isEqualTo("tui-plain-reset-session");
+        assertThat(reset.get("payload").get("reason").getString()).isEqualTo("length");
+    }
+
     @Test
     void toolCompleteMarksExplicitErrorAsFailed() {
         RecordingSocket socket = new RecordingSocket();

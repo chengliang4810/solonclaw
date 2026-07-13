@@ -64,10 +64,10 @@ public class FeishuProcessingReactionTest {
         assertThat(adapter.calls()).containsExactly("create:om_4:Typing");
     }
 
-    private GatewayMessage message(String threadId) {
+    private GatewayMessage message(String replyToMessageId) {
         GatewayMessage message =
                 new GatewayMessage(PlatformType.FEISHU, "oc_chat", "ou_user", "hi");
-        message.setThreadId(threadId);
+        message.setReplyToMessageId(replyToMessageId);
         return message;
     }
 

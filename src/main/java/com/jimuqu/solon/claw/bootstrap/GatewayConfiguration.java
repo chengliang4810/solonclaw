@@ -50,8 +50,6 @@ import com.jimuqu.solon.claw.goal.GoalService;
 import com.jimuqu.solon.claw.goal.LlmGoalJudge;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.CommandHandler;
-import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
-import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.profile.ProfileBeanResolver;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeScope;
@@ -333,8 +331,6 @@ public class GatewayConfiguration {
      * @param dashboardCuratorService dashboardCurator服务依赖。
      * @param dashboardSkillsService dashboard技能服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
-     * @param proactiveDiagnosticsService 主动协作诊断服务，供 /proactive status 与 why 查询复用。
-     * @param proactiveRepository 主动协作仓储，供 /proactive ignore 更新候选状态。
      * @param memoryService 长期记忆服务，供 /memory 与工具共用审批队列。
      * @param pluginCommands 插件Commands参数。
      * @return 返回命令服务结果。
@@ -373,8 +369,6 @@ public class GatewayConfiguration {
             DashboardCuratorService dashboardCuratorService,
             DashboardSkillsService dashboardSkillsService,
             BrowserRuntimeService browserRuntimeService,
-            ProactiveDiagnosticsService proactiveDiagnosticsService,
-            ProactiveRepository proactiveRepository,
             MemoryService memoryService,
             DelegationService delegationService,
             Map<String, CommandHandler> pluginCommands) {
@@ -413,8 +407,6 @@ public class GatewayConfiguration {
                         dashboardCuratorService,
                         dashboardSkillsService,
                         browserRuntimeService,
-                        proactiveDiagnosticsService,
-                        proactiveRepository,
                         memoryService);
         service.setDelegationService(delegationService);
         return service;

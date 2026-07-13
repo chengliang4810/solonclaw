@@ -1168,9 +1168,6 @@ public class DashboardDiagnosticsService {
         approvals.put(
                 "timeout_seconds", Integer.valueOf(appConfig.getApprovals().getTimeoutSeconds()));
         approvals.put(
-                "gateway_timeout_seconds",
-                Integer.valueOf(appConfig.getApprovals().getGatewayTimeoutSeconds()));
-        approvals.put(
                 "mcp_reload_confirm",
                 Boolean.valueOf(appConfig.getApprovals().isMcpReloadConfirm()));
         approvals.put(
@@ -1298,7 +1295,6 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "codeHttpCredentialFileVariableDisclosureDetection");
             copyPolicyValue(summary, safe, "powershellCredentialFileHttpDisclosureDetection");
             copyPolicyValue(summary, safe, "approvalTimeoutSeconds");
-            copyPolicyValue(summary, safe, "gatewayTimeoutSeconds");
             copyPolicyValue(summary, safe, "alwaysApprovalCount");
             return safe;
         } catch (Exception e) {
@@ -1552,7 +1548,6 @@ public class DashboardDiagnosticsService {
             copyPolicyValue(summary, safe, "approvalMetadataRedacted");
             copyPolicyValue(summary, safe, "observerEventsRedacted");
             copyPolicyValue(summary, safe, "approvalTimeoutSeconds");
-            copyPolicyValue(summary, safe, "gatewayTimeoutSeconds");
             return safe;
         } catch (Exception e) {
             return unavailablePolicy(e);
@@ -2747,7 +2742,6 @@ public class DashboardDiagnosticsService {
         copyPolicyValue(approvals, safe, "subagentAutoApprove");
         copyPolicyValue(approvals, safe, "subagentApprovalDefault");
         copyPolicyValue(approvals, safe, "timeoutSeconds");
-        copyPolicyValue(approvals, safe, "gatewayTimeoutSeconds");
         copyPolicyValue(approvals, safe, "mcpReloadConfirm");
         copyPolicyValue(approvals, safe, "mcpReloadConfirmationDefault");
         copyPolicyValue(approvals, safe, "alwaysApprovalCount");
@@ -3073,8 +3067,7 @@ public class DashboardDiagnosticsService {
                 "encodedUrlParameterRedacted",
                 "approvalMetadataRedacted",
                 "observerEventsRedacted",
-                "approvalTimeoutSeconds",
-                "gatewayTimeoutSeconds");
+                "approvalTimeoutSeconds");
     }
 
     /**

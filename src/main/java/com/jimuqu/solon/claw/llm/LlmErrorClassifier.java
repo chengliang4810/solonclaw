@@ -13,8 +13,7 @@ public final class LlmErrorClassifier {
     /**
      * 代理和兼容服务常把状态码嵌入异常文本，必须识别冒号、等号及 HTTP 状态行三种形式。
      *
-     * <p>例如真实调用会返回 {@code Error code:502, message:error code: 502}，尾部还有包装符号时
-     * 不能再依赖字符串以状态码结尾。</p>
+     * <p>例如真实调用会返回 {@code Error code:502, message:error code: 502}，尾部还有包装符号时 不能再依赖字符串以状态码结尾。
      */
     private static final Pattern EMBEDDED_STATUS_CODE_PATTERN =
             Pattern.compile(

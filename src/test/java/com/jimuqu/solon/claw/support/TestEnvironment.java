@@ -339,7 +339,8 @@ public class TestEnvironment {
                 new DashboardInsightsService(
                         config,
                         new com.jimuqu.solon.claw.context.SkillUsageTracker(config),
-                        sqliteSessionRepository);
+                        sqliteSessionRepository,
+                        localSkillService);
         DashboardApprovalEventsService dashboardApprovalEventsService =
                 new DashboardApprovalEventsService(config);
         DashboardDiagnosticsService dashboardDiagnosticsService =
@@ -498,8 +499,6 @@ public class TestEnvironment {
                         dashboardCuratorService,
                         dashboardSkillsService,
                         browserRuntimeService,
-                        null,
-                        null,
                         memoryService);
         DefaultGatewayService gatewayService =
                 new DefaultGatewayService(

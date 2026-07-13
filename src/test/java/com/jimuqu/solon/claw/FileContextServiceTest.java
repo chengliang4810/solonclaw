@@ -99,14 +99,14 @@ public class FileContextServiceTest {
     @Test
     void shouldPlaceProjectAgentsBeforeMemory() throws Exception {
         TestEnvironment env = TestEnvironment.withFakeLlm();
-        env.appConfig.getTask().setBootstrapPromptFileCharLimit(400);
+        env.appConfig.getTask().setBootstrapPromptFileCharLimit(1200);
         env.appConfig.getTask().setBootstrapPromptTotalCharBudget(4000);
-        new PersonaWorkspaceService(env.appConfig)
-                .write(ContextFileConstants.KEY_AGENTS, "WORKSPACE_CURRENT_RULE");
+        PersonaWorkspaceService workspace = new PersonaWorkspaceService(env.appConfig);
+        workspace.write(ContextFileConstants.KEY_AGENTS, "WORKSPACE_CURRENT_RULE");
         File projectDir = Files.createTempDirectory("solonclaw-project-context").toFile();
         FileUtil.writeUtf8String("PROJECT_CURRENT_RULE", new File(projectDir, "AGENTS.md"));
         String memory = "MEMORY_MUST_FOLLOW_CURRENT_RULES";
-        env.memoryService.add("user", memory);
+        workspace.write(ContextFileConstants.KEY_MEMORY, memory);
         AgentRuntimeScope scope = new AgentRuntimeScope();
         scope.setAgentName("project-agent");
         scope.setWorkspaceDir(projectDir.getAbsolutePath());

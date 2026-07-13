@@ -42,6 +42,8 @@ public final class AgentRuntimePolicy {
                     ToolNameConstants.RUN_MANAGE,
                     ToolNameConstants.DELEGATE_TASK,
                     ToolNameConstants.MEMORY,
+                    ToolNameConstants.MEMORY_SEARCH,
+                    ToolNameConstants.MEMORY_GET,
                     ToolNameConstants.SESSION_SEARCH,
                     ToolNameConstants.SEARCH_MANAGE,
                     ToolNameConstants.SESSION_MANAGE,
@@ -327,6 +329,8 @@ public final class AgentRuntimePolicy {
         }
         if ("memory".equals(key)) {
             output.add(ToolNameConstants.MEMORY);
+            output.add(ToolNameConstants.MEMORY_SEARCH);
+            output.add(ToolNameConstants.MEMORY_GET);
             output.add(ToolNameConstants.SESSION_SEARCH);
             return;
         }

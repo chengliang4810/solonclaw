@@ -482,12 +482,34 @@ public class SecurityPolicyService {
             String toolName, Map<String, Object> args, String workspaceDir) {
         List<String> paths = extractPaths(toolName, args);
         boolean writeLike = isWriteLikeTool(toolName) || hasWriteIntent(args);
+        boolean allowCrossProfile = args != null && Boolean.TRUE.equals(args.get("cross_profile"));
         for (String path : paths) {
             FileVerdict verdict = checkPath(normalizeWorkspaceReference(path), writeLike);
             if (!verdict.allowed) {
                 return verdict;
             }
             if (writeLike && StrUtil.isNotBlank(workspaceDir)) {
+                ToolCrossProfilePathSupport.CrossProfileTarget crossTarget = null;
+                try {
+                    Path root =
+                            Paths.get(FilePathSupport.expandUserHome(workspaceDir))
+                                    .toAbsolutePath()
+                                    .normalize();
+                    crossTarget = ToolCrossProfilePathSupport.classify(root, path);
+                } catch (RuntimeException ignored) {
+                    // 无效工作区继续交给原有路径策略生成稳定的阻断结果。
+                }
+                if (crossTarget != null) {
+                    if (!allowCrossProfile) {
+                        return FileVerdict.block(
+                                path, ToolCrossProfilePathSupport.warning(crossTarget));
+                    }
+                    String policyKey = "workspace_outside_write";
+                    if (!isFilePolicyApproved(policyApprovalToken(policyKey, path))) {
+                        return FileVerdict.approvalRequired(path, policyKey, "跨 Profile 写入需要审批");
+                    }
+                    continue;
+                }
                 verdict = checkWorkspaceWritePath(path, workspaceDir);
                 if (!verdict.allowed) {
                     return verdict;
@@ -566,10 +588,8 @@ public class SecurityPolicyService {
      * @return 绝对归一化后的真实目标路径。
      */
     public static Path resolveWorkspacePath(Path rootPath, String rawPath) {
-        String value =
-                FilePathSupport.expandUserHome(normalizeWorkspaceReference(rawPath));
-        return rootPath
-                .resolve(ToolWorkspacePathSupport.normalizeWorkspacePath(rootPath, value))
+        String value = FilePathSupport.expandUserHome(normalizeWorkspaceReference(rawPath));
+        return rootPath.resolve(ToolWorkspacePathSupport.normalizeWorkspacePath(rootPath, value))
                 .toAbsolutePath()
                 .normalize();
     }

@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import cn.hutool.core.io.FileUtil;
-
 import com.jimuqu.solon.claw.bootstrap.ContextConfiguration;
 import com.jimuqu.solon.claw.context.AsyncSkillLearningService;
 import com.jimuqu.solon.claw.context.BuiltinMemoryProvider;
@@ -30,11 +29,6 @@ import com.jimuqu.solon.claw.support.TestEnvironment;
 import com.jimuqu.solon.claw.tool.runtime.MemoryTools;
 import com.jimuqu.solon.claw.tool.runtime.SkillTools;
 import com.jimuqu.solon.claw.tool.runtime.SubprocessEnvironmentSanitizer;
-
-import org.junit.jupiter.api.Test;
-import org.noear.snack4.ONode;
-import org.noear.solon.ai.chat.message.ChatMessage;
-
 import java.io.File;
 import java.nio.file.Files;
 import java.util.LinkedHashMap;
@@ -43,6 +37,9 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Test;
+import org.noear.snack4.ONode;
+import org.noear.solon.ai.chat.message.ChatMessage;
 
 public class MemoryAndSkillsTest {
     @Test

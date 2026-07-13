@@ -9,6 +9,7 @@ import com.jimuqu.solon.claw.engine.DefaultContextCompressionService;
 import com.jimuqu.solon.claw.engine.ToolCallArgumentSanitizer;
 import com.jimuqu.solon.claw.support.MessageSupport;
 import com.jimuqu.solon.claw.support.constants.CompressionConstants;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -59,6 +60,123 @@ public class CompressionStabilityTest {
 
         assertThat(compressed.getCompressedSummary()).isNull();
         assertThat(compressed.getLastCompressionInputTokens()).isZero();
+    }
+
+    /** 同一空窗口连续两次无效后，第三次必须明确反抖动跳过且不改写消息历史。 */
+    @Test
+    void shouldThrashSkipAfterTwoNoopCompressionAttemptsWithoutRewritingNdjson() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-noop-thrash");
+        session.setMetadataJson("{\"channel\":\"weixin\"}");
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofSystem("system"), ChatMessage.ofUser("继续"))));
+        String originalNdjson = session.getNdjson();
+
+        CompressionOutcome first = service.compressNowWithOutcome(session, "system", null);
+        CompressionOutcome second = service.compressNowWithOutcome(session, "system", null);
+        CompressionOutcome third = service.compressNowWithOutcome(session, "system", null);
+
+        assertThat(first.isSkipped()).isTrue();
+        assertThat(second.isSkipped()).isTrue();
+        assertThat(third.isSkipped()).isTrue();
+        assertThat(third.getWarning()).contains("compression-thrash-skip");
+        assertThat(session.getNdjson()).isEqualTo(originalNdjson);
+        assertThat(ONode.ofJson(session.getMetadataJson()).get("channel").getString())
+                .isEqualTo("weixin");
+        assertThat(
+                        ONode.ofJson(session.getMetadataJson())
+                                .get("compressionThrash")
+                                .get("count")
+                                .getInt())
+                .isEqualTo(2);
+    }
+
+    /** 压缩后的提供方真实输入 token 未下降时，必须计入连续无效次数。 */
+    @Test
+    void shouldCountProviderUsageWithoutInputReductionAsIneffective() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = noopSession("s-usage-thrash");
+        service.compressNowWithOutcome(session, "system", null);
+        markPendingCompression(session, 1600L, 100L);
+        session.setLastInputTokens(1600L);
+        session.setLastUsageAt(200L);
+
+        CompressionOutcome outcome = service.compressNowWithOutcome(session, "system", null);
+
+        assertThat(outcome.isSkipped()).isTrue();
+        assertThat(outcome.getWarning()).contains("compression-thrash-skip");
+        assertThat(
+                        ONode.ofJson(session.getMetadataJson())
+                                .get("compressionThrash")
+                                .get("count")
+                                .getInt())
+                .isEqualTo(2);
+    }
+
+    /** 压缩后的真实输入 token 已下降时，必须清除此前累计的无效次数。 */
+    @Test
+    void shouldResetThrashCountWhenProviderInputTokensDecrease() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = noopSession("s-usage-effective");
+        service.compressNowWithOutcome(session, "system", null);
+        markPendingCompression(session, 1600L, 100L);
+        session.setLastInputTokens(900L);
+        session.setLastUsageAt(200L);
+
+        CompressionOutcome outcome = service.compressNowWithOutcome(session, "system", null);
+
+        assertThat(outcome.isSkipped()).isTrue();
+        assertThat(outcome.getWarning()).isNull();
+        assertThat(
+                        ONode.ofJson(session.getMetadataJson())
+                                .get("compressionThrash")
+                                .get("count")
+                                .getInt())
+                .isEqualTo(1);
+    }
+
+    /** 新消息进入可压缩中间窗口时，必须解除旧窗口的反抖动抑制。 */
+    @Test
+    void shouldResetThrashSkipWhenNewCompressibleMessagesAppear() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = noopSession("s-new-window");
+        service.compressNowWithOutcome(session, "system", null);
+        service.compressNowWithOutcome(session, "system", null);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(
+                                ChatMessage.ofSystem("system"),
+                                ChatMessage.ofUser("旧请求：" + repeat("A", 4000)),
+                                ChatMessage.ofAssistant("已完成前置分析"),
+                                ChatMessage.ofUser("继续"),
+                                ChatMessage.ofAssistant("处理中"))));
+
+        CompressionOutcome outcome = service.compressNowWithOutcome(session, "system", null);
+
+        assertThat(outcome.isCompressed()).isTrue();
+        assertThat(outcome.getWarning()).isNull();
+    }
+
+    /** 工具参数变化属于新的压缩窗口，不能沿用旧窗口的反抖动计数。 */
+    @Test
+    void shouldResetThrashWindowWhenAssistantToolCallArgumentsChange() throws Exception {
+        DefaultContextCompressionService service = new DefaultContextCompressionService(config());
+        SessionRecord session = new SessionRecord();
+        session.setSessionId("s-tool-call-window");
+        session.setNdjson(MessageSupport.toNdjson(compressionMessages("{\"path\":\"old.md\"}")));
+        String oldFingerprint = compressionWindowFingerprint(service, session);
+        session.setMetadataJson(
+                "{\"compressionThrash\":{\"count\":2,\"fingerprint\":\""
+                        + oldFingerprint
+                        + "\",\"baselineInputTokens\":0,\"compressionAt\":0}}");
+        session.setNdjson(MessageSupport.toNdjson(compressionMessages("{\"path\":\"new.md\"}")));
+
+        CompressionOutcome outcome = service.compressNowWithOutcome(session, "system", null);
+
+        assertThat(outcome.isCompressed()).isTrue();
+        assertThat(outcome.getWarning()).isNull();
     }
 
     @Test
@@ -444,8 +562,7 @@ public class CompressionStabilityTest {
 
     /** 输出上限占满或超过窗口时，压缩侧阈值必须保守钳制到最小输入预算。 */
     @Test
-    void shouldClampThresholdWhenMaxTokensConsumesOrExceedsContextWindow()
-            throws Exception {
+    void shouldClampThresholdWhenMaxTokensConsumesOrExceedsContextWindow() throws Exception {
         AppConfig config = config();
         config.getCompression().setThresholdPercent(0.5D);
         DefaultContextCompressionService service = new DefaultContextCompressionService(config);
@@ -574,6 +691,50 @@ public class CompressionStabilityTest {
         config.getCompression().setTailRatio(0.2D);
         config.getLlm().setContextWindowTokens(2000);
         return config;
+    }
+
+    /** 创建只有受保护消息、没有可压缩中间窗口的会话。 */
+    private SessionRecord noopSession(String sessionId) throws Exception {
+        SessionRecord session = new SessionRecord();
+        session.setSessionId(sessionId);
+        session.setNdjson(
+                MessageSupport.toNdjson(
+                        Arrays.asList(ChatMessage.ofSystem("system"), ChatMessage.ofUser("继续"))));
+        return session;
+    }
+
+    /** 在测试元数据中模拟等待提供方 usage 验证的上一轮压缩。 */
+    @SuppressWarnings("unchecked")
+    private void markPendingCompression(
+            SessionRecord session, long baselineInputTokens, long compressionAt) {
+        Map<String, Object> metadata =
+                ONode.deserialize(session.getMetadataJson(), LinkedHashMap.class);
+        Map<String, Object> state = (Map<String, Object>) metadata.get("compressionThrash");
+        state.put("baselineInputTokens", Long.valueOf(baselineInputTokens));
+        state.put("compressionAt", Long.valueOf(compressionAt));
+        session.setMetadataJson(ONode.serialize(metadata));
+    }
+
+    /** 构造工具调用位于可压缩窗口、最新用户消息位于受保护尾部的会话。 */
+    private List<ChatMessage> compressionMessages(String arguments) {
+        return Arrays.asList(
+                ChatMessage.ofSystem("system"),
+                assistantWithRawAndStructuredToolCall("call_1", "read_file", arguments),
+                ChatMessage.ofTool("ok", "read_file", "call_1"),
+                ChatMessage.ofUser(repeat("最新请求", 400)));
+    }
+
+    /** 读取内部压缩窗口指纹，验证工具参数变化会进入新的反抖动窗口。 */
+    private String compressionWindowFingerprint(
+            DefaultContextCompressionService service, SessionRecord session) throws Exception {
+        Method method =
+                DefaultContextCompressionService.class.getDeclaredMethod(
+                        "resolveCompressionWindow", SessionRecord.class, int.class);
+        method.setAccessible(true);
+        Object window = method.invoke(service, session, Integer.valueOf(2000));
+        Field field = window.getClass().getDeclaredField("fingerprint");
+        field.setAccessible(true);
+        return (String) field.get(window);
     }
 
     private String repeat(String value, int count) {

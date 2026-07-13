@@ -162,8 +162,8 @@ public class GatewayControllerHttpTest {
 
         assertAcceptedGatewayPlatform(qqbotResponse);
         assertAcceptedGatewayPlatform(yuanbaoResponse);
-        assertThat(qqbotResponse.reply.getContent()).contains("/pairing claim-admin");
-        assertThat(yuanbaoResponse.reply.getContent()).contains("/pairing claim-admin");
+        assertThat(qqbotResponse.reply.getContent()).contains("pairing code");
+        assertThat(yuanbaoResponse.reply.getContent()).contains("pairing code");
     }
 
     @Test
@@ -217,11 +217,9 @@ public class GatewayControllerHttpTest {
     }
 
     private static void bootstrapAdmin() throws Exception {
-        GatewayReply claimPrompt = postMessage("http-admin-chat", "http-admin", "hello");
-        assertThat(claimPrompt.getContent()).contains("/pairing claim-admin");
-        GatewayReply claimReply =
-                postMessage("http-admin-chat", "http-admin", "/pairing claim-admin");
-        assertThat(claimReply.getContent()).contains("唯一管理员");
+        bean(com.jimuqu.solon.claw.gateway.authorization.GatewayAuthorizationService.class)
+                .setPlatformAdmin(
+                        PlatformType.MEMORY, "http-admin", "http-admin", "http-admin-chat");
     }
 
     private static <T> T bean(Class<T> type) {

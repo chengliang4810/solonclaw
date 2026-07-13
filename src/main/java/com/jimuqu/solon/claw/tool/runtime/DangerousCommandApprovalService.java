@@ -276,8 +276,7 @@ public class DangerousCommandApprovalService {
                                 (trace, args) -> evaluateProcessTool(trace, args))
                         .onTool(
                                 "call_tool",
-                                (trace, args) ->
-                                        evaluateGatewayCallTool(trace, args, workspaceDir))
+                                (trace, args) -> evaluateGatewayCallTool(trace, args, workspaceDir))
                         .onTool(
                                 ToolNameConstants.FILE_READ,
                                 (trace, args) ->
@@ -338,10 +337,7 @@ public class DangerousCommandApprovalService {
                                 ToolNameConstants.PATCH,
                                 (trace, args) ->
                                         evaluateFileTool(
-                                                trace,
-                                                ToolNameConstants.PATCH,
-                                                args,
-                                                workspaceDir))
+                                                trace, ToolNameConstants.PATCH, args, workspaceDir))
                         .onTool(
                                 ToolNameConstants.WEBFETCH,
                                 (trace, args) ->
@@ -2142,10 +2138,7 @@ public class DangerousCommandApprovalService {
      * @return 返回evaluate文件工具结果。
      */
     private String evaluateFileTool(
-            ReActTrace trace,
-            String toolName,
-            Map<String, Object> args,
-            String workspaceDir) {
+            ReActTrace trace, String toolName, Map<String, Object> args, String workspaceDir) {
         if (securityPolicyService == null
                 || !SolonClawCodeExecutionSkills.isFileGuardrailEnabled(appConfig)) {
             return null;
@@ -2173,8 +2166,7 @@ public class DangerousCommandApprovalService {
                     "BLOCKED: 文件安全策略阻止访问："
                             + verdict.getMessage()
                             + " path="
-                            + SecretRedactor.redact(
-                                    StrUtil.nullToEmpty(verdict.getPath()), 400));
+                            + SecretRedactor.redact(StrUtil.nullToEmpty(verdict.getPath()), 400));
             trace.setRoute(org.noear.solon.ai.agent.Agent.ID_END);
             persistTraceSnapshot(trace);
             return null;
@@ -2314,9 +2306,7 @@ public class DangerousCommandApprovalService {
                         "workspace_outside_write", detection.getNormalizedCode());
                 Set<String> approvals = loadWorkspaceOnceApprovals(context);
                 approvals.add(workspaceOnceApprovalKey(toolName, detection.getNormalizedCode()));
-                context.put(
-                        CONTEXT_WORKSPACE_ONCE_APPROVALS,
-                        new ArrayList<String>(approvals));
+                context.put(CONTEXT_WORKSPACE_ONCE_APPROVALS, new ArrayList<String>(approvals));
             }
         }
     }
@@ -2350,9 +2340,7 @@ public class DangerousCommandApprovalService {
 
     /** 生成工作区目标的工具调用级审批键。 */
     private String workspaceOnceApprovalKey(String toolName, String target) {
-        return StrUtil.nullToEmpty(toolName).trim()
-                + "\n"
-                + StrUtil.nullToEmpty(target).trim();
+        return StrUtil.nullToEmpty(toolName).trim() + "\n" + StrUtil.nullToEmpty(target).trim();
     }
 
     /**
@@ -2772,26 +2760,9 @@ public class DangerousCommandApprovalService {
         return value > 0 ? value : 60;
     }
 
-    /**
-     * 执行审批消息网关TimeoutSeconds相关逻辑。
-     *
-     * @return 返回审批消息网关Timeout Seconds结果。
-     */
-    public int approvalGatewayTimeoutSeconds() {
-        int value =
-                appConfig == null || appConfig.getApprovals() == null
-                        ? 300
-                        : appConfig.getApprovals().getGatewayTimeoutSeconds();
-        return value > 0 ? value : Math.max(approvalTimeoutSeconds(), 300);
-    }
-
-    /**
-     * 执行审批消息网关TimeoutMillis相关逻辑。
-     *
-     * @return 返回审批消息网关Timeout Millis结果。
-     */
-    private long approvalGatewayTimeoutMillis() {
-        return approvalGatewayTimeoutSeconds() * 1000L;
+    /** 返回所有待审批项共享的超时毫秒数，避免渠道等待与直接审批产生不同期限。 */
+    private long approvalTimeoutMillis() {
+        return approvalTimeoutSeconds() * 1000L;
     }
 
     /**
@@ -2815,7 +2786,7 @@ public class DangerousCommandApprovalService {
         payload.put("approvalKey", combinedApprovalKey(toolName, detection));
         payload.put("onceOnly", Boolean.valueOf(detection.isOnceOnly()));
         payload.put("createdAt", System.currentTimeMillis());
-        payload.put("expiresAt", System.currentTimeMillis() + approvalGatewayTimeoutMillis());
+        payload.put("expiresAt", System.currentTimeMillis() + approvalTimeoutMillis());
         return payload;
     }
 
@@ -3178,7 +3149,7 @@ public class DangerousCommandApprovalService {
         }
         long expiresAt = pending.getExpiresAt();
         if (expiresAt <= 0L && pending.getCreatedAt() > 0L) {
-            expiresAt = pending.getCreatedAt() + approvalGatewayTimeoutMillis();
+            expiresAt = pending.getCreatedAt() + approvalTimeoutMillis();
         }
         return expiresAt > 0L && System.currentTimeMillis() > expiresAt;
     }

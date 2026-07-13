@@ -51,9 +51,7 @@ public class MemoryApprovalGateTest {
         restarted.reject(pending.get(1).getId());
         restarted.approve("all");
 
-        assertThat(restarted.read("memory"))
-                .contains("审批后使用中文")
-                .doesNotContain("替换后使用中文");
+        assertThat(restarted.read("memory")).contains("审批后使用中文").doesNotContain("替换后使用中文");
         assertThat(restarted.read("user")).doesNotContain("审批前已存在条目");
         assertThat(restarted.listPendingApprovals()).isEmpty();
     }

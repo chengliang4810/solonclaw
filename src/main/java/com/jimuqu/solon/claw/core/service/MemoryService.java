@@ -1,6 +1,7 @@
 package com.jimuqu.solon.claw.core.service;
 
 import com.jimuqu.solon.claw.core.model.MemoryApprovalRequest;
+import com.jimuqu.solon.claw.core.model.MemorySearchResult;
 import com.jimuqu.solon.claw.core.model.MemorySnapshot;
 import java.util.List;
 
@@ -11,6 +12,16 @@ public interface MemoryService {
 
     /** 读取目标内容。 */
     String read(String target) throws Exception;
+
+    /** 使用统一索引搜索长期、用户、每日和专题记忆。 */
+    default List<MemorySearchResult> search(String query, int limit) throws Exception {
+        throw new UnsupportedOperationException("当前记忆服务不支持统一检索。");
+    }
+
+    /** 按受控相对路径读取记忆文件。 */
+    default String get(String path) throws Exception {
+        throw new UnsupportedOperationException("当前记忆服务不支持按路径读取。");
+    }
 
     /** 添加条目。 */
     String add(String target, String content) throws Exception;

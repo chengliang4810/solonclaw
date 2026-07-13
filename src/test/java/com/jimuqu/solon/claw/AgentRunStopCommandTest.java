@@ -177,7 +177,7 @@ public class AgentRunStopCommandTest {
 
         GatewayReply approveReply = env.send("admin-chat", "admin-user", "/approve always");
         assertThat(approveReply.isError()).isTrue();
-        assertThat(approveReply.getContent()).contains("当前没有待审批的危险命令");
+        assertThat(approveReply.getContent()).contains("没有匹配的待审批命令");
         assertThat(env.dangerousCommandApprovalService.listAlwaysApprovals()).isEmpty();
         assertThat(env.dangerousCommandApprovalService.listSessionApprovals(reloadedSession))
                 .isEmpty();

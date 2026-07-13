@@ -22,6 +22,9 @@ public class LlmResult {
     /** 原始协议响应。 */
     private String rawResponse;
 
+    /** 模型标准化后的结束原因，用于识别截断和内容过滤。 */
+    private String finishReason;
+
     /** 本轮 ReAct/模型调用累计输入 token。 */
     private long inputTokens;
 

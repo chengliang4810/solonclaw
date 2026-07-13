@@ -135,7 +135,6 @@ security:
 approvals:
   subagentAutoApprove: false
   timeoutSeconds: 60
-  gatewayTimeoutSeconds: 300
   mcpReloadConfirm: true
 solonclaw:
   workspace: ./workspace
@@ -169,8 +168,7 @@ Common workspace settings:
 | `security.guardrailCronScope` | `job` | Scheduled-job approval memory scope: `job`, `session`, `global` |
 | `security.hardlineAllowlist` | empty | Explicitly allowlisted hardline categories; none are allowed by default |
 | `approvals.subagentAutoApprove` | `false` | Automatically approves one approvable dangerous command for sub-agents |
-| `approvals.timeoutSeconds` | `60` | Local/direct approval timeout in seconds |
-| `approvals.gatewayTimeoutSeconds` | `300` | Messaging-channel approval timeout in seconds |
+| `approvals.timeoutSeconds` | `60` | Shared approval timeout in seconds, including messaging channels |
 | `approvals.mcpReloadConfirm` | `true` | Whether `/reload-mcp` requires confirmation |
 | `solonclaw.terminal.credentialFiles` | empty | Workspace-relative credential files available to isolated execution |
 | `solonclaw.terminal.envPassthrough` | empty | Third-party environment variables allowed for local subprocesses |

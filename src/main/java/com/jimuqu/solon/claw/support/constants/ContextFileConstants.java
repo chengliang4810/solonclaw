@@ -35,6 +35,15 @@ public final class ContextFileConstants {
     /** 键记忆TODAY的统一常量值。 */
     public static final String KEY_MEMORY_TODAY = "memory_today";
 
+    /** 首次启动引导文件键，仅在新工作区初始化时创建。 */
+    public static final String KEY_BOOTSTRAP = "bootstrap";
+
+    /** 主动消息生成规则文件键。 */
+    public static final String KEY_PROACTIVE = "proactive";
+
+    /** 主动联系频率分析规则文件键。 */
+    public static final String KEY_PROACTIVITY_ANALYSIS = "proactivity_analysis";
+
     /** 文件AGENTS的统一常量值。 */
     public static final String FILE_AGENTS = "AGENTS.md";
 
@@ -56,6 +65,15 @@ public final class ContextFileConstants {
     /** 文件记忆的统一常量值。 */
     public static final String FILE_MEMORY = "MEMORY.md";
 
+    /** 首次启动引导文件名。 */
+    public static final String FILE_BOOTSTRAP = "BOOTSTRAP.md";
+
+    /** 主动消息生成规则文件名。 */
+    public static final String FILE_PROACTIVE = "PROACTIVE.md";
+
+    /** 主动联系频率分析规则文件名。 */
+    public static final String FILE_PROACTIVITY_ANALYSIS = "PROACTIVITY_ANALYSIS.md";
+
     /** 记忆目录的统一常量值。 */
     public static final String MEMORY_DIR = "memory";
 
@@ -74,6 +92,9 @@ public final class ContextFileConstants {
         files.put(KEY_TOOLS, FILE_TOOLS);
         files.put(KEY_HEARTBEAT, FILE_HEARTBEAT);
         files.put(KEY_MEMORY, FILE_MEMORY);
+        files.put(KEY_BOOTSTRAP, FILE_BOOTSTRAP);
+        files.put(KEY_PROACTIVE, FILE_PROACTIVE);
+        files.put(KEY_PROACTIVITY_ANALYSIS, FILE_PROACTIVITY_ANALYSIS);
         FILES_BY_KEY = Collections.unmodifiableMap(files);
         ArrayList<String> ordered = new ArrayList<String>(files.keySet());
         ordered.add(KEY_MEMORY_TODAY);

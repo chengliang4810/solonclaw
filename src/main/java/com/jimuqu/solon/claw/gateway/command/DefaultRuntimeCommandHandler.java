@@ -1,21 +1,13 @@
 package com.jimuqu.solon.claw.gateway.command;
 
-import static com.jimuqu.solon.claw.gateway.command.CommandValueSupport.formatTimestamp;
-
 import cn.hutool.core.util.StrUtil;
 import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.core.model.GatewayReply;
-import com.jimuqu.solon.claw.core.model.ProactiveDecisionRecord;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
-import com.jimuqu.solon.claw.core.service.DeliveryService;
 import com.jimuqu.solon.claw.plugin.AgentPluginManager;
 import com.jimuqu.solon.claw.plugin.AgentPluginManifest;
 import com.jimuqu.solon.claw.plugin.PluginLoadDiagnostic;
 import com.jimuqu.solon.claw.plugin.PluginLoadStatus;
-import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
-import com.jimuqu.solon.claw.proactive.ProactiveDispatchService;
-import com.jimuqu.solon.claw.proactive.ProactiveRepository;
-import com.jimuqu.solon.claw.support.SecretRedactor;
 import com.jimuqu.solon.claw.support.constants.AgentSettingConstants;
 import com.jimuqu.solon.claw.support.constants.GatewayCommandConstants;
 import java.util.Collections;
@@ -33,38 +25,20 @@ final class DefaultRuntimeCommandHandler {
     /** 插件管理器，用于读取插件加载状态和诊断信息。 */
     private final AgentPluginManager pluginManager;
 
-    /** 主动协作诊断服务，用于解释最近一次主动协作决策。 */
-    private final ProactiveDiagnosticsService proactiveDiagnosticsService;
-
-    /** 主动协作仓储，用于忽略指定候选。 */
-    private final ProactiveRepository proactiveRepository;
-
-    /** 统一渠道投递服务，仅在用户显式执行 retry 时使用。 */
-    private final DeliveryService deliveryService;
-
     /**
      * 创建运行时控制面命令处理器。
      *
      * @param appConfig 应用配置。
      * @param globalSettingRepository 全局设置仓储。
      * @param pluginManager 插件管理器。
-     * @param proactiveDiagnosticsService 主动协作诊断服务。
-     * @param proactiveRepository 主动协作仓储。
-     * @param deliveryService 统一渠道投递服务。
      */
     DefaultRuntimeCommandHandler(
             AppConfig appConfig,
             GlobalSettingRepository globalSettingRepository,
-            AgentPluginManager pluginManager,
-            ProactiveDiagnosticsService proactiveDiagnosticsService,
-            ProactiveRepository proactiveRepository,
-            DeliveryService deliveryService) {
+            AgentPluginManager pluginManager) {
         this.appConfig = appConfig;
         this.globalSettingRepository = globalSettingRepository;
         this.pluginManager = pluginManager;
-        this.proactiveDiagnosticsService = proactiveDiagnosticsService;
-        this.proactiveRepository = proactiveRepository;
-        this.deliveryService = deliveryService;
     }
 
     /**
@@ -195,7 +169,7 @@ final class DefaultRuntimeCommandHandler {
     }
 
     /**
-     * 执行主动协作命令；只有 retry 子命令会在用户明确指定候选后触发一次人工投递。
+     * 执行主动提醒启停和状态命令。
      *
      * @param args 工具或命令参数。
      * @param sourceKey 当前渠道用户来源键，用于隔离人工重试候选。
@@ -204,7 +178,6 @@ final class DefaultRuntimeCommandHandler {
     GatewayReply handleProactive(String args, String sourceKey) throws Exception {
         SlashCommandLine.ActionTail parsed = SlashCommandLine.parseActionTail(args, "status");
         String action = parsed.getAction();
-        String tail = parsed.getTail();
         GatewayReply reply;
         if ("status".equals(action) || "state".equals(action)) {
             reply = GatewayReply.ok(proactiveStatusText());
@@ -215,7 +188,7 @@ final class DefaultRuntimeCommandHandler {
             if (appConfig != null && appConfig.getProactive() != null) {
                 appConfig.getProactive().setEnabled(false);
             }
-            reply = GatewayReply.ok("已暂停主动协作。后续不会主动联系，直到使用 /proactive resume。");
+            reply = GatewayReply.ok("已暂停主动提醒。后续不会主动联系，直到使用 /proactive resume。");
         } else if (GatewayCommandConstants.ACTION_RESUME.equals(action)
                 || "on".equals(action)
                 || "enable".equals(action)) {
@@ -223,32 +196,7 @@ final class DefaultRuntimeCommandHandler {
             if (appConfig != null && appConfig.getProactive() != null) {
                 appConfig.getProactive().setEnabled(true);
             }
-            reply = GatewayReply.ok("已恢复主动协作。系统仍会遵守免打扰、冷却和每日上限。");
-        } else if ("why".equals(action)) {
-            reply = GatewayReply.ok(proactiveWhyText());
-        } else if ("less".equals(action)) {
-            int cooldown =
-                    Math.min(
-                            24 * 60,
-                            Math.max(30, appConfig.getProactive().getCooldownMinutes()) + 60);
-            int dailyMax = Math.max(1, appConfig.getProactive().getDailyMaxContacts() - 1);
-            setProactiveSetting("proactive.cooldownMinutes", String.valueOf(cooldown));
-            setProactiveSetting("proactive.dailyMaxContacts", String.valueOf(dailyMax));
-            appConfig.getProactive().setCooldownMinutes(cooldown);
-            appConfig.getProactive().setDailyMaxContacts(dailyMax);
-            reply = GatewayReply.ok("已降低主动联系频率：冷却时间 " + cooldown + " 分钟，每日最多 " + dailyMax + " 次。");
-        } else if ("more".equals(action)) {
-            int cooldown = Math.max(15, appConfig.getProactive().getCooldownMinutes() - 60);
-            int dailyMax = Math.min(12, appConfig.getProactive().getDailyMaxContacts() + 1);
-            setProactiveSetting("proactive.cooldownMinutes", String.valueOf(cooldown));
-            setProactiveSetting("proactive.dailyMaxContacts", String.valueOf(dailyMax));
-            appConfig.getProactive().setCooldownMinutes(cooldown);
-            appConfig.getProactive().setDailyMaxContacts(dailyMax);
-            reply = GatewayReply.ok("已提高主动联系频率：冷却时间 " + cooldown + " 分钟，每日最多 " + dailyMax + " 次。");
-        } else if ("ignore".equals(action)) {
-            reply = GatewayReply.ok(ignoreProactiveCandidate(tail));
-        } else if ("retry".equals(action)) {
-            reply = retryUnknownDelivery(tail, sourceKey);
+            reply = GatewayReply.ok("已恢复主动提醒。系统仍会遵守检查间隔、话题间隔和免打扰时段。");
         } else {
             reply = GatewayReply.error(proactiveUsage());
         }
@@ -278,91 +226,14 @@ final class DefaultRuntimeCommandHandler {
      * @return 主动协作状态文本。
      */
     private String proactiveStatusText() {
-        if (proactiveDiagnosticsService != null) {
-            return proactiveDiagnosticsService.statusLine();
-        }
         AppConfig.ProactiveConfig config = appConfig.getProactive();
-        return "主动协作"
+        return "主动提醒"
                 + (config.isEnabled() ? "已启用" : "已暂停")
                 + "，检查间隔 "
-                + config.getIntervalMinutes()
-                + " 分钟，每日最多 "
-                + config.getDailyMaxContacts()
-                + " 次。";
-    }
-
-    /**
-     * 生成最近一次主动协作决策解释。
-     *
-     * @return 决策解释文本。
-     */
-    private String proactiveWhyText() {
-        if (proactiveDiagnosticsService == null) {
-            return "主动协作诊断服务尚未启用。";
-        }
-        ProactiveDecisionRecord decision = proactiveDiagnosticsService.latestDecision();
-        if (decision == null) {
-            return "暂无主动协作决策记录。可以在 Dashboard 诊断里检查 home channel、免打扰和候选生成状态。";
-        }
-        StringBuilder buffer = new StringBuilder();
-        buffer.append("最近一次主动协作决策：").append(StrUtil.blankToDefault(decision.getDecision(), "-"));
-        if (StrUtil.isNotBlank(decision.getReason())) {
-            buffer.append("\n原因：").append(SecretRedactor.redact(decision.getReason(), 800));
-        }
-        if (StrUtil.isNotBlank(decision.getDeliveryStatus())) {
-            buffer.append("\n投递状态：").append(decision.getDeliveryStatus());
-        }
-        if (StrUtil.isNotBlank(decision.getDeliveryError())) {
-            buffer.append("\n投递错误：")
-                    .append(SecretRedactor.redact(decision.getDeliveryError(), 500));
-        }
-        buffer.append("\n时间：").append(formatTimestamp(decision.getCreatedAt()));
-        return buffer.toString();
-    }
-
-    /**
-     * 忽略指定主动协作候选。
-     *
-     * @param candidateId 候选 ID。
-     * @return 用户可见结果。
-     */
-    private String ignoreProactiveCandidate(String candidateId) throws Exception {
-        if (proactiveRepository == null) {
-            return "主动协作仓储尚未启用，无法忽略候选。";
-        }
-        if (StrUtil.isBlank(candidateId)) {
-            return proactiveUsage();
-        }
-        proactiveRepository.markCandidateStatus(
-                candidateId.trim(), "IGNORED", "user-command", System.currentTimeMillis());
-        return "已忽略主动协作候选：" + candidateId.trim();
-    }
-
-    /**
-     * 仅在用户明确指定候选后重试一次投递结果不确定的消息。
-     *
-     * @param candidateId 候选 ID。
-     * @param sourceKey 当前渠道用户来源键。
-     * @return 用户可见的重试结果。
-     */
-    private GatewayReply retryUnknownDelivery(String candidateId, String sourceKey)
-            throws Exception {
-        if (StrUtil.isBlank(candidateId)) {
-            return GatewayReply.error(proactiveUsage());
-        }
-        ProactiveDecisionRecord result;
-        try {
-            result =
-                    new ProactiveDispatchService(null, deliveryService, proactiveRepository)
-                            .retryUnknown(candidateId.trim(), sourceKey);
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return GatewayReply.error(SecretRedactor.redact(e.getMessage(), 500));
-        }
-        if ("SENT".equalsIgnoreCase(StrUtil.nullToEmpty(result.getDeliveryStatus()))) {
-            return GatewayReply.ok("已按你的确认完成一次人工重试，投递成功：" + candidateId.trim());
-        }
-        return GatewayReply.error(
-                "人工重试未确认成功，系统不会自动再次投递。请检查渠道后重新执行 /proactive retry " + candidateId.trim());
+                + config.getIntervalHours()
+                + " 小时，同话题至少间隔 "
+                + config.getTopicCooldownHours()
+                + " 小时。";
     }
 
     /**
@@ -383,7 +254,6 @@ final class DefaultRuntimeCommandHandler {
      * @return 用法文本。
      */
     private String proactiveUsage() {
-        return "用法：/proactive status|pause|resume|why|less|more|ignore <candidateId>|retry"
-                + " <candidateId>";
+        return "用法：/proactive status|pause|resume";
     }
 }

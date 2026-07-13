@@ -53,8 +53,6 @@ import com.jimuqu.solon.claw.plugin.CommandHandler;
 import com.jimuqu.solon.claw.profile.ProfileManager;
 import com.jimuqu.solon.claw.profile.ProfileRuntimeIdentity;
 import com.jimuqu.solon.claw.profile.ProfileView;
-import com.jimuqu.solon.claw.proactive.ProactiveDiagnosticsService;
-import com.jimuqu.solon.claw.proactive.ProactiveRepository;
 import com.jimuqu.solon.claw.scheduler.CronJobService;
 import com.jimuqu.solon.claw.scheduler.DefaultCronScheduler;
 import com.jimuqu.solon.claw.storage.session.SqliteAgentSession;
@@ -187,12 +185,6 @@ public class DefaultCommandService implements CommandService {
     /** 注入浏览器运行时服务，用于调用对应业务能力。 */
     private final BrowserRuntimeService browserRuntimeService;
 
-    /** 注入主动协作诊断服务，用于命令侧只读状态和 why 查询。 */
-    private ProactiveDiagnosticsService proactiveDiagnosticsService;
-
-    /** 注入主动协作仓储，用于命令侧忽略候选。 */
-    private ProactiveRepository proactiveRepository;
-
     /** 长期记忆服务，与工具和后台任务共用同一审批队列。 */
     private final MemoryService memoryService;
 
@@ -238,8 +230,6 @@ public class DefaultCommandService implements CommandService {
      * @param dashboardCuratorService dashboardCurator服务依赖。
      * @param dashboardSkillsService dashboard技能服务依赖。
      * @param browserRuntimeService 浏览器运行时服务依赖。
-     * @param proactiveDiagnosticsService 主动协作诊断服务依赖。
-     * @param proactiveRepository 主动协作仓储依赖。
      * @param memoryService 长期记忆服务，用于管理记忆写入审批。
      */
     public DefaultCommandService(
@@ -276,8 +266,6 @@ public class DefaultCommandService implements CommandService {
             DashboardCuratorService dashboardCuratorService,
             DashboardSkillsService dashboardSkillsService,
             BrowserRuntimeService browserRuntimeService,
-            ProactiveDiagnosticsService proactiveDiagnosticsService,
-            ProactiveRepository proactiveRepository,
             MemoryService memoryService) {
         this.sessionRepository = sessionRepository;
         this.toolRegistry = toolRegistry;
@@ -320,8 +308,6 @@ public class DefaultCommandService implements CommandService {
         this.dashboardCuratorService = dashboardCuratorService;
         this.dashboardSkillsService = dashboardSkillsService;
         this.browserRuntimeService = browserRuntimeService;
-        this.proactiveDiagnosticsService = proactiveDiagnosticsService;
-        this.proactiveRepository = proactiveRepository;
         this.memoryService = memoryService;
         this.pluginCommands =
                 pluginCommands == null
@@ -2582,7 +2568,8 @@ public class DefaultCommandService implements CommandService {
                 && tokens.length == 2) {
             return memoryMutationReply(action, memoryService.approve(tokens[1]));
         }
-        if (("reject".equals(action) || GatewayCommandConstants.COMMAND_DENY.equals(action)
+        if (("reject".equals(action)
+                        || GatewayCommandConstants.COMMAND_DENY.equals(action)
                         || "drop".equals(action))
                 && tokens.length == 2) {
             return memoryMutationReply(action, memoryService.reject(tokens[1]));
@@ -2667,13 +2654,7 @@ public class DefaultCommandService implements CommandService {
 
     /** 创建运行时控制面命令处理器。 */
     private DefaultRuntimeCommandHandler newRuntimeCommandHandler() {
-        return new DefaultRuntimeCommandHandler(
-                appConfig,
-                globalSettingRepository,
-                pluginManager,
-                proactiveDiagnosticsService,
-                proactiveRepository,
-                deliveryService);
+        return new DefaultRuntimeCommandHandler(appConfig, globalSettingRepository, pluginManager);
     }
 
     /** 执行定时任务命令相关逻辑。 */

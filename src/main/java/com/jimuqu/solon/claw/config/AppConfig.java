@@ -629,7 +629,6 @@ public class AppConfig {
     private void copyApprovals(ApprovalsConfig other) {
         this.approvals.setSubagentAutoApprove(other.isSubagentAutoApprove());
         this.approvals.setTimeoutSeconds(other.getTimeoutSeconds());
-        this.approvals.setGatewayTimeoutSeconds(other.getGatewayTimeoutSeconds());
         this.approvals.setMcpReloadConfirm(other.isMcpReloadConfirm());
         this.approvals.setDeny(other.getDeny());
     }
@@ -656,26 +655,12 @@ public class AppConfig {
      */
     private void copyProactive(ProactiveConfig other) {
         this.proactive.setEnabled(other.isEnabled());
-        this.proactive.setIntervalMinutes(other.getIntervalMinutes());
-        this.proactive.setInitialDelaySeconds(other.getInitialDelaySeconds());
-        this.proactive.setDailyMaxContacts(other.getDailyMaxContacts());
-        this.proactive.setCooldownMinutes(other.getCooldownMinutes());
-        this.proactive.setQuietStartHour(other.getQuietStartHour());
-        this.proactive.setQuietEndHour(other.getQuietEndHour());
-        this.proactive.setMinConfidenceToContact(other.getMinConfidenceToContact());
-        this.proactive.setLlmDecisionEnabled(other.isLlmDecisionEnabled());
-        this.proactive.setLlmPolishEnabled(other.isLlmPolishEnabled());
-        this.proactive.setMaxCandidatesPerTick(other.getMaxCandidatesPerTick());
-        this.proactive.setMaxContactsPerTick(other.getMaxContactsPerTick());
-        this.proactive.setCandidateTtlHours(other.getCandidateTtlHours());
-        this.proactive.setRepositoryCheckEnabled(other.isRepositoryCheckEnabled());
-        this.proactive.setRepositoryCheckIntervalMinutes(other.getRepositoryCheckIntervalMinutes());
-        this.proactive.setSessionLookbackDays(other.getSessionLookbackDays());
-        this.proactive.setRunLookbackDays(other.getRunLookbackDays());
-        this.proactive.setCronLookbackDays(other.getCronLookbackDays());
-        this.proactive.setCareCheckinEnabled(other.isCareCheckinEnabled());
-        this.proactive.setCareCheckinAfterIdleHours(other.getCareCheckinAfterIdleHours());
-        this.proactive.setDeliveryPreviewPrefix(other.getDeliveryPreviewPrefix());
+        this.proactive.setIntervalHours(other.getIntervalHours());
+        this.proactive.setDeliveryTarget(other.getDeliveryTarget());
+        this.proactive.setTopicCooldownHours(other.getTopicCooldownHours());
+        this.proactive.setQuietHoursEnabled(other.isQuietHoursEnabled());
+        this.proactive.setQuietStart(other.getQuietStart());
+        this.proactive.setQuietEnd(other.getQuietEnd());
     }
 
     /**
@@ -1271,68 +1256,26 @@ public class AppConfig {
     @Setter
     @NoArgsConstructor
     public static class ProactiveConfig {
-        /** 是否启用主动协作调度；关闭后不扫描候选事项也不主动触达用户。 */
+        /** 是否启用主动提醒。 */
         private boolean enabled = true;
 
-        /** 主动协作扫描间隔，单位分钟。 */
-        private int intervalMinutes = 30;
+        /** 两次主动提醒检查之间的小时数。 */
+        private double intervalHours = 4D;
 
-        /** 服务启动后首次扫描前的延迟，单位秒，避免启动阶段抢占资源。 */
-        private int initialDelaySeconds = 60;
+        /** 提醒投递目标；当前只支持 main，表示最近的主对话。 */
+        private String deliveryTarget = "main";
 
-        /** 单日最多主动触达次数，用于限制打扰频率。 */
-        private int dailyMaxContacts = 3;
+        /** 相同话题再次提醒前至少间隔的小时数。 */
+        private double topicCooldownHours = 8D;
 
-        /** 同一用户或会话两次主动触达之间的冷却时间，单位分钟。 */
-        private int cooldownMinutes = 120;
+        /** 是否启用免打扰时段。 */
+        private boolean quietHoursEnabled = true;
 
-        /** 免打扰开始小时，使用 0-23 的本地小时。 */
-        private int quietStartHour = 23;
+        /** 免打扰开始时间，格式为 HH:mm。 */
+        private String quietStart = "22:00";
 
-        /** 免打扰结束小时，使用 0-23 的本地小时。 */
-        private int quietEndHour = 8;
-
-        /** 允许主动触达的最低候选置信度，低于该值仅记录不投递。 */
-        private double minConfidenceToContact = 0.65D;
-
-        /** 是否启用大模型辅助判断候选事项是否值得主动触达。 */
-        private boolean llmDecisionEnabled = true;
-
-        /** 是否启用大模型润色主动协作投递文案。 */
-        private boolean llmPolishEnabled = true;
-
-        /** 单次扫描最多评估的候选事项数量。 */
-        private int maxCandidatesPerTick = 20;
-
-        /** 单次扫描最多实际触达次数，防止一次扫描集中打扰。 */
-        private int maxContactsPerTick = 1;
-
-        /** 候选事项有效期，单位小时，超过后不再触达。 */
-        private int candidateTtlHours = 72;
-
-        /** 是否启用仓库状态检查候选源。 */
-        private boolean repositoryCheckEnabled = true;
-
-        /** 仓库状态检查的最小间隔，单位分钟。 */
-        private int repositoryCheckIntervalMinutes = 360;
-
-        /** 会话记录回看窗口，单位天。 */
-        private int sessionLookbackDays = 30;
-
-        /** Agent 运行记录回看窗口，单位天。 */
-        private int runLookbackDays = 14;
-
-        /** 定时任务记录回看窗口，单位天。 */
-        private int cronLookbackDays = 14;
-
-        /** 是否启用长时间空闲后的关怀式确认候选。 */
-        private boolean careCheckinEnabled = true;
-
-        /** 用户长时间无互动后触发关怀候选的空闲阈值，单位小时。 */
-        private int careCheckinAfterIdleHours = 48;
-
-        /** 主动协作投递预览前缀，用于渠道消息中标识触达来源。 */
-        private String deliveryPreviewPrefix = "主动协作";
+        /** 免打扰结束时间，格式为 HH:mm。 */
+        private String quietEnd = "08:00";
     }
 
     /** ReAct 推理控制配置。 */
@@ -1658,11 +1601,8 @@ public class AppConfig {
         /** 子 Agent 遇到可审批危险命令时是否自动批准一次；默认拒绝。 */
         private boolean subagentAutoApprove = false;
 
-        /** CLI/直接审批超时秒数。 */
+        /** 所有审批（包括消息渠道待审批）的统一超时秒数。 */
         private int timeoutSeconds = 60;
-
-        /** 网关/渠道审批超时秒数。 */
-        private int gatewayTimeoutSeconds = 300;
 
         /** /reload-mcp 是否需要确认，默认开启。 */
         private boolean mcpReloadConfirm = true;

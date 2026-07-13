@@ -81,13 +81,14 @@ public class FileContextService implements ContextService {
         // AGENTS 先于可变记忆注入，确保当前工作区规则在预算不足时仍被优先保留。
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_AGENTS, "Workspace Rules");
         appendProjectContextFiles(buffer, agentScope);
+        appendAgentBlock(buffer, agentScope);
+        appendMemoryBlock(buffer, sourceKey);
+        appendWorkspaceFile(buffer, ContextFileConstants.KEY_BOOTSTRAP, "First Run Bootstrap");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_SOUL, "Soul");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_TOOLS, "Tools");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_IDENTITY, "Identity");
         appendWorkspaceFile(buffer, ContextFileConstants.KEY_USER, "User");
         appendPersonality(buffer);
-        appendAgentBlock(buffer, agentScope);
-        appendMemoryBlock(buffer, sourceKey);
 
         try {
             String skillPrompt =
