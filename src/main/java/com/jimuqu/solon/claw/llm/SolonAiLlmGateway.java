@@ -1222,13 +1222,6 @@ public class SolonAiLlmGateway implements LlmGateway {
                 AssistantMessage assistantMessage = ChatMessage.ofAssistant(interrupted);
                 recordOwnedPartialAssistant(agentSession, assistantMessage);
                 effectiveEventSink.onAssistantDelta(interrupted);
-                return new OwnedModelResponse(
-                        finalResponse[0],
-                        assistantMessage,
-                        interrupted,
-                        true,
-                        thinkingSplitter.reasoningText(),
-                        finishReason(finalResponse[0]));
             }
             if (e instanceof Exception) {
                 throw (Exception) e;

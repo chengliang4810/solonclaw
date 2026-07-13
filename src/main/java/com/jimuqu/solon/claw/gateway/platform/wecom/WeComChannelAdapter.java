@@ -59,6 +59,9 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
     /** 上传分片大小的统一常量值。 */
     private static final int UPLOAD_CHUNK_SIZE = 512 * 1024;
 
+    /** 企微 Markdown 单条消息最大字符数。 */
+    private static final int MAX_MESSAGE_LENGTH = 4000;
+
     /** 图片最大字节的统一常量值。 */
     private static final int IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -631,7 +634,7 @@ public class WeComChannelAdapter extends AbstractConfigurableChannelAdapter {
                         .set("chatid", chatId)
                         .set("msgtype", "markdown")
                         .getOrNew("markdown")
-                        .set("content", text)
+                        .set("content", StrUtil.sub(text, 0, MAX_MESSAGE_LENGTH))
                         .parent()
                         .asObject();
         return sendByMode(body, chatId, replyToMessageId, "markdown", 15);
