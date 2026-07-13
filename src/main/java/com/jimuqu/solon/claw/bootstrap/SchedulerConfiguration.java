@@ -123,6 +123,7 @@ public class SchedulerConfiguration {
      *
      * @param appConfig 应用运行配置。
      * @param sessionRepository 会话仓储，用于定位最近的国内渠道主对话。
+     * @param gatewayPolicyRepository 网关策略仓储，用于读取显式主对话绑定。
      * @param memoryService 记忆服务，用于向主动提醒模型提供三层记忆。
      * @param llmGateway 模型网关，用于分析活跃度并生成提醒内容。
      * @param deliveryService 渠道投递服务，用于把提醒发送到主对话。
@@ -134,6 +135,7 @@ public class SchedulerConfiguration {
     public ProactiveReminderScheduler proactiveReminderScheduler(
             AppConfig appConfig,
             SessionRepository sessionRepository,
+            GatewayPolicyRepository gatewayPolicyRepository,
             MemoryService memoryService,
             LlmGateway llmGateway,
             DeliveryService deliveryService,
@@ -143,6 +145,7 @@ public class SchedulerConfiguration {
                 new ProactiveReminderScheduler(
                         appConfig,
                         sessionRepository,
+                        gatewayPolicyRepository,
                         memoryService,
                         llmGateway,
                         deliveryService,

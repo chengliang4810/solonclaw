@@ -184,6 +184,13 @@ class DashboardProfileAssetScopeTest {
                 .containsExactly("worker-cron");
         assertThat(cronService.listJobs(null)).isEmpty();
         assertThat(cronService.history("worker", String.valueOf(created.get("id")), 20)).isEmpty();
+
+        Map<String, Object> triggered =
+                cronService.trigger(
+                        "worker",
+                        String.valueOf(created.get("id")),
+                        java.util.Collections.<String, Object>emptyMap());
+        assertThat(triggered.get("pending_trigger")).isEqualTo("manual");
     }
 
     /** 未知 Profile 必须明确失败，不能静默回落到当前 Profile。 */

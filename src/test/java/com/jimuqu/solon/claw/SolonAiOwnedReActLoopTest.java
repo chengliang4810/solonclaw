@@ -159,6 +159,26 @@ public class SolonAiOwnedReActLoopTest {
         assertThat(validateArguments(validator, gateway, "{\"value\":7}")).isNull();
     }
 
+    /** 同一 assistant 的部分工具已有结果时，仍应识别尚未完成的 sibling 调用。 */
+    @Test
+    void shouldKeepAssistantWhenOneOfMultipleToolCallsIsUnresolved() throws Exception {
+        SolonAiLlmGateway gateway = new SolonAiLlmGateway(config());
+        Method finder =
+                SolonAiLlmGateway.class.getDeclaredMethod(
+                        "lastUnresolvedAssistantToolCall", List.class);
+        finder.setAccessible(true);
+        List<ToolCall> calls =
+                Arrays.asList(
+                        new ToolCall("0", "call-a", "first", "{}", Collections.emptyMap()),
+                        new ToolCall("1", "call-b", "second", "{}", Collections.emptyMap()));
+        AssistantMessage assistant =
+                new AssistantMessage("", false, null, Collections.emptyList(), calls, null);
+        List<ChatMessage> messages =
+                Arrays.asList(assistant, ChatMessage.ofTool("done", "first", "call-a"));
+
+        assertThat(finder.invoke(gateway, messages)).isSameAs(assistant);
+    }
+
     /** 调用 arguments 根类型校验器。 */
     private String validateArguments(Method validator, SolonAiLlmGateway gateway, String raw)
             throws Exception {

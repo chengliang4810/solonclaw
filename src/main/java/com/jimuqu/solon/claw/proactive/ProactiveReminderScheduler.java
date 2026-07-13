@@ -5,9 +5,11 @@ import com.jimuqu.solon.claw.config.AppConfig;
 import com.jimuqu.solon.claw.context.PersonaWorkspaceService;
 import com.jimuqu.solon.claw.core.enums.PlatformType;
 import com.jimuqu.solon.claw.core.model.DeliveryRequest;
+import com.jimuqu.solon.claw.core.model.HomeChannelRecord;
 import com.jimuqu.solon.claw.core.model.LlmResult;
 import com.jimuqu.solon.claw.core.model.MemorySnapshot;
 import com.jimuqu.solon.claw.core.model.SessionRecord;
+import com.jimuqu.solon.claw.core.repository.GatewayPolicyRepository;
 import com.jimuqu.solon.claw.core.repository.GlobalSettingRepository;
 import com.jimuqu.solon.claw.core.repository.SessionRepository;
 import com.jimuqu.solon.claw.core.service.DeliveryService;
@@ -41,6 +43,9 @@ public class ProactiveReminderScheduler {
     /** 会话仓储，用于定位主对话和提供历史。 */
     private final SessionRepository sessionRepository;
 
+    /** 网关策略仓储，用于限定提醒只能发送到显式配置的主对话。 */
+    private final GatewayPolicyRepository gatewayPolicyRepository;
+
     /** 记忆服务。 */
     private final MemoryService memoryService;
 
@@ -63,6 +68,7 @@ public class ProactiveReminderScheduler {
     public ProactiveReminderScheduler(
             AppConfig appConfig,
             SessionRepository sessionRepository,
+            GatewayPolicyRepository gatewayPolicyRepository,
             MemoryService memoryService,
             LlmGateway llmGateway,
             DeliveryService deliveryService,
@@ -70,6 +76,7 @@ public class ProactiveReminderScheduler {
             GlobalSettingRepository globalSettingRepository) {
         this.appConfig = appConfig;
         this.sessionRepository = sessionRepository;
+        this.gatewayPolicyRepository = gatewayPolicyRepository;
         this.memoryService = memoryService;
         this.llmGateway = llmGateway;
         this.deliveryService = deliveryService;
@@ -194,18 +201,35 @@ public class ProactiveReminderScheduler {
                 .trim();
     }
 
-    /** 选择最近有真实国内渠道来源的会话作为主对话。 */
+    /** 选择最近且与显式 home channel 绑定匹配的会话作为主对话。 */
     private SessionRecord mainSession() throws Exception {
+        List<HomeChannelRecord> homes = gatewayPolicyRepository.listHomeChannels();
+        if (homes == null || homes.isEmpty()) {
+            return null;
+        }
         List<SessionRecord> sessions = sessionRepository.listRecent(50);
         for (SessionRecord session : sessions) {
-            String[] source = SourceKeySupport.split(session.getSourceKey());
-            PlatformType platform = PlatformType.fromName(source[0]);
-            if (PlatformType.DOMESTIC_PLATFORMS.contains(platform)
-                    && StrUtil.isNotBlank(source[1])) {
-                return session;
+            for (HomeChannelRecord home : homes) {
+                if (matchesHome(session, home)) {
+                    return session;
+                }
             }
         }
         return null;
+    }
+
+    /** 判断会话来源是否与同平台、同聊天和同线程的主对话绑定一致。 */
+    static boolean matchesHome(SessionRecord session, HomeChannelRecord home) {
+        if (session == null || home == null || home.getPlatform() == null) {
+            return false;
+        }
+        String[] source = SourceKeySupport.split(session.getSourceKey());
+        PlatformType platform = PlatformType.fromName(source[0]);
+        return PlatformType.DOMESTIC_PLATFORMS.contains(platform)
+                && platform == home.getPlatform()
+                && StrUtil.equals(source[1], home.getChatId())
+                && StrUtil.equals(
+                        StrUtil.nullToEmpty(source[3]), StrUtil.nullToEmpty(home.getThreadId()));
     }
 
     /** 判断当前时间是否位于启用的跨日或同日免打扰区间。 */
